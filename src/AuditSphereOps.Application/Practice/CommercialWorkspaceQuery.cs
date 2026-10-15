@@ -16,7 +16,8 @@ public sealed record ProposalWorkspace(Guid Id, Guid OpportunityId, string LeadN
   DateTimeOffset? ApprovedAt, DateTimeOffset? SentAt, DateTimeOffset? ResponseAt, Guid? SupersedesId,
   string? SentOfferSha256, string? DispatchState, DateTimeOffset? DispatchedAt, string? DispatchRecipient,
   string? ResponseOfferSha256, string? RespondentName, string? RespondentEmail, string? ResponseEvidenceReference,
-  IReadOnlyList<ProposalHistory> Versions, string? ResponseChannel = null, string Timeline = "");
+  IReadOnlyList<ProposalHistory> Versions, string? ResponseChannel = null, string Timeline = "",
+  string? ResponseAuthorityBasis = null, string? ResponseRecordedByName = null);
 
 public sealed record OpportunityItem(Guid Id, string ServiceRoute, string EntityScope, string Stage,
   string ExpectedFee, string Currency, string PeriodStart, string PeriodEnd, Guid? ProposalId, string Revision);
@@ -65,8 +66,11 @@ public static class CommercialWorkspaceQuery
     if (lead is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
     var versions = await db.Proposals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.OpportunityId == p.OpportunityId)
       .OrderByDescending(x => x.Revision).Take(100).ToListAsync(ct);
+    var responseRecord = await db.ProposalResponseRecords.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == p.Id, ct);
     var ownerId = opportunity.OwnerUserId ?? lead.OwnerUserId;
-    var involved = new[] { ownerId, p.PreparedByUserId, p.ApprovedByUserId }.Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+    var involved = new[] { ownerId, p.PreparedByUserId, p.ApprovedByUserId, responseRecord?.RecordedByUserId }
+      .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
     var names = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && involved.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
     string Name(Guid? id, string fallback) => id.HasValue && names.TryGetValue(id.Value, out var n) ? n : fallback;
@@ -78,15 +82,19 @@ public static class CommercialWorkspaceQuery
     return CommandResult<ProposalWorkspace>.Ok(new(p.Id, p.OpportunityId, lead.Name, opportunity.ServiceRoute, opportunity.EntityScope,
       opportunity.Stage, p.Revision.ToString(CultureInfo.InvariantCulture), p.Status, p.ServiceProfileId, p.Scope, p.Exclusions,
       p.Deliverables, p.Dependencies, p.Fee.ToString(CultureInfo.InvariantCulture), p.Currency, p.PeriodStart, p.PeriodEnd,
-      p.ResponseReason, opportunity.PracticeClientId, p.PreparedByUserId.HasValue && p.PreparedByUserId != actor.UserId && p.Status == "DRAFT",
+      responseRecord?.Reason ?? p.ResponseReason, opportunity.PracticeClientId, p.PreparedByUserId.HasValue && p.PreparedByUserId != actor.UserId && p.Status == "DRAFT",
       Name(ownerId, "Not assigned"),
       p.PreparedByUserId.HasValue ? Name(p.PreparedByUserId, "Author unavailable") : "Not recorded (legacy proposal)",
       p.ApprovedByUserId.HasValue ? Name(p.ApprovedByUserId, "Reviewer unavailable") : "Not recorded",
       p.ApprovedAt, p.SentAt, p.ResponseAt, p.SupersedesId,
       p.SentOfferSha256, dispatch?.DeliveryState, dispatch?.DeliveredAt, dispatch?.Recipient,
-      p.ResponseOfferSha256, p.RespondentName, p.RespondentEmail, p.ResponseEvidenceReference,
+      responseRecord?.OfferSha256 ?? p.ResponseOfferSha256,
+      responseRecord?.RespondentName ?? p.RespondentName, responseRecord?.RespondentEmail ?? p.RespondentEmail,
+      responseRecord?.EvidenceReference ?? p.ResponseEvidenceReference,
       versions.Select(v => new ProposalHistory(v.Id, v.Revision.ToString(CultureInfo.InvariantCulture), v.Status,
         v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt, v.SentAt, v.ResponseAt)).ToArray(),
-      p.ResponseChannel, p.Timeline));
+      responseRecord?.Channel ?? p.ResponseChannel, p.Timeline,
+      responseRecord?.AuthorityBasis,
+      responseRecord is null ? null : Name(responseRecord.RecordedByUserId, "Recorder unavailable")));
   }
 }

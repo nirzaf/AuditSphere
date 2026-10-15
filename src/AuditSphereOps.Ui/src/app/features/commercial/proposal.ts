@@ -62,6 +62,8 @@ interface Proposal {
   respondentEmail: string | null;
   responseChannel: string | null;
   responseEvidenceReference: string | null;
+  responseAuthorityBasis: string | null;
+  responseRecordedByName: string | null;
   versions: History[];
 }
 interface ProposalRevisionIntent {
@@ -125,6 +127,8 @@ export function decodeProposal(value: unknown): Proposal {
       'respondentName',
       'respondentEmail',
       'responseEvidenceReference',
+      'responseAuthorityBasis',
+      'responseRecordedByName',
     ].every((k) => v[k] === null || typeof v[k] === 'string') ||
     // Null on responses recorded before channels were captured; any other value must be an approved channel.
     (v['responseChannel'] !== null && (typeof v['responseChannel'] !== 'string' || !isResponseChannel(v['responseChannel']))) ||
@@ -261,6 +265,14 @@ export function isResponseChannel(value: string): boolean {
         @if (proposal.responseChannel) {
           <dt>Response channel</dt>
           <dd>{{ channelLabel(proposal.responseChannel) }}</dd>
+        }
+        @if (proposal.status === 'ACCEPTED' || proposal.status === 'DECLINED') {
+          <dt>Response provenance</dt>
+          <dd>
+            {{ proposal.responseRecordedByName
+              ? 'Recorded by ' + proposal.responseRecordedByName + ' · ' + authorityBasisLabel(proposal.responseAuthorityBasis)
+              : 'Legacy response · recorder and authority basis were not captured' }}
+          </dd>
         }
         @if (proposal.supersedesId) {
           <dt>Supersedes</dt>
@@ -415,7 +427,7 @@ export function isResponseChannel(value: string): boolean {
         <button
           matButton
           [disabled]="
-            !reviewed || busy() || uncertain() || !respondentName.trim() || !respondentEmail.trim() || !responseChannel
+            !reviewed || busy() || uncertain() || !respondentName.trim() || !respondentEmail.trim() || !responseChannel || !evidenceReference.trim()
           "
           (click)="recordResponse('ACCEPTED')"
         >
@@ -423,7 +435,7 @@ export function isResponseChannel(value: string): boolean {
         </button>
         <button
           matButton
-          [disabled]="!reviewed || busy() || uncertain() || !reason"
+          [disabled]="!reviewed || busy() || uncertain() || !reason.trim() || !respondentName.trim() || !respondentEmail.trim() || !proposal.sentOfferSha256"
           (click)="recordResponse('DECLINED')"
         >
           Record client decline
@@ -717,6 +729,15 @@ export class ProposalDetail {
   channelLabel(value: string): string {
     return RESPONSE_CHANNELS.find((channel) => channel.value === value)?.label ?? value;
   }
+  authorityBasisLabel(value: string | null): string {
+    return value === 'CLIENT_COMMERCIAL_ROUTING'
+      ? 'designated client COMMERCIAL contact frozen at dispatch'
+      : value === 'PROSPECT_PRIMARY_CONTACT'
+        ? 'prospect primary contact frozen at dispatch'
+        : value === 'LEGACY_DISPATCH_SNAPSHOT'
+          ? 'legacy dispatched recipient snapshot'
+          : 'authority basis not recorded';
+  }
   legalName = '';
   draft = {
     serviceProfile: '',
@@ -979,19 +1000,17 @@ export class ProposalDetail {
     const proposal = this.data();
     if (!proposal || !this.reviewed || this.busy() || this.uncertain()) return;
     if (
-      decision === 'ACCEPTED' &&
-      (!this.respondentName.trim() ||
-        !this.respondentEmail.trim() ||
-        !proposal.sentOfferSha256 ||
-        !isResponseChannel(this.responseChannel))
+      !this.respondentName.trim() || !this.respondentEmail.trim() || !proposal.sentOfferSha256 ||
+      (decision === 'ACCEPTED' && (!this.evidenceReference.trim() || !isResponseChannel(this.responseChannel))) ||
+      (decision === 'DECLINED' && !this.reason.trim())
     )
       return;
     this.action('response', {
       decision,
       reason: this.reason,
       offerSha256: proposal.sentOfferSha256,
-      respondentName: this.respondentName.trim() || null,
-      respondentEmail: this.respondentEmail.trim() || null,
+      respondentName: this.respondentName.trim(),
+      respondentEmail: this.respondentEmail.trim(),
       evidenceReference: this.evidenceReference.trim() || null,
       channel: isResponseChannel(this.responseChannel) ? this.responseChannel : null,
     });

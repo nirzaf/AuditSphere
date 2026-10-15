@@ -110,6 +110,38 @@ public static class ProposalResponseChannels
   public static readonly string[] All = [Email, SignedLetter, InPerson, Phone];
 }
 
+/// <summary>Recorded basis for identifying the exact commercial recipient to whom a proposal was dispatched.</summary>
+public static class ProposalRecipientAuthorityBases
+{
+  public const string ClientCommercialRouting = "CLIENT_COMMERCIAL_ROUTING";
+  public const string ProspectPrimaryContact = "PROSPECT_PRIMARY_CONTACT";
+  public const string LegacyDispatchSnapshot = "LEGACY_DISPATCH_SNAPSHOT";
+
+  public static readonly string[] All = [ClientCommercialRouting, ProspectPrimaryContact, LegacyDispatchSnapshot];
+}
+
+/// <summary>Immutable staff record of one response to the exact dispatched proposal offer.</summary>
+public sealed class ProposalResponseRecord
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ProposalId { get; set; }
+  public Guid CommercialNotificationId { get; set; }
+  public string Decision { get; set; } = string.Empty;
+  public string OfferSha256 { get; set; } = string.Empty;
+  public string DispatchRecipient { get; set; } = string.Empty;
+  public Guid? RecipientContactId { get; set; }
+  public Guid? RecipientRoutingId { get; set; }
+  public string AuthorityBasis { get; set; } = string.Empty;
+  public string RespondentName { get; set; } = string.Empty;
+  public string RespondentEmail { get; set; } = string.Empty;
+  public string? EvidenceReference { get; set; }
+  public string? Channel { get; set; }
+  public string? Reason { get; set; }
+  public Guid RecordedByUserId { get; set; }
+  public DateTimeOffset RecordedAt { get; set; }
+}
+
 public static class LeadChannels
 {
   public const string Phone = "Phone";

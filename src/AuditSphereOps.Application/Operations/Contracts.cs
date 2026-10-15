@@ -138,6 +138,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<Lead> Leads { get; }
   DbSet<Opportunity> Opportunities { get; }
   DbSet<Proposal> Proposals { get; }
+  DbSet<ProposalResponseRecord> ProposalResponseRecords { get; }
   DbSet<PracticeClient> PracticeClients { get; }
   DbSet<ClientContact> ClientContacts { get; }
   DbSet<ClientContactCreation> ClientContactCreations { get; }

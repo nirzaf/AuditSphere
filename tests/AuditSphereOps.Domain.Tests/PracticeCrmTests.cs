@@ -291,6 +291,7 @@ public sealed class PracticeCrmTests
       opportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId))).Value;
       proposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposalId)).Succeeded);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, proposalId);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposalId)).Succeeded);
       var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
       // STE v2.2 section 4.1.3 (ADR-0017): an acceptance records the channel it arrived by, from the approved set only.
@@ -464,6 +465,7 @@ public sealed class PracticeCrmTests
       opportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId))).Value;
       firstProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
       await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, firstProposalId);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, firstProposalId);
       await PracticeCrmService.SendProposalAsync(db, fixture.Actor, firstProposalId);
       var second = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId, 1));
       Assert.True(second.Succeeded);
@@ -516,6 +518,7 @@ public sealed class PracticeCrmTests
       secondOpportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(secondLeadId))).Value;
       sentProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(secondOpportunityId))).Value;
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, sentProposalId)).Succeeded);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, sentProposalId);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, sentProposalId)).Succeeded);
       var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == sentProposalId);
       var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == sentProposalId);
@@ -525,6 +528,7 @@ public sealed class PracticeCrmTests
       Assert.NotNull(notification.OfferSha256);
       Assert.Equal(notification.OfferSha256, proposal.SentOfferSha256);
       // Replaying the send never queues a second dispatch.
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, sentProposalId);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, sentProposalId)).Succeeded);
       Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.FirmId == fixture.FirmId && x.ProposalId == sentProposalId));
     }
@@ -536,11 +540,12 @@ public sealed class PracticeCrmTests
       var revised = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(secondOpportunityId, 1));
       Assert.True(revised.Succeeded, revised.Message);
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, revised.Value)).Succeeded);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, revised.Value);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, revised.Value)).Succeeded);
       var currentSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == revised.Value)).SentOfferSha256;
       Assert.NotEqual(offerSha, currentSha);
       Assert.Equal("crm.stale-offer", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
       Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
         new ProposalResponseRequest(CrmStates.ProposalAccepted, Channel: ProposalResponseChannels.Email))).ErrorCode);
       Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
@@ -553,12 +558,12 @@ public sealed class PracticeCrmTests
       Assert.Equal("O. Owner", accepted.RespondentName);
       Assert.Equal("Signed acceptance letter", accepted.ResponseEvidenceReference);
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, "O. Owner", "offer-owner@example.test", Channel: ProposalResponseChannels.Email))).Succeeded);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, currentSha, "O. Owner", "offer-owner@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
       Assert.Equal("crm.conflict", (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, revised.Value,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
       // The superseded revision can no longer be accepted through any path.
       Assert.Equal(ErrorCodes.ProtectedState, (await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, sentProposalId,
-        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
+        new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "O. Owner", "offer-owner@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
     }
   }
 
@@ -743,6 +748,7 @@ public sealed class PracticeCrmTests
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunity.Value));
       await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposal.Value);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, proposal.Value);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposal.Value)).Succeeded);
       var candidateOfferSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal.Value)).SentOfferSha256;
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposal.Value,
@@ -786,6 +792,7 @@ public sealed class PracticeCrmTests
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunity.Value));
       await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposal.Value);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, proposal.Value);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposal.Value)).Succeeded);
       var existingOfferSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal.Value)).SentOfferSha256;
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, fixture.Actor, proposal.Value,

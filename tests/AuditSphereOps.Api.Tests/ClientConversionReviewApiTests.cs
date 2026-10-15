@@ -52,7 +52,9 @@ public sealed class ClientConversionReviewApiTests
     Assert.Equal(HttpStatusCode.Forbidden, (await c.GetAsync("/api/ui/proposals/" + foreignProposalId + "/client-conversion/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash)).StatusCode);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db, "_NativeClientConversionReview");
+      await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,
+        "_ProposalResponseProvenanceAndRenderedDispatch",
+        "proposal response and recipient provenance is acceptance evidence and cannot be downgraded");
       Assert.Single(await db.ClientConversions.ToListAsync());
       await db.RoleGrants.Where(x => x.UserId == f.Admin.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
     }

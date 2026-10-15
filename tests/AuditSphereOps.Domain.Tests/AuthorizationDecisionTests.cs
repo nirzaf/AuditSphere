@@ -531,6 +531,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<Lead> Leads => db.Leads;
     public DbSet<Opportunity> Opportunities => db.Opportunities;
     public DbSet<Proposal> Proposals => db.Proposals;
+    public DbSet<ProposalResponseRecord> ProposalResponseRecords => db.ProposalResponseRecords;
     public DbSet<EngagementActivation> EngagementActivations => db.EngagementActivations;
     public DbSet<global::AuditSphereOps.Domain.Practice.TechnicalLibraryDocument> TechnicalLibraryDocuments => db.TechnicalLibraryDocuments;
     public DbSet<global::AuditSphereOps.Domain.Practice.TechnicalLibraryVersion> TechnicalLibraryVersions => db.TechnicalLibraryVersions;

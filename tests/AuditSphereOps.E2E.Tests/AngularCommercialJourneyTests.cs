@@ -656,6 +656,7 @@ public sealed class AngularCommercialJourneyTests
     }
     await page.ReloadAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Angular quotation client", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByText(new Regex(@"Recorded by .+prospect primary contact frozen at dispatch"))).ToBeVisibleAsync();
     var fees = page.Locator("audit-fee-agreement");
     // The container survives the viewport-triggered replacement of its lazy placeholder.
     await page.Locator("#proposal-fee-agreement").ScrollIntoViewIfNeededAsync();

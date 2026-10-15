@@ -39,10 +39,12 @@ public sealed record RecipientResolutionResult(
   string? Message,
   bool WasOverridden = false,
   Guid? OverriddenByUserId = null,
-  string? OverrideReason = null)
+  string? OverrideReason = null,
+  Guid? RoutingId = null)
 {
-  public static RecipientResolutionResult Resolved(ClientContact contact, string purpose) =>
-    new(RecipientResolutionStatus.Resolved, contact.Id, contact.FullName, contact.Email, contact.Role, contact.Title, purpose, "Recipient resolved successfully.");
+  public static RecipientResolutionResult Resolved(ClientContact contact, string purpose, Guid routingId) =>
+    new(RecipientResolutionStatus.Resolved, contact.Id, contact.FullName, contact.Email, contact.Role, contact.Title, purpose,
+      "Recipient resolved successfully.", RoutingId: routingId);
 
   public static RecipientResolutionResult Overridden(ClientContact contact, string purpose, Guid actorUserId, string reason) =>
     new(RecipientResolutionStatus.Overridden, contact.Id, contact.FullName, contact.Email, contact.Role, contact.Title, purpose, "Recipient resolved via authorized override.",
@@ -258,13 +260,13 @@ public static partial class PracticeCrmService
 
     if (activeRoutings.Count == 1)
     {
-      return RecipientResolutionResult.Resolved(activeRoutings[0].Contact, normalizedPurpose);
+      return RecipientResolutionResult.Resolved(activeRoutings[0].Contact, normalizedPurpose, activeRoutings[0].Routing.Id);
     }
 
     var primaryMatch = activeRoutings.Where(x => x.Routing.IsPrimaryForPurpose).ToList();
     if (primaryMatch.Count == 1)
     {
-      return RecipientResolutionResult.Resolved(primaryMatch[0].Contact, normalizedPurpose);
+      return RecipientResolutionResult.Resolved(primaryMatch[0].Contact, normalizedPurpose, primaryMatch[0].Routing.Id);
     }
 
     return RecipientResolutionResult.Ambiguous(normalizedPurpose, activeRoutings.Count);

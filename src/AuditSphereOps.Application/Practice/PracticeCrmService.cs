@@ -325,18 +325,71 @@ public static partial class PracticeCrmService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (proposal.Status == CrmStates.ProposalSent) return CommandResult.Ok();
+    if (proposal.Status == CrmStates.ProposalSent)
+    {
+      var priorDispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ProposalId == proposal.Id && x.Kind == CommercialNotificationKinds.Proposal, ct);
+      if (proposal.SentAt is null || string.IsNullOrWhiteSpace(proposal.SentOfferSha256) || priorDispatch is null ||
+          priorDispatch.DocumentId is not { } priorDocumentId || priorDispatch.QuotationVersionId is not { } priorQuotationId ||
+          !string.Equals(proposal.SentOfferSha256, priorDispatch.OfferSha256, StringComparison.OrdinalIgnoreCase))
+        return CommandResult.Fail(ErrorCodes.GenerationStale,
+          "The proposal is marked sent but has no matching immutable offer dispatch; reconcile its evidence before retrying.");
+      var priorArtifact = await db.CommercialDocuments.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == priorDocumentId, ct);
+      var priorQuotation = await db.QuotationVersions.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == priorQuotationId, ct);
+      if (priorArtifact is null || priorQuotation is null || priorQuotation.ProposalId != proposal.Id ||
+          priorArtifact.ProposalId != proposal.Id || priorArtifact.QuotationVersionId != priorQuotationId ||
+          priorArtifact.Kind != CommercialDocumentKinds.Quotation || priorArtifact.Bytes.Length == 0 ||
+          !string.Equals(priorArtifact.Sha256Hex, priorDispatch.OfferSha256, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(priorArtifact.Sha256Hex, Hashing.Sha256Hex(priorArtifact.Bytes), StringComparison.OrdinalIgnoreCase))
+        return CommandResult.Fail(ErrorCodes.GenerationStale,
+          "The proposal dispatch no longer resolves to its exact rendered quotation; reconcile its evidence before retrying.");
+      return CommandResult.Ok();
+    }
     if (proposal.Status != CrmStates.ProposalInternalReview)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only an internally reviewed proposal can be sent.");
     var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     var lead = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.Id == opportunity.LeadId && x.FirmId == actor.FirmId, ct);
     if (lead is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    // Evidence-bound dispatch (STE 4.1.2–3): the send is refused without an exact recipient, and queues exactly one
-    // email bound to the dispatched offer identity. The mail worker — not this transition — owns the delivery truth.
-    var recipient = (lead.PrimaryContactEmail ?? string.Empty).Trim();
-    if (recipient.Length == 0)
-      return CommandResult.Fail(ErrorCodes.GateBlocked,
-        "Record the lead's primary contact email before dispatch; a proposal cannot be sent without an exact recipient.");
+    // Existing clients use the effective designated COMMERCIAL contact. A prospect has no client-contact
+    // aggregate yet, so its captured lead primary contact is the initial route; the address is snapshotted here
+    // and can never be replaced by a later edit to the lead.
+    var clientId = proposal.PracticeClientId ?? opportunity.PracticeClientId;
+    Guid? recipientContactId = null;
+    Guid? recipientRoutingId = null;
+    string recipientName;
+    string recipient;
+    string recipientAuthorityBasis;
+    if (clientId.HasValue)
+    {
+      var resolution = await ResolveCorrespondenceRecipientAsync(db, actor, clientId.Value,
+        CorrespondencePurposes.Commercial, DateOnly.FromDateTime(DateTime.UtcNow), ct: ct);
+      if (resolution.Status != RecipientResolutionStatus.Resolved || resolution.ClientContactId is not { } contactId ||
+          resolution.RoutingId is not { } routingId || string.IsNullOrWhiteSpace(resolution.Email))
+      {
+        var code = resolution.Status == RecipientResolutionStatus.Denied ? ErrorCodes.ScopeDenied : ErrorCodes.GateBlocked;
+        return CommandResult.Fail(code, resolution.Message ?? "A current designated COMMERCIAL contact is required before dispatch.");
+      }
+      recipientContactId = contactId;
+      recipientRoutingId = routingId;
+      recipientName = resolution.FullName ?? string.Empty;
+      recipient = resolution.Email.Trim();
+      recipientAuthorityBasis = ProposalRecipientAuthorityBases.ClientCommercialRouting;
+    }
+    else
+    {
+      recipient = (lead.PrimaryContactEmail ?? string.Empty).Trim();
+      if (recipient.Length == 0)
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          "Record the prospect's primary commercial contact before dispatch; a proposal cannot be sent without an exact recipient.");
+      recipientName = lead.PrimaryContactName ?? lead.Name;
+      recipientAuthorityBasis = ProposalRecipientAuthorityBases.ProspectPrimaryContact;
+    }
+    if (string.IsNullOrWhiteSpace(recipientName) || recipientName.Length > 200 || recipient.Length > 320 ||
+        !System.Net.Mail.MailAddress.TryCreate(recipient, out var parsedRecipient))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The selected commercial recipient must have a valid name and email address.");
+    recipient = parsedRecipient.Address;
     var quotation = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     var document = await db.CommercialDocuments.AsNoTracking()
@@ -344,40 +397,46 @@ public static partial class PracticeCrmService
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     // The offer identity is the artifact bound to one approved quotation revision (STE 4.1.2): a reviewed
     // document from an older quotation cannot be dispatched under a newer revision — regenerate first.
-    if (document is not null && quotation is not null && document.QuotationVersionId != quotation.Id)
+    if (quotation is null || quotation.Status != QuotationStates.Approved)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The current quotation is missing or is not approved; approve a current revision before dispatch.");
+    if (document is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Generate the current rendered quotation from the approved quotation revision before dispatch. A non-rendered offer cannot be sent.");
+    if (document.QuotationVersionId != quotation.Id)
       return CommandResult.Fail(ErrorCodes.StaleRevision,
         $"The reviewed quotation artifact belongs to quotation revision {document.QuotationVersionId}, not the current revision {quotation.Id}. Generate the current brief before dispatch.");
+    if (document.Bytes.Length == 0 ||
+        !string.Equals(document.Sha256Hex, Hashing.Sha256Hex(document.Bytes), StringComparison.OrdinalIgnoreCase))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Generate the current rendered quotation from the approved quotation revision before dispatch. A non-rendered offer cannot be sent.");
     // A dispatched offer must stand on a currently approved, unexpired quotation (STE 4.1.2): a revoked required
     // approval or an elapsed validity window invalidates the offer before it can leave the firm.
-    if (quotation is not null)
-    {
-      if (quotation.Status != QuotationStates.Approved)
-        return CommandResult.Fail(ErrorCodes.GateBlocked, "The current quotation is not approved; restore its approval before dispatch.");
-      if (quotation.ValidUntil is { } validUntil && validUntil < DateTimeOffset.UtcNow)
-        return CommandResult.Fail(ErrorCodes.GateBlocked, "The approved quotation's validity window has expired; reprice the proposal to issue a fresh offer.");
-      if (!await QuotationService.ApprovalsStandAsync(db, actor.FirmId, quotation.Id, ct))
-        return CommandResult.Fail(ErrorCodes.GateBlocked, "A required quotation approval has been revoked; record a fresh approval before dispatch.");
-    }
-    var offerSha256 = ProposalOfferSha256(proposal, quotation, document);
+    if (quotation.ValidUntil is { } validUntil && validUntil < DateTimeOffset.UtcNow)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The approved quotation's validity window has expired; reprice the proposal to issue a fresh offer.");
+    if (!await QuotationService.ApprovalsStandAsync(db, actor.FirmId, quotation.Id, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "A required quotation approval has been revoked; record a fresh approval before dispatch.");
+    var offerSha256 = document.Sha256Hex;
     var existing = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
-    if (existing is null)
+    if (existing is not null)
+      return CommandResult.Fail(ErrorCodes.GenerationStale,
+        "A prior proposal dispatch record already exists. Reconcile that delivery outcome or create a new proposal revision before dispatching again.");
+    db.CommercialNotifications.Add(new CommercialNotification
     {
-      db.CommercialNotifications.Add(new CommercialNotification
-      {
-        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Kind = CommercialNotificationKinds.Proposal,
-        ProposalId = proposal.Id, PracticeClientId = proposal.PracticeClientId ?? opportunity.PracticeClientId,
-        QuotationVersionId = document?.QuotationVersionId ?? quotation?.Id,
-        DocumentId = document?.Id, OfferSha256 = offerSha256, Recipient = recipient,
-        Subject = $"Proposal revision {proposal.Revision} — {lead.Name} ({opportunity.ServiceRoute})",
-        Body = $"Dear {lead.PrimaryContactName ?? lead.Name},\n\nPlease find our proposal revision {proposal.Revision} for {opportunity.ServiceRoute} " +
-               $"covering {proposal.PeriodStart} to {proposal.PeriodEnd}, fee {proposal.Fee.ToString("N2", CultureInfo.InvariantCulture)} {proposal.Currency}.\n\n" +
-               $"Offer identity: {offerSha256}\n\n{lead.Name}",
-        CreatedAt = DateTimeOffset.UtcNow
-      });
-    }
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Kind = CommercialNotificationKinds.Proposal,
+      ProposalId = proposal.Id, PracticeClientId = proposal.PracticeClientId ?? opportunity.PracticeClientId,
+      QuotationVersionId = quotation.Id,
+      DocumentId = document.Id, OfferSha256 = offerSha256,
+      RecipientContactId = recipientContactId, RecipientRoutingId = recipientRoutingId,
+      RecipientAuthorityBasis = recipientAuthorityBasis, Recipient = recipient,
+      Subject = $"Proposal revision {proposal.Revision} — {lead.Name} ({opportunity.ServiceRoute})",
+      Body = $"Dear {recipientName},\n\nPlease find our proposal revision {proposal.Revision} for {opportunity.ServiceRoute} " +
+             $"covering {proposal.PeriodStart} to {proposal.PeriodEnd}, fee {proposal.Fee.ToString("N2", CultureInfo.InvariantCulture)} {proposal.Currency}.\n\n" +
+             $"Offer identity: {offerSha256}\n\n{lead.Name}",
+      CreatedAt = DateTimeOffset.UtcNow
+    });
     proposal.Status = CrmStates.ProposalSent;
     proposal.SentAt = DateTimeOffset.UtcNow;
-    proposal.SentOfferSha256 = existing?.OfferSha256 ?? offerSha256;
+    proposal.SentOfferSha256 = offerSha256;
     opportunity.Stage = CrmStates.OpportunityNegotiation;
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -393,13 +452,27 @@ public static partial class PracticeCrmService
       return CommandResult.Fail("crm.invalid", "Proposal response must be ACCEPTED or DECLINED.");
     if (decision == CrmStates.ProposalDeclined && string.IsNullOrWhiteSpace(request.Reason))
       return CommandResult.Fail("crm.invalid", "A declined proposal needs a reason.");
-    // The response channel is part of the commercial key's evidence (STE 4.1.3): required on acceptance, and when given it must
-    // be one of the approved channels.
+    // The response channel is part of the commercial evidence (STE 4.1.3): required on acceptance, optional on decline.
     var channel = ResponseChannel(request.Channel);
     if (!string.IsNullOrWhiteSpace(request.Channel) && channel is null)
       return CommandResult.Fail("crm.invalid", "Response channel must be EMAIL, SIGNED_LETTER, IN_PERSON or PHONE.");
     if (decision == CrmStates.ProposalAccepted && channel is null)
       return CommandResult.Fail("crm.invalid", "Acceptance must record the channel the response arrived by.");
+    var citedOffer = (request.OfferSha256 ?? string.Empty).Trim();
+    if (citedOffer.Length != 64 || !citedOffer.All(Uri.IsHexDigit))
+      return CommandResult.Fail("crm.invalid", "A proposal response must cite the exact dispatched offer SHA-256 identity.");
+    var respondentName = TrimOrNull(request.RespondentName);
+    var respondentEmail = TrimOrNull(request.RespondentEmail);
+    if (respondentName is null || respondentEmail is null)
+      return CommandResult.Fail("crm.invalid", "Record the responding person's name and email for every proposal response.");
+    var evidenceReference = TrimOrNull(request.EvidenceReference);
+    if (decision == CrmStates.ProposalAccepted && evidenceReference is null)
+      return CommandResult.Fail("crm.invalid", "Acceptance must cite the received written or contemporaneous response evidence.");
+    var reason = TrimOrNull(request.Reason);
+    if (respondentName.Length > 200 || respondentEmail.Length > 320 || evidenceReference?.Length > 1000 ||
+        reason?.Length > 1000 || !System.Net.Mail.MailAddress.TryCreate(respondentEmail, out var parsedRespondentEmail))
+      return CommandResult.Fail("crm.invalid", "Response fields exceed their supported limits or the email address is invalid.");
+    respondentEmail = parsedRespondentEmail.Address;
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -407,68 +480,88 @@ public static partial class PracticeCrmService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var citedOffer = (request.OfferSha256 ?? string.Empty).Trim();
     if (proposal.Status == decision)
     {
-      // Replay of the same response is safe; a response citing a different offer conflicts instead of silently merging.
-      var sameOffer = citedOffer.Length == 0 ||
-        (proposal.ResponseOfferSha256 is not null && string.Equals(proposal.ResponseOfferSha256, citedOffer, StringComparison.OrdinalIgnoreCase));
-      return sameOffer ? CommandResult.Ok()
-        : CommandResult.Fail("crm.conflict", "A response citing a different offer is already recorded for this proposal.");
+      // A replay is idempotent only when it reproduces the full immutable response. Legacy mutable fields are
+      // not treated as a durable response receipt because they do not identify who recorded the response.
+      var prior = await db.ProposalResponseRecords.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
+      if (prior is null)
+        return CommandResult.Fail(ErrorCodes.ProtectedState,
+          "This proposal has a legacy response without an immutable response record; do not record a second response over it.");
+      var sameResponse = prior.Decision == decision &&
+        string.Equals(prior.OfferSha256, citedOffer, StringComparison.OrdinalIgnoreCase) &&
+        prior.RespondentName == respondentName &&
+        string.Equals(prior.RespondentEmail, respondentEmail, StringComparison.OrdinalIgnoreCase) &&
+        prior.EvidenceReference == evidenceReference && prior.Channel == channel && prior.Reason == reason;
+      return sameResponse ? CommandResult.Ok()
+        : CommandResult.Fail("crm.conflict", "A different immutable response is already recorded for this proposal.");
     }
     if (proposal.Status != CrmStates.ProposalSent)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a sent proposal can receive a response.");
-    // Client acceptance is bound to the exact dispatched offer (STE 4.1.3): a stale, revised, or superseded
-    // offer cannot become the commercial key, and a respondent identity is recorded with the evidence.
+    var dispatch = await db.CommercialNotifications.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id &&
+        x.Kind == CommercialNotificationKinds.Proposal, ct);
+    if (dispatch is null || dispatch.OfferSha256 is null || proposal.SentOfferSha256 is null ||
+        !string.Equals(dispatch.OfferSha256, proposal.SentOfferSha256, StringComparison.OrdinalIgnoreCase))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The proposal has no consistent exact-offer dispatch record.");
+    if (!string.Equals(proposal.SentOfferSha256, citedOffer, StringComparison.OrdinalIgnoreCase))
+      return CommandResult.Fail("crm.stale-offer",
+        "The cited offer does not match the dispatched proposal revision; a superseded or revised offer cannot receive this response.");
+    if (!string.Equals(respondentEmail, dispatch.Recipient, StringComparison.OrdinalIgnoreCase))
+      return CommandResult.Fail("crm.unauthorized-respondent",
+        "The responding email must match the exact recipient frozen into the proposal dispatch; a later lead-contact edit does not grant acceptance authority.");
+    if (dispatch.RecipientAuthorityBasis is not { } authorityBasis || !ProposalRecipientAuthorityBases.All.Contains(authorityBasis) ||
+        (authorityBasis == ProposalRecipientAuthorityBases.ClientCommercialRouting &&
+          (!dispatch.RecipientContactId.HasValue || !dispatch.RecipientRoutingId.HasValue)) ||
+        (authorityBasis != ProposalRecipientAuthorityBases.ClientCommercialRouting &&
+          (dispatch.RecipientContactId.HasValue || dispatch.RecipientRoutingId.HasValue)))
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The dispatched recipient authority snapshot is incomplete.");
+
+    // Only acceptance binds legal/commercial terms. It must still cite the current approved quotation and the
+    // exact stored rendered bytes which were dispatched; a later quotation cannot silently replace them.
     if (decision == CrmStates.ProposalAccepted)
     {
-      if (citedOffer.Length == 0)
-        return CommandResult.Fail("crm.invalid", "Acceptance must cite the exact dispatched offer identity.");
-      if (string.IsNullOrWhiteSpace(request.RespondentName))
-        return CommandResult.Fail("crm.invalid", "Acceptance must record the responding person's name.");
-      if (proposal.SentOfferSha256 is null ||
-        !string.Equals(proposal.SentOfferSha256, citedOffer, StringComparison.OrdinalIgnoreCase))
-        return CommandResult.Fail("crm.stale-offer",
-          "The cited offer does not match the dispatched proposal revision; a superseded or revised offer cannot be accepted.");
+      if (dispatch.DocumentId is not { } documentId || dispatch.QuotationVersionId is not { } quotationId)
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The dispatch is not bound to a rendered quotation revision.");
       // The offer must still stand when the response arrives: an elapsed validity window or a revoked required
       // approval invalidates acceptance without touching the historical documents (STE 4.1.2).
       var boundQuotation = await db.QuotationVersions.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
         .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
-      if (boundQuotation is not null)
-      {
-        if (boundQuotation.ValidUntil is { } validUntil && validUntil < DateTimeOffset.UtcNow)
-          return CommandResult.Fail("crm.expired-offer",
-            "The dispatched offer's validity window has expired; acceptance must be recorded against a fresh approved offer.");
-        if (boundQuotation.Status != QuotationStates.Approved || !await QuotationService.ApprovalsStandAsync(db, actor.FirmId, boundQuotation.Id, ct))
-          return CommandResult.Fail("crm.revoked-approval",
-            "A required quotation approval no longer stands; the dispatched offer cannot be accepted.");
-      }
-      // Version-bound client authority: the recorded respondent email must be the addressed signatory — the
-      // dispatch recipient or the lead's primary contact. Any other address cannot accept the offer.
-      var respondentEmail = (request.RespondentEmail ?? string.Empty).Trim();
-      if (respondentEmail.Length == 0)
-        return CommandResult.Fail("crm.invalid", "Acceptance must record the responding signatory's email.");
-      {
-        var dispatch = await db.CommercialNotifications.AsNoTracking()
-          .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
-        var boundOpportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
-        var lead = await db.Leads.AsNoTracking().SingleAsync(x => x.Id == boundOpportunity.LeadId && x.FirmId == actor.FirmId, ct);
-        var authoritative = new[] { dispatch?.Recipient, lead.PrimaryContactEmail }
-          .Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim().ToUpperInvariant()).ToHashSet(StringComparer.Ordinal);
-        if (!authoritative.Contains(respondentEmail.ToUpperInvariant()))
-          return CommandResult.Fail("crm.unauthorized-respondent",
-            "The respondent email does not match the dispatched signatory; acceptance must come from the addressed recipient.");
-      }
+      if (boundQuotation is null || boundQuotation.Id != quotationId || boundQuotation.Status != QuotationStates.Approved)
+        return CommandResult.Fail("crm.revoked-approval",
+          "The dispatched quotation is no longer the current approved offer; record a new approved revision before acceptance.");
+      if (boundQuotation.ValidUntil is { } validUntil && validUntil < DateTimeOffset.UtcNow)
+        return CommandResult.Fail("crm.expired-offer", "The dispatched quotation expired before the response was recorded.");
+      if (!await QuotationService.ApprovalsStandAsync(db, actor.FirmId, quotationId, ct))
+        return CommandResult.Fail("crm.revoked-approval", "A required quotation approval was revoked before the response was recorded.");
+      var document = await db.CommercialDocuments.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == documentId && x.QuotationVersionId == quotationId &&
+          x.Kind == CommercialDocumentKinds.Quotation, ct);
+      if (document is null || document.Bytes.Length == 0 ||
+          !string.Equals(document.Sha256Hex, dispatch.OfferSha256, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(document.Sha256Hex, Hashing.Sha256Hex(document.Bytes), StringComparison.OrdinalIgnoreCase))
+        return CommandResult.Fail(ErrorCodes.GenerationStale, "The rendered quotation bytes no longer match the dispatched offer identity.");
     }
+
+    var recordedAt = DateTimeOffset.UtcNow;
+    db.ProposalResponseRecords.Add(new ProposalResponseRecord
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ProposalId = proposal.Id,
+      CommercialNotificationId = dispatch.Id, Decision = decision, OfferSha256 = citedOffer.ToLowerInvariant(),
+      DispatchRecipient = dispatch.Recipient, RecipientContactId = dispatch.RecipientContactId,
+      RecipientRoutingId = dispatch.RecipientRoutingId, AuthorityBasis = authorityBasis,
+      RespondentName = respondentName, RespondentEmail = respondentEmail, EvidenceReference = evidenceReference,
+      Channel = channel, Reason = reason, RecordedByUserId = actor.UserId, RecordedAt = recordedAt
+    });
     proposal.Status = decision;
-    proposal.ResponseAt = DateTimeOffset.UtcNow;
-    proposal.ResponseReason = TrimOrNull(request.Reason);
-    proposal.ResponseOfferSha256 = decision == CrmStates.ProposalAccepted
-      ? citedOffer : proposal.SentOfferSha256;
-    proposal.RespondentName = TrimOrNull(request.RespondentName);
-    proposal.RespondentEmail = TrimOrNull(request.RespondentEmail);
-    proposal.ResponseEvidenceReference = TrimOrNull(request.EvidenceReference);
+    proposal.ResponseAt = recordedAt;
+    proposal.ResponseReason = reason;
+    proposal.ResponseOfferSha256 = citedOffer.ToLowerInvariant();
+    proposal.RespondentName = respondentName;
+    proposal.RespondentEmail = respondentEmail;
+    proposal.ResponseEvidenceReference = evidenceReference;
     proposal.ResponseChannel = channel;
     var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     opportunity.Stage = decision == CrmStates.ProposalAccepted
@@ -500,6 +593,9 @@ public static partial class PracticeCrmService
     if (proposal.PracticeClientId.HasValue) return CommandResult<Guid>.Ok(proposal.PracticeClientId.Value);
     if (proposal.Status != CrmStates.ProposalAccepted)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only an accepted commercial proposal can open client acceptance.");
+    if (!await ProposalResponseEvidence.IsCurrentAcceptedAsync(db, actor.FirmId, proposal, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Client conversion requires an immutable acceptance record tied to the exact current rendered quotation.");
 
     var opportunity = await db.Opportunities.SingleOrDefaultAsync(
       x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);

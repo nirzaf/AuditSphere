@@ -145,11 +145,13 @@ public sealed class CommercialPricingPolicyTests
     await db.QuotationVersions.Where(x => x.Id == quote.Value)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValidUntil, DateTimeOffset.UtcNow.AddDays(-1)));
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.Equal(ErrorCodes.GateBlocked, (await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).ErrorCode);
 
     // Restore the window: dispatch succeeds and the offer identity binds the exact revision.
     await db.QuotationVersions.Where(x => x.Id == quote.Value)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValidUntil, DateTimeOffset.UtcNow.AddDays(30)));
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.NotNull(offerSha);
@@ -158,11 +160,11 @@ public sealed class CommercialPricingPolicyTests
     await db.QuotationVersions.Where(x => x.Id == quote.Value)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValidUntil, DateTimeOffset.UtcNow.AddDays(-1)));
     Assert.Equal("crm.expired-offer", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
     await db.QuotationVersions.Where(x => x.Id == quote.Value)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValidUntil, DateTimeOffset.UtcNow.AddDays(30)));
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).Succeeded);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
   }
 
   [Fact]
@@ -195,10 +197,12 @@ public sealed class CommercialPricingPolicyTests
     // approved but its required approval no longer stands, which blocks dispatch.
     var reopened = await db.QuotationVersions.AsNoTracking().SingleAsync(x => x.Id == quote.Value);
     Assert.Equal(QuotationStates.Approved, reopened.Status);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.Equal(ErrorCodes.GateBlocked, (await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).ErrorCode);
     // Re-approval (a fresh decision) restores the offer; the revoked evidence stays on its append-only record.
     Assert.True((await QuotationService.ApproveAsync(db, w.Manager, quote.Value, ruleKey,
       "Re-approved after ownership confirmed the discount")).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     // Revoking again after dispatch invalidates acceptance of the dispatched offer.
@@ -209,7 +213,7 @@ public sealed class CommercialPricingPolicyTests
     Assert.True((await QuotationService.RevokeApprovalAsync(db, w.Admin, second.Id,
       "Revoked after dispatch pending signatory verification")).Succeeded);
     Assert.Equal("crm.revoked-approval", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
   }
 
   [Fact]
@@ -223,17 +227,99 @@ public sealed class CommercialPricingPolicyTests
     Assert.True(quote.Succeeded, quote.Message);
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
+    var dispatch = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
+    Assert.Equal(ProposalRecipientAuthorityBases.ProspectPrimaryContact, dispatch.RecipientAuthorityBasis);
+    Assert.Null(dispatch.RecipientContactId);
+    Assert.Null(dispatch.RecipientRoutingId);
+    Assert.Equal("crm.invalid", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", dispatch.Recipient,
+        Channel: ProposalResponseChannels.Email))).ErrorCode);
     // An acceptance from an address that was never dispatched to cannot bind the offer.
     Assert.Equal("crm.unauthorized-respondent", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "stranger@elsewhere.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "stranger@elsewhere.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
+    // Editing a mutable lead contact after dispatch cannot retarget authority for the already-dispatched offer.
+    var opportunityId = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).OpportunityId;
+    var leadId = (await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == opportunityId)).LeadId;
+    var lead = await db.Leads.SingleAsync(x => x.Id == leadId);
+    lead.PrimaryContactEmail = "changed-after-dispatch@example.test";
+    await db.SaveChangesAsync();
+    Assert.Equal("crm.unauthorized-respondent", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
+      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "changed-after-dispatch@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
     // The addressed signatory (the dispatch recipient) can accept, and the replay is safe.
+    var request = new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner",
+      "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email);
     var accepted = await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email));
+      request);
     Assert.True(accepted.Succeeded, accepted.Message);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).Succeeded);
+      request)).Succeeded);
+    var response = await db.ProposalResponseRecords.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
+    Assert.Equal(CrmStates.ProposalAccepted, response.Decision);
+    Assert.Equal(offerSha, response.OfferSha256);
+    Assert.Equal(dispatch.Recipient, response.DispatchRecipient);
+    Assert.Equal(dispatch.RecipientAuthorityBasis, response.AuthorityBasis);
+    Assert.Equal("A. Owner", response.RespondentName);
+    Assert.Equal(dispatch.Recipient, response.RespondentEmail);
+    Assert.Equal("Signed acceptance letter", response.EvidenceReference);
+    Assert.Equal(ProposalResponseChannels.Email, response.Channel);
+    Assert.Equal(w.Prep.UserId, response.RecordedByUserId);
+    Assert.NotEqual(default, response.RecordedAt);
+    await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE proposal_response_records SET reason = 'rewritten' WHERE firm_id = {w.FirmId} AND id = {response.Id}"));
+    await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"DELETE FROM proposal_response_records WHERE firm_id = {w.FirmId} AND id = {response.Id}"));
+  }
+
+  [Fact]
+  public async Task ProposalDispatch_RequiresRenderedArtifactAndNeverReusesAnExistingDispatch()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var proposalId = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True(quote.Succeeded, quote.Message);
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+
+    var missingArtifact = await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId);
+    Assert.Equal(ErrorCodes.GateBlocked, missingArtifact.ErrorCode);
+    Assert.Empty(await db.CommercialNotifications.Where(x => x.ProposalId == proposalId).ToListAsync());
+
+    // A legacy/corrupt sent projection without its exact dispatch must not report a successful retry.
+    await db.Proposals.Where(x => x.FirmId == w.FirmId && x.Id == proposalId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, CrmStates.ProposalSent)
+        .SetProperty(x => x.SentAt, DateTimeOffset.UtcNow)
+        .SetProperty(x => x.SentOfferSha256, new string('b', 64)));
+    db.ChangeTracker.Clear();
+    Assert.Equal(ErrorCodes.GenerationStale,
+      (await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).ErrorCode);
+    await db.Proposals.Where(x => x.FirmId == w.FirmId && x.Id == proposalId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, CrmStates.ProposalInternalReview)
+        .SetProperty(x => x.SentAt, (DateTimeOffset?)null)
+        .SetProperty(x => x.SentOfferSha256, (string?)null));
+    db.ChangeTracker.Clear();
+
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    Assert.Single(await db.CommercialNotifications.Where(x => x.ProposalId == proposalId).ToListAsync());
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    Assert.Single(await db.CommercialNotifications.Where(x => x.ProposalId == proposalId).ToListAsync());
+
+    // Recreate a stale pre-send projection while retaining the durable prior notification. A retry must not
+    // silently re-use its old recipient/artifact and mark the proposal sent again.
+    await db.Proposals.Where(x => x.FirmId == w.FirmId && x.Id == proposalId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, CrmStates.ProposalInternalReview)
+        .SetProperty(x => x.SentAt, (DateTimeOffset?)null)
+        .SetProperty(x => x.SentOfferSha256, (string?)null));
+    db.ChangeTracker.Clear();
+    var retry = await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId);
+    Assert.Equal(ErrorCodes.GenerationStale, retry.ErrorCode);
+    Assert.Single(await db.CommercialNotifications.Where(x => x.ProposalId == proposalId).ToListAsync());
+    Assert.Null((await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentAt);
   }
 
   [Fact]
@@ -247,6 +333,7 @@ public sealed class CommercialPricingPolicyTests
     Assert.True(quote.Succeeded, quote.Message);
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var notificationId = (await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId)).Id;
 
@@ -266,6 +353,12 @@ public sealed class CommercialPricingPolicyTests
     await RunWorkerAsync(pg, w, sender);
     Assert.Equal(CommercialDeliveryStates.ProviderAccepted, (await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notificationId)).DeliveryState);
     Assert.Single(sender.Plans);
+    var dispatchedNotification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notificationId);
+    Assert.NotNull(dispatchedNotification.DocumentId);
+    var dispatchDocument = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == dispatchedNotification.DocumentId);
+    Assert.Equal(dispatchDocument.FileName, sender.Plans[0].Attachment?.FileName);
+    Assert.Equal(dispatchDocument.ContentType, sender.Plans[0].Attachment?.ContentType);
+    Assert.Equal(dispatchDocument.Bytes, sender.Plans[0].Attachment?.Bytes);
     Assert.NotNull((await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notificationId)).DeliveredAt);
 
     // A further operation against the accepted notification is refused: a verified send can never repeat.
@@ -382,6 +475,7 @@ public sealed class CommercialPricingPolicyTests
     var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     // A name alone identifies nobody: acceptance without the signatory's email cannot bypass the authority check.

@@ -1,5 +1,6 @@
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Infrastructure.Persistence;
@@ -123,9 +124,50 @@ public sealed partial class AuditSphereDbContext
       e.HasOne<Receipt>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReceiptId }).HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       // One holding-letter dispatch per exact outstanding blocker set: regenerating an unchanged set cannot send twice.
       e.HasIndex(x => new { x.FirmId, x.DispatchKey }).IsUnique().HasFilter("dispatch_key IS NOT NULL");
-      e.ToTable("commercial_notifications", t => t.HasCheckConstraint("ck_commercial_notification_values",
-        "delivery_state IN ('QUEUED','DISPATCHED','PROVIDER_ACCEPTED','DELIVERED','REJECTED','UNKNOWN') AND kind IN ('RECEIPT','PROPOSAL','HOLDING_LETTER','PAYMENT_VOUCHER') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state IN ('PROVIDER_ACCEPTED','DELIVERED')) = (delivered_at IS NOT NULL)) AND " +
-        "((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (deliverable_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (dispatch_key IS NOT NULL)) AND ((kind = 'PAYMENT_VOUCHER') = (receipt_id IS NOT NULL))"));
+      e.Property(x => x.RecipientAuthorityBasis).HasMaxLength(40);
+      e.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_commercial_notifications_firm_id_id");
+      e.HasOne<ClientContact>().WithMany().HasForeignKey(x => new { x.FirmId, x.RecipientContactId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<ClientContactRouting>().WithMany().HasForeignKey(x => new { x.FirmId, x.RecipientRoutingId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("commercial_notifications", t =>
+      {
+        t.HasCheckConstraint("ck_commercial_notification_values",
+          "delivery_state IN ('QUEUED','DISPATCHED','PROVIDER_ACCEPTED','DELIVERED','REJECTED','UNKNOWN') AND kind IN ('RECEIPT','PROPOSAL','HOLDING_LETTER','PAYMENT_VOUCHER') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state IN ('PROVIDER_ACCEPTED','DELIVERED')) = (delivered_at IS NOT NULL)) AND " +
+          "((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (deliverable_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (dispatch_key IS NOT NULL)) AND ((kind = 'PAYMENT_VOUCHER') = (receipt_id IS NOT NULL))");
+        t.HasCheckConstraint("ck_proposal_notification_recipient_basis",
+          "kind <> 'PROPOSAL' OR ((recipient_authority_basis = 'CLIENT_COMMERCIAL_ROUTING' AND recipient_contact_id IS NOT NULL AND recipient_routing_id IS NOT NULL) OR (recipient_authority_basis IN ('PROSPECT_PRIMARY_CONTACT','LEGACY_DISPATCH_SNAPSHOT') AND recipient_contact_id IS NULL AND recipient_routing_id IS NULL))");
+      });
+    });
+    b.Entity<ProposalResponseRecord>(e =>
+    {
+      e.Property(x => x.Decision).HasMaxLength(12);
+      e.Property(x => x.OfferSha256).HasMaxLength(64);
+      e.Property(x => x.DispatchRecipient).HasMaxLength(320);
+      e.Property(x => x.AuthorityBasis).HasMaxLength(40);
+      e.Property(x => x.RespondentName).HasMaxLength(200);
+      e.Property(x => x.RespondentEmail).HasMaxLength(320);
+      e.Property(x => x.EvidenceReference).HasMaxLength(1000);
+      e.Property(x => x.Channel).HasMaxLength(20);
+      e.Property(x => x.Reason).HasMaxLength(1000);
+      e.HasIndex(x => new { x.FirmId, x.ProposalId }).IsUnique();
+      e.HasOne<Proposal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ProposalId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<CommercialNotification>().WithMany().HasForeignKey(x => new { x.FirmId, x.CommercialNotificationId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<ClientContact>().WithMany().HasForeignKey(x => new { x.FirmId, x.RecipientContactId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<ClientContactRouting>().WithMany().HasForeignKey(x => new { x.FirmId, x.RecipientRoutingId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.RecordedByUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("proposal_response_records", t => t.HasCheckConstraint("ck_proposal_response_record_values",
+        "decision IN ('ACCEPTED','DECLINED') AND offer_sha256 ~ '^[a-f0-9]{64}$' AND length(dispatch_recipient) > 0 AND " +
+        "length(trim(respondent_name)) > 0 AND length(trim(respondent_email)) > 0 AND " +
+        "(channel IS NULL OR channel IN ('EMAIL','SIGNED_LETTER','IN_PERSON','PHONE')) AND " +
+        "(decision <> 'ACCEPTED' OR (length(trim(evidence_reference)) > 0 AND channel IS NOT NULL)) AND " +
+        "length(reason) <= 1000 AND ((authority_basis = 'CLIENT_COMMERCIAL_ROUTING' AND recipient_contact_id IS NOT NULL AND recipient_routing_id IS NOT NULL) OR " +
+        "(authority_basis IN ('PROSPECT_PRIMARY_CONTACT','LEGACY_DISPATCH_SNAPSHOT') AND recipient_contact_id IS NULL AND recipient_routing_id IS NULL))"));
     });
   }
 }

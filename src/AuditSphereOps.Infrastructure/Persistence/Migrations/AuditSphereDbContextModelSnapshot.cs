@@ -22026,12 +22026,28 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("recipient");
 
+                    b.Property<string>("RecipientAuthorityBasis")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("recipient_authority_basis");
+
+                    b.Property<Guid?>("RecipientContactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_contact_id");
+
+                    b.Property<Guid?>("RecipientRoutingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_routing_id");
+
                     b.Property<string>("Subject")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("subject");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_commercial_notifications_firm_id_id");
 
                     b.HasIndex("FirmId", "DispatchKey")
                         .IsUnique()
@@ -22048,11 +22064,17 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("receipt_id IS NOT NULL");
 
+                    b.HasIndex("FirmId", "RecipientContactId");
+
+                    b.HasIndex("FirmId", "RecipientRoutingId");
+
                     b.HasIndex("FirmId", "DeliveryState", "CreatedAt");
 
                     b.ToTable("commercial_notifications", null, t =>
                         {
                             t.HasCheckConstraint("ck_commercial_notification_values", "delivery_state IN ('QUEUED','DISPATCHED','PROVIDER_ACCEPTED','DELIVERED','REJECTED','UNKNOWN') AND kind IN ('RECEIPT','PROPOSAL','HOLDING_LETTER','PAYMENT_VOUCHER') AND length(recipient) > 0 AND length(subject) > 0 AND ((delivery_state IN ('PROVIDER_ACCEPTED','DELIVERED')) = (delivered_at IS NOT NULL)) AND ((kind = 'RECEIPT') = (fee_milestone_id IS NOT NULL)) AND ((kind = 'PROPOSAL') = (proposal_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (deliverable_id IS NOT NULL)) AND ((kind = 'HOLDING_LETTER') = (dispatch_key IS NOT NULL)) AND ((kind = 'PAYMENT_VOUCHER') = (receipt_id IS NOT NULL))");
+
+                            t.HasCheckConstraint("ck_proposal_notification_recipient_basis", "kind <> 'PROPOSAL' OR ((recipient_authority_basis = 'CLIENT_COMMERCIAL_ROUTING' AND recipient_contact_id IS NOT NULL AND recipient_routing_id IS NOT NULL) OR (recipient_authority_basis IN ('PROSPECT_PRIMARY_CONTACT','LEGACY_DISPATCH_SNAPSHOT') AND recipient_contact_id IS NULL AND recipient_routing_id IS NULL))");
                         });
                 });
 
@@ -24096,6 +24118,111 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_proposal_response_channel", "response_channel IS NULL OR response_channel IN ('EMAIL','SIGNED_LETTER','IN_PERSON','PHONE')");
 
                             t.HasCheckConstraint("ck_proposal_state", "status IN ('DRAFT','INTERNAL_REVIEW','SENT','ACCEPTED','DECLINED','SUPERSEDED') AND revision >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ProposalResponseRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AuthorityBasis")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("authority_basis");
+
+                    b.Property<string>("Channel")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("channel");
+
+                    b.Property<Guid>("CommercialNotificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("commercial_notification_id");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("decision");
+
+                    b.Property<string>("DispatchRecipient")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("dispatch_recipient");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("evidence_reference");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("OfferSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("offer_sha256");
+
+                    b.Property<Guid>("ProposalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposal_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("RecipientContactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_contact_id");
+
+                    b.Property<Guid?>("RecipientRoutingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_routing_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recorded_by_user_id");
+
+                    b.Property<string>("RespondentEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("respondent_email");
+
+                    b.Property<string>("RespondentName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("respondent_name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "CommercialNotificationId");
+
+                    b.HasIndex("FirmId", "ProposalId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "RecipientContactId");
+
+                    b.HasIndex("FirmId", "RecipientRoutingId");
+
+                    b.HasIndex("FirmId", "RecordedByUserId");
+
+                    b.ToTable("proposal_response_records", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_proposal_response_record_values", "decision IN ('ACCEPTED','DECLINED') AND offer_sha256 ~ '^[a-f0-9]{64}$' AND length(dispatch_recipient) > 0 AND length(trim(respondent_name)) > 0 AND length(trim(respondent_email)) > 0 AND (channel IS NULL OR channel IN ('EMAIL','SIGNED_LETTER','IN_PERSON','PHONE')) AND (decision <> 'ACCEPTED' OR (length(trim(evidence_reference)) > 0 AND channel IS NOT NULL)) AND length(reason) <= 1000 AND ((authority_basis = 'CLIENT_COMMERCIAL_ROUTING' AND recipient_contact_id IS NOT NULL AND recipient_routing_id IS NOT NULL) OR (authority_basis IN ('PROSPECT_PRIMARY_CONTACT','LEGACY_DISPATCH_SNAPSHOT') AND recipient_contact_id IS NULL AND recipient_routing_id IS NULL))");
                         });
                 });
 
@@ -32430,6 +32557,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ReceiptId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.ClientContact", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "RecipientContactId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.ClientContactRouting", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "RecipientRoutingId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.CreditNote", b =>
@@ -32845,6 +32984,42 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "PreparedByUserId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ProposalResponseRecord", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.CommercialNotification", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CommercialNotificationId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.Proposal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ProposalId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.ClientContact", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "RecipientContactId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.ClientContactRouting", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "RecipientRoutingId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "RecordedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.QuotationApproval", b =>

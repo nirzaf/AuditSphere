@@ -72,12 +72,14 @@ public static partial class FeeAgreementService
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
         "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance before creating the fee agreement.");
     // The agreement carries the accepted terms, so the recorded acceptance and dispatch must cite one exact offer identity.
-    if (string.IsNullOrWhiteSpace(proposal.SentOfferSha256) || string.IsNullOrWhiteSpace(proposal.ResponseOfferSha256) ||
-      string.IsNullOrWhiteSpace(dispatch.OfferSha256) ||
-      !string.Equals(proposal.SentOfferSha256, dispatch.OfferSha256, StringComparison.OrdinalIgnoreCase) ||
-      !string.Equals(proposal.SentOfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
+    var response = await db.ProposalResponseRecords.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposalId, ct);
+    var offer = dispatch.DocumentId is { } documentId
+      ? await db.CommercialDocuments.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == documentId, ct)
+      : null;
+    if (!ProposalResponseEvidence.MatchesAcceptedResponse(proposal, dispatch, response, quotation, offer))
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
-        "The recorded client acceptance does not cite the exact dispatched offer identity; re-record acceptance against that offer before creating the fee agreement.");
+        "A matching immutable client response to the exact current rendered offer is required before creating the fee agreement.");
 
     var advance = MoneyPolicy.Normalize(proposal.Fee * DefaultAdvancePercent / 100m, QuotationCalculator.CurrencyScale);
     if (advance <= 0m || proposal.Fee - advance <= 0m)

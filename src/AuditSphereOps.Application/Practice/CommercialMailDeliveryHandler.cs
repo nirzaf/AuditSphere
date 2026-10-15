@@ -53,12 +53,31 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
   {
     await using var db = await factory.CreateAsync(ct);
     var mail = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.FirmId == op.FirmId && x.Id == op.TargetId, ct);
+    PbcMailAttachment? attachment = null;
+    if (mail.DocumentId is { } documentId)
+    {
+      var document = await db.CommercialDocuments.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == op.FirmId && x.Id == documentId, ct);
+      if (document is null || document.Bytes.Length == 0 || string.IsNullOrWhiteSpace(document.FileName) ||
+          string.IsNullOrWhiteSpace(document.ContentType) || string.IsNullOrWhiteSpace(mail.OfferSha256) ||
+          !string.Equals(document.Sha256Hex, mail.OfferSha256, StringComparison.OrdinalIgnoreCase) ||
+          !string.Equals(document.Sha256Hex, Hashing.Sha256Hex(document.Bytes), StringComparison.OrdinalIgnoreCase) ||
+          mail.Kind == CommercialNotificationKinds.Proposal &&
+          (document.Kind != CommercialDocumentKinds.Quotation || document.ProposalId != mail.ProposalId ||
+           document.QuotationVersionId != mail.QuotationVersionId))
+        throw new OperationBlockedException("commercial-mail-artifact-mismatch");
+      attachment = new(document.FileName, document.ContentType, document.Bytes);
+    }
+    else if (mail.Kind == CommercialNotificationKinds.Proposal)
+    {
+      throw new OperationBlockedException("commercial-mail-artifact-missing");
+    }
     // The send attempt is durable before the provider call: queued, in-flight, accepted, refused and unknown
     // outcomes remain distinguishable whatever happens next (STE 4.1.2 delivery receipts).
     await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Dispatched, ct);
     try
     {
-      await sender.SendAsync(new(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId), ct);
+      await sender.SendAsync(new(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId, attachment), ct);
     }
     catch (SafeRetryException)
     {

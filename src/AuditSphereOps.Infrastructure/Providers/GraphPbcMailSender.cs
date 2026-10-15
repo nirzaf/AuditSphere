@@ -57,15 +57,32 @@ public sealed class GraphPbcMailSender(HttpClient http, GraphMailOptions options
     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.GetString());
     request.Headers.TryAddWithoutValidation("client-request-id", plan.CorrelationId.ToString("D"));
     request.Headers.TryAddWithoutValidation("return-client-request-id", "true");
-    request.Content = JsonContent.Create(new
+    var message = new Dictionary<string, object?>
     {
-      message = new
+      ["subject"] = plan.Subject,
+      ["body"] = new { contentType = "Text", content = plan.Body },
+      ["toRecipients"] = new[] { new { emailAddress = new { address = plan.Recipient } } }
+    };
+    if (plan.Attachment is { } attachment)
+    {
+      if (attachment.Bytes.Length == 0 || attachment.Bytes.Length > 3 * 1024 * 1024 ||
+          string.IsNullOrWhiteSpace(attachment.FileName) || string.IsNullOrWhiteSpace(attachment.ContentType))
+        throw new OperationBlockedException("graph-mail-attachment-invalid");
+      message["attachments"] = new object[]
       {
-        subject = plan.Subject,
-        body = new { contentType = "Text", content = plan.Body },
-        toRecipients = new[] { new { emailAddress = new { address = plan.Recipient } } }
-      },
-      saveToSentItems = true
+        new Dictionary<string, object>
+        {
+          ["@odata.type"] = "#microsoft.graph.fileAttachment",
+          ["name"] = attachment.FileName,
+          ["contentType"] = attachment.ContentType,
+          ["contentBytes"] = Convert.ToBase64String(attachment.Bytes)
+        }
+      };
+    }
+    request.Content = JsonContent.Create(new Dictionary<string, object?>
+    {
+      ["message"] = message,
+      ["saveToSentItems"] = true
     });
     using var response = await http.SendAsync(request, ct);
     if (response.StatusCode == HttpStatusCode.Accepted) return;

@@ -245,8 +245,14 @@ public sealed class CommercialNotification
   /// <summary>The approved quotation revision the dispatched offer was built from; downstream letters and fee agreements must use it.</summary>
   public Guid? QuotationVersionId { get; set; }
   public Guid? DocumentId { get; set; }
-  /// <summary>Exact identity of the dispatched offer (generated artifact hash, or the reviewed offer digest when no document exists).</summary>
+  /// <summary>Exact SHA-256 identity of the rendered commercial artifact attached to this notification.</summary>
   public string? OfferSha256 { get; set; }
+  /// <summary>Contact selected by the effective COMMERCIAL route; null for a prospect or legacy dispatch snapshot.</summary>
+  public Guid? RecipientContactId { get; set; }
+  /// <summary>Exact routing revision selected at dispatch; null for a prospect or legacy snapshot.</summary>
+  public Guid? RecipientRoutingId { get; set; }
+  /// <summary>Authority basis captured when the recipient was frozen into the dispatch.</summary>
+  public string? RecipientAuthorityBasis { get; set; }
   public string Recipient { get; set; } = string.Empty;
   public string Subject { get; set; } = string.Empty;
   public string Body { get; set; } = string.Empty;

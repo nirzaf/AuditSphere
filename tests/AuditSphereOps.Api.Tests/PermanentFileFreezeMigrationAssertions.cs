@@ -11,7 +11,8 @@ internal static class PermanentFileFreezeMigrationAssertions
   private const string FreezeMigration = "20261009141822_PermanentFileFreeze";
   private const string Refusal = "PermanentFileFreeze is a compliance safety boundary and cannot be downgraded automatically.";
 
-  public static async Task AssertDowngradeBlockedAsync(AuditSphereDbContext db, string migrationSuffix)
+  public static async Task AssertDowngradeBlockedAsync(AuditSphereDbContext db, string migrationSuffix,
+    string expectedRefusal = Refusal)
   {
     var migrations = db.Database.GetMigrations().ToArray();
     var index = Array.FindIndex(migrations, x => x.EndsWith(migrationSuffix, StringComparison.Ordinal));
@@ -25,7 +26,7 @@ internal static class PermanentFileFreezeMigrationAssertions
       db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
 
     Assert.Equal("P0001", error.SqlState);
-    Assert.Equal(Refusal, error.MessageText);
+    Assert.Equal(expectedRefusal, error.MessageText);
     var appliedAfterRefusal = await db.Database.GetAppliedMigrationsAsync();
     Assert.Contains(migrations[index], appliedAfterRefusal);
     Assert.Contains(FreezeMigration, appliedAfterRefusal);

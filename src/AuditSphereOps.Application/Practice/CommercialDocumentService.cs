@@ -154,12 +154,15 @@ public static partial class CommercialDocumentService
       if (dispatch.QuotationVersionId != quotation.Id)
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.StaleRevision,
           "The client accepted a different quotation revision than the current one; use a newly approved commercial revision with fresh acceptance for reissue.");
-      if (string.IsNullOrWhiteSpace(proposal.SentOfferSha256) || string.IsNullOrWhiteSpace(proposal.ResponseOfferSha256) ||
-        string.IsNullOrWhiteSpace(dispatch.OfferSha256) ||
-        !string.Equals(dispatch.OfferSha256, proposal.SentOfferSha256, StringComparison.OrdinalIgnoreCase) ||
-        !string.Equals(proposal.SentOfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
+      var response = await db.ProposalResponseRecords.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
+      var dispatchedQuotation = dispatch.DocumentId is { } quotationDocumentId
+        ? await db.CommercialDocuments.AsNoTracking()
+          .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == quotationDocumentId, ct)
+        : null;
+      if (!ProposalResponseEvidence.MatchesAcceptedResponse(proposal, dispatch, response, quotation, dispatchedQuotation))
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.GenerationStale,
-          "The recorded client acceptance does not cite the exact dispatched offer identity; re-record the acceptance against that offer.");
+          "A matching immutable client response to the exact current rendered offer is required before generating the engagement letter.");
     }
 
     var existing = await db.CommercialDocuments.AsNoTracking()

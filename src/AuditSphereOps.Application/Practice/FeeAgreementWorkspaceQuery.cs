@@ -67,6 +67,8 @@ public static class FeeAgreementWorkspaceQuery
         !string.Equals(p.SentOfferSha256, dispatch.OfferSha256, StringComparison.OrdinalIgnoreCase) ||
         !string.Equals(p.SentOfferSha256, p.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
         blockers.Add("Record client acceptance against the exact dispatched offer identity.");
+      else if (!await ProposalResponseEvidence.IsCurrentAcceptedAsync(db, actor.FirmId, proposalId, ct))
+        blockers.Add("A current immutable response record and rendered offer are required before creating the fee agreement.");
     }
     var advance = MoneyPolicy.Normalize(fee * FeeAgreementService.DefaultAdvancePercent / 100m, QuotationCalculator.CurrencyScale);
     if (advance <= 0 || fee - advance <= 0) blockers.Add("The accepted fee must support positive advance and balance milestones.");

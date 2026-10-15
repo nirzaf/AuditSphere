@@ -137,6 +137,7 @@ public sealed class CommercialWorkflowTests
     var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
@@ -399,6 +400,7 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(ErrorCodes.GateBlocked, (await CommercialDocumentService.GenerateEngagementLetterAsync(db, w.Partner, proposalId)).ErrorCode);
     Assert.Empty(await db.CommercialDocuments.Where(x => x.Kind == CommercialDocumentKinds.EngagementLetter).ToListAsync());
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
@@ -608,6 +610,7 @@ public sealed class CommercialWorkflowTests
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).ErrorCode); // not accepted yet
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
@@ -891,13 +894,15 @@ public sealed class CommercialWorkflowTests
     var artifactB = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
       expectedQuotationId: quoteB.Value, expectedProfileVersion: 1);
     Assert.True(artifactB.Succeeded, artifactB.Message);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
     Assert.Equal(quoteB.Value, notification.QuotationVersionId);
     Assert.Equal(artifactB.Value!.Sha256Hex, notification.OfferSha256);
     var acceptedSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.Equal("crm.stale-offer", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
-      new("ACCEPTED", null, artifactA.Value!.Sha256Hex, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
+      new("ACCEPTED", null, artifactA.Value!.Sha256Hex, "A. Owner", "owner@gulf.example.test",
+        "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
       new("ACCEPTED", null, acceptedSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
 
@@ -929,10 +934,12 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposal2)).Succeeded);
     Assert.True((await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposal2,
       expectedQuotationId: quote2.Value, expectedProfileVersion: 1)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposal2);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposal2)).Succeeded);
     var offer2 = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposal2)).SentOfferSha256;
     Assert.Equal("crm.unauthorized-respondent", (await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposal2,
-      new("ACCEPTED", null, offer2, "A. Owner", "owner@gulf.example.test", Channel: ProposalResponseChannels.Email))).ErrorCode);
+      new("ACCEPTED", null, offer2, "A. Owner", "owner@gulf.example.test",
+        "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).ErrorCode);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposal2,
       new("ACCEPTED", null, offer2, "B. Owner", "binding-client@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     var converted2 = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposal2, "Binding Client LLC"));
@@ -960,6 +967,7 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
     Assert.True((await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId,
       expectedQuotationId: quote.Value, expectedProfileVersion: 1)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
@@ -986,7 +994,7 @@ public sealed class CommercialWorkflowTests
   }
 
   [Fact]
-  public async Task FeeAgreement_RefusesAcceptedProposalWithoutRecordedDispatch()
+  public async Task LegacyAcceptedProposalWithoutDispatchCannotConvertOrCreateFeeAgreement()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
@@ -1011,12 +1019,10 @@ public sealed class CommercialWorkflowTests
     // commands below read the stored row rather than the stale tracked copy.
     db.ChangeTracker.Clear();
     var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Missing Dispatch Client"));
-    Assert.True(client.Succeeded, client.Message);
-
-    var workspace = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
-    Assert.True(workspace.Succeeded, workspace.Message);
-    Assert.False(workspace.Value!.CanCreate);
-    Assert.Contains(workspace.Value.CreationBlockers, x => x.Contains("recorded dispatch", StringComparison.OrdinalIgnoreCase));
+    Assert.False(client.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, client.ErrorCode);
+    Assert.Contains("immutable acceptance record", client.Message, StringComparison.OrdinalIgnoreCase);
+    Assert.False(await db.PracticeClients.AnyAsync(x => x.FirmId == w.FirmId && x.LegalName == "Missing Dispatch Client"));
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).ErrorCode);
     Assert.Empty(await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.ProposalId == proposalId).ToListAsync());
   }
@@ -1033,6 +1039,7 @@ public sealed class CommercialWorkflowTests
     var quoteA = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalA));
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quoteA.Value)).Succeeded);
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalA)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalA);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalA)).Succeeded);
     var offerA = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalA)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalA,
@@ -1153,6 +1160,7 @@ public sealed class CommercialWorkflowTests
     var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
@@ -1233,11 +1241,11 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(OnboardingDisplayStatus.Approved, readiness.Value.PartnerRisk.DisplayStatus);
     Assert.Equal(w.PartnerUser.DisplayName, readiness.Value.PartnerRisk.DecidedByName);
     Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value.ClientApproval.Status);
-    // Both keys are current, but no registered signature and seal yet, so the letter stays not eligible and says why.
+    // Both keys are current, but the official seal is not registered, so the letter stays not eligible and says why.
     Assert.Equal(OnboardingReadinessStatuses.NotEligible, readiness.Value.EngagementLetter.Status);
-    // The letter's prerequisites are checked in the order the protected command refuses them: no commercial profile is configured here.
+    // The letter's prerequisites are checked in the order the protected command refuses them; the profile is present, but the seal is not.
     Assert.Equal(OnboardingReadinessStatuses.NotEligible, readiness.Value.EngagementLetter.Status);
-    Assert.Contains("Configure the firm commercial profile", readiness.Value.EngagementLetter.Label);
+    Assert.Contains("Register the official firm seal", readiness.Value.EngagementLetter.Label);
     // Only a firm-wide Partner with a registered signature may act: the Relationship Manager can see the cards but cannot act.
     Assert.False(readiness.Value.CanGenerateLetter);
     Assert.False(readiness.Value.CanActivate);

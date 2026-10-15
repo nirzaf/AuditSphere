@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Practice;
 using Microsoft.EntityFrameworkCore;
@@ -79,19 +80,6 @@ internal static class DualKeyEvidence
     IAuditSphereDbContext db, Guid firmId, Proposal proposal, CancellationToken ct)
   {
     if (proposal.Status != CrmStates.ProposalAccepted || proposal.SentAt is null || proposal.ResponseAt is null || proposal.PracticeClientId is null) return false;
-    if (string.IsNullOrWhiteSpace(proposal.SentOfferSha256) || string.IsNullOrWhiteSpace(proposal.ResponseOfferSha256) ||
-      !string.Equals(proposal.SentOfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase))
-      return false;
-    // The protected guard refuses unless the newest quotation revision is approved and matches the proposal fee, before any identity check.
-    var newestQuotation = await db.QuotationVersions.AsNoTracking()
-      .Where(x => x.FirmId == firmId && x.ProposalId == proposal.Id)
-      .OrderByDescending(x => x.Revision).Select(x => new { x.Id, x.Status, x.Fee }).FirstOrDefaultAsync(ct);
-    if (newestQuotation is null || newestQuotation.Status != QuotationStates.Approved || newestQuotation.Fee != proposal.Fee) return false;
-    var dispatch = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
-      x => x.FirmId == firmId && x.ProposalId == proposal.Id && x.Kind == CommercialNotificationKinds.Proposal, ct);
-    return dispatch is not null && dispatch.QuotationVersionId == newestQuotation.Id &&
-      !string.IsNullOrWhiteSpace(dispatch.OfferSha256) &&
-      string.Equals(dispatch.OfferSha256, proposal.SentOfferSha256, StringComparison.OrdinalIgnoreCase) &&
-      string.Equals(dispatch.OfferSha256, proposal.ResponseOfferSha256, StringComparison.OrdinalIgnoreCase);
+    return await ProposalResponseEvidence.IsCurrentAcceptedAsync(db, firmId, proposal, ct);
   }
 }

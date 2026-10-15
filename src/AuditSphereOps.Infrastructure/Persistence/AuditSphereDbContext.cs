@@ -61,6 +61,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<Opportunity> Opportunities => Set<Opportunity>();
 
   public DbSet<Proposal> Proposals => Set<Proposal>();
+  public DbSet<ProposalResponseRecord> ProposalResponseRecords => Set<ProposalResponseRecord>();
 
   public DbSet<EngagementActivation> EngagementActivations => Set<EngagementActivation>();
   public DbSet<global::AuditSphereOps.Domain.Practice.TechnicalLibraryDocument> TechnicalLibraryDocuments => Set<global::AuditSphereOps.Domain.Practice.TechnicalLibraryDocument>();

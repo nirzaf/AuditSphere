@@ -52,10 +52,12 @@ public static class ClientConversionWorkspace
     if(o is null)return Unavailable<ClientConversionState>();
     var lead=await db.Leads.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId && x.Id==o.LeadId,ct);
     if(lead is null)return Unavailable<ClientConversionState>();
+    var canConvert = p.Status == CrmStates.ProposalAccepted && o.Stage == CrmStates.OpportunityWon && p.PracticeClientId is null &&
+      await ProposalResponseEvidence.IsCurrentAcceptedAsync(db, a.FirmId, p, ct);
     var basis=Hashing.Sha256Hex(JsonSerializer.Serialize(new {a.FirmId,a.UserId,a.SessionEpoch,id,Proposal=p,Opportunity=o,Lead=lead}));
     if(!(await Authorize(db,a,ct)).Succeeded)return Unavailable<ClientConversionState>();
     return CommandResult<ClientConversionState>.Ok(new(id,p.Revision.ToString(CultureInfo.InvariantCulture),p.Status,
-      p.Status==CrmStates.ProposalAccepted && o.Stage==CrmStates.OpportunityWon && p.PracticeClientId is null,
+      canConvert,
       p.PracticeClientId,lead.Name,basis));
   }
 
@@ -70,6 +72,9 @@ public static class ClientConversionWorkspace
     if (p is null) return Unavailable<ClientConversionPreview>();
     if (p.PracticeClientId is not null || p.Status!=CrmStates.ProposalAccepted)
       return CommandResult<ClientConversionPreview>.Fail(ErrorCodes.GateBlocked,"Review an accepted proposal that is not already converted.");
+    if (!await ProposalResponseEvidence.IsCurrentAcceptedAsync(db, a.FirmId, p, ct))
+      return CommandResult<ClientConversionPreview>.Fail(ErrorCodes.GateBlocked,
+        "Client conversion requires an immutable acceptance record tied to the exact current rendered quotation.");
     var o=await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId && x.Id==p.OpportunityId,ct);
     if(o is null || o.Stage!=CrmStates.OpportunityWon) return Unavailable<ClientConversionPreview>();
     var lead=await db.Leads.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId && x.Id==o.LeadId,ct);

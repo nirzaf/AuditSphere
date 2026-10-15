@@ -42,6 +42,8 @@ const proposal = {
   respondentEmail: null,
   responseEvidenceReference: null,
   responseChannel: null,
+  responseAuthorityBasis: null,
+  responseRecordedByName: null,
   versions: [],
 };
 describe('Commercial proposal contract', () => {
@@ -73,7 +75,7 @@ describe('client response binding', () => {
     const w = {
       data: signal<unknown>(sent), reviewed: true, busy: signal(false), uncertain: signal(false),
       respondentName: 'A. Owner', respondentEmail: 'owner@example.test', evidenceReference: 'Signed letter',
-      responseChannel: 'SIGNED_LETTER',
+      responseChannel: 'SIGNED_LETTER', reason: 'Client confirmed the approved commercial terms',
       action: (path: string, body: object) => { actions.push({ path, body }); },
       ...overrides,
     };
@@ -96,6 +98,9 @@ describe('client response binding', () => {
     const unknown = responseWorkspace({ responseChannel: 'WHATSAPP' });
     ProposalDetail.prototype.recordResponse.call(unknown.w as unknown as ProposalDetail, 'ACCEPTED');
     expect(unknown.actions).toHaveLength(0);
+    const noEvidence = responseWorkspace({ evidenceReference: '   ' });
+    ProposalDetail.prototype.recordResponse.call(noEvidence.w as unknown as ProposalDetail, 'ACCEPTED');
+    expect(noEvidence.actions).toHaveLength(0);
   });
   it('decodes a recorded channel and rejects one outside the approved set', () => {
     expect(decodeProposal({ ...proposal, responseChannel: 'EMAIL' }).responseChannel).toBe('EMAIL');
@@ -115,14 +120,18 @@ describe('client response binding', () => {
     ProposalDetail.prototype.recordResponse.call(noAssent.w as unknown as ProposalDetail, 'ACCEPTED');
     expect(noAssent.actions).toHaveLength(0);
   });
-  it('keeps the decline path working without a respondent name', () => {
-    const decline = responseWorkspace({ respondentName: '', respondentEmail: '', evidenceReference: '' });
+  it('records a decline with respondent and reason while allowing no acceptance channel', () => {
+    const decline = responseWorkspace({ evidenceReference: '', responseChannel: '' });
     ProposalDetail.prototype.recordResponse.call(decline.w as unknown as ProposalDetail, 'DECLINED');
     expect(decline.actions).toHaveLength(1);
-    expect(decline.actions[0].body).toMatchObject({ decision: 'DECLINED', offerSha256: offerSha, respondentName: null });
+    expect(decline.actions[0].body).toMatchObject({ decision: 'DECLINED', offerSha256: offerSha,
+      respondentName: 'A. Owner', respondentEmail: 'owner@example.test', reason: 'Client confirmed the approved commercial terms' });
     const noChannelDecline = responseWorkspace({ responseChannel: '' });
     ProposalDetail.prototype.recordResponse.call(noChannelDecline.w as unknown as ProposalDetail, 'DECLINED');
     expect(noChannelDecline.actions[0].body).toMatchObject({ decision: 'DECLINED', channel: null });
+    const noRespondent = responseWorkspace({ respondentName: '' });
+    ProposalDetail.prototype.recordResponse.call(noRespondent.w as unknown as ProposalDetail, 'DECLINED');
+    expect(noRespondent.actions).toHaveLength(0);
   });
 });
 

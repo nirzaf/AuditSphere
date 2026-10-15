@@ -7,7 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Documents;
 
-public sealed record PbcMailPlan(string Recipient, string Subject, string Body, Guid CorrelationId);
+public sealed record PbcMailAttachment(string FileName, string ContentType, byte[] Bytes);
+
+public sealed record PbcMailPlan(string Recipient, string Subject, string Body, Guid CorrelationId,
+  PbcMailAttachment? Attachment = null);
 
 public interface IPbcMailSender
 {
