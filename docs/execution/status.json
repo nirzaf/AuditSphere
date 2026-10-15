@@ -929,9 +929,10 @@
         },
         {
           "name": "Full unfiltered API suite, this tree",
-          "result": "INCOMPLETE_AT_COMMIT",
-          "observedFailures": 5,
-          "note": "Run still in progress when committed. Each observed failure (StaffingChangeReviewApiTests.ExactReview…, ClientConversionReviewApiTests.ExactReview…, ClientContactCreationApiTests.CookieCsrf…, ConsolidationWorkspaceApiTests.ScopeWorkspace…, FirmReceivablesAgingApiTests.Terms…) was rerun on base commit b05a6bf6 and fails there too."
+          "passed": 229,
+          "failed": 6,
+          "total": 235,
+          "note": "Each failure (StaffingChangeReviewApiTests.ExactReview…, ClientConversionReviewApiTests.ExactReview…, ClientContactCreationApiTests.CookieCsrf…, ConsolidationWorkspaceApiTests.ScopeWorkspace…, FirmReceivablesAgingApiTests.Terms…, ResourcePlanningReceiptApiTests.PlanningCsrf…) was rerun on base commit b05a6bf6 in the same environment and fails there too; none is unique to this tree."
         },
         {
           "name": "Angular CI specs",
