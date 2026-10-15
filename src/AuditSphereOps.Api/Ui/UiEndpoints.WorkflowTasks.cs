@@ -57,6 +57,16 @@ public static partial class UiEndpoints
       Guid? assigneeUserId, bool? unassignedOnly, bool? includeSummary, HttpContext http) =>
       WorkflowQueueAsync(http, view, afterDueDate, afterTaskId, pageSize, assigneeUserId, unassignedOnly, includeSummary));
 
+    group.MapGet("/engagements/{id:guid}/deadline-reminders", (Guid id, HttpContext http) =>
+      ReadAsync(http, async (db, actor, ct) =>
+      {
+        var configuration = http.RequestServices.GetRequiredService<IConfiguration>();
+        if (!configuration.GetValue<bool>("WorkflowExperience:Enabled"))
+          return CommandResult<EngagementDeadlineReminders>.Fail(ErrorCodes.ScopeDenied,
+            "Workflow task experience is not enabled on this server.");
+        return await EngagementDeadlineReminderQuery.GetAsync(db, actor, id, ct);
+      }));
+
     var tasks = group.MapGroup("/engagements/{engagementId:guid}/workflow/tasks")
       .AddEndpointFilter(async (context, next) =>
       {

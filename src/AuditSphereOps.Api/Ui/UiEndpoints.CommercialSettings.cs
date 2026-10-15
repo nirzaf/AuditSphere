@@ -10,7 +10,8 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record CommercialProfileInput(string Version, string LegalName, string Address, string Email, string Phone,
-    string Accent, string Closing, string History, string Credentials, string Methodology, bool Reviewed);
+    string Accent, string Closing, string History, string Credentials, string Methodology, bool Reviewed,
+    string? LogoPngBase64 = null, bool RemoveLogo = false);
   public sealed record CommercialRuleInput(string RulesRevision, string Kind, string? Threshold, string Role, bool Reviewed);
   public sealed record CommercialRuleDeactivationInput(string RulesRevision, bool Reviewed);
   public sealed record PricingPolicyInput(string Currency, string? MinimumFee, string? MaximumFee, string? MaxDiscount,
@@ -41,8 +42,9 @@ public static partial class UiEndpoints
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await CommercialDocumentService.SaveProfileAsync(db, actor,
-        new(input.LegalName, input.Address, input.Email, input.Phone, input.Accent, input.Closing, input.History, input.Credentials, input.Methodology, version), http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
+        new(input.LegalName, input.Address, input.Email, input.Phone, input.Accent, input.Closing, input.History, input.Credentials,
+          input.Methodology, version, input.LogoPngBase64, input.RemoveLogo), http.RequestAborted);
+      return result.Succeeded ? Results.Ok(new { id = result.Value }) : Failure(result.ErrorCode, result.Message);
     });
     group.MapPost("/commercial-settings/rules", async (CommercialRuleInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>

@@ -13,7 +13,9 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record SaveCommercialProfileRequest(
-  string LegalName, string Address, string ContactEmail, string ContactPhone, string AccentColorHex, string ClosingText, string FirmHistoryAndRegistrations = "", string IndustryCredentials = "", string AuditMethodology = "", long? ExpectedVersion = null);
+  string LegalName, string Address, string ContactEmail, string ContactPhone, string AccentColorHex, string ClosingText,
+  string FirmHistoryAndRegistrations = "", string IndustryCredentials = "", string AuditMethodology = "", long? ExpectedVersion = null,
+  string? LogoPngBase64 = null, bool RemoveLogo = false);
 
 public sealed record GeneratedProposalDocuments(CommercialDocument Quotation, CommercialDocument EngagementLetter);
 
@@ -32,7 +34,7 @@ public static partial class CommercialDocumentService
   public static async Task<CommandResult<Guid>> SaveProfileAsync(
     IAuditSphereDbContext db, ActorContext actor, SaveCommercialProfileRequest request, CancellationToken ct = default)
   {
-    var auth = await AuthorizeAsync(db, actor, ProfileRoles, ct);
+    var auth = await AuthorizeProfileAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var name = (request.LegalName ?? string.Empty).Trim();
     var color = (request.AccentColorHex ?? string.Empty).Trim();
@@ -44,15 +46,59 @@ public static partial class CommercialDocumentService
       return CommandResult<Guid>.Fail("commercial.invalid", "A profile field is too long.");
     if (new[] { request.FirmHistoryAndRegistrations, request.IndustryCredentials, request.AuditMethodology }.Any(x => (x ?? "").Length > 16000))
       return CommandResult<Guid>.Fail("commercial.invalid", "Tender profile chapters must each be at most 16,000 characters.");
+
+    if (request.LogoPngBase64 is not null && request.RemoveLogo)
+      return CommandResult<Guid>.Fail("commercial.logo-invalid", "Choose either a replacement PNG or Remove logo, not both.");
+
+    byte[]? replacementLogo = null;
+    string? replacementLogoHash = null;
+    if (request.LogoPngBase64 is { } encodedLogo)
+    {
+      const string invalidLogo = "Upload a PNG logo of at most 128 KiB.";
+      const int maxBase64Length = 174764;
+      if (encodedLogo.Length is < 1 or > maxBase64Length ||
+          !System.Text.RegularExpressions.Regex.IsMatch(encodedLogo,
+            "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"))
+        return CommandResult<Guid>.Fail("commercial.logo-invalid", invalidLogo);
+      try { replacementLogo = System.Convert.FromBase64String(encodedLogo); }
+      catch (FormatException) { return CommandResult<Guid>.Fail("commercial.logo-invalid", invalidLogo); }
+      if (replacementLogo.Length is < 1 or > 131072 || System.Convert.ToBase64String(replacementLogo) != encodedLogo)
+        return CommandResult<Guid>.Fail("commercial.logo-invalid", invalidLogo);
+      var size = AuditDeliverableRenderer.ReadPngSize(replacementLogo);
+      if (size is null || size.Value.Width is < 16 or > 1024 || size.Value.Height is < 16 or > 512 ||
+          !AuditDeliverableRenderer.IsRenderablePng(replacementLogo))
+        return CommandResult<Guid>.Fail("commercial.logo-invalid",
+          "The logo must be a readable PNG between 16x16 and 1024x512 pixels.");
+      replacementLogoHash = Hashing.Sha256Hex(replacementLogo);
+    }
+
+    var logoChangeRequested = request.LogoPngBase64 is not null || request.RemoveLogo;
+    if (logoChangeRequested && (request.ExpectedVersion is null or < 0))
+      return CommandResult<Guid>.Fail("commercial.logo-review-required",
+        "Reload the firm profile and review its version before changing the logo.");
+
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeProfileAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var latest = await db.FirmCommercialProfiles.Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+
+    if (latest is not null && ((latest.LogoPngBytes is null) != (latest.LogoSha256Hex is null) ||
+        (latest.LogoPngBytes is not null && !string.Equals(Hashing.Sha256Hex(latest.LogoPngBytes), latest.LogoSha256Hex, StringComparison.Ordinal))))
+      return CommandResult<Guid>.Fail("commercial.logo-integrity",
+        "The stored firm logo cannot be verified. Review the retained profile before changing branding.");
+
+    var resolvedLogoBytes = request.RemoveLogo ? null : replacementLogo ?? latest?.LogoPngBytes;
+    var resolvedLogoHash = request.RemoveLogo ? null : replacementLogo is not null ? replacementLogoHash : latest?.LogoSha256Hex;
     if (latest is not null && latest.LegalName == name && latest.Address == (request.Address ?? string.Empty).Trim() &&
         latest.ContactEmail == (request.ContactEmail ?? string.Empty).Trim() && latest.ContactPhone == (request.ContactPhone ?? string.Empty).Trim() &&
         string.Equals(latest.AccentColorHex, color, StringComparison.OrdinalIgnoreCase) && latest.ClosingText == (request.ClosingText ?? string.Empty).Trim() &&
         latest.FirmHistoryAndRegistrations == (request.FirmHistoryAndRegistrations ?? "").Trim() &&
-        latest.IndustryCredentials == (request.IndustryCredentials ?? "").Trim() && latest.AuditMethodology == (request.AuditMethodology ?? "").Trim())
+        latest.IndustryCredentials == (request.IndustryCredentials ?? "").Trim() && latest.AuditMethodology == (request.AuditMethodology ?? "").Trim() &&
+        latest.LogoSha256Hex == resolvedLogoHash &&
+        (latest.LogoPngBytes is null ? resolvedLogoBytes is null :
+          resolvedLogoBytes is not null && latest.LogoPngBytes.AsSpan().SequenceEqual(resolvedLogoBytes)))
       return CommandResult<Guid>.Ok(latest.Id);
     if (request.ExpectedVersion.HasValue && request.ExpectedVersion != (latest?.Version ?? 0))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Commercial profile changed; review its current version.");
@@ -63,7 +109,9 @@ public static partial class CommercialDocumentService
       ContactPhone = (request.ContactPhone ?? string.Empty).Trim(), AccentColorHex = color.ToUpperInvariant(),
       ClosingText = (request.ClosingText ?? string.Empty).Trim(),
       FirmHistoryAndRegistrations = (request.FirmHistoryAndRegistrations ?? "").Trim(), IndustryCredentials = (request.IndustryCredentials ?? "").Trim(),
-      AuditMethodology = (request.AuditMethodology ?? "").Trim(), CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      AuditMethodology = (request.AuditMethodology ?? "").Trim(),
+      LogoPngBytes = resolvedLogoBytes?.ToArray(), LogoSha256Hex = resolvedLogoHash,
+      CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.FirmCommercialProfiles.Add(profile);
     await db.SaveChangesAsync(ct);
@@ -331,6 +379,10 @@ public static partial class CommercialDocumentService
 
   private static string Money(decimal amount, string currency) => $"{amount.ToString("N2", CultureInfo.InvariantCulture)} {currency}";
   private static string Signed(decimal amount) => (amount < 0 ? "−" : amount > 0 ? "+" : "") + Math.Abs(amount).ToString("N2", CultureInfo.InvariantCulture);
+
+  private static Task<CommandResult> AuthorizeProfileAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ProfileRoles, InternalOnly: true, RequireFirmWide: true), ct);
 
   private static Task<CommandResult> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, string[] roles, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor,

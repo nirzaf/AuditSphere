@@ -7,7 +7,8 @@ using AuditSphereOps.Domain.Shared;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record CommercialProfileItem(string Version, string LegalName, string Address, string Email, string Phone,
-  string Accent, string Closing, string History, string Credentials, string Methodology);
+  string Accent, string Closing, string History, string Credentials, string Methodology,
+  bool HasLogo = false, string? LogoSha256Hex = null);
 public sealed record CommercialRuleItem(Guid Id, string Version, string Kind, string? Threshold, string Role);
 public sealed record CommercialSettingsWorkspace(bool CanEdit, CommercialProfileItem? Profile, string RulesRevision,
   string DefaultDiscountThreshold, string DefaultRole, IReadOnlyList<string> ApproverRoles, IReadOnlyList<CommercialRuleItem> Rules);
@@ -32,7 +33,8 @@ public static class CommercialSettingsQuery
       return CommandResult<CommercialSettingsWorkspace>.Fail(ErrorCodes.ScopeDenied, "Settings unavailable.");
     return CommandResult<CommercialSettingsWorkspace>.Ok(new(editable,
       p is null ? null : new(p.Version.ToString(CultureInfo.InvariantCulture), p.LegalName, p.Address, p.ContactEmail, p.ContactPhone,
-        p.AccentColorHex, p.ClosingText, p.FirmHistoryAndRegistrations, p.IndustryCredentials, p.AuditMethodology),
+        p.AccentColorHex, p.ClosingText, p.FirmHistoryAndRegistrations, p.IndustryCredentials, p.AuditMethodology,
+        p.LogoPngBytes is not null && p.LogoSha256Hex is not null, p.LogoSha256Hex),
       QuotationService.RulesRevision(rules.Value!), CommercialApprovalMatrix.DefaultDiscountThresholdPercent.ToString(CultureInfo.InvariantCulture),
       CommercialApprovalMatrix.DefaultRole, ["Partner", "Manager", "Administrator"],
       rules.Value!.Select(r => new CommercialRuleItem(r.Id, r.Version.ToString(CultureInfo.InvariantCulture), r.Kind,

@@ -79,9 +79,18 @@ public sealed partial class AuditSphereDbContext
       e.Property(x => x.FirmHistoryAndRegistrations).HasMaxLength(16000);
       e.Property(x => x.IndustryCredentials).HasMaxLength(16000);
       e.Property(x => x.AuditMethodology).HasMaxLength(16000);
+      e.Property(x => x.LogoPngBytes).HasColumnType("bytea").HasColumnName("logo_png_bytes");
+      e.Property(x => x.LogoSha256Hex).HasMaxLength(64).HasColumnName("logo_sha256_hex");
       e.HasIndex(x => new { x.FirmId, x.Version }).IsUnique();
-      e.ToTable("firm_commercial_profiles", t => t.HasCheckConstraint("ck_firm_commercial_profile_values",
-        "version >= 1 AND length(legal_name) > 0 AND accent_color_hex ~ '^#[0-9A-Fa-f]{6}$'"));
+      e.ToTable("firm_commercial_profiles", t =>
+      {
+        t.HasCheckConstraint("ck_firm_commercial_profile_values",
+          "version >= 1 AND length(legal_name) > 0 AND accent_color_hex ~ '^#[0-9A-Fa-f]{6}$'");
+        t.HasCheckConstraint("ck_firm_profile_portal_logo",
+          "(logo_png_bytes IS NULL AND logo_sha256_hex IS NULL) OR " +
+          "(logo_png_bytes IS NOT NULL AND logo_sha256_hex IS NOT NULL AND " +
+          "octet_length(logo_png_bytes) BETWEEN 1 AND 131072 AND logo_sha256_hex ~ '^[0-9a-f]{64}$')");
+      });
     });
     b.Entity<CommercialDocument>(e =>
     {

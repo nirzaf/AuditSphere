@@ -174,6 +174,8 @@ public sealed class FirmCommercialProfile
   public string AuditMethodology { get; set; } = string.Empty;
   public Guid CreatedByUserId { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
+  public byte[]? LogoPngBytes { get; set; }
+  public string? LogoSha256Hex { get; set; }
 }
 
 /// <summary>A generated, immutable commercial document with its template version and content hash.</summary>

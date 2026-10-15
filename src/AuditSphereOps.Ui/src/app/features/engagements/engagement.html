@@ -113,6 +113,14 @@
     } @placeholder {
       <p>Communications</p>
     }
+    <details (toggle)="activityOpen.set($any($event.target).open)">
+      <summary>Activity</summary>
+      @if (activityOpen()) {
+        <audit-engagement-activity [engagementId]="engagement.id" />
+      } @else {
+        <p>Recorded engagement activity</p>
+      }
+    </details>
     <details class="technical-lifecycle">
       <summary>Technical lifecycle: 11 canonical stages</summary>
       @defer (on viewport) {

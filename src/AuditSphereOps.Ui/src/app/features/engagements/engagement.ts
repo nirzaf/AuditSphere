@@ -10,6 +10,7 @@ import { EngagementOnboardingReadiness } from './engagement-onboarding-readiness
 import { EngagementPlanning } from './planning';
 import { EngagementTaskPlan } from './engagement-task-plan';
 import { EngagementCommunicationsPanel } from './engagement-communications';
+import { EngagementActivity } from './engagement-activity';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { guidPattern } from '../../core/contracts';
@@ -41,6 +42,7 @@ export function engagementWorkflowAvailable(requiresAccountingPreparation: boole
     EngagementPlanning,
     EngagementTaskPlan,
     EngagementCommunicationsPanel,
+    EngagementActivity,
     RouterLink,
     MatButtonModule,
     MatProgressBarModule,
@@ -81,6 +83,7 @@ export class EngagementDetail {
   readonly loading = signal(false);
   readonly error = signal('');
   readonly taskPlanRequested = signal(false);
+  readonly activityOpen = signal(false);
   readonly taskTemplateReference = signal<string | null>(null);
   constructor() {
     this.taskPlanRequested.set(this.route.snapshot.fragment === 'engagement-task-plan');
@@ -123,6 +126,7 @@ export class EngagementDetail {
     this.data.set(null);
     this.loading.set(false);
     this.error.set('');
+    this.activityOpen.set(false);
   }
   private owner(): string {
     const s = this.session.current();

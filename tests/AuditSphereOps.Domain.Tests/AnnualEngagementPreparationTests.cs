@@ -111,7 +111,8 @@ public sealed class AnnualEngagementPreparationTests
     await db.SaveChangesAsync();
 
     var firstPlan = await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
-      new(source.Value, new(2026, 4, 30), new(2026, 1, 7), new(2026, 2, 15), new(2026, 3, 15)));
+      new(source.Value, new(2026, 4, 30), new(2026, 1, 7), new(2026, 2, 15), new(2026, 3, 15),
+        "Synthetic reviewed adjustment for annual preparation coverage."));
     Assert.True(firstPlan.Succeeded, firstPlan.Message);
     var firstState = await AnnualEngagementPreparationWorkspace.StateAsync(db, manager, f.ClientId, source.Value);
     Assert.True(firstState.Succeeded, firstState.Message);
@@ -126,7 +127,8 @@ public sealed class AnnualEngagementPreparationTests
     Assert.DoesNotContain(firstSuggestions, x => x.Kind.Contains("ARCHIVE", StringComparison.Ordinal));
 
     var revisedPlan = await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
-      new(source.Value, new(2026, 4, 30), new(2026, 1, 8), new(2026, 2, 16), new(2026, 3, 16)));
+      new(source.Value, new(2026, 4, 30), new(2026, 1, 8), new(2026, 2, 16), new(2026, 3, 16),
+        "Synthetic reviewed adjustment for annual preparation coverage."));
     Assert.True(revisedPlan.Succeeded, revisedPlan.Message);
     var refreshed = await AnnualEngagementPreparationWorkspace.StateAsync(db, manager, f.ClientId, source.Value);
     Assert.True(refreshed.Succeeded, refreshed.Message);
@@ -176,7 +178,8 @@ public sealed class AnnualEngagementPreparationTests
     Assert.Equal(timeEntryCount, await db.TimeEntries.CountAsync());
     Assert.False(await db.AcceptanceDecisions.AnyAsync(x => x.EngagementId == target.Id));
     Assert.Null(await EngagementRiskEvidence.LatestAsync(db, f.FirmId, target, default));
-    Assert.False(created.Value.InputJson.Contains("milestone", StringComparison.OrdinalIgnoreCase));
+    var storedCreation = await db.EngagementCreations.AsNoTracking().SingleAsync(x => x.Id == created.Value!.Id);
+    Assert.DoesNotContain("milestone", storedCreation.InputJson, StringComparison.OrdinalIgnoreCase);
   }
 
   [Fact]

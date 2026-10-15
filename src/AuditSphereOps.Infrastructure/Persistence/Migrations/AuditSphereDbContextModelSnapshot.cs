@@ -22668,6 +22668,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("legal_name");
 
+                    b.Property<byte[]>("LogoPngBytes")
+                        .HasColumnType("bytea")
+                        .HasColumnName("logo_png_bytes");
+
+                    b.Property<string>("LogoSha256Hex")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("logo_sha256_hex");
+
                     b.Property<long>("Version")
                         .HasColumnType("bigint")
                         .HasColumnName("version");
@@ -22680,6 +22689,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("firm_commercial_profiles", null, t =>
                         {
                             t.HasCheckConstraint("ck_firm_commercial_profile_values", "version >= 1 AND length(legal_name) > 0 AND accent_color_hex ~ '^#[0-9A-Fa-f]{6}$'");
+
+                            t.HasCheckConstraint("ck_firm_profile_portal_logo", "(logo_png_bytes IS NULL AND logo_sha256_hex IS NULL) OR (logo_png_bytes IS NOT NULL AND logo_sha256_hex IS NOT NULL AND octet_length(logo_png_bytes) BETWEEN 1 AND 131072 AND logo_sha256_hex ~ '^[0-9a-f]{64}$')");
                         });
                 });
 

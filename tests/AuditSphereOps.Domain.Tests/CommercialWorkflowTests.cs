@@ -63,6 +63,7 @@ public sealed class CommercialWorkflowTests
   }
 
   private static readonly QuotationHoursLine[] StandardLines = [new("Partner", "Audit", 10m), new("Manager", "Audit", 20m)];
+  private const string TestLogoPngBase64 = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAN0lEQVR4nO3QQREAMAgDQYoYvGGtJstUBZ+Ngcvsqb4vFpebcQcIECBAgAABAgQIECBAgACBLzDWWQJ4Rpw0uQAAAABJRU5ErkJggg==";
 
   private static SaveQuotationRequest Quote(Guid proposalId, decimal complexity = 1m, decimal risk = 0m, decimal discount = 0m,
     bool nonStandard = false, string? note = null, IReadOnlyList<QuotationHoursLine>? lines = null) =>
@@ -120,6 +121,170 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(initial.Value.RulesRevision, inactive.Value.RulesRevision);
     Assert.False((await QuotationService.SaveRuleAsync(db, w.Partner, "NON_STANDARD_TERMS", null, "Partner",
       expectedRulesRevision: current.Value.RulesRevision)).Succeeded);
+  }
+
+  [Fact]
+  public async Task PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var png = Convert.FromBase64String(TestLogoPngBase64);
+    var hash = Hashing.Sha256Hex(png);
+    var initialRequest = new SaveCommercialProfileRequest("Synthetic logo firm", "Doha", "firm@example.test", "123",
+      "#2B6CB0", "Closing", ExpectedVersion: 0);
+    var retainedDocumentBytes = new byte[] { 0x50, 0x4B, 0x03, 0x04, 0x10, 0x20 };
+    var retainedDocument = new CommercialDocument
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, Kind = CommercialDocumentKinds.Quotation,
+      TemplateVersion = "synthetic-template-v1", ProfileVersion = 1, FileName = "synthetic-quotation.docx",
+      ContentType = "application/octet-stream", Bytes = retainedDocumentBytes,
+      Sha256Hex = Hashing.Sha256Hex(retainedDocumentBytes), CreatedByUserId = w.Partner.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.CommercialDocuments.Add(retainedDocument);
+      await db.SaveChangesAsync();
+      var initial = await CommercialDocumentService.SaveProfileAsync(db, w.Partner, initialRequest);
+      Assert.True(initial.Succeeded, initial.Message);
+      var replacement = await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+        initialRequest with { ExpectedVersion = 1, LogoPngBase64 = TestLogoPngBase64 });
+      Assert.True(replacement.Succeeded, replacement.Message);
+      var versions = await db.FirmCommercialProfiles.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Version).ToListAsync();
+      Assert.Equal(new long[] { 1, 2 }, versions.Select(x => x.Version));
+      Assert.Null(versions[0].LogoPngBytes);
+      Assert.Null(versions[0].LogoSha256Hex);
+      Assert.Equal(png, versions[1].LogoPngBytes);
+      Assert.Equal(hash, versions[1].LogoSha256Hex);
+
+      var keepTextEdit = await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+        initialRequest with { LegalName = "Synthetic revised logo firm", ExpectedVersion = 2 });
+      Assert.True(keepTextEdit.Succeeded, keepTextEdit.Message);
+      var current = await db.FirmCommercialProfiles.AsNoTracking().SingleAsync(x => x.Id == keepTextEdit.Value);
+      Assert.Equal(png, current.LogoPngBytes);
+      Assert.Equal(hash, current.LogoSha256Hex);
+
+      var removed = await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+        initialRequest with { LegalName = "Synthetic revised logo firm", ExpectedVersion = 3, RemoveLogo = true });
+      Assert.True(removed.Succeeded, removed.Message);
+      var removedProfile = await db.FirmCommercialProfiles.AsNoTracking().SingleAsync(x => x.Id == removed.Value);
+      Assert.Equal(4, removedProfile.Version);
+      Assert.Null(removedProfile.LogoPngBytes);
+      Assert.Null(removedProfile.LogoSha256Hex);
+      Assert.Equal(png, (await db.FirmCommercialProfiles.AsNoTracking().SingleAsync(x => x.Version == 2)).LogoPngBytes);
+      var retained = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == retainedDocument.Id);
+      Assert.Equal(retainedDocumentBytes, retained.Bytes);
+      Assert.Equal(retainedDocument.Sha256Hex, retained.Sha256Hex);
+
+      var retry = await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+        initialRequest with { LegalName = "Synthetic revised logo firm", ExpectedVersion = 3, RemoveLogo = true });
+      Assert.Equal(removed.Value, retry.Value);
+      Assert.Equal(4, await db.FirmCommercialProfiles.CountAsync(x => x.FirmId == w.FirmId));
+
+      var stale = await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+        initialRequest with { LegalName = "Different stale profile", ExpectedVersion = 2 });
+      Assert.False(stale.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+    }
+  }
+
+  [Fact]
+  public async Task PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var png = Convert.FromBase64String(TestLogoPngBase64);
+    var widePng = png.ToArray();
+    widePng[16] = 0;
+    widePng[17] = 0;
+    widePng[18] = 0x04;
+    widePng[19] = 0x01;
+    var baseline = new SaveCommercialProfileRequest("Synthetic logo firm", "Doha", "", "", "#2B6CB0", "", ExpectedVersion: 0);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var invalidRequests = new (SaveCommercialProfileRequest Request, string Code, string Message)[]
+    {
+      (baseline with { LogoPngBase64 = TestLogoPngBase64, RemoveLogo = true }, "commercial.logo-invalid",
+        "Choose either a replacement PNG or Remove logo, not both."),
+      (baseline with { LogoPngBase64 = "data:image/png;base64," + TestLogoPngBase64 }, "commercial.logo-invalid",
+        "Upload a PNG logo of at most 128 KiB."),
+      (baseline with { LogoPngBase64 = " " + TestLogoPngBase64 }, "commercial.logo-invalid",
+        "Upload a PNG logo of at most 128 KiB."),
+      (baseline with { LogoPngBase64 = Convert.ToBase64String(new byte[131073]) }, "commercial.logo-invalid",
+        "Upload a PNG logo of at most 128 KiB."),
+      (baseline with { LogoPngBase64 = Convert.ToBase64String(widePng) }, "commercial.logo-invalid",
+        "The logo must be a readable PNG between 16x16 and 1024x512 pixels."),
+      (baseline with { LogoPngBase64 = Convert.ToBase64String([1, 2, 3]) }, "commercial.logo-invalid",
+        "The logo must be a readable PNG between 16x16 and 1024x512 pixels."),
+      (baseline with { ExpectedVersion = null, LogoPngBase64 = TestLogoPngBase64 }, "commercial.logo-review-required",
+        "Reload the firm profile and review its version before changing the logo.")
+    };
+    foreach (var (request, code, message) in invalidRequests)
+    {
+      var result = await CommercialDocumentService.SaveProfileAsync(db, w.Partner, request);
+      Assert.False(result.Succeeded);
+      Assert.Equal(code, result.ErrorCode);
+      Assert.Equal(message, result.Message);
+    }
+    Assert.Empty(await db.FirmCommercialProfiles.Where(x => x.FirmId == w.FirmId).ToListAsync());
+
+    var client = new PracticeClient { Id = Guid.NewGuid(), FirmId = w.FirmId, LegalName = "Synthetic client", CreatedAt = DateTimeOffset.UtcNow };
+    var scopedPartner = User(w.FirmId, "scoped-partner");
+    var clientUser = User(w.FirmId, "client");
+    clientUser.UserKind = "Client";
+    db.PracticeClients.Add(client);
+    db.Users.AddRange(scopedPartner, clientUser);
+    db.RoleGrants.AddRange(
+      new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = scopedPartner.Id, Role = "Partner", ClientId = client.Id, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId },
+      new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = clientUser.Id, Role = "ClientUser", ClientId = client.Id, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId });
+    await db.SaveChangesAsync();
+
+    foreach (var actor in new[] { w.Prep, w.Manager, Actor(scopedPartner, "Partner"), Actor(clientUser, "ClientUser") })
+    {
+      var denied = await CommercialDocumentService.SaveProfileAsync(db, actor,
+        baseline with { LogoPngBase64 = TestLogoPngBase64 });
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+    }
+    var administrator = User(w.FirmId, "administrator");
+    db.Users.Add(administrator);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = administrator.Id, Role = "Administrator",
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId
+    });
+    await db.SaveChangesAsync();
+    var adminWrite = await CommercialDocumentService.SaveProfileAsync(db, Actor(administrator, "Administrator"), baseline);
+    Assert.True(adminWrite.Succeeded, adminWrite.Message);
+    Assert.Single(await db.FirmCommercialProfiles.Where(x => x.FirmId == w.FirmId).ToListAsync());
+    Assert.True(png.Length is > 0 and <= 131072);
+  }
+
+  [Fact]
+  public async Task ConcurrentPortalLogoProfileWritesCannotOverwriteTheWinningRevision()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var initial = new SaveCommercialProfileRequest("Synthetic concurrent firm", "Doha", "", "", "#2B6CB0", "", ExpectedVersion: 0);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner, initial)).Succeeded);
+
+    async Task<CommandResult<Guid>> ReviseAsync(string legalName)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+        initial with { LegalName = legalName, ExpectedVersion = 1, LogoPngBase64 = TestLogoPngBase64 });
+    }
+
+    var results = await Task.WhenAll(ReviseAsync("Synthetic concurrent firm A"), ReviseAsync("Synthetic concurrent firm B"));
+    Assert.Single(results, x => x.Succeeded);
+    var refused = Assert.Single(results, x => !x.Succeeded);
+    Assert.Equal(ErrorCodes.StaleRevision, refused.ErrorCode);
+    await using var check = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(2, await check.FirmCommercialProfiles.CountAsync(x => x.FirmId == w.FirmId));
+    Assert.Equal(2, await check.FirmCommercialProfiles.Where(x => x.FirmId == w.FirmId).MaxAsync(x => x.Version));
   }
 
   [Fact]

@@ -259,8 +259,9 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
     await pendingCreate; TestBed.tick();
     read(); f.detectChanges();
     const milestoneLink = f.nativeElement.querySelector('a[aria-label="Review current-year milestone plan"]') as HTMLAnchorElement | null;
-    const link = milestoneLink ?? Array.from(f.nativeElement.querySelectorAll('a'))
-      .find((candidate) => candidate.textContent?.trim() === 'Review current-year milestone plan') as HTMLAnchorElement | undefined;
+    const anchorCandidates = Array.from((f.nativeElement as HTMLElement).querySelectorAll('a') as NodeListOf<HTMLAnchorElement>);
+    const link = milestoneLink ?? anchorCandidates
+      .find((candidate) => candidate.textContent?.trim() === 'Review current-year milestone plan');
     expect(link?.getAttribute('href')).toBe('/app/engagements/' + createdEngagementId + '/audit-plan');
     expect(link?.getAttribute('href')).not.toContain(other);
   });

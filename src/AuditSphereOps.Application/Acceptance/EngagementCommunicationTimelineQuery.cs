@@ -38,7 +38,7 @@ public static class EngagementCommunicationStatuses
 /// fee agreement, its fee milestones or its audit deliverables. It changes nothing and is not evidence that a recipient read
 /// a message.
 /// </summary>
-public static class EngagementCommunicationTimelineQuery
+public static partial class EngagementCommunicationTimelineQuery
 {
   public const int MaxEntries = 200;
   private static readonly string[] Roles = ["Administrator", "Partner", "Manager"];

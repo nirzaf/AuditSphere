@@ -21,7 +21,12 @@ interface Profile {
   history: string;
   credentials: string;
   methodology: string;
+  hasLogo: boolean;
+  logoSha256Hex: string | null;
 }
+type EditableProfile = Pick<Profile,
+  'legalName' | 'address' | 'email' | 'phone' | 'accent' | 'closing' | 'history' | 'credentials' | 'methodology'>;
+type LogoAction = 'KEEP' | 'REPLACE' | 'REMOVE';
 interface Rule {
   id: string;
   version: string;
@@ -92,8 +97,16 @@ export function decodeSettings(value: unknown): Workspace {
     v['rules'].length > 100
   )
     throw new Error('Invalid settings');
+  let profile: Profile | null = null;
   if (v['profile'] !== null) {
-    const p = v['profile'] as Record<string, unknown>;
+    const rawProfile = v['profile'];
+    if (!rawProfile || typeof rawProfile !== 'object' || Array.isArray(rawProfile))
+      throw new Error('Invalid profile');
+    const p = rawProfile as Record<string, unknown>;
+    const hasLegacyLogoMetadata = !Object.prototype.hasOwnProperty.call(p, 'hasLogo') &&
+      !Object.prototype.hasOwnProperty.call(p, 'logoSha256Hex');
+    const hasLogo = hasLegacyLogoMetadata ? false : p['hasLogo'];
+    const logoSha256Hex = hasLegacyLogoMetadata ? null : p['logoSha256Hex'];
     if (
       !p ||
       !revision(p['version']) ||
@@ -107,9 +120,26 @@ export function decodeSettings(value: unknown): Workspace {
         'history',
         'credentials',
         'methodology',
-      ].every((k) => typeof p[k] === 'string')
+      ].every((k) => typeof p[k] === 'string') ||
+      typeof hasLogo !== 'boolean' ||
+      !(logoSha256Hex === null || typeof logoSha256Hex === 'string' && /^[0-9a-f]{64}$/.test(logoSha256Hex)) ||
+      hasLogo !== (logoSha256Hex !== null)
     )
       throw new Error('Invalid profile');
+    profile = {
+      version: p['version'] as string,
+      legalName: p['legalName'] as string,
+      address: p['address'] as string,
+      email: p['email'] as string,
+      phone: p['phone'] as string,
+      accent: p['accent'] as string,
+      closing: p['closing'] as string,
+      history: p['history'] as string,
+      credentials: p['credentials'] as string,
+      methodology: p['methodology'] as string,
+      hasLogo,
+      logoSha256Hex: logoSha256Hex as string | null,
+    };
   }
   for (const r of v['rules'])
     if (
@@ -122,10 +152,10 @@ export function decodeSettings(value: unknown): Workspace {
       !(r.threshold === null || exactDecimal(r.threshold))
     )
       throw new Error('Invalid rule');
-  return v as unknown as Workspace;
+  return { ...v, profile } as unknown as Workspace;
 }
 export interface SettingsDraft {
-  profile: Omit<Profile, 'version'>;
+  profile: EditableProfile;
   kind: string;
   threshold: string;
   role: string;
@@ -157,6 +187,8 @@ const blank = (): Profile => ({
   history: '',
   credentials: '',
   methodology: '',
+  hasLogo: false,
+  logoSha256Hex: null,
 });
 @Component({
   selector: 'audit-commercial-settings',
@@ -172,12 +204,33 @@ export class CommercialSettings {
   readonly draftScope = signal<DraftScope | null>(null);
   private baseline = '';
   private readVersion = 0;
+  private logoReadVersion = 0;
+  private logoFileInput?: HTMLInputElement;
   private fieldsDraft(): SettingsDraft {
-    const {version: _version, ...profile} = this.profile;
-    return {profile,kind:this.kind,threshold:this.threshold,role:this.role};
+    return {profile:this.editableProfile(),kind:this.kind,threshold:this.threshold,role:this.role};
   }
-  dirty(): boolean { return !!this.baseline && JSON.stringify(this.fieldsDraft()) !== this.baseline; }
+  private editableProfile(profile: Profile = this.profile): EditableProfile {
+    return {
+      legalName: profile.legalName,
+      address: profile.address,
+      email: profile.email,
+      phone: profile.phone,
+      accent: profile.accent,
+      closing: profile.closing,
+      history: profile.history,
+      credentials: profile.credentials,
+      methodology: profile.methodology,
+    };
+  }
+  dirty(): boolean {
+    return this.logoAction !== 'KEEP' || this.logoReading() ||
+      !!this.baseline && JSON.stringify(this.fieldsDraft()) !== this.baseline;
+  }
   saveTabDraft(): boolean {
+    if (this.logoAction !== 'KEEP' || this.logoReading()) {
+      this.message.set('Logo changes are not saved in tab drafts. Save the reviewed profile or discard the logo change before leaving.');
+      return false;
+    }
     const scope=this.draftScope();
     if(!scope || !this.data()?.canEdit || this.busy() || this.uncertain()) return false;
     const saved=this.drafts.save(scope,this.fieldsDraft(),settingsDraft);
@@ -190,7 +243,10 @@ export class CommercialSettings {
     if(recovered.state !== 'ready' || recovered.draft.submissionPending) {this.message.set('No compatible unsubmitted settings draft is available.');return;}
     const d=recovered.draft.value;
     if(!w.approverRoles.includes(d.role)) {this.message.set('The saved approver role is no longer available. Review current settings.');return;}
-    this.profile={...d.profile,version:w.profile?.version ?? '0'};this.kind=d.kind;this.threshold=d.threshold;this.role=d.role;
+    this.resetLogoIntent();
+    this.profile={...blank(),...d.profile,version:w.profile?.version ?? '0',
+      hasLogo:w.profile?.hasLogo ?? false,logoSha256Hex:w.profile?.logoSha256Hex ?? null};
+    this.kind=d.kind;this.threshold=d.threshold;this.role=d.role;
     this.reviewed=this.ruleReviewed=false;this.deactivation.set(null);this.message.set('Draft fields recovered. Review the exact changes before submitting.');
   }
   async confirmNavigation(): Promise<boolean> {
@@ -200,13 +256,14 @@ export class CommercialSettings {
     const choice=await firstValueFrom(this.dialog.open(UnsavedChangesDialog).afterClosed());
     if(fence!==this.fence)return true;
     if(choice==='save') return this.saveTabDraft();
-    if(choice==='discard') {const scope=this.draftScope();return !scope || this.drafts.clear(scope.entity);}
+    if(choice==='discard') {const scope=this.draftScope();this.resetLogoIntent();return !scope || this.drafts.clear(scope.entity);}
     return false;
   }
   async refresh(): Promise<void> {
     if(this.busy()) return;
     // Unknown outcomes must be read before acknowledgment; never automatically resubmit.
-    if(this.uncertain() || await this.confirmNavigation()) this.load();
+    if(this.uncertain()) { this.resetLogoIntent(); this.load(); return; }
+    if(await this.confirmNavigation()) this.load();
   }
   private read?: Subscription;
   private write?: Subscription;
@@ -217,6 +274,13 @@ export class CommercialSettings {
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly message = signal('');
+  logoAction: LogoAction = 'KEEP';
+  logoBase64: string | null = null;
+  logoSha256: string | null = null;
+  logoFileName = '';
+  logoByteCount = 0;
+  readonly logoReading = signal(false);
+  readonly logoMessage = signal('');
   readonly deactivation = signal<Rule | null>(null);
   readonly policies = signal<Policy[]>([]);
   readonly policyReviewed = signal(false);
@@ -241,6 +305,7 @@ export class CommercialSettings {
       untracked(() => {
         this.fence++;
         ++this.readVersion;this.baseline='';this.draftScope.set(null);
+        this.resetLogoIntent();
         this.read?.unsubscribe();
         this.write?.unsubscribe();
         this.data.set(null);
@@ -262,7 +327,7 @@ export class CommercialSettings {
     const unload=(event:BeforeUnloadEvent)=>{if(this.dirty() || this.busy() || this.uncertain()){event.preventDefault();event.returnValue='';}};
     window.addEventListener('beforeunload',unload);
     inject(DestroyRef).onDestroy(() => {
-      window.removeEventListener('beforeunload',unload);++this.readVersion;
+      window.removeEventListener('beforeunload',unload);++this.readVersion;this.resetLogoIntent();
       this.fence++;
       this.read?.unsubscribe();
       this.write?.unsubscribe();
@@ -276,7 +341,101 @@ export class CommercialSettings {
     }
   }
   saveProfile(): void {
-    if (this.reviewed) this.command('/profile', { ...this.profile, reviewed: true });
+    const workspace = this.data();
+    if (!workspace?.canEdit || !this.reviewed || this.busy() || this.uncertain() || this.logoReading() ||
+        this.logoAction === 'REPLACE' && !this.logoBase64) return;
+    const fields = this.editableProfile();
+    this.command('/profile', {
+      version: this.profile.version,
+      ...fields,
+      reviewed: true,
+      logoPngBase64: this.logoAction === 'REPLACE' ? this.logoBase64 : null,
+      removeLogo: this.logoAction === 'REMOVE',
+    });
+  }
+  async selectLogo(event: Event): Promise<void> {
+    const input = event.currentTarget as HTMLInputElement;
+    this.logoFileInput = input;
+    const files = input.files;
+    const readVersion = ++this.logoReadVersion;
+    const fence = this.fence;
+    const generation = this.session.invalidation();
+    this.logoAction = 'KEEP';
+    this.logoBase64 = null;
+    this.logoSha256 = null;
+    this.logoFileName = '';
+    this.logoByteCount = 0;
+    this.logoReading.set(false);
+    this.reviewed = false;
+    this.logoMessage.set('');
+    if (!files || files.length !== 1) {
+      this.logoMessage.set('Upload a PNG logo of at most 128 KiB.');
+      input.value = '';
+      return;
+    }
+    const file = files[0];
+    if (!file || !file.name.toLowerCase().endsWith('.png') || file.size < 1 || file.size > 131072 ||
+        file.type !== '' && file.type !== 'image/png') {
+      this.logoMessage.set('Upload a PNG logo of at most 128 KiB.');
+      input.value = '';
+      return;
+    }
+    this.logoReading.set(true);
+    this.logoMessage.set('Reading the selected PNG…');
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!this.logoReadIsCurrent(readVersion, fence, generation)) return;
+      if (bytes.byteLength < 1 || bytes.byteLength > 131072) {
+        this.logoMessage.set('Upload a PNG logo of at most 128 KiB.');
+        return;
+      }
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+      if (!this.logoReadIsCurrent(readVersion, fence, generation)) return;
+      const hash = Array.from(digest, value => value.toString(16).padStart(2, '0')).join('');
+      let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 0x8000)
+        binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+      this.reviewed = false;
+      this.logoAction = 'REPLACE';
+      this.logoBase64 = btoa(binary);
+      this.logoSha256 = hash;
+      this.logoFileName = file.name;
+      this.logoByteCount = bytes.byteLength;
+      this.logoMessage.set(`${file.name} · ${bytes.byteLength} bytes · SHA-256 ${hash}. Review the profile before saving.`);
+    } catch {
+      if (this.logoReadIsCurrent(readVersion, fence, generation))
+        this.logoMessage.set('Upload a PNG logo of at most 128 KiB.');
+    } finally {
+      if (this.logoReadIsCurrent(readVersion, fence, generation)) {
+        this.logoReading.set(false);
+        input.value = '';
+      }
+    }
+  }
+  keepCurrentLogo(): void {
+    this.resetLogoIntent('Keeping the current firm logo. Review the profile before saving.');
+    this.reviewed = false;
+  }
+  removeCurrentLogo(): void {
+    if (!this.profile.hasLogo) return;
+    this.resetLogoIntent();
+    this.logoAction = 'REMOVE';
+    this.logoMessage.set('Logo removal selected. Review the profile before saving.');
+    this.reviewed = false;
+  }
+  private resetLogoIntent(message = ''): void {
+    ++this.logoReadVersion;
+    this.logoAction = 'KEEP';
+    this.logoBase64 = null;
+    this.logoSha256 = null;
+    this.logoFileName = '';
+    this.logoByteCount = 0;
+    this.logoReading.set(false);
+    this.logoMessage.set(message);
+    if (this.logoFileInput) this.logoFileInput.value = '';
+  }
+  private logoReadIsCurrent(readVersion: number, fence: number, generation: number): boolean {
+    return readVersion === this.logoReadVersion && fence === this.fence && generation === this.session.invalidation();
   }
   saveRule(): void {
     const w = this.data();
@@ -432,6 +591,7 @@ export class CommercialSettings {
             'Settings recorded. Existing documents and quotation approvals retain their original identities.',
           );
           const scope=this.draftScope();if(scope)this.drafts.clear(scope.entity);
+          if (path === '/profile') this.resetLogoIntent();
           this.load(path === '/profile' ? 'rule' : 'profile');
         },
         error: (failure) => {
@@ -452,6 +612,8 @@ export class CommercialSettings {
   load(preserve?: 'profile' | 'rule'): void {
     const previous=this.fieldsDraft();
     const previousBase=this.baseline ? settingsDraft(JSON.parse(this.baseline)) : null;
+    const previousProfileVersion=this.profile.version;
+    const pendingLogo=this.logoAction !== 'KEEP' || this.logoReading();
     const readVersion=++this.readVersion;this.draftScope.set(null);
     this.read?.unsubscribe();
     this.data.set(null);
@@ -472,11 +634,15 @@ export class CommercialSettings {
             this.data.set(w);
             this.loadPolicies();
             const persisted=w.profile ? { ...w.profile } : blank();
-            this.profile=preserve === 'profile' ? {...previous.profile,version:persisted.version} : persisted;
+            this.profile=preserve === 'profile'
+              ? {...persisted,...previous.profile,version:persisted.version,hasLogo:persisted.hasLogo,logoSha256Hex:persisted.logoSha256Hex}
+              : persisted;
+            if (previousProfileVersion !== persisted.version)
+              this.resetLogoIntent(pendingLogo ? 'Firm profile changed; select the logo again after review.' : '');
             this.kind=preserve === 'rule' ? previous.kind : 'DISCOUNT_OVER_PERCENT';
             this.threshold=preserve === 'rule' ? previous.threshold : w.defaultDiscountThreshold;
             this.role=preserve === 'rule' ? previous.role : w.defaultRole;
-            const {version:_version,...baseProfile}=persisted;
+            const baseProfile=this.editableProfile(persisted);
             this.baseline=JSON.stringify({profile:baseProfile,
               kind:preserve === 'rule' ? previousBase?.kind ?? 'DISCOUNT_OVER_PERCENT' : this.kind,
               threshold:preserve === 'rule' ? previousBase?.threshold ?? w.defaultDiscountThreshold : this.threshold,

@@ -9,10 +9,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Documents;
 
-public sealed record PortalRequestItem(Guid Id, string Area, string Objective, string PeriodStart, string PeriodEnd, string DueDate, string State, bool Delegated);
+public sealed record PortalRequestItem(Guid Id, string Area, string Objective, string PeriodStart, string PeriodEnd, string DueDate, string State, bool Delegated,
+  string? ClarificationReason = null, bool ClarificationReasonTruncated = false, bool CanWrite = false);
 public sealed record PortalPackageItem(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Currency);
 public sealed record PortalWorkspace(FirstSignInStatus FirstSignIn, bool PendingOnboarding, int EngagementCount,
-  IReadOnlyList<PortalRequestItem> Requests, bool HasMoreRequests, IReadOnlyList<PortalPackageItem> Packages);
+  IReadOnlyList<PortalRequestItem> Requests, bool HasMoreRequests, IReadOnlyList<PortalPackageItem> Packages,
+  DateOnly? AsOfDateUtc = null, bool HasMorePackages = false);
 public sealed record PortalUploadItem(Guid Id, string FileName, string ReceivedByteCount, string DeclaredByteCount, string State,
   string? TransferState, string Sha256, string CreatedAt);
 public sealed record PortalConversationItem(Guid Id, string At, string Speaker, string Body);
@@ -36,19 +38,57 @@ public static class ClientPortalWorkspaceQuery
     var engagements = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor, ct);
     var requests = await ClientPortalService.ParticipantRequests(db, actor).Where(x => engagements.Contains(x.EngagementId))
       .OrderBy(x => x.DueDate).ThenBy(x => x.Id).Skip(page * pageSize).Take(pageSize + 1)
-      .Select(x => new PortalRequestItem(x.Id, x.Area, x.Objective, x.PeriodStart, x.PeriodEnd, x.DueDate, x.State, x.ClientOwnerUserId != actor.UserId)).ToListAsync(ct);
+      .Select(x => new
+      {
+        Item = new PortalRequestItem(x.Id, x.Area, x.Objective, x.PeriodStart, x.PeriodEnd, x.DueDate, x.State, x.ClientOwnerUserId != actor.UserId),
+        x.EngagementId,
+        x.ClarificationReason
+      }).ToListAsync(ct);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && engagements.Contains(x.EngagementId) && x.Status == AccountingPackageStates.PackageValidated)
-      .OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(100)
+      .OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(101)
       .Select(x => new PortalPackageItem(x.Id, x.Framework, x.PeriodStart, x.PeriodEnd, x.Currency)).ToListAsync(ct);
-    // Re-evaluate participation and grants before releasing the snapshot; cookie epoch is also checked by the façade.
+    var requestPage = requests.Take(pageSize).ToArray();
+    var firstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct);
+    var uploadWindows = new Dictionary<Guid, bool>();
+    foreach (var engagementId in requestPage.Select(x => x.EngagementId).Distinct())
+      uploadWindows[engagementId] = (await ClientPortalService.RequireUploadWindowAsync(db, actor, engagementId, ct)).Succeeded;
+    var requestItems = requestPage.Select(row =>
+    {
+      var clarification = row.Item.State == PbcStates.ClarificationRequired && !string.IsNullOrWhiteSpace(row.ClarificationReason)
+        ? row.ClarificationReason
+        : null;
+      var truncated = clarification is { Length: > 2000 };
+      if (truncated) clarification = clarification![..2000];
+      var canWrite = firstSignIn.Completed && uploadWindows.GetValueOrDefault(row.EngagementId) &&
+        row.Item.State is (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.PartiallyReceived or PbcStates.ClarificationRequired);
+      return row.Item with { ClarificationReason = clarification, ClarificationReasonTruncated = truncated, CanWrite = canWrite };
+    }).ToArray();
+    var packageItems = packages.Take(100).ToArray();
+    var asOfDateUtc = DateOnly.FromDateTime(DateTime.UtcNow);
+    var requestIds = requests.Select(x => x.Item.Id).ToArray();
+    var writableRequests = requestPage.Where((_, index) => requestItems[index].CanWrite).ToArray();
+    if (writableRequests.Length > 0)
+    {
+      var currentFirstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct);
+      var currentUploadWindows = new Dictionary<Guid, bool>();
+      foreach (var engagementId in writableRequests.Select(x => x.EngagementId).Distinct())
+        currentUploadWindows[engagementId] = (await ClientPortalService.RequireUploadWindowAsync(db, actor, engagementId, ct)).Succeeded;
+      requestItems = requestItems.Select((item, index) => item with
+      {
+        CanWrite = item.CanWrite && currentFirstSignIn.Completed && currentUploadWindows.GetValueOrDefault(requestPage[index].EngagementId)
+      }).ToArray();
+    }
+    // Re-evaluate participation and grants after the prerequisite reads and before releasing the snapshot; cookie epoch
+    // is also checked by the façade. The upload route still makes the authoritative decision for every write.
     var currentEngagements = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor, ct);
-    var requestIds = requests.Select(x => x.Id).ToArray();
-    var stillAssigned = await ClientPortalService.ParticipantRequests(db, actor).Where(x => requestIds.Contains(x.Id)).Select(x => x.Id).ToListAsync(ct);
-    if (!await IsClientAsync(db, actor, ct) || !engagements.Order().SequenceEqual(currentEngagements.Order()) || !requestIds.Order().SequenceEqual(stillAssigned.Order()))
+    var stillAssigned = await ClientPortalService.ParticipantRequests(db, actor).Where(x => requestIds.Contains(x.Id))
+      .Select(x => x.Id).ToListAsync(ct);
+    if (!await IsClientAsync(db, actor, ct) || !engagements.Order().SequenceEqual(currentEngagements.Order()) ||
+        !requestIds.Order().SequenceEqual(stillAssigned.Order()))
       return CommandResult<PortalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Portal unavailable.");
-    return CommandResult<PortalWorkspace>.Ok(new(await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct),
+    return CommandResult<PortalWorkspace>.Ok(new(firstSignIn,
       await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor, ct), engagements.Count,
-      requests.Take(pageSize).ToArray(), requests.Count > pageSize, packages));
+      requestItems, requests.Count > pageSize, packageItems, asOfDateUtc, packages.Count > 100));
   }
 
   public static async Task<CommandResult<PortalRequestWorkspace>> RequestAsync(IAuditSphereDbContext db, ActorContext actor, Guid requestId, CancellationToken ct = default)
