@@ -215,9 +215,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 newName: "IX_financial_package_review_decisions_firm_id_client_id_engag~1");
 
             migrationBuilder.RenameIndex(
-                name: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~5",
+                name: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~3",
                 table: "commercial_deliverable_bundles",
-                newName: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~4");
+                newName: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~2");
 
             migrationBuilder.RenameIndex(
                 name: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~4",
@@ -225,9 +225,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                 newName: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~3");
 
             migrationBuilder.RenameIndex(
-                name: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~3",
+                name: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~5",
                 table: "commercial_deliverable_bundles",
-                newName: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~2");
+                newName: "IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~4");
 
             migrationBuilder.AddCheckConstraint(
                 name: "ck_release_values",
