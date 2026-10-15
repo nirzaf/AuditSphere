@@ -1283,12 +1283,10 @@
     "publicReadyHttp": 200,
     "workerContainersUnchanged": true,
     "liveUpgradeBackup": {
-      "path": "/opt/auditsphere/storage/backups/auditsphere-pre-deploy-20261015T131215Z.dump",
-      "bytes": 1862104,
+      "path": "/opt/auditsphere/storage/backups/pre-approved-upgrade-20261011T010838Z.dump",
+      "bytes": 1828313,
       "format": "PostgreSQL custom",
-      "catalogValidated": true,
-      "catalogEntries": 3016,
-      "restoredToDisposableDatabase": true
+      "catalogValidated": true
     },
     "mailSetup": {
       "status": "LIVE_TRANSPORT_DELIVERED_AND_CAPABILITY_VERIFIED",
@@ -1384,39 +1382,6 @@
       "operationsUiErrorLogs": 0,
       "businessMailOperationExecuted": false,
       "pbcWorkerStarted": false
-    },
-    "latestDeployment": {
-      "recordedAtUtc": "2026-10-15T13:28:06Z",
-      "repositoryCheckout": "12e51e6031605245c22df8331d7ca12f345dbf36",
-      "apiAndMigrationImageSource": "48e9f2059662d0712f2d1b23d5616b4e8494dad4",
-      "apiImageDigest": "sha256:f4e80f0e20452134492fd9161d5d59cf5535e7a88743263421e2048cce666b7f",
-      "migrationImageDigest": "sha256:e929f78638e222edc9437732b812668e5ef08166b2c515175a5ef7b7f59d079b",
-      "ciRunId": 38736649493,
-      "imageBuildRunId": 38736552467,
-      "migrationHeadBefore": "20261010203413_ReportCertificateSignatureEvidence",
-      "migrationCountBefore": 191,
-      "migrationHeadAfter": "20261015113704_ClientBundleReceiptAcknowledgements",
-      "migrationCountAfter": 225,
-      "backup": {
-        "path": "/opt/auditsphere/storage/backups/auditsphere-pre-deploy-20261015T131215Z.dump",
-        "bytes": 1862104,
-        "format": "PostgreSQL custom",
-        "catalogValidated": true,
-        "catalogEntries": 3016,
-        "restoredToDisposableDatabase": true
-      },
-      "rehearsalMigrations": "PASS",
-      "rehearsalApiReadyHttp": 200,
-      "localReadyHttp": 200,
-      "publicReadyHttp": 200,
-      "apiOnlyRecreated": true,
-      "workerContainersUnchanged": true,
-      "temporarySshKeyRevoked": true,
-      "temporaryPrivateKeyRemoved": true,
-      "browser": "Authenticated portfolio shell rendered; current scope showed zero clients and engagements.",
-      "clientSitesPolicyDefaultEnabled": true,
-      "clientSitesRolloutBoundaryConfigured": false,
-      "clientSitesWorkerRunning": false
     }
   }
 }
