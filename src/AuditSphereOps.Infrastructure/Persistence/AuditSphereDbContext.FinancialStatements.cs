@@ -327,6 +327,8 @@ public sealed partial class AuditSphereDbContext
     composition.Property(x => x.PdfSha256Hex).HasMaxLength(64).IsFixedLength();
     composition.Property(x => x.WordSha256Hex).HasMaxLength(64).IsFixedLength();
     composition.Property(x => x.ExcelSha256Hex).HasMaxLength(64).IsFixedLength();
+    composition.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_financial_statement_compositions_scope_id");
     composition.HasIndex(x => new { x.FirmId, x.PresentationRevisionId }).IsUnique()
       .HasDatabaseName("ux_financial_statement_compositions_revision");
     composition.ToTable("financial_statement_compositions", t => t.HasCheckConstraint(
@@ -507,6 +509,7 @@ public sealed partial class AuditSphereDbContext
     packageReview.Property(x => x.PackageHash).HasMaxLength(64);
     packageReview.Property(x => x.ArtifactVersion).HasMaxLength(100);
     packageReview.Property(x => x.ArtifactSha256Hex).HasMaxLength(64);
+    packageReview.Property(x => x.CompositionManifestDigest).HasMaxLength(64);
     packageReview.Property(x => x.Stage).HasMaxLength(40);
     packageReview.Property(x => x.Decision).HasMaxLength(30);
     packageReview.Property(x => x.EvidenceMode).HasMaxLength(20);
@@ -520,6 +523,7 @@ public sealed partial class AuditSphereDbContext
       " AND stage IN ('MANAGEMENT_APPROVAL','ACCOUNTING_REVIEW','PARTNER_APPROVAL')" +
       " AND decision IN ('APPROVED','CHANGES_REQUIRED','REJECTED')" +
       " AND evidence_mode IN ('SIGNED_IN','OFFLINE') AND length(trim(evidence_reference)) > 0" +
+      " AND ((presentation_composition_id IS NULL AND composition_manifest_digest IS NULL) OR (presentation_composition_id IS NOT NULL AND composition_manifest_digest ~ '^[0-9a-f]{64}$'))" +
       " AND ((evidence_mode = 'SIGNED_IN' AND decided_by_user_id IS NOT NULL) OR evidence_mode = 'OFFLINE')"));
     ScopeToEngagement(packageReview, nameof(FinancialPackageReviewDecision.FirmId), nameof(FinancialPackageReviewDecision.ClientId), nameof(FinancialPackageReviewDecision.EngagementId));
     packageReview.HasOne<FinancialPackage>().WithMany()
@@ -530,6 +534,9 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     packageReview.HasOne<FinancialStatementPresentationRevision>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PresentationRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    packageReview.HasOne<FinancialStatementComposition>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, PresentationCompositionId = x.PresentationCompositionId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     packageReview.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.DecidedByUserId })

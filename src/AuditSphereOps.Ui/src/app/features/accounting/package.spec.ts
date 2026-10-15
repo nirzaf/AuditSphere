@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeCashFlowSourceReview, decodePackage, sourceIntentFor } from './package';
+import { decodeCashFlowSourceReview, decodePackage, packageReviewRequestFor, sourceIntentFor } from './package';
 import { decodeReviewQueue } from './reviews';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -47,6 +47,9 @@ describe('Financial Package and Review Queue Contracts', () => {
           evidenceReference: 'Internal working paper review',
           packageHash: hash64,
           decidedAt: '2026-10-02T15:00:00Z',
+          presentationRevisionId: id1,
+          compositionId: id2,
+          compositionManifestDigest: hash64,
         },
       ],
       artifact: {
@@ -67,8 +70,18 @@ describe('Financial Package and Review Queue Contracts', () => {
     expect(decoded.validations[0].passed).toBe(true);
     expect(decoded.statementTotals[0].amount).toBe('500000.00');
     expect(decoded.reviews[0].stage).toBe('ACCOUNTING_REVIEW');
+    expect(decoded.reviews[0].compositionId).toBe(id2);
+    expect(decoded.reviews[0].compositionManifestDigest).toBe(hash64);
     expect(decoded.artifact?.byteCount).toBe(2048);
     expect(decoded.canReview).toBe(true);
+  });
+
+  it('builds a formal review request bound to the exact selected composition', () => {
+    const composition = { revisionId: id1, compositionId: id2, manifestDigest: hash64 };
+    expect(packageReviewRequestFor({ stage: 'PARTNER_APPROVAL', decision: 'APPROVED', mode: 'SIGNED_IN', reference: 'partner-review-1', comment: '' }, composition))
+      .toEqual({ stage: 'PARTNER_APPROVAL', decision: 'APPROVED', evidenceMode: 'SIGNED_IN', evidenceReference: 'partner-review-1', comment: null,
+        presentationRevisionId: id1, presentationCompositionId: id2, compositionManifestDigest: hash64 });
+    expect(packageReviewRequestFor({ stage: 'PARTNER_APPROVAL', decision: 'APPROVED', mode: 'SIGNED_IN', reference: 'partner-review-1', comment: '' }, null)).toBeNull();
   });
 
   it('decodes a valid review queue payload', () => {
@@ -97,6 +110,18 @@ describe('Financial Package and Review Queue Contracts', () => {
     expect(() => decodePackage(null, 'package')).toThrow();
     expect(() => decodePackage({}, 'package')).toThrow();
     expect(() => decodePackage({ id: 'bad-guid' }, 'package')).toThrow();
+  });
+
+  it('rejects a malformed review composition digest', () => {
+    const invalidReview = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', evidenceMode: 'SIGNED_IN', evidenceReference: 'review',
+      packageHash: hash64, decidedAt: '2026-10-02T15:00:00Z', presentationRevisionId: id1, compositionId: id2, compositionManifestDigest: 'bad' };
+    const validBase = {
+      id: id1, engagementId: id2, comparativePackageId: null, status: 'VALIDATED', framework: 'IFRS', periodStart: '2026-01-01', periodEnd: '2026-12-31',
+      currency: 'QAR', templateVersion: '1.0', calculationHash: hash64, supplementaryHash: null, revision: 1, cashBeginning: null, cashEnding: null,
+      cashAccountCodes: [], openingCashEvidenceReferences: [], closingCashEvidenceReferences: [], validations: [], statementTotals: [], cashFlow: [], disclosures: [],
+      reviews: [invalidReview], artifact: null, canReview: true, reviewStages: [], reviewDecisions: [],
+    };
+    expect(() => decodePackage(validBase, 'package')).toThrow();
   });
 });
 

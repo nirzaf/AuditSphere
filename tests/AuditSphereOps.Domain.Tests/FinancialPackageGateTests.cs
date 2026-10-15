@@ -206,7 +206,9 @@ public sealed class FinancialPackageGateTests
       Assert.True(partnerApproval.Succeeded, partnerApproval.Message);
 
       var ready = await FinancialPackageReviewService.RequireCurrentAsync(db, partner, packageId, requirePartner: true);
-      Assert.True(ready.Succeeded, ready.Message);
+      Assert.False(ready.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, ready.ErrorCode);
+      Assert.Contains("three-format composition", ready.Message!, StringComparison.Ordinal);
     }
   }
 
@@ -350,7 +352,10 @@ public sealed class FinancialPackageGateTests
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "partner-current", "Partner decision."));
       Assert.True(decided.Succeeded, decided.Message);
-      Assert.True((await FinancialPackageReviewService.RequireCurrentAsync(db, Actor(both, "Partner"), packageId, requirePartner: true)).Succeeded);
+      var current = await FinancialPackageReviewService.RequireCurrentAsync(db, Actor(both, "Partner"), packageId, requirePartner: true);
+      Assert.False(current.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, current.ErrorCode);
+      Assert.Contains("three-format composition", current.Message!, StringComparison.Ordinal);
     }
   }
 

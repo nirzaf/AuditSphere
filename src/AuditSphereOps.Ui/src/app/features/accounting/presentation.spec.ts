@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionService } from '../../core/session';
-import { StatementPresentation, decodePresentation, longDate, presentationAmount } from './presentation';
+import { StatementPresentation, decodePresentation, decodePresentationPin, longDate, presentationAmount } from './presentation';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const hash64 = 'a'.repeat(64);
@@ -52,6 +52,20 @@ describe('Statement presentation contract', () => {
     expect(decodePresentation({ ...payload, status: 'CANDIDATE' }, 'p').status).toBe('CANDIDATE');
     expect(() => decodePresentation({ ...payload, manifest: undefined }, 'p')).toThrow();
     expect(() => decodePresentation({ ...payload, notes: [{ ...payload.notes[0], amounts: [{ ...payload.notes[0].amounts[0], current: 1090993 }] }] }, 'p')).toThrow();
+  });
+
+  it('decodes composition identity and refuses a malformed composition digest', () => {
+    const pin = {
+      revisionId: id, packageId: id, packageCalculationHash: hash64, periodId: null, bookId: null, basis: null,
+      framework: 'IFRS', taxonomyVersion: 'TAX-v1', templateVersion: 'statements.v1', calculationEngineVersion: 'package.v1',
+      currency: 'QAR', periodStart: '2025-01-01', periodEnd: '2025-12-31', layoutVersionId: id, layoutHash: hash64,
+      comparativePackageId: null, comparativeCalculationHash: null, comparativeBasis: null, comparativeEvidenceReference: null,
+      noteSourceManifestHash: hash64, builderVersion: 'builder.v1', rendererVersion: 'renderer.v1', displayPolicy: 'whole units',
+      status: 'CANDIDATE', revisionHash: hash64, snapshotSha256Hex: hash64, createdAt: '2026-10-15T00:00:00Z', sourceIsCurrent: true,
+      artifactFormats: ['pdf', 'docx', 'xlsx'], predecessorRevisionId: null, compositionId: id, compositionManifestDigest: hash64,
+    };
+    expect(decodePresentationPin(pin, 'pin').compositionId).toBe(id);
+    expect(() => decodePresentationPin({ ...pin, compositionManifestDigest: 'bad' }, 'pin')).toThrow();
   });
 
   it('formats amounts as the server text does: grouped, brackets for negatives, dash for zero', () => {

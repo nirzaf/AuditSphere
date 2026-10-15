@@ -16,7 +16,7 @@ public sealed record FinancialStatementPresentationPin(
   string BuilderVersion, string RendererVersion,
   string DisplayPolicy, string Status, string RevisionHash, string SnapshotSha256Hex,
   DateTimeOffset CreatedAt, bool SourceIsCurrent, IReadOnlyList<string> ArtifactFormats,
-  Guid? PredecessorRevisionId = null);
+  Guid? PredecessorRevisionId = null, Guid? CompositionId = null, string? CompositionManifestDigest = null);
 
 public sealed record FinancialStatementPresentationPinnedArtifact(
   Guid RevisionId, Guid ArtifactId, string Format, string FileName, string ContentType,
@@ -624,6 +624,8 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == revision.FirmId && x.PresentationRevisionId == revision.Id)
       .OrderBy(x => x.Format).Select(x => x.Format).ToListAsync(ct);
     var sourceIsCurrent = await PresentationSourceIsCurrentAsync(db, revision, ct);
+    var composition = await db.FinancialStatementCompositions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == revision.FirmId && x.PresentationRevisionId == revision.Id, ct);
     return CommandResult<FinancialStatementPresentationPin>.Ok(new FinancialStatementPresentationPin(
       revision.Id, revision.FinancialPackageId, revision.PackageCalculationHash, revision.PeriodId,
       revision.BookId, revision.Basis, revision.Framework, revision.TaxonomyVersion,
@@ -633,7 +635,7 @@ public static partial class FinancialStatementService
       revision.NoteSourceManifestHash,
       revision.BuilderVersion, revision.RendererVersion, revision.DisplayPolicy, revision.Status,
       revision.RevisionHash, revision.SnapshotSha256Hex, revision.CreatedAt, sourceIsCurrent, formats,
-      revision.PredecessorRevisionId));
+      revision.PredecessorRevisionId, composition?.Id, composition?.ManifestDigest));
   }
 
   private static async Task<CommandResult<FinancialPackage>> AuthorizePinnedPackageAsync(

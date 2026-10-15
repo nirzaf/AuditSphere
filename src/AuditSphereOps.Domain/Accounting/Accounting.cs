@@ -498,6 +498,9 @@ public sealed class FinancialPackageReviewDecision
   public string ArtifactVersion { get; set; } = string.Empty;
   public string ArtifactSha256Hex { get; set; } = string.Empty;
   public Guid? PresentationRevisionId { get; set; }
+  /// <summary>The immutable three-format composition covered by this decision; null only for historical or legacy decisions.</summary>
+  public Guid? PresentationCompositionId { get; set; }
+  public string? CompositionManifestDigest { get; set; }
   public string Stage { get; set; } = string.Empty;
   public string Decision { get; set; } = string.Empty;
   public string EvidenceMode { get; set; } = string.Empty;

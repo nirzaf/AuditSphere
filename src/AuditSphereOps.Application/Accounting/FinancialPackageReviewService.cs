@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -10,13 +11,14 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record FinancialPackageReviewRequest(
   Guid FinancialPackageId, string Stage, string Decision, string EvidenceMode,
   string EvidenceReference, string Comment,
-  Guid? PresentationRevisionId = null, string? TargetArtifactVersion = null);
+  Guid? PresentationRevisionId = null, string? TargetArtifactVersion = null,
+  Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null);
 
 public sealed record FinancialPackageReviewSummary(
   Guid Id, string Stage, string Decision, string EvidenceMode, string PackageHash,
   Guid ArtifactId, string ArtifactVersion, string ArtifactSha256Hex,
   string EvidenceReference, string Comment, Guid? DecidedByUserId, DateTimeOffset DecidedAt,
-  Guid? PresentationRevisionId = null);
+  Guid? PresentationRevisionId = null, Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null);
 
 public sealed record ClientFinancialPackageLineSummary(string StatementSection, decimal Amount);
 
@@ -55,6 +57,11 @@ public static class FinancialPackageReviewService
         evidenceMode is not (FinancialPackageReviewEvidenceModes.SignedIn or FinancialPackageReviewEvidenceModes.Offline) ||
         evidenceReference.Length is < 1 or > 2000 || comment.Length > 4000)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "A valid package review decision and evidence reference are required.");
+    if ((request.PresentationCompositionId is null) != (request.CompositionManifestDigest is null) ||
+        request.CompositionManifestDigest is { } suppliedDigest && !IsSha256(suppliedDigest) ||
+        request.PresentationRevisionId is null && request.PresentationCompositionId is not null)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "A presentation composition must include its exact revision and lowercase SHA-256 manifest digest.");
     if (evidenceMode == FinancialPackageReviewEvidenceModes.Offline &&
         stage != FinancialPackageReviewStages.ManagementApproval)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.PackageInvalid, "Offline evidence is only supported for management approval.");
@@ -89,6 +96,7 @@ public static class FinancialPackageReviewService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The financial package must be validated before review.");
 
     FinancialStatementPresentationRevision? candidate = null;
+    FinancialStatementComposition? composition = null;
     FinancialPackageArtifact? artifact = null;
     if (request.PresentationRevisionId is Guid candidateRevisionId)
     {
@@ -103,14 +111,26 @@ public static class FinancialPackageReviewService
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
           "The candidate presentation source is no longer current; generate a new signing candidate before deciding.");
 
-      var targetArtifactVersion = !string.IsNullOrWhiteSpace(request.TargetArtifactVersion)
-        ? request.TargetArtifactVersion.Trim()
-        : FinancialPackageArtifactVersions.StatementPresentation(candidate.Id, FinancialStatementPresentationRenderer.PdfFormat);
-      artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+      composition = await db.FinancialStatementCompositions.AsNoTracking().SingleOrDefaultAsync(x =>
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+        x.FinancialPackageId == package.Id && x.PresentationRevisionId == candidate.Id, ct);
+      if (composition is null || !await CompositionArtifactsAreIntactAsync(db, package, candidate, composition, ct))
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "Seal the candidate's exact PDF, Word and Excel composition before recording a formal review decision.");
+      if (request.PresentationCompositionId != composition.Id || request.CompositionManifestDigest != composition.ManifestDigest)
+        return CommandResult<Guid>.Fail(ErrorCodes.ManifestMismatch,
+          "The selected composition identity or manifest changed. Refresh the presentation and select the current composition before reviewing.");
+
+      var targetArtifactVersion = FinancialPackageArtifactVersions.StatementPresentation(candidate.Id, FinancialStatementPresentationRenderer.PdfFormat);
+      if (!string.IsNullOrWhiteSpace(request.TargetArtifactVersion) &&
+          !string.Equals(request.TargetArtifactVersion.Trim(), targetArtifactVersion, StringComparison.Ordinal))
+        return CommandResult<Guid>.Fail(ErrorCodes.ManifestMismatch,
+          "Formal review is bound to the PDF in the selected three-format composition.");
+      artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == composition.PdfArtifactId && x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
         x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&
         x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
-        x.ArtifactVersion == targetArtifactVersion, ct);
+        x.ArtifactVersion == targetArtifactVersion && x.ArtifactSha256Hex == composition.PdfSha256Hex, ct);
       if (artifact is null || artifact.ArtifactBytes.Length == 0)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "The reviewed candidate presentation artifact (PDF) has not been rendered yet.");
@@ -125,7 +145,8 @@ public static class FinancialPackageReviewService
           x.PackageHash == package.CalculationHash && x.PackageRevision == package.Revision &&
           x.PackageGeneration == package.Generation && x.Stage == predecessorStage &&
           x.Decision == FinancialPackageReviewDecisions.Approved &&
-          x.PresentationRevisionId == candidate.Id, ct);
+          x.PresentationRevisionId == candidate.Id && x.PresentationCompositionId == composition.Id &&
+          x.CompositionManifestDigest == composition.ManifestDigest, ct);
         if (!predecessorApproved)
           return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
             $"A current approved {predecessorStage} decision for this signing candidate is required before {stage}.");
@@ -171,12 +192,17 @@ public static class FinancialPackageReviewService
           "The same person cannot record approved decisions at two different stages of one package version.");
     }
 
+    Guid? selectedPresentationId = candidate?.Id;
+    Guid? selectedCompositionId = composition?.Id;
+    var selectedCompositionDigest = composition?.ManifestDigest;
     if (await db.FinancialPackageReviewDecisions.AnyAsync(x =>
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
         x.FinancialPackageId == package.Id && x.PackageHash == package.CalculationHash &&
         x.PackageRevision == package.Revision && x.PackageGeneration == package.Generation &&
         x.Stage == stage && x.Decision == decision &&
-        x.PresentationRevisionId == (candidate != null ? candidate.Id : null), ct))
+        x.PresentationRevisionId == selectedPresentationId &&
+        x.PresentationCompositionId == selectedCompositionId &&
+        x.CompositionManifestDigest == selectedCompositionDigest, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This package decision already exists for the current package version.");
 
     var review = new FinancialPackageReviewDecision
@@ -186,6 +212,8 @@ public static class FinancialPackageReviewService
       PackageRevision = package.Revision, PackageGeneration = package.Generation,
       PackageHash = package.CalculationHash, Stage = stage, Decision = decision,
       PresentationRevisionId = candidate?.Id,
+      PresentationCompositionId = composition?.Id,
+      CompositionManifestDigest = composition?.ManifestDigest,
       FinancialPackageArtifactId = artifact.Id, ArtifactVersion = artifact.ArtifactVersion,
       ArtifactSha256Hex = artifact.ArtifactSha256Hex,
       EvidenceMode = evidenceMode, EvidenceReference = evidenceReference, Comment = comment,
@@ -216,7 +244,8 @@ public static class FinancialPackageReviewService
       .OrderBy(x => x.DecidedAt)
       .Select(x => new FinancialPackageReviewSummary(x.Id, x.Stage, x.Decision, x.EvidenceMode,
         x.PackageHash, x.FinancialPackageArtifactId, x.ArtifactVersion, x.ArtifactSha256Hex,
-        x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt, x.PresentationRevisionId))
+        x.EvidenceReference, x.Comment, x.DecidedByUserId, x.DecidedAt, x.PresentationRevisionId,
+        x.PresentationCompositionId, x.CompositionManifestDigest))
       .ToListAsync(ct);
     return CommandResult<IReadOnlyList<FinancialPackageReviewSummary>>.Ok(reviews);
   }
@@ -391,6 +420,9 @@ public static class FinancialPackageReviewService
         x.FinancialPackageId == package.Id)
       .ToListAsync(ct);
     Guid? expectedPresentationRevisionId = null;
+    Guid? expectedCompositionId = null;
+    string? expectedCompositionDigest = null;
+    var firstStage = true;
     foreach (var stage in requiredStages)
     {
       var current = reviews.Where(x => x.Stage == stage).OrderByDescending(x => x.DecidedAt).FirstOrDefault();
@@ -399,11 +431,18 @@ public static class FinancialPackageReviewService
           current.PackageGeneration != package.Generation)
         return CommandResult.Fail(ErrorCodes.GateBlocked, $"The current {stage} decision is required before release.");
 
-      if (expectedPresentationRevisionId is null && current.PresentationRevisionId is not null)
+      if (firstStage)
+      {
         expectedPresentationRevisionId = current.PresentationRevisionId;
-      else if (expectedPresentationRevisionId is not null && current.PresentationRevisionId != expectedPresentationRevisionId)
+        expectedCompositionId = current.PresentationCompositionId;
+        expectedCompositionDigest = current.CompositionManifestDigest;
+        firstStage = false;
+      }
+      else if (current.PresentationRevisionId != expectedPresentationRevisionId ||
+          current.PresentationCompositionId != expectedCompositionId ||
+          current.CompositionManifestDigest != expectedCompositionDigest)
         return CommandResult.Fail(ErrorCodes.GateBlocked,
-          "The management, accounting and Partner decisions must approve the same candidate presentation.");
+          "The management, accounting and Partner decisions must approve the same exact candidate composition.");
     }
     // Rows recorded before Administrator left the Partner stage remain in the table. A Partner decision counts only when its recorder
     // still holds a current Partner grant covering this engagement.
@@ -414,7 +453,68 @@ public static class FinancialPackageReviewService
         return CommandResult.Fail(ErrorCodes.GateBlocked,
           "The current PartnerApproval decision was not recorded by a current Partner for this engagement.");
     }
+    if (requirePartner && (expectedPresentationRevisionId is null || expectedCompositionId is null ||
+        string.IsNullOrWhiteSpace(expectedCompositionDigest)))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "Release requires management, accounting and Partner decisions bound to one selected three-format composition.");
+    if (expectedPresentationRevisionId is Guid presentationId)
+    {
+      var candidate = await db.FinancialStatementPresentationRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == presentationId && x.FirmId == package.FirmId && x.ClientId == package.ClientId &&
+        x.EngagementId == package.EngagementId && x.FinancialPackageId == package.Id, ct);
+      var composition = expectedCompositionId is Guid compositionId
+        ? await db.FinancialStatementCompositions.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.Id == compositionId && x.FirmId == package.FirmId && x.ClientId == package.ClientId &&
+          x.EngagementId == package.EngagementId && x.FinancialPackageId == package.Id &&
+          x.PresentationRevisionId == presentationId && x.ManifestDigest == expectedCompositionDigest, ct)
+        : null;
+      if (candidate is null || composition is null || candidate.PackageCalculationHash != package.CalculationHash ||
+          candidate.PackageGeneration != package.Generation ||
+          candidate.Status is not (FinancialStatementPresentationRevisionStatuses.Candidate or FinancialStatementPresentationRevisionStatuses.Approved) ||
+          !await FinancialStatementService.PresentationSourceIsCurrentAsync(db, candidate, ct) ||
+          !await CompositionArtifactsAreIntactAsync(db, package, candidate, composition, ct))
+        return CommandResult.Fail(ErrorCodes.GateBlocked,
+          "The approved statement composition is missing, stale or fails its exact-artifact integrity check.");
+    }
     return CommandResult.Ok();
+  }
+
+  internal static async Task<bool> CompositionArtifactsAreIntactAsync(
+    IClientAccountingDbContext db, FinancialPackage package, FinancialStatementPresentationRevision candidate,
+    FinancialStatementComposition composition, CancellationToken ct)
+  {
+    if (composition.FirmId != package.FirmId || composition.ClientId != package.ClientId ||
+        composition.EngagementId != package.EngagementId || composition.FinancialPackageId != package.Id ||
+        composition.PresentationRevisionId != candidate.Id || composition.PackageCalculationHash != package.CalculationHash)
+      return false;
+    var expected = new[]
+    {
+      (FinancialStatementPresentationRenderer.PdfFormat, composition.PdfArtifactId, composition.PdfSha256Hex),
+      (FinancialStatementPresentationRenderer.WordFormat, composition.WordArtifactId, composition.WordSha256Hex),
+      (FinancialStatementPresentationRenderer.ExcelFormat, composition.ExcelArtifactId, composition.ExcelSha256Hex),
+    };
+    var manifest = JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "statement-composition.v1",
+      PresentationRevisionId = candidate.Id,
+      PackageCalculationHash = candidate.PackageCalculationHash,
+      Formats = expected.Select(item => new { Format = item.Item1, ArtifactId = item.Item2, ArtifactSha256Hex = item.Item3 }).ToArray(),
+    });
+    if (Hashing.Sha256Hex(manifest) != composition.ManifestDigest) return false;
+    var ids = expected.Select(x => x.Item2).ToArray();
+    var artifacts = await db.FinancialPackageArtifacts.AsNoTracking().Where(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId && ids.Contains(x.Id)).ToListAsync(ct);
+    if (artifacts.Count != expected.Length) return false;
+    return expected.All(item =>
+    {
+      var artifact = artifacts.SingleOrDefault(x => x.Id == item.Item2);
+      return artifact is not null && artifact.FinancialPackageId == package.Id &&
+        artifact.PackageRevision == package.Revision && artifact.PackageGeneration == package.Generation &&
+        artifact.PackageHash == package.CalculationHash &&
+        artifact.ArtifactVersion == FinancialPackageArtifactVersions.StatementPresentation(candidate.Id, item.Item1) &&
+        artifact.ArtifactSha256Hex == item.Item3 && artifact.ArtifactBytes.Length > 0 &&
+        Hashing.Sha256Hex(artifact.ArtifactBytes) == item.Item3;
+    });
   }
 
   private static async Task<bool> PartnerDecisionHeldByPartnerAsync(IClientAccountingDbContext db, FinancialPackage package,
@@ -427,6 +527,8 @@ public static class FinancialPackageReviewService
       ((g.ClientId == null && g.EngagementId == null) ||
        (g.ClientId == package.ClientId && (g.EngagementId == null || g.EngagementId == package.EngagementId))), ct);
   }
+
+  private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
   private static async Task<bool> CashFlowSourcesIndependentlyApprovedAsync(
     IClientAccountingDbContext db, ActorContext actor, FinancialPackage package, CancellationToken ct)

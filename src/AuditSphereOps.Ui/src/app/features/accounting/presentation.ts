@@ -1,8 +1,8 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { Component, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { exactDecimal } from '../../core/contracts';
-import { arr, bool, dec, decode, guid, nat, nullable, obj, oneOf, text } from '../../core/decode';
+import { arr, bool, dec, decode, guid, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 /** Read-only statement presentation (unapproved draft). Every amount is a display string produced by the server. */
@@ -36,7 +36,7 @@ export const decodePresentation = obj({
   warnings: arr(obj({ code: text, detail: text }), 200),
 });
 
-const decodePresentationPin = obj({
+export const decodePresentationPin = obj({
   revisionId: guid, packageId: guid, packageCalculationHash: text, periodId: nullable(guid), bookId: nullable(guid),
   basis: nullable(text), framework: text, taxonomyVersion: text, templateVersion: text, calculationEngineVersion: text,
   currency: text, periodStart: text, periodEnd: text, layoutVersionId: guid, layoutHash: text,
@@ -44,10 +44,10 @@ const decodePresentationPin = obj({
   comparativeEvidenceReference: nullable(text), noteSourceManifestHash: text, builderVersion: text,
   rendererVersion: text, displayPolicy: text, status: oneOf('UNAPPROVED_DRAFT', 'CANDIDATE', 'APPROVED', 'SUPERSEDED'), revisionHash: text,
   snapshotSha256Hex: text, createdAt: text, sourceIsCurrent: bool, artifactFormats: arr(oneOf('pdf', 'docx', 'xlsx'), 3),
-  predecessorRevisionId: nullable(guid),
+  predecessorRevisionId: nullable(guid), compositionId: nullable(guid), compositionManifestDigest: nullable(sha256),
 });
 
-const decodePresentationPins = arr(decodePresentationPin, 50);
+export const decodePresentationPins = arr(decodePresentationPin, 50);
 type PresentationFormat = 'pdf' | 'docx' | 'xlsx';
 
 /** Long calendar date in UTC, matching the server's presentation text (for example "31 December 2025"). */
@@ -168,7 +168,7 @@ export function presentationAmount(value: string | null | undefined, decimals = 
       <audit-state [loading]="pins.loading()" [error]="pins.error()" label="saved pinned drafts" />
       @for (pin of pins.data() ?? []; track pin.revisionId) {
         <article class="panel" aria-label="Saved statement presentation draft">
-          <p><strong>Unapproved draft · {{ pin.sourceIsCurrent ? 'sources current' : 'source basis changed' }}</strong> · saved {{ pin.createdAt }}</p>
+          <p><strong>{{ pin.status }} · {{ pin.sourceIsCurrent ? 'sources current' : 'source basis changed' }}</strong> · saved {{ pin.createdAt }}</p>
           <p><small>{{ pin.framework }} · taxonomy {{ pin.taxonomyVersion }} · template {{ pin.templateVersion }} · engine {{ pin.calculationEngineVersion }} · {{ pin.currency }} · {{ pin.periodStart }} to {{ pin.periodEnd }} · {{ pin.basis ?? 'basis not recorded' }}</small></p>
           <p><small>Period <code>{{ pin.periodId ?? 'not linked' }}</code> · book <code>{{ pin.bookId ?? 'not linked' }}</code> · comparative basis {{ pin.comparativeBasis ?? 'none' }}</small></p>
           <p><small>Revision <code>{{ pin.revisionId }}</code> · layout <code>{{ pin.layoutVersionId }}</code> · layout hash <code>{{ pin.layoutHash.slice(0, 12) }}</code></small></p>
@@ -180,6 +180,16 @@ export function presentationAmount(value: string | null | undefined, decimals = 
               </button>
             }
           </p>
+          @if (pin.status === 'UNAPPROVED_DRAFT' && pin.sourceIsCurrent && pin.artifactFormats.includes('pdf')) {
+            <button matButton="outlined" (click)="promoteToCandidate(pin.revisionId)" [disabled]="busy()">Promote exact draft to signing candidate</button>
+          }
+          @if (pin.status === 'CANDIDATE' && !pin.compositionId && pin.sourceIsCurrent) {
+            <button matButton="filled" (click)="composeCandidate(pin.revisionId)" [disabled]="busy()">Seal candidate PDF, Word and Excel</button>
+          }
+          @if (pin.compositionId && pin.compositionManifestDigest) {
+            <p role="status">Three-format composition <code>{{ pin.compositionId }}</code> · manifest <code>{{ pin.compositionManifestDigest }}</code></p>
+            <button matButton="outlined" (click)="selectComposition(pin)" [disabled]="!pin.sourceIsCurrent">Use this composition for formal review</button>
+          }
         </article>
       }
     </section>
@@ -188,6 +198,7 @@ export function presentationAmount(value: string | null | undefined, decimals = 
 export class StatementPresentation {
   private readonly api = inject(Api);
   readonly packageId = input.required<string>();
+  readonly compositionSelected = output<{ revisionId: string; compositionId: string; manifestDigest: string }>();
   readonly presentation = this.api.resource(() => (this.packageId() ? `/api/ui/accounting/packages/${this.packageId()}/presentation` : null),
     decodePresentation, 'The statement presentation is unavailable in your current scope.');
   readonly pins = this.api.resource(() => (this.packageId() ? `/api/ui/accounting/packages/${this.packageId()}/presentation/pins` : null),
@@ -259,6 +270,36 @@ export class StatementPresentation {
     this.busy.set(true);
     try { await this.downloadPinnedBytes(format, revisionId); }
     finally { this.busy.set(false); }
+  }
+
+  async promoteToCandidate(revisionId: string): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    try {
+      const result = await this.api.command<unknown>(
+        `/api/ui/accounting/packages/${this.packageId()}/presentation/pins/${revisionId}/candidate`, {});
+      if (!result.ok) { this.status.set(result.message); return; }
+      this.pins.reload();
+      this.status.set('A new signing-candidate revision was created. The pinned draft remains unchanged.');
+    } finally { this.busy.set(false); }
+  }
+
+  async composeCandidate(revisionId: string): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    try {
+      const result = await this.api.command<unknown>(
+        `/api/ui/accounting/packages/${this.packageId()}/presentation/pins/${revisionId}/composition`, {});
+      if (!result.ok) { this.status.set(result.message); return; }
+      this.pins.reload();
+      this.status.set('The exact PDF, Word and Excel bytes were sealed together. Select that composition for formal review.');
+    } finally { this.busy.set(false); }
+  }
+
+  selectComposition(pin: { revisionId: string; compositionId: string | null; compositionManifestDigest: string | null; sourceIsCurrent: boolean }): void {
+    if (!pin.compositionId || !pin.compositionManifestDigest || !pin.sourceIsCurrent) return;
+    this.compositionSelected.emit({ revisionId: pin.revisionId, compositionId: pin.compositionId,
+      manifestDigest: pin.compositionManifestDigest });
   }
 
   private async createPin(): Promise<{ revisionId: string } | null> {

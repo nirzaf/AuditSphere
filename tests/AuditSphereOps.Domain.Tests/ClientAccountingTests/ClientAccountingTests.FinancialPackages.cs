@@ -25,7 +25,7 @@ public sealed partial class ClientAccountingTests
 {
   [Fact]
   [Trait("Profile", "Database")]
-  public async Task FinancialPackageReviews_AreStageBoundAndImmutable()
+  public async Task FinancialPackageReviews_AreStageBoundAndImmutable_AndReleaseRequiresSelectedComposition()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
@@ -81,7 +81,9 @@ public sealed partial class ClientAccountingTests
           "partner-review-session", "Partner approval recorded."));
       Assert.True(partnerApproval.Succeeded, partnerApproval.Message);
       var complete = await FinancialPackageReviewService.RequireCurrentAsync(db, partner, packageId, requirePartner: true);
-      Assert.True(complete.Succeeded, complete.Message);
+      Assert.False(complete.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, complete.ErrorCode);
+      Assert.Contains("three-format composition", complete.Message!, StringComparison.Ordinal);
       var emptyQueue = await FinancialPackageReviewService.GetStaffQueueAsync(db, partner);
       Assert.True(emptyQueue.Succeeded, emptyQueue.Message);
       Assert.Empty(emptyQueue.Value!);

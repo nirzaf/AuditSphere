@@ -13,7 +13,8 @@ public sealed record PackageCashFlowView(
   Guid Id, string Section, string Description, decimal Amount, bool IsNonCash, string Currency,
   DateOnly? MovementDate, string? ActivityCode, IReadOnlyList<string> SourceReferences, string? ClassificationRationale);
 public sealed record PackageDisclosureView(string Code, string Response, bool NotApplicable, string? Rationale);
-public sealed record PackageReviewView(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string PackageHash, DateTimeOffset DecidedAt);
+public sealed record PackageReviewView(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string PackageHash,
+  DateTimeOffset DecidedAt, Guid? PresentationRevisionId, Guid? CompositionId, string? CompositionManifestDigest);
 public sealed record PackageArtifactView(string ArtifactSha256Hex, int ByteCount, string RenderedText);
 public sealed record FinancialPackageWorkspace(Guid Id, Guid EngagementId, Guid? ComparativePackageId, string Status, string Framework, string PeriodStart, string PeriodEnd, string Currency,
   string TemplateVersion, string CalculationHash, string? SupplementaryHash, long Revision, decimal? CashBeginning, decimal? CashEnding,
@@ -56,7 +57,8 @@ public static class FinancialPackageWorkspaceQuery
     return CommandResult<FinancialPackageWorkspace>.Ok(new(p.Id, p.EngagementId, p.ComparativePackageId, p.Status, p.Framework, p.PeriodStart, p.PeriodEnd, p.Currency, p.TemplateVersion,
       p.CalculationHash, p.SupplementaryHash, p.Revision, p.CashBeginning, p.CashEnding,
       p.CashAccountCodes, p.OpeningCashEvidenceReferences, p.ClosingCashEvidenceReferences, validations, totals, cash, disclosures,
-      reviews.Succeeded ? reviews.Value!.Select(r => new PackageReviewView(r.Stage, r.Decision, r.EvidenceMode, r.EvidenceReference, r.PackageHash, r.DecidedAt)).ToList() : [],
+      reviews.Succeeded ? reviews.Value!.Select(r => new PackageReviewView(r.Stage, r.Decision, r.EvidenceMode, r.EvidenceReference,
+        r.PackageHash, r.DecidedAt, r.PresentationRevisionId, r.PresentationCompositionId, r.CompositionManifestDigest)).ToList() : [],
       stored is { ArtifactBytes.Length: > 0 } ? new PackageArtifactView(stored.ArtifactSha256Hex, stored.ArtifactBytes.Length, System.Text.Encoding.UTF8.GetString(stored.ArtifactBytes)) : null,
       actor.Roles.Any(x => x is "Administrator" or "Partner" or "Manager" or "AccountingReviewer" or "AccountingPreparer"),
       partner ? [FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval]

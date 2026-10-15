@@ -1,9 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { arr, bool, dec, guid, instant, nat, nullable, obj, oneOf, text } from '../../core/decode';
+import { arr, bool, dec, guid, instant, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { StatementPresentation } from './presentation';
 
@@ -14,7 +14,8 @@ export const decodePackage = obj({ id: guid, engagementId: guid, comparativePack
   cashFlow: arr(obj({ id: guid, section: text, description: text, amount: dec, isNonCash: bool, currency: text,
     movementDate: nullable(text), activityCode: nullable(text), sourceReferences: arr(text, 50), classificationRationale: nullable(text) }), 2000),
   disclosures: arr(obj({ code: text, response: text, notApplicable: bool, rationale: nullable(text) }), 2000),
-  reviews: arr(obj({ stage: text, decision: text, evidenceMode: text, evidenceReference: text, packageHash: text, decidedAt: instant }), 500),
+  reviews: arr(obj({ stage: text, decision: text, evidenceMode: text, evidenceReference: text, packageHash: text, decidedAt: instant,
+    presentationRevisionId: nullable(guid), compositionId: nullable(guid), compositionManifestDigest: nullable(sha256) }), 500),
   artifact: nullable(obj({ artifactSha256Hex: text, byteCount: nat, renderedText: text })), canReview: bool, reviewStages: arr(text, 10), reviewDecisions: arr(text, 10) });
 /** The original intent of a source decision, kept until the server answers. */
 export interface PendingSourceIntent { requestId: string; decision: string; reason: string | null; }
@@ -25,6 +26,23 @@ export function sourceIntentFor(pending: PendingSourceIntent | null, decision: s
 }
 
 const pendingSourceIntentKey = (packageId: string): string => `auditsphere.cash-flow-source-intent.${packageId}`;
+
+export interface SelectedStatementComposition { revisionId: string; compositionId: string; manifestDigest: string; }
+export interface PackageReviewForm { stage: string; decision: string; mode: string; reference: string; comment: string; }
+
+export function packageReviewRequestFor(form: PackageReviewForm, composition: SelectedStatementComposition | null): Record<string, unknown> | null {
+  if (!composition) return null;
+  return {
+    stage: form.stage,
+    decision: form.decision,
+    evidenceMode: form.mode,
+    evidenceReference: form.reference,
+    comment: form.comment || null,
+    presentationRevisionId: composition.revisionId,
+    presentationCompositionId: composition.compositionId,
+    compositionManifestDigest: composition.manifestDigest,
+  };
+}
 
 /** Browser storage is per-viewer convenience only. The server remains the authority; when storage is unavailable the intent is kept in memory. */
 export function readPendingSourceIntent(packageId: string): PendingSourceIntent | null {
@@ -93,20 +111,22 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
           <h2 id="review-heading">Package review decisions</h2>
           <p>Every decision is recorded against this package's exact revision, generation and calculation hash. Decisions are append-only; a changed package must be reviewed again.</p>
           @if (p.status === 'VALIDATED') {
+            <p role="status">@if (selectedComposition(); as composition) { Formal review is bound to composition <code>{{ composition.compositionId }}</code> and manifest <code>{{ composition.manifestDigest }}</code>. }
+              @else { Select a sealed, current three-format composition below before recording formal decisions. }</p>
             <form class="inline-form" (submit)="$event.preventDefault(); review(p.id)">
               <label>Stage <select name="stage" [(ngModel)]="r.stage">@for (s of p.reviewStages; track s) { <option [value]="s">{{ s }}</option> }</select></label>
               <label>Decision <select name="decision" [(ngModel)]="r.decision">@for (d of p.reviewDecisions; track d) { <option [value]="d">{{ d }}</option> }</select></label>
               <label>Evidence mode <select name="mode" [(ngModel)]="r.mode"><option value="SIGNED_IN">SIGNED_IN</option><option value="OFFLINE">OFFLINE</option></select></label>
               <label>Evidence reference <input name="ref" [(ngModel)]="r.reference" maxlength="2000" required /></label>
               <label>Comment (optional) <textarea name="comment" [(ngModel)]="r.comment" maxlength="4000" rows="3"></textarea></label>
-              <button matButton="filled" type="submit" [disabled]="cmd.busy()">{{ cmd.busy() ? 'Recording…' : 'Record decision' }}</button>
+              <button matButton="filled" type="submit" [disabled]="cmd.busy() || !selectedComposition()">{{ cmd.busy() ? 'Recording…' : 'Record decision' }}</button>
             </form>
             <p><small>Management approval uses offline evidence on this staff surface; signed-in management approval must be completed by the authorized client-user surface.</small></p>
           } @else { <p>Review decisions are available only after the package reaches <code>VALIDATED</code>.</p> }
           <div class="table-scroll"><table><caption class="sr-only">Immutable package review decisions</caption>
-            <thead><tr><th scope="col">Stage</th><th scope="col">Decision</th><th scope="col">Evidence</th><th scope="col">Package hash</th><th scope="col">Decided at</th></tr></thead>
-            <tbody>@for (x of p.reviews; track $index) { <tr><td>{{ x.stage }}</td><td><audit-status [value]="x.decision" /></td><td>{{ x.evidenceMode }}: {{ x.evidenceReference }}</td><td><code>{{ x.packageHash.slice(0, 12) }}</code></td><td>{{ x.decidedAt.slice(0, 16).replace('T', ' ') }}</td></tr> }
-            @empty { <tr><td colspan="5">No decisions recorded for this package version.</td></tr> }</tbody></table></div>
+            <thead><tr><th scope="col">Stage</th><th scope="col">Decision</th><th scope="col">Evidence</th><th scope="col">Package hash</th><th scope="col">Composition</th><th scope="col">Decided at</th></tr></thead>
+            <tbody>@for (x of p.reviews; track $index) { <tr><td>{{ x.stage }}</td><td><audit-status [value]="x.decision" /></td><td>{{ x.evidenceMode }}: {{ x.evidenceReference }}</td><td><code>{{ x.packageHash.slice(0, 12) }}</code></td><td><code>{{ x.compositionId ?? 'legacy review' }}</code>@if (x.compositionManifestDigest) {<small>{{ x.compositionManifestDigest.slice(0, 12) }}</small>}</td><td>{{ x.decidedAt.slice(0, 16).replace('T', ' ') }}</td></tr> }
+            @empty { <tr><td colspan="6">No decisions recorded for this package version.</td></tr> }</tbody></table></div>
         </section>
       }
       <section class="panel" aria-labelledby="statement-heading">
@@ -151,7 +171,7 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
             <tbody>@for (d of p.disclosures; track d.code) { <tr><td>{{ d.code }}</td><td>{{ d.notApplicable ? d.rationale : d.response }}</td><td>{{ d.notApplicable ? 'Not applicable' : 'Answered' }}</td></tr> }</tbody></table></div>
         </section>
       }
-      <audit-statement-presentation [packageId]="p.id" />
+      <audit-statement-presentation [packageId]="p.id" (compositionSelected)="selectedComposition.set($event)" />
       @if (p.artifact; as a) {
         <section class="panel" aria-labelledby="artifact-heading">
           <h2 id="artifact-heading">Deterministic package artifact</h2>
@@ -180,6 +200,10 @@ export class FinancialPackage {
   sourceDecision = 'APPROVED';
   sourceReason = '';
   readonly downloading = signal(false);
+  readonly selectedComposition = linkedSignal({
+    source: this.id,
+    computation: () => null as { revisionId: string; compositionId: string; manifestDigest: string } | null,
+  });
   readonly artifactStatus = signal('');
   readonly artifacts = ARTIFACTS;
   r = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', mode: 'SIGNED_IN', reference: '', comment: '' };
@@ -198,8 +222,10 @@ export class FinancialPackage {
       .finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
   }
   review(id: string): void {
-    void this.cmd.run(`/api/ui/accounting/packages/${id}/reviews`, { stage: this.r.stage, decision: this.r.decision, evidenceMode: this.r.mode,
-      evidenceReference: this.r.reference, comment: this.r.comment || null }, 'Decision recorded against the current package version.',
+    const request = packageReviewRequestFor(this.r, this.selectedComposition());
+    if (!request) return;
+    void this.cmd.run(`/api/ui/accounting/packages/${id}/reviews`, request,
+      'Decision recorded against the exact selected three-format composition.',
       () => (this.r = { ...this.r, reference: '', comment: '' })).finally(() => this.pkg.reload());
   }
   async download(id: string, version: string): Promise<void> {

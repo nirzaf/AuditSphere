@@ -16,6 +16,8 @@ public sealed partial class AuditDeliverablesTests
   [InlineData("scan")]
   [InlineData("representation")]
   [InlineData("statements")]
+  [InlineData("statement-word")]
+  [InlineData("statement-excel")]
   public async Task FivePartBundle_RefusesCorruptedSourceRead_WithoutChangingStoredEvidence(string component)
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -32,7 +34,7 @@ public sealed partial class AuditDeliverablesTests
     {
       var refused = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);
       Assert.True(corruption.Fired); Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
-      Assert.Contains("Stored artifact integrity verification failed", refused.Message);
+      Assert.Contains("integrity", refused.Message!, StringComparison.OrdinalIgnoreCase);
       Assert.Empty(await db.CommercialDeliverableBundles.ToListAsync());
     }
     await using var intact = new AuditSphereDbContext(pg.Options);
@@ -56,8 +58,12 @@ public sealed partial class AuditDeliverablesTests
           d.Content = [.. d.Content, 0x7f]; Fired = true; break;
         case SignedRepresentationLetter scan when component == "scan":
           scan.Content = [.. scan.Content, 0x7f]; Fired = true; break;
-        case FinancialPackageArtifact artifact when component == "statements" && artifact.ArtifactVersion == FinancialPackageArtifactVersions.Pdf:
-          artifact.ArtifactBytes = [.. artifact.ArtifactBytes, 0x7f]; Fired = true; break;
+        case FinancialPackageArtifact pdfArtifact when component == "statements" && pdfArtifact.ArtifactVersion.StartsWith("statement-presentation.pdf.", StringComparison.Ordinal):
+          pdfArtifact.ArtifactBytes = [.. pdfArtifact.ArtifactBytes, 0x7f]; Fired = true; break;
+        case FinancialPackageArtifact wordArtifact when component == "statement-word" && wordArtifact.ArtifactVersion.StartsWith("statement-presentation.docx.", StringComparison.Ordinal):
+          wordArtifact.ArtifactBytes = [.. wordArtifact.ArtifactBytes, 0x7f]; Fired = true; break;
+        case FinancialPackageArtifact excelArtifact when component == "statement-excel" && excelArtifact.ArtifactVersion.StartsWith("statement-presentation.xlsx.", StringComparison.Ordinal):
+          excelArtifact.ArtifactBytes = [.. excelArtifact.ArtifactBytes, 0x7f]; Fired = true; break;
       }
       return entity;
     }

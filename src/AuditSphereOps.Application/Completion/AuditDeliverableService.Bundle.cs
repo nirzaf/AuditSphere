@@ -33,7 +33,8 @@ public static partial class AuditDeliverableService
     var inputs = await BundleInputsAsync(db, actor, engagementId, ct);
     if (inputs.Blockers.Count != 0) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, string.Join(" ", inputs.Blockers));
     var report = inputs.Report!; var management = inputs.Management!; var scan = inputs.Scan!;
-    var release = inputs.Release!; var statements = inputs.Statements!; var invoice = inputs.Invoice!;
+    var release = inputs.Release!; var statements = inputs.Statements!; var composition = inputs.Composition!;
+    var statementWord = inputs.StatementWord!; var statementExcel = inputs.StatementExcel!; var invoice = inputs.Invoice!;
     var representation = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == scan.DeliverableId && x.FirmId == actor.FirmId, ct);
     var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     var client = await db.PracticeClients.AsNoTracking().SingleAsync(x => x.Id == engagement.PracticeClientId && x.FirmId == actor.FirmId, ct);
@@ -56,11 +57,15 @@ public static partial class AuditDeliverableService
     var correspondenceJson = JsonSerializer.Serialize(new { Confirmations = confirmationRows, Communications = communications, ClearedQueries = comments });
     var lines = await db.InvoiceLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoice.Id).OrderBy(x => x.Id).ToListAsync(ct);
     var sourceDigest = Digest(new { Report = report.Id, Management = management.Id, Scan = scan.Id, Release = release.Id, Artifact = statements.Id,
+      Composition = composition.Id, CompositionManifest = composition.ManifestDigest,
+      StatementWord = new { statementWord.Id, statementWord.ArtifactSha256Hex },
+      StatementExcel = new { statementExcel.Id, statementExcel.ArtifactSha256Hex },
       Invoice = invoice.Id, InvoiceRevision = invoice.Revision, InvoiceStatus = invoice.Status, invoice.Total, invoice.PostedAt,
       Lines = lines.Select(x => new { x.Id, x.Description, x.Quantity, x.UnitPrice, x.LineTotal }), Correspondence = correspondenceJson,
       Profile = firm?.Id, CertifiedBy = actor.UserId });
     var prior = await db.CommercialDeliverableBundles.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.SourceDigest == sourceDigest, ct);
-    if ((long)report.Content.Length + management.Content.Length + scan.Content.Length + statements.ArtifactBytes.Length + Encoding.UTF8.GetByteCount(correspondenceJson) > 100 * 1024 * 1024)
+    if ((long)report.Content.Length + management.Content.Length + scan.Content.Length + statements.ArtifactBytes.Length +
+        statementWord.ArtifactBytes.Length + statementExcel.ArtifactBytes.Length + Encoding.UTF8.GetByteCount(correspondenceJson) > 100 * 1024 * 1024)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The bundle exceeds the 100 MB assembly limit; request an approved delivery arrangement.");
     if (!ValidPdf(report.Content) || !ValidPdf(statements.ArtifactBytes))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The report or financial statements are not readable PDF artifacts.");
@@ -121,6 +126,9 @@ public static partial class AuditDeliverableService
     var files = new SortedDictionary<string, byte[]>(StringComparer.Ordinal)
     {
       ["01_Report_and_statements/Independent_auditors_report.pdf"] = report.Content,
+      ["01_Report_and_statements/Selected_financial_statements.pdf"] = statements.ArtifactBytes,
+      ["01_Report_and_statements/Selected_financial_statements.docx"] = statementWord.ArtifactBytes,
+      ["01_Report_and_statements/Selected_financial_statements.xlsx"] = statementExcel.ArtifactBytes,
       ["01_Report_and_statements/Certified_financial_statements.pdf"] = certifiedStatements,
       ["02_Management_letter/Management_letter.docx"] = management.Content,
       ["03_Representation_letter/Representation_letter.docx"] = representation.Content,
@@ -132,6 +140,14 @@ public static partial class AuditDeliverableService
     {
       Format = "STE-FIVE-PART-v1", actor.FirmId, ClientId = client.Id, EngagementId = engagementId,
       SignedReport = report.Id, FinancialPackageRelease = release.Id, FinancialPackageArtifact = statements.Id, statements.ArtifactSha256Hex,
+      SelectedStatementComposition = new
+      {
+        composition.Id, composition.PresentationRevisionId, composition.PackageCalculationHash,
+        ManifestDigest = composition.ManifestDigest,
+        Pdf = new { ArtifactId = statements.Id, Sha256 = statements.ArtifactSha256Hex },
+        Word = new { ArtifactId = statementWord.Id, Sha256 = statementWord.ArtifactSha256Hex },
+        Excel = new { ArtifactId = statementExcel.Id, Sha256 = statementExcel.ArtifactSha256Hex },
+      },
       ManagementLetter = management.Id, RepresentationLetter = representation.Id, SignedRepresentation = scan.Id, scan.ContentSha256,
       BalanceInvoice = invoice.Id, InvoiceRevision = invoice.Revision, InvoiceStatus = invoice.Status,
       CertifiedBy = actor.UserId, SourceSignature = specimen.Sha256, Seal = seal.Sha256,
@@ -152,7 +168,8 @@ public static partial class AuditDeliverableService
     var bundle = new CommercialDeliverableBundle
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = client.Id, EngagementId = engagementId, SignedReportId = report.Id,
-      FinancialPackageReleaseId = release.Id, FinancialPackageArtifactId = statements.Id, ManagementLetterId = management.Id,
+      FinancialPackageReleaseId = release.Id, FinancialPackageArtifactId = statements.Id,
+      FinancialStatementCompositionId = composition.Id, CompositionManifestDigest = composition.ManifestDigest, ManagementLetterId = management.Id,
       SignedRepresentationLetterId = scan.Id, BalanceInvoiceId = invoice.Id, ManifestJson = manifest, ManifestSha256 = digest,
       SourceDigest = sourceDigest, Content = content, ContentSha256 = Hashing.Sha256Hex(content), AssembledByUserId = actor.UserId, AssembledAt = DateTimeOffset.UtcNow
     };
@@ -163,7 +180,8 @@ public static partial class AuditDeliverableService
   }
 
   private sealed record BundleInputs(List<string> Blockers, AuditDeliverable? Report, AuditDeliverable? Management,
-    SignedRepresentationLetter? Scan, Release? Release, FinancialPackageArtifact? Statements, Invoice? Invoice);
+    SignedRepresentationLetter? Scan, Release? Release, FinancialPackageArtifact? Statements,
+    FinancialStatementComposition? Composition, FinancialPackageArtifact? StatementWord, FinancialPackageArtifact? StatementExcel, Invoice? Invoice);
 
   private static async Task<BundleInputs> BundleInputsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
@@ -193,23 +211,61 @@ public static partial class AuditDeliverableService
       db.ReleaseCandidates.Any(c => c.Id == x.ReleaseCandidateId && c.FirmId == actor.FirmId && c.TargetKind == ReleaseTargetKinds.FinancialPackage))
       .OrderByDescending(x => x.ReleasedAt).FirstOrDefaultAsync(ct);
     FinancialPackageArtifact? artifact = null;
+    FinancialStatementComposition? composition = null;
+    FinancialPackageArtifact? statementWord = null;
+    FinancialPackageArtifact? statementExcel = null;
     if (release is null) blockers.Add("Release the reviewed financial package through its existing approval and checkpoint workflow first.");
     else
     {
       var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == release.PackageId && x.EngagementId == engagementId && x.ClientId == release.ClientId, ct);
-      if (package is not null && db is IClientAccountingDbContext accounting)
+      var accounting = db as IClientAccountingDbContext;
+      if (package is not null && accounting is not null)
       {
         var reviewed = await FinancialPackageReviewService.RequireCurrentAsync(accounting, actor, package.Id, true, ct);
         if (!reviewed.Succeeded) blockers.Add("The released financial package's management, accounting and Partner reviews are no longer current.");
       }
-      // The bundle uses only the artifact the release pinned. A legacy release with no pin, or a pinned artifact that is missing or changed,
-      // blocks assembly rather than falling back to a PDF looked up by revision.
-      if (release.PinnedArtifactId is Guid pinnedArtifactId && package is not null && package.Revision == release.PackageRevision)
+      if (release.PinnedCompositionId is Guid compositionId && release.PinnedCompositionManifestDigest is { Length: 64 } compositionDigest &&
+          package is not null && package.Revision == release.PackageRevision && accounting is not null)
+      {
+        composition = await accounting.FinancialStatementCompositions.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == actor.FirmId && x.ClientId == package.ClientId && x.EngagementId == engagementId &&
+          x.FinancialPackageId == package.Id && x.Id == compositionId && x.ManifestDigest == compositionDigest, ct);
+        var presentation = composition is null ? null : await accounting.FinancialStatementPresentationRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+          x.FirmId == actor.FirmId && x.ClientId == package.ClientId && x.EngagementId == engagementId &&
+          x.FinancialPackageId == package.Id && x.Id == composition.PresentationRevisionId, ct);
+        if (composition is null || presentation is null || composition.PdfArtifactId != release.PinnedArtifactId ||
+            composition.PdfSha256Hex != release.PinnedArtifactSha256Hex ||
+            presentation.Status is not (FinancialStatementPresentationRevisionStatuses.Candidate or FinancialStatementPresentationRevisionStatuses.Approved) ||
+            presentation.PackageCalculationHash != package.CalculationHash || presentation.PackageGeneration != package.Generation ||
+            !await FinancialStatementService.PresentationSourceIsCurrentAsync(accounting, presentation, ct) ||
+            !await FinancialPackageReviewService.CompositionArtifactsAreIntactAsync(accounting, package, presentation, composition, ct))
+        {
+          blockers.Add("The release's exact statement composition is missing, stale or fails its PDF, Word and Excel integrity check.");
+          composition = null;
+        }
+        else
+        {
+          var wordId = composition.WordArtifactId;
+          var excelId = composition.ExcelArtifactId;
+          var formats = await accounting.FinancialPackageArtifacts.AsNoTracking().Where(x =>
+            x.FirmId == actor.FirmId && x.ClientId == package.ClientId && x.EngagementId == engagementId &&
+            x.FinancialPackageId == package.Id && (x.Id == wordId || x.Id == excelId)).ToListAsync(ct);
+          statementWord = formats.SingleOrDefault(x => x.Id == wordId);
+          statementExcel = formats.SingleOrDefault(x => x.Id == excelId);
+        }
+      }
+      else
+        blockers.Add("The financial-package release has no pinned statement composition; a legacy PDF cannot substitute for the selected PDF, Word and Excel set.");
+
+      // Use only the PDF artifact selected by the release's immutable composition. Never resolve a legacy PDF by package revision.
+      if (composition is not null && release.PinnedArtifactId is Guid pinnedArtifactId && package is not null && package.Revision == release.PackageRevision)
         artifact = await db.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == pinnedArtifactId &&
           x.FinancialPackageId == package.Id && x.EngagementId == engagementId && x.ClientId == package.ClientId &&
           x.PackageRevision == package.Revision && x.PackageGeneration == package.Generation && x.PackageHash == package.CalculationHash &&
-          x.ArtifactVersion == release.PinnedArtifactVersion && x.ArtifactSha256Hex == release.PinnedArtifactSha256Hex, ct);
-      if (artifact is null) blockers.Add("The release does not pin an available PDF of the released financial package; release it again after rendering the reviewed package.");
+          x.ArtifactVersion == release.PinnedArtifactVersion && x.ArtifactSha256Hex == release.PinnedArtifactSha256Hex &&
+          x.Id == composition.PdfArtifactId, ct);
+      if (artifact is null || artifact.ArtifactBytes.Length == 0 || statementWord is null || statementExcel is null)
+        blockers.Add("The release does not pin the complete, available composition artifact set; issue a new composition and release after review.");
     }
     var agreements = await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).Take(2).ToListAsync(ct);
     Invoice? invoice = null;
@@ -230,9 +286,11 @@ public static partial class AuditDeliverableService
     if (await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == "FROZEN", ct)) blockers.Add("The engagement is frozen; an approved amendment is required.");
     if (report is not null && Hashing.Sha256Hex(report.Content) != report.ContentSha256 || management is not null && Hashing.Sha256Hex(management.Content) != management.ContentSha256 ||
         letter is not null && Hashing.Sha256Hex(letter.Content) != letter.ContentSha256 ||
-        scan is not null && Hashing.Sha256Hex(scan.Content) != scan.ContentSha256 || artifact is not null && Hashing.Sha256Hex(artifact.ArtifactBytes) != artifact.ArtifactSha256Hex)
+        scan is not null && Hashing.Sha256Hex(scan.Content) != scan.ContentSha256 || artifact is not null && Hashing.Sha256Hex(artifact.ArtifactBytes) != artifact.ArtifactSha256Hex ||
+        statementWord is not null && Hashing.Sha256Hex(statementWord.ArtifactBytes) != statementWord.ArtifactSha256Hex ||
+        statementExcel is not null && Hashing.Sha256Hex(statementExcel.ArtifactBytes) != statementExcel.ArtifactSha256Hex)
       blockers.Add("Stored artifact integrity verification failed.");
-    return new(blockers, report, management, scan, release, artifact, invoice);
+    return new(blockers, report, management, scan, release, artifact, composition, statementWord, statementExcel, invoice);
   }
 
   public static async Task<CommandResult<BundleAssemblyState>> BundleStateAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)

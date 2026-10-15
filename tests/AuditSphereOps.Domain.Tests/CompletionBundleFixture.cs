@@ -95,14 +95,41 @@ public static class CompletionBundleFixture
       var sourceReview = await CashFlowSourceReviewCall.RecordAsync(
         db, reviewer, packageId, "APPROVED", null);
       Assert.True(sourceReview.Succeeded, sourceReview.Message);
-      Assert.True((await FinancialStatementService.RenderPackageArtifactAsync(db, preparer, packageId)).Succeeded);
+      var layout = await StatementLayoutService.SaveLayoutDraftAsync(db, preparer,
+        new StatementLayoutDraftRequest(w.ClientId, "IFRS", "Bundle composition layout",
+        [
+          new StatementLineDefinition("H_FP", "Assets", StatementLayoutLineKinds.Heading,
+            StatementLayoutSections.FinancialPosition, 1),
+          new StatementLineDefinition("CASH", "Cash", StatementLayoutLineKinds.MappedTaxonomyBalance,
+            StatementLayoutSections.FinancialPosition, 2, TaxonomyNodeCode: "CASH"),
+          new StatementLineDefinition("TA", "Total assets", StatementLayoutLineKinds.SumChildLines,
+            StatementLayoutSections.FinancialPosition, 3, ChildLineCodes: ["CASH"], IsSubtotal: true),
+          new StatementLineDefinition("H_PL", "Revenue", StatementLayoutLineKinds.Heading,
+            StatementLayoutSections.ProfitOrLoss, 1),
+          new StatementLineDefinition("REV", "Revenue", StatementLayoutLineKinds.MappedTaxonomyBalance,
+            StatementLayoutSections.ProfitOrLoss, 2, DisplaySign: StatementLayoutDisplaySigns.Inverted,
+            TaxonomyNodeCode: "REVENUE")
+        ]));
+      Assert.True(layout.Succeeded, layout.Message);
+      Assert.True((await StatementLayoutService.ValidateLayoutAsync(db, preparer, layout.Value!.LayoutVersionId)).Value!.IsValid);
+      Assert.True((await StatementLayoutService.PublishLayoutAsync(db, reviewer, layout.Value.LayoutVersionId,
+        "Published for the synthetic completion bundle composition")).Succeeded);
+      var draft = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layout.Value.LayoutVersionId);
+      Assert.True(draft.Succeeded, draft.Message);
+      Assert.True((await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, draft.Value!.RevisionId,
+        FinancialStatementPresentationRenderer.PdfFormat)).Succeeded);
+      var candidate = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, packageId, draft.Value.RevisionId);
+      Assert.True(candidate.Succeeded, candidate.Message);
+      var composition = await FinancialStatementService.SelectCompositionAsync(db, preparer, packageId, candidate.Value!.RevisionId);
+      Assert.True(composition.Succeeded, composition.Message);
       foreach (var (actor, stage, mode) in new[] { (preparer, FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewEvidenceModes.Offline),
         (reviewer, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewEvidenceModes.SignedIn), (partner, FinancialPackageReviewStages.PartnerApproval, FinancialPackageReviewEvidenceModes.SignedIn) })
       {
-        var reviewed = await FinancialPackageReviewService.RecordAsync(db, actor, new(packageId, stage, FinancialPackageReviewDecisions.Approved, mode, "assembly-test-" + stage, "Reviewed the exact synthetic package."));
+        var reviewed = await FinancialPackageReviewService.RecordAsync(db, actor, new(packageId, stage, FinancialPackageReviewDecisions.Approved, mode,
+          "assembly-test-" + stage, "Reviewed the exact synthetic statement composition.", candidate.Value.RevisionId, null,
+          composition.Value!.Id, composition.Value!.ManifestDigest));
         Assert.True(reviewed.Succeeded, reviewed.Message);
       }
-      Assert.True((await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, partner, packageId, FinancialPackageArtifactVersions.Pdf)).Succeeded);
     }
     await using (var db = new AuditSphereDbContext(options))
     {

@@ -87,10 +87,13 @@ public sealed partial class AuditSphereDbContext
       .HasName("AK_releases_firm_id_id");
     release.Property(x => x.ManifestDigest).HasMaxLength(64);
     release.Property(x => x.AuthorizedReleaseKey).HasMaxLength(200);
+    release.Property(x => x.PinnedCompositionManifestDigest).HasMaxLength(64);
     release.HasIndex(x => new { x.FirmId, x.AuthorizedReleaseKey })
       .IsUnique().HasDatabaseName("ux_release_authorized_key");
     release.ToTable("releases", t => t.HasCheckConstraint("ck_release_values",
-      "package_revision >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND length(authorized_release_key) > 0"));
+      "package_revision >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND length(authorized_release_key) > 0 " +
+      "AND ((pinned_composition_id IS NULL AND pinned_composition_manifest_digest IS NULL) OR " +
+      "(pinned_composition_id IS NOT NULL AND pinned_composition_manifest_digest ~ '^[0-9a-f]{64}$'))"));
     release.HasOne<ReleaseCandidate>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ReleaseCandidateId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id })
@@ -98,6 +101,10 @@ public sealed partial class AuditSphereDbContext
     release.HasOne<ReleaseCheckpoint>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CheckpointId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    release.HasOne<AuditSphereOps.Domain.Accounting.FinancialStatementComposition>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PinnedCompositionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
     release.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })

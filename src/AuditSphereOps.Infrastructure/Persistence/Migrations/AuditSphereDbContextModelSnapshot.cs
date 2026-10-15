@@ -8212,6 +8212,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("comment");
 
+                    b.Property<string>("CompositionManifestDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("composition_manifest_digest");
+
                     b.Property<DateTimeOffset>("DecidedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("decided_at");
@@ -8268,6 +8273,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("package_revision");
 
+                    b.Property<Guid?>("PresentationCompositionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("presentation_composition_id");
+
                     b.Property<Guid?>("PresentationRevisionId")
                         .HasColumnType("uuid")
                         .HasColumnName("presentation_revision_id");
@@ -8287,15 +8296,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageArtifactId");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PresentationRevisionId")
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PresentationCompositionId")
                         .HasDatabaseName("IX_financial_package_review_decisions_firm_id_client_id_engag~1");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PresentationRevisionId")
+                        .HasDatabaseName("IX_financial_package_review_decisions_firm_id_client_id_engag~2");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "Stage", "DecidedAt")
                         .HasDatabaseName("ix_financial_package_review_stage");
 
                     b.ToTable("financial_package_review_decisions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_financial_package_review_values", "package_revision >= 1 AND package_generation >= 1 AND package_hash ~ '^[0-9a-f]{64}$' AND artifact_sha256_hex ~ '^[0-9a-f]{64}$' AND length(trim(artifact_version)) > 0 AND stage IN ('MANAGEMENT_APPROVAL','ACCOUNTING_REVIEW','PARTNER_APPROVAL') AND decision IN ('APPROVED','CHANGES_REQUIRED','REJECTED') AND evidence_mode IN ('SIGNED_IN','OFFLINE') AND length(trim(evidence_reference)) > 0 AND ((evidence_mode = 'SIGNED_IN' AND decided_by_user_id IS NOT NULL) OR evidence_mode = 'OFFLINE')");
+                            t.HasCheckConstraint("ck_financial_package_review_values", "package_revision >= 1 AND package_generation >= 1 AND package_hash ~ '^[0-9a-f]{64}$' AND artifact_sha256_hex ~ '^[0-9a-f]{64}$' AND length(trim(artifact_version)) > 0 AND stage IN ('MANAGEMENT_APPROVAL','ACCOUNTING_REVIEW','PARTNER_APPROVAL') AND decision IN ('APPROVED','CHANGES_REQUIRED','REJECTED') AND evidence_mode IN ('SIGNED_IN','OFFLINE') AND length(trim(evidence_reference)) > 0 AND ((presentation_composition_id IS NULL AND composition_manifest_digest IS NULL) OR (presentation_composition_id IS NOT NULL AND composition_manifest_digest ~ '^[0-9a-f]{64}$')) AND ((evidence_mode = 'SIGNED_IN' AND decided_by_user_id IS NOT NULL) OR evidence_mode = 'OFFLINE')");
                         });
                 });
 
@@ -8523,6 +8535,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsFixedLength();
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_financial_statement_compositions_scope_id");
 
                     b.HasIndex("FirmId", "PresentationRevisionId")
                         .IsUnique()
@@ -16664,6 +16679,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
 
+                    b.Property<string>("CompositionManifestDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("composition_manifest_digest");
+
                     b.Property<byte[]>("Content")
                         .IsRequired()
                         .HasColumnType("bytea")
@@ -16685,6 +16705,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("FinancialPackageReleaseId")
                         .HasColumnType("uuid")
                         .HasColumnName("financial_package_release_id");
+
+                    b.Property<Guid?>("FinancialStatementCompositionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_statement_composition_id");
 
                     b.Property<Guid>("FirmId")
                         .HasColumnType("uuid")
@@ -16729,18 +16753,21 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageReleaseId")
                         .HasDatabaseName("IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~1");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ManagementLetterId")
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialStatementCompositionId")
                         .HasDatabaseName("IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~2");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SignedReportId")
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ManagementLetterId")
                         .HasDatabaseName("IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~3");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SignedRepresentationLetterId")
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SignedReportId")
                         .HasDatabaseName("IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~4");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SignedRepresentationLetterId")
+                        .HasDatabaseName("IX_commercial_deliverable_bundles_firm_id_client_id_engagemen~5");
 
                     b.ToTable("commercial_deliverable_bundles", null, t =>
                         {
-                            t.HasCheckConstraint("ck_commercial_deliverable_bundle", "length(source_digest) = 64 AND length(manifest_sha256) = 64 AND length(content_sha256) = 64 AND octet_length(content) > 0");
+                            t.HasCheckConstraint("ck_commercial_deliverable_bundle", "length(source_digest) = 64 AND length(manifest_sha256) = 64 AND length(content_sha256) = 64 AND octet_length(content) > 0 AND ((financial_statement_composition_id IS NULL AND composition_manifest_digest IS NULL) OR (financial_statement_composition_id IS NOT NULL AND composition_manifest_digest ~ '^[0-9a-f]{64}$'))");
                         });
                 });
 
@@ -17409,6 +17436,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("pinned_artifact_version");
 
+                    b.Property<Guid?>("PinnedCompositionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pinned_composition_id");
+
+                    b.Property<string>("PinnedCompositionManifestDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("pinned_composition_manifest_digest");
+
                     b.Property<Guid>("ReleaseCandidateId")
                         .HasColumnType("uuid")
                         .HasColumnName("release_candidate_id");
@@ -17436,9 +17472,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ReleasedByUserId");
 
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PinnedCompositionId");
+
                     b.ToTable("releases", null, t =>
                         {
-                            t.HasCheckConstraint("ck_release_values", "package_revision >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND length(authorized_release_key) > 0");
+                            t.HasCheckConstraint("ck_release_values", "package_revision >= 1 AND manifest_digest ~ '^[0-9a-f]{64}$' AND length(authorized_release_key) > 0 AND ((pinned_composition_id IS NULL AND pinned_composition_manifest_digest IS NULL) OR (pinned_composition_id IS NOT NULL AND pinned_composition_manifest_digest ~ '^[0-9a-f]{64}$'))");
                         });
                 });
 
@@ -29475,6 +29513,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialStatementComposition", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PresentationCompositionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AuditSphereOps.Domain.Accounting.FinancialStatementPresentationRevision", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "PresentationRevisionId")
@@ -31212,6 +31256,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialStatementComposition", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialStatementCompositionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AuditSphereOps.Domain.Completion.AuditDeliverable", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "ManagementLetterId")
@@ -31369,6 +31419,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialStatementComposition", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PinnedCompositionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.ReleaseCandidate", b =>

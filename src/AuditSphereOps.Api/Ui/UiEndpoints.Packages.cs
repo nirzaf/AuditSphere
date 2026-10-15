@@ -16,7 +16,8 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record PackageReviewInput(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string? Comment,
-    Guid? PresentationRevisionId = null, string? TargetArtifactVersion = null);
+    Guid? PresentationRevisionId = null, string? TargetArtifactVersion = null,
+    Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null);
   public sealed record PackageArtifactInput(string ArtifactVersion);
   public sealed record CashFlowSourceReviewInput(string Decision, string? Reason, Guid RequestId, string? ExpectedLinkDigest,
     Guid? ExpectedPreviousReviewId);
@@ -53,7 +54,8 @@ public static partial class UiEndpoints
         http.RequestServices.GetRequiredService<FinancialPackageRenderHandler>(), ct)));
     group.MapPost("/accounting/packages/{id:guid}/reviews", (Guid id, PackageReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialPackageReviewService.RecordAsync(db, actor,
-        new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? "", i.PresentationRevisionId, i.TargetArtifactVersion), ct)));
+        new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? "",
+          i.PresentationRevisionId, i.TargetArtifactVersion, i.PresentationCompositionId, i.CompositionManifestDigest), ct)));
     // Build inputs: the approved mappings, finalized plans and reporting periods a preparer can choose from.
     group.MapGet("/engagements/{id:guid}/financial-package-inputs", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialPackageBuildInputsQuery.GetAsync(db, actor, id, ct)));
@@ -115,6 +117,8 @@ public static partial class UiEndpoints
       ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetPinnedPresentationAsync(db, actor, id, revisionId, ct)));
     group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/candidate", (Guid id, Guid revisionId, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialStatementService.PromotePresentationToCandidateAsync(db, actor, id, revisionId, ct)));
+    group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/composition", (Guid id, Guid revisionId, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.SelectCompositionAsync(db, actor, id, revisionId, ct)));
     group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/artifacts", async (
       Guid id, Guid revisionId, StatementPresentationPinnedArtifactInput i, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>

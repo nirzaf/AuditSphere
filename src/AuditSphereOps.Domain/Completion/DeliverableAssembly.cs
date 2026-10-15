@@ -51,6 +51,9 @@ public sealed class CommercialDeliverableBundle
   public Guid SignedReportId { get; set; }
   public Guid FinancialPackageReleaseId { get; set; }
   public Guid FinancialPackageArtifactId { get; set; }
+  /// <summary>The exact selected statement composition included in the release and bundle manifest.</summary>
+  public Guid? FinancialStatementCompositionId { get; set; }
+  public string? CompositionManifestDigest { get; set; }
   public Guid ManagementLetterId { get; set; }
   public Guid SignedRepresentationLetterId { get; set; }
   public Guid BalanceInvoiceId { get; set; }

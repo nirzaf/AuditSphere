@@ -177,6 +177,8 @@ public sealed partial class AuditDeliverablesTests
       using var archive = new ZipArchive(new MemoryStream(row.Content), ZipArchiveMode.Read);
       Assert.Equal(new[] {
         "01_Report_and_statements/Certified_financial_statements.pdf", "01_Report_and_statements/Independent_auditors_report.pdf",
+        "01_Report_and_statements/Selected_financial_statements.docx", "01_Report_and_statements/Selected_financial_statements.pdf",
+        "01_Report_and_statements/Selected_financial_statements.xlsx",
         "02_Management_letter/Management_letter.docx", "03_Representation_letter/Management_signed_letter.pdf",
         "03_Representation_letter/Representation_letter.docx", "04_Management_correspondence/Audit_trail.json",
         "05_Final_balance/Balance_fee_note.pdf", "manifest.json"
@@ -196,6 +198,9 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(row.SignedReportId, manifest.RootElement.GetProperty("SignedReport").GetGuid());
       Assert.Equal(row.FinancialPackageReleaseId, manifest.RootElement.GetProperty("FinancialPackageRelease").GetGuid());
       Assert.Equal(row.FinancialPackageArtifactId, manifest.RootElement.GetProperty("FinancialPackageArtifact").GetGuid());
+      Assert.NotNull(row.FinancialStatementCompositionId);
+      Assert.Equal(row.FinancialStatementCompositionId, manifest.RootElement.GetProperty("SelectedStatementComposition").GetProperty("Id").GetGuid());
+      Assert.Equal(row.CompositionManifestDigest, manifest.RootElement.GetProperty("SelectedStatementComposition").GetProperty("ManifestDigest").GetString());
       Assert.Equal(row.BalanceInvoiceId, manifest.RootElement.GetProperty("BalanceInvoice").GetGuid());
       foreach (var item in manifest.RootElement.GetProperty("Parts").EnumerateArray())
       {

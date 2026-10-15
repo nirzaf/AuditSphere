@@ -276,7 +276,7 @@ public sealed class StatementCandidatePromotionTests
   };
 
   [Fact]
-  public async Task FormalReviewDecisions_BindToTheSameCandidatePresentation()
+  public async Task FormalReviewDecisions_BindToTheSameSelectedComposition()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var s = await SeedPresentableAsync(pg);
@@ -300,11 +300,14 @@ public sealed class StatementCandidatePromotionTests
       var promoted = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, s.PackageId, draftId);
       Assert.True(promoted.Succeeded, promoted.Message);
       candidateId = promoted.Value!.RevisionId;
+      var composed = await FinancialStatementService.SelectCompositionAsync(db, preparer, s.PackageId, candidateId);
+      Assert.True(composed.Succeeded, composed.Message);
+      var selectedComposition = composed.Value!;
 
       var management = await FinancialPackageReviewService.RecordAsync(db, preparer,
         new FinancialPackageReviewRequest(s.PackageId, FinancialPackageReviewStages.ManagementApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
-          "candidate-management", "Management approved the signing candidate.", candidateId));
+          "candidate-management", "Management approved the signing candidate.", candidateId, null, selectedComposition.Id, selectedComposition.ManifestDigest));
       Assert.True(management.Succeeded, management.Message);
 
       // Accounting cannot skip ahead to a different candidate revision; it must follow the same selected revision.
@@ -318,19 +321,21 @@ public sealed class StatementCandidatePromotionTests
       var accounting = await FinancialPackageReviewService.RecordAsync(db, reviewer,
         new FinancialPackageReviewRequest(s.PackageId, FinancialPackageReviewStages.AccountingReview,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "candidate-accounting", "Accounting reviewed the same signing candidate.", candidateId));
+          "candidate-accounting", "Accounting reviewed the same signing candidate.", candidateId, null, selectedComposition.Id, selectedComposition.ManifestDigest));
       Assert.True(accounting.Succeeded, accounting.Message);
 
       var partnerApproval = await FinancialPackageReviewService.RecordAsync(db, partner,
         new FinancialPackageReviewRequest(s.PackageId, FinancialPackageReviewStages.PartnerApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "candidate-partner", "Partner approved the same signing candidate.", candidateId));
+          "candidate-partner", "Partner approved the same signing candidate.", candidateId, null, selectedComposition.Id, selectedComposition.ManifestDigest));
       Assert.True(partnerApproval.Succeeded, partnerApproval.Message);
 
       // Currentness demands all three stages approve the same candidate presentation before release.
       var decisions = await FinancialPackageReviewService.GetAsync(db, partner, s.PackageId);
       Assert.True(decisions.Succeeded, decisions.Message);
       Assert.All(decisions.Value!, d => Assert.Equal(candidateId, d.PresentationRevisionId));
+      Assert.All(decisions.Value!, d => Assert.Equal(selectedComposition.Id, d.PresentationCompositionId));
+      Assert.All(decisions.Value!, d => Assert.Equal(selectedComposition.ManifestDigest, d.CompositionManifestDigest));
       Assert.True((await FinancialPackageReviewService.RequireCurrentAsync(db, partner, s.PackageId,
         requirePartner: true)).Succeeded);
     }

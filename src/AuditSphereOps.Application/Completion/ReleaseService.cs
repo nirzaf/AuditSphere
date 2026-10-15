@@ -169,8 +169,13 @@ public static class ReleaseService
     if (existing is not null)
     {
       if (existing.ReleaseCandidateId == candidate.Id && existing.ManifestDigest == request.ManifestDigest &&
-          existing.PackageRevision == candidate.TargetRevision)
+          existing.PackageRevision == candidate.TargetRevision &&
+          (candidate.TargetKind != ReleaseTargetKinds.FinancialPackage || existing.PinnedCompositionId is not null))
         return await CommitExistingAsync(tx, existing.Id, ct);
+      if (existing.ReleaseCandidateId == candidate.Id && candidate.TargetKind == ReleaseTargetKinds.FinancialPackage &&
+          existing.PinnedCompositionId is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "The historical release predates selected statement compositions; it remains readable but cannot be replayed as a composed release.");
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The authorized release key is already bound to another release.");
     }
 
@@ -265,11 +270,12 @@ public static class ReleaseService
     if (checkpoint is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release checkpoint is required for release issuance.");
 
-    // A financial-package release pins the exact PDF of the reviewed revision. The audit bundle later uses this pinned artifact and never
-    // looks up a PDF afresh, so a different or re-rendered artifact cannot be substituted under an existing release.
+    // A financial-package release pins the PDF selected inside the reviewed three-format composition. Legacy PDF fallback is refused.
     Guid? pinnedArtifactId = null;
     string? pinnedArtifactVersion = null;
     string? pinnedArtifactSha256 = null;
+    Guid? pinnedCompositionId = null;
+    string? pinnedCompositionManifestDigest = null;
     if (current.Kind == ReleaseTargetKinds.FinancialPackage)
     {
       if (db is not IClientAccountingDbContext pinningDb)
@@ -279,30 +285,52 @@ public static class ReleaseService
       FinancialPackageArtifact? pdf = null;
       if (releasedPackage is not null)
       {
-        var partnerApproval = await pinningDb.FinancialPackageReviewDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        var partnerApproval = await pinningDb.FinancialPackageReviewDecisions.AsNoTracking().Where(x =>
           x.FirmId == actor.FirmId && x.FinancialPackageId == releasedPackage.Id &&
           x.PackageRevision == releasedPackage.Revision && x.PackageGeneration == releasedPackage.Generation &&
           x.PackageHash == releasedPackage.CalculationHash &&
           x.Stage == FinancialPackageReviewStages.PartnerApproval &&
-          x.Decision == FinancialPackageReviewDecisions.Approved, ct);
-        if (partnerApproval?.PresentationRevisionId is Guid candidateRevisionId)
+          x.Decision == FinancialPackageReviewDecisions.Approved)
+          .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
+        if (partnerApproval?.PresentationRevisionId is Guid candidateRevisionId &&
+            partnerApproval.PresentationCompositionId is Guid compositionId &&
+            !string.IsNullOrWhiteSpace(partnerApproval.CompositionManifestDigest))
         {
+          var composition = await pinningDb.FinancialStatementCompositions.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == compositionId && x.FirmId == actor.FirmId && x.ClientId == releasedPackage.ClientId &&
+            x.EngagementId == releasedPackage.EngagementId && x.FinancialPackageId == releasedPackage.Id &&
+            x.PresentationRevisionId == candidateRevisionId && x.PackageCalculationHash == releasedPackage.CalculationHash &&
+            x.ManifestDigest == partnerApproval.CompositionManifestDigest, ct);
+          if (composition is null)
+            return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+              "The Partner decision's selected statement composition is unavailable or does not match its manifest.");
+          var presentation = await pinningDb.FinancialStatementPresentationRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == candidateRevisionId && x.FirmId == actor.FirmId && x.ClientId == releasedPackage.ClientId &&
+            x.EngagementId == releasedPackage.EngagementId && x.FinancialPackageId == releasedPackage.Id, ct);
+          if (presentation is null || presentation.Status is not (FinancialStatementPresentationRevisionStatuses.Candidate or FinancialStatementPresentationRevisionStatuses.Approved) ||
+              presentation.PackageCalculationHash != releasedPackage.CalculationHash ||
+              presentation.PackageGeneration != releasedPackage.Generation ||
+              !await FinancialStatementService.PresentationSourceIsCurrentAsync(pinningDb, presentation, ct) ||
+              !await FinancialPackageReviewService.CompositionArtifactsAreIntactAsync(pinningDb, releasedPackage, presentation, composition, ct))
+            return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+              "The Partner-approved PDF, Word and Excel composition is stale or fails its exact-artifact integrity check.");
           var candidateArtifactVersion = FinancialPackageArtifactVersions.StatementPresentation(candidateRevisionId, FinancialStatementPresentationRenderer.PdfFormat);
           pdf = await pinningDb.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.FirmId == actor.FirmId && x.FinancialPackageId == releasedPackage.Id &&
+            x.Id == composition.PdfArtifactId && x.FirmId == actor.FirmId && x.ClientId == releasedPackage.ClientId &&
+            x.EngagementId == releasedPackage.EngagementId && x.FinancialPackageId == releasedPackage.Id &&
             x.PackageRevision == releasedPackage.Revision && x.PackageGeneration == releasedPackage.Generation &&
             x.PackageHash == releasedPackage.CalculationHash &&
-            x.ArtifactVersion == candidateArtifactVersion, ct);
+            x.ArtifactVersion == candidateArtifactVersion && x.ArtifactSha256Hex == composition.PdfSha256Hex, ct);
+          if (pdf is not null && pdf.ArtifactBytes.Length > 0 && Hashing.Sha256Hex(pdf.ArtifactBytes) == composition.PdfSha256Hex)
+          {
+            pinnedCompositionId = composition.Id;
+            pinnedCompositionManifestDigest = composition.ManifestDigest;
+          }
         }
-        pdf ??= await pinningDb.FinancialPackageArtifacts.AsNoTracking().SingleOrDefaultAsync(x =>
-          x.FirmId == actor.FirmId && x.FinancialPackageId == releasedPackage.Id &&
-          x.PackageRevision == releasedPackage.Revision && x.PackageGeneration == releasedPackage.Generation &&
-          x.PackageHash == releasedPackage.CalculationHash &&
-          x.ArtifactVersion == FinancialPackageArtifactVersions.Pdf, ct);
       }
-      if (pdf is null || pdf.ArtifactBytes.Length == 0)
+      if (pdf is null || pdf.ArtifactBytes.Length == 0 || pinnedCompositionId is null)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
-          "Render the exact reviewed financial package as PDF before release, so the release can pin it.");
+          "Select and approve a sealed PDF, Word and Excel statement composition before release. The legacy package PDF is not a fallback.");
       pinnedArtifactId = pdf.Id;
       pinnedArtifactVersion = pdf.ArtifactVersion;
       pinnedArtifactSha256 = pdf.ArtifactSha256Hex;
@@ -315,12 +343,14 @@ public static class ReleaseService
       PackageId = candidate.TargetId, PackageRevision = candidate.TargetRevision,
       ManifestDigest = candidate.ManifestDigest, AuthorizedReleaseKey = releaseKey,
       PinnedArtifactId = pinnedArtifactId, PinnedArtifactVersion = pinnedArtifactVersion, PinnedArtifactSha256Hex = pinnedArtifactSha256,
+      PinnedCompositionId = pinnedCompositionId, PinnedCompositionManifestDigest = pinnedCompositionManifestDigest,
       CheckpointId = checkpoint.Id, ReleasedAt = DateTimeOffset.UtcNow, ReleasedByUserId = actor.UserId
     };
     var payload = JsonSerializer.Serialize(new
     {
       releaseId = release.Id, candidateId = candidate.Id,
-      manifestDigest = release.ManifestDigest, packageRevision = release.PackageRevision
+      manifestDigest = release.ManifestDigest, packageRevision = release.PackageRevision,
+      compositionId = release.PinnedCompositionId, compositionManifestDigest = release.PinnedCompositionManifestDigest
     });
     var payloadBytes = Encoding.UTF8.GetBytes(payload);
     db.Releases.Add(release);

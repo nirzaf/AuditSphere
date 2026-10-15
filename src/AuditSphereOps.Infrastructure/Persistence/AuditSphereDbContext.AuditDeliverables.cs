@@ -39,6 +39,10 @@ public sealed partial class AuditSphereDbContext
         .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<AuditSphereOps.Domain.Accounting.FinancialPackageArtifact>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageArtifactId })
         .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.Property(x => x.CompositionManifestDigest).HasMaxLength(64);
+      e.HasOne<AuditSphereOps.Domain.Accounting.FinancialStatementComposition>().WithMany()
+        .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialStatementCompositionId })
+        .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<AuditSphereOps.Domain.Practice.Invoice>().WithMany().HasForeignKey(x => new { x.FirmId, x.BalanceInvoiceId })
         .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.SourceDigest }).IsUnique();
@@ -50,7 +54,10 @@ public sealed partial class AuditSphereDbContext
         .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<SignedRepresentationLetter>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SignedRepresentationLetterId })
         .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
-      e.ToTable("commercial_deliverable_bundles", t => t.HasCheckConstraint("ck_commercial_deliverable_bundle", "length(source_digest) = 64 AND length(manifest_sha256) = 64 AND length(content_sha256) = 64 AND octet_length(content) > 0"));
+      e.ToTable("commercial_deliverable_bundles", t => t.HasCheckConstraint("ck_commercial_deliverable_bundle",
+        "length(source_digest) = 64 AND length(manifest_sha256) = 64 AND length(content_sha256) = 64 AND octet_length(content) > 0 " +
+        "AND ((financial_statement_composition_id IS NULL AND composition_manifest_digest IS NULL) OR " +
+        "(financial_statement_composition_id IS NOT NULL AND composition_manifest_digest ~ '^[0-9a-f]{64}$'))"));
     });
     b.Entity<ProcedureReviewNote>(e =>
     {
