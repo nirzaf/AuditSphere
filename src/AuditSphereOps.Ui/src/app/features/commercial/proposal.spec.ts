@@ -44,6 +44,12 @@ const proposal = {
   responseChannel: null,
   responseAuthorityBasis: null,
   responseRecordedByName: null,
+  dispatchPreview: {
+    purpose: 'COMMERCIAL', resolutionStatus: 'RESOLVED', recipientName: 'Contact',
+    recipientEmail: 'contact@example.test', authorityBasis: 'PROSPECT_PRIMARY_CONTACT',
+    resolvedAsOf: '2026-10-15', quotationStatus: 'NO_EXPIRY', quotationValidUntil: null,
+    artifactStatus: 'CURRENT', offerSha256: 'a'.repeat(64), canQueue: true, message: 'Preview only',
+  },
   versions: [],
 };
 describe('Commercial proposal contract', () => {
@@ -59,6 +65,16 @@ describe('Commercial proposal contract', () => {
     expect(() => decodeProposal({ ...proposal, ownerName: null })).toThrow();
     expect(() => decodeProposal({ ...proposal, supersedesId: 'not-a-guid' })).toThrow();
     expect(decodeProposal({ ...proposal, supersedesId: id }).supersedesId).toBe(id);
+  });
+  it('requires a bounded, purpose-specific dispatch preview and exact artifact digest', () => {
+    const preview = decodeProposal(proposal).dispatchPreview;
+    expect(preview.recipientEmail).toBe('contact@example.test');
+    expect(preview.quotationStatus).toBe('NO_EXPIRY');
+    expect(decodeProposal({ ...proposal, dispatchPreview: { ...proposal.dispatchPreview, resolutionStatus: 'NO_RECIPIENT' } }).dispatchPreview.resolutionStatus)
+      .toBe('NO_RECIPIENT');
+    expect(() => decodeProposal({ ...proposal, dispatchPreview: { ...proposal.dispatchPreview, resolutionStatus: 'NORECIPIENT' } })).toThrow();
+    expect(() => decodeProposal({ ...proposal, dispatchPreview: { ...proposal.dispatchPreview, purpose: 'FINANCE' } })).toThrow();
+    expect(() => decodeProposal({ ...proposal, dispatchPreview: { ...proposal.dispatchPreview, offerSha256: 'invalid' } })).toThrow();
   });
   it('rejects version rows missing sent or response timestamps', () => {
     expect(() => decodeProposal({ ...proposal, versions: [{ id, revision: '1', status: 'DRAFT', fee: '1.00', currency: 'QAR', createdAt: '2026-03-01T09:30:00+00:00' }] })).toThrow();

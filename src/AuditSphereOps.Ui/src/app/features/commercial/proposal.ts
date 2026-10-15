@@ -24,6 +24,20 @@ interface History {
   sentAt: string | null;
   responseAt: string | null;
 }
+interface ProposalDispatchPreview {
+  purpose: 'COMMERCIAL';
+  resolutionStatus: 'RESOLVED' | 'NO_RECIPIENT' | 'AMBIGUOUS' | 'OVERRIDDEN' | 'DENIED' | 'INVALID_RECIPIENT' | 'UNAVAILABLE';
+  recipientName: string | null;
+  recipientEmail: string | null;
+  authorityBasis: string | null;
+  resolvedAsOf: string;
+  quotationStatus: string;
+  quotationValidUntil: string | null;
+  artifactStatus: string;
+  offerSha256: string | null;
+  canQueue: boolean;
+  message: string | null;
+}
 interface Proposal {
   id: string;
   opportunityId: string;
@@ -64,6 +78,7 @@ interface Proposal {
   responseEvidenceReference: string | null;
   responseAuthorityBasis: string | null;
   responseRecordedByName: string | null;
+  dispatchPreview: ProposalDispatchPreview;
   versions: History[];
 }
 interface ProposalRevisionIntent {
@@ -148,6 +163,27 @@ export function decodeProposal(value: unknown): Proposal {
       !['sentAt', 'responseAt'].every((k) => h[k] === null || typeof h[k] === 'string')
     )
       throw new Error('Invalid version');
+  const preview = v['dispatchPreview'];
+  if (!preview || typeof preview !== 'object' || Array.isArray(preview))
+    throw new Error('Invalid proposal dispatch preview');
+  const dispatch = preview as Record<string, unknown>;
+  if (
+    dispatch['purpose'] !== 'COMMERCIAL' ||
+    !['RESOLVED', 'NO_RECIPIENT', 'AMBIGUOUS', 'OVERRIDDEN', 'DENIED', 'INVALID_RECIPIENT', 'UNAVAILABLE']
+      .includes(String(dispatch['resolutionStatus'])) ||
+    !['recipientName', 'recipientEmail', 'authorityBasis', 'quotationValidUntil', 'offerSha256', 'message']
+      .every((k) => dispatch[k] === null || typeof dispatch[k] === 'string') ||
+    typeof dispatch['resolvedAsOf'] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dispatch['resolvedAsOf']) ||
+    !['MISSING', 'NOT_APPROVED', 'EXPIRED', 'APPROVAL_REVOKED', 'NO_EXPIRY', 'CURRENT']
+      .includes(String(dispatch['quotationStatus'])) ||
+    (dispatch['quotationValidUntil'] !== null &&
+      (typeof dispatch['quotationValidUntil'] !== 'string' || !Number.isFinite(Date.parse(dispatch['quotationValidUntil'])))) ||
+    !['NOT_GENERATED', 'STALE_QUOTATION', 'INVALID_DIGEST', 'CURRENT'].includes(String(dispatch['artifactStatus'])) ||
+    (dispatch['offerSha256'] !== null &&
+      (typeof dispatch['offerSha256'] !== 'string' || !/^[0-9a-f]{64}$/i.test(dispatch['offerSha256']))) ||
+    typeof dispatch['canQueue'] !== 'boolean'
+  )
+    throw new Error('Invalid proposal dispatch preview');
   return v as unknown as Proposal;
 }
 /** How the client's response reached the firm (STE v2.2 section 4.1.3). The server stores and validates the same values. */
@@ -293,6 +329,34 @@ export function isResponseChannel(value: string): boolean {
         <dt>Response note</dt>
         <dd>{{ proposal.responseReason ?? 'Not recorded' }}</dd>
       </dl>
+      @if (proposal.status === 'INTERNAL_REVIEW') {
+        <section aria-label="Proposal dispatch preview">
+          <h2>Dispatch preview</h2>
+          <p>Purpose: {{ proposal.dispatchPreview.purpose }} · Resolved for {{ proposal.dispatchPreview.resolvedAsOf }}</p>
+          <dl>
+            <dt>Recipient resolution</dt>
+            <dd>{{ proposal.dispatchPreview.resolutionStatus }}</dd>
+            <dt>Recipient</dt>
+            <dd>{{ proposal.dispatchPreview.recipientName ?? 'Not resolved' }}
+              @if (proposal.dispatchPreview.recipientEmail) { &lt;{{ proposal.dispatchPreview.recipientEmail }}&gt; }
+            </dd>
+            <dt>Authority basis</dt>
+            <dd>{{ previewBasisLabel(proposal.dispatchPreview.authorityBasis) }}</dd>
+            <dt>Quotation expiry</dt>
+            <dd>{{ proposal.dispatchPreview.quotationValidUntil
+              ? formatUtc(proposal.dispatchPreview.quotationValidUntil)
+              : proposal.dispatchPreview.quotationStatus === 'NO_EXPIRY' ? 'No expiry recorded' : proposal.dispatchPreview.quotationStatus }}</dd>
+            <dt>Rendered offer</dt>
+            <dd>{{ proposal.dispatchPreview.artifactStatus }}</dd>
+            @if (proposal.dispatchPreview.offerSha256) {
+              <dt>Offer identity</dt><dd><code>{{ proposal.dispatchPreview.offerSha256 }}</code></dd>
+            }
+          </dl>
+          @if (proposal.dispatchPreview.message) { <p>{{ proposal.dispatchPreview.message }}</p> }
+          <p>This is a read-only preview. The server rechecks the recipient, quotation and artifact at dispatch.</p>
+          <button matButton [disabled]="busy()" (click)="load()">Refresh dispatch preview</button>
+        </section>
+      }
       @defer (on viewport) {
         <audit-quotation [proposalId]="proposal.id" (changed)="load()" />
       } @placeholder {
@@ -334,7 +398,7 @@ export function isResponseChannel(value: string): boolean {
         }
       }
       @if (proposal.status === 'INTERNAL_REVIEW') {
-        <button matButton [disabled]="!reviewed || busy() || uncertain()" (click)="action('sent')">
+        <button matButton [disabled]="!reviewed || busy() || uncertain() || !proposal.dispatchPreview.canQueue" (click)="action('sent')">
           Mark as sent
         </button>
       }
@@ -737,6 +801,19 @@ export class ProposalDetail {
         : value === 'LEGACY_DISPATCH_SNAPSHOT'
           ? 'legacy dispatched recipient snapshot'
           : 'authority basis not recorded';
+  }
+  formatUtc(value: string): string {
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp)
+      ? new Date(timestamp).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
+      : 'Invalid expiry timestamp';
+  }
+  previewBasisLabel(value: string | null): string {
+    return value === 'CLIENT_COMMERCIAL_ROUTING'
+      ? 'Current designated client COMMERCIAL route'
+      : value === 'PROSPECT_PRIMARY_CONTACT'
+        ? 'Prospect primary contact; frozen on dispatch'
+        : 'Authority basis not established';
   }
   legalName = '';
   draft = {

@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,9 @@ namespace AuditSphereOps.Application.Practice;
 
 public sealed record ProposalHistory(Guid Id, string Revision, string Status, string Fee, string Currency,
   DateTimeOffset CreatedAt, DateTimeOffset? SentAt, DateTimeOffset? ResponseAt);
+public sealed record ProposalDispatchPreview(string Purpose, string ResolutionStatus, string? RecipientName,
+  string? RecipientEmail, string? AuthorityBasis, string ResolvedAsOf, string QuotationStatus,
+  DateTimeOffset? QuotationValidUntil, string ArtifactStatus, string? OfferSha256, bool CanQueue, string? Message);
 public sealed record ProposalWorkspace(Guid Id, Guid OpportunityId, string LeadName, string ServiceRoute, string EntityScope,
   string Stage, string Revision, string Status, string ServiceProfile, string Scope, string Exclusions,
   string Deliverables, string Dependencies, string Fee, string Currency, string PeriodStart, string PeriodEnd,
@@ -17,7 +21,8 @@ public sealed record ProposalWorkspace(Guid Id, Guid OpportunityId, string LeadN
   string? SentOfferSha256, string? DispatchState, DateTimeOffset? DispatchedAt, string? DispatchRecipient,
   string? ResponseOfferSha256, string? RespondentName, string? RespondentEmail, string? ResponseEvidenceReference,
   IReadOnlyList<ProposalHistory> Versions, string? ResponseChannel = null, string Timeline = "",
-  string? ResponseAuthorityBasis = null, string? ResponseRecordedByName = null);
+  string? ResponseAuthorityBasis = null, string? ResponseRecordedByName = null,
+  ProposalDispatchPreview? DispatchPreview = null);
 
 public sealed record OpportunityItem(Guid Id, string ServiceRoute, string EntityScope, string Stage,
   string ExpectedFee, string Currency, string PeriodStart, string PeriodEnd, Guid? ProposalId, string Revision);
@@ -77,12 +82,14 @@ public static class CommercialWorkspaceQuery
     // Truthful dispatch evidence: the queued email's provider-outcome state, not the commercial `SENT` status alone.
     var dispatch = await db.CommercialNotifications.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == p.Id, ct);
+    var dispatchPreview = await DispatchPreviewAsync(db, actor, p, opportunity, lead, dispatch is not null, ct);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
       return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
     return CommandResult<ProposalWorkspace>.Ok(new(p.Id, p.OpportunityId, lead.Name, opportunity.ServiceRoute, opportunity.EntityScope,
       opportunity.Stage, p.Revision.ToString(CultureInfo.InvariantCulture), p.Status, p.ServiceProfileId, p.Scope, p.Exclusions,
       p.Deliverables, p.Dependencies, p.Fee.ToString(CultureInfo.InvariantCulture), p.Currency, p.PeriodStart, p.PeriodEnd,
-      responseRecord?.Reason ?? p.ResponseReason, opportunity.PracticeClientId, p.PreparedByUserId.HasValue && p.PreparedByUserId != actor.UserId && p.Status == "DRAFT",
+      responseRecord?.Reason ?? p.ResponseReason, p.PracticeClientId ?? opportunity.PracticeClientId,
+      p.PreparedByUserId.HasValue && p.PreparedByUserId != actor.UserId && p.Status == "DRAFT",
       Name(ownerId, "Not assigned"),
       p.PreparedByUserId.HasValue ? Name(p.PreparedByUserId, "Author unavailable") : "Not recorded (legacy proposal)",
       p.ApprovedByUserId.HasValue ? Name(p.ApprovedByUserId, "Reviewer unavailable") : "Not recorded",
@@ -95,6 +102,119 @@ public static class CommercialWorkspaceQuery
         v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt, v.SentAt, v.ResponseAt)).ToArray(),
       responseRecord?.Channel ?? p.ResponseChannel, p.Timeline,
       responseRecord?.AuthorityBasis,
-      responseRecord is null ? null : Name(responseRecord.RecordedByUserId, "Recorder unavailable")));
+      responseRecord is null ? null : Name(responseRecord.RecordedByUserId, "Recorder unavailable"),
+      dispatchPreview));
+  }
+
+  private static async Task<ProposalDispatchPreview> DispatchPreviewAsync(IAuditSphereDbContext db, ActorContext actor,
+    AuditSphereOps.Domain.Practice.Proposal proposal, Opportunity opportunity, Lead lead, bool hasDispatch,
+    CancellationToken ct)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var asOf = DateOnly.FromDateTime(now.UtcDateTime);
+    var clientId = proposal.PracticeClientId ?? opportunity.PracticeClientId;
+    string resolutionStatus;
+    string? recipientName;
+    string? recipientEmail;
+    string? authorityBasis;
+    string? recipientMessage;
+
+    if (clientId is { } practiceClientId)
+    {
+      var resolution = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, actor, practiceClientId,
+        CorrespondencePurposes.Commercial, asOf, ct: ct);
+      resolutionStatus = resolution.Status switch
+      {
+        RecipientResolutionStatus.Resolved => "RESOLVED",
+        RecipientResolutionStatus.NoRecipient => "NO_RECIPIENT",
+        RecipientResolutionStatus.Ambiguous => "AMBIGUOUS",
+        RecipientResolutionStatus.Overridden => "OVERRIDDEN",
+        RecipientResolutionStatus.Denied => "DENIED",
+        _ => "UNAVAILABLE"
+      };
+      recipientName = resolution.FullName;
+      recipientEmail = resolution.Email;
+      authorityBasis = resolution.Status == RecipientResolutionStatus.Resolved
+        ? ProposalRecipientAuthorityBases.ClientCommercialRouting : null;
+      recipientMessage = resolution.Message;
+      if (resolution.Status == RecipientResolutionStatus.Resolved)
+      {
+        var name = recipientName?.Trim();
+        var email = recipientEmail?.Trim();
+        if (resolution.ClientContactId is null || resolution.RoutingId is null ||
+            string.IsNullOrWhiteSpace(name) || name.Length > 200 || string.IsNullOrWhiteSpace(email) || email.Length > 320 ||
+            !System.Net.Mail.MailAddress.TryCreate(email, out var resolvedAddress))
+        {
+          resolutionStatus = "INVALID_RECIPIENT";
+          authorityBasis = null;
+          recipientMessage = "The designated commercial contact must have valid authority, name and email details.";
+        }
+        else
+        {
+          recipientName = name;
+          recipientEmail = resolvedAddress.Address;
+        }
+      }
+    }
+    else
+    {
+      recipientName = (lead.PrimaryContactName ?? lead.Name).Trim();
+      var email = (lead.PrimaryContactEmail ?? string.Empty).Trim();
+      if (string.IsNullOrWhiteSpace(recipientName) || string.IsNullOrWhiteSpace(email))
+      {
+        resolutionStatus = "NO_RECIPIENT";
+        recipientEmail = null;
+        authorityBasis = null;
+        recipientMessage = "Record a valid prospect primary contact before dispatch.";
+      }
+      else if (recipientName.Length > 200 || email.Length > 320 ||
+          !System.Net.Mail.MailAddress.TryCreate(email, out var parsedAddress))
+      {
+        resolutionStatus = "INVALID_RECIPIENT";
+        recipientEmail = null;
+        authorityBasis = null;
+        recipientMessage = "The prospect primary contact must have a valid name and email address.";
+      }
+      else
+      {
+        resolutionStatus = "RESOLVED";
+        recipientEmail = parsedAddress.Address;
+        authorityBasis = ProposalRecipientAuthorityBases.ProspectPrimaryContact;
+        recipientMessage = "The prospect primary contact will be frozen when the proposal is dispatched.";
+      }
+    }
+
+    var quotation = await db.QuotationVersions.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id)
+      .OrderByDescending(x => x.Revision).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    var quotationApprovalsStand = quotation is { Status: QuotationStates.Approved } &&
+      await QuotationService.ApprovalsStandAsync(db, actor.FirmId, quotation.Id, ct);
+    var quotationExpired = quotation?.ValidUntil is { } validUntil && validUntil < now;
+    var quotationStatus = quotation is null ? "MISSING" : quotation.Status != QuotationStates.Approved ? "NOT_APPROVED" :
+      quotationExpired ? "EXPIRED" : !quotationApprovalsStand ? "APPROVAL_REVOKED" :
+      quotation.ValidUntil is null ? "NO_EXPIRY" : "CURRENT";
+
+    var document = await db.CommercialDocuments.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id && x.Kind == CommercialDocumentKinds.Quotation)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    var artifactStatus = document is null ? "NOT_GENERATED" : quotation is null || document.QuotationVersionId != quotation.Id
+      ? "STALE_QUOTATION" : document.Bytes.Length == 0 ||
+        !string.Equals(document.Sha256Hex, Hashing.Sha256Hex(document.Bytes), StringComparison.OrdinalIgnoreCase)
+          ? "INVALID_DIGEST" : "CURRENT";
+    var canQueue = proposal.Status == "INTERNAL_REVIEW" && !hasDispatch && resolutionStatus == "RESOLVED" &&
+      quotation is { Status: QuotationStates.Approved } && !quotationExpired && quotationApprovalsStand && artifactStatus == "CURRENT";
+    var blockers = new List<string>();
+    if (resolutionStatus != "RESOLVED") blockers.Add(recipientMessage ?? "A current commercial recipient is required.");
+    if (quotationStatus is "MISSING" or "NOT_APPROVED" or "EXPIRED" or "APPROVAL_REVOKED")
+      blockers.Add($"The quotation state is {quotationStatus.ToLowerInvariant().Replace('_', ' ')}.");
+    if (artifactStatus != "CURRENT") blockers.Add($"The rendered quotation state is {artifactStatus.ToLowerInvariant().Replace('_', ' ')}.");
+    if (proposal.Status != "INTERNAL_REVIEW") blockers.Add("The proposal must pass independent internal review before dispatch.");
+    if (hasDispatch) blockers.Add("A prior dispatch exists; reconcile it or create a new proposal revision.");
+
+    return new ProposalDispatchPreview(CorrespondencePurposes.Commercial, resolutionStatus, recipientName, recipientEmail,
+      authorityBasis, asOf.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), quotationStatus, quotation?.ValidUntil,
+      artifactStatus, artifactStatus == "CURRENT" ? document?.Sha256Hex : null, canQueue,
+      blockers.Count == 0 ? "Preview only. The server rechecks recipient, quotation and artifact before dispatch." :
+        string.Join(" ", blockers));
   }
 }

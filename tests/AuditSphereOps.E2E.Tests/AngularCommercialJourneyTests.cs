@@ -644,10 +644,22 @@ public sealed class AngularCommercialJourneyTests
       db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, UserId = host.Fixture.Reviewer.Id,
         Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = host.Fixture.Admin.Id });
       await db.SaveChangesAsync();
-      var author = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
       var reviewer = PbcSeed.Actor(host.Fixture.Reviewer, "Partner");
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, reviewer, proposalId)).Succeeded);
-      Assert.True((await PracticeCrmService.SendProposalAsync(db, author, proposalId)).Succeeded);
+    }
+    await page.ReloadAsync();
+    var dispatchPreview = page.GetByRole(AriaRole.Region, new() { Name = "Proposal dispatch preview", Exact = true });
+    await Assertions.Expect(dispatchPreview).ToBeVisibleAsync();
+    await Assertions.Expect(dispatchPreview).ToContainTextAsync("COMMERCIAL");
+    await Assertions.Expect(dispatchPreview).ToContainTextAsync("Synthetic contact");
+    await Assertions.Expect(dispatchPreview).ToContainTextAsync("contact@example.test");
+    await Assertions.Expect(dispatchPreview.GetByText("CURRENT", new() { Exact = true })).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this revision and confirm the selected commercial action.", Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Mark as sent", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText(new Regex(@"Email queued for contact@example\.test"))).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var author = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
       var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, author, proposalId,
         new("ACCEPTED", null, offerSha, "Synthetic contact", "contact@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
