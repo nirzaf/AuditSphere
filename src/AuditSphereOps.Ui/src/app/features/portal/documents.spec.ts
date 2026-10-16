@@ -14,11 +14,12 @@ const contentSha256 = 'a'.repeat(64);
 const manifestSha256 = 'b'.repeat(64);
 const documentReviewId = '55555555-5555-4555-8555-555555555555';
 const deliverableId = '66666666-6666-4666-8666-666666666666';
+type SharedComment = { body: string; fromClient: boolean; resolution: string | null };
 const bundle = (acknowledgedAt: string | null = null) => ({
   id: bundleId, sha256: contentSha256, manifestSha256, assembledAt: '2026-10-15T10:00:00Z', acknowledgedAt,
 });
 const sharedDocument = { reviewId: documentReviewId, deliverableId, kind: 'AUDIT_REPORT', title: 'Audited financial statements',
-  version: '3', sha256: contentSha256, acknowledgedAt: null, comments: [] };
+  version: '3', sha256: contentSha256, acknowledgedAt: null, comments: [] as SharedComment[] };
 const documents = (acknowledgedAt: string | null = null, items: Array<typeof sharedDocument> = []) => ({
   documents: items, signedLetters: [], bundles: [bundle(acknowledgedAt)],
 });
