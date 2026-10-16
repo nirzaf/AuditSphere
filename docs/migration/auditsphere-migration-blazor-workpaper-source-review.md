@@ -4,6 +4,30 @@
 **Reviewed against repository commit:** `e8c1788a0847517375b3e93861937c866a6028f3`
 **Review observed:** 2026-10-05
 
+## Current command and recovery follow-up
+
+Source revision: `75fcfa7095aa115fab4e7e7af9bcf398e9b50fa6`.
+The earlier evidence below describes an older implementation and does not verify
+this revision. The native command workspace now prepares exact save identities,
+requires reviewed assent for submission/discard, and reconciles actor-owned
+persisted receipts before applying current write gates. Transition events and
+receipts commit atomically. Exact counters remain decimal strings at the HTTP
+boundary. The compatibility command routes remain available.
+
+The Angular page preserves newer local text when recovering an earlier save,
+including when the server paper has subsequently been submitted. Local
+abandonment is explicitly separate from a server discard. Choosing Stay rearms
+eligible autosave without automatically retrying a refused or uncertain save.
+Invoice read recovery and shared procedure fixtures were also corrected in this
+snapshot; fixtures use the real submit/review sequence with original actors.
+
+Preceding batched checks recorded 64 passing Domain checks, 12 passing API
+checks, and 1,170 passing Angular specs. The final fixture and UI corrections
+were made afterwards, so those results are **not verification of this commit**.
+Current-commit GitHub CI and full release verification have been requested.
+Their results, current browser journeys and independent action-matrix review
+remain pending. This row stays PARTIAL and the retirement gate stays NOT_READY.
+
 ## Legacy behavior and Angular ownership
 
 The legacy page at `src/AuditSphereOps.Web/Components/Pages/Workpaper.razor`
