@@ -1,107 +1,109 @@
-# AuditSphereOps Agent Instructions
+# AuditSphereOps — AGENTS.md
 
-Read this file first, every session. It is short on purpose: it points to the authority documents instead of repeating them. Full contracts live in `docs/architecture/auditsphere-architecture-current-architecture.md` and `docs/requirements/auditsphere-accounting-module-requirements-current.md`.
+**Mission:** implement the smallest correct change with the fastest trustworthy feedback. Optimize agent context, local test time and PR scope; never weaken client isolation, accounting integrity, immutable evidence or human audit approvals. Read this file at session start, then only the task-relevant sources.
 
-## 1. What this system is
+## 1. Navigate before coding
 
-An audit, accounting and assurance operations platform for the STE firm (Qatar, QAR, ISA/IFRS): one ASP.NET Core modular monolith plus a separate Angular presentation project.
+1. Restate intent, existing behavior, non-goals, acceptance criteria and affected module. For a small fix, implement directly; plan only multi-boundary work.
+2. Read the assigned story and `docs/architecture/auditsphere-architecture-code-map.md` before searching. Follow existing code paths, analogous commands, contracts and nearby tests. Prefer targeted `rg`/file reads, not repo-wide dumps.
+3. **Authority:** `docs/auditsphere-docs-index.md` → relevant `CURRENT`/`APPROVED` requirements, `docs/architecture/auditsphere-architecture-current-architecture.md` and ADRs. `PROPOSED`, `HISTORICAL_SOURCE` and `SUPERSEDED` content does not authorize implementation.
+4. **Task state:** `docs/execution/auditsphere-execution-index-task-board-current.md`. Read only relevant/newest sections of the current-slice handoff; query `docs/execution/status.json` with `jq` for specific fields. Historical verification is not today's verification.
+5. If essential context is missing, ask a focused question or report `BLOCKED_CONTEXT`. If authority conflicts, report `BLOCKED_DECISION`. Do not guess paths, signatures, contracts or results.
 
-| Project | Owns |
+## 2. Technical boundaries
+
+**Stack:** pinned .NET 10 / C# 14, ASP.NET Core API, Angular 22 / Material-CDK, EF Core 10 / Npgsql / PostgreSQL 18.6, .NET Worker and existing durable operations. Honor `global.json`, `.config/dotnet-tools.json`, `Directory.Packages.props`, NuGet locks and `src/AuditSphereOps.Ui/.nvmrc`.
+
+| Directory under `src/` | Owns |
 | --- | --- |
-| `src/AuditSphereOps.Domain/` | Pure business models and invariants by capability (`Practice/`, `Accounting/`, `Audit/`, `Reviews/`, `Completion/`, `Documents/`, `Records/`, `Security/`, …). |
-| `src/AuditSphereOps.Application/` | Static capability services, named queries, pure calculators, durable-operation contracts. |
-| `src/AuditSphereOps.Infrastructure/` | EF Core 10 + Npgsql 10, `AuditSphereDbContext.<Module>.cs` partials, migrations, provider adapters. |
-| `src/AuditSphereOps.Api/` | API host, cookie/Entra authentication, `/api/ui/*` endpoints (`Ui/UiEndpoints.<Area>.cs`), Angular route serving. Composes Application; never references Web or MudBlazor. |
-| `src/AuditSphereOps.Ui/` | Angular 22 + Material/CDK. Staff workbench `/ui/app`, client portal `/ui/portal`. Same-origin API only; never Microsoft Graph, never browser bearer tokens. |
-| `src/AuditSphereOps.Worker/` | BackgroundService host for durable operations. |
+| `AuditSphereOps.Domain/` | Domain types, invariants, pure deterministic calculators |
+| `AuditSphereOps.Application/` | Static commands/queries, authorization, financial workflows and durable-operation contracts |
+| `AuditSphereOps.Infrastructure/` | EF Core, capability-split `AuditSphereDbContext`, migrations, providers |
+| `AuditSphereOps.Api/` | Authenticated `/api/ui/*` endpoints, HTTP/OpenAPI contracts, Angular serving |
+| `AuditSphereOps.Ui/` | Angular staff/client UI, same-origin API, server-projected `can*` states |
+| `AuditSphereOps.Worker/` | Durable background work, retries and reconciliation |
 
-### Three strict financial boundaries
+Preserve three independent financial domains: firm's own ledger/billing, per-client accounting/TB/GL/adjustments, and group consolidation. Consolidation never writes component books; client books never post into the firm's ledger. Native client bookkeeping requires an explicitly approved service/cutover; import-first clients must continue working. VAT/tax is separately scoped. Inventory/procurement operations, payroll execution, payment initiation and external tax filing are not implied.
 
-1. **Firm's own books** (`Practice/`, `FirmLedger`): firm CRM, billing, time, firm ledger.
-2. **Client accounting workspace** (`Accounting/`): client TB/GL, client charts, approved mappings, adjustments, entity packages.
-3. **Group consolidation workspace**: component packs, perimeter, FX translation, eliminations. **Never** mutates component client books.
+Use existing partial capability files (`<Service>.<Capability>.cs`, `AuditSphereDbContext.<Module>.cs`) and stable public APIs. Cross-layer work proceeds only as needed: Domain → Application → Infrastructure → API/OpenAPI → Angular. Never place business-state mutations/authorization solely in UI, or let Angular call Graph, access credentials or bypass API.
 
-**Scope boundary.** Import-first accounting preparation, audit and consolidation. For a specifically authorized client accounting service, native client double-entry bookkeeping, client sales/purchase invoices and credit notes, GL/TB and statements are allowed; VAT/tax and ancillary modules are optional, independently gated, and never block the core path. Not authorized: inventory, procurement operations, payroll execution, payment initiation, external tax filing, or changes to the firm-ledger and consolidation boundaries. Existing clients stay on external-source mode unless explicitly migrated through an approved cutover. Client isolation, balanced postings, review and immutable history are mandatory in every mode.
+## 3. Fast, minimal implementation
 
-## 2. Toolchain and local environment
+- Change only what the requirement needs. Reuse nearby patterns/services/queries/calculators; no broad refactor, speculative abstraction, generic framework, duplicate workflow or unrelated formatting.
+- Complete one coherent behavior per task/PR, including all inseparable layers. Keep diffs reviewable; stop and simplify on scope expansion.
+- **Restore/install once:** `dotnet tool restore`, `dotnet restore AuditSphereOps.slnx --locked-mode` and `npm --prefix src/AuditSphereOps.Ui ci` only for a fresh environment or changed toolchain/lockfiles. Do not reinstall dependencies for every edit.
+- Diagnose with the smallest applicable build/test, preferably once after the coherent edit. On failure rerun only the failed check after fixing it; don't rerun already-passing suites without relevant new changes.
+- Never claim a simulation, TODO, proposed story, UI route or passing compile proves production readiness.
 
-- .NET SDK pinned in `global.json` (roll-forward disabled); EF tool pinned in `.config/dotnet-tools.json`; Node version in `src/AuditSphereOps.Ui/.nvmrc`; Angular 22 with Material/CDK.
-- PostgreSQL 18.6, Docker-free, port `5433`. macOS: `pg_ctl -D /opt/homebrew/var/postgresql@18 -o "-p 5433" start` or `scripts/db/restore-drill.sh`. Windows: `scripts\db\status.ps1`, `start.ps1`, `stop.ps1`, `init-cluster.ps1`. Overrides: `AUDITSPHERE_TEST_CONNECTION`, `PGSQL_HOME`.
-- Local development runs with `ExternalEffects.Enabled=false` and `AllowSimulationAdapters=true`.
-- Production external gates (Entra OIDC, selected-resource SharePoint/Graph, any approved live release checkpoint) need live infrastructure. Record them as `BLOCKED_EXTERNAL`; never fake a pass. Purview and eSignature provider integrations are out of product scope: preserve exact uploaded signed-document evidence, SHA-256 identities, human decisions and release manifests without claiming provider acceptance.
+## 4. Test policy — local targeted; full suite in CI/CD
 
-## 3. Verification commands (run from the repository root)
+**Default:** full test suites run through CI/CD only. Do not run the complete .NET, Angular, or Playwright suites locally. For a coherent development slice, select the smallest credible local checks that cover the changed behavior and risk; run them once after the slice rather than after every edit.
+
+| Change | Minimal local verification |
+| --- | --- |
+| Docs/comments/formatting | `git diff --check`; specific documentation validator if affected. Zero tests for nonbehavior changes. |
+| Styles/markup only | Visual/targeted check; test only if interaction, a11y or contract behavior changed. |
+| Calculator/domain rule | Existing focused xUnit class/method and a boundary assertion only if new behavior is uncovered. |
+| Angular behavior/decoder | One affected `.spec.ts` with `--include`; Angular build when template/compilation risk warrants. Use the built-in browser for dynamic UI/endpoint/responsive checks when unit tests cannot establish behavior; full browser journeys run in CI/CD. |
+| Command/API/persistence | Focused existing .NET test against dedicated test DB; only critical changed-behavior cases. |
+| Authorization, ledger, approval, concurrency, migration, provider | Small focused positive/negative cohort covering the affected high-risk invariant. Never waive meaningful protection. |
+
+Prefer existing bounded task packets when relevant:
 
 ```bash
-dotnet tool restore
-dotnet restore AuditSphereOps.slnx --locked-mode
-dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
-dotnet test AuditSphereOps.slnx --no-build --configuration Release --maxcpucount:1
-dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure \
-  --startup-project src/AuditSphereOps.Api --no-build --configuration Release
-npm --prefix src/AuditSphereOps.Ui ci && npm --prefix src/AuditSphereOps.Ui run build
-npm --prefix src/AuditSphereOps.Ui run test:ci
-bash scripts/contracts/verify-openapi.sh
-python3 scripts/docs/validate-markdown-documentation.py
-python3 scripts/docs/validate-markdown-filenames.py
-python3 scripts/docs/validate-narrative-metrics.py
-python3 scripts/ui/inventory.py --check
+./scripts/agent-check --list
+./scripts/agent-check <capability>          # prerequisite check; runs no tests
+./scripts/agent-check <capability> --run    # only the selected cohort
 ```
 
-**Automated test suites are present.** They were removed on 2026-10-08 (commit `47ca0b05`) and restored by STE-NXT-001; ADR-0008 is `SUPERSEDED`. The Angular specs run in CI. The .NET suites run locally against the PostgreSQL test database `auditsphere_tests` on port 5433, never the development database. Report a test result only from the commands above and say which ran. Follow `docs/testing/auditsphere-testing-strategy-definition-of-done-current.md` for the rest of the verification rules.
+Otherwise select one named test, never the whole project:
 
-**Test design and evidence.** Prioritize correctness against requirements over test quantity. Run relevant existing tests and add minimal, behavior-focused tests where they provide meaningful regression protection. Derive expected outcomes from requirements and established domain rules, not merely from the generated implementation. Do not weaken tests solely to make a failing patch pass. Validate end-to-end behavior where unit tests or mocks cannot establish correctness.
+```bash
+# Substitute an existing class/method name.
+dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj \
+  --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ChangedBehaviorTests'
 
-## 4. Core invariants
+# Substitute the existing affected Angular spec path.
+npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/**/affected.spec.ts'
 
-- **Scope-checked authorization.** Every command, query and queue enforces explicit `RoleGrant` scope (`FIRM_WIDE`, `CLIENT`, `ENGAGEMENT`, `GROUP`). An engagement-only grant never widens to sibling engagements or clients. Enforce it in Application, never only in UI.
-- **Immutability and lineage.** Sealed datasets, approved mappings, applied journals, issued packages and review decisions are append-only. Changes create new revisions or amendments; history never gains an update path.
-- **Optimistic fencing.** Writes that edit a revisioned aggregate take an `ExpectedRevision`/`ExpectedVersion` and refuse stale input.
-- **Pure calculators.** Financial and consolidation engines contain no EF Core, network, clock or non-deterministic IDs.
-- **Durable operations.** Long-running work (GL completeness, package calculation, rendering) uses the local durable-operation infrastructure with revision fencing, idempotent retries and explicit cancellation dispositions.
-- **Fail closed.** Missing exchange rates, unsupported valuation methods, unapproved perimeters or stale inputs block approval/release. Never default to zero or an arbitrary value.
-- **No autonomous audit opinions.** The platform computes, evaluates indicators and enforces gates; human practitioners make professional conclusions and sign-offs.
-- **Capability-focused files.** Large services and `AuditSphereDbContext` are partial classes (`<Service>.<Capability>.cs`, `AuditSphereDbContext.<Module>.cs`). Put new operations in the matching capability file; keep public APIs stable; use business-semantic file names.
-- **Presentation composes Application.** API handlers and legacy Razor components call named Application commands/queries; no new business-state mutation directly through `DbContext`. Angular uses the API contract and renders server-computed `can*` flags. When substantially modifying a page, move complex reads into a named Application query if that reduces page responsibility; do not bulk-refactor unaffected pages.
-- **Gradual Blazor retirement.** Follow discover → inventory → map → compare → close gaps → verify → cut over → observe → remove (`docs/architecture/auditsphere-angular-migration-current.md`). Route existence, story completion or a green partial suite is not parity proof. If the Web project is missing while the gate is `NOT_READY`, restore it before claiming retirement.
+git diff --check
+```
 
-## 5. Never
+Use `tests/AuditSphereOps.Api.Tests/` or `tests/AuditSphereOps.E2E.Tests/` only when the modified HTTP/browser behavior needs that boundary. Do not use `--no-build` if changed source/test binaries were not rebuilt. PostgreSQL tests use `auditsphere_tests` on local port 5433 (or the approved isolated test setting), never development/production. Report `BLOCKED_TEST_ENV` if unavailable.
 
-- Introduce Frappe, ERPNext, a Python backend, a React frontend or a second ERP.
-- Add Kubernetes, microservices-per-module, message brokers (Kafka/RabbitMQ) or autonomous application-level AI decision-makers.
-- Add MediatR, Wolverine, MassTransit, AutoMapper, generic repositories/UnitOfWork, event sourcing or a `Features/` rewrite.
-- Request tenant-wide Microsoft Graph scopes outside the separately credentialed, consented capabilities in `docs/architecture/auditsphere-m365-tenant-administration-permissions.md`. Each capability (`User.Read.All` reader, optional `User.Create`, `User.Invite.All`, `GroupMember.ReadWrite.All`, `Mail.Send`) uses its own app identity with exactly one role, off by default, usable only after verified consent. Documents stay on `Sites.Selected` and exact site grants. The isolated client-sites worker's owner-approved `Sites.FullControl.All` exception is documented in `docs/architecture/auditsphere-client-sharepoint-sites-current.md`; its certificate is never mounted in API, Web or the document worker. Never implement Entra administrator-role assignment through AuditSphere roles.
-- Make autonomous professional conclusions or bypass required human review gates.
-- Add an npm dependency without owner approval (`docs/architecture/auditsphere-angular-conventions-current.md`). NuGet versions are pinned centrally in `Directory.Packages.props` with locked restore; change them deliberately, never as a side effect.
-- Rewrite git history destructively, or commit credentials or tenant secrets.
-- Convert `BLOCKED_EXTERNAL` to `LOCAL_VERIFIED`/`APPROVED` from local runs, simulations, screenshots or declarations.
+For browser-visible changes, prioritize the built-in browser for dynamic verification: open the target page, exercise the relevant flow, check responsive rendering and inspect console/network errors. Use computer use only when the built-in browser is insufficient. Record what was and was not verified.
 
-## 6. How to work a task
+Run additional checks only when impacted: EF model drift after model/migration changes, `bash scripts/contracts/verify-openapi.sh` after API contract changes, targeted .NET Release build for changed project, Angular build after substantive template changes. CI handles full solution build and general gates.
 
-1. Find your task on the [agent task board](docs/execution/auditsphere-execution-index-task-board-current.md) (every R2R, AUD and STE task with its verdict, blockers and open gaps). Read the story or task card you were given, then only the files it names. Find code with `docs/architecture/auditsphere-architecture-code-map.md` before searching the repository.
-2. Decisions and their reasons: `docs/architecture/adr/auditsphere-architecture-index-adr-register-current.md`. Do not reverse an ADR inside a feature task.
-3. Deliver the smallest coherent vertical slice: Domain → Application (command/query, scope check, guarded transaction) → migration if needed → API endpoint → OpenAPI regeneration → Angular screen.
-4. Run section 3. Report what you ran, what passed, what you could not run, and every assumption.
-5. Record observed facts only in `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md`.
+### Minimize the number of tests, not their value
 
-For the three pilot capabilities, `./scripts/agent-check --list` identifies bounded packets; `./scripts/agent-check <capability>` checks prerequisites, and `--run` explicitly runs the selected cohort after a coherent slice. Packets map acceptance criteria to evidence and display omitted checks. `--compare <baseline-report> <candidate-report>` compares measured matching cohorts without executing tests. See [capability checks](docs/testing/auditsphere-testing-guide-agent-capability-checks-current.md). Focused results supplement the task card and never replace section 3 or external acceptance.
+- Extend a nearby existing behavior test before adding a new test file. Prefer one high-signal regression per changed behavior; add a distinct denial/boundary test where security, money, staleness or retries demand it. Parameterize equivalent cases rather than duplicating fixtures.
+- Avoid unit/API/E2E copies of identical assertions, tests for trivial accessors, mass snapshots, implementation-mirroring tests, speculative case explosions and artificial coverage targets.
+- Do not remove, skip, weaken or alter expected results to reduce test count. Consolidate genuine duplicates only when every unique invariant remains covered and the reduction is reviewed.
+- New tests must derive expected results from requirements/accounting rules, not from whatever the new code happens to return. Test count is never a success metric.
+- **Correctness over count:** Prioritize correctness against requirements over test quantity. Run relevant existing tests and add minimal, behavior-focused tests where they provide meaningful regression protection. Derive expected outcomes from requirements and established domain rules, not merely from the generated implementation. Do not weaken tests solely to make a failing patch pass. Validate end-to-end behavior where unit tests or mocks cannot establish correctness.
 
-**Context budget.** `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md` are very large. Never read either whole. Query `status.json` with `jq` (`jq '.active.packageId, .remainingLocalWork[].item, .externalGates' docs/execution/status.json`) and read only the newest section of the current-slice file.
+### CI/CD responsibilities (existing workflows)
 
-## 7. Authority pointers
+- `.github/workflows/ci.yml`: fast push/PR gate with Angular build/specs, Release compilation, database-free guards, EF/OpenAPI drift, publication and docs. Passing this is not a full .NET regression pass.
+- `.github/workflows/release-verification.yml`: full nightly / manually dispatched gate on an immutable SHA: complete unfiltered Domain, API, Playwright/PostgreSQL and Angular suites. Run complete regressions here, not after each local edit. Require successful current-commit release verification for releases or owner-designated high-risk gates.
+- The release workflow is not currently required for PR merges. Never claim `FULL_CI_PASS` from `ci.yml` alone or from an earlier commit. To address a CI failure, rerun only the failing cohort in CI/CD; do not run full suites locally.
+- Report tests executed with results, omitted/deferred CI suites and exact SHA. Distinguish `NOT_RUN`, `BLOCKED_TEST_ENV`, `FAST_CI_PASS`, `FULL_CI_PASS` and `BLOCKED_EXTERNAL`.
 
-- Documentation map, authority order and reading order: `docs/auditsphere-docs-index.md`. Agent context slots: `docs/architecture/auditsphere-architecture-index-agent-context-current.md`.
-- Implementation architecture: `docs/architecture/auditsphere-architecture-current-architecture.md`. Angular conventions: `docs/architecture/auditsphere-angular-conventions-current.md`. HTTP boundary and OpenAPI: `docs/architecture/auditsphere-architecture-http-boundary-and-contract-current.md`.
-- Functional requirements (STE v2.2): `docs/requirements/auditsphere-accounting-module-requirements-current.md`. Product brief and non-goals: `docs/requirements/auditsphere-requirements-specification-product-brief-current.md`. Glossary: `docs/requirements/auditsphere-requirements-catalog-domain-glossary-current.md`.
-- Preserved requirement and blueprint sources under `docs/task_breakdown/source/` are `HISTORICAL_SOURCE`: never implementation authority.
-- Backlog: `docs/execution/auditsphere-execution-pending-tasks.md` and `docs/execution/auditsphere-execution-user-stories-ste-v21-remaining-proposed.md`. Volatile facts (verified SHA, counts, blockers): `docs/execution/status.json` only.
+## 5. Product invariants — never compromise
 
-## 8. GitHub Wiki deployment guidance
+- **Authorization:** Application commands/queries enforce current `FIRM_WIDE`, `CLIENT`, `ENGAGEMENT`, `GROUP` grants, session freshness and professional-work holds. Never widen sibling engagement/client scope; Angular `can*` flags are presentation only.
+- **Immutability:** sealed datasets, approved mappings, posted journals, reviews, issued artifacts and release evidence retain append-only revision/hash lineage. No silent overwrite or self-approval.
+- **Transaction safety:** revision/generation fences; appropriate existing lock order; idempotent retries and reconciliation of unknown external outcomes. Fail closed on stale/missing/unsupported evidence or rates.
+- **Accounting:** balanced postings, correct money precision/rounding, controlled mapping/adjustment application, no invented balances/FX rates; consolidation does not modify client source data. Pure calculators have no EF, network, clocks or random IDs.
+- **Audit:** professional opinions and final sign-offs are decisions by authorized humans, never generated autonomously.
+- **M365:** obey `docs/architecture/auditsphere-m365-tenant-administration-permissions.md` and separately approved selected-client-sites exception. Least-privilege per-capability identities, verified grants and exact-resource boundaries; no broad tenant scopes or Entra administrator-role assignment. External effects remain off in local simulations; unverified live gates are `BLOCKED_EXTERNAL`.
+- **External-provider boundaries:** Purview and eSignature provider integrations are out of scope. Preserve exact uploaded signed-document evidence, SHA-256 identities, human decisions and release manifests without claiming provider acceptance.
 
-**One guide, updated only when necessary.** Operator deployment guidance lives in the repository Wiki (`https://github.com/nirzaf/AuditSphere/wiki`). Read its index and relevant pages first; update the canonical page in place; create a page only for a missing topic and link it from the index. No per-release copies; no duplication across Wiki, repository docs and `AGENTS.md`. Check documentation impact when prerequisites, configuration keys/defaults, deployment commands, migrations, setup screens, permissions, verification, backup/recovery or upgrade procedures change; edit only sections that became inaccurate; no cosmetic, timestamp-only or changelog edits. Verify against the current checkout (architecture doc, `src/AuditSphereOps.Api/appsettings.json`, Angular administration components, API and rollback-host startup, worker, deployment scripts). Present the Web host only as an approved migration/reference/rollback path, never a production canary. `docs/requirements/auditsphere-m365-onboarding-user-stories.md` describes proposed requirements: check implementation before presenting a step as available. Link to the source revision; do not copy specifications or configuration wholesale.
+## 6. Prohibitions, approvals, completion
 
-**Make deployment easy to follow.** Plain language, short numbered steps: prerequisites, supported OS/hosting profile, required access, local simulation versus production. Each step gives action, where to run it, expected result and what to do on failure; mark optional and administrator-only steps. Shortest supported path: toolchain and PostgreSQL → safe configuration → restore/build → approved migration → web/worker startup → health and sign-in checks → Microsoft 365 setup and capability verification; link to troubleshooting, upgrades, credential rotation, backup/restore and rollback. Only existing, verified commands with explicit working directory, shell and target environment; label untested steps honestly. Keep local trust authentication, simulation adapters and development defaults out of production instructions. Never recommend bypassing a startup guard or toggling external effects to claim readiness. A saved setup draft is not Microsoft consent, verified SharePoint access or production acceptance.
+Do not introduce Frappe/ERPNext, a second ERP, React/Python backend, microservices, brokers, Kubernetes, MediatR/Wolverine/MassTransit, AutoMapper, generic repositories/UnitOfWork, event sourcing, ClamAV/antivirus or rate-limit infrastructure without separately approved scope. No incidental npm/NuGet packages. Never log/commit secrets, tokens, financial data or live tenant credentials.
 
-**Never publish sensitive information.** Treat Wiki text, history, attachments, screenshots, links and examples as potentially public. Never include passwords, client secrets, tokens, bootstrap proofs or hashes, private keys, credentialed connection strings, signed/preauthenticated URLs, production configuration exports, client/financial data or personal information. Replace tenant/app/user/site IDs, private hostnames and resource locations with placeholders such as `<TENANT_ID>` and `<SECRET_FROM_APPROVED_STORE>`; explain that operators supply values through .NET user secrets (development) or an approved secret store/role-specific mount. Before publication inspect the full changed content for sensitive material and validate links and commands; secret scanning is an extra check, not a guarantee. If an exposure is found, stop and notify the owner privately without repeating the value; exposed credentials need revocation/rotation through the approved incident process.
+Follow the user's explicit branch/worktree and commit/push instructions. Never force-push or rewrite history. Deployment, merges, production data/permission changes and destructive migrations require the owner's explicit authorization; green CI is not authorization for those actions.
 
-**Publishing and evidence.** Wiki changes are separate from the repository; editing local docs does not publish. Publish only within explicit owner authorization through the existing approved access method, with a minimal diff and a concise reason; never change Wiki visibility, permissions or repository protections to gain access. If access is unavailable, report the topic and blocker without claiming an update. After an authorized update, verify the rendered page and navigation and report the page URL, material change and checks performed. Record a tested version/date only with new evidence, and distinguish local verification from live deployment acceptance.
+On completion report changed files, behavior, focused verification and results, deferred CI, blockers and assumptions. Update `docs/execution/status.json` and current-slice handoff only with relevant observed evidence. Keep this file aligned with `docs/testing/auditsphere-testing-strategy-definition-of-done-current.md`. Wiki is the canonical operator deployment guide: update an existing page only for a material operator change and with explicit authorization; redact secrets and separate local from live instructions.
