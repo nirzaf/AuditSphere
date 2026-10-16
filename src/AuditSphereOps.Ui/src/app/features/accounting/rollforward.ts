@@ -134,19 +134,21 @@ export class PeriodRollforward {
     const route = inject(Router).events.subscribe(event => { if (event instanceof NavigationStart) this.reset(); });
     effect(() => { this.session.current(); this.session.invalidation(); untracked(() => this.reset()); });
     effect(() => { this.overview.data(); this.overview.loading(); this.overview.error(); untracked(() => {
+      if (this.overview.error()) { this.reset(); return; }
       ++this.generation; ++this.readSequence; this.flow.invalidate(!!this.flow.receipt() && !this.overview.error()); this.resettingSource = true; this.closed.set([]); this.restatements.set([]); this.f.prior = ''; this.f.package = ''; this.prior.set(null); this.resettingSource = false;
     }); });
     inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.reset(); route.unsubscribe(); });
   }
   private reset(): void {
     ++this.generation; ++this.readSequence; this.flow.invalidate(); this.closed.set([]); this.restatements.set([]); this.closedError.set('');
-    this.f.client = ''; this.f.prior = ''; this.f.package = ''; this.prior.set(null);
+    Object.assign(this.f, { client: '', prior: '', code: '', start: '', end: '', basis: 'STATUTORY', currency: 'QAR', package: '', closing: '0', opening: '0', hash: '', evidence: '' }); this.prior.set(null);
   }
   private protect<T extends object>(fields: T): T {
     return new Proxy(fields, { set: (target, key, value) => {
       if (Reflect.get(target, key) !== value) {
         ++this.generation; if (!this.resettingSource) this.flow.invalidate();
         if (key === 'client') {
+          Object.assign(target, { prior: '', code: '', start: '', end: '', basis: 'STATUTORY', currency: 'QAR', package: '', closing: '0', opening: '0', hash: '', evidence: '' });
           ++this.readSequence; this.closed.set([]); this.restatements.set([]); this.flow.changeClient(String(value)); this.prior.set(null); Reflect.set(target, 'prior', ''); Reflect.set(target, 'package', '');
         }
         if (key === 'prior') { this.prior.set(null); Reflect.set(target, 'package', ''); }
@@ -160,6 +162,7 @@ export class PeriodRollforward {
   }
   private allowed(): boolean { return !this.destroyed && !!this.session.current()?.staff && !!this.overview.data() && !this.overview.loading() && !this.overview.error(); }
   async loadClient(clientId: string): Promise<void> {
+    if (this.f.client !== clientId) this.reset();
     ++this.generation; this.f.client = clientId; const sequence = ++this.readSequence;
     this.closed.set([]); this.restatements.set([]); this.f.prior = ''; this.f.package = ''; this.prior.set(null); this.closedError.set(''); this.flow.invalidate();
     if (!this.allowed() || !this.overview.data()?.clients.some(c => c.id === clientId)) return;
@@ -170,7 +173,7 @@ export class PeriodRollforward {
       if (context.restatements.some(r => r.clientId !== clientId)) throw new Error('Wrong client context');
       this.closed.set(context.periods); this.restatements.set(context.restatements); if (context.periods[0]) this.choosePrior(context.periods[0].id);
       this.flow.restorePending(clientId);
-    } catch (error) { if (valid() && sequence === this.readSequence) this.closedError.set(error instanceof Error ? error.message : 'Closed periods unavailable.'); }
+    } catch (error) { if (valid() && sequence === this.readSequence) { this.reset(); this.closedError.set(error instanceof Error ? error.message : 'Closed periods unavailable.'); } }
   }
   clientName(id: string): string { return this.overview.data()?.clients.find(c => c.id === id)?.name ?? id; }
   periodName(id: string): string { const p = this.closed().find(p => p.id === id); return p ? `${p.periodCode} (${p.startDate} — ${p.endDate})` : id; }

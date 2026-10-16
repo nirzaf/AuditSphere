@@ -1228,12 +1228,18 @@
         "source": "after 410662d4",
         "change": "Procedure-review selection/scope/session/lifetime and returned-ID fences",
         "build": "Angular production PASS",
-        "tests": "Three specs added; execution and built-in browser pending"
+        "tests": "Combined fieldwork/completion Angular cohort: 26 passed; audit-read-fences-angular.log"
       },
       "completionSignatureFollowUp": {
         "change": "Signature reads fenced by report/scope/session/lifetime",
         "build": "Angular PASS",
-        "tests": "New rejection/destroy/navigation specs unrun"
+        "tests": "Combined fieldwork/completion Angular cohort: 26 passed; built-in browser pending"
+      },
+      "periodDraftScopeFollowUp": {
+        "source": "working tree following 02f880d6",
+        "change": "Full editable draft cleanup on client/scope loss or context failure; same-client successful refresh preserves evidence",
+        "angular": "63 passed in period-draft-recovery-angular.log, including unknown request recovery after draft clearing",
+        "browser": "Pending current-source verification"
       }
     }
   },

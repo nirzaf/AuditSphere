@@ -103,6 +103,19 @@ describe('PeriodRollforward reviewed maintenance safety', () => {
     await preview(); drafts.save.mockReturnValue(false); page.flow.reviewed.set(true); await page.execute();
     expect(api.command.mock.calls.filter(c => c[0].endsWith('/actions'))).toHaveLength(0);
   });
+  it('keeps exact unknown-request recovery after clearing drafts on failed context refresh', async () => {
+    await preview(); const requestId = page.flow.preview()!.requestId;
+    page.flow.reviewed.set(true); api.command.mockResolvedValueOnce({ ok: false, unknown: true, message: 'unknown' }); await page.execute();
+    const writes = api.command.mock.calls.length;
+    drafts.readPendingRequest.mockImplementation(scope => scope.entity.endsWith('/ROLL_FORWARD')
+      ? { state: 'ready', draft: { value: { requestId, requestHash: hash }, submissionPending: true } } : { state: 'absent' });
+    page.f.evidence = 'Private draft'; api.get.mockRejectedValueOnce(new Error('Access denied.')); await page.loadClient(a);
+    expect(page.f.evidence).toBe(''); expect(drafts.clear).not.toHaveBeenCalled();
+    await page.loadClient(a); expect(page.cmd.uncertain()).toBe(true);
+    api.get.mockResolvedValueOnce({ found: true, receipt: receipt(requestId) }); await page.flow.reconcile('ROLL_FORWARD');
+    expect(page.flow.receipt()?.requestId).toBe(requestId); expect(page.cmd.uncertain()).toBe(false);
+    expect(api.command.mock.calls).toHaveLength(writes);
+  });
   it('restores only the exact request reference after a fresh authorized client context read', async () => {
     drafts.readPendingRequest.mockImplementation(scope => scope.entity.endsWith('/ROLL_FORWARD') ? { state: 'ready', draft: { value: { requestId: b, requestHash: hash }, submissionPending: true } } : { state: 'absent' });
     await page.loadClient(a); expect(page.cmd.uncertain()).toBe(true); expect(page.flow.reviewed()).toBe(false); expect(page.flow.preview()).toBeNull();
@@ -159,6 +172,20 @@ describe('PeriodRollforward reviewed maintenance safety', () => {
   it('never clears uncertain on arbitrary context reads', async () => {
     await preview(); page.flow.reviewed.set(true); api.command.mockResolvedValueOnce({ ok: false, unknown: true, message: 'unknown' }); await page.execute();
     await page.loadClient(a); expect(page.cmd.uncertain()).toBe(true); expect(drafts.clear).not.toHaveBeenCalled();
+  });
+  it('erases populated drafts on client switch, navigation, session loss and failed context refresh', async () => {
+    await page.loadClient(a);
+    const populate = () => { Object.assign(page.f, { code: 'PRIVATE', start: '2027-01-01', end: '2027-12-31', basis: 'PRIVATE BASIS', currency: 'USD', closing: '123', opening: '456', hash, evidence: 'PRIVATE EVIDENCE' }); };
+    const erased = () => { expect(page.f.code).toBe(''); expect(page.f.start).toBe(''); expect(page.f.end).toBe(''); expect(page.f.basis).toBe('STATUTORY'); expect(page.f.currency).toBe('QAR'); expect(page.f.closing).toBe('0'); expect(page.f.opening).toBe('0'); expect(page.f.hash).toBe(''); expect(page.f.evidence).toBe(''); };
+    populate(); page.f.client = b; erased();
+    await page.loadClient(a); populate(); events.next(new NavigationStart(1, '/elsewhere')); erased();
+    await page.loadClient(a); populate(); session.invalidation.update(n => n + 1); TestBed.tick(); erased();
+    await page.loadClient(a); populate(); api.get.mockRejectedValueOnce(new Error('Access denied.'));
+    await page.loadClient(a); erased(); expect(page.f.client).toBe(''); expect(page.closedError()).toBe('Access denied.');
+  });
+  it('preserves entered evidence on a successful refresh of the same client', async () => {
+    await page.loadClient(a); page.f.evidence = 'Same-client draft';
+    await page.loadClient(a); expect(page.f.evidence).toBe('Same-client draft');
   });
   it('fences route, session and destroyed lifetime', async () => {
     const read = deferred<typeof context>(); api.get.mockReturnValueOnce(read.promise); const loading = page.loadClient(a);
