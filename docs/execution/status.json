@@ -1240,6 +1240,13 @@
         "change": "Full editable draft cleanup on client/scope loss or context failure; same-client successful refresh preserves evidence",
         "angular": "63 passed in period-draft-recovery-angular.log, including unknown request recovery after draft clearing",
         "browser": "Pending current-source verification"
+      },
+      "hostedPrecisionFollowUp": {
+        "source": "02f880d6",
+        "run": "https://github.com/nirzaf/AuditSphere/actions/runs/38898923583",
+        "domain": "244 passed; 4 receipt equality failures",
+        "correction": "First replies reread stored receipts; forced 100ns clock precision regression added",
+        "verification": "Correction awaits hosted rerun"
       }
     }
   },

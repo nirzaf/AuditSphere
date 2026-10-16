@@ -354,7 +354,9 @@ public static class AuditPlanningCommandWorkspace
       db.AuditPlanningCommandReceipts.Add(row); await db.SaveChangesAsync(ct);
       auth = await AuthorizeAsync(db, a, engagementId, f.Action, true, ct);
       if (!auth.Succeeded) return Fail<AuditPlanningCommandReceiptView>(auth.ErrorCode!, auth.Message!);
-      await tx.CommitAsync(ct); return CommandResult<AuditPlanningCommandReceiptView>.Ok(View(row));
+      // Return database precision on first publication as well as replay.
+      var persisted = await db.AuditPlanningCommandReceipts.AsNoTracking().SingleAsync(x => x.Id == row.Id && x.FirmId == a.FirmId, ct);
+      await tx.CommitAsync(ct); return CommandResult<AuditPlanningCommandReceiptView>.Ok(View(persisted));
     }
     catch (Exception ex) when (ex.GetBaseException() is DbException cause && cause.GetType().GetProperty("SqlState")?.GetValue(cause) is "40001" or "40P01" or "23505")
     {

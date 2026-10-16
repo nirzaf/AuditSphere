@@ -123,8 +123,11 @@ public static partial class ClientAccountingService
       await db.SaveChangesAsync(ct);
       auth = await PeriodMaintenanceWorkspace.AuthorizeAsync(db, actor, clientId, r.Action, ct);
       if (!auth.Succeeded) return Fail(auth.ErrorCode!, auth.Message!);
+      // PostgreSQL stores timestamps at microsecond precision. Publish the stored receipt,
+      // so the first reply and a later replay are identical on every host clock.
+      var persisted = await db.PeriodMaintenanceReceipts.AsNoTracking().SingleAsync(x => x.Id == receipt.Id && x.FirmId == actor.FirmId, ct);
       await tx.CommitAsync(ct);
-      return CommandResult<PeriodMaintenanceReceiptView>.Ok(PeriodMaintenanceWorkspace.View(receipt));
+      return CommandResult<PeriodMaintenanceReceiptView>.Ok(PeriodMaintenanceWorkspace.View(persisted));
     }
     catch (Exception ex) when (MaintenanceConflict(ex))
     {

@@ -150,13 +150,16 @@ public sealed partial class ClientAccountingTests
     }
     async Task<CommandResult<PeriodMaintenanceReceiptView>> Publish()
     {
-      await using var db = new AuditSphereDbContext(pg.Options);
+      var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(new MaintenanceReceiptSubMicrosecondClock()).Options;
+      await using var db = new AuditSphereDbContext(options);
       return await PeriodMaintenanceWorkspace.ExecuteAsync(db, actor, scope.ClientA, request);
     }
     var results = await Task.WhenAll(Publish(), Publish());
     Assert.All(results, x => Assert.True(x.Succeeded, x.Message)); Assert.Equal(results[0].Value, results[1].Value);
     await using var verify = new AuditSphereDbContext(pg.Options);
-    Assert.Single(await verify.PeriodMaintenanceReceipts.ToListAsync());
+    var persistedReceipt = Assert.Single(await verify.PeriodMaintenanceReceipts.ToListAsync());
+    Assert.Equal(persistedReceipt.CreatedAt, results[0].Value!.CreatedAt);
+    Assert.Equal(0, results[0].Value!.CreatedAt.Ticks % 10);
     Assert.Equal(action == PeriodMaintenanceActions.RollForward ? 1 : 0, await verify.OpeningBalanceBridges.CountAsync());
     Assert.Equal(action == PeriodMaintenanceActions.RollForward ? 2 : 1, await verify.ClientReportingPeriods.CountAsync());
     Assert.Equal(action == PeriodMaintenanceActions.RollForward ? 0 : 1, await verify.ClientPeriodRestatements.CountAsync());
@@ -207,6 +210,19 @@ public sealed partial class ClientAccountingTests
     }
     Assert.Fail($"No maintenance lock waiter observed for synthetic firm {firmId}.");
   }
+  // Linux clocks commonly expose 100ns ticks while PostgreSQL retains microseconds.
+  // Force this precision boundary instead of relying on the current host's clock resolution.
+  private sealed class MaintenanceReceiptSubMicrosecondClock : SaveChangesInterceptor
+  {
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+      InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      foreach (var entry in eventData.Context!.ChangeTracker.Entries<PeriodMaintenanceReceipt>().Where(x => x.State == EntityState.Added))
+        entry.Entity.CreatedAt = DateTimeOffset.FromUnixTimeSeconds(1792152000).AddTicks(7);
+      return ValueTask.FromResult(result);
+    }
+  }
+
   private sealed class MaintenanceReceiptPause(bool refuse) : SaveChangesInterceptor
   {
     public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
