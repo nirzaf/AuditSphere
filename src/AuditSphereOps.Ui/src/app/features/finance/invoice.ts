@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, HostListener, effect, inject, signal, untracked } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -277,6 +277,9 @@ export class InvoiceDetail {
   readonly allocationPageSize = signal(10);
   readonly allocationPageSizes = [10, 25, 50] as const;
   private historyVisit = 0;
+  private visitToken = 0;
+  private visitOwner = '';
+  private destroyed = false;
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly reconciliationLoaded = signal(false);
@@ -297,6 +300,24 @@ export class InvoiceDetail {
   readonly selectedAllocation = signal<ReturnType<typeof decodeInvoice>['allocations'][number] | null>(null);
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.visitToken++; });
+    effect(() => {
+      const id = this.id();
+      const current = this.session.current();
+      const generation = this.session.invalidation();
+      const owner = `${current?.firmId ?? ''}:${current?.userId ?? ''}:${generation}:${id}`;
+      if (owner === this.visitOwner) return;
+      this.visitOwner = owner;
+      this.visitToken++;
+      untracked(() => {
+        this.resetVisitDrafts();
+        this.uncertain.set(false);
+        this.reconciliationLoaded.set(false);
+        this.message.set('');
+        this.failed.set(false);
+        this.busy.set(false);
+      });
+    });
     effect(() => {
       const current = this.invoice.data();
       this.id(); this.session.current(); this.session.invalidation();
@@ -465,20 +486,51 @@ export class InvoiceDetail {
   async reconcile(): Promise<void> {
     const id = this.id();
     if (!id || this.busy()) return;
+    const visit = this.visitToken;
     const generation = this.session.invalidation();
     this.busy.set(true);
     try {
       await this.api.get(`/api/ui/finance/invoices/${id}`, decodeInvoice);
-      if (generation !== this.session.invalidation()) return;
+      if (this.destroyed || visit !== this.visitToken || generation !== this.session.invalidation() || id !== this.id()) return;
       this.invoice.reload();
       this.reconciliationLoaded.set(true);
       this.failed.set(false);
       this.message.set('Persisted billing state refreshed. Review the current record before preparing another action.');
     } catch {
-      if (generation !== this.session.invalidation()) return;
+      if (this.destroyed || visit !== this.visitToken || generation !== this.session.invalidation() || id !== this.id()) return;
       this.failed.set(true);
       this.message.set('Billing state could not be verified. Keep this request unresolved and retry the refresh.');
-    } finally { this.busy.set(false); }
+    } finally { if (!this.destroyed && visit === this.visitToken) this.busy.set(false); }
+  }
+
+  confirmNavigation(): boolean {
+    if (this.busy() || this.uncertain()) {
+      this.message.set('Resolve the in-flight or uncertain billing action before leaving this invoice.');
+      return false;
+    }
+    return !this.isDirty() || window.confirm('Discard unsubmitted billing edits and review confirmations?');
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnload(event: BeforeUnloadEvent): void {
+    if (this.busy() || this.uncertain() || this.isDirty()) { event.preventDefault(); event.returnValue = ''; }
+  }
+
+  private isDirty(): boolean {
+    return this.receiptForm.dirty || this.allocationForm.dirty || this.creditForm.dirty || this.termsForm.dirty ||
+      this.termsReviewForm.dirty || this.reversalForm.dirty || this.reversalReviewForm.dirty;
+  }
+
+  private resetVisitDrafts(): void {
+    this.receiptForm.reset({ amount: '', reference: '', reviewed: false });
+    this.allocationForm.reset({ receiptId: '', amount: '', reviewed: false });
+    this.creditForm.reset({ noteNumber: '', amount: '', reason: '', reviewed: false });
+    this.termsForm.reset({ dueDate: '', basis: 'CONTRACTUAL_DUE_DATE', termsDescription: '', evidenceReference: '', reviewed: false });
+    this.termsReviewForm.reset({ reason: '', reviewed: false });
+    this.reversalForm.reset({ amount: '', reference: '', reason: '', reviewed: false });
+    this.reversalReviewForm.reset({ reason: '', reviewed: false });
+    this.selectedAllocation.set(null);
+    this.allocationPageIndex.set(0);
   }
 
   clearUnresolved(): void {
@@ -499,11 +551,13 @@ export class InvoiceDetail {
 
   private async run(url: string, body: unknown, success: string, afterSuccess?: () => void): Promise<void> {
     if (this.busy() || this.uncertain()) return;
+    const visit = this.visitToken;
+    const invoiceId = this.id();
     const generation = this.session.invalidation();
     this.busy.set(true); this.failed.set(false); this.message.set('');
     try {
       const result = await this.api.command(url, body);
-      if (generation !== this.session.invalidation()) return;
+      if (this.destroyed || visit !== this.visitToken || invoiceId !== this.id() || generation !== this.session.invalidation()) return;
       if (!result.ok) {
         this.failed.set(true); this.message.set(result.message);
         if (result.unknown) { this.uncertain.set(true); this.reconciliationLoaded.set(false); }
@@ -522,7 +576,7 @@ export class InvoiceDetail {
       afterSuccess?.();
       this.message.set(success);
       this.invoice.reload();
-    } finally { this.busy.set(false); }
+    } finally { if (!this.destroyed && visit === this.visitToken) this.busy.set(false); }
   }
 
   private sum(values: string[]): string {
