@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { decodeFieldwork, decodeProcedureReview, decodeSampleSet, focusRisks } from './fieldwork';
+import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
+import { BehaviorSubject, Subject } from 'rxjs';
+import { Api } from '../../core/api';
+import { SessionService } from '../../core/session';
+import { TabDrafts } from '../../core/tab-drafts';
+import { afterEach, describe, expect, it } from 'vitest';
+import { AuditFieldwork, decodeFieldwork, decodeProcedureReview, decodeSampleSet, focusRisks } from './fieldwork';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -229,5 +236,37 @@ describe('statement focus (STE-NXT-013)', () => {
     expect(focusRisks(risks, 'REV-100')).toEqual([{ destinationCode: 'REV-100', area: 'Revenue' }]);
     expect(focusRisks(risks, 'MISSING')).toEqual([]);
     expect(focusRisks(risks, null)).toEqual([]);
+  });
+});
+
+
+describe('Procedure risk link reviewed preparation', () => {
+  afterEach(() => TestBed.resetTestingModule());
+  function open() {
+    const workspace = signal({ engagementId: id1, canManageFieldwork: true, aggregate: null, risks: [{ id: id3 }], procedures: [{ id: id2, riskId: null as string | null }] });
+    const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })), command: vi.fn() };
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api },
+      { provide: SessionService, useValue: { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) } },
+      { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
+      { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
+    const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api };
+  }
+  it('previews selected risk and exact prior link, never calls the legacy risk write', async () => {
+    const { page, api } = open(), prepare = vi.spyOn(page.riskLink, 'prepare').mockResolvedValue();
+    page.setRiskSelection(id2, id3); await page.saveRiskLink(id2);
+    expect(prepare.mock.calls[0][0]()).toEqual({ action: 'LINK_PROCEDURE_RISK', linkProcedureRisk: { procedureId: id2, riskId: id3, expectedRiskId: null } });
+    expect(api.command).not.toHaveBeenCalled();
+    page.riskLink.reviewed.set(true); page.setRiskSelection(id2, ''); expect(page.riskLink.reviewed()).toBe(false);
+  });
+  it('refuses guessed risks, unknown procedures, busy and read-only commands', async () => {
+    const { page, workspace } = open(), prepare = vi.spyOn(page.riskLink, 'prepare').mockResolvedValue();
+    page.setRiskSelection(id2, id1); await page.saveRiskLink(id2); await page.saveRiskLink(id1);
+    page.setRiskSelection(id2, id3); page.cmd.busy.set(true); await page.saveRiskLink(id2); page.cmd.busy.set(false);
+    workspace.set({ ...workspace(), canManageFieldwork: false }); await page.saveRiskLink(id2); expect(prepare).not.toHaveBeenCalled();
+  });
+  it('clears stale local link selections after the persisted procedure link changes', () => {
+    const { page, workspace } = open(); page.setRiskSelection(id2, id3);
+    workspace.set({ ...workspace(), procedures: [{ id: id2, riskId: id1 }] }); TestBed.tick();
+    expect(page.riskSelection(workspace().procedures[0] as Parameters<AuditFieldwork['riskSelection']>[0])).toBe(id1);
   });
 });

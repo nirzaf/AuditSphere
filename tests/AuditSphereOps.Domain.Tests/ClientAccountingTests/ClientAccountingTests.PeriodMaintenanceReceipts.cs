@@ -39,6 +39,27 @@ public sealed partial class ClientAccountingTests
   }
 
   [Fact, Trait("Profile", "Database")]
+  public async Task Maintenance_PublicationAllowsConcurrentActorForeignKeyChecks()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var actor = Actor(scope.Preparer, "AccountingPreparer");
+    var period = await ClosedMaintenancePeriodAsync(pg, scope);
+    await using var writer = new AuditSphereDbContext(pg.Options);
+    var request = await ReviewedMaintenanceAsync(writer, actor, scope.ClientA, PeriodMaintenanceActions.RollForward,
+      new(scope.ClientA, period, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR", new('a', 64), 100m, 100m, "SYNTHETIC opening", ExpectedPriorRevision: 2));
+    await using var referencing = new AuditSphereDbContext(pg.Options);
+    await using var referenceTransaction = await referencing.Database.BeginTransactionAsync();
+    await referencing.Users.FromSqlInterpolated($"SELECT * FROM users WHERE id={actor.UserId} FOR KEY SHARE").AsNoTracking().SingleAsync();
+    await writer.Database.OpenConnectionAsync();
+    await writer.Database.ExecuteSqlRawAsync("SET lock_timeout = '1s'");
+    var published = await PeriodMaintenanceWorkspace.ExecuteAsync(writer, actor, scope.ClientA, request);
+    Assert.True(published.Succeeded, published.Message);
+    Assert.Single(await writer.PeriodMaintenanceReceipts.ToListAsync());
+    await referenceTransaction.RollbackAsync();
+  }
+
+  [Fact, Trait("Profile", "Database")]
   public async Task Maintenance_AllThreeActionsRecoverOriginalSnapshotsBeforeCurrentGates()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var scope = await SeedAsync(pg);
@@ -201,8 +222,8 @@ public sealed partial class ClientAccountingTests
     }
   }
 
-  [Theory, InlineData(false), InlineData(true), Trait("Profile", "Database")]
-  public async Task Maintenance_LookupWaitsForPendingPublicationOrRollback(bool refuse)
+  [Theory, InlineData(false, false), InlineData(true, false), InlineData(false, true), InlineData(true, true), Trait("Profile", "Database")]
+  public async Task Maintenance_LookupWaitsForPendingPublicationOrRollback(bool refuse, bool crossClient)
   {
     await using var pg = await PgTestSchema.CreateAsync(); var scope = await SeedAsync(pg); var actor = Actor(scope.Preparer, "AccountingPreparer");
     var period = await ClosedMaintenancePeriodAsync(pg, scope); PeriodMaintenanceRequest r;
@@ -217,19 +238,24 @@ public sealed partial class ClientAccountingTests
     {
       var publish = PeriodMaintenanceWorkspace.ExecuteAsync(writer, actor, scope.ClientA, r, timeout.Token);
       await pause.Reached.Task.WaitAsync(timeout.Token);
-      var lookup = PeriodMaintenanceWorkspace.LookupAsync(reader, actor, scope.ClientA, r.RequestId, r.ExpectedRequestHash, timeout.Token);
+      var writerPid = ((NpgsqlConnection)writer.Database.GetDbConnection()).ProcessID;
+      await reader.Database.OpenConnectionAsync(timeout.Token);
+      var readerPid = ((NpgsqlConnection)reader.Database.GetDbConnection()).ProcessID;
+      var lookup = PeriodMaintenanceWorkspace.LookupAsync(reader, actor, crossClient ? scope.ClientB : scope.ClientA, r.RequestId, r.ExpectedRequestHash, timeout.Token);
       var deadline = DateTimeOffset.UtcNow.AddSeconds(10); var blocked = false;
       while (DateTimeOffset.UtcNow < deadline)
       {
-        var count = await observer.Database.SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND (query LIKE '%client_safety_states%' OR query LIKE '%users%')").SingleAsync(timeout.Token);
-        if (count > 0) { blocked = true; break; }
+        var blockedByWriter = await observer.Database.SqlQuery<bool>($"SELECT {writerPid} = ANY(pg_blocking_pids({readerPid})) AS \"Value\"").SingleAsync(timeout.Token);
+        if (blockedByWriter) { blocked = true; break; }
         await Task.Delay(20, timeout.Token);
       }
       Assert.True(blocked, "Lookup must reach the publication barrier."); Assert.False(lookup.IsCompleted);
       pause.Release.TrySetResult(true);
       if (refuse) await Assert.ThrowsAsync<InvalidOperationException>(() => publish);
       else Assert.True((await publish).Succeeded);
-      var recovered = await lookup; Assert.True(recovered.Succeeded, recovered.Message); Assert.Equal(!refuse, recovered.Value!.Found);
+      var recovered = await lookup;
+      if (crossClient && !refuse) { Assert.Equal(ErrorCodes.IdempotencyConflict, recovered.ErrorCode); Assert.Null(recovered.Value); }
+      else { Assert.True(recovered.Succeeded, recovered.Message); Assert.Equal(!refuse, recovered.Value!.Found); }
       await using var verify = new AuditSphereDbContext(pg.Options);
       Assert.Equal(refuse ? 0 : 1, await verify.PeriodMaintenanceReceipts.CountAsync());
       Assert.Equal(refuse ? 1 : 2, await verify.ClientReportingPeriods.CountAsync());

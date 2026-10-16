@@ -1,3 +1,7 @@
+## Reviewed audit planning recovery — 2026-10-16
+
+Eight planning actions now use exact previews and receipts. Record drafts and library reads have scope fences. Batched checks: Angular 979, Domain 146, API 13, browser regression 9 passed. New planning/library journeys still need corrected-test verification. Full hosted checks requested. Evidence: `status.json` targetedVerification.angularAuditPlanningRecovery. Retirement remains NOT_READY; Web retained.
+
 # AuditSphereOps — Current State & Active Slice Handoff
 
 **Status:** CURRENT

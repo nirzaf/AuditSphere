@@ -14691,6 +14691,286 @@
         ]
       }
     },
+    "/api/ui/engagements/{engagementId}/audit-plan/commands/state": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "engagementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assessmentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "riskId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "procedureId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/engagements/{engagementId}/audit-plan/commands/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "engagementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditPlanningCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/engagements/{engagementId}/audit-plan/commands/actions": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "engagementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditPlanningCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/engagements/{engagementId}/audit-plan/commands/receipts/{requestId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "engagementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "requestHash",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/engagements/{id}/audit-plan": {
       "get": {
         "tags": [
@@ -36939,6 +37219,127 @@
           }
         }
       },
+      "AuditPlanningCommandFields": {
+        "required": [
+          "action"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "calculate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlanningCalculateFields"
+              }
+            ]
+          },
+          "round": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlanningRoundFields"
+              }
+            ]
+          },
+          "approve": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlanningApproveFields"
+              }
+            ]
+          },
+          "createRisk": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlanningCreateRiskFields"
+              }
+            ]
+          },
+          "assessRisk": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlanningAssessRiskFields"
+              }
+            ]
+          },
+          "assignRiskOwner": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlanningAssignRiskOwnerFields"
+              }
+            ]
+          },
+          "clearRisk": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlanningClearRiskFields"
+              }
+            ]
+          },
+          "linkProcedureRisk": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlanningLinkRiskFields"
+              }
+            ]
+          }
+        }
+      },
+      "AuditPlanningCommandRequest": {
+        "required": [
+          "requestId",
+          "reviewBasis",
+          "fields"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reviewBasis": {
+            "type": "string"
+          },
+          "fields": {
+            "$ref": "#/components/schemas/AuditPlanningCommandFields"
+          },
+          "expectedRequestHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewed": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
       "AvailabilityInput": {
         "required": [
           "userId",
@@ -45162,6 +45563,236 @@
               "string"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "PlanningApproveFields": {
+        "required": [
+          "assessmentId"
+        ],
+        "type": "object",
+        "properties": {
+          "assessmentId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PlanningAssessRiskFields": {
+        "required": [
+          "riskId",
+          "likelihood",
+          "magnitude",
+          "fraud",
+          "criticalEstimate",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "riskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "likelihood": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "magnitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "fraud": {
+            "type": "boolean"
+          },
+          "criticalEstimate": {
+            "type": "boolean"
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      },
+      "PlanningAssignRiskOwnerFields": {
+        "required": [
+          "riskId",
+          "expectedAssessmentId",
+          "ownerUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "riskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedAssessmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerUserId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PlanningCalculateFields": {
+        "required": [
+          "benchmarkKind",
+          "destinationCode",
+          "ratePercent",
+          "performancePercent",
+          "trivialPercent",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "benchmarkKind": {
+            "type": "string"
+          },
+          "destinationCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ratePercent": {
+            "type": "string"
+          },
+          "performancePercent": {
+            "type": "string"
+          },
+          "trivialPercent": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "qualitativeConsiderations": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PlanningClearRiskFields": {
+        "required": [
+          "riskId",
+          "expectedAssessmentId",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "riskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedAssessmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "PlanningCreateRiskFields": {
+        "required": [
+          "area",
+          "assertion",
+          "description",
+          "drivers",
+          "significanceDecision",
+          "response"
+        ],
+        "type": "object",
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "assertion": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "drivers": {
+            "type": "string"
+          },
+          "significanceDecision": {
+            "type": "string"
+          },
+          "response": {
+            "type": "string"
+          },
+          "controlsConsidered": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PlanningLinkRiskFields": {
+        "required": [
+          "procedureId",
+          "riskId",
+          "expectedRiskId"
+        ],
+        "type": "object",
+        "properties": {
+          "procedureId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "riskId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedRiskId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "PlanningRoundFields": {
+        "required": [
+          "assessmentId",
+          "planningMateriality",
+          "tolerableError",
+          "sadThreshold",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "assessmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "planningMateriality": {
+            "type": "string"
+          },
+          "tolerableError": {
+            "type": "string"
+          },
+          "sadThreshold": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
           }
         }
       },

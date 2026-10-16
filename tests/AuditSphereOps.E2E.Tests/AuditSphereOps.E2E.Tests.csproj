@@ -23,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../AuditSphereOps.Domain.Tests/PgTestSchema.cs" Link="Fixtures/PgTestSchema.cs" />
+    <Compile Include="../AuditSphereOps.Domain.Tests/AuditPlanningReceiptSeed.cs" Link="Fixtures/AuditPlanningReceiptSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/CashFlowSourceSeed.cs" Link="Fixtures/CashFlowSourceSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/CashFlowSourceReviewCall.cs" Link="Fixtures/CashFlowSourceReviewCall.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/StatementContentReviewCall.cs" Link="Fixtures/StatementContentReviewCall.cs" />

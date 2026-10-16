@@ -41,10 +41,11 @@ public static partial class ClientAccountingService
     {
       var firm = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
       var client = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-      var user = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+      var user = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
       if (firm is null || client is null || user is null) return Fail(ErrorCodes.ScopeDenied, "Access denied.");
       auth = await PeriodMaintenanceWorkspace.AuthorizeAsync(db, actor, clientId, r.Action, ct);
       if (!auth.Succeeded) return Fail(auth.ErrorCode!, auth.Message!);
+      await PeriodMaintenanceWorkspace.RequestBarrierAsync(db, actor, r.RequestId, true, ct);
       var existing = await db.PeriodMaintenanceReceipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ActorId == actor.UserId && x.RequestId == r.RequestId, ct);
       if (existing is not null)
       {

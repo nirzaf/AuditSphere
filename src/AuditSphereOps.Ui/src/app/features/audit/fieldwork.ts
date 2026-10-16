@@ -5,6 +5,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, bool, dec, decimalInput, decode, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { SessionService } from '../../core/session';
+import { PlanningCommandState } from './planning-command-state';
+import { PlanningCommandReview } from './planning-command-review';
 import { SHARED } from '../../core/ui';
 
 const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text,
@@ -66,7 +69,7 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
 
 @Component({
   selector: 'audit-fieldwork',
-  imports: [FormsModule, RouterLink, MatButtonModule, MatTabsModule, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatTabsModule, PlanningCommandReview, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Audit fieldwork</span></nav>
     @if (statementFocus.line) {
@@ -376,7 +379,7 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
                           <option [value]="risk.id">{{ risk.area }} · {{ risk.effectiveBand ?? risk.band ?? 'Not assessed' }}{{ risk.significanceDecision === 'SIGNIFICANT' ? ' · Significant' : '' }}{{ risk.blocker ? ' · Review blocked' : '' }}</option>
                         }
                       </select>
-                      <button matButton (click)="saveRiskLink(p.id)" [disabled]="cmd.busy() || riskSelection(p) === (p.riskId ?? '')">Save risk link</button>
+                      <button matButton (click)="saveRiskLink(p.id)" [disabled]="cmd.busy() || !riskLink.canPrepare('LINK_PROCEDURE_RISK') || riskSelection(p) === (p.riskId ?? '')">Preview risk link</button>
                       @if (riskFor(w, p.riskId); as linkedRisk) {
                         <div class="facts" aria-label="Current procedure risk basis">
                           <p><strong>{{ linkedRisk.effectiveBand ?? linkedRisk.band ?? 'Unassessed' }} effective risk</strong>
@@ -433,6 +436,7 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
       }
       }
     }
+    <audit-planning-command-review [flow]="riskLink" />
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
 })
@@ -448,6 +452,9 @@ export class AuditFieldwork {
     ? `/api/ui/engagements/${this.id()}/manager-review` : null, decodeManagerReview,
     'Manager review summary unavailable: an authorized reviewer scope is required.');
   readonly cmd = new CommandState(this.api);
+  readonly riskLink = new PlanningCommandState(() => this.id(), () => this.ws.data(),
+    () => !!this.ws.data()?.canManageFieldwork && !this.ws.loading() && !this.ws.error(),
+    () => this.cmd.busy() || this.cmd.uncertain(), () => this.ws.reload(), ['LINK_PROCEDURE_RISK']);
   readonly section = signal<number | null>(null);
   readonly toolTab = signal(0);
   readonly review = signal<ReturnType<typeof decodeProcedureReview> | null>(null);
@@ -462,6 +469,8 @@ export class AuditFieldwork {
   private readonly sampleDrafts = new Map<string, SampleTestDraft>();
   private activeEngagementId: string | null = null;
   private readonly riskLinkSelections = new Map<string, string>();
+  private readonly riskLinkBases = new Map<string, string | null>();
+  private readonly riskLinkSession = inject(SessionService);
   readonly attributeFields = [
     { value: 'ACCOUNT', label: 'Account code' }, { value: 'CURRENCY', label: 'Currency' },
     { value: 'DIRECTION', label: 'Debit / credit / zero direction' }, { value: 'MONTH', label: 'Transaction or posting month' },
@@ -477,6 +486,22 @@ export class AuditFieldwork {
   readonly countBased = () => ['RANDOM', 'SYSTEMATIC', 'STRATIFIED', 'ATTRIBUTE_STRATA'].includes(this.s.method);
 
   constructor() {
+    effect(() => {
+      this.id(); this.riskLinkSession.current(); this.riskLinkSession.invalidation();
+      untracked(() => { this.riskLinkSelections.clear(); this.riskLinkBases.clear(); });
+    });
+    effect(() => {
+      const w = this.ws.data();
+      untracked(() => {
+        if (!w) return;
+        if (!w.canManageFieldwork) this.riskLinkSelections.clear();
+        for (const [id] of this.riskLinkSelections) if (!w.procedures.some(p => p.id === id)) this.riskLinkSelections.delete(id);
+        for (const p of w.procedures) {
+          if (this.riskLinkBases.has(p.id) && this.riskLinkBases.get(p.id) !== p.riskId) this.riskLinkSelections.delete(p.id);
+          this.riskLinkBases.set(p.id, p.riskId);
+        }
+      });
+    });
     // Seed the conclusion editor from the persisted assessment whenever the workspace reloads.
     effect(() => {
       const w = this.ws.data();
@@ -499,17 +524,20 @@ export class AuditFieldwork {
   count(w: Fieldwork, status: string): number { return w.procedures.filter((p) => p.applicabilityStatus === status).length; }
   reviewed(w: Fieldwork): number { return w.procedures.filter((p) => p.status === 'REVIEWED').length; }
   riskSelection(p: Fieldwork['procedures'][number]): string { return this.riskLinkSelections.get(p.id) ?? p.riskId ?? ''; }
-  setRiskSelection(procedureId: string, riskId: string): void { this.riskLinkSelections.set(procedureId, riskId); }
+  setRiskSelection(procedureId: string, riskId: string): void { this.riskLink.inputChanged(); this.riskLinkSelections.set(procedureId, riskId); }
   riskLabel(w: Fieldwork, riskId: string | null): string {
     if (!riskId) return 'No risk linked';
     const risk = w.risks.find((x) => x.id === riskId);
     return risk ? `${risk.area} · ${risk.effectiveBand ?? risk.band ?? 'Not assessed'}${risk.significanceDecision === 'SIGNIFICANT' ? ' · Significant' : ''}` : 'Linked risk is outside this list';
   }
   riskFor(w: Fieldwork, riskId: string | null) { return riskId ? w.risks.find((x) => x.id === riskId) : undefined; }
-  saveRiskLink(procedureId: string): void {
-    const riskId = this.riskLinkSelections.get(procedureId) ?? '';
-    void this.send(`/api/ui/procedures/${procedureId}/risk`, { riskId: riskId || null },
-      'Procedure risk link saved. Submitted results must be checked against the refreshed planning basis.');
+  async saveRiskLink(procedureId: string): Promise<void> {
+    const w = this.ws.data(), p = w?.procedures.find(p => p.id === procedureId);
+    if (!w?.canManageFieldwork || !p || this.cmd.busy() || this.cmd.uncertain()) return;
+    const riskId = this.riskSelection(p);
+    if (riskId === (p.riskId ?? '') || (riskId && !w.risks.some(r => r.id === riskId))) return;
+    await this.riskLink.prepare(() => ({ action: 'LINK_PROCEDURE_RISK', linkProcedureRisk: { procedureId,
+      riskId: this.riskSelection(p) || null, expectedRiskId: p.riskId } }));
   }
   applicable(w: Fieldwork) { return w.procedures.filter((p) => p.applicabilityStatus === 'APPLICABLE'); }
   reviewable(w: Fieldwork) { return w.canManageFieldwork ? this.applicable(w) : w.procedures; }

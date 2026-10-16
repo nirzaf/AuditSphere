@@ -245,11 +245,13 @@ public static class AuditPlanningService
     public static async Task<CommandResult<MaterialityResult>> ApproveMaterialityAssessmentAsync(
         IAuditSphereDbContext db, ActorContext actor, Guid assessmentId, CancellationToken ct = default)
     {
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
         var existing = await db.MaterialityAssessments.AsNoTracking().SingleOrDefaultAsync(x =>
             x.Id == assessmentId && x.FirmId == actor.FirmId, ct);
         if (existing is null)
             return CommandResult<MaterialityResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        var publication = await AuditPlanningCommandWorkspace.LockAsync(db, actor, existing.EngagementId, true, ct);
+        if (!publication.Succeeded) return CommandResult<MaterialityResult>.Fail(publication.ErrorCode!, publication.Message!);
         var scope = await LockedEngagementAsync(db, actor, existing.EngagementId, ct, existing.ClientId);
         if (scope.Denied is not null)
             return CommandResult<MaterialityResult>.Fail(scope.Denied, scope.Message);
@@ -287,7 +289,9 @@ public static class AuditPlanningService
         };
         db.MaterialityApprovals.Add(approvalRecord);
         await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        var finalAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, existing.EngagementId, AuditPlanningActions.ApproveMateriality, true, ct);
+        if (!finalAuthority.Succeeded) return CommandResult<MaterialityResult>.Fail(finalAuthority.ErrorCode!, finalAuthority.Message!);
+        if (tx is not null) await tx.CommitAsync(ct);
         return CommandResult<MaterialityResult>.Ok(new(existing.Id, existing.OverallMateriality,
             existing.PerformanceMateriality, existing.ClearlyTrivialThreshold, MaterialityStatuses.Approved));
     }
@@ -307,7 +311,9 @@ public static class AuditPlanningService
         if (invalid is not null)
             return CommandResult<AuditRiskResult>.Fail(InvalidCode, invalid);
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        var publication = await AuditPlanningCommandWorkspace.LockAsync(db, actor, req.EngagementId, true, ct);
+        if (!publication.Succeeded) return CommandResult<AuditRiskResult>.Fail(publication.ErrorCode!, publication.Message!);
         var scope = await LockedEngagementAsync(db, actor, req.EngagementId, ct);
         if (scope.Denied is not null)
             return CommandResult<AuditRiskResult>.Fail(scope.Denied, scope.Message);
@@ -334,7 +340,9 @@ public static class AuditPlanningService
         };
         db.AuditRisks.Add(risk);
         await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        var finalAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, req.EngagementId, AuditPlanningActions.CreateRisk, true, ct);
+        if (!finalAuthority.Succeeded) return CommandResult<AuditRiskResult>.Fail(finalAuthority.ErrorCode!, finalAuthority.Message!);
+        if (tx is not null) await tx.CommitAsync(ct);
 
         return CommandResult<AuditRiskResult>.Ok(new AuditRiskResult(
             risk.Id, risk.AccountArea, risk.Assertion, risk.SignificanceDecision, risk.Severity, risk.Status));

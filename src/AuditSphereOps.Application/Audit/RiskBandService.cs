@@ -32,9 +32,12 @@ public static class RiskBandService
       return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "Likelihood and magnitude (1–3) and a rationale are required.");
     var risk = await db.AuditRisks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.RiskId && x.FirmId == actor.FirmId, ct);
     if (risk is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var publication = await AuditPlanningCommandWorkspace.LockAsync(db, actor, risk.EngagementId, true, ct);
+    if (!publication.Succeeded) return CommandResult<Guid>.Fail(publication.ErrorCode!, publication.Message!);
     var scope = await AuditPlanningService.LockedEngagementAsync(db, actor, risk.EngagementId, ct, risk.ClientId);
     if (scope.Denied is not null) return CommandResult<Guid>.Fail(scope.Denied, scope.Message);
+    risk = await db.AuditRisks.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.Id == request.RiskId, ct);
     var significant = risk.SignificanceDecision == SignificanceDecisions.Significant;
     var assessment = new RiskBandAssessment
     {
@@ -46,7 +49,9 @@ public static class RiskBandService
     };
     db.RiskBandAssessments.Add(assessment);
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    var finalAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, risk.EngagementId, AuditPlanningActions.AssessRisk, true, ct);
+    if (!finalAuthority.Succeeded) return CommandResult<Guid>.Fail(finalAuthority.ErrorCode!, finalAuthority.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(assessment.Id);
   }
 
@@ -55,6 +60,13 @@ public static class RiskBandService
     if (string.IsNullOrWhiteSpace(note)) return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "A Partner review note is required.");
     var current = await CurrentAssessmentAsync(db, actor.FirmId, riskId, ct);
     if (current is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Assess the risk band first.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var publication = await AuditPlanningCommandWorkspace.LockAsync(db, actor, current.EngagementId, true, ct);
+    if (!publication.Succeeded) return CommandResult<Guid>.Fail(publication.ErrorCode!, publication.Message!);
+    var scope = await AuditPlanningService.LockedEngagementAsync(db, actor, current.EngagementId, ct, current.ClientId);
+    if (scope.Denied is not null) return CommandResult<Guid>.Fail(scope.Denied, scope.Message);
+    current = await CurrentAssessmentAsync(db, actor.FirmId, riskId, ct);
+    if (current is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Assess the risk band first.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, current.ClientId, current.EngagementId, ["Partner"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -62,7 +74,13 @@ public static class RiskBandService
     if (current.AssessedByUserId == actor.UserId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The Partner who assessed the band cannot also clear it.");
     var existing = await db.RiskPartnerClearances.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.RiskBandAssessmentId == current.Id, ct);
-    if (existing is not null) return CommandResult<Guid>.Ok(existing.Id);
+    if (existing is not null)
+    {
+      var currentAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, current.EngagementId, AuditPlanningActions.ClearRisk, true, ct);
+      if (!currentAuthority.Succeeded) return CommandResult<Guid>.Fail(currentAuthority.ErrorCode!, currentAuthority.Message!);
+      if (tx is not null) await tx.CommitAsync(ct);
+      return CommandResult<Guid>.Ok(existing.Id);
+    }
     var clearance = new RiskPartnerClearance
     {
       Id = Guid.CreateVersion7(), FirmId = current.FirmId, ClientId = current.ClientId, EngagementId = current.EngagementId, RiskId = riskId,
@@ -70,12 +88,22 @@ public static class RiskBandService
     };
     db.RiskPartnerClearances.Add(clearance);
     await db.SaveChangesAsync(ct);
+    var finalAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, current.EngagementId, AuditPlanningActions.ClearRisk, true, ct);
+    if (!finalAuthority.Succeeded) return CommandResult<Guid>.Fail(finalAuthority.ErrorCode!, finalAuthority.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(clearance.Id);
   }
 
   public static async Task<CommandResult<Guid>> AssignOwnerAsync(IAuditSphereDbContext db, ActorContext actor, Guid riskId, Guid ownerUserId, CancellationToken ct = default)
   {
     var current = await CurrentAssessmentAsync(db, actor.FirmId, riskId, ct);
+    if (current is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Assess the risk band first.");
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var publication = await AuditPlanningCommandWorkspace.LockAsync(db, actor, current.EngagementId, true, ct);
+    if (!publication.Succeeded) return CommandResult<Guid>.Fail(publication.ErrorCode!, publication.Message!);
+    var scope = await AuditPlanningService.LockedEngagementAsync(db, actor, current.EngagementId, ct, current.ClientId);
+    if (scope.Denied is not null) return CommandResult<Guid>.Fail(scope.Denied, scope.Message);
+    current = await CurrentAssessmentAsync(db, actor.FirmId, riskId, ct);
     if (current is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Assess the risk band first.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, current.ClientId, current.EngagementId, AssignRoles, InternalOnly: true), ct);
@@ -95,6 +123,9 @@ public static class RiskBandService
     };
     db.RiskOwnerAssignments.Add(assignment);
     await db.SaveChangesAsync(ct);
+    var finalAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, current.EngagementId, AuditPlanningActions.AssignRiskOwner, true, ct);
+    if (!finalAuthority.Succeeded) return CommandResult<Guid>.Fail(finalAuthority.ErrorCode!, finalAuthority.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(assignment.Id);
   }
 

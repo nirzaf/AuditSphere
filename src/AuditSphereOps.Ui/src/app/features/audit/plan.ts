@@ -5,6 +5,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { arr, bool, dec, decimalInput, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { PlanningCommandState } from './planning-command-state';
+import { PlanningCommandReview } from './planning-command-review';
 import { SHARED } from '../../core/ui';
 
 const materiality = obj({ id: guid, preparedByUserId: guid, benchmarkSource: text, benchmarkVersion: text, rationale: text, benchmarkAmount: dec, rateApplied: dec,
@@ -47,7 +49,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
 
 @Component({
   selector: 'audit-plan',
-  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, PlanningCommandReview, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Audit plan</span></nav>
     <audit-page-header title="Audit plan & strategy" eyebrow="Engagement audit" description="Planning, risk assessment, materiality, and program adoption for this engagement." />
@@ -114,7 +116,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
             <dt>SAD threshold</dt><dd>{{ c.sadThreshold | money }} {{ c.currency }}</dd>
           </dl>
           <p><small>{{ c.benchmarkKind }}{{ c.destinationCode ? ' (' + c.destinationCode + ')' : '' }} of {{ c.benchmarkAmount | money }} {{ c.currency }} from {{ c.sourceLineCount }} mapped line(s), mapping version {{ c.mappingVersionNumber }}; rate {{ c.ratePercent }}%, TE {{ c.performancePercent }}% of PM, SAD {{ c.trivialPercent }}% of PM ({{ c.policyVersion }}).</small></p>
-          @if (c.state === 'DRAFT' && p.canApproveMateriality) { <button matButton="outlined" (click)="send('/api/ui/materiality/' + c.assessmentId + '/approve', {}, 'Partner materiality approval recorded.')" [disabled]="cmd.busy()">Approve calculated materiality</button> }
+          @if (c.state === 'DRAFT' && p.canApproveMateriality) { <button matButton="outlined" (click)="approveMateriality(c.assessmentId)" [disabled]="cmd.busy() || !planning.canPrepare('APPROVE_MATERIALITY')">Preview materiality approval</button> }
           @if (c.rounding; as r) {
             <h3>Practical rounding (STE 3.2)</h3>
             <p><small>Recorded at <time>{{ r.decidedAt }}</time>. Rationale: {{ r.rationale }}</small></p>
@@ -137,7 +139,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
               <label>SAD threshold <input name="roundSad" inputmode="decimal" placeholder="{{ c.sadThreshold }}" [(ngModel)]="round.sad" /></label>
             </div>
             <label>Rationale for the rounding <textarea name="roundRationale" [(ngModel)]="round.rationale" maxlength="2000" rows="2"></textarea></label>
-            <button matButton="outlined" (click)="applyRounding(c)" [disabled]="cmd.busy()">Apply practical rounding</button>
+            <button matButton="outlined" (click)="applyRounding(c)" [disabled]="cmd.busy() || !planning.canPrepare('ROUND_MATERIALITY')">Preview practical rounding</button>
           }
         }
         @if (p.materialitySource; as s) {
@@ -151,7 +153,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
           </div>
           @if (range(p); as r) { <p><small>Policy range for this benchmark: {{ r.minRatePercent }}%–{{ r.maxRatePercent }}%; TE {{ p.performanceMin }}–{{ p.performanceMax }}% of PM; SAD {{ p.trivialMin }}–{{ p.trivialMax }}% of PM.</small></p> }
           <label>Rationale for the benchmark <textarea name="calcRationale" [(ngModel)]="calc.rationale" maxlength="2000" rows="2"></textarea></label>
-          <button matButton="filled" (click)="calculate(p)" [disabled]="cmd.busy() || !option(p)">Calculate materiality</button>
+          <button matButton="filled" (click)="calculate(p)" [disabled]="cmd.busy() || !planning.canPrepare('CALCULATE_MATERIALITY') || !option(p)">Preview materiality calculation</button>
         } @else { <p>{{ p.materialitySourceMessage ?? 'The mapped trial balance is unavailable.' }}</p> }
       </section>
 
@@ -163,7 +165,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
             <dt>Clearly trivial</dt><dd>{{ m.clearlyTrivialThreshold | money }}</dd><dt>Benchmark</dt><dd>{{ m.benchmarkSource }} ({{ m.benchmarkVersion }})</dd>
             <dt>Benchmark amount</dt><dd>{{ m.benchmarkAmount | money }} × {{ m.rateApplied }}</dd><dt>Rationale</dt><dd>{{ m.rationale }}</dd><dt>Status</dt><dd>{{ m.status }}</dd>
           </dl>
-          @if (p.canApproveMateriality) { <button matButton="filled" (click)="send('/api/ui/materiality/' + m.id + '/approve', {}, 'Partner materiality approval recorded.')" [disabled]="cmd.busy()">Approve materiality</button> }
+          @if (p.canApproveMateriality) { <button matButton="filled" (click)="approveMateriality(m.id)" [disabled]="cmd.busy() || !planning.canPrepare('APPROVE_MATERIALITY')">Preview materiality approval</button> }
           @if (m.approvedAt) { <p><small>Approved by {{ m.approvedByUserId }} at {{ m.approvedAt.slice(0, 16).replace('T', ' ') }}.</small></p> }
           @if (m.status === 'RECALCULATION_REQUIRED') { <p class="warning-text">A prior approval is not a verified independent Partner approval under the current policy. Recalculate and obtain Partner approval.</p> }
           @if (m.qualitativeConsiderations) { <p>Qualitative considerations: {{ m.qualitativeConsiderations }}</p> }
@@ -188,7 +190,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
             <label>Drivers <textarea name="rdr" [(ngModel)]="risk.drivers" rows="2" required></textarea></label>
             <label>Significance decision <select name="rsig" [(ngModel)]="risk.significance"><option value="NORMAL">NORMAL</option><option value="SIGNIFICANT">SIGNIFICANT</option></select></label>
             <label>Planned response <textarea name="rre" [(ngModel)]="risk.response" rows="2" required></textarea></label>
-            <button matButton="filled" type="submit" [disabled]="cmd.busy() || p.professionalWorkBlocked">Record risk</button>
+            <button matButton="filled" type="submit" [disabled]="cmd.busy() || !planning.canPrepare('CREATE_RISK') || p.professionalWorkBlocked">Preview identified risk</button>
           </form></details>
       </section>
 
@@ -206,18 +208,18 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
               <label><span><input type="checkbox" [(ngModel)]="input(row).fraud" [name]="'f-' + row.riskId" /> Fraud risk</span></label>
               <label><span><input type="checkbox" [(ngModel)]="input(row).criticalEstimate" [name]="'e-' + row.riskId" /> Critical accounting estimate</span></label>
               <label>Rationale <input [(ngModel)]="input(row).rationale" [name]="'r-' + row.riskId" maxlength="500" required [attr.aria-label]="'Band rationale for ' + row.area" /></label>
-              <button matButton="outlined" (click)="assess(row.riskId)" [disabled]="cmd.busy() || !input(row).rationale.trim()" [attr.aria-label]="'Assess band for ' + row.area">Assess band</button>
+              <button matButton="outlined" (click)="assess(row.riskId)" [disabled]="cmd.busy() || !planning.canPrepare('ASSESS_RISK') || !input(row).rationale.trim()" [attr.aria-label]="'Assess band for ' + row.area">Assess band</button>
             </div>
             @if (row.band && p.canAssignOwners && p.team.length) {
               <div class="inline-form">
                 <label>Owner <select [(ngModel)]="input(row).owner" [name]="'o-' + row.riskId" [attr.aria-label]="'Owner for ' + row.area"><option value="">Select</option>@for (t of p.team; track t.userId) { <option [value]="t.userId">{{ t.name }} ({{ t.levelLabel }})</option> }</select></label>
-                <button matButton (click)="assign(row.riskId)" [disabled]="cmd.busy() || !input(row).owner" [attr.aria-label]="'Assign owner for ' + row.area">Assign owner</button>
+                <button matButton (click)="assign(row.riskId)" [disabled]="cmd.busy() || !planning.canPrepare('ASSIGN_RISK_OWNER') || !input(row).owner" [attr.aria-label]="'Assign owner for ' + row.area">Assign owner</button>
               </div>
             }
             @if (row.partnerReviewRequired && !row.partnerCleared && p.isPartner && row.assessedByUserId !== session.current()?.userId) {
               <div class="inline-form">
                 <label>Partner review note <input [(ngModel)]="input(row).note" [name]="'n-' + row.riskId" maxlength="1000" required [attr.aria-label]="'Partner review note for ' + row.area" /></label>
-                <button matButton="filled" (click)="clear(row.riskId)" [disabled]="cmd.busy() || !input(row).note.trim()" [attr.aria-label]="'Record Partner review for ' + row.area">Record Partner review</button>
+                <button matButton="filled" (click)="clear(row.riskId)" [disabled]="cmd.busy() || !planning.canPrepare('CLEAR_RISK') || !input(row).note.trim()" [attr.aria-label]="'Record Partner review for ' + row.area">Record Partner review</button>
               </div>
             }
           </article>
@@ -285,6 +287,7 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
           @empty { <li>No workpapers created for this audit plan yet.</li> }</ul>
       </section>
     }
+    <audit-planning-command-review [flow]="planning" />
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
 })
@@ -296,24 +299,54 @@ export class AuditPlan {
   readonly plan = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/audit-plan` : null), decodePlan,
     'Sign in with an authorized internal staff identity assigned to this engagement to view its audit plan.');
   readonly cmd = new CommandState(this.api);
+  readonly planning = new PlanningCommandState(() => this.id(), () => this.plan.data(),
+    () => !!this.plan.data() && !this.plan.loading() && !this.plan.error() && !this.plan.data()!.professionalWorkBlocked,
+    () => this.cmd.busy() || this.cmd.uncertain(), () => this.plan.reload(),
+    ['CALCULATE_MATERIALITY', 'ROUND_MATERIALITY', 'APPROVE_MATERIALITY', 'CREATE_RISK', 'ASSESS_RISK', 'ASSIGN_RISK_OWNER', 'CLEAR_RISK']);
+
   private readonly inputs = new Map<string, RowInput>();
-  calc = { option: '', rate: '1', performance: '75', trivial: '5', rationale: '' };
-  round = { pm: '', te: '', sad: '', rationale: '' };
+  private readonly inputHeads = new Map<string, string | null>();
+  calc = this.planning.protect({ option: '', rate: '1', performance: '75', trivial: '5', rationale: '' });
+  round = this.planning.protect({ pm: '', te: '', sad: '', rationale: '' });
   private roundPrefilledFor = '';
+  private handledPlanningReceipt = '';
   /** Prefills the rounding inputs with the computed thresholds of each new draft; edits survive a refresh of the same draft. */
   private readonly prefillRounding = effect(() => {
     const c = this.plan.data()?.latestCalculation;
     untracked(() => {
       if (!c || c.state !== 'DRAFT' || this.roundPrefilledFor === c.assessmentId) return;
       this.roundPrefilledFor = c.assessmentId;
-      this.round = { pm: c.planningMateriality, te: c.tolerableError, sad: c.sadThreshold, rationale: '' };
+      this.round = this.planning.protect({ pm: c.planningMateriality, te: c.tolerableError, sad: c.sadThreshold, rationale: '' });
       this.changeDetector.markForCheck();
     });
   });
-  risk = { area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' };
+  risk = this.planning.protect({ area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' });
   pop = { purpose: '', assertion: '', receipt: '', extraction: '', rows: 0, total: '', currency: '' };
   finding = { type: '', impact: '', amount: '' };
   milestone = { cutoff: '', fieldwork: '', draft: '', finalReport: '', adjustment: '', override: '' };
+
+  constructor() {
+    effect(() => {
+      const receipt = this.planning.receipt();
+      if (!receipt || receipt.id === this.handledPlanningReceipt) return;
+      untracked(() => {
+        this.handledPlanningReceipt = receipt.id;
+        if (receipt.action === 'CREATE_RISK') this.risk = this.planning.protect({ area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' });
+        if (receipt.action === 'ROUND_MATERIALITY') this.round = this.planning.protect({ ...this.round, rationale: '' });
+        this.changeDetector.markForCheck();
+      });
+    });
+    effect(() => {
+      this.id(); this.session.current(); this.session.invalidation();
+      untracked(() => {
+        this.inputs.clear(); this.inputHeads.clear(); this.roundPrefilledFor = '';
+        this.calc = this.planning.protect({ option: '', rate: '1', performance: '75', trivial: '5', rationale: '' });
+        this.round = this.planning.protect({ pm: '', te: '', sad: '', rationale: '' });
+        this.risk = this.planning.protect({ area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' });
+        this.changeDetector.markForCheck();
+      });
+    });
+  }
 
   saveMilestones(): void {
     const cutoff = this.milestone.cutoff.trim();
@@ -334,38 +367,50 @@ export class AuditPlan {
     return first ? first.kind + '|' + (first.destinationCode ?? '') : '';
   }
   range(p: Plan) { const kind = this.option(p).split('|')[0]; return p.rateRanges.find((r) => r.kind === kind) ?? null; }
-  input(row: { riskId: string; likelihood: number | null; magnitude: number | null; fraudRisk: boolean; criticalEstimate: boolean }): RowInput {
+  input(row: { riskId: string; assessmentId?: string | null; likelihood: number | null; magnitude: number | null; fraudRisk: boolean; criticalEstimate: boolean }): RowInput {
+    const head = row.assessmentId ?? null;
+    if (this.inputHeads.get(row.riskId) !== head) { this.inputs.delete(row.riskId); this.inputHeads.set(row.riskId, head); }
     let i = this.inputs.get(row.riskId);
-    if (!i) this.inputs.set(row.riskId, (i = { likelihood: row.likelihood ?? 1, magnitude: row.magnitude ?? 1, fraud: row.fraudRisk, criticalEstimate: row.criticalEstimate, rationale: '', owner: '', note: '' }));
+    if (!i) this.inputs.set(row.riskId, (i = this.planning.protect({ likelihood: row.likelihood ?? 1, magnitude: row.magnitude ?? 1, fraud: row.fraudRisk, criticalEstimate: row.criticalEstimate, rationale: '', owner: '', note: '' })));
     return i;
   }
   send(url: string, body: unknown, ok: string, after?: () => void): void {
+    if (this.cmd.busy() || this.cmd.uncertain() || this.planning.busy() || this.planning.uncertain()) return;
     this.cmd.run(url, body, ok, after).finally(() => this.plan.reload());
   }
   private invalid(m: string): void { this.cmd.failed.set(true); this.cmd.message.set(m); }
   private base(): string { return `/api/ui/engagements/${this.id()}/audit-plan`; }
-  calculate(p: Plan): void {
+  async calculate(p: Plan): Promise<void> {
+    if (this.plan.data() !== p || p.professionalWorkBlocked) return;
     const [kind, destination] = this.option(p).split('|');
-    const rate = decimalInput(this.calc.rate), performance = decimalInput(this.calc.performance), trivial = decimalInput(this.calc.trivial);
-    if (!kind || rate === null || performance === null || trivial === null) return this.invalid('Choose a benchmark and enter the percentages as numbers.');
-    this.send(this.base() + '/materiality/calculate', { benchmarkKind: kind, destinationCode: destination || null, ratePercent: rate, performancePercent: performance,
-      trivialPercent: trivial, rationale: this.calc.rationale }, 'Materiality calculated; independent Engagement Partner materiality approval is required.');
+    if (!kind || !p.materialitySource?.options.some(o => o.kind === kind && (o.destinationCode ?? '') === (destination ?? '') && o.amount !== null)) return this.invalid('Choose a current materiality benchmark.');
+    await this.planning.prepare(() => ({ action: 'CALCULATE_MATERIALITY', calculate: { benchmarkKind: this.option(p).split('|')[0].trim().toUpperCase(),
+      destinationCode: this.option(p).split('|')[0] === 'MAPPED_LINE' ? this.option(p).split('|')[1]?.trim().toUpperCase() || null : null, ratePercent: decimalInput(this.calc.rate, 6), performancePercent: decimalInput(this.calc.performance, 6),
+      trivialPercent: decimalInput(this.calc.trivial, 6), rationale: this.calc.rationale.trim(), qualitativeConsiderations: null } }));
   }
-  /** Practical rounding of the computed thresholds; blank fields keep their computed value, and the server enforces the ±5% bound. */
-  applyRounding(c: { assessmentId: string; planningMateriality: string; tolerableError: string; sadThreshold: string }): void {
-    const pm = decimalInput(this.round.pm.trim() || c.planningMateriality, 2);
-    const te = decimalInput(this.round.te.trim() || c.tolerableError, 2);
-    const sad = decimalInput(this.round.sad.trim() || c.sadThreshold, 2);
-    if (pm === null || te === null || sad === null) return this.invalid('Enter each rounded threshold as a number with at most two decimal places.');
+  private roundingInput(value: string): string | null {
+    // Canonical source amounts use six places; remove only insignificant zeroes.
+    const exact = decimalInput(value, 6);
+    return exact === null ? null : decimalInput(exact.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''), 2);
+  }
+  async applyRounding(c: { assessmentId: string; planningMateriality: string; tolerableError: string; sadThreshold: string }): Promise<void> {
+    const p = this.plan.data();
+    if (!p?.canApplyPracticalRounding || p.professionalWorkBlocked || p.latestCalculation?.assessmentId !== c.assessmentId || p.latestCalculation.state !== 'DRAFT') return;
     if (!this.round.rationale.trim()) return this.invalid('Enter the rationale for the practical rounding.');
-    this.send(`/api/ui/materiality/${c.assessmentId}/rounding`, { planningMateriality: pm, tolerableError: te, sadThreshold: sad,
-      rationale: this.round.rationale.trim() }, 'Practical rounding applied; the rounded values now need independent Partner approval.',
-      () => (this.round = { ...this.round, rationale: '' }));
+    await this.planning.prepare(() => ({ action: 'ROUND_MATERIALITY', round: { assessmentId: c.assessmentId,
+      planningMateriality: this.roundingInput(this.round.pm.trim() || c.planningMateriality), tolerableError: this.roundingInput(this.round.te.trim() || c.tolerableError),
+      sadThreshold: this.roundingInput(this.round.sad.trim() || c.sadThreshold), rationale: this.round.rationale.trim() } }));
   }
-  recordRisk(): void {
-    const r = this.risk;
-    this.send(this.base() + '/risks', { area: r.area, assertion: r.assertion, description: r.description, drivers: r.drivers, significance: r.significance, response: r.response },
-      'The identified risk was recorded.', () => (this.risk = { area: '', assertion: '', description: '', drivers: '', significance: 'NORMAL', response: '' }));
+  async approveMateriality(assessmentId: string): Promise<void> {
+    const p = this.plan.data();
+    if (!p?.canApproveMateriality || p.professionalWorkBlocked || p.latestCalculation?.state !== 'DRAFT' || p.latestCalculation.assessmentId !== assessmentId || p.materiality?.preparedByUserId === this.session.current()?.userId) return;
+    await this.planning.prepare(() => ({ action: 'APPROVE_MATERIALITY', approve: { assessmentId } }));
+  }
+  async recordRisk(): Promise<void> {
+    if (!this.plan.data() || this.plan.data()!.professionalWorkBlocked) return;
+    await this.planning.prepare(() => ({ action: 'CREATE_RISK', createRisk: { area: this.risk.area.trim(), assertion: this.risk.assertion.trim(),
+      description: this.risk.description.trim(), drivers: this.risk.drivers.trim(), significanceDecision: this.risk.significance,
+      response: this.risk.response.trim(), controlsConsidered: null } }));
   }
   recordPopulation(): void {
     const x = this.pop;
@@ -382,10 +427,20 @@ export class AuditPlan {
     this.send(this.base() + '/findings', { findingType: this.finding.type, impactDescription: this.finding.impact, monetaryAmount: amount || null },
       'The finding was recorded as open.', () => (this.finding = { type: '', impact: '', amount: '' }));
   }
-  assess(riskId: string): void {
-    const i = this.inputs.get(riskId)!;
-    this.send(`/api/ui/risks/${riskId}/band`, { likelihood: i.likelihood, magnitude: i.magnitude, fraud: i.fraud, criticalEstimate: i.criticalEstimate, rationale: i.rationale }, 'Band assessed.');
+  async assess(riskId: string): Promise<void> {
+    const row = this.plan.data()?.routing.find(r => r.riskId === riskId), i = this.inputs.get(riskId);
+    if (!row || !i || this.plan.data()?.professionalWorkBlocked) return;
+    await this.planning.prepare(() => ({ action: 'ASSESS_RISK', assessRisk: { riskId, likelihood: i.likelihood, magnitude: i.magnitude,
+      fraud: i.fraud, criticalEstimate: i.criticalEstimate, rationale: i.rationale.trim() } }));
   }
-  assign(riskId: string): void { this.send(`/api/ui/risks/${riskId}/owner`, { ownerUserId: this.inputs.get(riskId)!.owner }, 'Owner assigned.'); }
-  clear(riskId: string): void { this.send(`/api/ui/risks/${riskId}/partner-review`, { note: this.inputs.get(riskId)!.note }, 'Partner review recorded.'); }
+  async assign(riskId: string): Promise<void> {
+    const p = this.plan.data(), row = p?.routing.find(r => r.riskId === riskId), i = this.inputs.get(riskId);
+    if (!p?.canAssignOwners || p.professionalWorkBlocked || !row?.assessmentId || !i || !p.team.some(t => t.userId === i.owner)) return;
+    await this.planning.prepare(() => ({ action: 'ASSIGN_RISK_OWNER', assignRiskOwner: { riskId, expectedAssessmentId: row.assessmentId, ownerUserId: i.owner } }));
+  }
+  async clear(riskId: string): Promise<void> {
+    const p = this.plan.data(), row = p?.routing.find(r => r.riskId === riskId), i = this.inputs.get(riskId);
+    if (!p?.isPartner || p.professionalWorkBlocked || !row?.assessmentId || !row.partnerReviewRequired || row.partnerCleared || row.assessedByUserId === this.session.current()?.userId || !i) return;
+    await this.planning.prepare(() => ({ action: 'CLEAR_RISK', clearRisk: { riskId, expectedAssessmentId: row.assessmentId, note: i.note.trim() } }));
+  }
 }

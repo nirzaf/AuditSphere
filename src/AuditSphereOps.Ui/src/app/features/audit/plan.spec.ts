@@ -274,4 +274,48 @@ describe('Practical rounding form (STE 3.2)', () => {
     expect(text).toContain('-1.33%');
     expect(text).toContain('Each effective threshold stays within ±5% of its computed value.');
   });
+  it('routes all seven planning controls to reviewed preparation, never a legacy write', async () => {
+    const f = render({ ...planPayload, materiality: { ...planPayload.materiality, preparedByUserId: id1 }, canApplyPracticalRounding: true });
+    await f.whenStable(); const page = f.componentInstance;
+    const prepared = vi.spyOn(page.planning, 'prepare').mockResolvedValue();
+    page.calc.rationale = 'Benchmark review'; await page.calculate(page.plan.data()!);
+    page.round.rationale = 'Practical rounding'; await page.applyRounding(page.plan.data()!.latestCalculation!);
+    await page.approveMateriality(id2);
+    Object.assign(page.risk, { area: 'Revenue', assertion: 'Cutoff', description: 'Risk', drivers: 'Drivers', response: 'Response' }); await page.recordRisk();
+    const row = page.plan.data()!.routing[0], fields = page.input(row);
+    fields.rationale = 'Band rationale'; await page.assess(row.riskId);
+    fields.owner = page.plan.data()!.team[0].userId; await page.assign(row.riskId);
+    fields.note = 'Independent clearance'; await page.clear(row.riskId);
+    expect(prepared.mock.calls.map(call => (call[0]() as { action: string }).action)).toEqual([
+      'CALCULATE_MATERIALITY', 'ROUND_MATERIALITY', 'APPROVE_MATERIALITY', 'CREATE_RISK', 'ASSESS_RISK', 'ASSIGN_RISK_OWNER', 'CLEAR_RISK']);
+    const assigned = prepared.mock.calls[5][0]() as { assignRiskOwner: { expectedAssessmentId: string } };
+    expect(assigned.assignRiskOwner.expectedAssessmentId).toBe(row.assessmentId);
+    TestBed.inject(HttpTestingController).expectNone(r => r.method === 'POST');
+  });
+  it('accepts canonical six-place rounding defaults without truncating nonzero precision', async () => {
+    const f = render({ ...planPayload, canApplyPracticalRounding: true }); await f.whenStable();
+    const page = f.componentInstance;
+    const prepared = vi.spyOn(page.planning, 'prepare').mockResolvedValue();
+    Object.assign(page.round, { pm: '100000.000000', te: '75000.000000', sad: '5000.000000', rationale: 'Keep exact computed values' });
+    await page.applyRounding(page.plan.data()!.latestCalculation!);
+    const fields = prepared.mock.calls[0][0]() as { round: { planningMateriality: string | null; tolerableError: string; sadThreshold: string } };
+    expect(fields.round).toMatchObject({ planningMateriality: '100000', tolerableError: '75000', sadThreshold: '5000' });
+    page.round.pm = '100000.000001'; await page.applyRounding(page.plan.data()!.latestCalculation!);
+    const invalid = prepared.mock.calls[1][0]() as { round: { planningMateriality: string | null } };
+    expect(invalid.round.planningMateriality).toBeNull();
+    TestBed.inject(HttpTestingController).expectNone(r => r.method === 'POST');
+  });
+  it('keeps rounding drafts across refresh of the same assessment but resets review assent', async () => {
+    const f = render({ ...planPayload, canApplyPracticalRounding: true }); await f.whenStable();
+    f.componentInstance.round.pm = '99000'; f.componentInstance.round.rationale = 'Edited draft'; f.componentInstance.planning.reviewed.set(true);
+    f.componentInstance.plan.reload(); TestBed.inject(HttpTestingController).expectOne(`/api/ui/engagements/${id1}/audit-plan`).flush({ ...planPayload, canApplyPracticalRounding: true }); await f.whenStable();
+    expect(f.componentInstance.round.pm).toBe('99000'); expect(f.componentInstance.round.rationale).toBe('Edited draft'); expect(f.componentInstance.planning.reviewed()).toBe(false);
+  });
+  it('refuses stale, self-approved and ungranted rounding without preparing a write', async () => {
+    const f = render({ ...planPayload, canApplyPracticalRounding: false }); await f.whenStable(); const page = f.componentInstance;
+    const prepared = vi.spyOn(page.planning, 'prepare').mockResolvedValue();
+    await page.applyRounding(page.plan.data()!.latestCalculation!); await page.approveMateriality(id2);
+    await page.approveMateriality(id1); await page.assess(id1); expect(prepared).not.toHaveBeenCalled();
+  });
+
 });

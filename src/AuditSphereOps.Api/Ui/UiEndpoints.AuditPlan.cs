@@ -25,6 +25,16 @@ public static partial class UiEndpoints
 
   private static void MapAuditPlanEndpoints(RouteGroupBuilder group)
   {
+    const string commands = "/engagements/{engagementId:guid}/audit-plan/commands";
+    group.MapGet(commands + "/state", (Guid engagementId, string action, Guid? assessmentId, Guid? riskId, Guid? procedureId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditPlanningCommandWorkspace.StateAsync(db, actor, engagementId, action, assessmentId, riskId, procedureId, ct)));
+    group.MapPost(commands + "/preview", (Guid engagementId, AuditPlanningCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditPlanningCommandWorkspace.PreviewAsync(db, actor, engagementId, input, ct)));
+    group.MapPost(commands + "/actions", (Guid engagementId, AuditPlanningCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditPlanningCommandWorkspace.ExecuteAsync(db, actor, engagementId, input, ct)));
+    group.MapGet(commands + "/receipts/{requestId:guid}", (Guid engagementId, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditPlanningCommandWorkspace.LookupAsync(db, actor, engagementId, requestId, requestHash, ct)));
+
     group.MapGet("/engagements/{id:guid}/audit-plan", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AuditPlanWorkspaceQuery.GetAsync(db, actor, id, ct)));
     group.MapPost("/materiality/{assessmentId:guid}/approve", (Guid assessmentId, HttpContext http) =>

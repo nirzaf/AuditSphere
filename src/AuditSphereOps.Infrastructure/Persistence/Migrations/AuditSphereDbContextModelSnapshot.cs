@@ -13535,6 +13535,101 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditPlanningCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(120000)
+                        .HasColumnType("character varying(120000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid>("ResultId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_id");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result_json");
+
+                    b.Property<string>("ReviewBasis")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_basis");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_planning_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId");
+
+                    b.HasIndex("FirmId", "EngagementId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_planning_engagement_history");
+
+                    b.HasIndex("FirmId", "EngagementId", "Action", "ResultId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_planning_action_result")
+                        .HasFilter("action <> 'LINK_PROCEDURE_RISK'");
+
+                    b.ToTable("audit_planning_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_planning_command_receipt_values", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND result_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND action IN ('CALCULATE_MATERIALITY','ROUND_MATERIALITY','APPROVE_MATERIALITY','CREATE_RISK','ASSESS_RISK','ASSIGN_RISK_OWNER','CLEAR_RISK','LINK_PROCEDURE_RISK') AND length(input_json) BETWEEN 1 AND 120000 AND length(preview_json) BETWEEN 1 AND 1000000 AND length(result_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(preview_json::jsonb) = 'object' AND jsonb_typeof(result_json::jsonb) = 'object' AND (input_json::jsonb->>'Action') IS NOT DISTINCT FROM action AND (result_json::jsonb->>'ResultId')::uuid IS NOT DISTINCT FROM result_id");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedure", b =>
                 {
                     b.Property<Guid>("Id")
@@ -31078,6 +31173,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "SelectionItemId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditPlanningCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

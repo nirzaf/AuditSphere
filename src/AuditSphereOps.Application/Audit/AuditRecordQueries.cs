@@ -64,6 +64,8 @@ public static class AuditRecordQueries
     var testIds = tests.Select(t => t.Id).ToArray();
     var reviewed = await db.AuditItemTestReviews.AsNoTracking().Where(r => r.FirmId == actor.FirmId && r.ClientId == p.ClientId && r.EngagementId == p.EngagementId &&
       testIds.Contains(r.AuditItemTestId) && r.Decision == AuditItemTestReviewDecisions.Reviewed).Select(r => r.AuditItemTestId).Distinct().ToListAsync(ct);
+    if (!await AuthorizeAsync(db, actor, p.ClientId, p.EngagementId, AuditRoles, ct))
+      return CommandResult<PopulationRecord>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<PopulationRecord>.Ok(new(p.Id, p.EngagementId, p.Purpose, p.Assertion, p.SourceReceiptReference, p.ExtractionParameters, p.RowCount,
       p.MonetaryControlTotal, p.Currency, p.Exclusions, p.Status, p.CreatedAt,
       selections.Select(s => new PopulationSelectionView(s.Method, s.Status, s.Rationale, items.Count(i => i.SelectionId == s.Id), tests.Count(t => t.SelectionId == s.Id),
@@ -105,6 +107,8 @@ public static class AuditRecordQueries
     var f = await db.Findings.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == actor.FirmId, ct);
     if (f is null || !await AuthorizeAsync(db, actor, f.ClientId, f.EngagementId, AuditRoles, ct)) return CommandResult<FindingRecordView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var blocked = await db.Engagements.AsNoTracking().Where(e => e.Id == f.EngagementId && e.FirmId == actor.FirmId).Select(e => e.ProfessionalWorkBlocked).SingleOrDefaultAsync(ct);
+    if (!await AuthorizeAsync(db, actor, f.ClientId, f.EngagementId, AuditRoles, ct))
+      return CommandResult<FindingRecordView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<FindingRecordView>.Ok(new(f.Id, f.EngagementId, f.FindingType, f.ImpactDescription, f.MonetaryAmount, f.Corrected, f.ManagementResponse, f.Status, f.CreatedAt, blocked,
       f.LetterDesignatedAt, f.LetterRecommendation));
   }

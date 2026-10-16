@@ -20,6 +20,15 @@ public static class PeriodMaintenanceWorkspace
     string action, CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, clientId, RequiredRoles: action == PeriodMaintenanceActions.ApproveRestatement ? ReviewRoles : PrepareRoles, InternalOnly: true), ct);
 
+  internal static async Task RequestBarrierAsync(IClientAccountingDbContext db, ActorContext actor, Guid requestId, bool publishing, CancellationToken ct)
+  {
+    if (db.Database.CurrentTransaction is null) throw new InvalidOperationException("Request recovery requires a transaction.");
+    var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "period-maintenance-request-v1", actor.FirmId, actor.UserId, requestId }));
+    var key = unchecked((long)Convert.ToUInt64(digest[..16], 16));
+    if (publishing) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+  }
+
   internal static PeriodMaintenanceRequest Normalize(PeriodMaintenanceRequest r) => r with
   {
     RollForward = r.RollForward is not { } f ? null : f with { PeriodCode = f.PeriodCode.Trim(), Basis = f.Basis.Trim(),
@@ -165,7 +174,8 @@ public static class PeriodMaintenanceWorkspace
     await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={clientId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    // Publication takes FOR UPDATE on this actor. Absence is decided only after its transaction resolves.
+    // One actor/request barrier also covers mismatched-client lookups while publication is pending.
+    await RequestBarrierAsync(db, a, requestId, false, ct);
     auth = await AuthorizeAsync(db, a, clientId, PeriodMaintenanceActions.RollForward, ct);
     if (!auth.Succeeded) return Fail<PeriodMaintenanceLookup>(auth.ErrorCode!, auth.Message!);
     var row = await db.PeriodMaintenanceReceipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.ActorId == a.UserId && x.RequestId == requestId, ct);

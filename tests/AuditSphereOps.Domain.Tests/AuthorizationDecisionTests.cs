@@ -571,6 +571,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<global::AuditSphereOps.Domain.Practice.StaffAllocation> StaffAllocations => db.StaffAllocations;
     public DbSet<global::AuditSphereOps.Domain.Audit.MaterialityCalculation> MaterialityCalculations => db.MaterialityCalculations;
     public DbSet<global::AuditSphereOps.Domain.Audit.MaterialityRoundingDecision> MaterialityRoundingDecisions => db.MaterialityRoundingDecisions;
+    public DbSet<global::AuditSphereOps.Domain.Audit.AuditPlanningCommandReceipt> AuditPlanningCommandReceipts => db.AuditPlanningCommandReceipts;
     public DbSet<global::AuditSphereOps.Domain.Audit.RiskBandAssessment> RiskBandAssessments => db.RiskBandAssessments;
     public DbSet<global::AuditSphereOps.Domain.Audit.RiskPartnerClearance> RiskPartnerClearances => db.RiskPartnerClearances;
     public DbSet<global::AuditSphereOps.Domain.Audit.RiskOwnerAssignment> RiskOwnerAssignments => db.RiskOwnerAssignments;

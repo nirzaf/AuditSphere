@@ -163,6 +163,14 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                     await Assertions.Expect(engagementLink).ToHaveCSSAsync("outline-style", "solid");
                 }
 
+                if (route.Template == "/app/findings/{0}")
+                {
+                    await Assertions.Expect(page.GetByLabel("Management response", new() { Exact = true })).ToHaveValueAsync(own.FindingResponseMarker);
+                    await page.GetByLabel("Management response", new() { Exact = true }).FillAsync("PRIVATE UNSAVED RESPONSE");
+                    await page.GetByLabel("Recommendation rendered in the letter", new() { Exact = true }).FillAsync("PRIVATE UNSAVED RECOMMENDATION");
+                    await OwnedBrowserFixtureHandoff.WaitAsync(origin, Path(route.OwnId));
+                }
+
                 var documentToken = Guid.NewGuid().ToString("N");
                 await page.EvaluateAsync("token => window.__clientScopeAuditDetailToken = token", documentToken);
                 var siblingText = await NavigateInPlaceAsync(page, Path(route.SiblingId), route.DeniedMessage);
@@ -200,6 +208,14 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 var restored = await NavigateInPlaceAsync(page, Path(route.OwnId), null, route.OwnAssertions[0]);
                 foreach (var assertion in route.OwnAssertions)
                     Assert.Contains(assertion, restored, StringComparison.Ordinal);
+                if (route.Template == "/app/findings/{0}")
+                {
+                    await Assertions.Expect(page.GetByLabel("Management response", new() { Exact = true })).ToHaveValueAsync(own.FindingResponseMarker);
+                    await Assertions.Expect(page.GetByLabel("Recommendation rendered in the letter", new() { Exact = true })).ToHaveValueAsync("");
+                    Assert.DoesNotContain("PRIVATE UNSAVED", restored, StringComparison.Ordinal);
+                    await using var untouched = host.CreateDbContext();
+                    Assert.Equal(own.FindingResponseMarker, await untouched.Findings.Where(x => x.Id == own.FindingId).Select(x => x.ManagementResponse).SingleAsync());
+                }
                 Assert.Equal(documentToken,
                   await page.EvaluateAsync<string>("() => window.__clientScopeAuditDetailToken"));
 

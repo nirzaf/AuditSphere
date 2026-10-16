@@ -283,10 +283,12 @@ public static class AuditProgramService
     Guid? riskId,
     CancellationToken ct = default)
   {
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var snapshot = await db.AuditProcedures.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == procedureId && x.FirmId == actor.FirmId, ct);
     if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var publication = await AuditPlanningCommandWorkspace.LockAsync(db, actor, snapshot.EngagementId, true, ct);
+    if (!publication.Succeeded) return CommandResult.Fail(publication.ErrorCode!, publication.Message!);
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
     if (scope.Denied is not null) return CommandResult.Fail(scope.Denied, scope.Message);
 
@@ -294,16 +296,21 @@ public static class AuditProgramService
       SELECT * FROM audit_procedures
       WHERE id = {procedureId} AND firm_id = {actor.FirmId}
       FOR UPDATE
-      """).SingleOrDefaultAsync(ct);
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     if (riskId is { } rid && !await db.AuditRisks.AnyAsync(x => x.Id == rid && x.FirmId == actor.FirmId && x.EngagementId == procedure.EngagementId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The risk must belong to the same engagement.");
 
+    var tracked = db.AuditProcedures.Local.SingleOrDefault(x => x.Id == procedure.Id);
+    if (tracked is not null) procedure = tracked;
+    else db.AuditProcedures.Attach(procedure);
     procedure.RiskId = riskId;
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    var finalAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, snapshot.EngagementId, AuditPlanningActions.LinkProcedureRisk, true, ct);
+    if (!finalAuthority.Succeeded) return finalAuthority;
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -437,6 +444,12 @@ public static class AuditProgramService
       .SingleOrDefaultAsync(x => x.Id == request.AuditProcedureId && x.FirmId == actor.FirmId, ct);
     if (snapshot is null)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var initialAuthority = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, snapshot.ClientId, snapshot.EngagementId, PlanningRoles, InternalOnly: true), ct);
+    if (!initialAuthority.Succeeded) return CommandResult<ProcedureResultValue>.Fail(initialAuthority.ErrorCode!, initialAuthority.Message!);
+    // Match source publication: firm -> client generation -> engagement -> procedure/result.
+    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var currentGeneration = await AuditPlanningInputGeneration.ReadSharedAsync(db, actor.FirmId, snapshot.ClientId, ct);
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId, sharedEngagement: true);
     if (scope.Denied is not null)
       return CommandResult<ProcedureResultValue>.Fail(scope.Denied, scope.Message);
@@ -463,7 +476,6 @@ public static class AuditProgramService
     // Share the client-source fence for independent submissions; generation writers still wait.
     // Risk and materiality revisions are bound below
     // as a narrower immutable basis and must not invalidate unrelated accounting mappings.
-    var currentGeneration = await AuditPlanningInputGeneration.ReadSharedAsync(db, scope.FirmId, scope.ClientId, ct);
     if (currentGeneration is null)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
         "The current client planning revision is unavailable; the procedure result was not submitted.");
@@ -589,6 +601,12 @@ public static class AuditProgramService
       .SingleOrDefaultAsync(x => x.Id == request.AuditProcedureResultId && x.FirmId == actor.FirmId, ct);
     if (snapshot is null)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var initialAuthority = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, snapshot.ClientId, snapshot.EngagementId, ReviewRoles, InternalOnly: true), ct);
+    if (!initialAuthority.Succeeded) return CommandResult<ProcedureReviewValue>.Fail(initialAuthority.ErrorCode!, initialAuthority.Message!);
+    // Match source publication: firm -> client generation -> engagement -> procedure/result.
+    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var currentGeneration = await AuditPlanningInputGeneration.LockAndReadAsync(db, actor.FirmId, snapshot.ClientId, ct);
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId, ReviewRoles);
     if (scope.Denied is not null)
       return CommandResult<ProcedureReviewValue>.Fail(scope.Denied, scope.Message);
@@ -625,7 +643,6 @@ public static class AuditProgramService
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ProtectedState,
         "Only the latest submitted procedure revision can receive a review decision.");
 
-    var currentGeneration = await AuditPlanningInputGeneration.LockAndReadAsync(db, scope.FirmId, scope.ClientId, ct);
     if (currentGeneration is null)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GateBlocked,
         "The current client planning revision is unavailable; the result was not reviewed.");

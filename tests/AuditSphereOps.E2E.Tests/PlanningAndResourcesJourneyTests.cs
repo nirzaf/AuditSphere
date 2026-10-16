@@ -135,8 +135,11 @@ public sealed class PlanningAndResourcesJourneyTests
     async Task RejectCalculationAsync(string field, string value, string message)
     {
       await page.GetByLabel(field, new() { Exact = true }).FillAsync(value);
-      await page.GetByRole(AriaRole.Button, new() { Name = "Calculate materiality", Exact = true }).ClickAsync();
-      await Assertions.Expect(page.GetByText(message, new() { Exact = true })).ToBeVisibleAsync();
+      await page.GetByRole(AriaRole.Button, new() { Name = "Preview materiality calculation", Exact = true }).ClickAsync();
+      var rejectedPreview = page.GetByRole(AriaRole.Region, new() { Name = "Exact planning preview", Exact = true });
+      await Assertions.Expect(rejectedPreview.GetByText(message, new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(rejectedPreview.GetByRole(AriaRole.Button,
+        new() { Name = "Confirm reviewed planning action", Exact = true })).ToBeDisabledAsync();
     }
     await RejectCalculationAsync("Base rate %", "5", "The rate for REVENUE must be between 0.5% and 2% under STE-MATERIALITY-2026.2.");
     await page.GetByLabel("Base rate %", new() { Exact = true }).FillAsync("1");
@@ -149,14 +152,13 @@ public sealed class PlanningAndResourcesJourneyTests
       Assert.False(await db.MaterialityCalculations.AnyAsync(x => x.EngagementId == f.EngagementId));
     }
     await page.GetByLabel("SAD % of PM", new() { Exact = true }).FillAsync("5");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Calculate materiality" }).ClickAsync();
-    await Assertions.Expect(page.GetByText("Materiality calculated; independent Engagement Partner materiality approval is required.")).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Preview materiality calculation" }).ClickAsync();
+    await ConfirmPlanningAsync(page, "CALCULATE_MATERIALITY");
     var thresholds = page.Locator("[aria-label='Materiality thresholds']");
     await Assertions.Expect(thresholds).ToContainTextAsync("53,421.00 QAR");
     await Assertions.Expect(thresholds).ToContainTextAsync("40,065.75 QAR");
     await Assertions.Expect(thresholds).ToContainTextAsync("2,671.05 QAR");
-    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve calculated materiality", Exact = true })).ToHaveCountAsync(0);
-    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve materiality", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Preview materiality approval", Exact = true })).ToHaveCountAsync(0);
 
     // Neither the preparer nor a Manager may give the final Partner materiality approval.
     var managerOrigin = await host.StartApiForIdentityAsync(manager,
@@ -164,10 +166,8 @@ public sealed class PlanningAndResourcesJourneyTests
     var managerPage = await (await browser.NewContextAsync()).NewPageAsync();
     await managerPage.GotoAsync($"{managerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}/audit-plan")}");
     var materialityApproval = managerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Approve calculated materiality", Exact = true });
+      new() { Name = "Preview materiality approval", Exact = true });
     await Assertions.Expect(materialityApproval).ToHaveCountAsync(0);
-    await Assertions.Expect(managerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Approve materiality", Exact = true })).ToHaveCountAsync(0);
     var managerPlan = managerPage.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true });
     await Assertions.Expect(managerPlan.GetByRole(AriaRole.Heading, new() { Name = "Materiality calculator", Exact = true }))
       .ToBeVisibleAsync();
@@ -176,9 +176,8 @@ public sealed class PlanningAndResourcesJourneyTests
     await managerPlan.GetByLabel("SAD threshold", new() { Exact = true }).FillAsync("2600");
     await managerPlan.GetByLabel("Rationale for the rounding", new() { Exact = true })
       .FillAsync("Synthetic browser journey applies the STE practical rounding criterion.");
-    await managerPlan.GetByRole(AriaRole.Button, new() { Name = "Apply practical rounding", Exact = true }).ClickAsync();
-    await Assertions.Expect(managerPage.GetByText(
-      "Practical rounding applied; the rounded values now need independent Partner approval.", new() { Exact = true })).ToBeVisibleAsync();
+    await managerPlan.GetByRole(AriaRole.Button, new() { Name = "Preview practical rounding", Exact = true }).ClickAsync();
+    await ConfirmPlanningAsync(managerPage, "ROUND_MATERIALITY");
     var rounded = managerPlan.GetByRole(AriaRole.Table, new() { Name = "Computed and rounded thresholds", Exact = true });
     await Assertions.Expect(rounded).ToContainTextAsync("53,421.00");
     await Assertions.Expect(rounded).ToContainTextAsync("53,000.00");
@@ -197,11 +196,11 @@ public sealed class PlanningAndResourcesJourneyTests
     var reviewerPage = await (await browser.NewContextAsync()).NewPageAsync();
     await reviewerPage.GotoAsync($"{reviewerOrigin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}/audit-plan")}");
     var reviewerApproval = reviewerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Approve calculated materiality", Exact = true });
+      new() { Name = "Preview materiality approval", Exact = true }).First;
     await Assertions.Expect(reviewerApproval).ToBeVisibleAsync();
     await Assertions.Expect(reviewerPage.GetByText("Awaiting independent Engagement Partner materiality approval.")).ToBeVisibleAsync();
     await reviewerApproval.ClickAsync();
-    await Assertions.Expect(reviewerPage.GetByText("Partner materiality approval recorded.", new() { Exact = true })).ToBeVisibleAsync();
+    await ConfirmPlanningAsync(reviewerPage, "APPROVE_MATERIALITY");
     await using (var db = host.CreateDbContext())
     {
       var assessment = await db.MaterialityAssessments.AsNoTracking()
@@ -244,7 +243,7 @@ public sealed class PlanningAndResourcesJourneyTests
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true }))
       .ToContainTextAsync("The approved mapping or trial balance changed. Recalculate; this calculation no longer supports difference evaluation.");
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Approve calculated materiality", Exact = true })).ToHaveCountAsync(0);
+      new() { Name = "Preview materiality approval", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
       new() { Name = "FSLI Risk Stratification", Exact = true })).ToHaveCountAsync(0);
 
@@ -256,8 +255,8 @@ public sealed class PlanningAndResourcesJourneyTests
     await risksSection.GetByLabel("Risk description", new() { Exact = true }).FillAsync("Cash balance may be misstated.");
     await risksSection.GetByLabel("Drivers", new() { Exact = true }).FillAsync("Complex foreign currency balances.");
     await risksSection.GetByLabel("Planned response", new() { Exact = true }).FillAsync("Agree balances to independent bank evidence.");
-    await risksSection.GetByRole(AriaRole.Button, new() { Name = "Record risk", Exact = true }).ClickAsync();
-    await Assertions.Expect(page.GetByText("The identified risk was recorded.", new() { Exact = true })).ToBeVisibleAsync();
+    await risksSection.GetByRole(AriaRole.Button, new() { Name = "Preview identified risk", Exact = true }).ClickAsync();
+    await ConfirmPlanningAsync(page, "CREATE_RISK");
     var cashCard = page.Locator("[data-risk='Cash']");
     await Assertions.Expect(cashCard).ToContainTextAsync("NOT ASSESSED");
     var assess = cashCard.GetByRole(AriaRole.Button, new() { Name = "Assess band for Cash", Exact = true });
@@ -267,10 +266,12 @@ public sealed class PlanningAndResourcesJourneyTests
     await page.GetByLabel("Band rationale for Cash", new() { Exact = true }).FillAsync("Moderate foreign currency valuation exposure.");
     await Assertions.Expect(assess).ToBeEnabledAsync();
     await assess.ClickAsync();
+    await ConfirmPlanningAsync(page, "ASSESS_RISK");
     await Assertions.Expect(cashCard).ToContainTextAsync("AMBER");
     var owner = cashCard.GetByLabel("Owner for Cash", new() { Exact = true });
     await owner.SelectOptionAsync(manager.Id.ToString());
     await cashCard.GetByRole(AriaRole.Button, new() { Name = "Assign owner for Cash", Exact = true }).ClickAsync();
+    await ConfirmPlanningAsync(page, "ASSIGN_RISK_OWNER");
     await Assertions.Expect(cashCard).ToContainTextAsync("Owner: Mona Manager (Audit Manager).");
     await using (var db = host.CreateDbContext())
     {
@@ -291,6 +292,7 @@ public sealed class PlanningAndResourcesJourneyTests
     await partnerReview.FillAsync("Journal testing and cut-off procedures address the fraud risk.");
     await partnerReview.PressAsync("Tab");
     await clear.ClickAsync();
+    await ConfirmPlanningAsync(page, "CLEAR_RISK");
     await Assertions.Expect(card).ToContainTextAsync("Partner reviewed (Pat Partner)");
     await using (var db = host.CreateDbContext())
       Assert.True(await db.RiskPartnerClearances.AnyAsync(x => x.RiskId == redRisk && x.PartnerUserId == partner.Id));
@@ -310,5 +312,15 @@ public sealed class PlanningAndResourcesJourneyTests
     await Assertions.Expect(row).ToContainTextAsync("30 / 20 h");
 
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
+  }
+  private static async Task ConfirmPlanningAsync(IPage page, string action)
+  {
+    var preview = page.GetByRole(AriaRole.Region, new() { Name = "Exact planning preview", Exact = true });
+    await Assertions.Expect(preview).ToContainTextAsync(action);
+    var execute = preview.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed planning action", Exact = true });
+    await Assertions.Expect(execute).ToBeDisabledAsync();
+    await preview.GetByLabel("I reviewed this exact planning preview, source evidence and effect.", new() { Exact = true }).CheckAsync();
+    await execute.ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Verified planning receipt", Exact = true })).ToContainTextAsync(action);
   }
 }

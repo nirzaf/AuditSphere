@@ -86,7 +86,9 @@ public static class MaterialityEngineService
     if (invalid is null && string.IsNullOrWhiteSpace(request.Rationale)) invalid = "A rationale for the benchmark choice is required.";
     if (invalid is not null) return CommandResult<MaterialityCalculationView>.Fail(ErrorCodes.AuditPlanning.Invalid, invalid);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var publication = await AuditPlanningCommandWorkspace.LockAsync(db, actor, request.EngagementId, true, ct);
+    if (!publication.Succeeded) return CommandResult<MaterialityCalculationView>.Fail(publication.ErrorCode!, publication.Message!);
     var scope = await AuditPlanningService.LockedEngagementAsync(db, actor, request.EngagementId, ct);
     if (scope.Denied is not null) return CommandResult<MaterialityCalculationView>.Fail(scope.Denied, scope.Message);
     var source = await LoadSourceAsync(db, actor.FirmId, request.EngagementId, ct);
@@ -131,7 +133,9 @@ public static class MaterialityEngineService
     db.MaterialityAssessments.Add(assessment);
     db.MaterialityCalculations.Add(calculation);
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    var finalAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, request.EngagementId, AuditPlanningActions.CalculateMateriality, true, ct);
+    if (!finalAuthority.Succeeded) return CommandResult<MaterialityCalculationView>.Fail(finalAuthority.ErrorCode!, finalAuthority.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<MaterialityCalculationView>.Ok(new(assessment.Id, calculation, MaterialityCalculationStates.Draft, "Awaiting independent approval."));
   }
 
@@ -270,10 +274,12 @@ public static class MaterialityEngineService
     if (string.IsNullOrWhiteSpace(request.Rationale))
       return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.AuditPlanning.Invalid, "A rationale for the practical rounding is required.");
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var existing = await db.MaterialityAssessments.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.AssessmentId && x.FirmId == actor.FirmId, ct);
     if (existing is null) return CommandResult<PracticalRoundingView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var publication = await AuditPlanningCommandWorkspace.LockAsync(db, actor, existing.EngagementId, true, ct);
+    if (!publication.Succeeded) return CommandResult<PracticalRoundingView>.Fail(publication.ErrorCode!, publication.Message!);
     var scope = await AuditPlanningService.LockedEngagementAsync(db, actor, existing.EngagementId, ct, existing.ClientId);
     if (scope.Denied is not null) return CommandResult<PracticalRoundingView>.Fail(scope.Denied, scope.Message);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -330,7 +336,9 @@ public static class MaterialityEngineService
     db.MaterialityAssessments.Add(effective);
     db.MaterialityRoundingDecisions.Add(decision);
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    var finalAuthority = await AuditPlanningCommandWorkspace.AuthorizeAsync(db, actor, existing.EngagementId, AuditPlanningActions.RoundMateriality, true, ct);
+    if (!finalAuthority.Succeeded) return CommandResult<PracticalRoundingView>.Fail(finalAuthority.ErrorCode!, finalAuthority.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<PracticalRoundingView>.Ok(new(effective.Id, decision, effective, MaterialityCalculationStates.Draft));
   }
 

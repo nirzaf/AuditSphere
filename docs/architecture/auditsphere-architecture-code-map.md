@@ -175,13 +175,18 @@ replay/approval/readback); the group-report export/archive leg is a declared M37
 
 ## Audit planning and fieldwork
 
+- Reviewed planning actions: `Application/Audit/AuditPlanningCommandWorkspace.cs` and `AuditPlanningCommandContracts.cs` provide scope-bound state, exact previews, atomic execution and actor-owned receipt lookup for materiality calculation/rounding/approval, risk creation/assessment/ownership/clearance, and procedure-risk linking. Existing services retain their public entry points and respect ambient transaction ownership.
+- Planning receipt evidence: `Domain/Audit/AuditPlanningCommandReceipt.cs`, `AuditSphereDbContext.AuditPlanningReceipts.cs` and `AuditPlanningReviewedCommandReceipts` retain immutable original previews/results with action-specific publication guards. Actor/request barriers fence absent lookups; shared actor locks protect session epochs without blocking foreign-key checks. Procedure generation fences precede engagement locks.
+- Angular reviewed planning: `features/audit/planning-command-contracts.ts`, `planning-command-state.ts` and `planning-command-review.ts`, composed by `plan.ts` and the fieldwork risk-link control. Recovery stores request identity/hash only and never restores assent. API owners are the `/audit-plan/commands` routes in `UiEndpoints.AuditPlan.cs`.
+
 - Domain: `Domain/Audit/`
 
 - Application: `Application/Audit/AuditPlanningService.cs`, `Application/Audit/Fieldwork/AuditFieldworkService.{Schedules,BankReconciliations,Selections,ItemTests,Confirmations,AreaAssessments,Differences,Completion,Authorization}.cs`
 
 - Persistence: `AuditSphereDbContext.Audit.cs`, `.Fieldwork.cs`
 
-- UI: `AuditPlan.razor`, `AuditFieldwork.razor`, `AuditPopulation.razor`, `AuditProgramLibraryPage.razor`
+- Angular: `features/audit/plan.ts`, `fieldwork.ts`, `records.ts` and `library.ts`; API `Ui/UiEndpoints.AuditPlan.cs`, `UiEndpoints.Fieldwork.cs` and audit record endpoints. Legacy `AuditPlan.razor`, `AuditFieldwork.razor`, `AuditPopulation.razor` and `AuditProgramLibraryPage.razor` remain rollback/reference sources until the retirement gate passes.
+- Exact population/finding projections: `Application/Audit/AuditRecordQueries.cs`; both reauthorize after composing details. Angular record decoders bind the returned identity to the route and finding drafts clear on route/session transitions.
 
 - Tests: `tests/.../AuditFieldwork*` and audit sections of `SourceAcceptanceAndComparativesTests.cs`
 

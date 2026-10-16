@@ -4,6 +4,7 @@ using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -28,8 +29,15 @@ public sealed class PeriodMaintenanceReceiptApiTests
       period.Status = AccountingWorkflowStates.Closed; period.ClosedByUserId = f.Reviewer.Id;
       period.ClosedAt = DateTimeOffset.UtcNow; period.CloseReason = "SYNTHETIC closed receipt fixture"; period.Revision++;
       revision = period.Revision;
-      var packages = await db.FinancialPackages.Where(x => x.ClientId == f.ClientId).OrderBy(x => x.Id).Select(x => x.Id).ToListAsync();
-      original = packages[0]; revised = packages[1]; await db.SaveChangesAsync();
+      // SiblingClientSeed already contains a restatement for its two initial packages.
+      // Use a fresh synthetic amendment; random UUID ordering must never decide whether this pair is a duplicate.
+      var source = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == seed.PackageId);
+      var amendment = JsonSerializer.Deserialize<FinancialPackage>(JsonSerializer.Serialize(source))!;
+      amendment.Id = Guid.CreateVersion7();
+      amendment.CalculationHash = Hashing.Sha256Hex($"SYNTHETIC receipt amendment {amendment.Id:D}");
+      amendment.TemplateVersion = "SYNTHETIC-receipt-amendment";
+      db.FinancialPackages.Add(amendment);
+      original = source.Id; revised = amendment.Id; await db.SaveChangesAsync();
     }
     using var factory = Factory(pg, f.Staff); using var client = factory.CreateClient(); var csrf = await SignIn(client);
     using var reviewerFactory = Factory(pg, f.Reviewer); using var reviewer = reviewerFactory.CreateClient(); var reviewCsrf = await SignIn(reviewer);
@@ -103,7 +111,7 @@ public sealed class PeriodMaintenanceReceiptApiTests
   private static async Task<PeriodMaintenanceRequest> Review(HttpClient c, string token, string root, PeriodMaintenanceRequest r) {
     using var response = await Post(c, token, root + "/preview", r); Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()); var v = json.RootElement.GetProperty("value");
-    Assert.True(v.GetProperty("state").GetProperty("canProceed").GetBoolean()); Assert.False(string.IsNullOrWhiteSpace(v.GetProperty("summary").GetString()));
+    Assert.True(v.GetProperty("state").GetProperty("canProceed").GetBoolean(), v.GetProperty("state").GetProperty("blockers").GetRawText()); Assert.False(string.IsNullOrWhiteSpace(v.GetProperty("summary").GetString()));
     Assert.True(v.TryGetProperty("canonicalInput", out _)); return r with { Reviewed = true, ExpectedRequestHash = v.GetProperty("requestHash").GetString() }; }
   private static async Task<JsonElement> Execute(HttpClient c, string token, string root, PeriodMaintenanceRequest r) {
     using var response = await Post(c, token, root + "/actions", r); Assert.Equal(HttpStatusCode.OK, response.StatusCode);

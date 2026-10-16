@@ -23,3 +23,14 @@ The six reviewed page files match the pinned source inventory snapshot at `eb94a
 ## Result
 
 All six page rows and all three reviewed child-panel rows remain `PARTIAL`; none is promoted to `PARITY_VERIFIED`. Key success and role paths have executable coverage, but validation, stale/error handling and recovery are incomplete. The legacy audit-plan alias journey passed against isolated PostgreSQL in the API-host Angular E2E host; a read-only built-in-browser check also rendered that alias against Development. The fieldwork-only reviewer projection and risk-routing commands are tested in synthetic PostgreSQL-backed browser journeys. Neither local result is production acceptance. Current source/action counts are maintained in [`docs/execution/status.json`](../execution/status.json). Overall migration acceptance and Blazor retirement remain `NOT_READY`; production rollback/canary, assistive-technology and wider-locale acceptance, live Microsoft gates and separate owner acceptance remain open.
+
+
+## Reviewed planning and record recovery increment
+
+The Angular planning workbench and fieldwork risk-link control now use typed, exact previews and explicit fresh assent. Materiality calculation, practical rounding, independent approval, risk creation, assessment, owner assignment, Partner clearance and procedure-risk linking publish append-only actor/request receipts. Current scope and session authority are rechecked under consistent parent locks. Lookup shares the exact request publication barrier and returns the original result, not a reconstruction from mutable history. A missing lookup retains uncertainty and the original request identity.
+
+Receipt insertion checks the action's real scoped publication record and snapshot identity. Normal multiline and Arabic notes remain supported within explicit serialized bounds. Procedure submission/review take the client-source fence before the engagement lock; actor share locks preserve epoch fencing while allowing referencing evidence inserts. Planning changes do not increment the broader accounting input generation.
+
+Population and finding projections reauthorize after composition. Angular binds returned record IDs to their routes, clears finding drafts on genuine scope/session changes or denied refresh, preserves same-record edits and isolates uncertain commands per finding. Finding response/designation still lack durable exact-request recovery and remain partial.
+
+The program library's Clear action intentionally clears the term before reloading; the legacy handler merely repeated its existing search. Both presentations retain the shared query's first-page browsing and label-based version selection. Batched commands, provenance, corrections and browser evidence are recorded in `status.json`; overall retirement remains `NOT_READY`.
