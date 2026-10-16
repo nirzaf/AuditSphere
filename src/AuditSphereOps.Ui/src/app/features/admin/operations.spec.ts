@@ -65,9 +65,9 @@ describe('Angular Operations pager', () => {
     });
   });
 
-  function flushRecovery() {
+  function flushRecovery(recoverySession: Record<string, unknown> | null = null) {
     const http = TestBed.inject(HttpTestingController);
-    for (const request of http.match('/api/ui/operations/commands/state')) request.flush({ before: { operatingMode: 'LOCAL_ONLY', deploymentEpoch: '1', recoveryEpoch: '0', policyGeneration: '1', operation: null, recoverySession: null },
+    for (const request of http.match('/api/ui/operations/commands/state')) request.flush({ before: { operatingMode: 'LOCAL_ONLY', deploymentEpoch: '1', recoveryEpoch: recoverySession ? '1' : '0', policyGeneration: '1', operation: null, recoverySession },
       reviewBasis: 'a'.repeat(64), canRetry: false, canCancel: false, canLiftQuarantine: false, canApproveRecoveryRestart: false, blockers: [], retryBlockers: [], cancelBlockers: [], liftQuarantineBlockers: [], approveRecoveryRestartBlockers: [] });
   }
   afterEach(() => {
@@ -116,6 +116,37 @@ describe('Angular Operations pager', () => {
 
     expect(root.textContent).toContain('No durable operations are recorded for this firm.');
     expect(root.textContent).not.toContain('Temporarily unavailable. Retry shortly.');
+    fixture.destroy();
+  });
+
+  it('keeps approved recovery-session evidence visible without exposing approval controls', () => {
+    const fixture = TestBed.createComponent(Operations);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges(); flushRecovery();
+    http.expectOne('/api/ui/operations').flush({ operatingMode: 'LOCAL_ONLY', retryableStates: [], operations: [] });
+    TestBed.tick();
+    fixture.detectChanges();
+    flushRecovery({
+      id: '33333333-3333-4333-8333-333333333333',
+      externalEpoch: '1',
+      restorePoint: 'synthetic-restore-point',
+      reconciliationScope: 'firm ledger and client workspaces',
+      findings: 'Reconciliation completed and reviewed.',
+      createdAt: '2026-10-15T20:00:00Z',
+      approvedRestartAt: '2026-10-15T21:00:00Z',
+      approvedByUserId: id1,
+    });
+    TestBed.tick();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const evidence = root.querySelector('section[aria-labelledby="recovery-session-heading"]');
+    expect(evidence?.textContent).toContain('Recovery session evidence');
+    expect(evidence?.textContent).toContain('Reconciliation completed and reviewed.');
+    expect(evidence?.querySelector('time')?.getAttribute('datetime')).toBe('2026-10-15T21:00:00Z');
+    expect(evidence?.textContent).toContain(id1);
+    expect(root.querySelector('#operation-findings')).toBeNull();
+    expect(root.textContent).not.toContain('Preview recovery restart approval');
     fixture.destroy();
   });
 

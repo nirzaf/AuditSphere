@@ -40,14 +40,23 @@ const ADMIN_ACCESS_UNAVAILABLE = 'Operations is limited to firm-wide AuditSphere
           @for (blocker of state.liftQuarantineBlockers; track blocker) { <p>Lift quarantine: {{ blocker }}</p> }
           @for (blocker of state.approveRecoveryRestartBlockers; track blocker) { <p>Restart approval: {{ blocker }}</p> }
         }
-        @if (state.canApproveRecoveryRestart) { @if (state.before.recoverySession; as session) {
-          <section class="panel" aria-label="Current recovery restart"><h2>Review recovery restart</h2>
-            <p>Session {{ session.id }} · external epoch {{ session.externalEpoch }}</p>
-            <p>Restore point {{ session.restorePoint }} · reconciliation scope {{ session.reconciliationScope }}</p>
-            <label for="operation-findings">Reconciliation findings</label><textarea id="operation-findings" [ngModel]="findings" (ngModelChange)="setFindings($event)" maxlength="10000"></textarea>
-            <button matButton="outlined" (click)="approveRecoveryRestart(session.id)" [disabled]="!cmd.canPrepare('APPROVE_RECOVERY_RESTART', session.id) || !findings.trim()">Preview recovery restart approval</button>
+        @if (state.before.recoverySession; as session) {
+          <section class="panel" aria-labelledby="recovery-session-heading"><h2 id="recovery-session-heading">Recovery session evidence</h2>
+            <dl>
+              <dt>Current recovery session</dt><dd>{{ session.id }}</dd>
+              <dt>External epoch</dt><dd>{{ session.externalEpoch }}</dd>
+              <dt>Restore point</dt><dd>{{ session.restorePoint }}</dd>
+              <dt>Reconciliation scope</dt><dd>{{ session.reconciliationScope }}</dd>
+              <dt>Current findings</dt><dd>{{ session.findings.trim() || 'None recorded' }}</dd>
+              <dt>Restart approval</dt><dd>@if (session.approvedRestartAt) { <time [attr.datetime]="session.approvedRestartAt">{{ session.approvedRestartAt | date:'medium':'UTC' }} UTC</time> } @else { Not recorded }</dd>
+              <dt>Approved by</dt><dd>{{ session.approvedByUserId ?? 'Not recorded' }}</dd>
+            </dl>
+            @if (state.canApproveRecoveryRestart) {
+              <label for="operation-findings">Findings for restart approval</label><textarea id="operation-findings" [ngModel]="findings" (ngModelChange)="setFindings($event)" maxlength="10000"></textarea>
+              <button matButton="outlined" (click)="approveRecoveryRestart(session.id)" [disabled]="!cmd.canPrepare('APPROVE_RECOVERY_RESTART', session.id) || !findings.trim()">Preview recovery restart approval</button>
+            }
           </section>
-        } }
+        }
       }
       <p role="status">{{ count(o, queued) }} queued · {{ count(o, processing) }} processing · {{ count(o, attention) }} need attention · {{ count(o, ['COMPLETED']) }} completed · {{ count(o, ['CANCELLED_WITH_DISPOSITION']) }} cancelled</p>
       <p><small>Counts summarize only the latest {{ o.operations.length }} firm operations shown below; they are not a backlog total or worker-health verdict.</small></p>

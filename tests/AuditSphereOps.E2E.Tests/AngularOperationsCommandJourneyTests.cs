@@ -99,7 +99,15 @@ public sealed class AngularOperationsCommandJourneyTests
     await Assertions.Expect(receipt).ToContainTextAsync(action); await Assertions.Expect(receipt).ToContainTextAsync(requestId!); await Assertions.Expect(receipt).ToContainTextAsync(administrator.Id.ToString("D"));
     if (action == "RETRY") await Assertions.Expect(receipt).ToContainTextAsync("RETRY_WAIT");
     if (action == "CANCEL") await Assertions.Expect(receipt).ToContainTextAsync(disposition);
-    if (action == "APPROVE_RECOVERY_RESTART") await Assertions.Expect(receipt).ToContainTextAsync(findings);
+    if (action == "APPROVE_RECOVERY_RESTART")
+    {
+      await Assertions.Expect(receipt).ToContainTextAsync(findings);
+      var sessionEvidence = page.GetByRole(AriaRole.Region, new() { Name = "Recovery session evidence", Exact = true });
+      await Assertions.Expect(sessionEvidence).ToContainTextAsync(findings);
+      await Assertions.Expect(sessionEvidence).ToContainTextAsync(administrator.Id.ToString("D"));
+      await Assertions.Expect(sessionEvidence.Locator("time")).ToHaveAttributeAsync("datetime", System.Text.RegularExpressions.Regex.Escape("2026-"));
+      await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Preview recovery restart approval", Exact = true })).ToHaveCountAsync(0);
+    }
     Assert.Equal(1, writes); Assert.Empty(errors); Assert.DoesNotContain(privatePayload, await page.Locator("body").InnerTextAsync());
   }
 }
