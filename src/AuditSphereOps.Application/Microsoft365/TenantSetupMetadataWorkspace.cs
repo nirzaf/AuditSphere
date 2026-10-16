@@ -78,10 +78,12 @@ public static class TenantSetupMetadataWorkspace
       Result = "SAVED_LOCAL_METADATA", CreatedAt = now };
     db.Microsoft365AdministrationEvents.Add(evidence);
     await db.SaveChangesAsync(ct);
+    var persisted = await ReceiptAsync(db, actor, input.RequestId, input.RequestHash!, ct);
+    if (!persisted.Succeeded) return CommandResult<TenantSetupReceipt>.Fail(persisted.ErrorCode!, persisted.Message!);
+    if (persisted.Value!.Receipt is not { } saved) return Invalid<TenantSetupReceipt>();
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<TenantSetupReceipt>();
     await tx.CommitAsync(ct);
-    return CommandResult<TenantSetupReceipt>.Ok(new(evidence.Id, input.RequestId, draft.Id, input.RequestHash!, nextRevision.ToString(CultureInfo.InvariantCulture),
-      evidence.OldState, evidence.NewState, evidence.CreatedAt));
+    return CommandResult<TenantSetupReceipt>.Ok(saved);
   }
 
   public static async Task<CommandResult<TenantSetupReceiptLookup>> LookupAsync(IAuditSphereDbContext db,

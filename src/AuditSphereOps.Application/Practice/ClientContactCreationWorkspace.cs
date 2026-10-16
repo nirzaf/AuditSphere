@@ -111,9 +111,10 @@ public static class ClientContactCreationWorkspace
       PreviousGeneration=before,ResultGeneration=before+1,InputJson=JsonSerializer.Serialize(fields),
       PreviousPrimaryJson=JsonSerializer.Serialize(fields.Primary?state.Value.CurrentPrimary:Array.Empty<ContactPrimaryView>()),CreatedAt=now };
     db.ClientContactCreations.Add(row); await db.SaveChangesAsync(ct);
+    var persisted = await db.ClientContactCreations.AsNoTracking().SingleAsync(x => x.Id == row.Id && x.FirmId == a.FirmId && x.ClientId == id && x.ActorId == a.UserId, ct);
     auth = await Authorize(db,a,id,ct);
     if (!auth.Succeeded) return Fail<ContactCreationReceipt>(ErrorCodes.ScopeDenied,"This client contact workspace is unavailable.");
-    await tx.CommitAsync(ct); return CommandResult<ContactCreationReceipt>.Ok(Receipt(row));
+    await tx.CommitAsync(ct); return CommandResult<ContactCreationReceipt>.Ok(Receipt(persisted));
   }
 
   public static async Task<CommandResult<ContactCreationLookup>> LookupAsync(IAuditSphereDbContext db, ActorContext a,

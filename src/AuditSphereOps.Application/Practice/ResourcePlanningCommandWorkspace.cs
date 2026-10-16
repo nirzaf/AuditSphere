@@ -154,8 +154,9 @@ public static class ResourcePlanningCommandWorkspace
     if(!result.Succeeded) return CommandResult<ResourcePlanningReceiptView>.Fail(result.ErrorCode!,result.Message!);
     var receipt=new ResourcePlanningReceipt{Id=Guid.CreateVersion7(),FirmId=a.FirmId,ActorId=a.UserId,ActorEpoch=a.SessionEpoch,TargetUserId=f.UserId,RequestId=request.RequestId,Kind=f.Kind,RequestHash=request.RequestHash!,ReviewBasis=request.ReviewBasis!,PreviewJson=json,ResourceId=resource,CreatedAt=DateTimeOffset.UtcNow};
     db.ResourcePlanningReceipts.Add(receipt);await db.SaveChangesAsync(ct);
+    var persisted=await db.ResourcePlanningReceipts.AsNoTracking().SingleAsync(x=>x.Id==receipt.Id && x.FirmId==a.FirmId && x.ActorId==a.UserId,ct);
     if(!(await Authorize(db,a,ct)).Succeeded) return Denied<ResourcePlanningReceiptView>();
-    await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptView>.Ok(Receipt(receipt));
+    await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptView>.Ok(Receipt(persisted));
   }
   public static async Task<CommandResult<ResourcePlanningReceiptLookup>> LookupAsync(IAuditSphereDbContext db,ActorContext a,Guid requestId,string? requestHash,CancellationToken ct=default)
   {

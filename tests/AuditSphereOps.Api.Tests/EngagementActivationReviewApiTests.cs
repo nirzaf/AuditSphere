@@ -68,7 +68,7 @@ public sealed class EngagementActivationReviewApiTests
       }
     }
     string BoundRequestHash(Guid id, EngagementActivationRequest request) => Hashing.Sha256Hex(JsonSerializer.Serialize(new
-      { actor.FirmId, actor.UserId, actor.SessionEpoch, id, request.RequestId, Action = "PARTNER_ACTIVATION" }));
+      { actor.FirmId, actor.UserId, actor.SessionEpoch, id, requestId = request.RequestId, Action = "PARTNER_ACTIVATION" }));
     using var foreignReceipt = await c.GetAsync("/api/ui/engagements/" + foreign.EngagementId + "/activation-review/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash);
     using var guessedReceipt = await c.GetAsync("/api/ui/engagements/" + Guid.NewGuid() + "/activation-review/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash);
     Assert.Equal(HttpStatusCode.Forbidden, foreignReceipt.StatusCode);
