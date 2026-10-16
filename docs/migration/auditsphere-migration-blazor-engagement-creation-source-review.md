@@ -16,12 +16,12 @@ SHA-256: `f36a652b19a33a7fa013020d78708b562e584271e07ddbb18b7ce880ca72e7e6`
 |---|---|---|
 | Enter service route, service profile, period start and period end for a client. | Angular `/app/clients/{id}/engagements/new` uses bounded Signal Forms and `EngagementCreationWorkspace.StateAsync` for the exact client, identity, session and current client revision. | `EngagementCreationWorkspace.Canonical` trims and validates route/profile and exact ISO dates; reversed or invalid periods fail before publication. Unit and journey coverage exercises fields and revision changes. Full validation/display and assistive-technology parity remains open. |
 | Create a new engagement shell and tell the user it starts blocked until Partner activation. | The native route previews the exact fields, requires explicit assent and calls `EngagementCreationWorkspace.ExecuteAsync`. `EngagementLifecycleService.CreateDraftAsync` is the shared Application/domain lifecycle authority. | PostgreSQL assertions verify one `Draft` with `ProfessionalWorkBlocked=true`, one immutable creation receipt, and zero activation records. Activation stays a separate Partner decision; creation does not grant portal or Microsoft access. |
-| Avoid duplicate service-period shells and let the user inspect an existing match. | The preview detects an existing exact client/service/period and shows its engagement link with no create control. The lifecycle service serializes creation per client and accepts only an identical existing service profile. | The API-host journey verifies the existing-shell state and refuses duplicate creation. Mismatched profiles fail closed in the service. Cross-firm and guessed-client-ID browser/HTTP assertions remain open. |
+| Avoid duplicate service-period shells and let the user inspect an existing match. | The preview detects an existing exact client/service/period and shows its engagement link with no create control. The lifecycle service serializes creation per client and accepts only an identical existing service profile. | The API-host journey verifies the existing-shell state and refuses duplicate creation. Mismatched profiles fail closed in the service. Workspace GET and direct-route foreign/guessed-ID denials are covered by the supplemental evidence below; preview, execution and receipt-ownership HTTP isolation remain open. |
 | Preserve work across navigation and recover a lost command response. | Angular saves editable fields and request identity in bounded identity/client-revision tab drafts; review assent is never persisted. Unknown results require immutable actor-owned receipt lookup, and a retry requires identical fields and fresh review. | Five PostgreSQL-backed domain tests pass. The two-mode browser journey verifies draft save/restore, explicit review, an accepted server command with a dropped response, reload reconciliation, duplicate detection, responsive layout and clearing after Manager-role revocation. |
 
 ## Authorization and mutation boundary
 
-The creation workspace requires a current Partner or Manager grant scoped to
+The creation workspace requires a current Partner, Manager or RelationshipManager grant scoped to
 the exact client, derives the firm and actor from trusted session context, and
 rechecks authority around projection and mutation. Publication locks the
 client safety generation and actor row, validates the client and current grant,
@@ -57,6 +57,9 @@ Supplemental current-tree evidence is recorded in `status.json` under `targetedV
   at `ead85032de2ccc4d4c8043398fa8471d395376a9`.
 
 The row remains `PARTIAL`: the core blocked-draft creation, duplicate prevention
-and uncertain-result recovery are exercised, while the full cross-firm/guessed-
-ID HTTP matrix, every validation/error state, and accessibility parity remain
+and uncertain-result recovery are exercised, while preview/execute/receipt-ownership HTTP isolation, browser invalid-input coverage, and accessibility parity remain
 open. Blazor retirement remains `NOT_READY`.
+
+## Acceptance batch follow-up
+
+The creation journey now exercises blank profiles, reversed periods, native route-length enforcement and fresh assent after correcting fields. API assertions separately reject an oversized route. Current API assertions compare foreign/guessed preview and receipt denials, refuse a resource-mismatched execute hash, and prove another authorized actor cannot recover the original receipt. Exact results and source attribution are in `status.json` under `targetedVerification.angularMigrationAcceptanceBatch`. Valid resource-bound execute authorization, broader error states and human accessibility remain open; activation also needs publication-lock and paid-advance browser transition evidence. This row remains PARTIAL.

@@ -73,6 +73,7 @@
     }
   ],
   "targetedVerification": {
+    "angularMigrationAcceptanceBatch": {"codeCommit":"40a2a9a102c9576aba6102a46b70cc094fae1f6e","source":"Verified working tree immediately committed with unchanged implementation/test content.","result":"PARTIAL","releaseBuild":{"exitCode":0,"warnings":0,"errors":0,"durationSeconds":5.75},"angular":{"passed":840,"failed":0,"files":139,"durationSeconds":9.92,"productionBuildExitCode":0,"warning":"Existing commercial settings stylesheet budget."},"api":{"passed":3,"failed":0,"skipped":0,"durationSeconds":60,"report":"scratchpad/parity-verification-20261016/acceptance-command-corrected.trx"},"browser":{"passed":5,"failed":0,"skipped":0,"durationSeconds":89,"report":"scratchpad/parity-verification-20261016/acceptance-browser-corrected.trx"},"covered":["Exact-client checklist link retains engagement context","Foreign/guessed preview and receipt denials match","Resource-mismatched execute hashes rejected before authorization","Another authorized actor cannot recover the original receipt","Blank profile and reversed period block browser review without writes; correction requires fresh assent","Native route length limit and independent oversized API input rejection"],"builtInBrowser":"Owned synthetic activation blocked state; exact-client/context checklist link navigated. Destination remained unavailable for engagement-only Partner, preserving client scope. No console errors or business mutations.","limits":["Full final-commit regression pending","Valid resource-bound execute authorization deserves separate assertion","Activation publication/lookup concurrency and advance-blocker browser transitions remain","Human accessibility, operational cutover/rollback and live-provider gates remain"],"fullReleaseVerification":{"state":"PENDING_DISPATCH","workflow":"release-verification.yml"}},
     "angularBlazorPackageGateFixtureFollowUp": {
       "sourceCommit": "b410768b88641d0f35df70424814d0ceb2003fdf",
       "result": "FOCUSED_PASS_FULL_DOMAIN_FAIL_RETIREMENT_NOT_READY",
@@ -785,112 +786,7 @@
         "F-08 remains PARTIAL: CP-18 output-quality/profile acceptance, CP-19 management identity/evidence/recovery, and CP-20 audit-report/signing/legal/provider acceptance remain open"
       ]
     },
-    "ste22EndToEndIncrement1": {
-      "recordedAtUtc": "2026-10-15T03:20:00Z",
-      "source": "STE v2.2 end-to-end audit and completion story reviewed at b05a6bf6 (F-01..F-15, CP-00..CP-25); first dependency-ordered increment",
-      "baseCommit": "b05a6bf6fb84088dba9123104e974afffac74714",
-      "closedInCode": [
-        "F-15 composition-binding migration Down renames bundle indexes from the lowest free suffix; downgrade refuses once a decision, release or bundle names a composition",
-        "F-01 Angular build form mirrors the server cash/noncash projection role; stored ledger amounts unchanged; projected effect shown",
-        "F-02 client portal view and decision name the exact sealed composition; request identity and expected latest decision; authorized exact-PDF download with browser fingerprint check",
-        "F-03 signing candidate requires every presentation check to pass (statement-candidate-readiness.v1); note/disclosure/equity content via append-only independent content review of the exact draft snapshot; formal decisions, client offer and release recheck the candidate",
-        "F-04 formal decisions: client-safety/package/grant locks with post-wait authority recheck, original-request receipts, expected latest decision, database sequence and predecessor link, latest-effective approval chain for progression and release",
-        "F-05 cash-flow source review takes the client safety row before the package row; lock order recorded in the architecture code map",
-        "F-09 one immutable voucher and one dispatch intent per actual payment; settlement receipt v2 lists constituent payments",
-        "F-11 label: candidate banner no longer claims a review that has not occurred"
-      ],
-      "migrations": [
-        "20261015000622_FinancialStatementReviewCompositionBinding (Down corrected)",
-        "20261015020548_PackageDecisionReceiptsContentReviewAndPaymentVouchers (additive, append-only content reviews, guarded downgrade)"
-      ],
-      "environment": "Local container: .NET SDK 10.0.300, Node 26.8.1, PostgreSQL 18.6 on port 5433 (disposable test databases only)",
-      "runs": [
-        {
-          "name": "Release solution build",
-          "result": "PASS",
-          "warnings": 0,
-          "errors": 0,
-          "note": "local build used DOTNET_GCHeapHardLimit=0x600000000 because the default compiler heap ran out of memory on the Infrastructure project"
-        },
-        {
-          "name": "CI Domain filter (ci.yml)",
-          "result": "PASS",
-          "passed": 145,
-          "failed": 0
-        },
-        {
-          "name": "CI API filter (ci.yml)",
-          "result": "PASS",
-          "passed": 8,
-          "failed": 0
-        },
-        {
-          "name": "Full unfiltered Domain suite, this tree",
-          "passed": 1003,
-          "failed": 27,
-          "total": 1030
-        },
-        {
-          "name": "Full unfiltered Domain suite, base commit b05a6bf6 (same environment)",
-          "passed": 995,
-          "failed": 32,
-          "total": 1027
-        },
-        {
-          "name": "Domain failure comparison",
-          "result": "No failure unique to this tree; all 27 remaining failures reproduce on the base commit (composition-required legacy release paths in translation/group/period-close tests, client-site rollout policy, receipt timestamp-precision tests, restatement, markdown filename test). Fixed versus base: both F-15 tests, CurrentSettlementSchemaRetainsItsGuardAndPermanentFreezeBlocksDowngrade."
-        },
-        {
-          "name": "Full unfiltered API suite, this tree",
-          "passed": 229,
-          "failed": 6,
-          "total": 235,
-          "note": "Each failure (StaffingChangeReviewApiTests.ExactReview…, ClientConversionReviewApiTests.ExactReview…, ClientContactCreationApiTests.CookieCsrf…, ConsolidationWorkspaceApiTests.ScopeWorkspace…, FirmReceivablesAgingApiTests.Terms…, ResourcePlanningReceiptApiTests.PlanningCsrf…) was rerun on base commit b05a6bf6 in the same environment and fails there too; none is unique to this tree."
-        },
-        {
-          "name": "Angular CI specs",
-          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
-          "specFiles": 129,
-          "tests": 752,
-          "failed": 0
-        },
-        {
-          "name": "Angular production build",
-          "result": "PASS_WITH_WARNING",
-          "warning": "existing commercial/settings.scss budget warning (7.53 kB against 4.00 kB)"
-        },
-        {
-          "name": "EF model drift",
-          "result": "no pending model changes"
-        },
-        {
-          "name": "OpenAPI drift",
-          "result": "regenerated; contract is current"
-        },
-        {
-          "name": "Documentation, filename, narrative-metrics, UI inventory, git diff --check",
-          "result": "PASS"
-        }
-      ],
-      "notRun": [
-        "E2E/Playwright suite",
-        "authenticated browser journeys",
-        "hosted CI and release-verification workflows",
-        "live provider, deployment or production checks"
-      ],
-      "stillOpen": [
-        "F-06",
-        "F-07",
-        "F-08",
-        "F-10",
-        "F-11 publication content",
-        "F-12",
-        "F-13",
-        "F-14",
-        "28 pre-existing Domain failures listed above",
-        "professional decision packets (T003 profile, management signatory/capacity, document wording)"
-      ]
-    },
+    "ste22EndToEndIncrement1": {"archive":"docs/execution/status-archive-2026-10.json","key":"keys.targetedVerification.ste22EndToEndIncrement1"},
     "ste22F08CommercialResponse": {
       "recordedAtUtc": "2026-10-15T11:22:47Z",
       "sourceCommit": "9a2630f628ca1c64ebffe576e716cbdc1b849f2e",
@@ -1011,7 +907,7 @@
       "runUrl": "https://github.com/nirzaf/AuditSphere/actions/runs/38781204290",
       "scopeStatus": "PARTIAL"
     },
-    "asPm8Atomic":{"sourceCommit":"6e4d8682fa4886223422990f010f6d40e8729fe6","result":"PARTIAL","matrix":[["01","01–03","PASS","DueTodaySummaryCountsTheCompleteAuthorizedPopulationRatherThanTheLoadedPage;DateViewsUseTheUtcCalendarDateAndSummaryStaysScopedDeniedAndReadOnly"],["02","04–06","PASS","PracticeTimeTests.TimeWorkflow_RequiresReview_UsesIntegerMinutes_AndRejectsOverlap;PracticeTimeStartMinuteApiTests.RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior;AngularPracticeProductivityJourneyTests.DashboardAndForegroundTimerAreReadOnlyUntilEachDraftIsExplicitlySaved"],["03","07–08","PASS","PortalWorkspaceReturnsParticipantScopedClarificationAndCurrentEligibility;PortalActionEligibilityFailsClosedForReviewStatesAndUploadRouteStillRequiresFirstSignIn"],["04","09–11","PASS","SevenSourcesUseStableRankAndIdPagingSnapshotAndReadOnlyProjection;InvalidRequestsAndNonManagerScopesFailClosedWithStableMessages"],["05","12–14","PASS","TaskDatesIncludeOnlyYesterdayTodayAndSevenDaysForActiveTasks;FrozenSuppressesRemindersButPastScheduledFreezeDoesNotAndReadsCreateNoWrites"],["06","15–16","PASS","AnnualMilestonesUseCurrentSourceRevisionAndStayRestrictedWithoutBlockingReviewedCreation;ChangedOrForeignAnnualReferenceFailsWithoutPublishingANewShell"],["07","17–19","PASS","StandardValuesNormalizeEachEntryAndKeepCurrencyAndFeeBasisSubtotalsSeparate;CrossClientBillingParentFailsTheWholeReportAndClientScopedFinanceIsDenied"],["08","20–25","PASS","PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits;PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles"]],"commands":{"build":"dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1","e2e":"dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularPracticeProductivityJourneyTests' --logger 'console;verbosity=minimal'","angularTests":"npm ci && npm run test:ci","angularBuild":"npm run build (cwd: src/AuditSphereOps.Ui)","ef":"dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release","openapi":"bash scripts/contracts/verify-openapi.sh","full":"dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --maxcpucount:1 --logger 'console;verbosity=minimal'","docs":"python3 scripts/docs/validate-markdown-documentation.py; python3 scripts/docs/validate-markdown-filenames.py; python3 scripts/docs/validate-narrative-metrics.py; python3 scripts/ui/inventory.py --check; git diff --check","domain":{"project":"tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj","classFilters":["EngagementWorkflowTaskTests","PracticeTimeTests","PbcReminderTests","AnnualEngagementPreparationTests","CommercialWorkflowTests","FirmUnbilledTimeTests","EngagementActivityTimelineTests","EngagementDeadlineReminderTests","FirmPortalLogoSchemaTests"]},"api":{"project":"tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj","classFilters":["PortalActionCenterApiTests","ClientPortalBrandingApiTests","FirmPortalLogoSettingsApiTests","FirmUnbilledTimeApiTests","EngagementActivityApiTests","EngagementDeadlineReminderApiTests"]}},"runs":[["build",0,"0w/0e","167.94s"],["domain",0,"56/56","42s"],["api",0,"14/14","106s"],["e2e",0,"1/1","65s"],["angularTests",0,"839/839; cwd src/AuditSphereOps.Ui","unknown"],["angularBuild",0,"existing settings.scss budget 7.53/4.00kB","8s"],["ef",0,"clean",null],["openapi",0,"match",null],["full",130,"34m partial; rerun cancelled 18m, overlapping API tests; no final count"],["docs",0],["ci",0,"38808307291@d0aeac96"],["apiRegression",0,"2/2;45s;b440bc77","TermsRequireIndependentReviewAndReportAndExportUseAuthorizedAsOfState;ScopeWorkspace_CanQueryDetail_AndBlocksComponentApprovalWithoutSelectedComposition"]],"dotnetFocusedTemplate":"dotnet test {project} --no-build --no-restore --configuration Release --maxcpucount:1 --filter '{filter}'","package":"AS-PM8","filterRule":"OR by FullyQualifiedName","matrixCommit":"sourceCommit","currentFollowUp":{"candidateCommit":"6944ab95b8c4dd1b8947161301fc80c84c2e5c7f","domain":{"passed":56,"failed":0,"skipped":0,"report":"/tmp/auditsphere-parity-regression/pm8-current-domain.trx"},"api":{"passed":14,"failed":0,"skipped":0,"durationSeconds":130,"report":"/tmp/auditsphere-parity-regression/pm8-current-api.trx"},"dashboardAndTimeApi":{"passed":4,"failed":0,"skipped":0,"durationSeconds":69,"report":"/tmp/auditsphere-parity-regression/pm8-dashboard-time-api.trx"},"limitations":"Full E2E had two failures; targeted follow-up passed 3/3, full rerun remains required. Complete API suite running; full Domain regression unresolved. AS-PM8 acceptance remains PARTIAL.","acceptanceDeployment":{"commit":"6944ab95b8c4dd1b8947161301fc80c84c2e5c7f","ciRun":38828041267,"imageRun":38828151617,"backupRestoreAndApiRehearsal":"PASS","migration":"20261016000000_FirmPortalLogoFields","updatedServices":["api","worker-general","worker-processing","worker-records"],"mailWorker":"unchanged","publicReadiness":"Healthy","browser":["Operations authorized empty state","Time synthetic task and Start/Pause/Resume/Stop; no time saved","My Work UTC counts, Due Today and board"],"configuration":"Acceptance-only compose.acceptance-workflow.yaml sets WorkflowExperience__Enabled=true; .env COMPOSE_FILE includes that override and RELEASE_TAG pins the commit. No permission or provider flags changed.","cleanup":"Rehearsal container/database removed; temporary SSH key removed in Hostinger and login denial verified; local private key deleted.","limits":"Empty engagement data; full business acceptance and regression remain open."},"fullE2E":{"passed":247,"failed":2,"skipped":0,"durationSeconds":1821,"candidateCommit":"6944ab95","report":"/tmp/auditsphere-parity-regression/e2e-parity-consolidated-current.trx","failures":["AngularClientSalesInvoiceWorkflowJourneyTests.SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting","AngularBudgetPreparationJourneyTests.ExactReviewLostResponseReloadAndRetainedReceiptNeverDuplicateBudget(canonical: False)"],"result":"FAIL","targetedFollowUp":{"codeCommit":"a24af13d","passed":3,"failed":0,"skipped":0,"durationSeconds":70,"report":"/tmp/auditsphere-parity-regression/budget-supplier-readiness-followup.trx","changes":"Supplier waits for dependent read completion and asserts retained voucher; budget asserts API preparation authority. Product guards unchanged; full E2E rerun still required."}},"angularRegression":{"candidateCommit":"bf61d925","command":"npm --prefix src/AuditSphereOps.Ui run test:ci","exitCode":0,"passed":839,"failed":0,"testFiles":139,"durationSeconds":4.09,"report":"/tmp/auditsphere-parity-regression/angular-current.log","limitation":"jsdom reports unsupported document navigation; this is not browser acceptance."},"angularBuild":{"candidateCommit":"bf61d925","command":"npm --prefix src/AuditSphereOps.Ui run build","exitCode":0,"durationSeconds":12.627,"report":"/tmp/auditsphere-parity-regression/angular-build-current.log","warning":"Existing commercial/settings.scss 7.53 kB exceeds 4 kB warning budget."},"sourceInventories":{"candidateCommit":"bf61d925","exitCode":0,"commands":["python3 scripts/ui/inventory.py --check","python3 scripts/migration/generate-blazor-retirement-inventory.py --check"]}}}
+    "asPm8Atomic":{"sourceCommit":"6e4d8682fa4886223422990f010f6d40e8729fe6","result":"PARTIAL","matrix":[["01","01–03","PASS","DueTodaySummaryCountsTheCompleteAuthorizedPopulationRatherThanTheLoadedPage;DateViewsUseTheUtcCalendarDateAndSummaryStaysScopedDeniedAndReadOnly"],["02","04–06","PASS","PracticeTimeTests.TimeWorkflow_RequiresReview_UsesIntegerMinutes_AndRejectsOverlap;PracticeTimeStartMinuteApiTests.RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior;AngularPracticeProductivityJourneyTests.DashboardAndForegroundTimerAreReadOnlyUntilEachDraftIsExplicitlySaved"],["03","07–08","PASS","PortalWorkspaceReturnsParticipantScopedClarificationAndCurrentEligibility;PortalActionEligibilityFailsClosedForReviewStatesAndUploadRouteStillRequiresFirstSignIn"],["04","09–11","PASS","SevenSourcesUseStableRankAndIdPagingSnapshotAndReadOnlyProjection;InvalidRequestsAndNonManagerScopesFailClosedWithStableMessages"],["05","12–14","PASS","TaskDatesIncludeOnlyYesterdayTodayAndSevenDaysForActiveTasks;FrozenSuppressesRemindersButPastScheduledFreezeDoesNotAndReadsCreateNoWrites"],["06","15–16","PASS","AnnualMilestonesUseCurrentSourceRevisionAndStayRestrictedWithoutBlockingReviewedCreation;ChangedOrForeignAnnualReferenceFailsWithoutPublishingANewShell"],["07","17–19","PASS","StandardValuesNormalizeEachEntryAndKeepCurrencyAndFeeBasisSubtotalsSeparate;CrossClientBillingParentFailsTheWholeReportAndClientScopedFinanceIsDenied"],["08","20–25","PASS","PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits;PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles"]],"commands":{"build":"dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1","e2e":"dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularPracticeProductivityJourneyTests' --logger 'console;verbosity=minimal'","angularTests":"npm ci && npm run test:ci","angularBuild":"npm run build (cwd: src/AuditSphereOps.Ui)","ef":"dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release","openapi":"bash scripts/contracts/verify-openapi.sh","full":"dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --maxcpucount:1 --logger 'console;verbosity=minimal'","docs":"python3 scripts/docs/validate-markdown-documentation.py; python3 scripts/docs/validate-markdown-filenames.py; python3 scripts/docs/validate-narrative-metrics.py; python3 scripts/ui/inventory.py --check; git diff --check","domain":{"project":"tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj","classFilters":["EngagementWorkflowTaskTests","PracticeTimeTests","PbcReminderTests","AnnualEngagementPreparationTests","CommercialWorkflowTests","FirmUnbilledTimeTests","EngagementActivityTimelineTests","EngagementDeadlineReminderTests","FirmPortalLogoSchemaTests"]},"api":{"project":"tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj","classFilters":["PortalActionCenterApiTests","ClientPortalBrandingApiTests","FirmPortalLogoSettingsApiTests","FirmUnbilledTimeApiTests","EngagementActivityApiTests","EngagementDeadlineReminderApiTests"]}},"runs":[["build",0,"0w/0e","167.94s"],["domain",0,"56/56","42s"],["api",0,"14/14","106s"],["e2e",0,"1/1","65s"],["angularTests",0,"839/839; cwd src/AuditSphereOps.Ui","unknown"],["angularBuild",0,"existing settings.scss budget 7.53/4.00kB","8s"],["ef",0,"clean",null],["openapi",0,"match",null],["full",130,"34m partial; rerun cancelled 18m, overlapping API tests; no final count"],["docs",0],["ci",0,"38808307291@d0aeac96"],["apiRegression",0,"2/2;45s;b440bc77","TermsRequireIndependentReviewAndReportAndExportUseAuthorizedAsOfState;ScopeWorkspace_CanQueryDetail_AndBlocksComponentApprovalWithoutSelectedComposition"]],"dotnetFocusedTemplate":"dotnet test {project} --no-build --no-restore --configuration Release --maxcpucount:1 --filter '{filter}'","package":"AS-PM8","filterRule":"OR by FullyQualifiedName","matrixCommit":"sourceCommit","currentFollowUp":{"candidateCommit":"6944ab95b8c4dd1b8947161301fc80c84c2e5c7f","domain":{"passed":56,"failed":0,"skipped":0,"report":"/tmp/auditsphere-parity-regression/pm8-current-domain.trx"},"api":{"passed":14,"failed":0,"skipped":0,"durationSeconds":130,"report":"/tmp/auditsphere-parity-regression/pm8-current-api.trx"},"dashboardAndTimeApi":{"passed":4,"failed":0,"skipped":0,"durationSeconds":69,"report":"/tmp/auditsphere-parity-regression/pm8-dashboard-time-api.trx"},"limitations":"Full regression remains unproven. Interrupted local process handles disappeared without terminal results. Use existing release-verification workflow for a final commit-pinned run. AS-PM8 remains PARTIAL.","acceptanceDeployment":{"commit":"6944ab95b8c4dd1b8947161301fc80c84c2e5c7f","ciRun":38828041267,"imageRun":38828151617,"backupRestoreAndApiRehearsal":"PASS","migration":"20261016000000_FirmPortalLogoFields","updatedServices":["api","worker-general","worker-processing","worker-records"],"mailWorker":"unchanged","publicReadiness":"Healthy","browser":["Operations authorized empty state","Time synthetic task and Start/Pause/Resume/Stop; no time saved","My Work UTC counts, Due Today and board"],"configuration":"Acceptance-only compose.acceptance-workflow.yaml sets WorkflowExperience__Enabled=true; .env COMPOSE_FILE includes that override and RELEASE_TAG pins the commit. No permission or provider flags changed.","cleanup":"Rehearsal container/database removed; temporary SSH key removed in Hostinger and login denial verified; local private key deleted.","limits":"Empty engagement data; full business acceptance and regression remain open."},"fullE2E":{"passed":247,"failed":2,"skipped":0,"durationSeconds":1821,"candidateCommit":"6944ab95","report":"/tmp/auditsphere-parity-regression/e2e-parity-consolidated-current.trx","failures":["AngularClientSalesInvoiceWorkflowJourneyTests.SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting","AngularBudgetPreparationJourneyTests.ExactReviewLostResponseReloadAndRetainedReceiptNeverDuplicateBudget(canonical: False)"],"result":"FAIL","targetedFollowUp":{"codeCommit":"a24af13d","passed":3,"failed":0,"skipped":0,"durationSeconds":70,"report":"/tmp/auditsphere-parity-regression/budget-supplier-readiness-followup.trx","changes":"Supplier waits for dependent read completion and asserts retained voucher; budget asserts API preparation authority. Product guards unchanged; full E2E rerun still required."}},"angularRegression":{"candidateCommit":"bf61d925","command":"npm --prefix src/AuditSphereOps.Ui run test:ci","exitCode":0,"passed":839,"failed":0,"testFiles":139,"durationSeconds":4.09,"report":"/tmp/auditsphere-parity-regression/angular-current.log","limitation":"jsdom reports unsupported document navigation; this is not browser acceptance."},"angularBuild":{"candidateCommit":"bf61d925","command":"npm --prefix src/AuditSphereOps.Ui run build","exitCode":0,"durationSeconds":12.627,"report":"/tmp/auditsphere-parity-regression/angular-build-current.log","warning":"Existing commercial/settings.scss 7.53 kB exceeds 4 kB warning budget."},"sourceInventories":{"candidateCommit":"bf61d925","exitCode":0,"commands":["python3 scripts/ui/inventory.py --check","python3 scripts/migration/generate-blazor-retirement-inventory.py --check"]},"regressionRepair":{"candidateCommit":"765af3f8","build":{"exitCode":0,"warnings":0,"errors":0,"durationSeconds":5.27},"workspacePolicyApi":{"passed":4,"failed":0,"skipped":0,"durationSeconds":93,"report":"scratchpad/parity-verification-20261016/workspace-policy.trx","source":"Pre-commit working tree; API test file matches765af3f8."},"staffingBrowser":{"passed":2,"failed":0,"skipped":0,"durationSeconds":84,"report":"scratchpad/parity-verification-20261016/staffing-recovery.trx","source":"Pre-commit working tree; browser test file matches765af3f8."},"domainBeforeFinalFixtureCorrections":{"passed":1057,"failed":2,"skipped":0,"durationSeconds":279,"report":"scratchpad/parity-verification-20261016/domain-current.trx","corrections":"Use persisted mapping version; compare source package bytes before submission and after legitimate composition rendering separately."},"fullSolution":{"state":"INTERRUPTED","command":"dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --maxcpucount:1 --logger trx --results-directory scratchpad/parity-verification-20261016/full-solution","report":"scratchpad/parity-verification-20261016/full-solution.log","limitation":"Handle80921 missing after user interruption; no completed suite verdict. UI changed after starting commit765af3f8, so even an older terminal report cannot verify the final tree."},"liveBrowser":"Operations authorized empty ledger and My Work UTC counts loaded; no captured error logs; no business mutations."}}}
   },
   "externalGates": [
     {
