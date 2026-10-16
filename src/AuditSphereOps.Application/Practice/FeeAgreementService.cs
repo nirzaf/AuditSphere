@@ -426,14 +426,16 @@ public static partial class FeeAgreementService
       where (r.EffectiveFrom == null || r.EffectiveFrom <= asOf) &&
             (r.EffectiveTo == null || r.EffectiveTo >= asOf)
       join c in db.ClientContacts.AsNoTracking() on r.ClientContactId equals c.Id
-      where c.IsActive && !string.IsNullOrWhiteSpace(c.Email)
+      where c.IsActive && !string.IsNullOrWhiteSpace(c.Email) &&
+            (c.ValidFrom == null || c.ValidFrom <= now) &&
+            (c.ValidTo == null || c.ValidTo >= now)
       orderby r.IsPrimaryForPurpose descending, r.CreatedAt descending
       select c.Email
     ).FirstOrDefaultAsync(ct);
 
     if (!string.IsNullOrWhiteSpace(financeContact)) return financeContact;
 
-    var contact = await db.ClientContacts.AsNoTracking().Where(x => x.FirmId == firmId && x.PracticeClientId == agreement.PracticeClientId && x.Primary &&
+    var contact = await db.ClientContacts.AsNoTracking().Where(x => x.FirmId == firmId && x.PracticeClientId == agreement.PracticeClientId && x.Primary && x.IsActive &&
       (x.ValidFrom == null || x.ValidFrom <= now) && (x.ValidTo == null || x.ValidTo >= now)).Select(x => x.Email).FirstOrDefaultAsync(ct);
     if (!string.IsNullOrWhiteSpace(contact)) return contact;
     var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == agreement.ProposalId && x.FirmId == firmId, ct);
