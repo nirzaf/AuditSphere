@@ -70,6 +70,38 @@ describe('client document comments', () => {
     expect(fixture.componentInstance.review.controls.body.dirty).toBe(true);
     fixture.destroy();
   });
+
+  it.each(['destroyed', 'revoked'] as const)('keeps a late comment reply inert once the editor visit is %s', async (ending) => {
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(PortalDocuments);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [sharedDocument]));
+    TestBed.tick(); fixture.detectChanges();
+    const editor = fixture.componentInstance;
+    const root = fixture.nativeElement as HTMLElement;
+    editor.select(documentReviewId);
+    editor.review.controls.body.setValue('This reply arrives after the visit ended.');
+    const sent = editor.comment(documentReviewId);
+    const post = http.expectOne({ method: 'POST', url: `/api/ui/portal/documents/${documentReviewId}/comment` });
+    if (ending === 'destroyed') fixture.destroy();
+    else {
+      TestBed.inject(SessionService).clear(); TestBed.tick(); fixture.detectChanges();
+      http.expectOne('/api/ui/portal/documents').flush({ code: 'scope.denied', message: 'Denied' }, { status: 403, statusText: 'Forbidden' });
+      TestBed.tick(); fixture.detectChanges();
+    }
+
+    post.flush({ value: receiptId }); await sent;
+    http.expectNone('/api/ui/portal/documents');
+    http.expectNone((request) => request.method === 'POST');
+    expect(editor.message()).toBe('');
+    if (ending === 'revoked') {
+      fixture.detectChanges();
+      expect(root.textContent).not.toContain(sharedDocument.title);
+      expect(editor.selected()).toBe('');
+      expect(editor.review.controls.body.value).toBe('');
+      fixture.destroy();
+    }
+  });
 });
 
 describe('client final bundle receipt acknowledgement', () => {

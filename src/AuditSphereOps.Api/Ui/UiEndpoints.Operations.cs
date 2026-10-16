@@ -26,6 +26,22 @@ public static partial class UiEndpoints
         Operations = workspace.Value!.Operations.Select(o => new { o.Id, o.Kind, o.Status, o.AttemptCount, o.NextAttemptAt, o.ErrorCode, o.CancellationDisposition }),
       });
     }));
+    // Bounded discovery beyond the latest-50 overview; rows are redacted the same way and grant no recovery authority.
+    group.MapGet("/operations/discovery", (string? state, Guid? operationId, string? cursor, int? pageSize, HttpContext http) =>
+      ReadAsync(http, async (db, actor, ct) =>
+      {
+        var page = await OperationRecoveryService.DiscoverAsync(db, actor,
+          new(state, operationId, cursor, pageSize ?? OperationRecoveryService.DiscoveryDefaultPageSize), ct);
+        if (!page.Succeeded) return CommandResult<object>.Fail(page.ErrorCode!, page.Message!);
+        return CommandResult<object>.Ok(new
+        {
+          page.Value!.State,
+          page.Value.OperationId,
+          Operations = page.Value.Operations.Select(o => new { o.Id, o.Kind, o.Status, o.AttemptCount, o.NextAttemptAt, o.ErrorCode, o.CancellationDisposition, o.CreatedAt }),
+          page.Value.NextCursor,
+          page.Value.FirstPageCursor,
+        });
+      }));
     // Keep the legacy URLs as aliases, but never let them bypass the preview, fresh assent and receipt.
     group.MapPost("/operations/{id:guid}/retry", (Guid id, OperationCommandRequest? input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.Retry, id, ct)));

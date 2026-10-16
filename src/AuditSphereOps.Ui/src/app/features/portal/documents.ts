@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
@@ -55,7 +55,9 @@ export class PortalDocuments {
   readonly review = this.fb.nonNullable.group({ body: ['', Validators.maxLength(4000)], reviewed: false });
   readonly signed = this.fb.nonNullable.group({ signatory: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(200)]] });
   readonly selected = signal(''); readonly receiptReviewed = signal(''); readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal(''); readonly failed = signal(false); readonly file = signal<File | null>(null);
-  constructor() { effect(() => {
+  /** This editor visit ended (the portal shell closed or the page left); late command callbacks must not touch it. */
+  private destroyed = false;
+  constructor() { inject(DestroyRef).onDestroy(() => { this.destroyed = true; }); effect(() => {
     this.session.invalidation();
     const saved = this.ws.data();
     if (!saved) { this.selected.set(''); this.receiptReviewed.set(''); this.review.reset(); this.signed.reset(); this.file.set(null); }
@@ -67,7 +69,7 @@ export class PortalDocuments {
   comment(id: string): Promise<void> { const submitted = this.review.controls.body.value;
     if (!submitted.trim() || this.review.controls.body.invalid) return Promise.resolve();
     return this.run(`/api/ui/portal/documents/${id}/comment`, { body: submitted }, 'Comment sent to the audit team.', () => {
-      if (this.review.controls.body.value === submitted) {
+      if (this.selected() === id && this.review.controls.body.value === submitted) {
         this.review.controls.body.setValue('');
         this.review.controls.body.markAsPristine();
       }
@@ -85,8 +87,8 @@ export class PortalDocuments {
       'Your receipt report for this exact bundle was recorded. It does not confirm provider delivery or prove a browser download.');
   }
   private async run(url: string, body: unknown, success: string, afterSuccess?: () => void): Promise<void> {
-    if (this.busy() || this.uncertain()) return; const generation = this.session.invalidation(); this.busy.set(true);
-    try { const r = await this.api.command(url, body); if (generation !== this.session.invalidation()) return;
+    if (this.busy() || this.uncertain() || this.destroyed) return; const generation = this.session.invalidation(); this.busy.set(true);
+    try { const r = await this.api.command(url, body); if (this.destroyed || generation !== this.session.invalidation()) return;
       this.failed.set(!r.ok); this.message.set(r.ok ? success : r.message); if (!r.ok && r.unknown) this.uncertain.set(true);
       if (r.ok) afterSuccess?.();
       if (r.ok || (!r.ok && r.unknown)) this.ws.reload();

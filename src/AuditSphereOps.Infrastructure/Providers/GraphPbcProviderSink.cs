@@ -63,14 +63,27 @@ public sealed class GraphPbcProviderSink : IPbcProviderSink
     return await ReadBackAsync(location, target, item.ItemId, parsed.VersionId, await DeclaredBytesAsync(scope, ct), ct);
   }
 
-  /// <summary>Hashes the exact version: the current one after upload, or the recorded one on verify.</summary>
+  /// <summary>
+  /// Hashes the exact version: the current one after upload or probe, or the recorded one on verify. The
+  /// current content is attributed to a version only when equal version/content-tag observations bracket
+  /// the full read. A version that is (or became during the read) historical is read through the
+  /// historical-version endpoint; a change that keeps the version label is an unknown outcome. Bytes read
+  /// across a change are discarded, never relabelled as the observed version.
+  /// </summary>
   private async Task<PbcProviderReceipt> ReadBackAsync(SelectedSiteLocation location, PbcRepositoryTarget target,
     string itemId, string? versionId, long maxBytes, CancellationToken ct)
   {
-    var current = await drive!.CurrentVersionAsync(location, itemId, ct);
-    var version = versionId ?? current;
-    var (sha, size) = await drive.ContentDigestAsync(location, itemId, version == current ? null : version, maxBytes, ct);
-    return new($"{Prefix}{target.DriveId}:{itemId}:{version}", sha, size);
+    var before = await drive!.ObserveVersionAsync(location, itemId, ct);
+    var version = versionId ?? before.VersionId;
+    if (version == before.VersionId)
+    {
+      var (sha, size) = await drive.ContentDigestAsync(location, itemId, null, maxBytes, ct);
+      var after = await drive.ObserveVersionAsync(location, itemId, ct);
+      if (after == before) return new($"{Prefix}{target.DriveId}:{itemId}:{version}", sha, size);
+      if (after.VersionId == version) throw new IOException("selected-site-version-changed");
+    }
+    var (historicalSha, historicalSize) = await drive.ContentDigestAsync(location, itemId, version, maxBytes, ct);
+    return new($"{Prefix}{target.DriveId}:{itemId}:{version}", historicalSha, historicalSize);
   }
 
   private async Task<(PbcRepositoryTarget Target, SelectedSiteLocation Location)> TargetAsync(PbcTransferScope scope, CancellationToken ct)

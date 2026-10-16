@@ -127,6 +127,18 @@ public sealed class OperationRecoveryTests
       var projection = listed.Value!.Single(x => x.Id == operationId);
       Assert.Equal("COMPLETED", projection.Status);
       Assert.True(projection.HasResultEvidence);
+
+      var discovered = await OperationRecoveryService.DiscoverAsync(db, admin,
+        new(OperationId: operationId));
+      Assert.True(discovered.Succeeded, discovered.Message);
+      Assert.Equal(operationId, discovered.Value!.OperationId);
+      Assert.Equal(operationId, Assert.Single(discovered.Value.Operations).Id);
+
+      var otherFirm = admin with { FirmId = Guid.NewGuid() };
+      var concealed = await OperationRecoveryService.DiscoverAsync(db, otherFirm,
+        new(OperationId: operationId));
+      Assert.False(concealed.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, concealed.ErrorCode);
     }
     PbcSeed.DeleteDirectory(harness.Staged.StagingRoot);
   }

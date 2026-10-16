@@ -27,6 +27,15 @@ public sealed class WorkflowTemplateTests
     Guid firstRevisionId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var pbcDefinition = new WorkflowTemplatePbcDefinition("Reconcile revenue to the trial balance.",
+        "Gulf Trading LLC", "Revenue", "Excel workbook", "Total must agree to the QAR 535,000 adjusted trial balance.",
+        "Confidential audit evidence", "Provide a signed reconciliation with source-ledger references.");
+      var incompletePbc = await WorkflowTemplateService.CreateDraftAsync(db, authorActor,
+        Request(null, [Step("PBC", 1) with { PbcDefinition = pbcDefinition with { Objective = " " } }]));
+      Assert.False(incompletePbc.Succeeded);
+      Assert.Equal("workflow.template-invalid", incompletePbc.ErrorCode);
+      Assert.Empty(await db.WorkflowTemplates.ToListAsync());
+
       var cyclic = await WorkflowTemplateService.CreateDraftAsync(db, authorActor,
         Request(null, [Step("A", 1, "B"), Step("B", 2, "A")]));
       Assert.False(cyclic.Succeeded);
@@ -34,7 +43,7 @@ public sealed class WorkflowTemplateTests
       Assert.Empty(await db.WorkflowTemplates.ToListAsync());
 
       var draft = await WorkflowTemplateService.CreateDraftAsync(db, authorActor,
-        Request(null, [Step("A", 1), Step("B", 2, "A")]));
+        Request(null, [Step("A", 1) with { PbcDefinition = pbcDefinition }, Step("B", 2, "A")]));
       Assert.True(draft.Succeeded, draft.Message);
       firstRevisionId = draft.Value;
       var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == firstRevisionId);
@@ -42,6 +51,9 @@ public sealed class WorkflowTemplateTests
       Assert.Equal(1, revision.Version);
       Assert.Equal(2, await db.WorkflowTemplateSteps.CountAsync(x => x.TemplateRevisionId == firstRevisionId));
       Assert.Equal(1, await db.WorkflowTemplateDependencies.CountAsync(x => x.TemplateRevisionId == firstRevisionId));
+      var persisted = await WorkflowTemplateService.GetRevisionAsync(db, authorActor, templateId, firstRevisionId);
+      Assert.True(persisted.Succeeded, persisted.Message);
+      Assert.Equal(pbcDefinition, Assert.Single(persisted.Value!.Steps, x => x.StableKey == "A").PbcDefinition);
 
       var selfReview = await WorkflowTemplateService.ReviewAsync(db, authorActor, templateId, firstRevisionId, 1,
         "Review the initial template.");

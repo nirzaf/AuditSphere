@@ -9,7 +9,8 @@ namespace AuditSphereOps.Domain.Tests;
 /// <summary>
 /// In-memory Microsoft Graph drive + SharePoint upload/download host for provider tests. It enforces
 /// the Graph rules the provider depends on: exact-parent path lookups, conflictBehavior=fail (409),
-/// 320 KiB-aligned upload fragments, redirected content downloads and newest-first versions.
+/// 320 KiB-aligned upload fragments, redirected content downloads, newest-first versions and a content
+/// tag (cTag) that changes with every content write.
 /// </summary>
 internal sealed class FakeGraphDrive : HttpMessageHandler
 {
@@ -18,6 +19,7 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
   private sealed record Node(string Id, string Name, string ParentId, bool Folder)
   {
     public List<byte[]> Versions { get; } = [];
+    public int InPlaceWrites { get; set; }
   }
 
   private readonly ConcurrentDictionary<string, Node> nodes = new() { [RootId] = new(RootId, "root", "", true) };
@@ -33,11 +35,31 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
   /// <summary>Answer the final fragment with 500 without committing (no effect).</summary>
   public bool FailFinalFragmentBeforeCommit { get; set; }
   public int UploadSessionCalls { get; private set; }
+  /// <summary>One-shot race barrier: runs with the item ID when a current-content read arrives, before its version is chosen.</summary>
+  public Action<string>? BeforeCurrentContent { get; set; }
+  /// <summary>One-shot race barrier: runs with the item ID after a current-content read has fixed the version it serves.</summary>
+  public Action<string>? AfterCurrentContent { get; set; }
 
   public IEnumerable<(string Id, string Name, string ParentId, bool Folder)> Items =>
     nodes.Values.Select(x => (x.Id, x.Name, x.ParentId, x.Folder));
 
   public void Tamper(string itemId, byte[] content) => nodes[itemId].Versions.Add(content);
+
+  /// <summary>Replaces the current version's bytes in place: same version label, new content tag.</summary>
+  public void Overwrite(string itemId, byte[] content)
+  {
+    var node = nodes[itemId];
+    node.Versions[^1] = content;
+    node.InPlaceWrites++;
+  }
+
+  /// <summary>The stored bytes of one version ("1.0", …), or of the current version.</summary>
+  public byte[] Content(string itemId, string? versionId = null) =>
+    versionId is null ? nodes[itemId].Versions[^1] : nodes[itemId].Versions[VersionIndex(versionId)];
+
+  public int VersionCount(string itemId) => nodes[itemId].Versions.Count;
+
+  private static int VersionIndex(string versionId) => (int)double.Parse(versionId, System.Globalization.CultureInfo.InvariantCulture) - 1;
 
   protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
   {
@@ -109,7 +131,16 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
     if (segments is [_, "versions"])
       return Json(new { value = Enumerable.Range(1, node.Versions.Count).Reverse().Select(v => new { id = $"{v}.0" }) });
     if (segments is [_, "content"])
-      return Redirect($"https://fake.sharepoint.com/download/{id}/{node.Versions.Count}.0?tempauth=secret");
+    {
+      var before = BeforeCurrentContent;
+      BeforeCurrentContent = null;
+      before?.Invoke(id);
+      var current = Redirect($"https://fake.sharepoint.com/download/{id}/{node.Versions.Count}.0?tempauth=secret");
+      var after = AfterCurrentContent;
+      AfterCurrentContent = null;
+      after?.Invoke(id);
+      return current;
+    }
     if (segments is [_, "versions", var version, "content"])
       return Redirect($"https://fake.sharepoint.com/download/{id}/{version}?tempauth=secret");
     return new(HttpStatusCode.BadRequest);
@@ -137,8 +168,7 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
     }
     if (segments is ["download", var itemId, var version] && request.Method == HttpMethod.Get && nodes.TryGetValue(itemId, out var n))
     {
-      var index = (int)double.Parse(version, System.Globalization.CultureInfo.InvariantCulture) - 1;
-      var content = n.Versions[index];
+      var content = n.Versions[VersionIndex(version)];
       if (FailProbeReadback && n.Name.StartsWith(".auditsphere-probe", StringComparison.Ordinal))
       {
         content = [.. content];
@@ -151,7 +181,8 @@ internal sealed class FakeGraphDrive : HttpMessageHandler
 
   private static object Item(Node node) => node.Folder
     ? new { id = node.Id, name = node.Name, size = 0, folder = new { childCount = 0 }, parentReference = new { id = node.ParentId } }
-    : new { id = node.Id, name = node.Name, size = node.Versions[^1].Length, file = new { mimeType = "application/octet-stream" }, parentReference = new { id = node.ParentId } };
+    : new { id = node.Id, name = node.Name, size = node.Versions[^1].Length, file = new { mimeType = "application/octet-stream" }, parentReference = new { id = node.ParentId },
+        cTag = $"\"c:{{{node.Id}}},{node.Versions.Count + node.InPlaceWrites}\"" };
 
   private static HttpResponseMessage Json(object value, HttpStatusCode status = HttpStatusCode.OK) =>
     new(status) { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };

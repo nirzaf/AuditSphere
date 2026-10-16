@@ -27135,10 +27135,45 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("instructions");
 
+                    b.Property<string>("PbcAcceptanceCriteria")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("pbc_acceptance_criteria");
+
+                    b.Property<string>("PbcArea")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("pbc_area");
+
+                    b.Property<string>("PbcConfidentiality")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("pbc_confidentiality");
+
+                    b.Property<string>("PbcControlTotals")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("pbc_control_totals");
+
+                    b.Property<string>("PbcEntityScope")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("pbc_entity_scope");
+
+                    b.Property<string>("PbcObjective")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("pbc_objective");
+
                     b.Property<string>("PbcRequestReference")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)")
                         .HasColumnName("pbc_request_reference");
+
+                    b.Property<string>("PbcRequestedFormat")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("pbc_requested_format");
 
                     b.Property<string>("Phase")
                         .IsRequired()
@@ -27187,7 +27222,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("workflow_template_steps", null, t =>
                         {
-                            t.HasCheckConstraint("ck_workflow_template_step_values", "stable_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE') AND length(trim(title)) BETWEEN 1 AND 200 AND length(instructions) <= 4000 AND (suggested_staffing_level IS NULL OR suggested_staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND (estimated_effort_minutes IS NULL OR estimated_effort_minutes BETWEEN 1 AND 1000000) AND (due_date_offset_days IS NULL OR due_date_offset_days BETWEEN -3650 AND 3650) AND (pbc_request_reference IS NULL OR length(trim(pbc_request_reference)) BETWEEN 1 AND 120) AND sort_order BETWEEN 1 AND 100000");
+                            t.HasCheckConstraint("ck_workflow_template_step_values", "stable_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE') AND length(trim(title)) BETWEEN 1 AND 200 AND length(instructions) <= 4000 AND (suggested_staffing_level IS NULL OR suggested_staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND (estimated_effort_minutes IS NULL OR estimated_effort_minutes BETWEEN 1 AND 1000000) AND (due_date_offset_days IS NULL OR due_date_offset_days BETWEEN -3650 AND 3650) AND (pbc_request_reference IS NULL OR length(trim(pbc_request_reference)) BETWEEN 1 AND 120) AND ((pbc_objective IS NULL AND pbc_entity_scope IS NULL AND pbc_area IS NULL AND pbc_requested_format IS NULL AND pbc_control_totals IS NULL AND pbc_confidentiality IS NULL AND pbc_acceptance_criteria IS NULL) OR (length(trim(pbc_objective)) BETWEEN 1 AND 2000 AND length(trim(pbc_entity_scope)) BETWEEN 1 AND 500 AND length(trim(pbc_area)) BETWEEN 1 AND 200 AND length(trim(pbc_requested_format)) BETWEEN 1 AND 200 AND (pbc_control_totals IS NULL OR length(trim(pbc_control_totals)) BETWEEN 1 AND 2000) AND length(trim(pbc_confidentiality)) BETWEEN 1 AND 100 AND length(trim(pbc_acceptance_criteria)) BETWEEN 1 AND 4000)) AND sort_order BETWEEN 1 AND 100000");
                         });
                 });
 

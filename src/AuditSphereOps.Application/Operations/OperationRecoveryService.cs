@@ -1,3 +1,6 @@
+using System.Buffers.Text;
+using System.Linq.Expressions;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
@@ -20,6 +23,16 @@ public sealed record OperationProjection(
   DateTimeOffset? NextAttemptAt, DateTimeOffset? LeaseExpiresAt, string? ErrorCode,
   string? CancellationDisposition, DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt, bool HasResultEvidence);
 
+/// <summary>Bounded discovery beyond the latest-50 list: one unresolved state (or all of them) paged by an
+/// opaque server cursor, or exactly one firm operation by ID. Cursor and ID are mutually exclusive.</summary>
+public sealed record OperationDiscoveryRequest(string? State = null, Guid? OperationId = null, string? Cursor = null,
+  int PageSize = OperationRecoveryService.DiscoveryDefaultPageSize);
+
+/// <summary>One discovery page. Its row count describes this page and filter only, never a backlog total.
+/// FirstPageCursor replays page one inside the captured upper bound; NextCursor continues to older rows.</summary>
+public sealed record OperationDiscoveryPage(string? State, Guid? OperationId, IReadOnlyList<OperationProjection> Operations,
+  string? NextCursor, string? FirstPageCursor);
+
 /// <summary>
 /// Authorized operator recovery (spec 43.2 operations route). It re-arms retryable terminal
 /// or uncertain operations inside the firm guard and records an append-only recovery event.
@@ -33,6 +46,16 @@ public static partial class OperationRecoveryService
     OperationState.AUTHORIZATION_BLOCKED, OperationState.RESULT_UNCERTAIN
   ];
 
+  public const int DiscoveryDefaultPageSize = 25;
+  public const int DiscoveryMaximumPageSize = 50;
+  private const int DiscoveryCursorMaximumLength = 512;
+  private const string DiscoveryCursorMarker = "od1.";
+
+  private static readonly Expression<Func<DurableOperation, OperationProjection>> Projection = o => new OperationProjection(
+    o.Id, o.OperationKind, o.Status.ToString(), o.TargetId, o.ExpectedRevision, o.AttemptCount,
+    o.NextAttemptAt, o.LeaseExpiresAt, o.ErrorCode, o.CancellationDisposition, o.CreatedAt, o.CompletedAt,
+    o.ResultIdentity != null && o.ResultDigest != null);
+
   /// <summary>Bounded, redacted operation list for the operations screen.</summary>
   public static async Task<CommandResult<IReadOnlyList<OperationProjection>>> ListAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
@@ -44,15 +67,111 @@ public static partial class OperationRecoveryService
       .Where(o => o.FirmId == actor.FirmId)
       .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)
       .Take(50)
-      .Select(o => new OperationProjection(
-        o.Id, o.OperationKind, o.Status.ToString(), o.TargetId, o.ExpectedRevision, o.AttemptCount,
-        o.NextAttemptAt, o.LeaseExpiresAt, o.ErrorCode, o.CancellationDisposition, o.CreatedAt, o.CompletedAt,
-        o.ResultIdentity != null && o.ResultDigest != null))
+      .Select(Projection)
       .ToListAsync(ct);
     auth = await AuthorizeAsync(db, actor, ct);
     return auth.Succeeded
       ? CommandResult<IReadOnlyList<OperationProjection>>.Ok(operations)
       : CommandResult<IReadOnlyList<OperationProjection>>.Fail(auth.ErrorCode!, auth.Message!);
+  }
+
+  /// <summary>Opaque keyset position. It is bound to the firm, the state filter and its version; the upper
+  /// (CreatedAt, Id) tuple is captured from the first page so later pages exclude work created after capture.</summary>
+  private sealed record DiscoveryCursor(int Version, Guid FirmId, string? State, long UpperTicks, Guid UpperId,
+    long? AfterTicks, Guid? AfterId);
+
+  /// <summary>
+  /// Finds older unresolved work beyond the latest-50 list without fetching the backlog: newest first by
+  /// (CreatedAt, Id) with a hard page maximum, or one exact firm-owned operation. A foreign or unknown ID
+  /// returns the same opaque denial as the recovery commands. Listing grants no authority: every recovery
+  /// action still re-reads current state and requires its own preview, assent and receipt.
+  /// </summary>
+  public static async Task<CommandResult<OperationDiscoveryPage>> DiscoverAsync(
+    IAuditSphereDbContext db, ActorContext actor, OperationDiscoveryRequest input, CancellationToken ct = default)
+  {
+    var state = string.IsNullOrWhiteSpace(input.State) ? null : input.State;
+    var states = state is null ? RetryableStates : RetryableStates.Where(x => x.ToString() == state).ToArray();
+    if (input.PageSize is < 1 or > DiscoveryMaximumPageSize || states.Length == 0 || input.OperationId == Guid.Empty ||
+        (input.OperationId is not null && (state is not null || input.Cursor is not null)))
+      return CommandResult<OperationDiscoveryPage>.Fail(ErrorCodes.Operations.Invalid,
+        "Choose a supported unresolved state and a page size from 1 to 50, or one exact operation ID without a state or cursor.");
+    DiscoveryCursor? cursor = null;
+    if (input.Cursor is not null && !TryReadCursor(input.Cursor, out cursor))
+      return InvalidCursor();
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<OperationDiscoveryPage>.Fail(auth.ErrorCode!, auth.Message!);
+    if (cursor is not null && (cursor.FirmId != actor.FirmId || cursor.State != state))
+      return InvalidCursor();
+
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var authority = await LockAuthorityAsync(db, actor, false, ct);
+    if (!authority.Succeeded) return CommandResult<OperationDiscoveryPage>.Fail(authority.ErrorCode!, authority.Message!);
+    OperationDiscoveryPage page;
+    if (input.OperationId is { } operationId)
+    {
+      var exact = await db.DurableOperations.AsNoTracking()
+        .Where(o => o.FirmId == actor.FirmId && o.Id == operationId)
+        .Select(Projection).SingleOrDefaultAsync(ct);
+      if (exact is null) return CommandResult<OperationDiscoveryPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      page = new(null, operationId, [exact], null, null);
+    }
+    else
+    {
+      var query = db.DurableOperations.AsNoTracking().Where(o => o.FirmId == actor.FirmId && states.Contains(o.Status));
+      if (cursor is not null)
+      {
+        var upperAt = new DateTimeOffset(cursor.UpperTicks, TimeSpan.Zero);
+        var upperId = cursor.UpperId;
+        query = query.Where(o => o.CreatedAt < upperAt || (o.CreatedAt == upperAt && o.Id.CompareTo(upperId) <= 0));
+        if (cursor.AfterTicks is { } afterTicks && cursor.AfterId is { } afterId)
+        {
+          var afterAt = new DateTimeOffset(afterTicks, TimeSpan.Zero);
+          query = query.Where(o => o.CreatedAt < afterAt || (o.CreatedAt == afterAt && o.Id.CompareTo(afterId) < 0));
+        }
+      }
+      var rows = await query.OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)
+        .Take(input.PageSize + 1).Select(Projection).ToListAsync(ct);
+      var hasMore = rows.Count > input.PageSize;
+      if (hasMore) rows.RemoveAt(rows.Count - 1);
+      (long Ticks, Guid Id)? upper = cursor is not null ? (cursor.UpperTicks, cursor.UpperId)
+        : rows.Count > 0 ? (rows[0].CreatedAt.UtcTicks, rows[0].Id) : null;
+      page = new(state, null, rows,
+        hasMore && upper is { } next ? WriteCursor(new(1, actor.FirmId, state, next.Ticks, next.Id, rows[^1].CreatedAt.UtcTicks, rows[^1].Id)) : null,
+        upper is { } first ? WriteCursor(new(1, actor.FirmId, state, first.Ticks, first.Id, null, null)) : null);
+    }
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<OperationDiscoveryPage>.Fail(auth.ErrorCode!, auth.Message!);
+    if (tx is not null) await tx.CommitAsync(ct);
+    return CommandResult<OperationDiscoveryPage>.Ok(page);
+  }
+
+  private static CommandResult<OperationDiscoveryPage> InvalidCursor() => CommandResult<OperationDiscoveryPage>.Fail(
+    ErrorCodes.Operations.Invalid, "The operation search cursor is invalid or belongs to another search. Search again.");
+
+  private static string WriteCursor(DiscoveryCursor cursor) =>
+    DiscoveryCursorMarker + Base64Url.EncodeToString(JsonSerializer.SerializeToUtf8Bytes(cursor));
+
+  private static bool TryReadCursor(string value, out DiscoveryCursor? cursor)
+  {
+    cursor = null;
+    static bool Instant(long ticks) => ticks > 0 && ticks <= DateTimeOffset.MaxValue.UtcTicks;
+    if (value.Length > DiscoveryCursorMaximumLength || !value.StartsWith(DiscoveryCursorMarker, StringComparison.Ordinal))
+      return false;
+    try
+    {
+      var read = JsonSerializer.Deserialize<DiscoveryCursor>(Base64Url.DecodeFromChars(value.AsSpan(DiscoveryCursorMarker.Length)));
+      if (read is null || read.Version != 1 || read.FirmId == Guid.Empty || read.UpperId == Guid.Empty || !Instant(read.UpperTicks) ||
+          (read.State is not null && !RetryableStates.Any(x => x.ToString() == read.State)) ||
+          (read.AfterTicks is null) != (read.AfterId is null) || read.AfterId == Guid.Empty ||
+          (read.AfterTicks is { } after && (!Instant(after) || after > read.UpperTicks)))
+        return false;
+      cursor = read;
+      return true;
+    }
+    catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
+    {
+      return false;
+    }
   }
 
   /// <summary>

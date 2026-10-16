@@ -11,6 +11,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Practice;
 
+/// <summary>
+/// Reusable PBC instruction fields of the existing <c>CreatePbcRequestRequest</c>. Engagement, actual period, owners,
+/// reviewer and due date are resolved for each engagement plan; nothing from a prior request is copied.
+/// </summary>
+public sealed record WorkflowTemplatePbcDefinition(
+  string Objective,
+  string EntityScope,
+  string Area,
+  string RequestedFormat,
+  string? ControlTotals,
+  string Confidentiality,
+  string AcceptanceCriteria);
+
 public sealed record WorkflowTemplateStepDraft(
   string StableKey,
   string Phase,
@@ -22,7 +35,8 @@ public sealed record WorkflowTemplateStepDraft(
   string? PbcRequestReference,
   bool RequiredTask,
   int SortOrder,
-  IReadOnlyList<string>? DependsOnStepKeys = null);
+  IReadOnlyList<string>? DependsOnStepKeys = null,
+  WorkflowTemplatePbcDefinition? PbcDefinition = null);
 
 public sealed record SaveWorkflowTemplateDraftRequest(
   Guid? TemplateId,
@@ -44,7 +58,8 @@ public sealed record WorkflowTemplateStepView(
   string? PbcRequestReference,
   bool RequiredTask,
   int SortOrder,
-  IReadOnlyList<string> DependsOnStepKeys);
+  IReadOnlyList<string> DependsOnStepKeys,
+  WorkflowTemplatePbcDefinition? PbcDefinition = null);
 
 public sealed record WorkflowTemplateRevisionView(
   Guid TemplateId,
@@ -364,7 +379,8 @@ public static class WorkflowTemplateService
       (s.Instructions ?? string.Empty).Trim(), string.IsNullOrWhiteSpace(s.SuggestedStaffingLevel) ? null : s.SuggestedStaffingLevel.Trim(),
       s.EstimatedEffortMinutes, s.DueDateOffsetDays,
       string.IsNullOrWhiteSpace(s.PbcRequestReference) ? null : s.PbcRequestReference.Trim(), s.RequiredTask, s.SortOrder,
-      (s.DependsOnStepKeys ?? []).Select(k => (k ?? string.Empty).Trim()).ToArray())).ToArray();
+      (s.DependsOnStepKeys ?? []).Select(k => (k ?? string.Empty).Trim()).ToArray(),
+      NormalizePbcDefinition(s.PbcDefinition))).ToArray();
     var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     foreach (var step in steps)
     {
@@ -377,6 +393,8 @@ public static class WorkflowTemplateService
         return (null, $"Step '{step.StableKey}' has an unknown phase or a field outside its allowed range.");
       if (step.DependsOnStepKeys!.Count > 100 || step.DependsOnStepKeys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != step.DependsOnStepKeys.Count)
         return (null, $"Step '{step.StableKey}' has duplicate or excessive dependencies.");
+      if (step.PbcDefinition is { } pbc && (!step.DueDateOffsetDays.HasValue || !ValidPbcDefinition(pbc)))
+        return (null, $"Step '{step.StableKey}' has an incomplete PBC request definition. Enter the objective, entity scope, area, requested format, confidentiality and acceptance criteria within their limits, and a due-date offset.");
     }
     if (steps.Select(x => x.SortOrder).Distinct().Count() != steps.Length)
       return (null, "Each template step must have a distinct order number.");
@@ -387,6 +405,25 @@ public static class WorkflowTemplateService
     if (HasCycle(steps)) return (null, "Template dependencies must form an acyclic graph.");
     return (new WorkflowTemplateDefinition(name, route, industry, steps), null);
   }
+
+  private static WorkflowTemplatePbcDefinition? NormalizePbcDefinition(WorkflowTemplatePbcDefinition? pbc) =>
+    pbc is null ? null : new WorkflowTemplatePbcDefinition((pbc.Objective ?? string.Empty).Trim(),
+      (pbc.EntityScope ?? string.Empty).Trim(), (pbc.Area ?? string.Empty).Trim(),
+      (pbc.RequestedFormat ?? string.Empty).Trim(),
+      string.IsNullOrWhiteSpace(pbc.ControlTotals) ? null : pbc.ControlTotals.Trim(),
+      (pbc.Confidentiality ?? string.Empty).Trim(), (pbc.AcceptanceCriteria ?? string.Empty).Trim());
+
+  // Mirrors PbcService request bounds so a reviewed definition is executable without being reinterpreted.
+  private static bool ValidPbcDefinition(WorkflowTemplatePbcDefinition pbc) =>
+    pbc.Objective.Length is >= 1 and <= 2000 && pbc.EntityScope.Length is >= 1 and <= 500 &&
+    pbc.Area.Length is >= 1 and <= 200 && pbc.RequestedFormat.Length is >= 1 and <= 200 &&
+    (pbc.ControlTotals?.Length ?? 0) <= 2000 && pbc.Confidentiality.Length is >= 1 and <= 100 &&
+    pbc.AcceptanceCriteria.Length is >= 1 and <= 4000;
+
+  internal static WorkflowTemplatePbcDefinition? PbcDefinitionOf(WorkflowTemplateStep step) =>
+    step.PbcObjective is null ? null : new WorkflowTemplatePbcDefinition(step.PbcObjective,
+      step.PbcEntityScope ?? string.Empty, step.PbcArea ?? string.Empty, step.PbcRequestedFormat ?? string.Empty,
+      step.PbcControlTotals, step.PbcConfidentiality ?? string.Empty, step.PbcAcceptanceCriteria ?? string.Empty);
 
   private static (WorkflowTemplateDefinition? Value, string? Error) NormalizeAndValidate(WorkflowTemplateDefinition definition) =>
     NormalizeAndValidate(new SaveWorkflowTemplateDraftRequest(null, definition.Name, definition.ServiceRoute,
@@ -412,12 +449,21 @@ public static class WorkflowTemplateService
     var bytes = JsonSerializer.SerializeToUtf8Bytes(new
     {
       definition.Name, definition.ServiceRoute, definition.IndustryKey,
-      steps = definition.Steps.OrderBy(x => x.SortOrder).Select(x => new
-      {
-        x.StableKey, x.Phase, x.Title, x.Instructions, x.SuggestedStaffingLevel, x.EstimatedEffortMinutes,
-        x.DueDateOffsetDays, x.PbcRequestReference, x.RequiredTask, x.SortOrder,
-        dependencies = x.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase)
-      })
+      // A step without a typed PBC definition keeps its original digest shape, so existing revisions still verify.
+      steps = definition.Steps.OrderBy(x => x.SortOrder).Select(x => x.PbcDefinition is null
+        ? (object)new
+        {
+          x.StableKey, x.Phase, x.Title, x.Instructions, x.SuggestedStaffingLevel, x.EstimatedEffortMinutes,
+          x.DueDateOffsetDays, x.PbcRequestReference, x.RequiredTask, x.SortOrder,
+          dependencies = x.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase)
+        }
+        : new
+        {
+          x.StableKey, x.Phase, x.Title, x.Instructions, x.SuggestedStaffingLevel, x.EstimatedEffortMinutes,
+          x.DueDateOffsetDays, x.PbcRequestReference, x.RequiredTask, x.SortOrder,
+          dependencies = x.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase),
+          pbcDefinition = x.PbcDefinition
+        })
     }, Json);
     return Convert.ToHexStringLower(SHA256.HashData(bytes));
   }
@@ -433,7 +479,11 @@ public static class WorkflowTemplateService
         Phase = step.Phase, Title = step.Title, Instructions = step.Instructions,
         SuggestedStaffingLevel = step.SuggestedStaffingLevel, EstimatedEffortMinutes = step.EstimatedEffortMinutes,
         DueDateOffsetDays = step.DueDateOffsetDays, PbcRequestReference = step.PbcRequestReference,
-        RequiredTask = step.RequiredTask, SortOrder = step.SortOrder
+        RequiredTask = step.RequiredTask, SortOrder = step.SortOrder,
+        PbcObjective = step.PbcDefinition?.Objective, PbcEntityScope = step.PbcDefinition?.EntityScope,
+        PbcArea = step.PbcDefinition?.Area, PbcRequestedFormat = step.PbcDefinition?.RequestedFormat,
+        PbcControlTotals = step.PbcDefinition?.ControlTotals, PbcConfidentiality = step.PbcDefinition?.Confidentiality,
+        PbcAcceptanceCriteria = step.PbcDefinition?.AcceptanceCriteria
       });
     foreach (var step in steps)
       foreach (var predecessor in step.DependsOnStepKeys!)
@@ -466,7 +516,7 @@ public static class WorkflowTemplateService
       revision.UpdatedAt, revision.PublishedAt, template.ArchivedAt,
       steps.Select(s => new WorkflowTemplateStepView(s.Id, s.StableKey, s.Phase, s.Title, s.Instructions,
         s.SuggestedStaffingLevel, s.EstimatedEffortMinutes, s.DueDateOffsetDays, s.PbcRequestReference,
-        s.RequiredTask, s.SortOrder, byStep.GetValueOrDefault(s.Id, []))).ToArray());
+        s.RequiredTask, s.SortOrder, byStep.GetValueOrDefault(s.Id, []), PbcDefinitionOf(s))).ToArray());
   }
 
   private static async Task<WorkflowTemplateDefinition> LoadDefinitionAsync(
@@ -485,7 +535,7 @@ public static class WorkflowTemplateService
     return new WorkflowTemplateDefinition(revision.Name, revision.ServiceRoute, revision.IndustryKey,
       steps.Select(s => new WorkflowTemplateStepDraft(s.StableKey, s.Phase, s.Title, s.Instructions,
         s.SuggestedStaffingLevel, s.EstimatedEffortMinutes, s.DueDateOffsetDays, s.PbcRequestReference,
-        s.RequiredTask, s.SortOrder, dependencies.GetValueOrDefault(s.Id, []))).ToArray());
+        s.RequiredTask, s.SortOrder, dependencies.GetValueOrDefault(s.Id, []), PbcDefinitionOf(s))).ToArray());
   }
 
   private static WorkflowTemplateDecision Decision(ActorContext actor, Guid templateId, Guid revisionId, string kind,

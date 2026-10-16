@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, linkedSignal, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,18 +13,21 @@ import { PortalBranding } from './branding';
 import { PortalReportAction } from './report-action';
 import { SessionService } from '../../core/session';
 
+interface PortalShell { generation: number; onboarding: boolean }
+
 @Component({ selector: 'audit-client-portal', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, PortalDocuments, PortalJournals, PortalFinance, PortalBranding, PortalReportAction, ...SHARED],
   template: `
     <audit-page-header title="Client portal" description="Your assigned requests and validated financial packages. Internal audit workpapers remain restricted." />
     <button matButton (click)="ws.reload()" [disabled]="busy() || ws.loading()">Refresh portal</button>
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="your portal" />
     <audit-command-message [message]="message()" [failed]="failed()" />
-    @if (ws.data(); as w) {
+    @if (shell(); as s) {
       <audit-portal-branding />
-      @if (w.pendingOnboarding && !w.engagementCount) {
+      @if (s.onboarding) {
         <section class="panel" role="status"><h2>Portal setup pending</h2>
           <p>Your workspace opens after commercial acceptance, Partner clearance, engagement activation and advance payment. Contact your audit team for the remaining action.</p></section>
       } @else {
+        @if (ws.data(); as w) {
         @if (!w.firstSignIn.completed) {
           <section class="panel"><h2>Complete your first sign-in</h2><p>{{ w.firstSignIn.message }}</p>
             @if (w.firstSignIn.canComplete) {
@@ -67,9 +70,11 @@ import { SessionService } from '../../core/session';
             </label>
           </nav>
         </section>
+        }
         <audit-portal-documents />
         <audit-portal-journals />
         <audit-portal-finance />
+        @if (ws.data(); as w) {
         <section class="panel"><h2>Financial packages for management review</h2>
           @for (p of packageRows(w.packages); track p.id) {
             @if (packagePageSize() === 10) {
@@ -95,6 +100,7 @@ import { SessionService } from '../../core/session';
             </nav>
           }
         </section>
+        }
       }
     }
   `, styles: `.portal-request { padding: 1rem 0; border-bottom: 1px solid var(--mat-sys-outline-variant); }
@@ -110,6 +116,24 @@ export class ClientPortalHome {
   readonly packagePage = signal(0);
   readonly packagePageSize = signal(10);
   readonly ws = this.api.resource(() => `/api/ui/portal?page=${this.requestPage()}&pageSize=${this.requestPageSize()}`, portalWorkspace, 'Portal unavailable. A current client assignment is required.');
+  /**
+   * The authorized portal shell, opened only by a decoded summary of the current session. It outlives a summary reload in
+   * progress (polling, paging, refresh), so the child editors keep their drafts, file selection and in-flight command context.
+   * Any failed or undecodable summary read, or a session change, closes it and destroys the children with their protected
+   * content; children are never rendered from a summary of an earlier session.
+   */
+  readonly shell = linkedSignal<{ onboarding: boolean | null; failed: boolean; generation: number; signedIn: boolean }, PortalShell | null>({
+    source: () => {
+      const w = this.ws.data();
+      return { onboarding: w ? w.pendingOnboarding && !w.engagementCount : null, failed: !!this.ws.error(),
+        generation: this.session.invalidation(), signedIn: !!this.session.current() };
+    },
+    computation: (s, previous) => {
+      if (s.failed || !s.signedIn) return null;
+      if (s.onboarding !== null) return { generation: s.generation, onboarding: s.onboarding };
+      return previous?.value?.generation === s.generation ? previous.value : null;
+    },
+  });
   readonly terms = inject(FormBuilder).nonNullable.group({ acknowledged: [false, Validators.requiredTrue] });
   readonly busy = signal(false); readonly message = signal(''); readonly failed = signal(false);
   statusLabel(state: string): string { return clientRequestStatusLabel(state); }

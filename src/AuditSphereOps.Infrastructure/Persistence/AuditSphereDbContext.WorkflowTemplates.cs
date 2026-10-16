@@ -85,13 +85,20 @@ public sealed partial class AuditSphereDbContext
     b.Entity<WorkflowTemplateStep>().Property(x => x.Instructions).HasMaxLength(4000);
     b.Entity<WorkflowTemplateStep>().Property(x => x.SuggestedStaffingLevel).HasMaxLength(40);
     b.Entity<WorkflowTemplateStep>().Property(x => x.PbcRequestReference).HasMaxLength(120);
+    b.Entity<WorkflowTemplateStep>().Property(x => x.PbcObjective).HasMaxLength(2000);
+    b.Entity<WorkflowTemplateStep>().Property(x => x.PbcEntityScope).HasMaxLength(500);
+    b.Entity<WorkflowTemplateStep>().Property(x => x.PbcArea).HasMaxLength(200);
+    b.Entity<WorkflowTemplateStep>().Property(x => x.PbcRequestedFormat).HasMaxLength(200);
+    b.Entity<WorkflowTemplateStep>().Property(x => x.PbcControlTotals).HasMaxLength(2000);
+    b.Entity<WorkflowTemplateStep>().Property(x => x.PbcConfidentiality).HasMaxLength(100);
+    b.Entity<WorkflowTemplateStep>().Property(x => x.PbcAcceptanceCriteria).HasMaxLength(4000);
     b.Entity<WorkflowTemplateStep>().HasOne<WorkflowTemplateRevision>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.TemplateRevisionId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<WorkflowTemplateStep>().ToTable("workflow_template_steps", t =>
     {
       t.HasCheckConstraint("ck_workflow_template_step_values",
-        "stable_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE') AND length(trim(title)) BETWEEN 1 AND 200 AND length(instructions) <= 4000 AND (suggested_staffing_level IS NULL OR suggested_staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND (estimated_effort_minutes IS NULL OR estimated_effort_minutes BETWEEN 1 AND 1000000) AND (due_date_offset_days IS NULL OR due_date_offset_days BETWEEN -3650 AND 3650) AND (pbc_request_reference IS NULL OR length(trim(pbc_request_reference)) BETWEEN 1 AND 120) AND sort_order BETWEEN 1 AND 100000");
+        "stable_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE') AND length(trim(title)) BETWEEN 1 AND 200 AND length(instructions) <= 4000 AND (suggested_staffing_level IS NULL OR suggested_staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND (estimated_effort_minutes IS NULL OR estimated_effort_minutes BETWEEN 1 AND 1000000) AND (due_date_offset_days IS NULL OR due_date_offset_days BETWEEN -3650 AND 3650) AND (pbc_request_reference IS NULL OR length(trim(pbc_request_reference)) BETWEEN 1 AND 120) AND ((pbc_objective IS NULL AND pbc_entity_scope IS NULL AND pbc_area IS NULL AND pbc_requested_format IS NULL AND pbc_control_totals IS NULL AND pbc_confidentiality IS NULL AND pbc_acceptance_criteria IS NULL) OR (length(trim(pbc_objective)) BETWEEN 1 AND 2000 AND length(trim(pbc_entity_scope)) BETWEEN 1 AND 500 AND length(trim(pbc_area)) BETWEEN 1 AND 200 AND length(trim(pbc_requested_format)) BETWEEN 1 AND 200 AND (pbc_control_totals IS NULL OR length(trim(pbc_control_totals)) BETWEEN 1 AND 2000) AND length(trim(pbc_confidentiality)) BETWEEN 1 AND 100 AND length(trim(pbc_acceptance_criteria)) BETWEEN 1 AND 4000)) AND sort_order BETWEEN 1 AND 100000");
     });
 
     b.Entity<WorkflowTemplateDependency>().HasAlternateKey(x => new { x.FirmId, x.TemplateRevisionId, x.Id })

@@ -13,6 +13,14 @@ namespace AuditSphereOps.Infrastructure.Providers;
 public sealed record SelectedSiteItem(string ItemId, string Name, string ParentId, long Size, bool IsFolder);
 
 /// <summary>
+/// One observation of a file's current version: the item, its current version ID and its content tag
+/// (Graph cTag, which changes with the content but not with metadata-only changes). Two equal observations
+/// taken before and after a current-content read fence those bytes to that version. Graph documents no
+/// conditional (If-Match) GET for content, so the fence is this comparison, not a request header.
+/// </summary>
+internal sealed record SelectedSiteVersion(string ItemId, string VersionId, string ContentTag);
+
+/// <summary>
 /// Graph drive operations confined to one selected site. Every call uses the Sites.Selected token for
 /// the exact tenant and credential slot; the Graph-issued upload/download URLs go only through the
 /// restricted <see cref="GraphPreauthenticatedTransport"/> and never receive the bearer token.
@@ -160,20 +168,37 @@ public sealed class GraphSelectedSiteDrive(HttpClient graph, ISelectedSiteTokenS
     return await ItemAsync(response, ct);
   }
 
-  /// <summary>Current version ID of a file (Graph lists versions newest first).</summary>
-  internal async Task<string> CurrentVersionAsync(SelectedSiteLocation location, string itemId, CancellationToken ct)
+  /// <summary>
+  /// Observes a file's content tag, then its current version ID (Graph lists versions newest first).
+  /// A missing tag or version fails closed: the fence cannot be established without both.
+  /// </summary>
+  internal async Task<SelectedSiteVersion> ObserveVersionAsync(SelectedSiteLocation location, string itemId, CancellationToken ct)
   {
     var token = await TokenAsync(location, ct);
-    using var request = Request(HttpMethod.Get, $"{Graph}/drives/{Id(location.DriveId)}/items/{Id(itemId)}/versions?$select=id&$top=1", token);
-    using var response = await graph.SendAsync(request, ct);
-    if (!response.IsSuccessStatusCode) throw Classify(response);
-    using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+    string contentTag;
+    using (var request = Request(HttpMethod.Get, $"{Graph}/drives/{Id(location.DriveId)}/items/{Id(itemId)}?$select=id,cTag,folder", token))
+    using (var response = await graph.SendAsync(request, ct))
+    {
+      if (!response.IsSuccessStatusCode) throw Classify(response);
+      using var item = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+      if (Text(item.RootElement, "id") != itemId || item.RootElement.TryGetProperty("folder", out _))
+        throw Blocked("selected-site-item-mismatch");
+      contentTag = Text(item.RootElement, "cTag") is { Length: > 0 } tag ? tag : throw Blocked("selected-site-version-unavailable");
+    }
+    using var versions = Request(HttpMethod.Get, $"{Graph}/drives/{Id(location.DriveId)}/items/{Id(itemId)}/versions?$select=id&$top=1", token);
+    using var listed = await graph.SendAsync(versions, ct);
+    if (!listed.IsSuccessStatusCode) throw Classify(listed);
+    using var json = await JsonDocument.ParseAsync(await listed.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
     return json.RootElement.TryGetProperty("value", out var value) && value.GetArrayLength() > 0 &&
       value[0].TryGetProperty("id", out var id) && id.GetString() is { Length: > 0 } v
-        ? v : throw Blocked("selected-site-version-unavailable");
+        ? new(itemId, v, contentTag) : throw Blocked("selected-site-version-unavailable");
   }
 
-  /// <summary>SHA-256 of an exact version's bytes (or the current content when versionId is null).</summary>
+  /// <summary>
+  /// SHA-256 of a historical version's bytes, or of the current content when versionId is null (Graph's
+  /// version-content endpoint does not serve the current version). A current read is not bound to any
+  /// version by itself: callers bracket it with <see cref="ObserveVersionAsync"/>.
+  /// </summary>
   internal async Task<(string Sha256, long Size)> ContentDigestAsync(SelectedSiteLocation location, string itemId,
     string? versionId, long maxBytes, CancellationToken ct) =>
     await ContentDigestAsync(await TokenAsync(location, ct), location.DriveId, itemId, versionId, maxBytes, ct);
@@ -262,12 +287,14 @@ public sealed class GraphSelectedSiteDrive(HttpClient graph, ISelectedSiteTokenS
   {
     using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
     var root = json.RootElement;
-    string? Text(JsonElement e, string n) => e.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
     var parent = root.TryGetProperty("parentReference", out var p) ? Text(p, "id") : null;
     var size = root.TryGetProperty("size", out var s) && s.TryGetInt64(out var bytes) ? bytes : 0;
     return new(Text(root, "id") ?? throw Blocked("selected-site-item-invalid"), Text(root, "name") ?? string.Empty,
       parent ?? string.Empty, size, root.TryGetProperty("folder", out _));
   }
+
+  private static string? Text(JsonElement e, string n) =>
+    e.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
   private static Exception Classify(HttpResponseMessage response) => response.StatusCode switch
   {

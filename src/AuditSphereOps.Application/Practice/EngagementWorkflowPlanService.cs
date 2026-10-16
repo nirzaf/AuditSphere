@@ -12,32 +12,56 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record WorkflowPlanOwnerSelection(string StepKey, Guid AssigneeUserId);
+/// <summary>Explicit current owners for one typed PBC step. Nothing is copied from an earlier request or year.</summary>
+public sealed record WorkflowPlanPbcOwnerSelection(string StepKey, Guid ClientOwnerUserId, Guid FirmOwnerUserId,
+  Guid ReviewerUserId);
 public sealed record PreviewEngagementWorkflowPlanRequest(Guid TemplateRevisionId,
-  IReadOnlyList<WorkflowPlanOwnerSelection>? Owners = null);
+  IReadOnlyList<WorkflowPlanOwnerSelection>? Owners = null,
+  IReadOnlyList<WorkflowPlanPbcOwnerSelection>? PbcOwners = null);
 public sealed record ExecuteEngagementWorkflowPlanRequest(Guid TemplateRevisionId, string ExpectedPreviewDigest,
-  Guid IdempotencyKey, IReadOnlyList<WorkflowPlanOwnerSelection>? Owners = null);
+  Guid IdempotencyKey, IReadOnlyList<WorkflowPlanOwnerSelection>? Owners = null,
+  IReadOnlyList<WorkflowPlanPbcOwnerSelection>? PbcOwners = null);
+/// <summary>Creates the still-pending PBC drafts of an executed plan (for example after activation) for the same steps.</summary>
+public sealed record CreateWorkflowPlanPbcDraftsRequest(Guid TemplateRevisionId, string ExpectedPreviewDigest,
+  IReadOnlyList<WorkflowPlanPbcOwnerSelection>? PbcOwners = null);
 public sealed record WorkflowPlanOwnerCandidate(Guid UserId, string DisplayName, string StaffingLevel);
+public sealed record WorkflowPlanPbcCandidate(Guid UserId, string DisplayName);
+/// <summary>
+/// The exact request a typed template step will create: fresh, unsent, current period and current owners. A linked
+/// step shows the request already bound to its task; an unresolved legacy reference is descriptive only.
+/// </summary>
+public sealed record WorkflowPlanPbcPreview(string State, string? Reference, WorkflowTemplatePbcDefinition? Definition,
+  string PeriodStart, string PeriodEnd, DateOnly? DueDate, Guid? ClientOwnerUserId, Guid? FirmOwnerUserId,
+  Guid? ReviewerUserId, Guid? PbcRequestId, string? PbcRequestState);
 public sealed record WorkflowPlanStepPreview(string StepKey, Guid TemplateStepId, string Title, string Instructions,
   string Phase, int SortOrder, DateOnly? DueDate, int? PlannedEffortMinutes, string? SuggestedStaffingLevel,
   Guid? SelectedAssigneeUserId, IReadOnlyList<WorkflowPlanOwnerCandidate> EligibleOwners,
-  IReadOnlyList<string> DependsOnStepKeys, bool MissingEligibleAssignee, Guid? ExistingTaskId);
+  IReadOnlyList<string> DependsOnStepKeys, bool MissingEligibleAssignee, Guid? ExistingTaskId,
+  WorkflowPlanPbcPreview? Pbc = null);
 public sealed record EngagementWorkflowPlanPreview(Guid EngagementId, long EngagementGeneration, Guid TemplateId,
   Guid TemplateRevisionId, int TemplateVersion, string TemplateName, string TemplateContentDigest,
   Guid? MilestonePlanId, long? MilestonePlanRevision, DateOnly? ScheduleBasisDate, string PreviewDigest,
   bool AlreadyInstantiated, int ExistingTaskCount, string? TemplateUpdateNotice,
-  IReadOnlyList<WorkflowPlanStepPreview> Steps, bool CanExecute = false);
+  IReadOnlyList<WorkflowPlanStepPreview> Steps, string EngagementStatus,
+  IReadOnlyList<WorkflowPlanPbcCandidate> PbcClientOwners, IReadOnlyList<WorkflowPlanPbcCandidate> PbcFirmOwners,
+  IReadOnlyList<WorkflowPlanPbcCandidate> PbcReviewers, bool CanExecute = false, bool CanCreatePbcDrafts = false);
+public sealed record WorkflowPlanPbcDraftLink(string StepKey, Guid TemplateStepId, Guid TaskId, Guid PbcRequestId);
 public sealed record EngagementWorkflowPlanReceipt(Guid ReceiptId, Guid EngagementId, Guid TemplateId,
   Guid TemplateRevisionId, int TemplateVersion, string RequestDigest, int TaskCount, bool Replayed,
-  DateTimeOffset CreatedAt, IReadOnlyList<Guid> TaskIds);
+  DateTimeOffset CreatedAt, IReadOnlyList<Guid> TaskIds, IReadOnlyList<WorkflowPlanPbcDraftLink> PbcDrafts);
 
 /// <summary>
 /// Instantiates an immutable published template revision as supporting WorkTask records. The receipt pins the exact
 /// engagement generation, staffing snapshot and statutory schedule. It never advances lifecycle or audit decisions.
+/// A typed template PBC step becomes one fresh unsent DRAFT request through <see cref="PbcService.CreateRequestAsync"/>,
+/// bound to that step's task in the same transaction. Sending remains a separate command.
 /// </summary>
 public static class EngagementWorkflowPlanService
 {
   private static readonly string[] ReadRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff"];
   private static readonly string[] ConfigureRoles = ["Administrator", "Partner", "Manager"];
+  // Same reviewer population the PBC inbox offers; expiry and the scope are checked here as well.
+  private static readonly string[] PbcReviewerRoles = ["Reviewer", "Manager", "Partner", "AccountingReviewer"];
   private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
   /// <summary>Published choices for one authorized engagement; never exposes drafts or grants template administration.</summary>
@@ -380,7 +404,7 @@ public static class EngagementWorkflowPlanService
       engagement.Generation, template.Id, revision.Id, revision.Version, revision.Name, revision.ContentDigest,
       needsCutoff ? milestone!.Id : null, needsCutoff ? milestone!.Revision : null,
       needsCutoff ? milestone!.StatutoryFilingCutoff : null, digest, receipt is not null,
-      existing.Count, notice, planSteps));
+      existing.Count, notice, planSteps, engagement.Status, [], [], []));
   }
 
   private static async Task<EngagementWorkflowPlanReceipt> ReceiptViewAsync(
@@ -392,7 +416,7 @@ public static class EngagementWorkflowPlanService
       .OrderBy(x => x.Ordinal).ThenBy(x => x.WorkTaskId).Select(x => x.WorkTaskId).ToListAsync(ct);
     return new EngagementWorkflowPlanReceipt(receipt.Id,
       receipt.EngagementId, receipt.TemplateId, receipt.TemplateRevisionId, receipt.TemplateVersion,
-      receipt.RequestDigest, receipt.TaskCount, replayed, receipt.CreatedAt, taskIds);
+      receipt.RequestDigest, receipt.TaskCount, replayed, receipt.CreatedAt, taskIds, []);
   }
 
   private static bool HasDependencyCycle(IEnumerable<Guid> stepIds, IReadOnlyCollection<WorkflowTemplateDependency> edges)

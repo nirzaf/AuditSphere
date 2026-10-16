@@ -114,15 +114,15 @@ public sealed class BillingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
       accountId = (await BillingService.CreateBillingAccountAsync(db, fixture.ManagerActor,
         new CreateBillingAccountRequest(fixture.ClientId, "QAR"))).Value;
-    var sourceId = Guid.NewGuid();
+    // A supported, validated source: unknown kinds are refused before any reservation exists.
+    var sourceId = await SeedTimeAsync(pg, fixture, PracticeTimeStates.TimeApproved);
 
     async Task<CommandResult<Guid>> CreateAsync(string number)
     {
       await using var db = new AuditSphereDbContext(pg.Options);
       return await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
         new CreateInvoiceDraftRequest(accountId, number, [
-          new InvoiceLineRequest("One approved milestone", 1, 100,
-            "MILESTONE", sourceId, 1)
+          new InvoiceLineRequest("One approved time entry", 1.5m, 300m, "TIME", sourceId, 1)
         ]));
     }
 
@@ -132,6 +132,93 @@ public sealed class BillingTests
     Assert.Contains(results, x => x.ErrorCode is "billing.source-duplicate" or "billing.conflict");
     await using var verify = new AuditSphereDbContext(pg.Options);
     Assert.Equal(1, await verify.BillingSourceAllocations.CountAsync());
+  }
+
+  [Theory]
+  [InlineData("permitted", null)]
+  [InlineData("stale-revision", "billing.source-invalid")]
+  [InlineData("wrong-status", "billing.source-invalid")]
+  [InlineData("unsupported-kind", "billing.source-unsupported")]
+  public async Task InvoiceTimeSourceScope_ValidatesTypedSourceBeforeAnyReservation(string scenario, string? expectedError)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid accountId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      accountId = (await BillingService.CreateBillingAccountAsync(db, fixture.ManagerActor,
+        new CreateBillingAccountRequest(fixture.ClientId, "QAR"))).Value;
+    var entryId = await SeedTimeAsync(pg, fixture,
+      scenario == "wrong-status" ? PracticeTimeStates.TimeSubmitted : PracticeTimeStates.TimeApproved);
+    // The approved snapshot is 90 minutes at 300/hour: quantity 1.5 and amount 450.
+    var line = scenario switch
+    {
+      "stale-revision" => new InvoiceLineRequest("Approved time", 1.5m, 300m, "TIME", entryId, 2),
+      "unsupported-kind" => new InvoiceLineRequest("Unvalidated source", 1.5m, 300m, "MILESTONE", entryId, 1),
+      _ => new InvoiceLineRequest("Approved time", 1.5m, 300m, "TIME", entryId, 1)
+    };
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
+        new CreateInvoiceDraftRequest(accountId, "INV-SOURCE-1", [line]));
+      Assert.Equal(expectedError, result.ErrorCode);
+      Assert.Equal(expectedError is null, result.Succeeded);
+    }
+
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(expectedError is null ? 1 : 0, await verify.Invoices.CountAsync());
+      Assert.Equal(expectedError is null ? 1 : 0, await verify.BillingSourceAllocations.CountAsync());
+    }
+    if (expectedError is not null) return;
+
+    // One reservation survives the invoice lifecycle: no later draft can reserve the same source revision.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var invoiceId = await db.Invoices.Select(x => x.Id).SingleAsync();
+      Assert.Equal("billing.source-duplicate", (await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
+        new CreateInvoiceDraftRequest(accountId, "INV-SOURCE-2", [line]))).ErrorCode);
+      Assert.True((await BillingService.SubmitInvoiceAsync(db, fixture.ManagerActor, invoiceId)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(db, fixture.ReviewerActor, invoiceId)).Succeeded);
+      db.FirmFinanceProfiles.Add(new FirmFinanceProfile
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, FunctionalCurrency = "QAR", ProfileKind = BillingStates.TestProfile,
+        Approved = true, ApprovedByUserId = fixture.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      Assert.True((await BillingService.PostInvoiceAsync(db, fixture.ManagerActor, invoiceId)).Succeeded);
+      Assert.Equal("billing.source-duplicate", (await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
+        new CreateInvoiceDraftRequest(accountId, "INV-SOURCE-3", [line]))).ErrorCode);
+    }
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+      Assert.Equal(1, await verify.BillingSourceAllocations.CountAsync());
+  }
+
+  private static async Task<Guid> SeedTimeAsync(PgTestSchema pg, Fixture fixture, string status)
+  {
+    var now = DateTimeOffset.UtcNow;
+    var taskId = Guid.NewGuid();
+    var rateCardId = Guid.NewGuid();
+    var entryId = Guid.NewGuid();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.WorkTasks.Add(new WorkTask { Id = taskId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, Title = "Billing source task", CreatedAt = now });
+    db.RateCardVersions.Add(new RateCardVersion
+    {
+      Id = rateCardId, FirmId = fixture.FirmId, Role = "Staff", Activity = "Billing source", Currency = "QAR", RatePerHour = 300m,
+      Status = PracticeTimeStates.RateApproved, CreatedByUserId = fixture.Manager.Id, ApprovedByUserId = fixture.Reviewer.Id,
+      ApprovedAt = now, CreatedAt = now
+    });
+    db.TimeEntries.Add(new TimeEntry
+    {
+      Id = entryId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, TaskId = taskId, UserId = fixture.Manager.Id,
+      WorkDate = new DateOnly(2026, 3, 2), StartMinute = 540, DurationMinutes = 90, Role = "Staff", Activity = "Billing source",
+      Narrative = "Synthetic billable time", BillableClassification = PracticeTimeStates.Billable, Status = status, Currency = "QAR",
+      RateCardVersionId = rateCardId, RatePerHour = 300m, SubmittedAt = now,
+      ApprovedByUserId = status == PracticeTimeStates.TimeApproved ? fixture.Reviewer.Id : null,
+      ApprovedAt = status == PracticeTimeStates.TimeApproved ? now : null, CreatedAt = now
+    });
+    await db.SaveChangesAsync();
+    return entryId;
   }
 
   private static async Task<Fixture> SeedAsync(PgTestSchema pg)

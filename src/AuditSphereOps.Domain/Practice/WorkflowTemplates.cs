@@ -61,6 +61,20 @@ public sealed class WorkflowTemplateRevision
   public long Revision { get; set; } = 1;
 }
 
+/// <summary>Per-step PBC instantiation state shown by a workflow plan preview. None of these states sends a request.</summary>
+public static class WorkflowPlanPbcStates
+{
+  /// <summary>Legacy descriptive text only; it is never interpreted as an executable request definition.</summary>
+  public const string UnresolvedReference = "UNRESOLVED_REFERENCE";
+  public const string OwnersRequired = "OWNERS_REQUIRED";
+  /// <summary>The existing Active-engagement PBC guard applies; no request is created before activation.</summary>
+  public const string BlockedActivation = "BLOCKED_ACTIVATION";
+  /// <summary>Execution creates one fresh unsent DRAFT request through the existing PBC command.</summary>
+  public const string ReadyDraft = "READY_DRAFT";
+  /// <summary>The plan step's task is already bound to its own request; replay creates nothing.</summary>
+  public const string Linked = "LINKED";
+}
+
 public sealed class WorkflowTemplateStep
 {
   public Guid Id { get; set; }
@@ -73,9 +87,19 @@ public sealed class WorkflowTemplateStep
   public string? SuggestedStaffingLevel { get; set; }
   public int? EstimatedEffortMinutes { get; set; }
   public int? DueDateOffsetDays { get; set; }
+  /// <summary>Retained descriptive text. It is not an executable PBC definition and is never inferred into one.</summary>
   public string? PbcRequestReference { get; set; }
   public bool RequiredTask { get; set; } = true;
   public int SortOrder { get; set; }
+  // Optional typed PBC instruction (the reusable CreatePbcRequestRequest fields). It is versioned by the immutable
+  // template revision and covered by its content digest; engagement, period, owners and due date are resolved per plan.
+  public string? PbcObjective { get; set; }
+  public string? PbcEntityScope { get; set; }
+  public string? PbcArea { get; set; }
+  public string? PbcRequestedFormat { get; set; }
+  public string? PbcControlTotals { get; set; }
+  public string? PbcConfidentiality { get; set; }
+  public string? PbcAcceptanceCriteria { get; set; }
 }
 
 public sealed class WorkflowTemplateDependency

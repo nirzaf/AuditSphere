@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
@@ -92,5 +93,97 @@ public sealed class BillingCommandScopeIsolationTests
     {
       PbcSeed.DeleteDirectory(sibling.StagingRoot);
     }
+  }
+
+  [Fact]
+  public async Task InvoiceTimeSourceScope_SiblingClientApprovedTimeCannotBeReservedOnAnAuthorizedAccount()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    var finance = PbcSeed.User(own.FirmId, "Staff");
+    var siblingClientId = Guid.NewGuid();
+    var siblingEngagementId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    Guid siblingEntryId, ownEntryId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.PracticeClients.Add(new PracticeClient { Id = siblingClientId, FirmId = own.FirmId, LegalName = "SOURCE-SCOPE sibling client", CreatedAt = now });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = siblingClientId, FirmId = own.FirmId });
+      db.Engagements.Add(new Engagement
+      {
+        Id = siblingEngagementId, FirmId = own.FirmId, PracticeClientId = siblingClientId, Status = "Active",
+        ServiceRoute = "FinancialStatementAudit", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = now
+      });
+      db.Users.Add(finance);
+      db.RoleGrants.Add(PbcSeed.Grant(own.FirmId, finance, "FinanceManager", own.ClientId));
+      var rateCard = new RateCardVersion
+      {
+        Id = Guid.NewGuid(), FirmId = own.FirmId, Role = "Staff", Activity = "Synthetic source scope", Currency = "QAR",
+        RatePerHour = 300m, Status = PracticeTimeStates.RateApproved, CreatedByUserId = own.Admin.Id,
+        ApprovedByUserId = own.Reviewer.Id, ApprovedAt = now, CreatedAt = now
+      };
+      db.RateCardVersions.Add(rateCard);
+      // Both entries carry identical, internally consistent money; only the client relationship differs.
+      siblingEntryId = AddApprovedTime(db, own, siblingClientId, siblingEngagementId, rateCard.Id, now);
+      ownEntryId = AddApprovedTime(db, own, own.ClientId, own.EngagementId, rateCard.Id, now);
+      await db.SaveChangesAsync();
+    }
+
+    var manager = PbcSeed.Actor(finance, "FinanceManager");
+    Guid accountId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var account = await BillingService.CreateBillingAccountAsync(db, manager, new(own.ClientId, "QAR"));
+      Assert.True(account.Succeeded, account.Message);
+      accountId = account.Value;
+      var denied = await BillingService.CreateInvoiceDraftAsync(db, manager, new(accountId, "SYN-SOURCE-SCOPE-001",
+        [new("Sibling approved time", 1.5m, 300m, "TIME", siblingEntryId, 1)]));
+      Assert.False(denied.Succeeded);
+      Assert.Equal("billing.source-invalid", denied.ErrorCode);
+      Assert.DoesNotContain("SOURCE-SCOPE", denied.Message);
+    }
+
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Empty(await verify.Invoices.Where(x => x.FirmId == own.FirmId).ToListAsync());
+      Assert.Empty(await verify.InvoiceLines.Where(x => x.FirmId == own.FirmId).ToListAsync());
+      Assert.Empty(await verify.BillingSourceAllocations.Where(x => x.FirmId == own.FirmId).ToListAsync());
+    }
+
+    // Control: the same shaped line for the account's own client is reservable exactly once.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var permitted = await BillingService.CreateInvoiceDraftAsync(db, manager, new(accountId, "SYN-SOURCE-SCOPE-002",
+        [new("Own approved time", 1.5m, 300m, "TIME", ownEntryId, 1)]));
+      Assert.True(permitted.Succeeded, permitted.Message);
+    }
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      var reservation = Assert.Single(await verify.BillingSourceAllocations.Where(x => x.FirmId == own.FirmId).ToListAsync());
+      Assert.Equal(ownEntryId, reservation.SourceId);
+      Assert.Equal(450m, reservation.Amount);
+    }
+  }
+
+  private static Guid AddApprovedTime(AuditSphereDbContext db, PbcSeed.Fixture own, Guid clientId, Guid engagementId,
+    Guid rateCardId, DateTimeOffset now)
+  {
+    var taskId = Guid.NewGuid();
+    db.WorkTasks.Add(new WorkTask
+    {
+      Id = taskId, FirmId = own.FirmId, ClientId = clientId, EngagementId = engagementId,
+      Title = "Synthetic source scope task", CreatedAt = now
+    });
+    var entry = new TimeEntry
+    {
+      Id = Guid.NewGuid(), FirmId = own.FirmId, ClientId = clientId, EngagementId = engagementId, TaskId = taskId,
+      UserId = own.Staff.Id, WorkDate = new DateOnly(2026, 3, 2), StartMinute = 540, DurationMinutes = 90, Role = "Staff",
+      Activity = "Synthetic source scope", Narrative = "Synthetic billable time",
+      BillableClassification = PracticeTimeStates.Billable, Status = PracticeTimeStates.TimeApproved, Currency = "QAR",
+      RateCardVersionId = rateCardId, RatePerHour = 300m, SubmittedAt = now, ApprovedByUserId = own.Reviewer.Id,
+      ApprovedAt = now, CreatedAt = now
+    };
+    db.TimeEntries.Add(entry);
+    return entry.Id;
   }
 }

@@ -137,6 +137,56 @@ public sealed class PbcSelectedSiteProviderTests
     Assert.NotEqual(plan.FinalSha256Hex, probed!.ContentSha256Hex);
   }
 
+  /// <summary>
+  /// A writer races the current-content read between the version observation and the bytes: it changes the
+  /// file, or changes it and then restores the earlier bytes as a newer version. Upload, probe and verify must
+  /// each bind a version only to that version's own bytes, reconciling a version that became historical from
+  /// its exact historical content without re-uploading or overwriting. A change that keeps the version label
+  /// stays an unknown outcome.
+  /// </summary>
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task PbcStableVersionReadback_RacingWriterNeverRelabelsBytes(bool restore)
+  {
+    await using var h = await CreateAsync();
+    await ProvisionAsync(h);
+    var sink = new GraphPbcProviderSink(new PbcRepositoryBindingResolver(h.Factory), h.Drive, h.Factory);
+    var plan = await PlanAsync(h);
+    // Same-size racing bytes, so only the version identity (not the byte count) can tell them apart.
+    void Race()
+    {
+      byte[]? earlier = null;
+      h.Graph.BeforeCurrentContent = id => { earlier = h.Graph.Content(id); h.Graph.Tamper(id, RandomNumberGenerator.GetBytes(earlier.Length)); };
+      if (restore) h.Graph.AfterCurrentContent = id => h.Graph.Tamper(id, earlier!);
+    }
+    void AssertExactlyBound(PbcProviderReceipt? receipt)
+    {
+      var parts = receipt!.Identity.Split(':'); // graph-drive-item:{drive}:{item}:{version}
+      var bytes = h.Graph.Content(parts[^2], parts[^1]);
+      Assert.Equal((Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), (long)bytes.Length), (receipt.ContentSha256Hex, receipt.ByteCount));
+    }
+
+    Race();
+    var receipt = await sink.UploadAsync(plan, CancellationToken.None);
+    var stored = Assert.Single(h.Graph.Items, x => !x.Folder && x.Name.StartsWith(h.Scope.UploadIntentId.ToString("N"), StringComparison.Ordinal));
+    Assert.Equal(new PbcProviderReceipt($"graph-drive-item:{FakeGraphDrive.DriveId}:{stored.Id}:1.0", plan.FinalSha256Hex, plan.DeclaredByteCount), receipt);
+    Assert.Equal((1, restore ? 3 : 2), (h.Graph.UploadSessionCalls, h.Graph.VersionCount(stored.Id))); // no re-upload, no overwrite
+
+    var current = await sink.ProbeAsync(h.Scope, CancellationToken.None);
+    Assert.EndsWith(restore ? ":3.0" : ":2.0", current!.Identity);
+    AssertExactlyBound(current);
+
+    Race();
+    Assert.Equal(current, await sink.VerifyAsync(h.Scope, current.Identity, CancellationToken.None));
+    Assert.Equal(receipt, await sink.VerifyAsync(h.Scope, receipt.Identity, CancellationToken.None));
+
+    h.Graph.BeforeCurrentContent = id => h.Graph.Overwrite(id, RandomNumberGenerator.GetBytes(h.Graph.Content(id).Length));
+    await Assert.ThrowsAsync<IOException>(() => sink.ProbeAsync(h.Scope, CancellationToken.None));
+    Assert.Equal(1, h.Graph.UploadSessionCalls);
+    Assert.Single(h.Graph.Items, x => !x.Folder && x.Name.StartsWith(h.Scope.UploadIntentId.ToString("N"), StringComparison.Ordinal));
+  }
+
   [Fact]
   public async Task Provisioning_IsIdempotent_AndDoesNotDuplicateFolders()
   {

@@ -135,18 +135,22 @@ public static class BillingService
         x.InvoiceNumber == request.InvoiceNumber.Trim(), ct))
       return CommandResult<Guid>.Fail("billing.duplicate", "Invoice identity is already used.");
 
+    // Every source is resolved through its own owner and bound to the server-loaded account client before any
+    // reservation is checked, so a sibling client's source is rejected without disclosing its allocation state.
     var sourceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     foreach (var item in normalized.Where(x => x.Request.SourceId.HasValue))
     {
       var line = item.Request;
+      var source = await ValidateSourceAsync(db, actor.FirmId, lockedAccount, line, item.Total, ct);
+      if (source is not null) return CommandResult<Guid>.Fail(source.ErrorCode!, source.Message!);
       var key = SourceKey(line.SourceKind!, line.SourceId!.Value, line.SourceRevision!.Value);
       if (!sourceKeys.Add(key) || await db.BillingSourceAllocations.AnyAsync(x =>
           x.FirmId == actor.FirmId && x.SourceKind == line.SourceKind!.Trim().ToUpperInvariant() &&
           x.SourceId == line.SourceId.Value && x.SourceRevision == line.SourceRevision.Value, ct))
         return CommandResult<Guid>.Fail("billing.source-duplicate", "An approved source is already allocated to an invoice.");
-      var source = await ValidateSourceAsync(db, actor.FirmId, lockedAccount.Currency, line, item.Total, ct);
-      if (source is not null) return CommandResult<Guid>.Fail(source.ErrorCode!, source.Message!);
     }
+    var reauthorized = await AuthorizeBillingAsync(db, actor, lockedAccount.PracticeClientId, BillingRoles, ct);
+    if (!reauthorized.Succeeded) return CommandResult<Guid>.Fail(reauthorized.ErrorCode!, reauthorized.Message!);
 
     var invoice = new Invoice
     {
@@ -511,22 +515,64 @@ public static class BillingService
     await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: roles, InternalOnly: true), ct);
 
+  private const string TimeSourceKind = "TIME";
+
+  // Only approved time and agreed fee milestones may be reserved; every other kind is refused rather than reserved
+  // unvalidated. The account (and therefore its client) is server-loaded and locked by the caller; request IDs never
+  // name the client. Wrong-client, stale and unknown sources return the same non-disclosing refusal.
   private static async Task<CommandResult?> ValidateSourceAsync(
-    IAuditSphereDbContext db, Guid firmId, string currency, InvoiceLineRequest request,
+    IAuditSphereDbContext db, Guid firmId, BillingAccount account, InvoiceLineRequest request,
     decimal lineTotal, CancellationToken ct)
   {
-    if (!string.Equals(request.SourceKind?.Trim(), "TIME", StringComparison.OrdinalIgnoreCase)) return null;
+    var kind = request.SourceKind!.Trim().ToUpperInvariant();
+    return kind switch
+    {
+      TimeSourceKind => await ValidateTimeSourceAsync(db, firmId, account, request, lineTotal, ct),
+      FeeAgreementService.MilestoneSourceKind => await ValidateMilestoneSourceAsync(db, firmId, account, request, lineTotal, ct),
+      _ => CommandResult.Fail("billing.source-unsupported", "Only approved time or an agreed fee milestone can be billed as an invoice source.")
+    };
+  }
+
+  private static async Task<CommandResult?> ValidateTimeSourceAsync(
+    IAuditSphereDbContext db, Guid firmId, BillingAccount account, InvoiceLineRequest request,
+    decimal lineTotal, CancellationToken ct)
+  {
     var entry = await db.TimeEntries.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == firmId && x.Id == request.SourceId && x.Revision == request.SourceRevision &&
+      x.ClientId == account.PracticeClientId &&
       x.Status == PracticeTimeStates.TimeApproved && x.BillableClassification == PracticeTimeStates.Billable, ct);
-    if (entry is null || !string.Equals(entry.Currency, currency, StringComparison.OrdinalIgnoreCase))
-      return CommandResult.Fail("billing.source-invalid", "Only approved billable time in the account currency can be billed.");
+    if (entry is null || !string.Equals(entry.Currency, account.Currency, StringComparison.OrdinalIgnoreCase) ||
+        (entry.EngagementId is { } engagementId && !await EngagementBelongsToClientAsync(db, firmId, engagementId, account.PracticeClientId, ct)))
+      return CommandResult.Fail("billing.source-invalid", "Only approved billable time for this client in the account currency can be billed.");
     var expectedQuantity = entry.DurationMinutes / 60m;
     var expectedAmount = MoneyPolicy.Normalize(entry.DurationMinutes * (entry.RatePerHour ?? 0m) / 60m);
     return request.Quantity != expectedQuantity || lineTotal != expectedAmount
       ? CommandResult.Fail("billing.source-mismatch", "The invoice line does not match the approved time snapshot.")
       : null;
   }
+
+  // A fee milestone has no revision of its own: revision 1 names the agreed amount, which never changes once created.
+  private static async Task<CommandResult?> ValidateMilestoneSourceAsync(
+    IAuditSphereDbContext db, Guid firmId, BillingAccount account, InvoiceLineRequest request,
+    decimal lineTotal, CancellationToken ct)
+  {
+    var milestone = await db.FeeMilestones.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.Id == request.SourceId, ct);
+    var agreement = milestone is null ? null : await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.Id == milestone.AgreementId && x.PracticeClientId == account.PracticeClientId, ct);
+    if (milestone is null || agreement is null || request.SourceRevision != 1 ||
+        milestone.InvoiceId is not null || milestone.State != FeeMilestoneStates.Planned ||
+        !string.Equals(agreement.Currency, account.Currency, StringComparison.OrdinalIgnoreCase) ||
+        (agreement.EngagementId is { } engagementId && !await EngagementBelongsToClientAsync(db, firmId, engagementId, account.PracticeClientId, ct)))
+      return CommandResult.Fail("billing.source-invalid", "Only an uninvoiced agreed fee milestone for this client in the account currency can be billed.");
+    return request.Quantity != 1m || lineTotal != milestone.Amount
+      ? CommandResult.Fail("billing.source-mismatch", "The invoice line does not match the agreed fee milestone.")
+      : null;
+  }
+
+  private static Task<bool> EngagementBelongsToClientAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, Guid clientId, CancellationToken ct) =>
+    db.Engagements.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.Id == engagementId && x.PracticeClientId == clientId, ct);
 
   private static string? ValidateInvoice(CreateInvoiceDraftRequest request)
   {

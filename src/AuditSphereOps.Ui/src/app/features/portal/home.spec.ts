@@ -1,9 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
+import { PortalDocuments } from './documents';
 import { ClientPortalHome } from './home';
 
 const id = (n: number) => `40000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
@@ -42,7 +44,90 @@ describe('Client portal workspace paging', () => {
   });
 
   afterEach(() => {
-    try { http.verify(); } finally { TestBed.resetTestingModule(); }
+    try { http.verify(); } finally { TestBed.resetTestingModule(); vi.useRealTimers(); }
+  });
+
+  it('keeps the document editor, its target, draft, file and one in-flight comment across polling and request paging', async () => {
+    vi.useFakeTimers();
+    const fixture = TestBed.createComponent(ClientPortalHome);
+    fixture.detectChanges(); TestBed.tick();
+    const root = fixture.nativeElement as HTMLElement;
+    const summary = (requests: ReturnType<typeof requestRows>, more: boolean) => ({ ...portal(requests, more), packages: [] });
+    const settle = () => { TestBed.tick(); fixture.detectChanges(); };
+    const reviewId = id(501), letterReviewId = id(502), commentId = id(503);
+    const shared = { documents: [
+      { reviewId, deliverableId: id(511), kind: 'AUDIT_REPORT', title: 'Audited financial statements', version: '3', sha256: 'a'.repeat(64), acknowledgedAt: null, comments: [] },
+      { reviewId: letterReviewId, deliverableId: id(512), kind: 'REPRESENTATION_LETTER', title: 'Representation letter', version: '2', sha256: 'b'.repeat(64),
+        acknowledgedAt: '2026-10-15T10:00:00Z', comments: [] },
+    ], signedLetters: [], bundles: [] };
+    http.expectOne('/api/ui/portal?page=0&pageSize=10').flush(summary(requestRows(10), true)); settle();
+    http.expectOne('/api/ui/portal/branding').flush(branding);
+    http.expectOne('/api/ui/portal/documents').flush(shared);
+    http.expectOne('/api/ui/portal/accounting/journals?page=0').flush({ items: [], page: 0, hasMore: false });
+    http.expectOne('/api/ui/portal/finance').flush({ agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' });
+    settle();
+    const editor = () => fixture.debugElement.query(By.directive(PortalDocuments))?.componentInstance as PortalDocuments | undefined;
+    const original = editor()!;
+    const button = (text: string) => Array.from(root.querySelectorAll('button')).find((b) => b.textContent?.trim() === text)!;
+    const pollSummary = async (url: string, value: ReturnType<typeof summary>) => {
+      await vi.advanceTimersByTimeAsync(30_000); fixture.detectChanges();
+      const read = http.expectOne(url);
+      expect(editor()).toBe(original); // a summary reload in progress keeps the authorized shell and its editor
+      read.flush(value); settle();
+    };
+
+    button('Review this version').click(); fixture.detectChanges();
+    const textarea = root.querySelector('#document-comment') as HTMLTextAreaElement;
+    textarea.value = 'Please clarify note 4.'; textarea.dispatchEvent(new Event('input')); fixture.detectChanges();
+    await pollSummary('/api/ui/portal?page=0&pageSize=10', summary(requestRows(10), true));
+    button('Next requests').click(); settle();
+    http.expectOne('/api/ui/portal?page=1&pageSize=10').flush(summary(requestRows(2, 11), false)); settle();
+    expect(editor()).toBe(original);
+    expect(original.selected()).toBe(reviewId);
+    expect(root.querySelector('#document-comment')).toBe(textarea);
+    expect(textarea.value).toBe('Please clarify note 4.');
+    http.expectNone('/api/ui/portal/documents');
+
+    // The comment is in flight when the next poll fires: polling neither repeats it nor replaces its editor.
+    await vi.advanceTimersByTimeAsync(20_000);
+    const sent = original.comment(reviewId);
+    const post = http.expectOne({ method: 'POST', url: `/api/ui/portal/documents/${reviewId}/comment` });
+    await vi.advanceTimersByTimeAsync(10_000); fixture.detectChanges();
+    http.expectOne('/api/ui/portal?page=1&pageSize=10').flush(summary(requestRows(2, 11), false)); settle();
+    http.expectNone((request) => request.method === 'POST');
+    expect(editor()).toBe(original);
+    expect(original.busy()).toBe(true);
+    post.flush({ value: commentId }); await sent;
+    http.expectOne('/api/ui/portal/documents').flush({ ...shared, documents: [{ ...shared.documents[0],
+      comments: [{ body: 'Please clarify note 4.', fromClient: true, resolution: null }] }, shared.documents[1]] }); settle();
+    expect(root.textContent).toContain('Comment sent to the audit team.');
+    expect(root.textContent).toContain('Client: Please clarify note 4.');
+
+    button('Upload signed letter').click(); fixture.detectChanges();
+    const signatory = root.querySelector('#management-signatory') as HTMLInputElement;
+    signatory.value = 'Authorized Management'; signatory.dispatchEvent(new Event('input'));
+    const fileInput = root.querySelector('#signed-file') as HTMLInputElement;
+    const file = new File(['%PDF-1.7 synthetic signed letter'], 'signed.pdf', { type: 'application/pdf' });
+    Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+    fileInput.dispatchEvent(new Event('change')); fixture.detectChanges();
+    await pollSummary('/api/ui/portal?page=1&pageSize=10', summary(requestRows(2, 11), false));
+    button('Previous requests').click(); settle();
+    http.expectOne('/api/ui/portal?page=0&pageSize=10').flush(summary(requestRows(10), true)); settle();
+    expect(editor()).toBe(original);
+    expect(original.selected()).toBe(letterReviewId);
+    expect(original.file()).toBe(file);
+    expect(root.querySelector('#signed-file')).toBe(fileInput);
+    expect((root.querySelector('#management-signatory') as HTMLInputElement).value).toBe('Authorized Management');
+    http.expectNone('/api/ui/portal/documents');
+
+    // A known denial of the summary still removes the editor and its protected content.
+    await vi.advanceTimersByTimeAsync(30_000);
+    http.expectOne('/api/ui/portal?page=0&pageSize=10').flush({ code: 'scope.denied', message: 'Denied' }, { status: 403, statusText: 'Forbidden' });
+    settle();
+    expect(editor()).toBeUndefined();
+    expect(root.querySelector('audit-portal-documents')).toBeNull();
+    expect(root.textContent).not.toContain('Audited financial statements');
+    fixture.destroy();
   });
 
   it('restores bounded 10/25/50 request and package page choices', () => {

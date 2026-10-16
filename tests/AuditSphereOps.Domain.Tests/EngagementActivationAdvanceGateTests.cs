@@ -21,6 +21,8 @@ public sealed class EngagementActivationAdvanceGateTests
     var state = (await EngagementActivationWorkspace.StateAsync(db, partner, f.EngagementId)).Value!;
     Assert.False(state.Eligible);
     Assert.Contains(state.Blockers, x => x.Code == "advance.fee-agreement-missing");
+    Assert.Contains(state.Blockers, x => x.Code == "commercial.not-current");
+    Assert.Null(state.Commercial);
     Assert.Equal(ErrorCodes.GateBlocked, (await EngagementLifecycleService.ActivateAsync(db, partner, f.EngagementId)).ErrorCode);
     var request = new EngagementActivationRequest(Guid.NewGuid(), state.ReviewBasis);
     Assert.False((await EngagementActivationWorkspace.PreviewAsync(db, partner, f.EngagementId, request)).Succeeded);
@@ -39,6 +41,8 @@ public sealed class EngagementActivationAdvanceGateTests
     var state = (await EngagementActivationWorkspace.StateAsync(db, partner, f.EngagementId)).Value!;
     Assert.False(state.Eligible);
     Assert.Contains(state.Blockers, x => x.Code == "advance.unpaid");
+    Assert.NotNull(state.Commercial);
+    Assert.DoesNotContain(state.Blockers, x => x.Code == "commercial.not-current");
     Assert.Equal(ErrorCodes.GateBlocked, (await EngagementLifecycleService.ActivateAsync(db, partner, f.EngagementId)).ErrorCode);
     Assert.Empty(await db.EngagementActivations.ToListAsync());
   }
@@ -54,6 +58,7 @@ public sealed class EngagementActivationAdvanceGateTests
 
     var state = (await EngagementActivationWorkspace.StateAsync(db, partner, f.EngagementId)).Value!;
     Assert.True(state.Eligible);
+    Assert.NotNull(state.Commercial);
     Assert.True((await EngagementLifecycleService.ActivateAsync(db, partner, f.EngagementId)).Succeeded);
     Assert.Single(await db.EngagementActivations.ToListAsync());
   }

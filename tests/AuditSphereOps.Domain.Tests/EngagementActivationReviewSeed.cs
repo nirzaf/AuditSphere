@@ -1,5 +1,6 @@
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Domain.Tests;
@@ -40,14 +41,37 @@ internal static class EngagementActivationReviewSeed
       ServiceRoute=serviceRoute,EntityScope="Synthetic entity",PeriodStart="2026-01-01",PeriodEnd="2026-12-31",
       ExpectedFee=20000m,Currency="QAR",Stage=CrmStates.OpportunityWon,CreatedAt=DateTimeOffset.UtcNow});
     var proposalId=Guid.NewGuid();
+    var now=DateTimeOffset.UtcNow;
+    var offerBytes=System.Text.Encoding.UTF8.GetBytes("Synthetic approved offer for activation fixture.");
+    var offerHash=Hashing.Sha256Hex(offerBytes);
+    var quotationId=Guid.NewGuid();
+    var dispatchId=Guid.NewGuid();
+    var documentId=Guid.NewGuid();
     db.Proposals.Add(new Proposal{Id=proposalId,FirmId=firmId,OpportunityId=opportunityId,PracticeClientId=clientId,Revision=1,
       Status=CrmStates.ProposalAccepted,ServiceProfileId="Synthetic annual audit",Scope="Synthetic engagement scope",
       Deliverables="Synthetic engagement deliverables",PeriodStart="2026-01-01",PeriodEnd="2026-12-31",Fee=20000m,Currency="QAR",
-      CreatedAt=DateTimeOffset.UtcNow});
+      SentAt=now,SentOfferSha256=offerHash,ResponseAt=now,ResponseOfferSha256=offerHash,RespondentName="Synthetic owner",
+      RespondentEmail="owner@example.test",ResponseEvidenceReference="Synthetic signed acceptance",ResponseChannel=ProposalResponseChannels.Email,
+      CreatedAt=now});
+    db.QuotationVersions.Add(new QuotationVersion{Id=quotationId,FirmId=firmId,ProposalId=proposalId,Revision=1,Currency="QAR",
+      LinesJson="[]",ComplexityFactor=1m,BaseAmount=20000m,Fee=20000m,InputHash=new string('a',64),Status=QuotationStates.Approved,
+      RequiredApprovalsJson="[]",CreatedByUserId=userId,CreatedAt=now,ApprovedAt=now});
+    db.CommercialDocuments.Add(new CommercialDocument{Id=documentId,FirmId=firmId,ProposalId=proposalId,QuotationVersionId=quotationId,
+      Kind=CommercialDocumentKinds.Quotation,TemplateVersion="synthetic-quotation-v1",ProfileVersion=1,FileName="synthetic-offer.docx",
+      ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document",Bytes=offerBytes,Sha256Hex=offerHash,
+      CreatedByUserId=userId,CreatedAt=now});
+    db.CommercialNotifications.Add(new CommercialNotification{Id=dispatchId,FirmId=firmId,Kind=CommercialNotificationKinds.Proposal,
+      ProposalId=proposalId,PracticeClientId=clientId,QuotationVersionId=quotationId,DocumentId=documentId,OfferSha256=offerHash,
+      RecipientAuthorityBasis=ProposalRecipientAuthorityBases.ProspectPrimaryContact,Recipient="owner@example.test",
+      Subject="Synthetic approved audit offer",Body="Synthetic offer dispatch for activation test.",CreatedAt=now});
+    db.ProposalResponseRecords.Add(new ProposalResponseRecord{Id=Guid.NewGuid(),FirmId=firmId,ProposalId=proposalId,
+      CommercialNotificationId=dispatchId,Decision=CrmStates.ProposalAccepted,OfferSha256=offerHash,DispatchRecipient="owner@example.test",
+      AuthorityBasis=ProposalRecipientAuthorityBases.ProspectPrimaryContact,RespondentName="Synthetic owner",RespondentEmail="owner@example.test",
+      EvidenceReference="Synthetic signed acceptance",Channel=ProposalResponseChannels.Email,RecordedByUserId=userId,RecordedAt=now});
     var agreementId=Guid.NewGuid();
     db.EngagementFeeAgreements.Add(new EngagementFeeAgreement{Id=agreementId,FirmId=firmId,ProposalId=proposalId,
-      QuotationVersionId=Guid.NewGuid(),PracticeClientId=clientId,EngagementId=engagementId,Currency="QAR",AgreedFee=20000m,
-      AdvancePercent=50m,CreatedByUserId=userId,CreatedAt=DateTimeOffset.UtcNow});
+      QuotationVersionId=quotationId,PracticeClientId=clientId,EngagementId=engagementId,Currency="QAR",AgreedFee=20000m,
+      AdvancePercent=50m,CreatedByUserId=userId,CreatedAt=now});
     // ck_fee_milestone_values: PLANNED has no invoice, INVOICED has one, PAID has an invoice, a receipt and a paid time.
     db.FeeMilestones.Add(new FeeMilestone{Id=Guid.CreateVersion7(),FirmId=firmId,AgreementId=agreementId,
       Kind=FeeMilestoneKinds.Advance,Amount=10000m,State=advanceState,

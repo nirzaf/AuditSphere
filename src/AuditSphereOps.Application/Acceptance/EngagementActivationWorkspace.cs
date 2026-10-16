@@ -14,10 +14,15 @@ public sealed record EngagementActivationRequest(Guid RequestId, string ReviewBa
 public sealed record ActivationDecisionView(Guid Id, string Decision, string Path, string Generation, DateTimeOffset? DecidedAt);
 public sealed record ActivationBlocker(string Code, string Message);
 public sealed record RetainedActivationView(Guid Id, Guid AcceptanceDecisionId, string AcceptancePath, string ClientGeneration, DateTimeOffset ActivatedAt);
+/// <summary>The current client commercial key: the linked fee agreement, accepted proposal, newest approved quotation revision with its
+/// standing approvals, the exact dispatch and offer identity, and the immutable accepted response. Revisions are exact strings.</summary>
+public sealed record ActivationCommercialView(Guid FeeAgreementId, Guid ProposalId, string ProposalRevision, Guid QuotationVersionId,
+  string QuotationRevision, IReadOnlyList<Guid> QuotationApprovalIds, Guid DispatchId, string OfferSha256, Guid ResponseId,
+  DateTimeOffset AcceptedAt);
 public sealed record EngagementActivationState(Guid EngagementId, Guid ClientId, string ClientName, string ServiceRoute,
   string ServiceProfileId, string PeriodStart, string PeriodEnd, string Status, string EngagementGeneration,
   string ClientGeneration, ActivationDecisionView? Decision, int ActiveHolds, bool Eligible, string ReviewBasis,
-  IReadOnlyList<ActivationBlocker> Blockers, RetainedActivationView? Activation = null);
+  IReadOnlyList<ActivationBlocker> Blockers, RetainedActivationView? Activation = null, ActivationCommercialView? Commercial = null);
 public sealed record EngagementActivationPreview(Guid EngagementId, Guid RequestId, string ReviewBasis, string RequestHash);
 public sealed record EngagementActivationReceipt(Guid Id, Guid EngagementId, Guid ClientId, Guid ActorId, Guid RequestId,
   string RequestHash, string ReviewBasis, Guid AcceptanceDecisionId, string AcceptancePath, string ClientGeneration,
@@ -74,12 +79,16 @@ public static class EngagementActivationWorkspace
       blockers.Add(new("advance.fee-agreement-missing","A linked fee agreement with a fully paid and allocated 50% advance is required before activation."));
     if(linkedAgreementIds.Count>0 && !advancePaid)
       blockers.Add(new("advance.unpaid","Record the fully paid and allocated 50% advance before activation."));
+    // AUD-WF-01: the client commercial key is read through the same resolver activation enforces, never inferred from payment.
+    var commercial=await DualKeyEvidence.CurrentCommercialKeyAsync(db,a.FirmId,e,ct);
+    if(commercial is null)
+      blockers.Add(new("commercial.not-current","Record the client's acceptance of the exact approved offer dispatched for this engagement's linked fee agreement."));
     var basis=Hashing.Sha256Hex(JsonSerializer.Serialize(new {a.FirmId,a.UserId,a.SessionEpoch,id,e.PracticeClientId,name,e.ServiceRoute,
       e.ServiceProfileId,e.PeriodStart,e.PeriodEnd,e.Status,e.Generation,ClientGeneration=generation.Value,Decision=d,ActiveHolds=holds,
-      FeeAgreementLinked=linkedAgreementIds.Count>0,AdvancePaid=advancePaid}));
+      FeeAgreementLinked=linkedAgreementIds.Count>0,AdvancePaid=advancePaid,Commercial=commercial}));
     if (!(await Authorize(db,a,id,ct)).Succeeded) return Unavailable<EngagementActivationState>();
     return CommandResult<EngagementActivationState>.Ok(new(id,e.PracticeClientId,name,e.ServiceRoute,e.ServiceProfileId,e.PeriodStart,e.PeriodEnd,
-      e.Status,Exact(e.Generation),Exact(generation.Value),d,holds,blockers.Count==0,basis,blockers,retained));
+      e.Status,Exact(e.Generation),Exact(generation.Value),d,holds,blockers.Count==0,basis,blockers,retained,commercial));
   }
   public static async Task<CommandResult<EngagementActivationPreview>> PreviewAsync(IAuditSphereDbContext db, ActorContext a,
     Guid id, EngagementActivationRequest? r, CancellationToken ct=default)
@@ -101,6 +110,8 @@ public static class EngagementActivationWorkspace
     var e=await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.Id==id,ct);
     if(e is null)return Unavailable<EngagementActivationReceipt>();
     await using var tx=await db.Database.BeginTransactionAsync(ct);
+    // Firm -> client -> actor, as in ActivateAsync: commercial-key mutations hold the firm row, so it is never taken after the client row.
+    if(!await AcceptanceCommandAuthority.LockFirmAsync(db,a,ct))return Unavailable<EngagementActivationReceipt>();
     var guard=await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if(guard is null)return Unavailable<EngagementActivationReceipt>();
     await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
