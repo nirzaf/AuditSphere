@@ -703,6 +703,43 @@ public sealed class AngularFinancialArtifactParityJourneyTests
       Assert.Equal(expectedArtifacts[FinancialPackageArtifactVersions.Pdf].Sha256, artifact.ArtifactSha256Hex);
     }
 
+    Guid mappingId;
+    string taskOwner;
+    string pbcOwner;
+    const string taskTitle = "SYNTHETIC persisted period handoff";
+    const string taskDue = "2026-11-20";
+    const string pbcDue = "2026-11-21";
+    await using (var db = host.CreateDbContext())
+    {
+      var f = host.Fixture;
+      var period = await db.ClientReportingPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId);
+      mappingId = await db.FinancialPackages.Where(x => x.Id == packageId).Select(x => x.MappingVersionId).SingleAsync();
+      db.WorkTasks.Add(new AuditSphereOps.Domain.Practice.WorkTask
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ReportingPeriodId = periodId, Title = taskTitle, AssigneeUserId = f.Staff.Id,
+        DueDate = new DateOnly(2026, 11, 20), Status = AuditSphereOps.Domain.Practice.PracticeTimeStates.TaskInProgress,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.PbcRequests.Add(new AuditSphereOps.Domain.Documents.PbcRequest
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        Objective = "Synthetic period source evidence", EntityScope = "Synthetic entity",
+        PeriodStart = period.StartDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+        PeriodEnd = period.EndDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+        Area = "Accounting", RequestedFormat = "XLSX", ControlTotals = "Synthetic control",
+        ClientOwnerUserId = f.Client.Id, FirmOwnerUserId = f.Reviewer.Id, ReviewerUserId = f.Admin.Id,
+        DueDate = pbcDue, Confidentiality = "INTERNAL", AcceptanceCriteria = "Synthetic evidence criteria",
+        State = AuditSphereOps.Domain.Documents.PbcStates.Draft, CreatedByUserId = f.Staff.Id,
+        CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      taskOwner = await db.Users.Where(x => x.Id == f.Staff.Id)
+        .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleAsync();
+      pbcOwner = await db.Users.Where(x => x.Id == f.Reviewer.Id)
+        .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleAsync();
+    }
+
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync();
@@ -722,6 +759,38 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     var packageLink = page.GetByRole(AriaRole.Link, new() { Name = "Open package", Exact = true });
     Assert.EndsWith($"/app/accounting/packages/{packageId:D}",
       await packageLink.GetAttributeAsync("href"));
+    var handoffs = page.GetByRole(AriaRole.Region, new() { Name = "Workflow handoffs", Exact = true });
+    await Assertions.Expect(handoffs.Locator("p").Filter(new() { HasText = "Work task:" })).ToContainTextAsync(
+      $"Work task: {taskTitle} · Owner: {taskOwner} · Due: {taskDue} · State: {AuditSphereOps.Domain.Practice.PracticeTimeStates.TaskInProgress}");
+    await Assertions.Expect(handoffs.Locator("p").Filter(new() { HasText = "PBC owner:" })).ToContainTextAsync(
+      $"PBC owner: {pbcOwner} · Due: {pbcDue} · State: {AuditSphereOps.Domain.Documents.PbcStates.Draft}");
+    await Assertions.Expect(handoffs).ToContainTextAsync(taskTitle);
+    await Assertions.Expect(handoffs).ToContainTextAsync(taskOwner);
+    await Assertions.Expect(handoffs).ToContainTextAsync(taskDue);
+    await Assertions.Expect(handoffs).ToContainTextAsync(AuditSphereOps.Domain.Practice.PracticeTimeStates.TaskInProgress);
+    await Assertions.Expect(handoffs).ToContainTextAsync(pbcOwner);
+    await Assertions.Expect(handoffs).ToContainTextAsync(pbcDue);
+    await Assertions.Expect(handoffs).ToContainTextAsync(AuditSphereOps.Domain.Documents.PbcStates.Draft);
+    await Assertions.Expect(packageLink).ToHaveAttributeAsync("href", $"/ui/app/accounting/packages/{packageId:D}");
+    await Assertions.Expect(handoffs.GetByRole(AriaRole.Link, new() { Name = "Open mapping", Exact = true }))
+      .ToHaveAttributeAsync("href", $"/ui/app/accounting/mappings/{mappingId:D}");
+    await Assertions.Expect(handoffs.GetByRole(AriaRole.Link, new() { Name = "Open PBC request", Exact = true }))
+      .ToHaveAttributeAsync("href", $"/ui/app/engagements/{host.Fixture.EngagementId:D}/pbc");
+    var refreshGets = 0;
+    var mutations = 0;
+    page.Request += (_, request) =>
+    {
+      if (request.Method == "GET" && request.Url.EndsWith($"/api/ui/accounting/periods/{periodId:D}", StringComparison.Ordinal)) refreshGets++;
+      if (request.Method is "POST" or "PUT" or "PATCH" or "DELETE") mutations++;
+    };
+    var response = await page.RunAndWaitForResponseAsync(
+      () => page.GetByRole(AriaRole.Button, new() { Name = "Refresh period", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "GET" && response.Url.EndsWith($"/api/ui/accounting/periods/{periodId:D}", StringComparison.Ordinal));
+    Assert.Equal(200, response.Status);
+    await Assertions.Expect(handoffs).ToContainTextAsync(taskTitle);
+    await Assertions.Expect(handoffs).ToContainTextAsync(pbcOwner);
+    Assert.Equal(1, refreshGets);
+    Assert.Equal(0, mutations);
     Assert.Empty(diagnostics);
   }
 

@@ -135,6 +135,40 @@ describe('exact accounting period record and handoffs', () => {
     expect(fixture.componentInstance.period.error()).not.toBe('');
   });
 
+  it('clears protected details and links after a 503 refresh and restores them only after retry succeeds', () => {
+    const fixture = open();
+    read(record());
+    const root = fixture.nativeElement as HTMLElement;
+    const refresh = () => {
+      const button = Array.from(root.querySelectorAll('button')).find(b => b.textContent?.includes('Refresh period'))!;
+      button.click();
+      TestBed.tick();
+    };
+    refresh();
+    expect(fixture.componentInstance.period.data()).toBeNull();
+    expect(root.textContent).not.toContain('Synthetic period client');
+    http.expectOne('/api/ui/accounting/periods/' + id(1))
+      .flush({}, { status: 503, statusText: 'Service Unavailable' });
+    TestBed.tick();
+    expect(fixture.componentInstance.period.error()).toBe('Temporarily unavailable. Retry shortly.');
+    expect(root.textContent).not.toContain('Synthetic liaison');
+    expect(root.textContent).not.toContain('Synthetic staff');
+    for (const path of ['/packages/', '/mappings/', '/pbc']) {
+      expect(root.querySelector(`a[href*="${path}"]`)).toBeNull();
+    }
+    refresh();
+    expect(fixture.componentInstance.period.data()).toBeNull();
+    read({ ...record(), revision: 3 });
+    expect(fixture.componentInstance.period.error()).toBe('');
+    expect(fixture.componentInstance.period.data()?.revision).toBe(3);
+    expect(root.textContent).toContain('Synthetic period client');
+    expect(root.textContent).toContain('Synthetic liaison');
+    expect(root.querySelector(`a[href="/app/accounting/packages/${id(20)}"]`)).not.toBeNull();
+    expect(root.querySelector(`a[href="/app/accounting/mappings/${id(21)}"]`)).not.toBeNull();
+    expect(root.querySelector(`a[href="/app/engagements/${id(30)}/pbc"]`)).not.toBeNull();
+    http.expectNone(r => r.method !== 'GET');
+  });
+
   it('clears protected data on session loss and makes no read for an invalid route', () => {
     const fixture = open();
     read(record());
