@@ -1281,7 +1281,14 @@
       ],
       "retirementGate": "NOT_READY",
       "blazorRemoved": false,
-      "developmentOrLiveDatabaseMigrated": false
+      "developmentOrLiveDatabaseMigrated": false,
+      "fieldworkReviewFollowUp": {
+        "source": "working tree following 410662d4",
+        "change": "Procedure-review reads fenced by selection, exact returned procedure ID, engagement, workspace, session and destruction",
+        "build": "Angular production build passed",
+        "newRegressionCases": "Three Angular cases added; not yet executed",
+        "verification": "Hosted Angular suite and built-in browser observation pending"
+      }
     }
   },
   "externalGates": [

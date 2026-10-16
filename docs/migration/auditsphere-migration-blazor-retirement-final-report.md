@@ -2,7 +2,7 @@
 
 **Recommendation: `NOT_READY`. STOP.** Commit `59387b54` physically removed `src/AuditSphereOps.Web`, Razor UI files, and MudBlazor before the source-by-source behavior audit and removal gates passed. The rollback project/source has now been restored from its parent snapshot and builds in the Release solution. That restores a code path, not an accepted production rollback or completed migration.
 
-This report is the requested pre-removal report. It records the actual blockers and does not propose or perform a deletion. Exact counts and verification results are intentionally centralized in [`docs/execution/status.json`](../execution/status.json), under `verification.angularBlazorMigrationBaselineAndFocusedRouteResourceVerification.inventory`.
+This report is the requested pre-removal report. It records the actual blockers and does not propose or perform a deletion. Current verification is centralized in [`docs/execution/status.json`](../execution/status.json), under `targetedVerification`. The original inventory baseline is preserved in the [execution archive](../execution/status-archive-2026-10.json), under `keys.verification.angularBlazorMigrationBaselineAndFocusedRouteResourceVerification.inventory`; it does not establish current-tree acceptance.
 
 ## Removal report
 

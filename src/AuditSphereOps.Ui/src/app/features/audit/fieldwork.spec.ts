@@ -244,13 +244,39 @@ describe('Procedure risk link reviewed preparation', () => {
   afterEach(() => TestBed.resetTestingModule());
   function open() {
     const workspace = signal({ engagementId: id1, canManageFieldwork: true, aggregate: null, risks: [{ id: id3 }], procedures: [{ id: id2, riskId: null as string | null }] });
-    const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })), command: vi.fn() };
+    const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })), command: vi.fn(), get: vi.fn() };
     TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api },
       { provide: SessionService, useValue: { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) } },
       { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
       { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
     const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api };
   }
+  it('ignores an older procedure review after a newer selection', async () => {
+    const { page, workspace, api } = open();
+    workspace.set({ ...workspace(), procedures: [{ id: id2, riskId: null }, { id: id3, riskId: null }] }); TestBed.tick();
+    let first!: (value: unknown) => void, second!: (value: unknown) => void;
+    api.get.mockImplementationOnce(() => new Promise(resolve => first = resolve))
+      .mockImplementationOnce(() => new Promise(resolve => second = resolve));
+    const older = page.selectProcedure(id2), newer = page.selectProcedure(id3);
+    second({ procedureId: id3 }); await newer;
+    first({ procedureId: id2 }); await older;
+    expect(page.review()?.procedureId).toBe(id3);
+  });
+  it('discards review results after scope refresh and rejects mismatched procedure identity', async () => {
+    const { page, workspace, api } = open(); let complete!: (value: unknown) => void;
+    api.get.mockImplementationOnce(() => new Promise(resolve => complete = resolve));
+    const pending = page.selectProcedure(id2);
+    workspace.set({ ...workspace() }); TestBed.tick(); complete({ procedureId: id2 }); await pending;
+    expect(page.review()).toBeNull();
+    api.get.mockResolvedValueOnce({ procedureId: id3 }); await page.selectProcedure(id2);
+    expect(page.review()).toBeNull(); expect(page.reviewError()).toBe('Procedure review unavailable.');
+  });
+  it('does not publish a pending procedure review after destruction', async () => {
+    const { page, api } = open(); let complete!: (value: unknown) => void;
+    api.get.mockImplementationOnce(() => new Promise(resolve => complete = resolve));
+    const pending = page.selectProcedure(id2); TestBed.resetTestingModule();
+    complete({ procedureId: id2 }); await pending; expect(page.review()).toBeNull();
+  });
   it('previews selected risk and exact prior link, never calls the legacy risk write', async () => {
     const { page, api } = open(), prepare = vi.spyOn(page.riskLink, 'prepare').mockResolvedValue();
     page.setRiskSelection(id2, id3); await page.saveRiskLink(id2);

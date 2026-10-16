@@ -2,7 +2,7 @@
 
 > **Decision: `NOT_READY`.** Commit `59387b54` physically removed `AuditSphereOps.Web`, Razor UI, and MudBlazor before the canonical removal gate passed. The rollback source and project entry have been restored from the parent snapshot. Hosted CI on `8959f6e7` passed the Angular/.NET build and selected PostgreSQL/browser cohorts, including stale role-review and tenant operations journeys; this does not establish full migration parity. A local Development smoke verified the Razor home, Blazor runtime, MudBlazor/static assets, and circuit negotiation; production OIDC, route switching, rollback recovery, and canary remain unaccepted. Do not treat restoration or a local smoke as completed migration or retirement.
 
-This gate follows the source inventory, route matrix, feature register, test register, and current execution evidence. Exact live counts and test results are maintained in [`docs/execution/status.json`](../execution/status.json), under `verification.angularBlazorMigrationBaselineAndFocusedRouteResourceVerification`.
+This gate follows the source inventory, route matrix, feature register, test register, and current execution evidence. Current verification is maintained in [`docs/execution/status.json`](../execution/status.json), under `targetedVerification`, including `angularAuditPlanningRecovery`. The original baseline is preserved in the [execution archive](../execution/status-archive-2026-10.json), under `keys.verification.angularBlazorMigrationBaselineAndFocusedRouteResourceVerification`; it is historical evidence, not current-tree acceptance.
 
 ## Gate checklist
 

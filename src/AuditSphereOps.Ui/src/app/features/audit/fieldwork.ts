@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -459,6 +459,9 @@ export class AuditFieldwork {
   readonly toolTab = signal(0);
   readonly review = signal<ReturnType<typeof decodeProcedureReview> | null>(null);
   readonly reviewError = signal('');
+  private reviewRequest = 0;
+  private reviewDestroyed = false;
+  private readonly reviewLifetime = inject(DestroyRef);
   readonly samplingPreview = signal<SamplingPreview | null>(null);
   readonly samplingBusy = signal(false);
   readonly sampleSet = signal<SampleSet | null>(null);
@@ -486,6 +489,11 @@ export class AuditFieldwork {
   readonly countBased = () => ['RANDOM', 'SYSTEMATIC', 'STRATIFIED', 'ATTRIBUTE_STRATA'].includes(this.s.method);
 
   constructor() {
+    this.reviewLifetime.onDestroy(() => { this.reviewDestroyed = true; ++this.reviewRequest; this.review.set(null); this.reviewError.set(''); });
+    effect(() => {
+      this.id(); this.riskLinkSession.current(); this.riskLinkSession.invalidation(); this.ws.data();
+      untracked(() => { ++this.reviewRequest; this.review.set(null); this.reviewError.set(''); });
+    });
     effect(() => {
       this.id(); this.riskLinkSession.current(); this.riskLinkSession.invalidation();
       untracked(() => { this.riskLinkSelections.clear(); this.riskLinkBases.clear(); });
@@ -744,9 +752,18 @@ export class AuditFieldwork {
   private baseItem(itemId: string): string { return `/api/ui/selection-items/${itemId}`; }
   private baseItemTest(testId: string): string { return `/api/ui/item-tests/${testId}`; }
   async selectProcedure(procedureId: string): Promise<void> {
+    const request = ++this.reviewRequest, engagement = this.id(), workspace = this.ws.data(),
+      actor = this.riskLinkSession.current(), epoch = this.riskLinkSession.invalidation();
     this.review.set(null); this.reviewError.set('');
-    if (!procedureId) return;
-    try { this.review.set(await this.api.get(`/api/ui/procedures/${procedureId}/review`, decodeProcedureReview)); } catch (e) { this.reviewError.set((e as Error).message); }
+    if (this.reviewDestroyed || !actor?.staff || !procedureId || !workspace?.procedures.some(p => p.id === procedureId)) return;
+    const current = () => !this.reviewDestroyed && request === this.reviewRequest && engagement === this.id() &&
+      workspace === this.ws.data() && actor === this.riskLinkSession.current() && epoch === this.riskLinkSession.invalidation();
+    try {
+      const review = await this.api.get(`/api/ui/procedures/${procedureId}/review`, decodeProcedureReview);
+      if (!current()) return;
+      if (review.procedureId !== procedureId) throw new Error('Procedure review unavailable.');
+      this.review.set(review);
+    } catch (e) { if (current()) this.reviewError.set((e as Error).message); }
   }
   private refreshReview = () => { void this.selectProcedure(this.e.procedure); };
   linkEvidence(): void {
