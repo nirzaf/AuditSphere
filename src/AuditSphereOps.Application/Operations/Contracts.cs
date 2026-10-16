@@ -23,6 +23,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<DurableOperation> DurableOperations { get; }
   DbSet<OperationAttempt> OperationAttempts { get; }
   DbSet<OperationEvent> OperationEvents { get; }
+  DbSet<OperatorCommandEvent> OperatorCommandEvents { get; }
+  DbSet<OperatorCommandReceipt> OperatorCommandReceipts { get; }
   DbSet<FirmSafetyState> FirmSafetyStates { get; }
   DbSet<RecoverySession> RecoverySessions { get; }
   DbSet<ClientSafetyState> ClientSafetyStates { get; }

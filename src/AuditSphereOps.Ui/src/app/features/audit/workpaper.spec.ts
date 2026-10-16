@@ -160,6 +160,45 @@ describe('Workpaper authored-content and receipt protection', () => {
     expect(c.state?.draftRevision).toBe('4'); expect(c.state?.workPerformed).toBe(c.work); expect(c.state?.conclusion).toBe(c.conclusion);
     await vi.advanceTimersByTimeAsync(10000); http.expectNone(base + '/state'); http.expectNone(r => r.method === 'POST');
   });
+  it('allows typing while a fresh save awaits its first response and locks fields for unresolved outcomes and retries', async () => {
+    vi.useFakeTimers(); const f = open(), c = f.componentInstance;
+    c.work = 'Original save snapshot.'; c.conclusion = 'Original conclusion.'; c.changed();
+    const saving = c.save(), firstAction = await prepareSave(); f.detectChanges();
+    const workField = f.nativeElement.querySelector('textarea[name="work"]') as HTMLTextAreaElement;
+    const conclusionField = f.nativeElement.querySelector('textarea[name="conclusion"]') as HTMLTextAreaElement;
+    expect(workField.disabled).toBe(false); expect(conclusionField.disabled).toBe(false);
+    workField.value = 'Newer work typed before acknowledgement.'; workField.dispatchEvent(new Event('input'));
+    conclusionField.value = 'Newer conclusion typed before acknowledgement.'; conclusionField.dispatchEvent(new Event('input')); f.detectChanges();
+    expect(c.work).toBe('Newer work typed before acknowledgement.');
+    expect(c.conclusion).toBe('Newer conclusion typed before acknowledgement.');
+
+    const original = firstAction.request.body;
+    firstAction.error(new ProgressEvent('error')); expect(await saving).toBe(false); f.detectChanges();
+    expect(c.uncertain()).toBe(true); expect(c.freshSaveAwaitingFirstResponse()).toBe(false);
+    expect((f.nativeElement.querySelector('textarea[name="work"]') as HTMLTextAreaElement).readOnly).toBe(true);
+    expect((f.nativeElement.querySelector('textarea[name="conclusion"]') as HTMLTextAreaElement).readOnly).toBe(true);
+
+    const recovery = c.checkSaveOutcome();
+    http.expectOne(base + '/state').flush(commandState()); await settle();
+    http.expectOne(base + `/receipts/${original.requestId}?requestHash=${requestHash}`).flush({ found: false, receipt: null });
+    await recovery; f.detectChanges();
+    expect(c.uncertain()).toBe(true); expect((f.nativeElement.querySelector('textarea[name="work"]') as HTMLTextAreaElement).readOnly).toBe(true);
+    expect((f.nativeElement.querySelector('textarea[name="conclusion"]') as HTMLTextAreaElement).readOnly).toBe(true);
+
+    const retrying = c.retryPending();
+    http.expectOne(base + '/state').flush(commandState()); await settle();
+    const prepare = http.expectOne(base + '/prepare-save');
+    expect(prepare.request.body.requestId).toBe(original.requestId);
+    expect(prepare.request.body.fields).toEqual(original.fields);
+    prepare.flush({ value: { requestId: original.requestId, requestHash,
+      canonicalInput: decodeWorkpaperCommandFields(prepare.request.body.fields, 'test') } }); await settle();
+    const retryAction = http.expectOne(base + '/actions'); f.detectChanges();
+    expect((f.nativeElement.querySelector('textarea[name="work"]') as HTMLTextAreaElement).readOnly).toBe(true);
+    expect((f.nativeElement.querySelector('textarea[name="conclusion"]') as HTMLTextAreaElement).readOnly).toBe(true);
+    retryAction.error(new ProgressEvent('error')); await retrying; f.detectChanges();
+    expect(c.uncertain()).toBe(true); expect((f.nativeElement.querySelector('textarea[name="work"]') as HTMLTextAreaElement).readOnly).toBe(true);
+    expect((f.nativeElement.querySelector('textarea[name="conclusion"]') as HTMLTextAreaElement).readOnly).toBe(true);
+  });
   it('awaits an already-dispatched save but refuses navigation if its acknowledgement is lost', async () => {
     vi.useFakeTimers(); const c = open().componentInstance;
     c.work = 'Dispatched save with lost acknowledgement.'; c.changed(); const saving = c.save();

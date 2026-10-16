@@ -93,3 +93,41 @@ the current recovery session and external epoch; read projections need coherent
 mode and final Administrator checks. Queue status alone cannot acknowledge an
 original operator request. Corrections and targeted regressions are in progress;
 live provider acceptance remains separate and this source stays PARTIAL.
+
+## Original operator acknowledgement slice
+
+The next additive command contract covers retry, queued cancellation, quarantine
+lift and recovery restart approval. A preview binds the exact operation attempt,
+state and reconciliation requirement, firm mode/epochs and current recovery
+session to the acting Administrator/session. Fresh assent authorizes only that
+operator transition. An immutable receipt commits with the transition and retains
+its before/after evidence, intent hash and persisted timestamp; later worker
+advancement cannot rewrite it. Receipt recovery rechecks current authority and
+waits behind publication. This is an operator-transition acknowledgement, never
+a provider-delivery or professional acceptance receipt. Existing internal callers
+retain their guarded compatibility paths.
+
+### Local verification — 2026-10-16
+
+The candidate tree based on `5f8f374b` passed the following focused checks against
+synthetic, disposable PostgreSQL fixtures:
+
+- Release build: 0 warnings, 0 errors.
+- `OperatorCommandReceiptTests`: 18/18 passed.
+- `OperationRecoverySafetyApiTests`: 7/7 passed, including refusal of legacy
+  aliases without reviewed assent and immutable evidence-table guards.
+- `AngularOperationsCommandJourneyTests`: 8/8 passed in Chromium at 390 px,
+  covering retry, cancellation, quarantine lift and restart approval, including
+  lost responses and original-receipt recovery.
+- Angular CI specs: 1,283/1,283 passed across 160 files. Production build passed;
+  the existing `commercial/settings.scss` warning budget is unchanged.
+- EF model drift, OpenAPI drift, documentation, filename, narrative-metric,
+  inventory and `git diff --check` gates passed.
+- Independent security review found no release-blocking issue.
+
+The migration `20261016165646_OperatorCommandReceipts` was exercised only by the
+owned test databases. It has not been applied to development, acceptance or live
+databases. Commit-pinned GitHub release verification and deployment remain
+pending. This closes only this operator-command source slice: the overall source
+row remains `PARTIAL`, the Blazor retirement gate remains `NOT_READY`, and live
+provider acceptance is not claimed.

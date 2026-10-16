@@ -17654,7 +17654,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("durable_operations", null, t =>
                         {
-                            t.HasCheckConstraint("ck_operation_cancellation", "status <> 'CANCELLED_WITH_DISPOSITION' OR length(trim(cancellation_disposition)) > 0");
+                            t.HasCheckConstraint("ck_operation_cancellation", "status <> 'CANCELLED_WITH_DISPOSITION' OR (cancellation_disposition IS NOT NULL AND length(trim(cancellation_disposition)) BETWEEN 1 AND 2000)");
 
                             t.HasCheckConstraint("ck_operation_counters", "attempt_token >= 0 AND attempt_count >= 0 AND expected_revision >= 1 AND schema_version >= 1 AND claimed_epoch >= 0");
 
@@ -17883,6 +17883,159 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("OperationId", "OccurredAt");
 
                     b.ToTable("operation_events");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperatorCommandEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("after_json");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("before_json");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid?>("OperationEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_event_id");
+
+                    b.Property<Guid?>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid?>("RecoverySessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recovery_session_id");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ActorId", "Id")
+                        .HasName("ak_operator_command_event_owner");
+
+                    b.HasIndex("OperationEventId");
+
+                    b.HasIndex("OperationId");
+
+                    b.HasIndex("FirmId", "RecoverySessionId");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_operator_command_event_request");
+
+                    b.ToTable("operator_command_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_operator_command_event", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND action IN ('RETRY','CANCEL','LIFT_QUARANTINE','APPROVE_RECOVERY_RESTART') AND ((action IN ('RETRY','CANCEL') AND operation_id IS NOT NULL AND operation_event_id IS NOT NULL AND recovery_session_id IS NULL) OR (action = 'LIFT_QUARANTINE' AND operation_id IS NULL AND operation_event_id IS NULL) OR (action = 'APPROVE_RECOVERY_RESTART' AND operation_id IS NULL AND operation_event_id IS NULL AND recovery_session_id IS NOT NULL)) AND length(before_json) BETWEEN 1 AND 150000 AND length(after_json) BETWEEN 1 AND 150000 AND jsonb_typeof(before_json::jsonb)='object' AND jsonb_typeof(after_json::jsonb)='object'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperatorCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "EventId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_operator_command_receipt_event");
+
+                    b.HasIndex("FirmId", "ActorId", "EventId");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_operator_command_receipt_request");
+
+                    b.ToTable("operator_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_operator_command_receipt", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND action IN ('RETRY','CANCEL','LIFT_QUARANTINE','APPROVE_RECOVERY_RESTART') AND length(input_json) BETWEEN 1 AND 65000 AND length(preview_json) BETWEEN 1 AND 250000 AND jsonb_typeof(input_json::jsonb)='object' AND jsonb_typeof(preview_json::jsonb)='object'");
+                        });
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.PartnerCompletionClearance", b =>
@@ -32598,6 +32751,47 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("OperationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperatorCommandEvent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Completion.OperationEvent", null)
+                        .WithMany()
+                        .HasForeignKey("OperationEventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_operator_command_event_source");
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.DurableOperation", null)
+                        .WithMany()
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_operator_command_event_operation");
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_operator_command_event_actor");
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.RecoverySession", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "RecoverySessionId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_operator_command_event_session");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperatorCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Completion.OperatorCommandEvent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId", "EventId")
+                        .HasPrincipalKey("FirmId", "ActorId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_operator_command_receipt_event");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.PartnerCompletionClearance", b =>

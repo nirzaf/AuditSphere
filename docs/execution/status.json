@@ -1276,8 +1276,13 @@
       "browser": "NOT_EXECUTED",
       "modelCheck": "PASS",
       "retirementGate": "NOT_READY",
-      "prior": "status-archive-2026-10.json#keys.targetedVerification.angularParityHostedFollowUp0f34Progress"
-    }
+      "prior": "status-archive-2026-10.json#keys.targetedVerification.angularParityHostedFollowUp0f34Progress",
+      "fixSource": "637ce970d9b0d1f5b8056de066a0df48afe1cd43",
+      "fixRun": 38932257972,
+      "fixAngular": "PASS",
+      "fixRemaining": "NET/browser pending"
+    },
+    "operatorReceiptRecovery": "PARTIAL; D18 API7 E2E8 Angular1283 pass; new migration unapplied; release CI pending"
   },
   "externalGates": [
     {

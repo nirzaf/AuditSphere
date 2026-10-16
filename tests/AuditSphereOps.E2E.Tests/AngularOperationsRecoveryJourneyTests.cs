@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -123,23 +124,73 @@ public sealed class AngularOperationsRecoveryJourneyTests
     await page.GetByLabel("Cancellation disposition", new() { Exact = true })
       .FillAsync("Operator cancelled synthetic queued work before worker claim.");
     var cancelRow = table.Locator("tbody tr").Filter(new() { HasText = cancelKind });
-    await cancelRow.GetByRole(AriaRole.Button, new() { Name = "Cancel queued work", Exact = true }).ClickAsync();
+    await cancelRow.Locator("button[aria-label^='Cancel queued work']").ClickAsync();
+    var preview = page.GetByRole(AriaRole.Region, new() { Name = "Exact operator command preview", Exact = true });
+    await Assertions.Expect(preview).ToContainTextAsync("CANCEL");
+    await Assertions.Expect(preview).ToContainTextAsync(cancelId.ToString("D"));
+    await Assertions.Expect(preview).ToContainTextAsync("Operator cancelled synthetic queued work before worker claim.");
+    await Assertions.Expect(preview.GetByRole(AriaRole.Heading, new() { Name = "Review operator command", Exact = true })).ToBeFocusedAsync();
+    var confirm = preview.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed operator command", Exact = true });
+    await Assertions.Expect(confirm).ToBeDisabledAsync();
+    await preview.GetByLabel("I reviewed this exact operator command, current state and effect.", new() { Exact = true }).CheckAsync();
+    await confirm.ClickAsync();
+    var receipt = page.GetByRole(AriaRole.Region, new() { Name = "Verified original operator receipt", Exact = true });
+    await Assertions.Expect(receipt).ToContainTextAsync("CANCEL");
+    await Assertions.Expect(receipt).ToContainTextAsync(cancelId.ToString("D"));
+    await Assertions.Expect(receipt).ToContainTextAsync(administrator.Id.ToString("D"));
     await Assertions.Expect(cancelRow).ToContainTextAsync("cancelled with disposition");
     await Assertions.Expect(cancelRow).ToContainTextAsync("Operator cancelled synthetic queued work before worker claim.");
 
     var retryRow = table.Locator("tbody tr").Filter(new() { HasText = retryKind });
     var retryDispatches = 0;
-    await page.RouteAsync($"**/api/ui/operations/{retryId:D}/retry", async route =>
+    page.Request += (_, request) =>
     {
-      Interlocked.Increment(ref retryDispatches);
+      if (request.Method != "POST" || !request.Url.EndsWith("/operations/commands/actions", StringComparison.Ordinal)) return;
+      using var body = JsonDocument.Parse(request.PostData!);
+      if (body.RootElement.GetProperty("input").GetProperty("action").GetString() == "RETRY")
+        Interlocked.Increment(ref retryDispatches);
+    };
+    string? retryRequestId = null, retryRequestHash = null;
+    const string actionRoute = "**/api/ui/operations/commands/actions";
+    await page.RouteAsync(actionRoute, async route =>
+    {
+      using var request = JsonDocument.Parse(route.Request.PostData!);
+      var input = request.RootElement.GetProperty("input");
+      Assert.Equal("RETRY", input.GetProperty("action").GetString());
+      Assert.Equal(retryId.ToString("D"), input.GetProperty("operationId").GetString());
+      Assert.True(request.RootElement.GetProperty("reviewed").GetBoolean());
+      retryRequestId = request.RootElement.GetProperty("requestId").GetString();
+      retryRequestHash = request.RootElement.GetProperty("expectedRequestHash").GetString();
       await using var accepted = await route.FetchAsync();
       Assert.Equal(200, accepted.Status);
       await route.AbortAsync("failed");
     });
-    await retryRow.GetByRole(AriaRole.Button, new() { Name = "Re-arm for retry", Exact = true }).ClickAsync();
+    await retryRow.Locator("button[aria-label^='Re-arm for retry']").ClickAsync();
+    await Assertions.Expect(preview).ToContainTextAsync("RETRY");
+    await Assertions.Expect(preview).ToContainTextAsync(retryId.ToString("D"));
+    await Assertions.Expect(confirm).ToBeDisabledAsync();
+    Assert.Equal(0, retryDispatches);
+    await preview.GetByLabel("I reviewed this exact operator command, current state and effect.", new() { Exact = true }).CheckAsync();
+    await confirm.ClickAsync();
+    var recovery = page.GetByRole(AriaRole.Region, new() { Name = "Original operator request recovery", Exact = true });
+    await Assertions.Expect(recovery).ToBeVisibleAsync();
+    await page.UnrouteAsync(actionRoute);
+    await page.ReloadAsync();
+    await Assertions.Expect(recovery).ToContainTextAsync(retryRequestId!);
+    await Assertions.Expect(recovery).ToContainTextAsync(retryRequestHash!);
+    await Assertions.Expect(preview).ToHaveCountAsync(0);
     await Assertions.Expect(retryRow).ToContainTextAsync("retry wait");
-    await Assertions.Expect(retryRow.GetByRole(AriaRole.Button, new() { Name = "Re-arm for retry", Exact = true })).ToHaveCountAsync(0);
-    await Assertions.Expect(page.GetByText("Re-arm confirmed from the persisted operation state.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(retryRow.Locator("button[aria-label^='Re-arm for retry']")).ToHaveCountAsync(0);
+    // A queue refresh cannot acknowledge the original actor's command, even when its state matches.
+    await Assertions.Expect(recovery).ToBeVisibleAsync();
+    await recovery.GetByRole(AriaRole.Button, new() { Name = "Look up original operator receipt", Exact = true }).ClickAsync();
+    await Assertions.Expect(receipt).ToContainTextAsync("RETRY");
+    await Assertions.Expect(receipt).ToContainTextAsync(retryRequestId!);
+    await Assertions.Expect(receipt).ToContainTextAsync(retryRequestHash!);
+    await Assertions.Expect(receipt).ToContainTextAsync(administrator.Id.ToString("D"));
+    await Assertions.Expect(receipt).ToContainTextAsync("RETRY_WAIT");
+    await Assertions.Expect(recovery).ToHaveCountAsync(0);
+    Assert.DoesNotContain(privatePayload, await page.Locator("body").InnerTextAsync());
     Assert.Equal(1, retryDispatches);
 
     await using (var verify = host.CreateDbContext())

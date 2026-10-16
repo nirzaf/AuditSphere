@@ -1,8 +1,10 @@
 using System.Text.Json;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Api.Services;
+using AuditSphereOps.Infrastructure.Persistence;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -12,6 +14,7 @@ public static partial class UiEndpoints
 
   private static void MapOperationsEndpoints(RouteGroupBuilder group)
   {
+    MapOperationCommandEndpoints(group);
     group.MapUiGet("/operations", http => ReadAsync(http, async (db, actor, ct) =>
     {
       var workspace = await OperationRecoveryService.WorkspaceAsync(db, actor, ct);
@@ -23,11 +26,13 @@ public static partial class UiEndpoints
         Operations = workspace.Value!.Operations.Select(o => new { o.Id, o.Kind, o.Status, o.AttemptCount, o.NextAttemptAt, o.ErrorCode, o.CancellationDisposition }),
       });
     }));
-    group.MapPost("/operations/{id:guid}/retry", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => OperationRecoveryService.RetryAsync(db, actor, new OperationRecoveryRequest(id), ct)));
-    group.MapPost("/operations/{id:guid}/cancel", (Guid id, OperationCancelInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => OperationRecoveryService.CancelAsync(db, actor, new OperationCancellationRequest(id, i.Disposition ?? ""), ct)));
-    group.MapUiPost("/operations/lift-quarantine", http => CommandAsync(http, (db, actor, ct) => OperationRecoveryService.LiftQuarantineAsync(db, actor, ct)));
+    // Keep the legacy URLs as aliases, but never let them bypass the preview, fresh assent and receipt.
+    group.MapPost("/operations/{id:guid}/retry", (Guid id, OperationCommandRequest? input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.Retry, id, ct)));
+    group.MapPost("/operations/{id:guid}/cancel", (Guid id, OperationCommandRequest? input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.Cancel, id, ct)));
+    group.MapPost("/operations/lift-quarantine", (OperationCommandRequest? input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.LiftQuarantine, null, ct)));
 
     // The tracker is a published task-card snapshot shipped with the build; it reports card status, never product readiness.
     group.MapUiGet("/administration/project-progress", http => ReadAsync(http, async (db, actor, ct) =>
@@ -44,5 +49,17 @@ public static partial class UiEndpoints
         return CommandResult<object>.Fail("progress.unavailable", "The published task-card snapshot could not be read or is invalid.");
       }
     }));
+  }
+
+  private static async Task<CommandResult<OperationCommandReceiptView>> ExecuteReviewedAliasAsync(
+    AuditSphereDbContext db, ActorContext actor, OperationCommandRequest? request,
+    string expectedAction, Guid? pathOperationId, CancellationToken ct)
+  {
+    var state = await OperationCommandWorkspace.StateAsync(db, actor, pathOperationId, null, ct);
+    if (!state.Succeeded) return CommandResult<OperationCommandReceiptView>.Fail(state.ErrorCode!, state.Message!);
+    if (request?.Input is null || request.Input.Action != expectedAction || request.Input.OperationId != pathOperationId)
+      return CommandResult<OperationCommandReceiptView>.Fail(ErrorCodes.StaleRevision,
+        "Recovery actions require a current preview, explicit review assent, and an immutable command receipt.");
+    return await OperationCommandWorkspace.ExecuteAsync(db, actor, request, ct);
   }
 }

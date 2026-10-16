@@ -25,7 +25,7 @@ public sealed record OperationProjection(
 /// or uncertain operations inside the firm guard and records an append-only recovery event.
 /// It never rewrites completed results, request identity or attempt history.
 /// </summary>
-public static class OperationRecoveryService
+public static partial class OperationRecoveryService
 {
   public static readonly OperationState[] RetryableStates =
   [
@@ -60,9 +60,13 @@ public static class OperationRecoveryService
   /// attempt budget under the explicit operator authorization, and an append-only event records
   /// the operator identity. Completed results, request bytes and digests are untouched.
   /// </summary>
-  public static async Task<CommandResult> RetryAsync(
+  public static Task<CommandResult> RetryAsync(
     IAuditSphereDbContext db, ActorContext actor, OperationRecoveryRequest input,
-    CancellationToken ct = default)
+    CancellationToken ct = default) => Task.FromResult(ReviewRequired());
+
+  internal static async Task<CommandResult> RetryCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, OperationRecoveryRequest input,
+    CancellationToken ct = default, Guid? sourceEventId = null)
   {
     if (input.OperationId == Guid.Empty)
       return CommandResult.Fail(ErrorCodes.Operations.Invalid, "An operation id is required.");
@@ -70,7 +74,7 @@ public static class OperationRecoveryService
     if (!auth.Succeeded)
       return auth;
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     await db.Database.ExecuteSqlRawAsync(
       "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
     var authority = await LockAuthorityAsync(db, actor, false, ct);
@@ -102,14 +106,14 @@ public static class OperationRecoveryService
       return CommandResult.Fail(ErrorCodes.Operations.Conflict, "The operation changed while the recovery command ran.");
     db.OperationEvents.Add(new OperationEvent
     {
-      Id = Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
+      Id = sourceEventId ?? Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
       Kind = "operation.recovery-retry.v1", Executor = actor.UserId.ToString("D"),
       OccurredAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
     auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -118,9 +122,13 @@ public static class OperationRecoveryService
   /// deliberately left to lease/reconciliation handling because its effect boundary
   /// cannot be proven safe from an operator request alone.
   /// </summary>
-  public static async Task<CommandResult> CancelAsync(
+  public static Task<CommandResult> CancelAsync(
     IAuditSphereDbContext db, ActorContext actor, OperationCancellationRequest input,
-    CancellationToken ct = default)
+    CancellationToken ct = default) => Task.FromResult(ReviewRequired());
+
+  internal static async Task<CommandResult> CancelCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, OperationCancellationRequest input,
+    CancellationToken ct = default, Guid? sourceEventId = null)
   {
     if (input.OperationId == Guid.Empty || string.IsNullOrWhiteSpace(input.Disposition) || input.Disposition.Trim().Length > 2000)
       return CommandResult.Fail(ErrorCodes.Operations.Invalid, "An operation id and bounded cancellation disposition are required.");
@@ -128,7 +136,7 @@ public static class OperationRecoveryService
     if (!auth.Succeeded)
       return auth;
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     await db.Database.ExecuteSqlRawAsync(
       "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
     var authority = await LockAuthorityAsync(db, actor, false, ct);
@@ -159,14 +167,14 @@ public static class OperationRecoveryService
       return CommandResult.Fail(ErrorCodes.Operations.Conflict, "The operation changed while cancellation was requested.");
     db.OperationEvents.Add(new OperationEvent
     {
-      Id = Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
+      Id = sourceEventId ?? Guid.CreateVersion7(), OperationId = op.Id, Token = op.AttemptToken,
       Kind = "operation.cancelled.v1", Executor = actor.UserId.ToString("D"),
       OccurredAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
     auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -230,7 +238,11 @@ public static class OperationRecoveryService
   }
 
   /// <summary>Authorizes restart only after persisted reconciliation findings are updated.</summary>
-  public static async Task<CommandResult> ApproveRecoveryRestartAsync(
+  public static Task<CommandResult> ApproveRecoveryRestartAsync(
+    IAuditSphereDbContext db, ActorContext actor, RecoveryRestartRequest input,
+    CancellationToken ct = default) => Task.FromResult(ReviewRequired());
+
+  internal static async Task<CommandResult> ApproveRecoveryRestartCoreAsync(
     IAuditSphereDbContext db, ActorContext actor, RecoveryRestartRequest input,
     CancellationToken ct = default)
   {
@@ -240,7 +252,7 @@ public static class OperationRecoveryService
     if (!auth.Succeeded)
       return auth;
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var authority = await LockAuthorityAsync(db, actor, true, ct);
     if (!authority.Succeeded) return CommandResult.Fail(authority.ErrorCode!, authority.Message!);
     var latest = await CurrentSessionAsync(db, actor.FirmId, ct);
@@ -259,6 +271,7 @@ public static class OperationRecoveryService
     session.Findings = input.Findings.Trim();
     session.ApprovedRestartAt = DateTimeOffset.UtcNow;
     session.ApprovedByUserId = actor.UserId;
+    await db.SaveChangesAsync(ct);
     var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
       UPDATE firm_safety_states
       SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
@@ -270,7 +283,7 @@ public static class OperationRecoveryService
     await db.SaveChangesAsync(ct);
     auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -278,14 +291,21 @@ public static class OperationRecoveryService
   /// Lifts recovery quarantine for the firm under explicit administrator authorization.
   /// Transitions operating mode from RECOVERY_QUARANTINE to LOCAL_ONLY and increments deployment epoch.
   /// </summary>
-  public static async Task<CommandResult> LiftQuarantineAsync(
+  public static Task<CommandResult> LiftQuarantineAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default) => Task.FromResult(ReviewRequired());
+
+  private static CommandResult ReviewRequired() => CommandResult.Fail(
+    ErrorCodes.StaleRevision,
+    "Recovery actions require a current preview, explicit review assent, and an immutable command receipt.");
+
+  internal static async Task<CommandResult> LiftQuarantineCoreAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default)
   {
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded)
       return auth;
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     await db.Database.ExecuteSqlRawAsync(
       "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
 
@@ -310,13 +330,13 @@ public static class OperationRecoveryService
       """, ct);
     if (count != 1)
     {
-      await tx.RollbackAsync(ct);
+      if (tx is not null) await tx.RollbackAsync(ct);
       return CommandResult.Fail(ErrorCodes.Operations.Conflict, "Firm safety state changed while lifting quarantine.");
     }
 
     auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -336,12 +356,12 @@ public static class OperationRecoveryService
     return CommandResult<OperationRecoveryWorkspace>.Ok(new(authority.Value!.OperatingMode, operations.Value!));
   }
 
-  private static Task<RecoverySession?> CurrentSessionAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
+  internal static Task<RecoverySession?> CurrentSessionAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
     db.RecoverySessions.AsNoTracking().Where(x => x.FirmId == firmId)
       .OrderByDescending(x => x.ExternalEpoch).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
       .FirstOrDefaultAsync(ct);
 
-  private static async Task<CommandResult<FirmSafetyState>> LockAuthorityAsync(
+  internal static async Task<CommandResult<FirmSafetyState>> LockAuthorityAsync(
     IAuditSphereDbContext db, ActorContext actor, bool exclusive, CancellationToken ct)
   {
     var safety = exclusive
@@ -355,7 +375,7 @@ public static class OperationRecoveryService
       : CommandResult<FirmSafetyState>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied, auth.Message ?? "Access denied.");
   }
 
-  private static async Task<CommandResult> AuthorizeAsync(
+  internal static async Task<CommandResult> AuthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Administrator"], RequireFirmWide: true), ct);

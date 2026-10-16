@@ -1,5 +1,7 @@
 @page "/app/operations"
 @rendermode InteractiveServer
+@using System.Globalization
+@using System.Text.Json
 @using AuditSphereOps.Application.Operations
 @using AuditSphereOps.Domain.Completion
 @inject CurrentActorResolver ActorResolver
@@ -8,7 +10,7 @@
 <PageTitle>Operations</PageTitle>
 <MudLink Href="/app" Class="back-link mb-2 d-inline-block">← Back to portfolio</MudLink>
 <PageHeader Title="Operations" Eyebrow="Firm recovery" Description="Review the current firm's redacted durable work and take guarded recovery actions." />
-<MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadOperationsAsync" Disabled="@(_loading || _busy)">Refresh operations</MudButton>
+<MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button-secondary" OnClick="LoadOperationsAsync" Disabled="@(_loading || _busy || _receiptLookupRequired)">Refresh operations</MudButton>
 
 @if (_loading)
 {
@@ -23,33 +25,86 @@ else if (_actor is null || !_isAdmin)
 }
 else
 {
+  @if (!_stateLoaded)
+  {
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="notice my-4" role="alert">
+      <h2>Current operation state unavailable</h2>
+      <p>The current firm operation state could not be loaded. No new command can be prepared until a refresh succeeds.</p>
+    </MudAlert>
+  }
+  else
+  {
     <MudPaper Class="audit-workspace-panel pa-4 my-4" aria-labelledby="operating-mode-heading" role="region">
       <h2 id="operating-mode-heading">Firm operating mode</h2>
       <p class="mb-1"><strong>@_operatingMode</strong></p>
       <MudText Typo="Typo.body2" Color="Color.Secondary">Only classification codes and durable state are shown here; payloads, request bytes and lease owner identities stay hidden. Re-arming repeats guarded validation. Cancellation is limited to queued work without a worker lease.</MudText>
     </MudPaper>
-    @if (_operatingMode == "RECOVERY_QUARANTINE")
+
+  @if (_operatingMode == "RECOVERY_QUARANTINE")
+  {
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="notice warning my-4" role="alert">
+      <h2>Recovery quarantine active</h2>
+      <MudText Typo="Typo.body2">Firm operating mode is quarantined. Side effects and operations are fenced until authorized recovery is lifted.</MudText>
+      @if (LiftQuarantineBlockers.Count > 0)
+      {
+        <ul aria-label="Quarantine lift blockers">
+          @foreach (var blocker in LiftQuarantineBlockers)
+          {
+            <li>@blocker</li>
+          }
+        </ul>
+      }
+      <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button mt-2" OnClick="PreviewLiftQuarantineAsync" Disabled="@(_busy || _receiptLookupRequired || _commandState?.CanLiftQuarantine != true)">Preview quarantine lift</MudButton>
+    </MudAlert>
+  }
+
+    @if (_commandState?.Before.RecoverySession is { } recoverySession)
     {
-      <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="notice warning my-4" role="alert">
-        <h2>Recovery Quarantine Active</h2>
-        <MudText Typo="Typo.body2">Firm operating mode is quarantined. Side effects and operations are fenced until authorized recovery is lifted.</MudText>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="button mt-2" OnClick="LiftQuarantineAsync" Disabled="@_busy">Lift recovery quarantine</MudButton>
-      </MudAlert>
+      <MudPaper Class="audit-workspace-panel pa-4 my-4" aria-labelledby="recovery-restart-heading" role="region">
+        <h2 id="recovery-restart-heading">Recovery restart approval</h2>
+        <dl>
+          <dt>Current recovery session</dt><dd style="overflow-wrap:anywhere">@recoverySession.Id</dd>
+          <dt>External epoch</dt><dd>@recoverySession.ExternalEpoch</dd>
+          <dt>Restore point</dt><dd style="overflow-wrap:anywhere;white-space:pre-wrap">@recoverySession.RestorePoint</dd>
+          <dt>Reconciliation scope</dt><dd style="overflow-wrap:anywhere;white-space:pre-wrap">@recoverySession.ReconciliationScope</dd>
+          <dt>Current findings</dt><dd style="overflow-wrap:anywhere;white-space:pre-wrap">@(string.IsNullOrWhiteSpace(recoverySession.Findings) ? "None recorded" : recoverySession.Findings)</dd>
+          <dt>Restart approval</dt><dd>@(recoverySession.ApprovedRestartAt?.ToString("u", CultureInfo.InvariantCulture) ?? "Not recorded")</dd>
+        </dl>
+        @if (ApprovalRecoveryRestartBlockers.Count > 0)
+        {
+          <p><strong>Restart approval blockers</strong></p>
+          <ul aria-label="Recovery restart approval blockers">
+            @foreach (var blocker in ApprovalRecoveryRestartBlockers)
+            {
+              <li>@blocker</li>
+            }
+          </ul>
+        }
+        <label for="recovery-approval-findings">Findings for restart approval</label>
+        <MudTextField T="string" Value="@_approvalFindings" ValueChanged="SetApprovalFindings" Immediate="true" MaxLength="10000" Lines="4" id="recovery-approval-findings" Class="audit-operations-disposition" Placeholder="Record the exact reconciliation findings for this recovery session." Disabled="@(_busy || _receiptLookupRequired)" />
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="button mt-2" OnClick="() => PreviewRecoveryRestartAsync(recoverySession.Id)" Disabled="@(_busy || _receiptLookupRequired || _commandState?.CanApproveRecoveryRestart != true || string.IsNullOrWhiteSpace(_approvalFindings))">Preview recovery restart approval</MudButton>
+      </MudPaper>
     }
-    @if (_result is not null)
-    {
-      <p class="command-result @(_result.Succeeded ? "success-text" : "error-text")" role="status">
-        @(_result.Succeeded ? (_successMessage ?? "The action succeeded.") : "Blocked: " + _result.ErrorCode)
-      </p>
-    }
-    <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Latest durable operation counts">
-      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Queued</MudText><MudText Typo="Typo.h4">@QueuedCount</MudText></MudPaper></MudItem>
-      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Processing</MudText><MudText Typo="Typo.h4">@ProcessingCount</MudText></MudPaper></MudItem>
-      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Needs attention</MudText><MudText Typo="Typo.h4">@AttentionCount</MudText></MudPaper></MudItem>
-      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Completed</MudText><MudText Typo="Typo.h4">@CompletedCount</MudText></MudPaper></MudItem>
-      <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Cancelled</MudText><MudText Typo="Typo.h4">@CancelledCount</MudText></MudPaper></MudItem>
-    </MudGrid>
-    <MudText Typo="Typo.caption" Color="Color.Secondary">Counts summarize only the latest @_operations.Count firm operations shown below; they are not a backlog total or worker-health verdict.</MudText>
+  }
+
+  @if (_message is not null)
+  {
+    <MudAlert Severity="@(_messageIsError ? Severity.Error : Severity.Success)" Variant="Variant.Outlined" Class="notice my-4" role="@(_messageIsError ? "alert" : "status")">
+      @_message
+    </MudAlert>
+  }
+
+  @if (_stateLoaded)
+  {
+  <MudGrid Spacing="2" Class="audit-accounting-metrics my-3" aria-label="Latest durable operation counts">
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Queued</MudText><MudText Typo="Typo.h4">@QueuedCount</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Processing</MudText><MudText Typo="Typo.h4">@ProcessingCount</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Needs attention</MudText><MudText Typo="Typo.h4">@AttentionCount</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Completed</MudText><MudText Typo="Typo.h4">@CompletedCount</MudText></MudPaper></MudItem>
+    <MudItem xs="6" sm="4" md="2"><MudPaper Class="audit-metric pa-3"><MudText Typo="Typo.overline">Cancelled</MudText><MudText Typo="Typo.h4">@CancelledCount</MudText></MudPaper></MudItem>
+  </MudGrid>
+  <MudText id="operations-count-description" Typo="Typo.caption" Color="Color.Secondary">Counts summarize only the latest @_operations.Count firm operations shown below; they are not a backlog total or worker-health verdict.</MudText>
+
   @if (_operations.Count == 0)
   {
     <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1"><MudText Typo="Typo.body2" Color="Color.Secondary" Class="muted">No durable operations are recorded for this firm.</MudText></MudPaper>
@@ -59,16 +114,16 @@ else
     <MudPaper Class="audit-workspace-panel pa-4 my-4" Elevation="1" aria-labelledby="operations-heading" role="region">
       <h2 id="operations-heading">Latest 50 durable operations</h2>
       <label for="cancel-disposition">Cancellation disposition</label>
-      <MudTextField T="string" @bind-Value="_cancelDisposition" MaxLength="2000" id="cancel-disposition" Class="audit-operations-disposition" Placeholder="Why is the queued operation being cancelled?" required title="Explain why this queued operation is being cancelled; the disposition is stored with the operation event." />
-      <MudTable Items="_operations" Dense="true" Hover="true" Elevation="0" Class="mt-3 audit-operations-ledger">
+      <MudTextField T="string" Value="@_cancelDisposition" ValueChanged="SetCancelDisposition" Immediate="true" MaxLength="2000" id="cancel-disposition" Class="audit-operations-disposition" Placeholder="Why is the queued operation being cancelled?" Required="true" Disabled="@(_busy || _receiptLookupRequired)" />
+      <MudTable Items="_operations" Dense="true" Hover="true" Elevation="0" Class="mt-3 audit-operations-ledger" aria-label="Latest 50 durable operations" aria-describedby="operations-count-description">
         <HeaderContent>
-          <MudTh>Kind</MudTh>
-          <MudTh>Status</MudTh>
-          <MudTh>Attempts</MudTh>
-          <MudTh>Next attempt</MudTh>
-          <MudTh>Code</MudTh>
-          <MudTh>Disposition</MudTh>
-          <MudTh>Action</MudTh>
+          <MudTh scope="col">Kind</MudTh>
+          <MudTh scope="col">Status</MudTh>
+          <MudTh scope="col">Attempts</MudTh>
+          <MudTh scope="col">Next attempt</MudTh>
+          <MudTh scope="col">Code</MudTh>
+          <MudTh scope="col">Disposition</MudTh>
+          <MudTh scope="col">Action</MudTh>
         </HeaderContent>
         <RowTemplate>
           <MudTd DataLabel="Kind">@context.Kind</MudTd>
@@ -80,11 +135,11 @@ else
           <MudTd DataLabel="Action">
             @if (context.Status is "PENDING" or "RETRY_WAIT")
             {
-              <MudButton Color="Color.Error" Variant="Variant.Outlined" Size="Size.Small" Class="button me-1" OnClick="() => CancelAsync(context)" Disabled="@_busy">Cancel queued work</MudButton>
+              <MudButton Color="Color.Error" Variant="Variant.Outlined" Size="Size.Small" Class="button me-1" OnClick="() => PreviewCancelAsync(context)" Disabled="@(_busy || _receiptLookupRequired || string.IsNullOrWhiteSpace(_cancelDisposition))" aria-label="@($"Preview cancellation for {context.Kind}, operation {context.Id}")">Preview cancellation</MudButton>
             }
-            @if (OperationRecoveryService.RetryableStates.Contains(Enum.Parse<OperationState>(context.Status)))
+            @if (IsRetryable(context.Status))
             {
-              <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Class="button" OnClick="() => RetryAsync(context)" Disabled="@_busy">Re-arm for retry</MudButton>
+              <MudButton Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small" Class="button" OnClick="() => PreviewRetryAsync(context)" Disabled="@(_busy || _receiptLookupRequired)" aria-label="@($"Preview retry for {context.Kind}, operation {context.Id}")">Preview retry</MudButton>
             }
           </MudTd>
         </RowTemplate>
@@ -94,40 +149,158 @@ else
       </MudTable>
     </MudPaper>
   }
+  }
+
+  @if (_pendingPreview is { } preview)
+  {
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" aria-labelledby="operator-preview-heading" role="region">
+      <h2 id="operator-preview-heading" @ref="_previewHeading" tabindex="-1">Exact operator command preview</h2>
+      <p>@preview.Summary</p>
+      <p>Action: <strong>@ActionLabel(preview.CanonicalInput.Action)</strong></p>
+      <p>Request ID: <code style="overflow-wrap:anywhere;white-space:pre-wrap">@preview.RequestId</code></p>
+      <p>Review basis: <code style="overflow-wrap:anywhere;white-space:pre-wrap">@preview.ReviewBasis</code></p>
+      <p>Request hash: <code style="overflow-wrap:anywhere;white-space:pre-wrap">@preview.RequestHash</code></p>
+      @if (_previewActor is { } previewActor)
+      {
+        <p>Bound operator/session: <code style="overflow-wrap:anywhere">@previewActor.UserId</code> · epoch <code>@previewActor.SessionEpoch</code></p>
+      }
+      <p>This preview binds the exact operator intent to the current operation or recovery session and actor session. It authorizes a local operator transition only; it does not confirm a provider effect or make a professional conclusion.</p>
+      <details open>
+        <summary>Complete exact preview record</summary>
+        <pre style="max-height:32rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere" tabindex="0" aria-label="Complete exact operator command preview">@FormatJson(preview)</pre>
+      </details>
+      @if (!preview.CanProceed)
+      {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="notice my-3" role="alert">
+          <h3>This command is blocked</h3>
+          <ul>
+            @foreach (var blocker in preview.Blockers)
+            {
+              <li>@blocker</li>
+            }
+          </ul>
+        </MudAlert>
+      }
+      else if (_receiptLookupRequired)
+      {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="notice my-3" role="alert">
+          <h3>Command outcome not confirmed</h3>
+          <p>The original request is retained for receipt lookup. Do not prepare or submit another command until its receipt is resolved.</p>
+          <p>Request @preview.RequestId · hash <code style="overflow-wrap:anywhere;white-space:pre-wrap">@preview.RequestHash</code></p>
+        </MudAlert>
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="LookupOriginalReceiptAsync" Disabled="@_busy">Look up original operator receipt</MudButton>
+      }
+      else
+      {
+        <label class="d-flex align-center gap-2 my-3">
+          <input type="checkbox" @bind="_reviewedPreview" disabled="@_busy" />
+          <span>I reviewed this exact preview and explicitly assent to this operator transition.</span>
+        </label>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="ExecuteReviewedAsync" Disabled="@(_busy || !_reviewedPreview || !preview.CanProceed || _receiptLookupRequired)">Execute reviewed @ActionLabel(preview.CanonicalInput.Action)</MudButton>
+      }
+    </MudPaper>
+  }
+
+  @if (_lastReceipt is { } receipt)
+  {
+    <MudPaper Class="audit-workspace-panel pa-4 my-4" aria-labelledby="operator-receipt-heading" role="region">
+      <h2 id="operator-receipt-heading" @ref="_receiptHeading" tabindex="-1">Verified original operator receipt</h2>
+      <p>This receipt records the exact local operator transition and its before/after evidence. Later worker progress cannot rewrite it, and provider success is not implied.</p>
+      <p>Receipt ID: <code style="overflow-wrap:anywhere;white-space:pre-wrap">@receipt.Id</code></p>
+      <p>Request: @receipt.RequestId · @receipt.Action</p>
+      <p>Actor: @receipt.ActorId · session epoch @receipt.ActorEpoch · recorded @receipt.CreatedAt.ToString("u", CultureInfo.InvariantCulture)</p>
+      <details>
+        <summary>Show the complete recorded receipt</summary>
+        <pre style="max-height:32rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere" tabindex="0" aria-label="Complete verified operator receipt">@FormatJson(receipt)</pre>
+      </details>
+    </MudPaper>
+  }
 }
 
 @code {
+  private static readonly JsonSerializerOptions CommandJsonOptions = new() { WriteIndented = true };
+
   private ActorContext? _actor;
+  private ActorContext? _previewActor;
   private bool _isAdmin;
   private string? _operatingMode;
+  private OperationCommandState? _commandState;
   private List<OperationProjection> _operations = [];
-  private CommandResult? _result;
-  private string? _successMessage;
+  private OperationCommandPreview? _pendingPreview;
+  private OperationCommandReceiptView? _lastReceipt;
+  private string? _message;
+  private bool _messageIsError;
+  private bool _reviewedPreview;
+  private bool _receiptLookupRequired;
   private string _cancelDisposition = string.Empty;
+  private string _approvalFindings = string.Empty;
   private bool _loading = true;
+  private bool _stateLoaded;
   private bool _busy;
+  private bool _focusPreviewHeading;
+  private bool _focusReceiptHeading;
   private long _loadGeneration;
+  private ElementReference _previewHeading;
+  private ElementReference _receiptHeading;
+
   private int QueuedCount => _operations.Count(x => x.Status is "PENDING" or "RETRY_WAIT");
   private int ProcessingCount => _operations.Count(x => x.Status is "CLAIMED" or "REMOTE_STARTED" or "VERIFYING" or "CANCEL_REQUESTED");
   private int AttentionCount => _operations.Count(x => x.Status is "AUTHORIZATION_BLOCKED" or "PROVIDER_BLOCKED" or "RESULT_UNCERTAIN" or "DEAD_LETTER");
   private int CompletedCount => _operations.Count(x => x.Status == "COMPLETED");
   private int CancelledCount => _operations.Count(x => x.Status == "CANCELLED_WITH_DISPOSITION");
+  private IReadOnlyList<string> LiftQuarantineBlockers => _commandState?.LiftQuarantineBlockers ?? Array.Empty<string>();
+  private IReadOnlyList<string> ApprovalRecoveryRestartBlockers => _commandState?.ApproveRecoveryRestartBlockers ?? Array.Empty<string>();
 
   protected override Task OnInitializedAsync() => LoadOperationsAsync();
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (_focusPreviewHeading && _pendingPreview is not null)
+    {
+      _focusPreviewHeading = false;
+      await _previewHeading.FocusAsync();
+    }
+    else if (_focusReceiptHeading && _lastReceipt is not null)
+    {
+      _focusReceiptHeading = false;
+      await _receiptHeading.FocusAsync();
+    }
+  }
+
+  private void ClearPendingReview()
+  {
+    _pendingPreview = null;
+    _previewActor = null;
+    _reviewedPreview = false;
+    _receiptLookupRequired = false;
+    _focusPreviewHeading = false;
+  }
 
   private void ClearProtectedState()
   {
     _actor = null;
     _isAdmin = false;
     _operatingMode = null;
+    _commandState = null;
+    _stateLoaded = false;
     _operations = [];
-    _result = null;
-    _successMessage = null;
+    _lastReceipt = null;
+    _message = null;
+    _messageIsError = false;
     _cancelDisposition = string.Empty;
+    _approvalFindings = string.Empty;
+    _focusReceiptHeading = false;
+    ClearPendingReview();
   }
 
   private async Task LoadOperationsAsync()
   {
+    await LoadOperationsCoreAsync(allowDuringCommand: false);
+  }
+
+  private async Task LoadOperationsCoreAsync(bool allowDuringCommand)
+  {
+    if ((_busy && !allowDuringCommand) || _receiptLookupRequired) return;
     var generation = ++_loadGeneration;
     _loading = true;
     ClearProtectedState();
@@ -136,29 +309,29 @@ else
       var actor = await ActorResolver.ResolveAsync();
       if (actor is null || generation != _loadGeneration) return;
       await using var db = await DbFactory.CreateDbContextAsync();
-      var mode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, actor);
-      if (!mode.Succeeded || generation != _loadGeneration) return;
       var listed = await OperationRecoveryService.ListAsync(db, actor);
-      if (!listed.Succeeded || generation != _loadGeneration) return;
-      var currentMode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, actor);
+      var state = await OperationCommandWorkspace.StateAsync(db, actor);
       var currentActor = await ActorResolver.ResolveAsync();
-      if (!currentMode.Succeeded || currentActor is null ||
-          currentActor.UserId != actor.UserId || currentActor.FirmId != actor.FirmId ||
-          currentActor.SessionEpoch != actor.SessionEpoch || generation != _loadGeneration) return;
+      if (!listed.Succeeded || !state.Succeeded || currentActor is null ||
+          !SameActor(currentActor, actor) || generation != _loadGeneration) return;
       _actor = currentActor;
       _isAdmin = true;
-      _operatingMode = currentMode.Value;
+      _commandState = state.Value!;
+      _operatingMode = state.Value!.Before.OperatingMode;
       _operations = listed.Value!.ToList();
+      _stateLoaded = true;
     }
-    finally { if (generation == _loadGeneration) _loading = false; }
+    finally
+    {
+      if (generation == _loadGeneration) _loading = false;
+    }
   }
 
   private async Task<ActorContext?> CurrentAdminAsync()
   {
-    if (_actor is null) return null;
+    if (_actor is null || !_isAdmin) return null;
     var current = await ActorResolver.ResolveAsync();
-    if (current is null || current.UserId != _actor.UserId ||
-        current.FirmId != _actor.FirmId || current.SessionEpoch != _actor.SessionEpoch)
+    if (!SameActor(current, _actor))
     {
       ClearProtectedState();
       return null;
@@ -166,68 +339,363 @@ else
     return current;
   }
 
-  private async Task LiftQuarantineAsync()
+  private void SetCancelDisposition(string? value)
   {
-    if (_busy) return;
-    _busy = true;
-    try
-    {
-      var actor = await CurrentAdminAsync();
-      if (actor is null) return;
-      await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await OperationRecoveryService.LiftQuarantineAsync(db, actor);
-      await LoadOperationsAsync();
-      if (_isAdmin)
-      {
-        _result = result;
-        if (result.Succeeded)
-          _successMessage = "Recovery quarantine was lifted; operating mode is now LOCAL_ONLY.";
-      }
-    }
-    finally { _busy = false; }
+    value ??= string.Empty;
+    if (_cancelDisposition == value) return;
+    _cancelDisposition = value;
+    InvalidatePendingReview();
   }
 
-  private async Task RetryAsync(OperationProjection op)
+  private void SetApprovalFindings(string? value)
   {
-    if (_busy) return;
-    _busy = true;
-    try
-    {
-      var actor = await CurrentAdminAsync();
-      if (actor is null) return;
-      await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await OperationRecoveryService.RetryAsync(db, actor, new OperationRecoveryRequest(op.Id));
-      await LoadOperationsAsync();
-      if (_isAdmin)
-      {
-        _result = result;
-        if (result.Succeeded)
-          _successMessage = "The operation was re-armed for retry; the worker picks it up on its next attempt window.";
-      }
-    }
-    finally { _busy = false; }
+    value ??= string.Empty;
+    if (_approvalFindings == value) return;
+    _approvalFindings = value;
+    InvalidatePendingReview();
   }
 
-  private async Task CancelAsync(OperationProjection op)
+  private void InvalidatePendingReview()
   {
-    if (_busy) return;
+    if (_pendingPreview is null) return;
+    ClearPendingReview();
+    _message = "The request details changed. Prepare and review a fresh preview before execution.";
+    _messageIsError = false;
+  }
+
+  private Task PreviewRetryAsync(OperationProjection operation) =>
+    PreviewCommandAsync(new OperationCommandInput(OperationCommandActions.Retry, operation.Id));
+
+  private Task PreviewCancelAsync(OperationProjection operation) =>
+    PreviewCommandAsync(new OperationCommandInput(OperationCommandActions.Cancel, operation.Id, Disposition: _cancelDisposition));
+
+  private Task PreviewLiftQuarantineAsync()
+  {
+    if (_commandState?.CanLiftQuarantine != true || _operatingMode != "RECOVERY_QUARANTINE") return Task.CompletedTask;
+    return PreviewCommandAsync(new OperationCommandInput(OperationCommandActions.LiftQuarantine,
+      RecoverySessionId: _commandState.Before.RecoverySession?.Id));
+  }
+
+  private Task PreviewRecoveryRestartAsync(Guid sessionId)
+  {
+    if (_commandState?.CanApproveRecoveryRestart != true || _commandState.Before.RecoverySession?.Id != sessionId ||
+        string.IsNullOrWhiteSpace(_approvalFindings)) return Task.CompletedTask;
+    return PreviewCommandAsync(new OperationCommandInput(OperationCommandActions.ApproveRecoveryRestart,
+      RecoverySessionId: sessionId, Findings: _approvalFindings));
+  }
+
+  private async Task PreviewCommandAsync(OperationCommandInput input)
+  {
+    if (_busy || _receiptLookupRequired) return;
+    ClearPendingReview();
+    _message = null;
+    _messageIsError = false;
     _busy = true;
+    ActorContext? actor = null;
     try
     {
-      var actor = await CurrentAdminAsync();
+      actor = await CurrentAdminAsync();
       if (actor is null) return;
-      var disposition = _cancelDisposition;
       await using var db = await DbFactory.CreateDbContextAsync();
-      var result = await OperationRecoveryService.CancelAsync(db, actor,
-        new OperationCancellationRequest(op.Id, disposition));
-      await LoadOperationsAsync();
-      if (_isAdmin)
+      var state = await OperationCommandWorkspace.StateAsync(db, actor, input.OperationId, input.RecoverySessionId);
+      if (!state.Succeeded || state.Value is null)
       {
-        _result = result;
-        if (result.Succeeded)
-          _successMessage = "The queued operation was cancelled and cannot be claimed by a worker.";
+        _message = $"A current review basis could not be loaded ({state.ErrorCode ?? "UNKNOWN"}). {state.Message ?? "Refresh and review again."}";
+        _messageIsError = true;
+        return;
+      }
+
+      var request = new OperationCommandRequest(Guid.CreateVersion7(), input, state.Value.ReviewBasis);
+      var previewResult = await OperationCommandWorkspace.PreviewAsync(db, actor, request);
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (!SameActor(currentActor, actor))
+      {
+        ClearProtectedState();
+        return;
+      }
+      if (!previewResult.Succeeded || previewResult.Value is null)
+      {
+        _message = $"The exact preview could not be created ({previewResult.ErrorCode ?? "UNKNOWN"}). {previewResult.Message ?? "Refresh and review again."}";
+        _messageIsError = true;
+        return;
+      }
+
+      var preview = previewResult.Value;
+      if (preview.RequestId != request.RequestId || preview.ReviewBasis != state.Value.ReviewBasis ||
+          !JsonMatches(preview.Before, state.Value.Before) || !InputMatches(preview.CanonicalInput, input))
+      {
+        _message = "The preview did not match the exact requested action and inspected state. Refresh and prepare a new preview.";
+        _messageIsError = true;
+        return;
+      }
+
+      _pendingPreview = preview;
+      _previewActor = actor;
+      _reviewedPreview = false;
+      _focusPreviewHeading = true;
+      if (!preview.CanProceed)
+      {
+        _message = "This exact command is blocked by the current state. Review the blockers in the preview.";
+        _messageIsError = true;
       }
     }
-    finally { _busy = false; }
+    catch
+    {
+      if (actor is not null && !SameActor(actor, await ActorResolver.ResolveAsync()))
+      {
+        ClearProtectedState();
+        return;
+      }
+      _message = "The exact preview could not be verified. Refresh the operation state and review again.";
+      _messageIsError = true;
+    }
+    finally
+    {
+      _busy = false;
+    }
   }
+
+  private async Task ExecuteReviewedAsync()
+  {
+    var preview = _pendingPreview;
+    var previewActor = _previewActor;
+    if (_busy || _receiptLookupRequired || !_reviewedPreview || preview is null || !preview.CanProceed || previewActor is null) return;
+
+    _busy = true;
+    _reviewedPreview = false;
+    _message = null;
+    _messageIsError = false;
+    ActorContext? actor = null;
+    try
+    {
+      actor = await CurrentAdminAsync();
+      if (actor is null || !SameActor(actor, previewActor))
+      {
+        ClearProtectedState();
+        return;
+      }
+
+      var request = new OperationCommandRequest(preview.RequestId, preview.CanonicalInput,
+        preview.ReviewBasis, preview.RequestHash, Reviewed: true);
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var result = await OperationCommandWorkspace.ExecuteAsync(db, actor, request);
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (!SameActor(currentActor, actor))
+      {
+        ClearProtectedState();
+        return;
+      }
+
+      if (!result.Succeeded || result.Value is null)
+      {
+        ClearPendingReview();
+        await LoadOperationsCoreAsync(allowDuringCommand: true);
+        if (!SameActor(actor, await ActorResolver.ResolveAsync()))
+        {
+          ClearProtectedState();
+          return;
+        }
+        var refreshed = SameActor(actor, _actor) && _stateLoaded;
+        if (!refreshed)
+        {
+          _actor = actor;
+          _isAdmin = true;
+        }
+        _message = refreshed
+          ? $"Execution was blocked ({result.ErrorCode ?? "UNKNOWN"}). The current state has been refreshed; prepare a fresh preview before another action."
+          : $"Execution was blocked ({result.ErrorCode ?? "UNKNOWN"}). Current state could not be refreshed; refresh before preparing another action.";
+        _messageIsError = true;
+        return;
+      }
+
+      if (!ReceiptMatches(result.Value, preview, actor))
+      {
+        _receiptLookupRequired = true;
+        _message = "The returned receipt did not match the reviewed request. Keep this request and look up its original receipt before taking another action.";
+        _messageIsError = true;
+        return;
+      }
+
+      await AcceptReceiptAsync(actor, result.Value);
+    }
+    catch
+    {
+      if (actor is not null && !SameActor(actor, await ActorResolver.ResolveAsync()))
+      {
+        ClearProtectedState();
+        return;
+      }
+      if (actor is not null)
+      {
+        _actor = actor;
+        _isAdmin = true;
+      }
+      _pendingPreview ??= preview;
+      _previewActor ??= previewActor;
+      _reviewedPreview = false;
+      _receiptLookupRequired = true;
+      _message = "The command outcome is not confirmed. Do not submit another action; look up the original operator receipt using this request ID and hash.";
+      _messageIsError = true;
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private async Task LookupOriginalReceiptAsync()
+  {
+    var preview = _pendingPreview;
+    var previewActor = _previewActor;
+    if (_busy || !_receiptLookupRequired || preview is null || previewActor is null) return;
+    _busy = true;
+    ActorContext? actor = null;
+    try
+    {
+      actor = await CurrentAdminAsync();
+      if (actor is null || !SameActor(actor, previewActor))
+      {
+        ClearProtectedState();
+        return;
+      }
+
+      await using var db = await DbFactory.CreateDbContextAsync();
+      var lookupResult = await OperationCommandWorkspace.LookupAsync(db, actor, preview.RequestId, preview.RequestHash);
+      var currentActor = await ActorResolver.ResolveAsync();
+      if (!SameActor(currentActor, actor))
+      {
+        ClearProtectedState();
+        return;
+      }
+      if (!lookupResult.Succeeded || lookupResult.Value is null)
+      {
+        _message = $"The original receipt lookup was not verified ({lookupResult.ErrorCode ?? "UNKNOWN"}). Keep this request blocked and try lookup again.";
+        _messageIsError = true;
+        return;
+      }
+      if (!lookupResult.Value.Found || lookupResult.Value.Receipt is null)
+      {
+        _message = "No receipt exists at lookup time. A delayed commit may still complete. Keep this request and look it up again; no new command is enabled.";
+        _messageIsError = true;
+        return;
+      }
+      if (!ReceiptMatches(lookupResult.Value.Receipt, preview, actor))
+      {
+        _message = "The receipt did not match this actor session and exact request. Keep the request blocked and contact an administrator.";
+        _messageIsError = true;
+        return;
+      }
+
+      await AcceptReceiptAsync(actor, lookupResult.Value.Receipt);
+    }
+    catch
+    {
+      if (actor is not null && !SameActor(actor, await ActorResolver.ResolveAsync()))
+      {
+        ClearProtectedState();
+        return;
+      }
+      if (actor is not null)
+      {
+        _actor = actor;
+        _isAdmin = true;
+      }
+      _pendingPreview ??= preview;
+      _previewActor ??= previewActor;
+      _reviewedPreview = false;
+      _receiptLookupRequired = true;
+      _message = "The original receipt could not be verified. The request remains blocked; try looking it up again.";
+      _messageIsError = true;
+    }
+    finally
+    {
+      _busy = false;
+    }
+  }
+
+  private async Task AcceptReceiptAsync(ActorContext actor, OperationCommandReceiptView receipt)
+  {
+    ClearPendingReview();
+    var refreshed = false;
+    try
+    {
+      await LoadOperationsCoreAsync(allowDuringCommand: true);
+      refreshed = SameActor(actor, _actor) && _commandState is not null;
+    }
+    catch
+    {
+      // Keep the verified receipt visible if its follow-up state read fails.
+    }
+    if (!SameActor(actor, await ActorResolver.ResolveAsync()))
+    {
+      ClearProtectedState();
+      return;
+    }
+    if (!refreshed)
+    {
+      _actor = actor;
+      _isAdmin = true;
+    }
+    _lastReceipt = receipt;
+    _message = refreshed
+      ? $"Verified the original {ActionLabel(receipt.Action)} receipt. It records a local operator transition only; provider success is not implied."
+      : $"Verified the original {ActionLabel(receipt.Action)} receipt. Current operation state could not be refreshed; refresh it before preparing another command. Provider success is not implied.";
+    _messageIsError = !refreshed;
+    _focusReceiptHeading = true;
+  }
+
+  private static bool SameActor(ActorContext? left, ActorContext? right) =>
+    left is not null && right is not null && left.UserId == right.UserId && left.FirmId == right.FirmId && left.SessionEpoch == right.SessionEpoch;
+
+  private static bool IsRetryable(string status) =>
+    Enum.TryParse<OperationState>(status, ignoreCase: false, out var state) && OperationRecoveryService.RetryableStates.Contains(state);
+
+  private static string ActionLabel(string action) => action switch
+  {
+    OperationCommandActions.Retry => "retry",
+    OperationCommandActions.Cancel => "cancellation",
+    OperationCommandActions.LiftQuarantine => "quarantine lift",
+    OperationCommandActions.ApproveRecoveryRestart => "recovery restart approval",
+    _ => "operator command"
+  };
+
+  private static bool InputMatches(OperationCommandInput canonical, OperationCommandInput requested) =>
+    canonical.Action == requested.Action && canonical.OperationId == requested.OperationId &&
+    canonical.RecoverySessionId == requested.RecoverySessionId &&
+    canonical.Disposition == requested.Disposition?.Trim() && canonical.Findings == requested.Findings?.Trim();
+
+  private static bool JsonMatches<T>(T left, T right) =>
+    JsonSerializer.Serialize(left) == JsonSerializer.Serialize(right);
+
+  private static bool ReceiptMatches(OperationCommandReceiptView receipt, OperationCommandPreview preview, ActorContext actor)
+  {
+    var expectedEpoch = actor.SessionEpoch.ToString(CultureInfo.InvariantCulture);
+    var input = preview.CanonicalInput;
+    var commandEvent = receipt.CommandEvent;
+    if (receipt.Id == Guid.Empty || receipt.ActorId != actor.UserId || receipt.ActorEpoch != expectedEpoch ||
+        receipt.RequestId != preview.RequestId || receipt.RequestHash != preview.RequestHash ||
+        receipt.Action != input.Action || !preview.CanProceed || !JsonMatches(receipt.Preview, preview) ||
+        commandEvent.ActorId != actor.UserId || commandEvent.ActorEpoch != expectedEpoch ||
+        commandEvent.Action != input.Action || !JsonMatches(commandEvent.Before, preview.Before)) return false;
+
+    var after = commandEvent.After;
+    return input.Action switch
+    {
+      OperationCommandActions.Retry => commandEvent.OperationEventId is not null &&
+        after.Operation is { } retried && retried.Id == input.OperationId && retried.Status == "RETRY_WAIT",
+      OperationCommandActions.Cancel => commandEvent.OperationEventId is not null &&
+        after.Operation is { } cancelled && cancelled.Id == input.OperationId && cancelled.Status == "CANCELLED_WITH_DISPOSITION" &&
+        cancelled.CancellationDisposition == input.Disposition,
+      OperationCommandActions.ApproveRecoveryRestart => commandEvent.OperationEventId is null && after.Operation is null &&
+        after.OperatingMode == "LOCAL_ONLY" && after.RecoverySession is { } approved && approved.Id == input.RecoverySessionId &&
+        approved.ExternalEpoch == preview.Before.RecoverySession?.ExternalEpoch &&
+        approved.ApprovedRestartAt is not null && approved.ApprovedByUserId == actor.UserId && approved.Findings == input.Findings,
+      OperationCommandActions.LiftQuarantine => commandEvent.OperationEventId is null && after.Operation is null &&
+        after.OperatingMode == "LOCAL_ONLY" && after.RecoverySession?.Id == preview.Before.RecoverySession?.Id &&
+        after.RecoverySession?.ExternalEpoch == preview.Before.RecoverySession?.ExternalEpoch,
+      _ => false
+    };
+  }
+
+  private static string FormatJson<T>(T value) => JsonSerializer.Serialize(value, CommandJsonOptions);
 }

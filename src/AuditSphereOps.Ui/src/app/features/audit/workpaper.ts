@@ -69,8 +69,8 @@ const AUTOSAVE_MS = 750;
           @empty { <tr><td colspan="3">No submission has been frozen for this workpaper yet.</td></tr> }</tbody></table></div></section>
       @if (w.status === 'WORKING') {
         <section class="panel"><h2>Working content</h2>
-          <label>Work performed <textarea name="work" rows="5" [(ngModel)]="work" (ngModelChange)="changed()" [disabled]="busy() || conflict() || uncertain() && !flow.absent()" required></textarea></label>
-          <label>Conclusion <textarea name="conclusion" rows="3" [(ngModel)]="conclusion" (ngModelChange)="changed()" [disabled]="busy() || conflict() || uncertain() && !flow.absent()" required></textarea></label>
+          <label>Work performed <textarea name="work" rows="5" [(ngModel)]="work" (ngModelChange)="changed()" [readonly]="busy() || conflict() || uncertain() && !freshSaveAwaitingFirstResponse()" required></textarea></label>
+          <label>Conclusion <textarea name="conclusion" rows="3" [(ngModel)]="conclusion" (ngModelChange)="changed()" [readonly]="busy() || conflict() || uncertain() && !freshSaveAwaitingFirstResponse()" required></textarea></label>
           <p class="actions">
             <button matButton="outlined" (click)="save()" [disabled]="busy() || conflict() || uncertain() || saving()">Save draft</button>
             <button matButton="outlined" (click)="discard()" [disabled]="busy() || conflict() || uncertain() || saving() || !state || state.draftRevision === '0'">Discard draft</button>
@@ -136,6 +136,12 @@ export class WorkpaperEditor {
   readonly flow = new WorkpaperCommandState(this.id, this.wp.data, () => this.state);
   private readonly finalOpen = signal(false);
   private readonly navigationOpen = signal(false);
+  private readonly startingFreshSave = signal(false);
+  readonly freshSaveAwaitingFirstResponse = computed(() => {
+    const pending = this.flow.pending();
+    return this.startingFreshSave() && this.saving() && this.flow.busy() && !this.flow.absent() && pending.length === 1 &&
+      pending[0]?.action === 'SAVE_DRAFT' && pending[0]?.workpaperId === this.id();
+  });
   readonly busy = computed(() => this.finalOpen() || this.flow.busy() && !this.saving());
   readonly saving = signal(false);
   readonly conflict = this.flow.conflict;
@@ -163,7 +169,7 @@ export class WorkpaperEditor {
     effect(() => {
       const routeId = this.id(), w = this.wp.data(), actor = this.session.current(); const invalidation = this.session.invalidation(); this.routeEpoch(); const loading = this.wp.loading(), readError = this.wp.error();
       untracked(() => {
-        ++this.operation; ++this.lifetime; ++this.finalOperation; clearTimeout(this.timer); this.saving.set(false); this.pendingSave = null;
+        ++this.operation; ++this.lifetime; ++this.finalOperation; clearTimeout(this.timer); this.saving.set(false); this.startingFreshSave.set(false); this.pendingSave = null;
         this.reviewDialog?.close(false); this.reviewDialog = null; this.finalOpen.set(false); this.navigationOpen.set(false);
         const changedRoute = this.observedRouteId !== routeId;
         const sameActor = this.observedActor === actor && this.observedSessionInvalidation === invalidation;
@@ -186,7 +192,7 @@ export class WorkpaperEditor {
   }
   private resetLifetime(): void {
     this.routeEpoch.update(value => value + 1);
-    ++this.operation; ++this.lifetime; ++this.finalOperation; clearTimeout(this.timer); this.pendingSave = null; this.saving.set(false);
+    ++this.operation; ++this.lifetime; ++this.finalOperation; clearTimeout(this.timer); this.pendingSave = null; this.saving.set(false); this.startingFreshSave.set(false);
     this.reviewDialog?.close(false); this.reviewDialog = null; this.finalOpen.set(false); this.navigationOpen.set(false);
     this.state = null; this.work = ''; this.conclusion = ''; this.dirty = false;
   }
@@ -211,7 +217,7 @@ export class WorkpaperEditor {
     if (this.saving()) return this.pendingSave ?? false;
     if (!this.flow.ready() || this.wp.data()?.status !== 'WORKING' || !this.state || this.conflict() || this.uncertain() || this.flow.busy() || this.finalOpen() && !insideFinal) return false;
     const valid = this.flow.ticket(), operation = ++this.operation, fields = this.saveFields(), work = this.work, conclusion = this.conclusion;
-    this.saving.set(true); this.status.set('Saving…');
+    this.startingFreshSave.set(true); this.saving.set(true); this.status.set('Saving…');
     this.pendingSave = (async () => {
       try {
         const receipt = await this.flow.save(fields);
@@ -220,7 +226,7 @@ export class WorkpaperEditor {
         this.acknowledgeSave(receipt.commandEvent.after.draft!, work, conclusion);
         this.report(true, 'Draft saved.'); return !this.dirty;
       } finally {
-        if (operation === this.operation) { this.saving.set(false); this.pendingSave = null; }
+        if (operation === this.operation) { this.saving.set(false); this.startingFreshSave.set(false); this.pendingSave = null; }
       }
     })();
     return this.pendingSave;

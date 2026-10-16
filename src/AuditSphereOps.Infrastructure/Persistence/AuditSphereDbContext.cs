@@ -635,6 +635,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureReviews(b);
     ConfigureCompletion(b);
     ConfigureOperations(b);
+    ConfigureOperatorCommands(b);
     ConfigureSecurity(b);
     ConfigureMicrosoft365(b);
     ConfigureClientSharePointSites(b);

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "1209844d4c24453021e3de5dd51e688c2f5f673a",
+  "sourceCommit": "5f8f374b2e9106163e9b8f5a44150fafcf0aca0c",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -2854,15 +2854,18 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Operations.razor",
-      "sourceSha256": "a11b6ab3c0f7c57d618d8ed8ae1a249d055364c49834cc34ab61fc1875815b9d",
+      "sourceSha256": "f7b63e059579376b3b2e2b39d2a3a5e172e5bafdb3afa77d4b117136536119b7",
       "routes": [
         "/app/operations"
       ],
       "actions": [
-        "() => CancelAsync(context)",
-        "() => RetryAsync(context)",
-        "LiftQuarantineAsync",
-        "LoadOperationsAsync"
+        "() => PreviewCancelAsync(context)",
+        "() => PreviewRecoveryRestartAsync(recoverySession.Id)",
+        "() => PreviewRetryAsync(context)",
+        "ExecuteReviewedAsync",
+        "LoadOperationsAsync",
+        "LookupOriginalReceiptAsync",
+        "PreviewLiftQuarantineAsync"
       ],
       "injectedServices": [
         [
@@ -2878,16 +2881,27 @@
         "/app"
       ],
       "asyncCalls": [
-        "CancelAsync",
+        "AcceptReceiptAsync",
         "CreateDbContextAsync",
         "CurrentAdminAsync",
-        "GetFirmOperatingModeAsync",
-        "LiftQuarantineAsync",
+        "ExecuteAsync",
+        "ExecuteReviewedAsync",
+        "FocusAsync",
         "ListAsync",
         "LoadOperationsAsync",
+        "LoadOperationsCoreAsync",
+        "LookupAsync",
+        "LookupOriginalReceiptAsync",
+        "OnAfterRenderAsync",
         "OnInitializedAsync",
+        "PreviewAsync",
+        "PreviewCancelAsync",
+        "PreviewCommandAsync",
+        "PreviewLiftQuarantineAsync",
+        "PreviewRecoveryRestartAsync",
+        "PreviewRetryAsync",
         "ResolveAsync",
-        "RetryAsync"
+        "StateAsync"
       ],
       "draftHooks": [],
       "authorizationLines": [],

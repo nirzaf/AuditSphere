@@ -548,7 +548,19 @@ public sealed class CommercialPricingPolicyTests
       .Where(o => o.FirmId == w.FirmId && o.OperationKind == CommercialMailDeliveryHandler.Kind &&
         (o.Status == OperationState.PROVIDER_BLOCKED || o.Status == OperationState.RESULT_UNCERTAIN || o.Status == OperationState.DEAD_LETTER))
       .OrderByDescending(o => o.CreatedAt).FirstAsync();
-    var rearm = await OperationRecoveryService.RetryAsync(db, admin, new OperationRecoveryRequest(op.Id));
+    var request = new OperationCommandRequest(Guid.NewGuid(),
+      new(OperationCommandActions.Retry, OperationId: op.Id));
+    var preview = await OperationCommandWorkspace.PreviewAsync(db, admin, request);
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.True(preview.Value!.CanProceed, string.Join(';', preview.Value.Blockers));
+    var reviewed = request with
+    {
+      Input = preview.Value.CanonicalInput,
+      ReviewBasis = preview.Value.ReviewBasis,
+      ExpectedRequestHash = preview.Value.RequestHash,
+      Reviewed = true
+    };
+    var rearm = await OperationCommandWorkspace.ExecuteAsync(db, admin, reviewed);
     Assert.True(rearm.Succeeded, rearm.Message);
   }
 

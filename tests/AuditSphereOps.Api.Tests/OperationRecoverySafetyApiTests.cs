@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -54,6 +55,22 @@ public sealed class OperationRecoverySafetyApiTests
     return client.SendAsync(request);
   }
 
+  private static async Task<CommandResult<OperationCommandReceiptView>> ExecuteReviewedAsync(
+    AuditSphereDbContext db, AuditSphereOps.Application.Abstractions.ActorContext actor, OperationCommandInput input)
+  {
+    var draft = new OperationCommandRequest(Guid.NewGuid(), input);
+    var preview = await OperationCommandWorkspace.PreviewAsync(db, actor, draft);
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.True(preview.Value!.CanProceed, string.Join(';', preview.Value.Blockers));
+    return await OperationCommandWorkspace.ExecuteAsync(db, actor, draft with
+    {
+      Input = preview.Value.CanonicalInput,
+      ReviewBasis = preview.Value.ReviewBasis,
+      ExpectedRequestHash = preview.Value.RequestHash,
+      Reviewed = true
+    });
+  }
+
   private static DurableOperation Operation(Guid firm, OperationState state) => new()
   {
     Id = Guid.NewGuid(), FirmId = firm, OperationKind = "SYNTHETIC-RECOVERY", TargetId = Guid.NewGuid(),
@@ -63,7 +80,7 @@ public sealed class OperationRecoverySafetyApiTests
   };
 
   [Fact]
-  public async Task HttpRearmRetainsUncertaintyAndRefusesCancellationWhileOrdinaryQueuedCancellationRemainsAvailable()
+  public async Task LegacyHttpRecoveryAliasesCannotBypassPreviewAssentAndReceipt()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-RECOVERY-UNCERTAIN");
     var f = await PbcSeed.SeedAsync(pg);
@@ -75,25 +92,24 @@ public sealed class OperationRecoverySafetyApiTests
     using var factory = Factory(pg, f);
     using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
     var csrf = await SignIn(client);
-    Assert.Equal(HttpStatusCode.OK, (await Post(client, csrf, $"/api/ui/operations/{uncertain.Id}/retry", new { })).StatusCode);
+    Assert.Equal(HttpStatusCode.Conflict, (await Post(client, csrf, $"/api/ui/operations/{uncertain.Id}/retry", new { })).StatusCode);
+    Assert.Equal(HttpStatusCode.Conflict, (await Post(client, csrf, $"/api/ui/operations/{uncertain.Id}/cancel", new { disposition = "Cannot cancel unknown effects" })).StatusCode);
+    Assert.Equal(HttpStatusCode.Conflict, (await Post(client, csrf, $"/api/ui/operations/{queued.Id}/cancel", new { disposition = "Reviewed queued cancellation" })).StatusCode);
     var retained = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == uncertain.Id);
-    Assert.Equal(OperationState.RETRY_WAIT, retained.Status);
-    Assert.True(retained.IsReconciliation);
-    Assert.Equal(HttpStatusCode.BadRequest, (await Post(client, csrf, $"/api/ui/operations/{uncertain.Id}/cancel", new { disposition = "Cannot cancel unknown effects" })).StatusCode);
-    Assert.Equal(HttpStatusCode.OK, (await Post(client, csrf, $"/api/ui/operations/{queued.Id}/cancel", new { disposition = "Reviewed queued cancellation" })).StatusCode);
-    Assert.Equal(HttpStatusCode.OK, (await Post(client, csrf, $"/api/ui/operations/{queued.Id}/cancel", new { disposition = "  Reviewed queued cancellation  " })).StatusCode);
-    Assert.Equal(HttpStatusCode.Conflict, (await Post(client, csrf, $"/api/ui/operations/{queued.Id}/cancel", new { disposition = "Changed cancellation disposition" })).StatusCode);
+    Assert.Equal(OperationState.RESULT_UNCERTAIN, retained.Status);
+    Assert.Equal(OperationState.PENDING, await db.DurableOperations.Where(x => x.Id == queued.Id).Select(x => x.Status).SingleAsync());
     using var response = await client.GetAsync("/api/ui/operations");
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     var body = await response.Content.ReadAsStringAsync();
     Assert.DoesNotContain("SYNTHETIC-HIDDEN", body);
     Assert.DoesNotContain("requestBytes", body);
     Assert.DoesNotContain("leaseOwner", body);
-    Assert.Equal(2, await db.OperationEvents.CountAsync());
+    Assert.Empty(await db.OperationEvents.ToListAsync());
+    Assert.Empty(await db.OperatorCommandReceipts.ToListAsync());
   }
 
   [Fact]
-  public async Task HttpLiftCannotBypassCurrentRecoveryApprovalAndApprovedRestartPreservesIdempotentLift()
+  public async Task HttpLiftCannotBypassApprovalAndApprovedRestartAtomicallyLeavesQuarantine()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-RECOVERY-APPROVAL");
     var f = await PbcSeed.SeedAsync(pg);
@@ -105,14 +121,31 @@ public sealed class OperationRecoverySafetyApiTests
     using var factory = Factory(pg, f);
     using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
     var csrf = await SignIn(client);
-    Assert.Equal(HttpStatusCode.BadRequest, (await Post(client, csrf, "/api/ui/operations/lift-quarantine", new { })).StatusCode);
+    Assert.Equal(HttpStatusCode.Conflict, (await Post(client, csrf, "/api/ui/operations/lift-quarantine", new { })).StatusCode);
     Assert.Equal("RECOVERY_QUARANTINE", await db.FirmSafetyStates.Select(x => x.OperatingMode).SingleAsync());
-    Assert.True((await OperationRecoveryService.ApproveRecoveryRestartAsync(db, actor, new(session.Value, "Exact persisted reconciliation findings"))).Succeeded);
-    Assert.Equal(HttpStatusCode.OK, (await Post(client, csrf, "/api/ui/operations/lift-quarantine", new { })).StatusCode);
+    var approved = await ExecuteReviewedAsync(db, actor, new(OperationCommandActions.ApproveRecoveryRestart,
+      RecoverySessionId: session.Value, Findings: "Exact persisted reconciliation findings"));
+    Assert.True(approved.Succeeded, approved.Message);
+    Assert.Equal("LOCAL_ONLY", await db.FirmSafetyStates.Select(x => x.OperatingMode).SingleAsync());
     Assert.Equal(2L, await db.FirmSafetyStates.Select(x => x.DeploymentEpoch).SingleAsync());
     var newer = await OperationRecoveryService.BeginRecoverySessionAsync(db, actor, new("New synthetic restore", 10, "New scope", "Pending new findings"));
     Assert.True(newer.Succeeded, newer.Message);
-    Assert.Equal(HttpStatusCode.BadRequest, (await Post(client, csrf, "/api/ui/operations/lift-quarantine", new { })).StatusCode);
+    Assert.Equal(HttpStatusCode.Conflict, (await Post(client, csrf, "/api/ui/operations/lift-quarantine", new { })).StatusCode);
+  }
+
+  [Fact]
+  public async Task OperatorCommandEvidenceTablesRejectTruncate()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-OPERATOR-COMMAND-TRUNCATE");
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var receiptError = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+      db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE operator_command_receipts"));
+    Assert.Equal("55000", receiptError.SqlState);
+
+    var eventError = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+      db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE operator_command_events, operator_command_receipts"));
+    Assert.Equal("55000", eventError.SqlState);
   }
 
   [Fact]

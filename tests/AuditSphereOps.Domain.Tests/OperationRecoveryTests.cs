@@ -23,8 +23,10 @@ public sealed class OperationRecoveryTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var cancelled = await OperationRecoveryService.CancelAsync(db, admin,
-        new OperationCancellationRequest(operationId, "Operator stopped the queued transfer before worker claim."));
+      var cancellation = await ReviewedCommandAsync(db, harness.Fixture,
+        new(OperationCommandActions.Cancel, OperationId: operationId,
+          Disposition: "Operator stopped the queued transfer before worker claim."));
+      var cancelled = await OperationCommandWorkspace.ExecuteAsync(db, admin, cancellation);
       Assert.True(cancelled.Succeeded, cancelled.ErrorCode);
       var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == operationId);
       Assert.Equal(OperationState.CANCELLED_WITH_DISPOSITION, operation.Status);
@@ -39,8 +41,9 @@ public sealed class OperationRecoveryTests
     {
       var intent = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == harness.Staged.UploadIntentId);
       Assert.Equal(PbcUploadStates.Staged, intent.State);
-      var refused = await OperationRecoveryService.RetryAsync(verify, admin,
-        new OperationRecoveryRequest(operationId));
+      var retry = await ReviewedCommandAsync(verify, admin,
+        new(OperationCommandActions.Retry, OperationId: operationId), expectedCanProceed: false);
+      var refused = await OperationCommandWorkspace.ExecuteAsync(verify, admin, retry);
       Assert.False(refused.Succeeded);
       Assert.Equal(ErrorCodes.Operations.State, refused.ErrorCode);
     }
@@ -65,16 +68,17 @@ public sealed class OperationRecoveryTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var denied = await OperationRecoveryService.RetryAsync(db, staff,
-        new OperationRecoveryRequest(operationId));
+      var denied = await OperationCommandWorkspace.PreviewAsync(db, staff,
+        new(Guid.NewGuid(), new(OperationCommandActions.Retry, OperationId: operationId)));
       Assert.False(denied.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var rearmed = await OperationRecoveryService.RetryAsync(db, admin,
-        new OperationRecoveryRequest(operationId));
+      var retry = await ReviewedCommandAsync(db, harness.Fixture,
+        new(OperationCommandActions.Retry, OperationId: operationId));
+      var rearmed = await OperationCommandWorkspace.ExecuteAsync(db, admin, retry);
       Assert.True(rearmed.Succeeded, rearmed.ErrorCode);
       var op = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == operationId);
       Assert.Equal(OperationState.RETRY_WAIT, op.Status);
@@ -113,10 +117,11 @@ public sealed class OperationRecoveryTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var refused = await OperationRecoveryService.RetryAsync(db, admin,
-        new OperationRecoveryRequest(operationId));
+      var retry = await ReviewedCommandAsync(db, admin,
+        new(OperationCommandActions.Retry, OperationId: operationId), expectedCanProceed: false);
+      var refused = await OperationCommandWorkspace.ExecuteAsync(db, admin, retry);
       Assert.False(refused.Succeeded);
-      Assert.Equal("operations.state", refused.ErrorCode);
+      Assert.Equal(ErrorCodes.Operations.State, refused.ErrorCode);
       var listed = await OperationRecoveryService.ListAsync(db, admin);
       Assert.True(listed.Succeeded);
       var projection = listed.Value!.Single(x => x.Id == operationId);
@@ -142,8 +147,9 @@ public sealed class OperationRecoveryTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var rearmed = await OperationRecoveryService.RetryAsync(db, admin,
-        new OperationRecoveryRequest(operationId));
+      var retry = await ReviewedCommandAsync(db, harness.Fixture,
+        new(OperationCommandActions.Retry, OperationId: operationId));
+      var rearmed = await OperationCommandWorkspace.ExecuteAsync(db, admin, retry);
       Assert.True(rearmed.Succeeded, rearmed.ErrorCode);
       var op = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == operationId);
       Assert.Equal(OperationState.RETRY_WAIT, op.Status);
@@ -177,17 +183,22 @@ public sealed class OperationRecoveryTests
       Assert.Equal("RECOVERY_QUARANTINE", mode.Value);
 
       // Retry blocked under quarantine
-      var blocked = await OperationRecoveryService.RetryAsync(db, admin, new OperationRecoveryRequest(operationId));
+      var retry = await ReviewedCommandAsync(db, admin,
+        new(OperationCommandActions.Retry, OperationId: operationId), expectedCanProceed: false);
+      var blocked = await OperationCommandWorkspace.ExecuteAsync(db, admin, retry);
       Assert.False(blocked.Succeeded);
-      Assert.Equal("operations.quarantined", blocked.ErrorCode);
+      Assert.Equal(ErrorCodes.Operations.State, blocked.ErrorCode);
 
       // Staff cannot lift quarantine
-      var staffDenied = await OperationRecoveryService.LiftQuarantineAsync(db, staff);
+      var staffDenied = await OperationCommandWorkspace.PreviewAsync(db, staff,
+        new(Guid.NewGuid(), new(OperationCommandActions.LiftQuarantine, RecoverySessionId: Guid.NewGuid())));
       Assert.False(staffDenied.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, staffDenied.ErrorCode);
 
       // Admin lifts quarantine
-      var lifted = await OperationRecoveryService.LiftQuarantineAsync(db, admin);
+      var lift = await ReviewedCommandAsync(db, harness.Fixture,
+        new(OperationCommandActions.LiftQuarantine));
+      var lifted = await OperationCommandWorkspace.ExecuteAsync(db, admin, lift);
       Assert.True(lifted.Succeeded, lifted.ErrorCode);
 
       var safety = await db.FirmSafetyStates.AsNoTracking().SingleAsync(x => x.Id == harness.Fixture.FirmId);
@@ -195,7 +206,9 @@ public sealed class OperationRecoveryTests
       Assert.Equal(2, safety.DeploymentEpoch);
 
       // Now retry succeeds
-      var rearmed = await OperationRecoveryService.RetryAsync(db, admin, new OperationRecoveryRequest(operationId));
+      var retryAfterLift = await ReviewedCommandAsync(db, harness.Fixture,
+        new(OperationCommandActions.Retry, OperationId: operationId));
+      var rearmed = await OperationCommandWorkspace.ExecuteAsync(db, admin, retryAfterLift);
       Assert.True(rearmed.Succeeded, rearmed.ErrorCode);
     }
     PbcSeed.DeleteDirectory(harness.Staged.StagingRoot);
@@ -217,8 +230,10 @@ public sealed class OperationRecoveryTests
       Assert.Equal("RECOVERY_QUARANTINE", (await db.FirmSafetyStates.AsNoTracking().SingleAsync()).OperatingMode);
       Assert.Equal(7, (await db.FirmSafetyStates.AsNoTracking().SingleAsync()).RecoveryEpoch);
 
-      var approved = await OperationRecoveryService.ApproveRecoveryRestartAsync(db, admin,
-        new RecoveryRestartRequest(started.Value!, "Counts and digests reconciled; no replay permitted."));
+      var approval = await ReviewedCommandAsync(db, harness.Fixture,
+        new(OperationCommandActions.ApproveRecoveryRestart, RecoverySessionId: started.Value!,
+          Findings: "Counts and digests reconciled; no replay permitted."));
+      var approved = await OperationCommandWorkspace.ExecuteAsync(db, admin, approval);
       Assert.True(approved.Succeeded, approved.ErrorCode);
       var safety = await db.FirmSafetyStates.AsNoTracking().SingleAsync();
       Assert.Equal("LOCAL_ONLY", safety.OperatingMode);
@@ -244,8 +259,8 @@ public sealed class OperationRecoveryTests
       otherOperationId = otherOp.Id;
     }
     await using var db = new AuditSphereDbContext(pg.Options);
-    var denied = await OperationRecoveryService.RetryAsync(db, admin,
-      new OperationRecoveryRequest(otherOperationId));
+    var denied = await OperationCommandWorkspace.PreviewAsync(db, admin,
+      new(Guid.NewGuid(), new(OperationCommandActions.Retry, OperationId: otherOperationId)));
     Assert.False(denied.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
     PbcSeed.DeleteDirectory(harness.Staged.StagingRoot);
@@ -284,4 +299,24 @@ public sealed class OperationRecoveryTests
     Assert.Single(operations);
     return operations[0].Id;
   }
+
+  private static async Task<OperationCommandRequest> ReviewedCommandAsync(
+    AuditSphereDbContext db, ActorContext actor, OperationCommandInput input, bool expectedCanProceed = true)
+  {
+    var request = new OperationCommandRequest(Guid.NewGuid(), input);
+    var preview = await OperationCommandWorkspace.PreviewAsync(db, actor, request);
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.Equal(expectedCanProceed, preview.Value!.CanProceed);
+    return request with
+    {
+      Input = preview.Value.CanonicalInput,
+      ReviewBasis = preview.Value.ReviewBasis,
+      ExpectedRequestHash = preview.Value.RequestHash,
+      Reviewed = true
+    };
+  }
+
+  private static Task<OperationCommandRequest> ReviewedCommandAsync(
+    AuditSphereDbContext db, PbcSeed.Fixture fixture, OperationCommandInput input) =>
+    OperatorCommandReceiptSeed.ReviewAsync(db, new(fixture, Guid.Empty, input));
 }
