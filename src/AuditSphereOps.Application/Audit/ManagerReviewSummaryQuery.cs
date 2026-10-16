@@ -95,6 +95,10 @@ public static class ManagerReviewSummaryQuery
     if (blocker.StartsWith("procedure:", StringComparison.Ordinal))
     {
       if (blocker.EndsWith(":unreviewed", StringComparison.Ordinal)) return ("procedure-review-required", "Procedure review required");
+      if (blocker.EndsWith(":stale-generation", StringComparison.Ordinal)) return ("procedure-generation-stale", "Procedure result uses an outdated planning generation");
+      if (blocker.EndsWith(":stale-result", StringComparison.Ordinal)) return ("procedure-result-stale", "Procedure result revision is no longer current");
+      if (blocker.EndsWith(":stale-review", StringComparison.Ordinal)) return ("procedure-review-stale", "Independent review does not cover the current result revision");
+      if (blocker.EndsWith(":open-review-notes", StringComparison.Ordinal)) return ("procedure-review-thread-open", "Procedure review notes remain open");
       if (blocker.Contains(":risk-basis-stale", StringComparison.Ordinal)) return ("risk-basis-stale", "Procedure risk basis is stale");
       if (blocker.Contains(":risk-basis-blocked", StringComparison.Ordinal)) return ("risk-basis-blocked", "Procedure risk basis is blocked");
       if (blocker.Contains(":risk-basis-unavailable", StringComparison.Ordinal)) return ("risk-basis-unavailable", "Procedure risk basis is unavailable");

@@ -76,8 +76,22 @@ public static partial class AuditDeliverableService
     var routing = await RiskBandService.GetRoutingForAuthorizedScopeAsync(db, actor.FirmId, engagementId, ct);
     var redAreas = routing.Succeeded
       ? routing.Value!.Where(r => r.Band == RiskBands.Red).Select(r => r.Area).Distinct().ToList() : [];
-    var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
-      .OrderBy(x => x.SourceProcedureId).Select(x => new { x.Id, x.SourceProcedureId, x.Title, x.Status, x.CurrentResultRevision }).ToListAsync(ct);
+    var procedureRows = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId && x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable)
+      .OrderBy(x => x.SourceProcedureId).ToListAsync(ct);
+    var procedureEvidence = await AuditFieldworkService.EvaluateProcedureEvidenceBatchForAuthorizedScopeAsync(
+      db, actor.FirmId, engagement.PracticeClientId, engagementId, procedureRows, ct);
+    var procedures = procedureRows.Select(x =>
+    {
+      procedureEvidence.TryGetValue(x.Id, out var evidence);
+      return (object)new
+      {
+        x.Id, x.SourceProcedureId, x.Title, x.Status, x.CurrentResultRevision,
+        EvidenceState = evidence?.State ?? "EVIDENCE_UNAVAILABLE", Satisfied = evidence?.Satisfied ?? false,
+        ResultId = evidence?.ResultId, ResultRevision = evidence?.Revision, InputGeneration = evidence?.InputGeneration,
+        ReviewId = evidence?.ReviewId, ReviewerUserId = evidence?.ReviewerUserId
+      };
+    }).ToList();
     var openNotes = (await ReviewNotesService.OpenNoteIdsAsync(db, actor.FirmId, engagementId, ct)).Count;
     var findings = await db.Findings.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderBy(x => x.CreatedAt).ToListAsync(ct);
     var differenceRows = await db.AuditDifferences.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
@@ -111,7 +125,7 @@ public static partial class AuditDeliverableService
     return new(client.CommercialName ?? client.LegalName, engagement.PeriodEnd, materiality,
       routing.Succeeded ? routing.Value!.Select(r => (object)new { r.RiskId, r.Area, r.Band, r.PartnerCleared }).ToList() : [],
       redAreas,
-      procedures.Select(p => (object)p).ToList(), openNotes, findings, unadjustedDifferences,
+      procedures, openNotes, findings, unadjustedDifferences,
       outstandingConfirmations, criticalConfirmations,
       confirmations.Select(c => (object)new { c.CaseId, c.Status, c.Critical }).ToList(), gc, unresolvedVariances,
       completion.Succeeded ? completion.Value!.Blockers : ["completion:unavailable"],
@@ -246,7 +260,12 @@ public static partial class AuditDeliverableService
           return (IReadOnlyList<string>)[j.GetProperty("Area").GetString() ?? "", j.GetProperty("Band").GetString() ?? "not assessed", j.GetProperty("PartnerCleared").GetBoolean() ? "Cleared" : "Open"]; }).ToList())),
       new("Red areas", facts.RedAreas.Count == 0 ? ["No risk area is currently banded Red."]
         : [$"The following risk areas are banded Red and require Audit Manager execution with mandatory Engagement Partner review: {string.Join(", ", facts.RedAreas)}."]),
-      new("Work performed", [$"{facts.Procedures.Count} applicable procedures; {facts.Procedures.Count(p => JsonSerializer.SerializeToElement(p).GetProperty("Status").GetString() == AuditProcedureStatuses.Reviewed)} reviewed; {facts.OpenReviewNotes} open review note(s)."]),
+      new("Work performed", [$"{facts.Procedures.Count} applicable procedures; {facts.Procedures.Count(p => JsonSerializer.SerializeToElement(p).GetProperty("Satisfied").GetBoolean())} current independently reviewed; {facts.OpenReviewNotes} open review note(s)."]),
+      new("Procedure evidence state", facts.Procedures.Count == 0 ? ["No applicable procedures are in scope."] : [], facts.Procedures.Count == 0 ? null
+        : new DocumentTable(["Procedure", "Evidence state", "Result", "Review"], facts.Procedures.Select(p => { var j = JsonSerializer.SerializeToElement(p);
+          return (IReadOnlyList<string>)[j.GetProperty("SourceProcedureId").GetString() ?? "", j.GetProperty("EvidenceState").GetString() ?? "",
+            j.TryGetProperty("ResultRevision", out var revision) && revision.ValueKind == JsonValueKind.Number ? $"revision {revision.GetInt64()}" : "no current result",
+            j.TryGetProperty("ReviewId", out var review) && review.ValueKind == JsonValueKind.String ? "independently reviewed" : "review outstanding"]; }).ToList())),
       new("Uncorrected differences", facts.UnadjustedDifferences.Count == 0
         ? ["No uncorrected differences are recorded in the audit documentation. This states the documented position; it is not a conclusion that misstatements are absent or immaterial."]
         : [], facts.UnadjustedDifferences.Count == 0 ? null
@@ -812,6 +831,18 @@ public static partial class AuditDeliverableService
 
   public static async Task<PartnerCompletionClearance?> CurrentClearanceAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default) =>
     (await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct)).Succeeded ? await CurrentClearanceForAuthorizedScopeAsync(db, actor, engagementId, ct) : null;
+
+  /// <summary>Returns the current SRM only when its exact factual digest still matches the authorized engagement.</summary>
+  internal static async Task<AuditDeliverable?> CurrentSummaryReviewMemorandumAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    if (!(await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct)).Succeeded) return null;
+    var latest = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.EngagementId == engagementId && x.Kind == DeliverableKinds.SummaryReviewMemorandum && x.SignedFromDeliverableId == null)
+      .OrderByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+      .FirstOrDefaultAsync(ct);
+    return latest is not null && await IsCurrentAsync(db, actor, latest, ct) ? latest : null;
+  }
 
   public static async Task<AuditOpinionDecision?> CurrentOpinionAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default) =>
     (await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct)).Succeeded ? await CurrentOpinionForAuthorizedScopeAsync(db, actor, engagementId, ct) : null;

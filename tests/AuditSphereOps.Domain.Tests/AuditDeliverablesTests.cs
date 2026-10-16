@@ -128,6 +128,37 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
+  public async Task CompletionAndSrmRequireCurrentIndependentlyReviewedProcedureEvidence()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var manager = w.A("manager", "Manager");
+    var senior = w.A("senior", "Senior");
+    var partner = w.A("partner", "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    Assert.True((await AuditProgramService.ReviewResultAsync(db, senior,
+      new(w.ResultId, AuditProcedureReviewDecisions.Reviewed, null))).Succeeded);
+    Assert.True((await AuditFieldworkService.ApproveWorkprogramsAsync(db, manager,
+      new(w.EngagementId, "Current independent review of the applicable workprogram."))).Succeeded);
+    var current = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, w.FirmId, w.ClientId, w.EngagementId);
+    Assert.DoesNotContain(current.Value!.Blockers, x => x.StartsWith("procedure:REV-01:", StringComparison.Ordinal));
+    var firstSrm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId &&
+      x.Kind == DeliverableKinds.SummaryReviewMemorandum && x.SignedFromDeliverableId == null);
+
+    await db.ClientSafetyStates.Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId)
+      .ExecuteUpdateAsync(x => x.SetProperty(state => state.InputGeneration, state => state.InputGeneration + 1));
+    var stale = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, w.FirmId, w.ClientId, w.EngagementId);
+    Assert.Contains(stale.Value!.Blockers, x => x == "procedure:REV-01:stale-generation");
+
+    var refreshedId = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId,
+      "Current procedure evidence was refreshed after the planning generation changed.")).Value;
+    Assert.NotEqual(firstSrm.Id, refreshedId);
+    Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.PartnerClearAsync(db, partner, refreshedId,
+      "Risk areas reviewed.", "Notes reviewed.")).ErrorCode);
+  }
+
+  [Fact]
   public async Task InlineNotesBlockApproval_AndOnlySomeoneStaffedAboveThePreparerReviews()
   {
     await using var pg = await PgTestSchema.CreateAsync();

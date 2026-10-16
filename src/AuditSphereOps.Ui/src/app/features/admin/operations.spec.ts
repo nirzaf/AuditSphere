@@ -150,6 +150,77 @@ describe('Angular Operations pager', () => {
     fixture.destroy();
   });
 
+  it('discovers older unresolved operations by state and pages with the server cursor', () => {
+    const fixture = TestBed.createComponent(Operations);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges(); flushRecovery();
+    http.expectOne('/api/ui/operations').flush({ operatingMode: 'LOCAL_ONLY', retryableStates: ['DEAD_LETTER'], operations: [] });
+    TestBed.tick(); fixture.detectChanges(); flushRecovery();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const select = root.querySelector('#operation-state-filter') as HTMLSelectElement;
+    select.value = 'DEAD_LETTER'; select.dispatchEvent(new Event('change'));
+    const search = Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.includes('Search unresolved work'))!;
+    search.click(); fixture.detectChanges(); flushRecovery();
+    const first = http.expectOne('/api/ui/operations/discovery?state=DEAD_LETTER&pageSize=25');
+    first.flush({ state: 'DEAD_LETTER', operationId: null, operations: [{ id: id1, kind: 'PBC_DOCUMENT_TRANSFER', status: 'DEAD_LETTER',
+      targetId: id2, expectedRevision: 1, attemptCount: 3, nextAttemptAt: null, leaseExpiresAt: null, errorCode: 'REMOTE_TIMEOUT',
+      cancellationDisposition: null, createdAt: '2026-10-03T05:00:00Z', completedAt: null, hasResultEvidence: false }],
+      nextCursor: 'opaque-next', firstPageCursor: 'opaque-first' });
+    TestBed.tick(); fixture.detectChanges(); flushRecovery();
+    expect(root.textContent).toContain('1 result(s) on this page');
+    expect(root.textContent).toContain(id1);
+    expect(root.textContent).not.toContain('1 total');
+
+    Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.includes('More results'))!.click();
+    fixture.detectChanges(); flushRecovery();
+    const second = http.expectOne('/api/ui/operations/discovery?state=DEAD_LETTER&cursor=opaque-next&pageSize=25');
+    second.flush({ state: 'DEAD_LETTER', operationId: null, operations: [], nextCursor: null, firstPageCursor: 'opaque-first' });
+    TestBed.tick(); fixture.detectChanges(); flushRecovery();
+    expect(root.textContent).toContain('No unresolved operations match this search.');
+    expect(Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.includes('Previous results'))!.disabled).toBe(false);
+    fixture.destroy();
+  });
+
+  it('re-arms a discovery row with its own retryable status, not the latest overview row', () => {
+    const fixture = TestBed.createComponent(Operations);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges(); flushRecovery();
+    http.expectOne('/api/ui/operations').flush({ operatingMode: 'LOCAL_ONLY', retryableStates: ['DEAD_LETTER'], operations: [] });
+    TestBed.tick(); fixture.detectChanges(); flushRecovery();
+    const root = fixture.nativeElement as HTMLElement;
+    const select = root.querySelector('#operation-state-filter') as HTMLSelectElement;
+    select.value = 'DEAD_LETTER'; select.dispatchEvent(new Event('change'));
+    Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.includes('Search unresolved work'))!.click();
+    fixture.detectChanges(); flushRecovery();
+    http.expectOne('/api/ui/operations/discovery?state=DEAD_LETTER&pageSize=25').flush({ state: 'DEAD_LETTER', operationId: null,
+      operations: [{ id: id1, kind: 'PBC_DOCUMENT_TRANSFER', status: 'DEAD_LETTER', targetId: id2, expectedRevision: 1,
+        attemptCount: 3, nextAttemptAt: null, leaseExpiresAt: null, errorCode: 'REMOTE_TIMEOUT', cancellationDisposition: null,
+        createdAt: '2026-10-03T05:00:00Z', completedAt: null, hasResultEvidence: false }],
+      nextCursor: null, firstPageCursor: 'opaque-first' });
+    TestBed.tick(); fixture.detectChanges(); flushRecovery();
+    const retry = Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.includes('Re-arm for retry'))!;
+    expect(retry.getAttribute('aria-label')).toContain(id1);
+    expect(root.querySelector('audit-operations-command-review')).not.toBeNull();
+    fixture.destroy();
+  });
+
+  it('rejects partial exact operation IDs without issuing a discovery request', () => {
+    const fixture = TestBed.createComponent(Operations);
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges(); flushRecovery();
+    http.expectOne('/api/ui/operations').flush({ operatingMode: 'LOCAL_ONLY', retryableStates: [], operations: [] });
+    TestBed.tick(); fixture.detectChanges(); flushRecovery();
+    const root = fixture.nativeElement as HTMLElement;
+    const input = root.querySelector('#operation-exact-id') as HTMLInputElement;
+    input.value = '11111111'; input.dispatchEvent(new Event('input'));
+    Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.includes('Search unresolved work'))!.click();
+    fixture.detectChanges();
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('complete operation ID');
+    http.expectNone((request) => request.url === '/api/ui/operations/discovery');
+    fixture.destroy();
+  });
+
   it('matches legacy 10/25/50 page sizes and exposes table semantics', () => {
     const fixture = TestBed.createComponent(Operations);
     const http = TestBed.inject(HttpTestingController);

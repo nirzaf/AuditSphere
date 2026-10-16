@@ -14,8 +14,8 @@ name: AuditSphere release verification
 # job. This preserves workflow_dispatch ref selection while preventing moving branches/tags from
 # making parallel jobs verify different source revisions.
 #
-# The release workflow requires a successful ci.yml run for the released SHA. It does not yet require
-# this workflow; making it a required check is an owner decision (branch protection and release gates).
+# The release workflow consumes the retained aggregate evidence from this workflow before protected
+# release actions. This workflow remains nightly/manual and is not added to the PR check matrix.
 
 on:
   workflow_dispatch:
@@ -389,6 +389,8 @@ jobs:
             python3 scripts/agent/agent-check.py --validate-catalog
           bash scripts/release/run-verification-step.sh "Agent runner safety unit tests" \
             python3 -m unittest discover -s scripts/agent -p 'test_*.py'
+          bash scripts/release/run-verification-step.sh "Exact-source release evidence unit tests" \
+            python3 -m unittest discover -s scripts/release -p 'test_verify_release_source.py'
           bash scripts/release/run-verification-step.sh "UI source discovery drift" \
             python3 scripts/ui/inventory.py --check
 
@@ -420,10 +422,19 @@ jobs:
     needs: [resolve-ref, angular, dotnet-tests, release-contract]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     defaults:
       run:
         shell: bash
     steps:
+      - name: Check out the resolved source for evidence generation
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.commit }}
+          persist-credentials: false
+
       - name: Require every release verification job to pass
         env:
           SOURCE_RESULT: ${{ needs.resolve-ref.result }}
@@ -454,3 +465,49 @@ jobs:
             exit 1
           fi
           echo "All release verification gates passed for $SOURCE_COMMIT."
+
+      - name: Download .NET test result artifacts for evidence counting
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: release-verification-trx-*
+          path: ${{ runner.temp }}/release-verification/retained-trx
+          merge-multiple: false
+
+      - name: Record full-regression evidence for the resolved source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+          SOURCE_RESULT: ${{ needs.resolve-ref.result }}
+          ANGULAR_RESULT: ${{ needs.angular.result }}
+          DOTNET_RESULT: ${{ needs.dotnet-tests.result }}
+          CONTRACT_RESULT: ${{ needs.release-contract.result }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/artifacts?per_page=100" \
+            > "$RUNNER_TEMP/release-verification/run-artifacts.json"
+          python3 scripts/release/verify-release-source.py record \
+            --repository "$REPOSITORY" --workflow-ref "$WORKFLOW_REF" --workflow-sha "$WORKFLOW_SHA" \
+            --run-id "$RUN_ID" --run-attempt "$RUN_ATTEMPT" --event "$EVENT_NAME" --head-sha "$HEAD_SHA" \
+            --requested-ref "$REQUESTED_REF" --resolved-commit "$SOURCE_COMMIT" \
+            --job "resolve-ref=$SOURCE_RESULT" --job "angular=$ANGULAR_RESULT" \
+            --job "dotnet-tests=$DOTNET_RESULT" --job "release-contract=$CONTRACT_RESULT" \
+            --trx-root "$RUNNER_TEMP/release-verification/retained-trx" \
+            --run-artifacts "$RUNNER_TEMP/release-verification/run-artifacts.json" \
+            --output "$RUNNER_TEMP/release-verification/release-verification-evidence.json"
+
+      - name: Upload exact-source full-regression evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-evidence-${{ needs.resolve-ref.outputs.commit }}
+          path: ${{ runner.temp }}/release-verification/release-verification-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true

@@ -35,49 +35,36 @@ public static partial class AuditFieldworkService
     var applicable = procedures.Where(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable).ToArray();
     blockers.AddRange(procedures.Where(x => x.ApplicabilityStatus is AuditApplicabilityStatuses.Pending or AuditApplicabilityStatuses.NotApplicablePendingReview)
       .Select(x => $"applicability:{x.SourceProcedureId}"));
-    var resultRows = await db.AuditProcedureResults.AsNoTracking().Where(x =>
-      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId).ToListAsync(ct);
-    var reviews = await db.AuditProcedureReviews.AsNoTracking().Where(x =>
-      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId).ToListAsync(ct);
-    var latestResults = applicable.ToDictionary(procedure => procedure.Id, procedure => resultRows
-      .Where(result => result.AuditProcedureId == procedure.Id)
-      .OrderByDescending(result => result.Revision).FirstOrDefault());
-    var linkedRiskIds = applicable.Where(procedure => latestResults[procedure.Id] is not null && procedure.RiskId is not null)
-      .Select(procedure => procedure.RiskId!.Value).Distinct().ToArray();
-    var riskEvaluations = await ProcedureRiskBandEvaluator.EvaluateManyAsync(db, firmId, engagementId, linkedRiskIds, ct);
+    var evidence = await EvaluateProcedureEvidenceBatchForAuthorizedScopeAsync(db, firmId, clientId, engagementId, applicable, ct);
     var reviewed = 0;
     foreach (var procedure in applicable)
     {
-      var result = latestResults[procedure.Id];
-      var review = result is null ? null : reviews.Where(x => x.AuditProcedureResultId == result.Id).OrderByDescending(x => x.CreatedAt).FirstOrDefault();
-      if (result is not null)
+      if (!evidence.TryGetValue(procedure.Id, out var current))
       {
-        ProcedureRiskBandEvaluation? riskEvaluation = null;
-        if (procedure.RiskId is { } riskId && !riskEvaluations.TryGetValue(riskId, out riskEvaluation))
-        {
-          blockers.Add($"procedure:{procedure.SourceProcedureId}:risk-basis-unavailable");
-          continue;
-        }
-        if (riskEvaluation?.Blocker is not null)
-        {
-          blockers.Add($"procedure:{procedure.SourceProcedureId}:risk-basis-blocked");
-          continue;
-        }
-        if (!ProcedureRiskBandEvaluator.CapturedBasisMatches(result.StructuredResultJson, riskEvaluation?.Value))
-        {
-          blockers.Add($"procedure:{procedure.SourceProcedureId}:risk-basis-stale");
-          continue;
-        }
+        blockers.Add($"procedure:{procedure.SourceProcedureId}:evidence-unavailable");
+        continue;
       }
-      if (result is not null && procedure.Status == AuditProcedureStatuses.Reviewed && review?.Decision == AuditProcedureReviewDecisions.Reviewed)
-        reviewed++;
+      if (current.Satisfied) reviewed++;
       else
-        blockers.Add($"procedure:{procedure.SourceProcedureId}:unreviewed");
+      {
+        var reason = current.State switch
+        {
+          "STALE_GENERATION" => "stale-generation",
+          "STALE_RESULT" => "stale-result",
+          "STALE_REVIEW" => "stale-review",
+          "OPEN_REVIEW_NOTES" => "open-review-notes",
+          "MISSING_GENERATION" => "risk-basis-unavailable",
+          "STALE_PLANNING_BASIS" => "risk-basis-stale",
+          _ => "unreviewed"
+        };
+        blockers.Add($"procedure:{procedure.SourceProcedureId}:{reason}");
+      }
     }
-    // Every unresolved review thread blocks completion — late notes, reopened threads and notes on
-    // earlier result revisions included — until response, reviewer resolution and a renewed review
-    // restore the current work (STE-REM-06).
-    blockers.AddRange(await ReviewNotesService.OpenBlockersAsync(db, firmId, engagementId, ct));
+    // Every unresolved review thread blocks completion, including notes on earlier result revisions.
+    // Read those threads by bounded procedure batches rather than materializing the whole engagement history.
+    var openNoteIds = await ReviewNotesService.OpenNoteIdsForScopeAsync(db, firmId, engagementId,
+      procedures.Select(x => x.Id).ToArray(), ct);
+    blockers.AddRange(openNoteIds.Select(id => $"review-note:{id}:unresolved"));
     blockers.AddRange(await db.AuditSelections.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Status != AuditSelectionStatuses.Reviewed)
       .Select(x => $"selection:{x.Id}:unreviewed").ToListAsync(ct));
     var reviewedSelections = await db.AuditSelections.AsNoTracking().Where(x =>

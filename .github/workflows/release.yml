@@ -9,9 +9,8 @@
 #     created in the environment Key Vault through the approved secret process.
 # Until that plumbing exists, every live step remains BLOCKED_EXTERNAL and is not faked here.
 #
-# Release precondition: the verify-ci-passed job refuses to start the protected release unless a
-# successful ci.yml run exists for the exact commit SHA. The release job then checks out that same
-# SHA, so the verified commit is the one that is built and deployed.
+# Release preconditions: fast CI and retained full-regression evidence must both match the exact
+# immutable release SHA before the protected release job can start.
 #
 # Deployment order per the architecture contract:
 #   verify the commit passed CI (read-only, before any environment approval)
@@ -108,8 +107,71 @@ jobs:
             printf '%s\n' "$runs" | sed 's/^/  - /'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  release:
+  verify-release-source:
+    name: Precondition · Full regression passed for this commit
     needs: verify-ci-passed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_SHA: ${{ github.sha }}
+      REPOSITORY: ${{ github.repository }}
+      EVIDENCE_NAME: release-verification-evidence-${{ github.sha }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the exact release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Collect trusted verification evidence and refuse stale or incomplete candidates
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          mkdir -p "$tmp/runs" "$tmp/evidence"
+          gh api "repos/${REPOSITORY}/actions/workflows/release-verification.yml" > "$tmp/workflow.json"
+          gh api "repos/${REPOSITORY}" > "$tmp/repository.json"
+          gh api --paginate "repos/${REPOSITORY}/actions/artifacts?per_page=100" \
+            -f name="$EVIDENCE_NAME" > "$tmp/artifacts.json"
+
+          jq -s -r --arg name "$EVIDENCE_NAME" \
+            '[.[] | .artifacts[]? | select(.name == $name and .workflow_run.id != null and .expired == false and .size_in_bytes > 0 and (.expires_at | fromdateiso8601) > now)] | sort_by(.id) | reverse | .[0:10][] | [.id, .workflow_run.id] | @tsv' \
+            "$tmp/artifacts.json" > "$tmp/candidates.tsv"
+          if [ ! -s "$tmp/candidates.tsv" ]; then
+            echo "::error::No full-regression evidence artifact exists for ${RELEASE_SHA}; release refused." >&2
+            exit 1
+          fi
+
+          while IFS=$'\t' read -r artifact_id run_id; do
+            [ -n "$artifact_id" ] && [ -n "$run_id" ] || continue
+            if [ ! -f "$tmp/runs/${run_id}.json" ]; then
+              if ! gh api "repos/${REPOSITORY}/actions/runs/${run_id}" > "$tmp/runs/${run_id}.json" || \
+                 ! gh api "repos/${REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100" > "$tmp/runs/${run_id}.artifacts.json"; then
+                rm -f "$tmp/runs/${run_id}.json" "$tmp/runs/${run_id}.artifacts.json"
+                continue
+              fi
+            fi
+            if ! gh api "repos/${REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$tmp/evidence/${artifact_id}.zip"; then
+              rm -f "$tmp/evidence/${artifact_id}.zip"
+            fi
+          done < "$tmp/candidates.tsv"
+
+          trusted_branch="$(jq -r '.default_branch' "$tmp/repository.json")"
+          python3 scripts/release/verify-release-source.py verify \
+            --candidate-sha "$RELEASE_SHA" --repository "$REPOSITORY" --trusted-branch "$trusted_branch" \
+            --workflow "$tmp/workflow.json" --artifacts "$tmp/artifacts.json" \
+            --runs-dir "$tmp/runs" --evidence-dir "$tmp/evidence" \
+            --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
+
+  release:
+    needs: [verify-ci-passed, verify-release-source]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: ${{ inputs.environment }}
