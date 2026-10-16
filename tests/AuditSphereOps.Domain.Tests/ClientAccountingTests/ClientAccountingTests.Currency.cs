@@ -292,6 +292,10 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(ErrorCodes.GateBlocked, unsupportedDirection.ErrorCode);
       Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
         new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.64m, "DIRECT"))).Succeeded);
+      Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+        new ExchangeRateInput("USD", "QAR", rateDate, "HISTORICAL", 3.64m, "DIRECT"))).Succeeded);
+      Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
+        new ExchangeRateInput("USD", "QAR", rateDate, "AVERAGE", 3.64m, "DIRECT"))).Succeeded);
       var duplicateRate = await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
         new ExchangeRateInput("USD", "QAR", rateDate, "CLOSING", 3.65m, "DIRECT"));
       Assert.False(duplicateRate.Succeeded);
@@ -317,8 +321,10 @@ public sealed partial class ClientAccountingTests
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",
           rateSetId, policyId, rateDate, "CLOSING"))).Value;
-      packageUsd = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH", "foreign-usd", "USD");
-      packageQar = await AddPackageAsync(db, scope, scope.ClientB, scope.EngagementB, -364m, "REVENUE", "foreign-qar", "QAR");
+      packageUsd = await BuildCurrencyPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
+        [("CASH", "ASSETS", 100m), ("CAPITAL", "EQUITY", -100m), ("REVENUE", "INCOME", 0m), ("EXPENSE", "EXPENSE", 0m)], "foreign-usd", "USD");
+      packageQar = await BuildCurrencyPackageAsync(db, scope, scope.ClientB, scope.EngagementB,
+        [("CASH", "ASSETS", 364m), ("CAPITAL", "EQUITY", 0m), ("REVENUE", "INCOME", -364m), ("EXPENSE", "EXPENSE", 0m)], "foreign-qar", "QAR");
       await db.SaveChangesAsync();
     }
 
@@ -335,20 +341,7 @@ public sealed partial class ClientAccountingTests
           "CONTROLLED", "STATUTORY", "tax-v1", mappings[packageQar].ToString("D")))).Value;
       var partner = Actor(scope.Partner, "Partner");
       foreach (var packageId in new[] { packageUsd, packageQar })
-      {
-        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
-            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
-            "fx-management", "Management approved the exact component package."))).Succeeded);
-        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
-            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-            "fx-accounting", "Accounting reviewed the exact component package."))).Succeeded);
-        Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
-          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
-            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-            "fx-partner", "Partner approved the exact component package."))).Succeeded);
-      }
+        await ReviewCurrencyCompositionAsync(db, scope, packageId);
       Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentUsd)).Succeeded);
       Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentQar)).Succeeded);
 
@@ -393,7 +386,10 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(ErrorCodes.ScopeDenied, unrelatedApproval.ErrorCode);
       Assert.True((await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, translationId)).Succeeded);
       var translation = await db.TranslationResults.SingleAsync(x => x.Id == translationId);
-      Assert.Equal(364m, translation.TranslatedAmount);
+      // A complete component balances to zero; the original sparse 100 USD boundary
+      // still translates to 364 QAR, also asserted on the persisted cash run line below.
+      Assert.Equal(364m, CurrencyTranslationCalculator.Translate(100m, "USD", "QAR", 3.64m));
+      Assert.Equal(0m, translation.TranslatedAmount);
       Assert.Equal(TranslationCalculationVersions.ComponentTranslationV2, translation.CalculationVersion);
       Assert.Equal(0m, translation.ForeignExchangeAdjustment);
       Assert.Equal(0m, translation.RoundingAdjustment);
@@ -419,12 +415,12 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(0m, run.SignedTotal);
       Assert.Contains("USD", run.InputManifest);
       Assert.True((await ConsolidationService.ApproveRunAsync(db, reviewer, runId)).Succeeded);
-      Assert.Equal(364m, await db.ConsolidationRunLines.Where(x => x.RunId == runId && x.ComponentId == componentUsd)
+      Assert.Equal(364m, await db.ConsolidationRunLines.Where(x => x.RunId == runId && x.ComponentId == componentUsd && x.TaxonomyCode == "CASH")
         .Select(x => x.ConsolidatedAmount).SingleAsync());
-      Assert.Equal(-364m, await db.ConsolidationRunLines.Where(x => x.RunId == runId && x.ComponentId == componentQar)
+      Assert.Equal(-364m, await db.ConsolidationRunLines.Where(x => x.RunId == runId && x.ComponentId == componentQar && x.TaxonomyCode == "REVENUE")
         .Select(x => x.ConsolidatedAmount).SingleAsync());
-      Assert.Equal(100m, await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd).Select(x => x.Amount).SingleAsync());
-      Assert.Equal("USD", await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd).Select(x => x.Currency).SingleAsync());
+      Assert.Equal(100m, await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd && x.DestinationCode == "CASH").Select(x => x.Amount).SingleAsync());
+      Assert.Equal("USD", await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd && x.DestinationCode == "CASH").Select(x => x.Currency).SingleAsync());
 
       var nextScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
@@ -514,7 +510,7 @@ public sealed partial class ClientAccountingTests
           "OPENING-GOLD7", rateSetId, policyId, rateDate, "CLOSING"))).Value;
 
       // GOLD-R2R-07 lines: Cash 100 (ASSETS), Capital -80 (EQUITY), Revenue -40 (INCOME), Expense 20 (EXPENSE)
-      packageGold7 = await AddMultiLinePackageAsync(db, scope, scope.ClientA, scope.EngagementA,
+      packageGold7 = await BuildCurrencyPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
       [
         ("CASH", "ASSETS", 100m),
         ("CAPITAL", "EQUITY", -80m),
@@ -532,15 +528,7 @@ public sealed partial class ClientAccountingTests
         new ConsolidationComponentRequest(consolidationScopeId, scope.ClientA, scope.EngagementA, packageGold7, 100m,
           "CONTROLLED", "STATUTORY", "tax-v1", mappingId.ToString("D")))).Value;
 
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-        new FinancialPackageReviewRequest(packageGold7, FinancialPackageReviewStages.ManagementApproval,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline, "fx", "Approved."))).Succeeded);
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-        new FinancialPackageReviewRequest(packageGold7, FinancialPackageReviewStages.AccountingReview,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "fx", "Reviewed."))).Succeeded);
-      Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
-        new FinancialPackageReviewRequest(packageGold7, FinancialPackageReviewStages.PartnerApproval,
-          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "fx", "Approved."))).Succeeded);
+      await ReviewCurrencyCompositionAsync(db, scope, packageGold7);
       var approveRes = await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId);
       Assert.True(approveRes.Succeeded, approveRes.Message);
 
@@ -622,7 +610,8 @@ public sealed partial class ClientAccountingTests
   /// <summary>
   /// Builds the reviewed foreign-operation fixture up to an approved component: group with one
   /// controlled member, approved rate set and translation policy, draft scope, and one package
-  /// whose management, accounting and partner reviews are complete. Translation and scope
+  /// whose management, accounting and partner reviews are complete. With reviewComponent=false,
+  /// seeds only a raw submitted component for explicit service gate-denial coverage. Translation and scope
   /// approval stay in the test so each case can pin its own inputs and expectations. The rate
   /// rows are always USD-to-QAR observations that populate the set for approval; a same-currency
   /// component (functionalCurrency "QAR") consumes none of them because identity needs no rate.
@@ -631,7 +620,7 @@ public sealed partial class ClientAccountingTests
     AuditSphereDbContext db, Scope scope,
     IReadOnlyList<(string Destination, string Section, decimal Amount)> lines,
     IReadOnlyList<(string RateType, decimal Rate)> rates,
-    string suffix, DateOnly rateDate, string functionalCurrency = "USD")
+    string suffix, DateOnly rateDate, string functionalCurrency = "USD", bool reviewComponent = true)
   {
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "Partner");
@@ -667,22 +656,20 @@ public sealed partial class ClientAccountingTests
       new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
         $"OPENING-{suffix}", rateSetId, policyId, rateDate, "CLOSING"))).Value;
 
-    var packageId = await AddMultiLinePackageAsync(db, scope, scope.ClientA, scope.EngagementA, lines, suffix, functionalCurrency);
+    var packageId = reviewComponent
+      ? await BuildCurrencyPackageAsync(db, scope, scope.ClientA, scope.EngagementA, lines, suffix, functionalCurrency)
+      : await AddSparseCurrencyPackageAsync(db, scope, scope.ClientA, scope.EngagementA, lines, suffix, functionalCurrency);
     await db.SaveChangesAsync();
     var mappingId = await db.FinancialPackages.Where(x => x.Id == packageId).Select(x => x.MappingVersionId).SingleAsync();
 
-    var componentId = (await ConsolidationService.SubmitComponentAsync(db, preparer,
+    var submission = await ConsolidationService.SubmitComponentAsync(db, preparer,
       new ConsolidationComponentRequest(scopeId, scope.ClientA, scope.EngagementA, packageId, 100m,
-        "CONTROLLED", "STATUTORY", "tax-v1", mappingId.ToString("D")))).Value;
-    Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-      new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
-        FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline, "fx", "Approved."))).Succeeded);
-    Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-      new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
-        FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "fx", "Reviewed."))).Succeeded);
-    Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
-      new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
-        FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "fx", "Approved."))).Succeeded);
+        "CONTROLLED", "STATUTORY", "tax-v1", mappingId.ToString("D")));
+    Assert.True(submission.Succeeded, submission.Message);
+    var componentId = submission.Value;
+    if (!reviewComponent)
+      return new ForeignOperationFixture(groupId, rateSetId, policyId, scopeId, packageId, componentId);
+    await ReviewCurrencyCompositionAsync(db, scope, packageId);
     var approveComponent = await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId);
     Assert.True(approveComponent.Succeeded, approveComponent.Message);
     return new ForeignOperationFixture(groupId, rateSetId, policyId, scopeId, packageId, componentId);
@@ -852,9 +839,9 @@ public sealed partial class ClientAccountingTests
     Assert.Equal(0m, report.Value!.Lines.Sum(x => x.ConsolidatedAmount));
   }
 
-  [Fact(DisplayName = "An unknown taxonomy code is an explicit unmapped issue resolved only by an approved mapping")]
+  [Fact(DisplayName = "Translation input resolution rejects unknown and ambiguous sections; sparse components require review")]
   [Trait("Profile", "Database")]
-  public async Task ForeignOperation_UnknownTaxonomyRequiresApprovedMapping()
+  public async Task ForeignOperation_UnknownTaxonomyResolutionAndSparseComponentGate()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
@@ -865,41 +852,42 @@ public sealed partial class ClientAccountingTests
       ("9999-UNCLASSIFIED", "UNCLASSIFIED", 100m),
       ("CASH", "ASSETS", -100m)
     ];
-    await using var db = new AuditSphereDbContext(pg.Options);
-    var fixture = await SeedForeignOperationAsync(db, scope, lines, Gold07Rates, "gold7-unmapped", rateDate);
-    var unmapped = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, fixture.ComponentId,
-      fixture.RateSetId, fixture.PolicyId, rateDate, "CLOSING");
+    var input = lines.Select((line, i) => new FinancialPackageLine
+    {
+      Id = Guid.NewGuid(), DestinationCode = line.Destination, StatementSection = line.Section,
+      Amount = line.Amount, Currency = "USD"
+    }).ToList();
+    var unmapped = TranslationInputResolution.BuildInputLines(input, [],
+      new ApprovedStatementSections(new Dictionary<string, string>(), []));
     Assert.False(unmapped.Succeeded);
     Assert.Equal(ErrorCodes.Accounting.MappingInvalid, unmapped.ErrorCode);
     Assert.Contains("has no approved statement section", unmapped.Message);
-    Assert.Empty(await db.TranslationResults.Where(x => x.ComponentId == fixture.ComponentId).ToListAsync());
-
-    var mappingId = await db.FinancialPackages.Where(x => x.Id == fixture.PackageId).Select(x => x.MappingVersionId).SingleAsync();
-    db.MappingAllocations.Add(new MappingAllocation
-    {
-      Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
-      MappingVersionId = mappingId, SourceAccountCode = "9999", DestinationCode = "9999-UNCLASSIFIED",
-      StatementSection = "ASSETS", Fraction = 1m, Rationale = "Approved classification for the unclassified account.",
-      CreatedAt = DateTimeOffset.UtcNow
-    });
-    await db.SaveChangesAsync();
-    var mapped = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, fixture.ComponentId,
-      fixture.RateSetId, fixture.PolicyId, rateDate, "CLOSING");
+    var mapped = TranslationInputResolution.BuildInputLines(input, [],
+      new ApprovedStatementSections(new Dictionary<string, string> { ["9999-UNCLASSIFIED"] = "ASSETS" }, []));
     Assert.True(mapped.Succeeded, mapped.Message);
-
-    db.MappingAllocations.Add(new MappingAllocation
-    {
-      Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientA, EngagementId = scope.EngagementA,
-      MappingVersionId = mappingId, SourceAccountCode = "9998", DestinationCode = "9999-UNCLASSIFIED",
-      StatementSection = "LIABILITIES", Fraction = 1m, Rationale = "Conflicting classification.",
-      CreatedAt = DateTimeOffset.UtcNow
-    });
-    await db.SaveChangesAsync();
-    var ambiguous = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, fixture.ComponentId,
-      fixture.RateSetId, fixture.PolicyId, rateDate, "CLOSING");
+    Assert.All(mapped.Value!, line => Assert.Equal("ASSETS", line.Section));
+    var bridge = LineTranslationCalculator.Translate(mapped.Value!, new Dictionary<string, string>(),
+      new Dictionary<string, string> { ["ASSETS"] = TranslationRatePurposes.Closing },
+      new Dictionary<string, decimal> { [TranslationRatePurposes.Closing] = 4m }, "QAR");
+    Assert.Equal(new[] { 400m, -400m }, bridge.Lines.Select(x => x.TranslatedAmount));
+    Assert.Equal(0m, bridge.TranslatedTotal);
+    var ambiguous = TranslationInputResolution.BuildInputLines(input, [],
+      new ApprovedStatementSections(new Dictionary<string, string>(), ["9999-UNCLASSIFIED"]));
     Assert.False(ambiguous.Succeeded);
     Assert.Equal(ErrorCodes.Accounting.MappingInvalid, ambiguous.ErrorCode);
     Assert.Contains("more than one approved mapping section", ambiguous.Message);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var fixture = await SeedForeignOperationAsync(db, scope, lines, Gold07Rates, "gold7-unmapped", rateDate,
+      reviewComponent: false);
+    var approval = await ConsolidationService.ApproveComponentAsync(db, Actor(scope.Reviewer, "Partner"), fixture.ComponentId);
+    Assert.False(approval.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, approval.ErrorCode);
+    var denied = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, fixture.ComponentId,
+      fixture.RateSetId, fixture.PolicyId, rateDate, "CLOSING");
+    Assert.False(denied.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, denied.ErrorCode);
+    Assert.Empty(await db.TranslationResults.Where(x => x.ComponentId == fixture.ComponentId).ToListAsync());
   }
 
   [Fact(DisplayName = "The run manifest records each line's own consumed rate identity")]
@@ -1081,34 +1069,40 @@ public sealed partial class ClientAccountingTests
       (await db.TranslationResults.SingleAsync(x => x.Id == translate.Value)).Status);
   }
 
-  [Fact(DisplayName = "A valid asset-only profile translates with the closing rate alone and zero reserve")]
+  [Fact(DisplayName = "Asset-only calculation needs closing rate alone; an unreviewed sparse component cannot translate")]
   [Trait("Profile", "Database")]
-  public async Task ForeignOperation_AssetOnlyProfileNeedsOnlyClosingRate()
+  public async Task ForeignOperation_AssetOnlyCalculationNeedsOnlyClosingRateAndServiceRequiresReview()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
-    var reviewer = Actor(scope.Reviewer, "Partner");
     var rateDate = new DateOnly(2026, 12, 31);
-    IReadOnlyList<(string Destination, string Section, decimal Amount)> lines =
-    [
-      ("CASH", "ASSETS", 100m),
-      ("ACCUMULATED-DEPRECIATION", "ASSETS", -100m)
-    ];
+    var bridge = LineTranslationCalculator.Translate(
+      [new("cash", "CASH", "ASSETS", 100m, "USD"),
+       new("depreciation", "ACCUMULATED-DEPRECIATION", "ASSETS", -100m, "USD")],
+      new Dictionary<string, string>(),
+      new Dictionary<string, string> { ["ASSETS"] = TranslationRatePurposes.Closing },
+      new Dictionary<string, decimal> { [TranslationRatePurposes.Closing] = 4m }, "QAR");
+    Assert.All(bridge.Lines, line => Assert.Equal(4m, line.RateApplied));
+    Assert.Equal(0m, bridge.TranslatedTotal);
+    Assert.Equal(0m, bridge.TranslationReserveMovement);
+    Assert.Equal(0m, bridge.ClosingTranslationReserve);
+    Assert.Equal(new[] { 400m, -400m }, bridge.Lines.Select(x => x.TranslatedAmount));
+
     await using var db = new AuditSphereDbContext(pg.Options);
-    // The rate set carries only the closing observation this profile can consume: no average or
-    // historical rate exists, and asset lines legitimately require none. A missing rate blocks
-    // only when a line's own purpose actually needs it.
-    var fixture = await SeedForeignOperationAsync(db, scope, lines,
-      Gold07Rates.Where(x => x.RateType == "CLOSING").ToList(), "gold7-assetonly", rateDate);
+    // A sparse package has no legitimate signing composition; service translation must refuse
+    // its submitted component. Complete Gold07 tests retain approved service translation coverage.
+    var fixture = await SeedForeignOperationAsync(db, scope,
+      [("CASH", "ASSETS", 100m), ("ACCUMULATED-DEPRECIATION", "ASSETS", -100m)],
+      Gold07Rates.Where(x => x.RateType == "CLOSING").ToList(), "gold7-assetonly", rateDate,
+      reviewComponent: false);
+    var approval = await ConsolidationService.ApproveComponentAsync(db, Actor(scope.Reviewer, "Partner"), fixture.ComponentId);
+    Assert.False(approval.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, approval.ErrorCode);
     var translate = await CurrencyTranslationService.TranslateComponentAsync(db, preparer, fixture.ComponentId,
       fixture.RateSetId, fixture.PolicyId, rateDate, "CLOSING");
-    Assert.True(translate.Succeeded, translate.Message);
-    var translation = await db.TranslationResults.SingleAsync(x => x.Id == translate.Value);
-    Assert.Equal(4.0m, translation.AppliedRate);
-    Assert.Equal(0m, translation.TranslatedAmount);
-    Assert.Equal(0m, translation.ForeignExchangeAdjustment);
-    Assert.Equal(0m, translation.TranslationReserve);
-    Assert.True((await CurrencyTranslationService.ApproveTranslationAsync(db, reviewer, translate.Value)).Succeeded);
+    Assert.False(translate.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, translate.ErrorCode);
+    Assert.Empty(await db.TranslationResults.Where(x => x.ComponentId == fixture.ComponentId).ToListAsync());
   }
 }

@@ -264,16 +264,19 @@ public sealed partial class ClientAccountingTests
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "", ConsolidationCalculator.RestrictedMethod, "OPENING-2026"))).Value;
       Assert.Equal(AccountingDefaults.DefaultCurrency,
         await db.ConsolidationScopeVersions.Where(x => x.Id == consolidationScopeId).Select(x => x.ReportingCurrency).SingleAsync());
-      await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 100m, "CASH");
-      await AddPackageAsync(db, scope, scope.ClientB, scope.EngagementB, -100m, "REVENUE");
+      await BuildCurrencyPackageAsync(db, scope, scope.ClientA, scope.EngagementA, Gold07Lines, "group-a", "QAR");
+      await BuildCurrencyPackageAsync(db, scope, scope.ClientB, scope.EngagementB,
+        [("CASH", "ASSETS", 100m), ("CAPITAL", "EQUITY", 0m), ("REVENUE", "INCOME", -100m), ("EXPENSE", "EXPENSE", 0m)], "group-b", "QAR");
       await db.SaveChangesAsync();
     }
 
     Guid packageA, packageB;
+    string sourcePackagesBefore;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       packageA = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientA).Select(x => x.Id).SingleAsync();
       packageB = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientB).Select(x => x.Id).SingleAsync();
+      sourcePackagesBefore = await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]);
       var packageMappings = await db.FinancialPackages.Where(x => x.Id == packageA || x.Id == packageB)
         .ToDictionaryAsync(x => x.Id, x => x.MappingVersionId);
       var invalidLineage = await ConsolidationService.SubmitComponentAsync(db, preparer,
@@ -290,21 +293,12 @@ public sealed partial class ClientAccountingTests
       Assert.False(missingPackageReview.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, missingPackageReview.ErrorCode);
       var partner = Actor(scope.Partner, "Partner");
-      foreach (var packageId in new[] { packageA, packageB })
-      {
-        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
-            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
-            "management-review-fixture", "Management approval fixture."))).Succeeded);
-        Assert.True((await FinancialPackageReviewService.RecordAsync(db, reviewer,
-          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
-            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-            "accounting-review-fixture", "Accounting review fixture."))).Succeeded);
-        Assert.True((await FinancialPackageReviewService.RecordAsync(db, partner,
-          new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
-            FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-            "partner-review-fixture", "Partner approval fixture."))).Succeeded);
-      }
+      Assert.Equal(sourcePackagesBefore, await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]));
+      var compositionA = await ReviewCurrencyCompositionAsync(db, scope, packageA);
+      var compositionB = await ReviewCurrencyCompositionAsync(db, scope, packageB);
+      Assert.NotEqual(compositionA, compositionB);
+      // Rendering appends the approved artifact set; consolidation must preserve that exact set.
+      sourcePackagesBefore = await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]);
       foreach (var componentId in components)
         Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
       var creatorApproval = await ConsolidationService.ApproveScopeAsync(db, preparer, consolidationScopeId);
@@ -415,10 +409,10 @@ public sealed partial class ClientAccountingTests
       var rawPackage = await FinancialStatementService.GetStoredPackageArtifactAsync(db, groupViewerActor, packageA);
       Assert.False(rawPackage.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, rawPackage.ErrorCode);
-      Assert.Equal(10, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
+      Assert.Equal(18, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.ConsolidationJournalId == journalId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.IntercompanyMatchId == matchId));
-      Assert.Equal(12, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
+      Assert.Equal(20, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.ConsolidationJournalId == changedJournalId));
       Assert.Equal(1, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == matchId));
       Assert.Empty(await db.ConsolidationRunLines.Where(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == outsideMatchId).ToListAsync());
@@ -443,6 +437,7 @@ public sealed partial class ClientAccountingTests
       Assert.True(staleReport.Succeeded, staleReport.Message);
       Assert.Equal("STALE", staleReport.Value!.State);
       Assert.Empty(staleReport.Value.Lines);
+      Assert.Equal(sourcePackagesBefore, await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]));
     }
   }
 }

@@ -135,7 +135,12 @@ public sealed class WorkspaceProvisioningApiTests
     Assert.False(invalidBoundaryReview.GetProperty("eligible").GetBoolean());
     Assert.Contains("shared-site fallback is refused", invalidBoundaryReview.GetProperty("requiredAction").GetString());
 
-    var cutoff = DateTimeOffset.UtcNow.AddMinutes(-1).ToString("O");
+    // Anchor the rollout boundary to the persisted fixture, not elapsed host-startup time.
+    // A slow full-suite run must not accidentally reclassify this new client as historical.
+    await using var policyDb = new AuditSphereDbContext(pg.Options);
+    var clientCreatedAt = await policyDb.PracticeClients.Where(x => x.Id == f.ClientId)
+      .Select(x => x.CreatedAt).SingleAsync();
+    var cutoff = clientCreatedAt.ToUniversalTime().AddSeconds(-1).ToString("O");
     using var rolloutFactory = Factory(pg, f, provider, clientsCreatedAfter: cutoff);
     using var rolloutClient = rolloutFactory.CreateClient(new() { AllowAutoRedirect = false });
     var csrf = await SignIn(rolloutClient);

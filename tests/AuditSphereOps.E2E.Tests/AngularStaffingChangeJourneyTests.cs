@@ -36,6 +36,9 @@ public sealed class AngularStaffingChangeJourneyTests
       await review.GetByLabel("I reviewed this exact staffing change and its access effects.",new(){Exact=true}).CheckAsync();
       await review.GetByRole(AriaRole.Button,new(){Name="Confirm staffing change",Exact=true}).ClickAsync();
       await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Verify staffing request receipt",Exact=true})).ToBeVisibleAsync();
+      // Pending recovery is visible before the command is sent. Wait until the fetched
+      // response has been aborted and Angular has settled the unknown outcome before reload.
+      await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Verify staffing request receipt",Exact=true})).ToBeEnabledAsync();
       await page.ReloadAsync(); await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
       await planning.GetByRole(AriaRole.Button,new(){Name="Verify staffing request receipt",Exact=true}).ClickAsync();
       await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Acknowledge staffing change",Exact=true})).ToBeVisibleAsync();
