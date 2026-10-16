@@ -37,7 +37,8 @@ export class Portfolio {
     if (this.identityFence() || !q || value.search !== q.search || value.clients.page !== q.page || value.clients.pageSize !== q.pageSize)
       throw new Error('Wrong portfolio context');
     return value;
-  }, 'No portfolio data is shown without an active AuditSphere grant. Ask a firm administrator to review your access, then retry.');
+  }, 'Portfolio is unavailable in your current scope.',
+  'No portfolio data is shown without an active AuditSphere grant. Ask a firm administrator to review your access, then retry.');
   readonly exporting = signal(false);
   readonly message = signal('');
   readonly failed = signal(false);

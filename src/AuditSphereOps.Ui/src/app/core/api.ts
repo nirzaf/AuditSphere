@@ -33,7 +33,8 @@ export class Api {
   private readonly session = inject(SessionService);
 
   /** Must be called in an injection context (field initializer or constructor). Null URL means "nothing to load". */
-  resource<T>(url: () => string | null, decoder: Decoder<T>, unavailable = 'This information is unavailable in your current scope.'): Resource<T> {
+  resource<T>(url: () => string | null, decoder: Decoder<T>, unavailable = 'This information is unavailable in your current scope.',
+    forbidden = unavailable): Resource<T> {
     const data = signal<T | null>(null);
     const error = signal('');
     const loading = signal(false);
@@ -56,7 +57,7 @@ export class Api {
           loading.set(false);
           const status = e instanceof HttpErrorResponse ? e.status : 0;
           if (status === 401) { error.set('Your session ended. Sign in again.'); this.session.refresh(); }
-          else error.set(status === 403 || status === 404 ? unavailable : status === 400 || status === 409 ? Api.message(e, unavailable) : 'Temporarily unavailable. Retry shortly.');
+          else error.set(status === 403 ? forbidden : status === 404 ? unavailable : status === 400 || status === 409 ? Api.message(e, unavailable) : 'Temporarily unavailable. Retry shortly.');
         },
       });
     };
