@@ -21,6 +21,7 @@ public sealed class AngularPortfolioJourneyTests
     var f = host.Fixture;
     var staff = PbcSeed.User(f.FirmId, "Staff");
     var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
     const string hiddenClientName = "SYN-PAR-002-UNSCOPED-PORTFOLIO-CLIENT";
     await using (var db = host.CreateDbContext())
     {
@@ -29,6 +30,12 @@ public sealed class AngularPortfolioJourneyTests
       {
         Id = clientId, FirmId = f.FirmId, LegalName = hiddenClientName, CreatedAt = DateTimeOffset.UtcNow
       });
+      db.Engagements.Add(new Engagement
+      {
+        Id = engagementId, FirmId = f.FirmId, PracticeClientId = clientId,
+        Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = f.FirmId });
       db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, staff, "FinanceReviewer"));
       await db.SaveChangesAsync();
     }
