@@ -47,7 +47,6 @@ import { capabilityAvailable, recoverableOperation } from './operations-contract
       <audit-state [loading]="settings.loading()" [error]="settings.error()" label="optional Microsoft capabilities" />
       @for(c of settings.data()?.workspace?.capabilities ?? []; track c.capability){ @if(['TENANT_USER_PROVISIONING','GUEST_INVITATION','GROUP_MEMBERSHIP'].includes(c.capability)){ <p>{{ c.displayName }} · {{ c.permission }} · {{ c.state }} · {{ c.diagnosticCode }}</p> } }
     </section>
-    <audit-microsoft-directory />
     <section class="panel"><h2>Microsoft operation history</h2><p>An unknown outcome requires reconciliation before the effect is repeated.</p>
       @for(o of w.operations; track o.id) { <details><summary>{{ o.kind }} · {{ o.state }} · {{ o.target }}</summary><p>{{ o.reason }} · {{ o.resultCode }} · {{ o.reconciliation }}</p><p>Operation {{ o.id }} · correlation {{ o.correlationId }} · actor {{ o.requestedBy }} · {{ o.updatedAt }}</p>
         @if(recoverable(o.state,o.kind)){ <button matButton (click)="recover(o.id)">Review operation recovery</button> }
@@ -68,6 +67,7 @@ import { capabilityAvailable, recoverableOperation } from './operations-contract
     </section>
     <section class="panel"><h2>Access history</h2><ul>@for(h of w.history; track $index) { <li>{{ h.at }} · {{ h.operation }} · {{ h.target }} · {{ h.change }} · {{ h.reason }} · {{ h.actor }} · {{ h.result }}</li> } @empty { <li>No access changes recorded.</li> }</ul></section>
   }
+  <audit-microsoft-directory [parentAccess]="ws.data()" (changed)="ws.reload()" />
 ` })
 export class UserAccess {
   private readonly api = inject(Api); private readonly dialog = inject(MatDialog);

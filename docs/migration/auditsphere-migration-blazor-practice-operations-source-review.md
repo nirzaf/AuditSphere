@@ -176,3 +176,15 @@ product code changed, and the successful rerun does not establish the cause of
 that intermittent failure or prove full-suite stability. Preserve the keyboard,
 no-autonomous-write and stored-segment assertions in subsequent regression runs.
 See the commercial source review for the exact command and local TRX evidence.
+
+## Technical library correction findings
+
+Read-only source-action inspection of `5309f856` found three concrete local
+gaps: the body decoder accepted only 20,000 characters although the service and
+legacy editor allow 200,000; overlapping search replies and session loss did not
+fence/clear retained hits; uncertain create/draft/publish outcomes had no explicit
+recovery controls. Exact entry/version response matching also needs enforcement.
+Corrections are in progress. Persisted-state reconciliation must not be presented
+as an original command receipt, and a controlled test observer is not evidence
+of real viewport behavior. Current browser verification and human accessibility
+acceptance remain open.

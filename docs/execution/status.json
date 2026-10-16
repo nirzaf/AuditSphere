@@ -1262,28 +1262,18 @@
       "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularArchiveReleaseReadFollowUp"
     },
     "angularParityHostedFollowUp": {
-      "source": "d0c5bee2a570ebe7e4d42de7dad57efbfb13e770",
-      "run": 38916201249,
+      "source": "0f34edcf35fdd2c5de504404f4538272c22b2bfd",
+      "run": 38927108509,
       "build": "PASS",
       "angular": "PASS",
-      "domain": {
-        "passed": 327,
-        "failed": 0
-      },
-      "api": {
-        "passed": 39,
-        "failed": 1,
-        "failure": "Activation test helper serialized RequestId instead of requestId"
-      },
-      "fullRun": 38912167504,
-      "fullApiObservedFailures": [
-        "TenantSetupMetadata receipt precision",
-        "ResourcePlanning receipt precision",
-        "ClientContactCreation receipt precision"
-      ],
-      "fixSource": "759b783fd4b8dffa2c6acf9c7553172431a7e37a",
-      "fixVerification": "PENDING",
-      "retirementGate": "NOT_READY"
+      "docs": "PASS",
+      "focusedPostgres": "PASS",
+      "efDrift": "PASS",
+      "browser": "IN_PROGRESS",
+      "fullRun": 38927144091,
+      "fullSuite": "IN_PROGRESS",
+      "retirementGate": "NOT_READY",
+      "prior": "status-archive-2026-10.json#keys.targetedVerification.angularParityHostedFollowUpBefore0f34"
     }
   },
   "externalGates": [

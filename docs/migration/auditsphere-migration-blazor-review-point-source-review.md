@@ -91,3 +91,14 @@ Screen-reader, broader locale, full authorization-program and operational
 retirement acceptance remain separate global gates. They are not inferred from
 this source-row review. The source row remains `PARTIAL` pending current runtime
 evidence; the Web project remains while the canonical gate is `NOT_READY`.
+
+## Hosted verification attribution
+
+The [d003ce0d CI run](https://github.com/nirzaf/AuditSphere/actions/runs/38919297108)
+completed Angular and documentation successfully, but its .NET job was cancelled.
+It therefore does not establish a completed browser cohort or full source-action
+parity. The later Workpaper snapshot's full run stopped at an Angular regression
+before .NET tests; it likewise cannot close this row. The current consolidated
+[5309f856 full verification](https://github.com/nirzaf/AuditSphere/actions/runs/38926773581)
+is pending. This source remains PARTIAL until the relevant current Domain, API
+and browser results are inspected against the reviewed actions.

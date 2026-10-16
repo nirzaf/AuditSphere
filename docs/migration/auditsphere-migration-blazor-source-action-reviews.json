@@ -126,11 +126,11 @@
       "source": "src/AuditSphereOps.Web/Components/Administration/MicrosoftDirectoryPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
-      "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
+      "reviewedAtCommit": "0f34edcf35fdd2c5de504404f4538272c22b2bfd",
       "openGaps": [
-        "Multi-page continuation",
-        "Search and filter failure states",
-        "Revoked-directory observations"
+        "Current directory recovery, negative-observation freshness/order and protected paging-context corrections require hosted Domain/API/browser verification",
+        "Reconcile Angular lifetime/configuration, selection, paging retry and parent-roster refresh evidence against source actions",
+        "Live directory provider acceptance remains separate"
       ]
     },
     {
@@ -621,11 +621,11 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
-      "reviewedAtCommit": "4cb6faffc4bdac3a97b2e70eb4031a018e72ef51",
+      "reviewedAtCommit": "0f34edcf35fdd2c5de504404f4538272c22b2bfd",
       "openGaps": [
-        "Broader role/scope and firm-isolation matrix",
-        "Invalid inputs and stale/error/recovery paths",
-        "Full accessibility and assistive-technology acceptance"
+        "Valid 200000-character content, exact entry/version identity, search lifetime fencing and unknown-outcome UI corrections require current hosted verification",
+        "Current create/draft/publish and restricted-audience browser actions must be reconciled with source review",
+        "Human accessibility and wider-locale acceptance remain separate retirement gates"
       ]
     },
     {

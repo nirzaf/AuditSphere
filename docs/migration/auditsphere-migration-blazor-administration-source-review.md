@@ -48,3 +48,37 @@ group replacement path omitted target session invalidation; read projections
 needed final current-Administrator checks. The Angular confirmation also omitted
 the engagement identity when showing engagement scope. Corrections and targeted
 regressions are in progress, with no completion or provider acceptance claimed.
+
+## Reviewed-assignment correction snapshot
+
+At `5309f856e5a88da5c51bf4eeedbb50d9c3b5285c`, assignment and invitation
+publication share the reviewed firm-locked transaction. Expiry, replacement,
+reason and assent are preserved; conflicting expiry requires explicit replacement;
+existing-group replacement advances the target session epoch. Preview and access
+workspace reads perform final Administrator authorization. Angular confirms exact
+engagement and replacement-grant identities. Independent read-only review found
+no concrete regression in those changes. This is source review, not executable
+acceptance: targeted Domain/API regressions and hosted browser results are still
+pending. Live identity/provider outcomes remain separate.
+
+## Directory correction findings
+
+The current backend reauthorizes search after provider reads and verifies exact
+tenant/object identity before binding; binding creates no role grant. Remaining
+local gaps include read-only reconciliation of unknown binding outcomes,
+negative-observation invalidation, observation ordering/freshness, and paging
+request-context consistency. Angular lifetime/configuration, cursor retry and
+selection-response fences are being corrected. Current binding status is not
+an original command receipt. These corrections do not broaden Graph permissions
+or replace live tenant acceptance.
+
+### Directory recovery contract under implementation
+
+`GET /api/ui/administration/directory/binding?tenantId=<TENANT_ID>&objectId=<OBJECT_ID>`
+reads the exact local binding with current firm-wide Administrator authorization
+and the enabled directory capability. The response reports binding identity,
+local disabled state and retained verification metadata. A shared publication
+barrier waits for an in-flight local binding transaction. The query performs no
+Graph call, binding mutation, role grant or email. It reports current local state,
+not who caused it or an original command receipt. This contract is not yet
+verified or released; UI reconciliation must validate the returned exact IDs.

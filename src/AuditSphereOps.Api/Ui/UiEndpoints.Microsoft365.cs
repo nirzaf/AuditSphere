@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Api.Authentication;
 using System.Security.Claims;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -82,9 +83,28 @@ public static partial class UiEndpoints
       var settings = http.RequestServices.GetRequiredService<TenantAdministrationSettings>();
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<DirectoryCandidatePage>();
       if (!settings.Options.DirectoryReadEnabled) return CommandResult<DirectoryCandidatePage>.Fail(ErrorCodes.GateBlocked, "The separately configured directory reader is disabled.");
+      if (!DirectoryContinuation.TryContext(actor, settings.Options.TenantId, i.Browse, i.Prefix, i.Domain, out var context))
+        return CommandResult<DirectoryCandidatePage>.Fail(ErrorCodes.GateBlocked, "Review a valid directory query before continuing.");
+      var continuation = new DirectoryContinuation(http.RequestServices.GetRequiredService<IDataProtectionProvider>());
+      if (!continuation.TryRead(i.PageToken, context!, DateTimeOffset.UtcNow, out var providerToken))
+        return CommandResult<DirectoryCandidatePage>.Fail(ErrorCodes.StaleRevision, "This directory continuation expired or belongs to a different query or session. Start again.");
       var reader = http.RequestServices.GetRequiredService<IMicrosoftDirectoryReader>();
-      return i.Browse ? await DirectoryDiscoveryService.BrowseActiveAsync(db, actor, reader, settings.Options.TenantId, i.Domain, i.PageToken, ct) :
-        await DirectoryDiscoveryService.SearchAsync(db, actor, reader, settings.Options.TenantId, i.Prefix, i.PageToken, ct, i.Domain);
+      var result = i.Browse
+        ? await DirectoryDiscoveryService.BrowseActiveAsync(db, actor, reader, settings.Options.TenantId, context!.Domain, providerToken, ct)
+        : await DirectoryDiscoveryService.SearchAsync(db, actor, reader, settings.Options.TenantId, context!.Prefix!, providerToken, ct, context.Domain);
+      if (!result.Succeeded) return result;
+      if (!continuation.TryWrite(result.Value!.NextPageToken, context!, DateTimeOffset.UtcNow, out var nextToken))
+        return CommandResult<DirectoryCandidatePage>.Fail(ErrorCodes.GateBlocked, "Directory continuation could not be verified. Start again.");
+      return CommandResult<DirectoryCandidatePage>.Ok(new(result.Value.Users, nextToken));
+    }));
+    group.MapGet("/administration/directory/binding", (Guid tenantId, Guid objectId, HttpContext http) => ReadAsync(http, async (db, actor, ct) =>
+    {
+      var settings = http.RequestServices.GetRequiredService<TenantAdministrationSettings>();
+      if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
+        return TenantAdministration.Denied<DirectoryBindingReconciliation>();
+      if (!settings.Options.DirectoryReadEnabled)
+        return CommandResult<DirectoryBindingReconciliation>.Fail(ErrorCodes.GateBlocked, "The separately configured directory reader is disabled.");
+      return await DirectoryUserBindingService.ReconcileAsync(db, actor, settings.Options.TenantId, tenantId, objectId, ct);
     }));
     group.MapPost("/administration/directory/bind", (UiDirectoryBind i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {

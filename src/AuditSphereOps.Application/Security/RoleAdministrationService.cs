@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
@@ -59,8 +60,53 @@ public static class RoleAdministrationService
     => await EnsureUserCoreAsync(db, actor, request, verifiedGraph: false, ct);
 
   internal static async Task<CommandResult<Guid>> EnsureVerifiedDirectoryUserAsync(
-    IAuditSphereDbContext db, ActorContext actor, EnsureUserRequest request, CancellationToken ct = default)
-    => await EnsureUserCoreAsync(db, actor, request, verifiedGraph: true, ct);
+    IAuditSphereDbContext db, ActorContext actor, DirectoryCandidate candidate, bool guest,
+    DateTimeOffset requestStartedAt, CancellationToken ct = default)
+  {
+    var auth = await FirmAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    auth = await LockFirmAndReauthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    // Graph supplies no observation timestamp. Retain the request start conservatively,
+    // rather than treating a delayed response or lock wait as a newly observed identity.
+    var startedAt = new DateTimeOffset(requestStartedAt.UtcTicks / 10 * 10, TimeSpan.Zero);
+    var latest = await db.DirectoryUserObservations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.TenantId == candidate.TenantId && x.ObjectId == candidate.ObjectId)
+      .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    if (latest is not null && latest.ObservedAt >= startedAt)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+        "A newer verification is retained for this exact identity. Verify again before binding.");
+
+    var observation = new DirectoryUserObservation
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, TenantId = candidate.TenantId,
+      ObjectId = candidate.ObjectId, DisplayName = candidate.DisplayName,
+      UserPrincipalName = candidate.UserPrincipalName, Mail = candidate.UserPrincipalName,
+      EnabledState = candidate.AccountEnabled ? "ENABLED" : "DISABLED", UserType = candidate.UserType,
+      Source = "GRAPH", ObservedAt = startedAt
+    };
+    db.DirectoryUserObservations.Add(observation);
+    CommandResult<Guid> result;
+    if (!candidate.AccountEnabled || candidate.UserType != (guest ? "Guest" : "Member"))
+    {
+      result = CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Microsoft identity is disabled or its type changed. No local identity or access was changed; verification evidence was retained.");
+    }
+    else
+    {
+      var contact = guest ? DirectoryUserBindingService.GuestContact(candidate.UserPrincipalName) : candidate.UserPrincipalName;
+      result = await EnsureUserCoreAsync(db, actor,
+        new(candidate.TenantId, candidate.ObjectId, contact, candidate.DisplayName, guest ? "Client" : "Staff", "GRAPH"),
+        verifiedGraph: true, ct);
+    }
+    await db.SaveChangesAsync(ct);
+    auth = await FirmAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await tx.CommitAsync(ct);
+    return result;
+  }
 
   private static async Task<CommandResult<Guid>> EnsureUserCoreAsync(
     IAuditSphereDbContext db, ActorContext actor, EnsureUserRequest request,
@@ -76,7 +122,8 @@ public static class RoleAdministrationService
     var auth = await FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
     var lockedAuth = await LockFirmAndReauthorizeAsync(db, actor, ct);
     if (!lockedAuth.Succeeded) return CommandResult<Guid>.Fail(lockedAuth.ErrorCode!, lockedAuth.Message!);
     var existing = await db.Users.SingleOrDefaultAsync(x =>
@@ -94,9 +141,9 @@ public static class RoleAdministrationService
         return CommandResult<Guid>.Fail("roles.identity-kind-conflict", "The immutable identity is already classified differently; review it before changing classification.");
       existing.Email = request.Email.Trim();
       existing.DisplayName = request.DisplayName.Trim();
-      db.DirectoryUserObservations.Add(Observation(actor.FirmId, request));
+      if (!verifiedGraph) db.DirectoryUserObservations.Add(Observation(actor.FirmId, request));
       await db.SaveChangesAsync(ct);
-      await tx.CommitAsync(ct);
+      if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(existing.Id);
     }
 
@@ -113,9 +160,9 @@ public static class RoleAdministrationService
       Action = "GRANTED", PriorRole = string.Empty, NewRole = "NONE",
       Source = request.Source, ActorUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     });
-    db.DirectoryUserObservations.Add(Observation(actor.FirmId, request));
+    if (!verifiedGraph) db.DirectoryUserObservations.Add(Observation(actor.FirmId, request));
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(user.Id);
   }
 
@@ -398,7 +445,8 @@ public static class RoleAdministrationService
       .FirstOrDefaultAsync(ct);
     if (latest?.Source != "GRAPH") return true;
     var now = DateTimeOffset.UtcNow;
-    return latest.EnabledState == "ENABLED" && latest.ObservedAt >= now.AddMinutes(-5) &&
+    return latest.EnabledState == "ENABLED" && latest.UserType == (target.UserKind == "Client" ? "Guest" : "Member") &&
+      latest.ObservedAt >= now.AddMinutes(-5) &&
       latest.ObservedAt <= now.AddMinutes(1);
   }
 
