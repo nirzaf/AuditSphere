@@ -13,10 +13,11 @@ namespace AuditSphereOps.Application.Acceptance;
 public sealed record EngagementActivationRequest(Guid RequestId, string ReviewBasis, bool Reviewed = false, string? ExpectedRequestHash = null);
 public sealed record ActivationDecisionView(Guid Id, string Decision, string Path, string Generation, DateTimeOffset? DecidedAt);
 public sealed record ActivationBlocker(string Code, string Message);
+public sealed record RetainedActivationView(Guid Id, Guid AcceptanceDecisionId, string AcceptancePath, string ClientGeneration, DateTimeOffset ActivatedAt);
 public sealed record EngagementActivationState(Guid EngagementId, Guid ClientId, string ClientName, string ServiceRoute,
   string ServiceProfileId, string PeriodStart, string PeriodEnd, string Status, string EngagementGeneration,
   string ClientGeneration, ActivationDecisionView? Decision, int ActiveHolds, bool Eligible, string ReviewBasis,
-  IReadOnlyList<ActivationBlocker> Blockers);
+  IReadOnlyList<ActivationBlocker> Blockers, RetainedActivationView? Activation = null);
 public sealed record EngagementActivationPreview(Guid EngagementId, Guid RequestId, string ReviewBasis, string RequestHash);
 public sealed record EngagementActivationReceipt(Guid Id, Guid EngagementId, Guid ClientId, Guid ActorId, Guid RequestId,
   string RequestHash, string ReviewBasis, Guid AcceptanceDecisionId, string AcceptancePath, string ClientGeneration,
@@ -50,6 +51,9 @@ public static class EngagementActivationWorkspace
     if(name is null || generation is null) return Unavailable<EngagementActivationState>();
     var risk=await EngagementRiskEvidence.LatestAsync(db,a.FirmId,e,ct);
     var d=risk is null ? null : new ActivationDecisionView(risk.Id,risk.Decision,risk.Path,Exact(risk.Generation),risk.DecidedAt);
+    var activation=await db.EngagementActivations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.EngagementId==id&&x.PracticeClientId==e.PracticeClientId,ct);
+    var retained=activation is null ? null : new RetainedActivationView(activation.Id,activation.AcceptanceDecisionId,
+      activation.AcceptancePath,Exact(activation.ClientGeneration),activation.ActivatedAt.ToUniversalTime());
     var holds=await db.EngagementHolds.AsNoTracking().CountAsync(x=>x.FirmId==a.FirmId&&x.EngagementId==id&&!x.Released,ct);
     var blockers=new List<ActivationBlocker>();
     if(e.Status!="Draft") blockers.Add(new("engagement.not-draft","Only a draft engagement can be activated. Inspect retained activation evidence if it is already active."));
@@ -75,7 +79,7 @@ public static class EngagementActivationWorkspace
       FeeAgreementLinked=linkedAgreementIds.Count>0,AdvancePaid=advancePaid}));
     if (!(await Authorize(db,a,id,ct)).Succeeded) return Unavailable<EngagementActivationState>();
     return CommandResult<EngagementActivationState>.Ok(new(id,e.PracticeClientId,name,e.ServiceRoute,e.ServiceProfileId,e.PeriodStart,e.PeriodEnd,
-      e.Status,Exact(e.Generation),Exact(generation.Value),d,holds,blockers.Count==0,basis,blockers));
+      e.Status,Exact(e.Generation),Exact(generation.Value),d,holds,blockers.Count==0,basis,blockers,retained));
   }
   public static async Task<CommandResult<EngagementActivationPreview>> PreviewAsync(IAuditSphereDbContext db, ActorContext a,
     Guid id, EngagementActivationRequest? r, CancellationToken ct=default)

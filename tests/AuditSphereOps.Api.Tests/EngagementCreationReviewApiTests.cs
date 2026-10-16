@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -62,6 +63,31 @@ public sealed class EngagementCreationReviewApiTests
       Assert.Equal(foreignCommand.StatusCode, guessedCommand.StatusCode);
       Assert.Equal(await foreignCommand.Content.ReadAsStringAsync(), await guessedCommand.Content.ReadAsStringAsync());
     }
+    // Prove execute reaches authorization with a valid actor/session/resource-bound hash,
+    // rather than merely rejecting an authorized target's hash replayed elsewhere.
+    var actor = PbcSeed.Actor(f.Staff, "Manager");
+    Assert.Equal(p.RequestHash, BoundRequestHash(f.ClientId, r));
+    await using (var publication = new AuditSphereDbContext(pg.Options))
+    {
+      var beforeEngagements = await publication.Engagements.AsNoTracking().OrderBy(x => x.Id)
+        .Select(x => new { x.Id, x.Status, x.ProfessionalWorkBlocked, x.Generation }).ToArrayAsync();
+      var beforeReceipts = await publication.EngagementCreations.CountAsync();
+      foreach (var targetId in new[] { foreign.ClientId, Guid.NewGuid() })
+      {
+        var unauthorized = r with { RequestId = Guid.NewGuid(), Reviewed = true };
+        unauthorized = unauthorized with { ExpectedRequestHash = BoundRequestHash(targetId, unauthorized) };
+        using var deniedExecute = await Post(c, csrf, "/api/ui/clients/" + targetId + "/engagement-creation", unauthorized);
+        Assert.Equal(HttpStatusCode.Forbidden, deniedExecute.StatusCode);
+        using var deniedError = JsonDocument.Parse(await deniedExecute.Content.ReadAsStringAsync());
+        Assert.Equal("scope.denied", deniedError.RootElement.GetProperty("code").GetString());
+        Assert.False(await publication.EngagementCreations.AnyAsync(x => x.RequestId == unauthorized.RequestId));
+        Assert.Equal(beforeReceipts, await publication.EngagementCreations.CountAsync());
+        Assert.Equal(beforeEngagements, await publication.Engagements.AsNoTracking().OrderBy(x => x.Id)
+          .Select(x => new { x.Id, x.Status, x.ProfessionalWorkBlocked, x.Generation }).ToArrayAsync());
+      }
+    }
+    string BoundRequestHash(Guid id, EngagementCreationRequest request) => Hashing.Sha256Hex(JsonSerializer.Serialize(new
+      { actor.FirmId, actor.UserId, actor.SessionEpoch, id, request.RequestId, Action = "BLOCKED_ENGAGEMENT_CREATION", Fields = request.Fields }));
     using var foreignReceipt = await c.GetAsync("/api/ui/clients/" + foreign.ClientId + "/engagement-creation/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash);
     using var guessedReceipt = await c.GetAsync("/api/ui/clients/" + Guid.NewGuid() + "/engagement-creation/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash);
     Assert.Equal(HttpStatusCode.Forbidden, foreignReceipt.StatusCode);

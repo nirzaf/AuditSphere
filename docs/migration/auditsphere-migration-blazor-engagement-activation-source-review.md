@@ -64,3 +64,19 @@ assistive-technology parity remain open. Blazor retirement stays `NOT_READY`.
 ## Acceptance batch follow-up
 
 The blocked Angular activation view now links directly to the exact client checklist with the engagement ID retained. The owned built-in-browser fixture confirmed navigation and retained client-scope denial; no permission was widened. Current API assertions compare foreign/guessed preview and receipt denials, refuse a resource-mismatched execute hash, and prove another authorized actor cannot recover the original receipt. Exact results and source attribution are in `status.json` under `targetedVerification.angularMigrationAcceptanceBatch`. Valid resource-bound execute authorization, broader error states and human accessibility remain open; activation also needs publication-lock and paid-advance browser transition evidence. This row remains PARTIAL.
+
+## Retained activation history correction awaiting verification
+
+The scoped activation state now projects the persisted activation's original
+acceptance decision, path, exact evaluation generation and UTC timestamp. This
+works for reviewed commands and compatibility-service activations without a
+request receipt. A fresh Angular visit displays this retained basis separately
+from current acceptance even after that acceptance changes. No recovery storage
+or new activation is required to read the history.
+
+Domain, unit and browser assertions were added for original history, newer
+acceptance and revoked scope. Activation and creation API tests also exercise
+unauthorized execute requests with correctly resource-bound hashes, so a hash
+validation failure cannot stand in for authorization proof. These assertions
+have not yet run at the new implementation snapshot; the source row remains
+partial pending recorded results and source reconciliation.

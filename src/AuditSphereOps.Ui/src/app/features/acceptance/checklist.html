@@ -235,6 +235,10 @@
       <section [attr.aria-label]="question.code + ' assessment question'">
         <h2>{{ question.code }} · {{ question.section }}</h2>
         <p>{{ question.prompt }}</p>
+        <p class="question-context">Category: {{ question.category }}
+          @if (question.requiresEvidence) { <span> · Evidence required</span> }
+          @if (question.escalatesOnChange) { <span> · Key change item</span> }
+        </p>
         @if (question.priorAnswer) {
           <p>
             Prior-cycle answer: {{ question.priorAnswer }}

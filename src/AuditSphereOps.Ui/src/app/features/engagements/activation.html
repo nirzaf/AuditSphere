@@ -32,6 +32,18 @@
     </dl>
     <button matButton [disabled]="busy()" (click)="refresh()">Refresh activation context</button>
   </section>
+  @if (context.activation; as activation) {
+    <section aria-label="Retained activation evidence">
+      <h2>Recorded activation</h2>
+      <dl>
+        <dt>Activated at (UTC)</dt><dd>{{ utcTime(activation.activatedAt) }}</dd>
+        <dt>Acceptance decision</dt><dd><code>{{ activation.acceptanceDecisionId }}</code></dd>
+        <dt>Evaluation generation at activation</dt><dd>{{ activation.clientGeneration }}</dd>
+        <dt>Acceptance path at activation</dt><dd>{{ activation.acceptancePath }}</dd>
+      </dl>
+      <p>This is the retained activation basis. Current acceptance and clearance status are shown separately.</p>
+    </section>
+  }
   @if (context.decision; as d) {
     <section aria-label="Acceptance basis">
       <h2>Current acceptance</h2>

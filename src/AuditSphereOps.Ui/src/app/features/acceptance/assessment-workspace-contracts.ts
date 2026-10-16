@@ -18,6 +18,7 @@ export interface Question {
   category: string;
   answerType: string;
   requiresEvidence: boolean;
+  escalatesOnChange: boolean;
   adverse: boolean;
   answer: string | null;
   evidence: string | null;
@@ -101,6 +102,7 @@ export function decodeChecklist(value: unknown): Checklist {
       !bounded(q['prompt'], 20000) ||
       !bounded(q['category'], 300) ||
       typeof q['requiresEvidence'] !== 'boolean' ||
+      typeof q['escalatesOnChange'] !== 'boolean' ||
       typeof q['adverse'] !== 'boolean' ||
       !['answer', 'evidence', 'priorAnswer', 'priorEvidence', 'answeredBy'].every(
         (k) =>

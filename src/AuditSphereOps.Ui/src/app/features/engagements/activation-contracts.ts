@@ -40,6 +40,8 @@ const state = obj({
   engagementGeneration: generation,
   clientGeneration: generation,
   decision: nullable(decision),
+  activation: nullable(obj({ id: guid, acceptanceDecisionId: guid, acceptancePath: oneOf('NEW_CLIENT', 'CONTINUANCE'),
+    clientGeneration: generation, activatedAt: timestamp })),
   activeHolds: nat,
   eligible: bool,
   reviewBasis: sha256,

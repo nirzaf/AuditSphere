@@ -28,6 +28,7 @@ const question = {
   category: 'KYC',
   answerType: 'BOOLEAN',
   requiresEvidence: true,
+  escalatesOnChange: true,
   adverse: false,
   answer: null,
   evidence: null,
@@ -272,6 +273,16 @@ describe('Assessment Signal Forms and retained request recovery', () => {
     expect(decision.valid()).toBe(true);
     expect(decision.intent().engagementId).toBe(other);
     TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+  });
+  it('preserves category, required evidence and key-change context before answering', () => {
+    const f = open();
+    read();
+    TestBed.tick();
+    const question = f.nativeElement.querySelector('[aria-label="CE-001 assessment question"]');
+    expect(question.textContent).toContain('Category: KYC');
+    expect(question.textContent).toContain('Evidence required');
+    expect(question.textContent).toContain('Key change item');
+    TestBed.inject(HttpTestingController).expectNone(r => r.method === 'POST');
   });
   it('renders exact review, requires fresh assent and invalidates it on model changes', async () => {
     const f = open();

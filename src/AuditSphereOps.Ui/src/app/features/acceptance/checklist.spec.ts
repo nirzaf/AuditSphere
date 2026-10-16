@@ -33,6 +33,7 @@ describe('Acceptance workspace contract', () => {
             category: 'Identity',
             answerType: 'BOOLEAN',
             requiresEvidence: true,
+            escalatesOnChange: true,
             adverse: false,
             revision: '0',
             answer: 'Yes',
@@ -53,6 +54,7 @@ describe('Acceptance workspace contract', () => {
       category: 'Continuance',
       answerType: 'BOOLEAN',
       requiresEvidence: false,
+      escalatesOnChange: true,
       adverse: false,
       revision: '0',
       answer: null,
@@ -61,6 +63,8 @@ describe('Acceptance workspace contract', () => {
       priorEvidence: 'PRIOR-CYCLE-REVIEW-17',
       answeredBy: null,
     };
+    expect(decodeChecklist({ ...context, questions: [question] }).questions[0].escalatesOnChange).toBe(true);
+    expect(() => decodeChecklist({ ...context, questions: [{ ...question, escalatesOnChange: 'true' }] })).toThrow();
     expect(decodeChecklist({ ...context, questions: [question] }).questions[0].priorEvidence).toBe(
       'PRIOR-CYCLE-REVIEW-17',
     );

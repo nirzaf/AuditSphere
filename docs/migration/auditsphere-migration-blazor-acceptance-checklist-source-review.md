@@ -56,3 +56,13 @@ The source row remains `PARTIAL`: the focused journeys establish important
 positive and negative behavior, but they do not prove the complete role/scope,
 validation, stale-content, external failure and retry/recovery matrix. This
 review does not change the `NOT_READY` Blazor-removal decision.
+
+## Current source-context correction awaiting verification
+
+The question projection now preserves the original `EscalatesOnChange` flag in
+addition to category and required-evidence metadata. Angular renders all three
+indicators before an answer editor is opened, including read-only viewing. The
+strict decoder requires a Boolean key-change flag. Unit assertions and the
+continuance browser journey now check this source context explicitly. No
+professional assessment rule or question template was changed. Current runtime
+verification remains pending; this record does not promote the source row.

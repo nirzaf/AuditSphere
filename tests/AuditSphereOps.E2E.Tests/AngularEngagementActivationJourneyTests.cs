@@ -49,6 +49,79 @@ public sealed class AngularEngagementActivationJourneyTests
     Assert.Empty(errors);
   }
 
+  [Fact]
+  public async Task FreshVisitWithoutRecoveryStorageShowsOriginalCompatibilityActivationAfterAcceptanceChanges()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-ACTIVATION-HISTORY");
+    var f = host.Fixture;
+    Guid originalDecision;
+    DateTimeOffset activatedAt;
+    await using (var db = host.CreateDbContext())
+    {
+      originalDecision = await EngagementActivationReviewSeed.PopulateAsync(db, f);
+      var activated = await AuditSphereOps.Application.Acceptance.EngagementLifecycleService.ActivateAsync(
+        db, PbcSeed.Actor(f.Staff, "Partner"), f.EngagementId);
+      Assert.True(activated.Succeeded, activated.Message);
+      var stored = await db.EngagementActivations.AsNoTracking().SingleAsync();
+      Assert.Null(stored.RequestId); // Retained history must also work for rollback-host activations without a receipt.
+      activatedAt = stored.ActivatedAt;
+    }
+    var changedDecision = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      await db.ClientSafetyStates.Where(x => x.Id == f.ClientId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, 9007199254740994L));
+      db.AcceptanceDecisions.Add(new()
+      {
+        Id = changedDecision, FirmId = f.FirmId, PracticeClientId = f.ClientId, EngagementId = f.EngagementId,
+        ServiceRoute = "FinancialStatementAudit", Decision = "Declined",
+        Path = AuditSphereOps.Domain.Acceptance.AcceptancePaths.Continuance, Generation = 9007199254740994L,
+        Rationale = "Synthetic subsequent evaluation", EvaluationTemplateVersion = "synthetic.v1",
+        EvaluationSnapshotDigest = new string('b', 64), DecidedByUserId = f.Staff.Id, DecidedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+    var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string>
+      { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true" });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    await context.AddInitScriptAsync("sessionStorage.clear();");
+    var page = await context.NewPageAsync();
+    var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
+    var writes = 0;
+    page.Request += (_, request) => { if (request.Method == "POST" && request.Url.Contains("/activation-review", StringComparison.Ordinal)) writes++; };
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" +
+      Uri.EscapeDataString("/app/engagements/" + f.EngagementId + "/activation"));
+    var retained = page.GetByRole(AriaRole.Region, new() { Name = "Retained activation evidence", Exact = true });
+    await Assertions.Expect(retained).ToBeVisibleAsync();
+    await Assertions.Expect(retained.Locator("dd")).ToHaveTextAsync(new[]
+    {
+      activatedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) + " UTC",
+      originalDecision.ToString("D"), "9007199254740993", "NEW_CLIENT"
+    });
+    var current = page.GetByRole(AriaRole.Region, new() { Name = "Acceptance basis", Exact = true });
+    await Assertions.Expect(current.Locator("audit-status .status-chip")).ToHaveAttributeAsync("data-status", "Declined");
+    await Assertions.Expect(current).ToContainTextAsync(changedDecision.ToString("D"));
+    await Assertions.Expect(current).ToContainTextAsync("9007199254740994");
+    await Assertions.Expect(current).ToContainTextAsync("CONTINUANCE");
+    await Assertions.Expect(retained).Not.ToContainTextAsync(changedDecision.ToString("D"));
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Activation receipt", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Activation outcome unconfirmed", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Prepare activation review", Exact = true })).ToHaveCountAsync(0);
+    Assert.Equal(0, await page.EvaluateAsync<int>("() => sessionStorage.length"));
+    Assert.Equal(0, writes);
+    await using (var db = host.CreateDbContext())
+    {
+      var stored = await db.EngagementActivations.AsNoTracking().SingleAsync();
+      Assert.Equal(originalDecision, stored.AcceptanceDecisionId);
+      Assert.Equal(activatedAt, stored.ActivatedAt);
+      Assert.Equal("NEW_CLIENT", stored.AcceptancePath);
+      Assert.Equal(9007199254740993L, stored.ClientGeneration);
+    }
+    Assert.Empty(errors);
+  }
+
   [Theory][InlineData(false)][InlineData(true)]
   public async Task ExactPartnerReviewLostResponseReceiptReloadAndRevocation(bool canonical)
   {

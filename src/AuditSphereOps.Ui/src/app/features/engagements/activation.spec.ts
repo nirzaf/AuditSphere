@@ -27,6 +27,7 @@ const state = {
   status: 'Draft',
   engagementGeneration: '9007199254740993',
   clientGeneration: '9007199254740993',
+  activation: null,
   decision: {
     id: other,
     decision: 'Accepted',
@@ -156,6 +157,25 @@ describe('Native Partner activation review and request recovery', () => {
     await dispatch;
     TestBed.tick();
   }
+
+  it('shows retained activation separately from changed acceptance on a fresh empty-storage visit', () => {
+    const f = open();
+    read({ ...state, status: 'Active', eligible: false,
+      clientGeneration: '9007199254740994',
+      decision: { ...state.decision, decision: 'Declined', path: 'CONTINUANCE', generation: '9007199254740994' },
+      blockers: [{ code: 'engagement.not-draft', message: 'Already active.' }],
+      activation: { id, acceptanceDecisionId: other, acceptancePath: 'NEW_CLIENT',
+        clientGeneration: '9007199254740993', activatedAt: '2026-10-02T09:15:00Z' } });
+    const history = f.nativeElement.querySelector('[aria-label="Retained activation evidence"]');
+    expect(history.textContent).toContain('2026-10-02 09:15 UTC');
+    expect(history.textContent).toContain('9007199254740993');
+    expect(history.textContent).toContain('NEW_CLIENT');
+    const current = f.nativeElement.querySelector('[aria-label="Acceptance basis"]');
+    expect(current.textContent).toContain('9007199254740994');
+    expect(current.textContent).toContain('CONTINUANCE');
+    expect(f.componentInstance.receipt()).toBeNull();
+    TestBed.inject(HttpTestingController).expectNone(r => r.method === 'POST' || r.url.includes('/receipts/'));
+  });
 
   it('links blocked activation to its exact client and current engagement checklist without sending a command', () => {
     const f = open();

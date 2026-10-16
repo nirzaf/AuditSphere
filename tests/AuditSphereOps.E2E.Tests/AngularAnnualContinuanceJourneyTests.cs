@@ -58,6 +58,10 @@ public sealed class AngularAnnualContinuanceJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Retained assessment receipt", Exact = true })).ToContainTextAsync("Evaluation 1 → 2");
     await page.GetByRole(AriaRole.Button, new() { Name = "Acknowledge assessment receipt", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Evaluation progress", Exact = true })).ToContainTextAsync("0 of 32 questions answered");
+    var changeQuestion = page.GetByRole(AriaRole.Region, new() { Name = "RV-003 assessment question", Exact = true });
+    await Assertions.Expect(changeQuestion).ToContainTextAsync("Category: Continuance");
+    await Assertions.Expect(changeQuestion).ToContainTextAsync("Evidence required");
+    await Assertions.Expect(changeQuestion).ToContainTextAsync("Key change item");
     await Assertions.Expect(page.GetByLabel("Service route", new() { Exact = true })).ToHaveValueAsync("AccountingOnly");
     var targetField = page.GetByLabel("Engagement ID (optional for first-period client acceptance)", new() { Exact = true });
     await Assertions.Expect(targetField).ToHaveValueAsync(targetId.ToString());
