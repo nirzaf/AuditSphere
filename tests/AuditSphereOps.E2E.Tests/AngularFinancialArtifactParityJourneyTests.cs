@@ -17,7 +17,8 @@ public sealed class AngularFinancialArtifactParityJourneyTests
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "AS-PAR-002-ANGULAR-FINANCIAL-PACKAGE-01");
-    var (packageId, expectedOfficeArtifacts) = await FinancialPackageFixture.CreatePackageAsync(host);
+    var (packageId, expectedOfficeArtifacts) = await FinancialPackageFixture.CreatePackageAsync(host, completeForReview: true);
+    var composition = await FinancialPackageFixture.SelectReviewedCompositionAsync(host, packageId);
     var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     var staffOrigin = await host.StartApiForIdentityAsync(host.Fixture.Staff, settings);
     var reviewerOrigin = await host.StartApiForIdentityAsync(host.Fixture.Reviewer, settings);
@@ -81,13 +82,13 @@ public sealed class AngularFinancialArtifactParityJourneyTests
         PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer"),
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
-          "synthetic-management-approval", "Management approved the exact package."));
+          "synthetic-management-approval", "Management approved the exact package.", composition.PresentationRevisionId, null, composition.Id, composition.ManifestDigest));
       Assert.True(management.Succeeded, management.Message);
       var refused = await FinancialPackageReviewService.RecordAsync(db,
         PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer"),
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "synthetic-preparer-attempt", "Preparers cannot record the accounting review."));
+          "synthetic-preparer-attempt", "Preparers cannot record the accounting review.", composition.PresentationRevisionId, null, composition.Id, composition.ManifestDigest));
       Assert.False(refused.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, refused.ErrorCode);
       Assert.Single(await db.FinancialPackageReviewDecisions.AsNoTracking()
@@ -97,6 +98,7 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     // The Angular surface refuses the same attempted accounting review and exposes only a safe denial.
     await Assertions.Expect(staffPage.GetByRole(AriaRole.Button,
       new() { Name = "Record decision", Exact = true })).ToBeVisibleAsync();
+    await staffPage.GetByRole(AriaRole.Button, new() { Name = "Use this composition for formal review", Exact = true }).ClickAsync();
     await staffPage.Locator("select[name='stage']").SelectOptionAsync(FinancialPackageReviewStages.AccountingReview);
     await staffPage.GetByLabel("Evidence reference", new() { Exact = true })
       .FillAsync("Synthetic preparer must not self-review");
@@ -114,19 +116,24 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Financial statement package", Exact = true })).ToBeVisibleAsync();
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Use this composition for formal review", Exact = true }).ClickAsync();
     await reviewerPage.Locator("select[name='stage']").SelectOptionAsync(FinancialPackageReviewStages.AccountingReview);
     await reviewerPage.GetByLabel("Evidence reference", new() { Exact = true })
       .FillAsync("Synthetic independent reviewer sign-off");
     await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Record decision", Exact = true }).ClickAsync();
     await Assertions.Expect(reviewerPage.Locator(".command-result"))
-      .ToContainTextAsync("Decision recorded against the current package version.");
+      .ToContainTextAsync("Decision recorded against the exact selected three-format composition.");
     await using (var db = host.CreateDbContext())
     {
       var review = await db.FinancialPackageReviewDecisions.AsNoTracking().SingleAsync(x =>
         x.FinancialPackageId == packageId && x.Stage == FinancialPackageReviewStages.AccountingReview);
       Assert.Equal(host.Fixture.Reviewer.Id, review.DecidedByUserId);
       Assert.Equal(FinancialPackageReviewDecisions.Approved, review.Decision);
-      Assert.Equal(FinancialPackageArtifactVersions.Text, review.ArtifactVersion);
+      Assert.Equal(FinancialPackageArtifactVersions.StatementPresentation(composition.PresentationRevisionId,
+        FinancialStatementPresentationRenderer.PdfFormat), review.ArtifactVersion);
+      Assert.Equal(composition.PresentationRevisionId, review.PresentationRevisionId);
+      Assert.Equal(composition.Id, review.PresentationCompositionId);
+      Assert.Equal(composition.ManifestDigest, review.CompositionManifestDigest);
       Assert.Equal(2, await db.FinancialPackageReviewDecisions.CountAsync(x => x.FinancialPackageId == packageId));
     }
 
@@ -634,7 +641,8 @@ public sealed class AngularFinancialArtifactParityJourneyTests
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "AS-PAR-002-ANGULAR-PERIOD-REOPEN-01");
-    var (packageId, expectedArtifacts) = await FinancialPackageFixture.CreatePackageAsync(host);
+    var (packageId, expectedArtifacts) = await FinancialPackageFixture.CreatePackageAsync(host, completeForReview: true);
+    var composition = await FinancialPackageFixture.SelectReviewedCompositionAsync(host, packageId);
     Guid periodId;
     long packageRevision;
     string packageHash;
@@ -645,8 +653,7 @@ public sealed class AngularFinancialArtifactParityJourneyTests
       packageRevision = package.Revision;
       packageHash = package.CalculationHash;
       db.RoleGrants.AddRange(
-        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "AccountingPreparer", host.Fixture.ClientId),
-        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "AccountingReviewer", host.Fixture.ClientId),
+        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Admin, "Partner", host.Fixture.ClientId),
         PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "Partner", host.Fixture.ClientId));
       await db.SaveChangesAsync();
     }
@@ -657,19 +664,19 @@ public sealed class AngularFinancialArtifactParityJourneyTests
         PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer"),
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.ManagementApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.Offline,
-          "synthetic-management-review", "Synthetic acceptance fixture."));
+          "synthetic-management-review", "Synthetic acceptance fixture.", composition.PresentationRevisionId, null, composition.Id, composition.ManifestDigest));
       Assert.True(management.Succeeded, management.Message);
       var accounting = await FinancialPackageReviewService.RecordAsync(db,
         PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer"),
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.AccountingReview,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "synthetic-accounting-review", "Synthetic acceptance fixture."));
+          "synthetic-accounting-review", "Synthetic acceptance fixture.", composition.PresentationRevisionId, null, composition.Id, composition.ManifestDigest));
       Assert.True(accounting.Succeeded, accounting.Message);
       var partner = await FinancialPackageReviewService.RecordAsync(db,
         PbcSeed.Actor(host.Fixture.Admin, "Partner"),
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn,
-          "synthetic-partner-review", "Synthetic acceptance fixture."));
+          "synthetic-partner-review", "Synthetic acceptance fixture.", composition.PresentationRevisionId, null, composition.Id, composition.ManifestDigest));
       Assert.True(partner.Succeeded, partner.Message);
       var close = await ClientAccountingService.ClosePeriodAsync(db,
         PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer"), periodId, "Synthetic initial close");

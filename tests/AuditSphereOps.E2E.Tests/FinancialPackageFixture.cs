@@ -16,7 +16,7 @@ internal static class FinancialPackageFixture
   }
 
   internal static async Task<PackageSeed> CreatePackageAsync(
-    OwnedHost host)
+    OwnedHost host, bool completeForReview = false)
   {
     var firmId = host.Fixture.FirmId;
     var clientId = host.Fixture.ClientId;
@@ -30,6 +30,8 @@ internal static class FinancialPackageFixture
     var sourceBatchId = Guid.NewGuid();
     var sourceTransactionId = Guid.NewGuid();
     var sourceLineId = Guid.NewGuid();
+    var investmentSourceId = Guid.NewGuid();
+    var capitalSourceId = Guid.NewGuid();
     var sourceHash = sourceBatchId.ToString("N") + sourceBatchId.ToString("N");
     await using (var db = host.CreateDbContext())
     {
@@ -93,7 +95,7 @@ internal static class FinancialPackageFixture
         PeriodId = periodId, BookId = bookId, SourceKind = AccountingSourceKinds.GeneralLedger,
         ProfileVersion = "cash-flow-e2e-v1", ParserVersion = "synthetic-e2e-v1", RawFileSha256Hex = sourceHash,
         NormalizedDatasetDigest = sourceHash, LegalEntityKey = "SYNTHETIC-CASH-FLOW", Currency = "QAR",
-        RowCount = 2, Status = "LOADING", ReceiptReference = "Synthetic accepted cash-flow ledger",
+        RowCount = completeForReview ? 6 : 2, Status = "LOADING", ReceiptReference = "Synthetic accepted cash-flow ledger",
         CreatedByUserId = host.Fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
       });
       db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
@@ -118,6 +120,41 @@ internal static class FinancialPackageFixture
         AccountCode = "4000", Debit = 0m, Credit = 175_000m, FunctionalAmount = -175_000m,
         OriginalCurrency = "QAR", OriginalAmount = -175_000m, CreatedAt = DateTimeOffset.UtcNow
       });
+      if (completeForReview)
+      {
+        // Balanced investment purchase and capital subscription offset in cash,
+        // while preserving the 175,000 revenue/profit and closing cash fixture.
+        foreach (var (id, account, amount, key) in new[] {
+          (investmentSourceId, "1500", 100m, "INVESTMENT"),
+          (capitalSourceId, "3000", -100m, "CAPITAL") })
+        {
+          var transactionId = Guid.NewGuid();
+          db.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction {
+            Id = transactionId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+            ImportBatchId = sourceBatchId, StableJournalId = "SYN-" + key, DocumentNumber = "SYN-" + key,
+            PostingDate = new DateOnly(2026, 6, 30), Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow });
+          foreach (var (lineId, code, signed) in new[] { (id, account, amount), (Guid.NewGuid(), "1000", -amount) })
+            db.GeneralLedgerLines.Add(new GeneralLedgerLine {
+              Id = lineId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
+              ImportBatchId = sourceBatchId, TransactionId = transactionId, StableLineId = "SYN-" + key + "-" + code,
+              AccountCode = code, Debit = Math.Max(signed, 0m), Credit = Math.Max(-signed, 0m), FunctionalAmount = signed,
+              OriginalCurrency = "QAR", OriginalAmount = signed, CreatedAt = DateTimeOffset.UtcNow });
+        }
+        foreach (var (account, code, section) in new[] { ("1500", "INVESTMENT", "ASSETS"), ("3000", "SHARE_CAPITAL", "EQUITY"), ("3900", "OCI_ZERO", "OCI") })
+        {
+          db.ReportingTaxonomyNodes.Add(new ReportingTaxonomyNode
+          {
+            Id = Guid.NewGuid(), FirmId = firmId, TaxonomyVersionId = taxonomyId, Code = code, Name = "Synthetic review balance " + code,
+            StatementSection = section, DisplaySign = "SIGNED", NormalBalance = "CREDIT", IsPosting = true,
+            Applicability = "ALL", CreatedAt = DateTimeOffset.UtcNow
+          });
+          db.TrialBalanceRows.Add(new TrialBalanceRow
+          {
+            Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = account, AccountName = "Synthetic review balance " + code,
+            Amount = account == "1500" ? 100m : account == "3000" ? -100m : 0m, Currency = "QAR", Entity = "SYNTHETIC"
+          });
+        }
+      }
       await db.SaveChangesAsync();
     }
 
@@ -138,7 +175,11 @@ internal static class FinancialPackageFixture
       var mapping = await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
         new CreateMappingVersionRequest(datasetId, "tax-e2e-v1", "2026-01-01", "2026-12-31", [
           new("1000", "CASH", "ASSETS", 1m, "Synthetic cash mapping"),
-          new("4000", "REVENUE", "INCOME", 1m, "Synthetic revenue mapping")
+          new("4000", "REVENUE", "INCOME", 1m, "Synthetic revenue mapping"),
+          ..(completeForReview ? new MappingAllocationInput[] {
+            new("1500", "INVESTMENT", "ASSETS", 1m, "Synthetic investment purchase"),
+            new("3000", "SHARE_CAPITAL", "EQUITY", 1m, "Synthetic capital subscription"),
+            new("3900", "OCI_ZERO", "OCI", 1m, "Synthetic zero OCI") } : [])
         ]));
       Assert.True(mapping.Succeeded, mapping.Message);
       mappingId = mapping.Value;
@@ -169,11 +210,16 @@ internal static class FinancialPackageFixture
       new FinancialSupplementaryInformation(0m, 175_000m,
         [new CashFlowLineInput("OPERATING", "Synthetic cash collections", 175_000m, MovementDate: new DateOnly(2026, 6, 30),
           ActivityCode: "CASH_COLLECTIONS", SourceReferences: ["synthetic-ledger-e2e"], ClassificationRationale: "Synthetic collections agreed to source.",
-          SourceAllocations: [new CashFlowSourceAllocationInput(sourceLineId, -175_000m)])],
+          SourceAllocations: [new CashFlowSourceAllocationInput(sourceLineId, -175_000m)]),
+          ..(completeForReview ? new CashFlowLineInput[] {
+            new("INVESTING", "Synthetic investment purchase", -100m, MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "INVESTMENT_PURCHASE", SourceReferences: ["SYN-INVESTMENT"], ClassificationRationale: "Synthetic investment purchase agreed to accepted ledger.", SourceAllocations: [new(investmentSourceId, 100m)]),
+            new("FINANCING", "Synthetic capital subscription", 100m, MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "CAPITAL_SUBSCRIPTION", SourceReferences: ["SYN-CAPITAL"], ClassificationRationale: "Synthetic capital subscription agreed to accepted ledger.", SourceAllocations: [new(capitalSourceId, -100m)]) } : [])],
         [new DisclosureInput("E2E_POLICY", "Synthetic test policy note."),
          new DisclosureInput("E2E_OTHER", string.Empty, NotApplicable: true, Rationale: "No other synthetic items.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 175_000m, 0m, 0m, 0m, 175_000m, "e2e-equity")],
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 175_000m, 0m, 0m, 0m, 175_000m, "e2e-equity"),
+          ..(completeForReview ? new EquityLineInput[] { new("SHARE_CAPITAL", "Share capital", 0m, 0m, 0m, 100m, 0m, 100m, "SYN-CAPITAL") } : [])],
         NoteLines: [new NoteLineInput("E2E_NOTE", "CASH", 175_000m, "e2e-note")],
+        FxCashEffects: completeForReview ? [new FxCashEffectInput("QAR/QAR", 0m, "Synthetic QAR-only population; no foreign-currency exposure.")] : null,
         CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash-e2e"], ClosingCashEvidenceReferences: ["synthetic-closing-cash-e2e"]));
     Guid packageId;
     var expected = new Dictionary<string, (byte[] Bytes, string Sha256)>(StringComparer.Ordinal);
@@ -205,4 +251,45 @@ internal static class FinancialPackageFixture
     }
     return new PackageSeed(packageId, expected, mappingId, planId, periodId, sourceLineId);
   }
+  internal static async Task<FinancialStatementComposition> SelectReviewedCompositionAsync(OwnedHost host, Guid packageId)
+  {
+    await using var db = host.CreateDbContext();
+    // Layout authoring is client-scoped; an engagement-only grant cannot authorize it.
+    db.RoleGrants.AddRange(
+      PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "AccountingPreparer", host.Fixture.ClientId),
+      PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "AccountingReviewer", host.Fixture.ClientId));
+    await db.SaveChangesAsync();
+    var preparer = PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer");
+    var reviewer = PbcSeed.Actor(host.Fixture.Reviewer, "AccountingReviewer");
+    var layout = await StatementLayoutService.SaveLayoutDraftAsync(db, preparer,
+      new StatementLayoutDraftRequest(host.Fixture.ClientId, "IFRS", "Synthetic artifact parity layout",
+      [
+        new StatementLineDefinition("H_FP", "Assets", StatementLayoutLineKinds.Heading, StatementLayoutSections.FinancialPosition, 1),
+        new StatementLineDefinition("CASH", "Cash", StatementLayoutLineKinds.MappedTaxonomyBalance, StatementLayoutSections.FinancialPosition, 2, TaxonomyNodeCode: "CASH"),
+        new StatementLineDefinition("INV", "Investments", StatementLayoutLineKinds.MappedTaxonomyBalance, StatementLayoutSections.FinancialPosition, 3, TaxonomyNodeCode: "INVESTMENT"),
+        new StatementLineDefinition("SC", "Share capital", StatementLayoutLineKinds.MappedTaxonomyBalance, StatementLayoutSections.FinancialPosition, 4, DisplaySign: StatementLayoutDisplaySigns.Inverted, TaxonomyNodeCode: "SHARE_CAPITAL"),
+        new StatementLineDefinition("H_PL", "Revenue", StatementLayoutLineKinds.Heading, StatementLayoutSections.ProfitOrLoss, 1),
+        new StatementLineDefinition("REV", "Revenue", StatementLayoutLineKinds.MappedTaxonomyBalance, StatementLayoutSections.ProfitOrLoss, 2,
+          DisplaySign: StatementLayoutDisplaySigns.Inverted, TaxonomyNodeCode: "REVENUE")
+      ]));
+    Assert.True(layout.Succeeded, layout.Message);
+    var validation = await StatementLayoutService.ValidateLayoutAsync(db, preparer, layout.Value!.LayoutVersionId);
+    Assert.True(validation.Succeeded, validation.Message);
+    Assert.True(validation.Value!.IsValid);
+    var publication = await StatementLayoutService.PublishLayoutAsync(db, reviewer, layout.Value.LayoutVersionId, "Synthetic independent layout publication");
+    Assert.True(publication.Succeeded, publication.Message);
+    var pin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layout.Value.LayoutVersionId);
+    Assert.True(pin.Succeeded, pin.Message);
+    var render = await FinancialStatementService.RenderPinnedPresentationArtifactAsync(db, reviewer, pin.Value!.RevisionId,
+      FinancialStatementPresentationRenderer.PdfFormat);
+    Assert.True(render.Succeeded, render.Message);
+    var content = await StatementContentReviewCall.RecordAsync(db, reviewer, packageId, pin.Value.RevisionId);
+    Assert.True(content.Succeeded, content.Message);
+    var candidate = await FinancialStatementService.PromotePresentationToCandidateAsync(db, reviewer, packageId, pin.Value.RevisionId);
+    Assert.True(candidate.Succeeded, candidate.Message);
+    var composition = await FinancialStatementService.SelectCompositionAsync(db, preparer, packageId, candidate.Value!.RevisionId);
+    Assert.True(composition.Succeeded, composition.Message);
+    return await db.FinancialStatementCompositions.AsNoTracking().SingleAsync(x => x.Id == composition.Value!.Id);
+  }
+
 }
