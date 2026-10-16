@@ -841,36 +841,6 @@ public static partial class AuditPlanningService
             finding.Id, finding.FindingType, finding.Corrected, finding.Status));
     }
 
-    public static async Task<CommandResult> SetReviewPointDispositionAsync(
-        IAuditSphereDbContext db, ActorContext actor, Guid reviewPointId, bool cleared,
-        CancellationToken ct = default)
-    {
-        if (reviewPointId == Guid.Empty)
-            return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        var snapshot = await db.ReviewPoints.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.Id == reviewPointId && x.FirmId == actor.FirmId, ct);
-        if (snapshot is null)
-            return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-
-        var scope = await LockedEngagementAsync(db, actor, snapshot.EngagementId, ct,
-            snapshot.ClientId, requireProfessionalWork: false);
-        if (scope.Denied is not null)
-            return CommandResult.Fail(scope.Denied, scope.Message);
-
-        var point = await db.ReviewPoints.FromSqlInterpolated($"""
-            SELECT * FROM review_points WHERE id = {reviewPointId} AND firm_id = {actor.FirmId} FOR UPDATE
-            """).SingleOrDefaultAsync(ct);
-        if (point is null || point.ClientId != snapshot.ClientId || point.EngagementId != snapshot.EngagementId)
-            return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-
-        point.Cleared = cleared;
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
-        return CommandResult.Ok();
-    }
-
     // ── Posting balance guard (NT-22.1 — pure domain invariant) ─────────────
 
     /// <summary>

@@ -11,7 +11,6 @@ public static partial class UiEndpoints
 {
   public sealed record FindingResponseInput(string ManagementResponse, bool Corrected);
   public sealed record ManagementLetterDesignationInput(bool Designated, string? Recommendation);
-  public sealed record DispositionInput(bool Cleared);
   public sealed record IssueInput(long ExpectedRevision, string ManifestDigest, string ReleaseKey);
   public sealed record WorkpaperDraftInput(long ExpectedDraftRevision, long BaseWorkpaperRevision, long BaseInputGeneration, long BasePolicyGeneration, Guid SaveId,
     string WorkPerformed, string Conclusion);
@@ -20,6 +19,16 @@ public static partial class UiEndpoints
 
   private static void MapAuditRecordEndpoints(RouteGroupBuilder group)
   {
+    const string reviewCommands = "/reviews/{reviewPointId:guid}/commands";
+    group.MapGet(reviewCommands + "/state", (Guid reviewPointId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ReviewPointCommandWorkspace.StateAsync(db, actor, reviewPointId, ct)));
+    group.MapPost(reviewCommands + "/preview", (Guid reviewPointId, ReviewPointCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ReviewPointCommandWorkspace.PreviewAsync(db, actor, reviewPointId, input, ct)));
+    group.MapPost(reviewCommands + "/actions", (Guid reviewPointId, ReviewPointCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ReviewPointCommandWorkspace.ExecuteAsync(db, actor, reviewPointId, input, ct)));
+    group.MapGet(reviewCommands + "/receipts/{requestId:guid}", (Guid reviewPointId, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ReviewPointCommandWorkspace.LookupAsync(db, actor, reviewPointId, requestId, requestHash, ct)));
+
     const string findingCommands = "/findings/{findingId:guid}/commands";
     group.MapGet(findingCommands + "/state", (Guid findingId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FindingCommandWorkspace.StateAsync(db, actor, findingId, ct)));
@@ -42,8 +51,8 @@ public static partial class UiEndpoints
       CommandAsync(http, (db, actor, ct) => AuditPlanningService.DesignateManagementLetterFindingAsync(db, actor,
         new RecordManagementLetterDesignationRequest(id, i.Designated, i.Recommendation), ct)));
     group.MapGet("/reviews/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ReviewPointAsync(db, actor, id, ct)));
-    group.MapPost("/reviews/{id:guid}/disposition", (Guid id, DispositionInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditPlanningService.SetReviewPointDispositionAsync(db, actor, id, i.Cleared, ct)));
+    group.MapPost("/reviews/{id:guid}/disposition", (Guid id, ReviewPointDispositionInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ReviewPointCommandWorkspace.ReviseAsync(db, actor, id, i, ct)));
     group.MapGet("/releases/{id:guid}", (Guid id, HttpContext http, ReleaseSafetyOptions safety) =>
       ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ReleaseCandidateAsync(db, actor, id, safety, DateTimeOffset.UtcNow, ct)));
     // The release key is a one-time authorization input: it is never echoed, logged or stored by the browser.

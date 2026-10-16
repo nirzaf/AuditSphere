@@ -105,6 +105,10 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                     Assert.Contains("12000 population rows", initial, StringComparison.Ordinal);
                     Assert.Contains("1 reviewed item tests", initial, StringComparison.Ordinal);
                     Assert.Contains("Population details (§20.1)", initial, StringComparison.Ordinal);
+                    Assert.Contains("QAR 4,800,000.00", initial, StringComparison.Ordinal);
+                    var selectionRow = page.GetByRole(AriaRole.Row).Filter(new() { HasText = own.PopulationRationaleMarker });
+                    await Assertions.Expect(selectionRow.GetByRole(AriaRole.Cell)).ToHaveTextAsync(
+                      ["Manual", "submitted", "1", "1", "1", own.PopulationRationaleMarker]);
                     Assert.DoesNotContain(own.ReceiptFileMarker, initial, StringComparison.Ordinal);
                 }
 
@@ -222,18 +226,28 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
 
                 if (route.Template == "/app/reviews/{0}")
                 {
-                    await page.GetByRole(AriaRole.Button, new() { Name = "Clear review point", Exact = true }).ClickAsync();
-                    await page.GetByText("Disposition updated successfully.", new() { Exact = true })
-                      .WaitForAsync(new() { Timeout = 10000 });
+                    await page.GetByRole(AriaRole.Button, new() { Name = "Preview clearing review point", Exact = true }).ClickAsync();
+                    await ConfirmDispositionAsync("CLEAR");
                     await using var verifyDisposition = host.CreateDbContext();
                     Assert.True(await verifyDisposition.ReviewPoints.AsNoTracking()
                       .Where(x => x.Id == own.ReviewPointId).Select(x => x.Cleared).SingleAsync());
-                    await page.GetByRole(AriaRole.Button, new() { Name = "Reopen review point", Exact = true }).ClickAsync();
-                    await page.GetByRole(AriaRole.Button, new() { Name = "Clear review point", Exact = true })
+                    await page.GetByRole(AriaRole.Button, new() { Name = "Preview reopening review point", Exact = true }).ClickAsync();
+                    await ConfirmDispositionAsync("REOPEN");
+                    await page.GetByRole(AriaRole.Button, new() { Name = "Preview clearing review point", Exact = true })
                       .WaitForAsync(new() { Timeout = 10000 });
                     await using var verifyReopened = host.CreateDbContext();
                     Assert.False(await verifyReopened.ReviewPoints.AsNoTracking()
                       .Where(x => x.Id == own.ReviewPointId).Select(x => x.Cleared).SingleAsync());
+                    async Task ConfirmDispositionAsync(string action)
+                    {
+                        var preview = page.GetByRole(AriaRole.Region, new() { Name = "Exact review point preview", Exact = true });
+                        await Assertions.Expect(preview).ToContainTextAsync(action);
+                        await Assertions.Expect(preview.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed disposition", Exact = true })).ToBeDisabledAsync();
+                        await preview.GetByLabel("I reviewed this exact review point, immutable target and disposition change.", new() { Exact = true }).CheckAsync();
+                        await preview.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed disposition", Exact = true }).ClickAsync();
+                        await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Verified review point receipt", Exact = true })).ToContainTextAsync(action);
+                    }
+
                 }
             }
 
@@ -288,7 +302,7 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
             var revokedWorkpaperText = await workpaperPage.Locator("main").InnerTextAsync();
             Assert.DoesNotContain("BLOCKING", revokedText, StringComparison.Ordinal);
             Assert.DoesNotContain("Review context", revokedText, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Clear review point", revokedText, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Preview clearing review point", revokedText, StringComparison.OrdinalIgnoreCase);
             foreach (var marker in own.AllMarkers)
             {
                 Assert.DoesNotContain(marker, revokedText, StringComparison.Ordinal);

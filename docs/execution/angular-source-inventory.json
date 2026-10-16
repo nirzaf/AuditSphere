@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "460b5b02a3d75d8cae168fda297169812f6ba98f",
+  "sourceCommit": "1209844d4c24453021e3de5dd51e688c2f5f673a",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -3507,7 +3507,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor",
-      "sourceSha256": "af63b1a7cf1132238a1836c2c6c68d12a97e10c06e3b7ca5ec8612f293b09415",
+      "sourceSha256": "cd8827295413fd0c16cbe5ce7e79fcff9145521ee95e25420c3ac59f788ce1a1",
       "routes": [
         "/app/reviews/{Id:guid}"
       ],

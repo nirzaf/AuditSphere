@@ -3,6 +3,7 @@ namespace AuditSphereOps.Domain.Reviews;
 
 public sealed class ReviewPoint
 {
+  public long DispositionRevision { get; set; } = 1;
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }

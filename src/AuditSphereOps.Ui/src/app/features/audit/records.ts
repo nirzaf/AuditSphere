@@ -10,6 +10,10 @@ import { FindingCommandState } from './finding-command-state';
 import { FindingCommandReview } from './finding-command-review';
 import { FindingAction, FindingReceipt, findingRevision } from './finding-command-contracts';
 
+import { ReviewPointCommandState } from './review-point-command-state';
+import { ReviewPointCommandReview } from './review-point-command-review';
+import { reviewPointRevision, reviewPointTargetRevision } from './review-point-command-contracts';
+
 export const decodePopulation = obj({ id: guid, engagementId: guid, purpose: text, assertion: text, sourceReceiptReference: text, extractionParameters: text, rowCount: nat,
   monetaryControlTotal: dec, currency: text, exclusions: nullable(text), status: text, createdAt: instant,
   selections: arr(obj({ method: text, status: text, rationale: text, itemCount: nat, testCount: nat, reviewedTestCount: nat }), 1000),
@@ -17,8 +21,8 @@ export const decodePopulation = obj({ id: guid, engagementId: guid, purpose: tex
 export const decodeFinding = obj({ id: guid, engagementId: guid, findingType: text, impactDescription: text, monetaryAmount: nullable(dec), corrected: bool,
   managementResponse: nullable(text), status: text, createdAt: instant, professionalWorkBlocked: bool,
   letterDesignatedAt: nullable(instant), letterRecommendation: nullable(text), revision: findingRevision, canRecordResponse: bool, canDesignate: bool });
-export const decodeReviewPoint = obj({ id: guid, engagementId: guid, targetKind: text, targetId: guid, targetRevision: int, raisedByUserId: guid, raisedAt: instant,
-  significant: bool, cleared: bool, comment: text, status: text });
+export const decodeReviewPoint = obj({ id: guid, engagementId: guid, targetKind: text, targetId: guid, targetRevision: reviewPointTargetRevision, raisedByUserId: guid, raisedAt: instant,
+  significant: bool, cleared: bool, comment: text, status: text, dispositionRevision: reviewPointRevision, canChangeDisposition: bool });
 const gate = obj({ state: text, detail: text });
 export const decodeRelease = obj({ id: guid, status: text, targetKind: text, targetRevision: int, revision: int, manifestDigest: text, createdAt: instant,
   checkpoint: gate, attestation: gate, lineage: gate, preflightReady: bool });
@@ -175,10 +179,11 @@ export class FindingRecord {
 
 @Component({
   selector: 'audit-review-point',
-  imports: [RouterLink, MatButtonModule, ...SHARED],
+  imports: [RouterLink, MatButtonModule, ReviewPointCommandReview, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <span>Review point</span></nav>
-    <audit-page-header title="Review point" eyebrow="Engagement review" description="Review point detail, comment thread, and independent clearing decision." />
+    <audit-page-header title="Review point" eyebrow="Engagement review" description="Review point detail, original comment and recorded disposition." />
+    <button matButton="outlined" (click)="rec.reload()" [disabled]="flow.busy()">Refresh review point</button>
     <audit-state [loading]="rec.loading()" [error]="rec.error()" label="review point" />
     @if (rec.data(); as r) {
       <p class="actions"><audit-status [value]="r.status" /><a [routerLink]="['/app/engagements', r.engagementId]">Engagement</a><a [routerLink]="['/app/engagements', r.engagementId, 'completion']">Completion checklist</a></p>
@@ -186,23 +191,32 @@ export class FindingRecord {
       <section class="panel" aria-labelledby="context-heading"><h2 id="context-heading">Review context</h2>
         <dl class="facts"><dt>Target kind</dt><dd>{{ r.targetKind }}</dd><dt>Target ID</dt><dd>{{ r.targetId }}</dd><dt>Target revision</dt><dd>{{ r.targetRevision }}</dd>
           <dt>Raised by</dt><dd>User {{ r.raisedByUserId.slice(0, 8) }}</dd><dt>Raised at</dt><dd>{{ r.raisedAt.slice(0, 16).replace('T', ' ') }} UTC</dd>
-          <dt>Blocks gate</dt><dd>{{ r.significant ? 'Yes (Significant)' : 'No' }}</dd><dt>Status</dt><dd>{{ r.status }}</dd></dl></section>
+          <dt>Disposition revision</dt><dd>{{ r.dispositionRevision }}</dd><dt>Blocks gate</dt><dd>{{ r.significant ? 'Yes (Significant)' : 'No' }}</dd><dt>Status</dt><dd>{{ r.status }}</dd></dl></section>
       <section class="panel" aria-labelledby="comment-heading"><h2 id="comment-heading">Review comment</h2><p>{{ r.comment }}</p></section>
       <section class="panel" aria-labelledby="actions-heading"><h2 id="actions-heading">Review disposition</h2>
         <p class="actions">
-          @if (!r.cleared) { <button matButton="filled" (click)="set(r.id, true)" [disabled]="cmd.busy()">Clear review point</button> }
-          @else { <button matButton="outlined" (click)="set(r.id, false)" [disabled]="cmd.busy()">Reopen review point</button> }
-          <a matButton [routerLink]="['/app/engagements', r.engagementId]">Back to engagement</a></p></section>
+          @if (r.canChangeDisposition) { @if (!r.cleared) { <button matButton="filled" (click)="set(r.id, true)" [disabled]="!flow.canPrepare('CLEAR')">Preview clearing review point</button> }
+          @else { <button matButton="outlined" (click)="set(r.id, false)" [disabled]="!flow.canPrepare('REOPEN')">Preview reopening review point</button> }
+          } <a matButton [routerLink]="['/app/engagements', r.engagementId]">Back to engagement</a></p></section>
     }
-    <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
+    @if (rec.data()) { <audit-review-point-command-review [flow]="flow" /> }
   `,
 })
 export class ReviewPointRecord {
   private readonly api = inject(Api);
   readonly id = routeGuid();
-  readonly rec = this.api.resource(() => (this.id() ? `/api/ui/reviews/${this.id()}` : null), decodeReviewPoint, 'The requested review point was not found in the current firm scope.');
-  readonly cmd = new CommandState(this.api);
-  set(id: string, cleared: boolean): void { void this.cmd.run(`/api/ui/reviews/${id}/disposition`, { cleared }, 'Disposition updated successfully.').finally(() => this.rec.reload()); }
+  readonly rec = this.api.resource(() => (this.id() ? `/api/ui/reviews/${this.id()}` : null), (raw, path) => {
+    const point = decodeReviewPoint(raw, path);
+    if (point.id !== this.id()) throw new Error('Review point route identity mismatch');
+    return point;
+  }, 'The requested review point was not found in the current firm scope.');
+  readonly flow = new ReviewPointCommandState(() => this.id(), () => this.rec.data(),
+    () => !!this.rec.data()?.canChangeDisposition && !this.rec.loading() && !this.rec.error(), () => this.rec.reload());
+  set(id: string, cleared: boolean): void {
+    const point = this.rec.data(), action = cleared ? 'CLEAR' : 'REOPEN';
+    if (id !== this.id() || point?.id !== id || point.cleared === cleared || !this.flow.canPrepare(action)) return;
+    void this.flow.prepare(() => ({ action }));
+  }
 }
 
 @Component({

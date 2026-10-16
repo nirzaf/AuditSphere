@@ -578,6 +578,9 @@ public sealed class AuditPlanningTests
 
         await using var verify = new AuditSphereDbContext(pg.Options);
         Assert.True(await verify.ReviewPoints.Where(x => x.Id == primary.Id).Select(x => x.Cleared).SingleAsync());
+        Assert.Equal(2, await verify.ReviewPoints.Where(x => x.Id == primary.Id).Select(x => x.DispositionRevision).SingleAsync());
+        Assert.Single(await verify.ReviewPointDispositionEvents.Where(x => x.ReviewPointId == primary.Id).ToListAsync());
+        Assert.Empty(await verify.ReviewPointCommandReceipts.ToListAsync());
         Assert.False(await verify.ReviewPoints.Where(x => x.Id == other.Id).Select(x => x.Cleared).SingleAsync());
     }
 

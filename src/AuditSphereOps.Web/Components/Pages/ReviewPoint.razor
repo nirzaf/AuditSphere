@@ -211,7 +211,7 @@ else
         {
             await using var db = await DbFactory.CreateDbContextAsync();
             if (!IsCurrentLoad(generation, point.Id)) return;
-            var result = await AuditPlanningService.SetReviewPointDispositionAsync(db, actor, point.Id, cleared);
+            var result = await AuditPlanningService.SetReviewPointDispositionAsync(db, actor, point.Id, cleared, point.DispositionRevision);
             if (!IsCurrentLoad(generation, point.Id)) return;
             if (!result.Succeeded && (result.ErrorCode is ErrorCodes.ScopeDenied or ErrorCodes.GenerationStale))
             {
@@ -220,9 +220,8 @@ else
             }
             if (result.Succeeded)
             {
-                point.Cleared = cleared;
-                UpdateStatusBadge();
-                _actionSuccess = true;
+                await OnParametersSetAsync();
+                if (Id == point.Id && _point?.Id == point.Id) _actionSuccess = true;
             }
             else
             {

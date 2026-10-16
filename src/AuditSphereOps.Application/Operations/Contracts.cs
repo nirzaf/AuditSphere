@@ -112,6 +112,8 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FindingAmendment> FindingAmendments { get; }
   DbSet<FindingCommandReceipt> FindingCommandReceipts { get; }
   DbSet<ReviewPoint> ReviewPoints { get; }
+  DbSet<ReviewPointDispositionEvent> ReviewPointDispositionEvents { get; }
+  DbSet<ReviewPointCommandReceipt> ReviewPointCommandReceipts { get; }
   DbSet<Approval> Approvals { get; }
   DbSet<ApprovalApplicability> ApprovalApplicabilities { get; }
   DbSet<ReleaseCandidate> ReleaseCandidates { get; }

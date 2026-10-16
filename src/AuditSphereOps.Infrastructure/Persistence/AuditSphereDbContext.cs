@@ -513,6 +513,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<FindingCommandReceipt> FindingCommandReceipts => Set<FindingCommandReceipt>();
 
   public DbSet<ReviewPoint> ReviewPoints => Set<ReviewPoint>();
+  public DbSet<ReviewPointDispositionEvent> ReviewPointDispositionEvents => Set<ReviewPointDispositionEvent>();
+  public DbSet<ReviewPointCommandReceipt> ReviewPointCommandReceipts => Set<ReviewPointCommandReceipt>();
 
   public DbSet<Approval> Approvals => Set<Approval>();
 
@@ -623,6 +625,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigurePeriodMaintenanceReceipts(b);
     ConfigureAuditPlanningReceipts(b);
     ConfigureFindingCommands(b);
+    ConfigureReviewPointCommands(b);
     ConfigureValuationPreparations(b);
     ConfigureDocuments(b);
     ConfigurePbc(b);

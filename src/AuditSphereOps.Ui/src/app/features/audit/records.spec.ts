@@ -92,6 +92,7 @@ describe('Audit Records Contracts', () => {
       significant: true,
       cleared: false,
       comment: 'Please expand on cut-off procedure sample sizing.',
+      dispositionRevision: '1', canChangeDisposition: true,
       status: 'OPEN',
     };
 

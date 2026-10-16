@@ -28162,6 +28162,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20000)")
                         .HasColumnName("comment");
 
+                    b.Property<long>("DispositionRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("disposition_revision");
+
                     b.Property<Guid>("EngagementId")
                         .HasColumnType("uuid")
                         .HasColumnName("engagement_id");
@@ -28198,16 +28204,190 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FirmId", "RaisedByUserId");
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("ak_review_point_scope_id");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId");
+                    b.HasIndex("FirmId", "RaisedByUserId");
 
                     b.HasIndex("FirmId", "EngagementId", "TargetId", "Cleared")
                         .HasDatabaseName("ix_review_points_scope_cleared");
 
                     b.ToTable("review_points", null, t =>
                         {
+                            t.HasCheckConstraint("ck_review_point_disposition_revision", "disposition_revision >= 1");
+
                             t.HasCheckConstraint("ck_review_point_values", "length(trim(target_kind)) > 0 AND target_revision >= 1 AND length(trim(comment)) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Reviews.ReviewPointCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DispositionEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("disposition_event_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("ReviewBasis")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_basis");
+
+                    b.Property<Guid>("ReviewPointId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("review_point_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "DispositionEventId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_review_point_receipt_event");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_review_point_receipt_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ReviewPointId", "DispositionEventId")
+                        .HasDatabaseName("ix_review_point_receipt_event_scope");
+
+                    b.ToTable("review_point_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_review_point_command_receipt_values", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND action IN ('CLEAR','REOPEN') AND length(input_json) BETWEEN 1 AND 1000 AND length(preview_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(preview_json::jsonb) = 'object'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Reviews.ReviewPointDispositionEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("after_json");
+
+                    b.Property<long>("AfterRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("after_revision");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("before_json");
+
+                    b.Property<long>("BeforeRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("before_revision");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("ReviewPointId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("review_point_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "ReviewPointId", "Id")
+                        .HasName("ak_review_point_event_scope_id");
+
+                    b.HasIndex("FirmId", "ActorId")
+                        .HasDatabaseName("ix_review_point_event_actor");
+
+                    b.HasIndex("FirmId", "ReviewPointId", "AfterRevision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_review_point_event_revision");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ReviewPointId")
+                        .HasDatabaseName("ix_review_point_event_point");
+
+                    b.ToTable("review_point_disposition_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_review_point_event_values", "actor_epoch >= 1 AND before_revision >= 1 AND after_revision = before_revision + 1 AND action IN ('CLEAR','REOPEN') AND length(before_json) BETWEEN 1 AND 1000000 AND length(after_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(before_json::jsonb) = 'object' AND jsonb_typeof(after_json::jsonb) = 'object'");
                         });
                 });
 
@@ -34439,6 +34619,40 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId")
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Reviews.ReviewPointCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Reviews.ReviewPointDispositionEvent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ReviewPointId", "DispositionEventId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "ReviewPointId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Reviews.ReviewPointDispositionEvent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Reviews.ReviewPoint", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "ReviewPointId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

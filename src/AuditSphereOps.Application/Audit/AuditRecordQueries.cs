@@ -17,8 +17,8 @@ public sealed record PopulationRecord(Guid Id, Guid EngagementId, string Purpose
 public sealed record FindingRecordView(Guid Id, Guid EngagementId, string FindingType, string ImpactDescription, decimal? MonetaryAmount, bool Corrected,
   string? ManagementResponse, string Status, DateTimeOffset CreatedAt, bool ProfessionalWorkBlocked,
   DateTimeOffset? LetterDesignatedAt, string? LetterRecommendation, string Revision = "1", bool CanRecordResponse = false, bool CanDesignate = false);
-public sealed record ReviewPointView(Guid Id, Guid EngagementId, string TargetKind, Guid TargetId, long TargetRevision, Guid RaisedByUserId, DateTimeOffset RaisedAt,
-  bool Significant, bool Cleared, string Comment, string Status);
+public sealed record ReviewPointView(Guid Id, Guid EngagementId, string TargetKind, Guid TargetId, string TargetRevision, Guid RaisedByUserId, DateTimeOffset RaisedAt,
+  bool Significant, bool Cleared, string Comment, string Status, string DispositionRevision = "1", bool CanChangeDisposition = false);
 public sealed record ReleaseGateView(string State, string Detail);
 public sealed record ReleaseCandidateView(Guid Id, string Status, string TargetKind, long TargetRevision, long Revision, string ManifestDigest, DateTimeOffset CreatedAt,
   ReleaseGateView Checkpoint, ReleaseGateView Attestation, ReleaseGateView Lineage, bool PreflightReady);
@@ -119,10 +119,18 @@ public static class AuditRecordQueries
   public static async Task<CommandResult<ReviewPointView>> ReviewPointAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, CancellationToken ct = default)
   {
     var r = await db.ReviewPoints.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == actor.FirmId, ct);
-    if (r is null || !await AuthorizeAsync(db, actor, r.ClientId, r.EngagementId, ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"], ct))
+    if (r is null || !await AuthorizeAsync(db, actor, r.ClientId, r.EngagementId, ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor", "SeniorManager"], ct))
       return CommandResult<ReviewPointView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<ReviewPointView>.Ok(new(r.Id, r.EngagementId, r.TargetKind, r.TargetId, r.TargetRevision, r.RaisedByUserId, r.RaisedAt, r.Significant, r.Cleared,
-      r.Comment, r.Cleared ? "CLEARED" : r.Significant ? "BLOCKING" : "OPEN"));
+    var blockers=await ReviewPointCommandWorkspace.WriteBlockersAsync(db,actor,r,ct);
+    var latest=await db.ReviewPoints.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==id && x.FirmId==actor.FirmId,ct);
+    if(latest is null || ReviewPointCommandWorkspace.Snapshot(r)!=ReviewPointCommandWorkspace.Snapshot(latest))
+      return CommandResult<ReviewPointView>.Fail(ErrorCodes.StaleRevision,"The review point changed while it was read.");
+    if(!await AuthorizeAsync(db,actor,r.ClientId,r.EngagementId,["Administrator","Partner","Manager","Senior","Staff","EngagementLeader","Auditor","SeniorManager"],ct))
+      return CommandResult<ReviewPointView>.Fail(ErrorCodes.ScopeDenied,"Access denied.");
+    var allowed=(await ReviewPointCommandWorkspace.AuthorizeAsync(db,actor,r,ct)).Succeeded;
+    if(!allowed)return CommandResult<ReviewPointView>.Fail(ErrorCodes.ScopeDenied,"Access denied.");
+    return CommandResult<ReviewPointView>.Ok(new(r.Id,r.EngagementId,r.TargetKind,r.TargetId,r.TargetRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),r.RaisedByUserId,r.RaisedAt.ToUniversalTime(),r.Significant,r.Cleared,
+      r.Comment,r.Cleared?"CLEARED":r.Significant?"BLOCKING":"OPEN",r.DispositionRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),allowed && blockers.Count==0));
   }
 
   public static async Task<CommandResult<ReleaseCandidateView>> ReleaseCandidateAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, ReleaseSafetyOptions safety,
