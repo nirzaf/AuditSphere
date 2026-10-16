@@ -509,6 +509,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AuditDifference> AuditDifferences => Set<AuditDifference>();
 
   public DbSet<Finding> Findings => Set<Finding>();
+  public DbSet<FindingAmendment> FindingAmendments => Set<FindingAmendment>();
+  public DbSet<FindingCommandReceipt> FindingCommandReceipts => Set<FindingCommandReceipt>();
 
   public DbSet<ReviewPoint> ReviewPoints => Set<ReviewPoint>();
 
@@ -620,6 +622,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureAccountingCreationPreparations(b);
     ConfigurePeriodMaintenanceReceipts(b);
     ConfigureAuditPlanningReceipts(b);
+    ConfigureFindingCommands(b);
     ConfigureValuationPreparations(b);
     ConfigureDocuments(b);
     ConfigurePbc(b);

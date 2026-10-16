@@ -20,6 +20,16 @@ public static partial class UiEndpoints
 
   private static void MapAuditRecordEndpoints(RouteGroupBuilder group)
   {
+    const string findingCommands = "/findings/{findingId:guid}/commands";
+    group.MapGet(findingCommands + "/state", (Guid findingId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FindingCommandWorkspace.StateAsync(db, actor, findingId, ct)));
+    group.MapPost(findingCommands + "/preview", (Guid findingId, FindingCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FindingCommandWorkspace.PreviewAsync(db, actor, findingId, input, ct)));
+    group.MapPost(findingCommands + "/actions", (Guid findingId, FindingCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => FindingCommandWorkspace.ExecuteAsync(db, actor, findingId, input, ct)));
+    group.MapGet(findingCommands + "/receipts/{requestId:guid}", (Guid findingId, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => FindingCommandWorkspace.LookupAsync(db, actor, findingId, requestId, requestHash, ct)));
+
     group.MapUiGet("/audit/library", http => ReadAsync(http, (db, actor, ct) =>
       AuditProgramLibraryQuery.GetLibraryAsync(db, actor, http.Request.Query["version"].FirstOrDefault() is { Length: > 0 } v ? v : null, ct)));
     group.MapGet("/audit/library/{versionId:guid}/sections/{section:int}", (Guid versionId, int section, string? search, HttpContext http) =>

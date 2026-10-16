@@ -68,6 +68,7 @@ describe('Audit Records Contracts', () => {
       monetaryAmount: null,
       corrected: false,
       managementResponse: 'Management is hiring an additional finance officer.',
+      revision: '1', canRecordResponse: true, canDesignate: false,
       status: 'REPORTED',
       createdAt: '2026-10-01T11:00:00Z',
       professionalWorkBlocked: false,

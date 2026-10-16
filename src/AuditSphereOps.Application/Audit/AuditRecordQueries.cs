@@ -16,7 +16,7 @@ public sealed record PopulationRecord(Guid Id, Guid EngagementId, string Purpose
   IReadOnlyList<PopulationEvidenceView> Evidence);
 public sealed record FindingRecordView(Guid Id, Guid EngagementId, string FindingType, string ImpactDescription, decimal? MonetaryAmount, bool Corrected,
   string? ManagementResponse, string Status, DateTimeOffset CreatedAt, bool ProfessionalWorkBlocked,
-  DateTimeOffset? LetterDesignatedAt, string? LetterRecommendation);
+  DateTimeOffset? LetterDesignatedAt, string? LetterRecommendation, string Revision = "1", bool CanRecordResponse = false, bool CanDesignate = false);
 public sealed record ReviewPointView(Guid Id, Guid EngagementId, string TargetKind, Guid TargetId, long TargetRevision, Guid RaisedByUserId, DateTimeOffset RaisedAt,
   bool Significant, bool Cleared, string Comment, string Status);
 public sealed record ReleaseGateView(string State, string Detail);
@@ -107,10 +107,13 @@ public static class AuditRecordQueries
     var f = await db.Findings.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == actor.FirmId, ct);
     if (f is null || !await AuthorizeAsync(db, actor, f.ClientId, f.EngagementId, AuditRoles, ct)) return CommandResult<FindingRecordView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var blocked = await db.Engagements.AsNoTracking().Where(e => e.Id == f.EngagementId && e.FirmId == actor.FirmId).Select(e => e.ProfessionalWorkBlocked).SingleOrDefaultAsync(ct);
+    var responseBlockers = await FindingCommandWorkspace.WriteBlockersAsync(db, actor, f, FindingCommandActions.RecordResponse, ct);
+    var designationBlockers = await FindingCommandWorkspace.WriteBlockersAsync(db, actor, f, FindingCommandActions.Designate, ct);
     if (!await AuthorizeAsync(db, actor, f.ClientId, f.EngagementId, AuditRoles, ct))
       return CommandResult<FindingRecordView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<FindingRecordView>.Ok(new(f.Id, f.EngagementId, f.FindingType, f.ImpactDescription, f.MonetaryAmount, f.Corrected, f.ManagementResponse, f.Status, f.CreatedAt, blocked,
-      f.LetterDesignatedAt, f.LetterRecommendation));
+      f.LetterDesignatedAt, f.LetterRecommendation, f.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture),
+      responseBlockers.Count == 0, designationBlockers.Count == 0));
   }
 
   public static async Task<CommandResult<ReviewPointView>> ReviewPointAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, CancellationToken ct = default)

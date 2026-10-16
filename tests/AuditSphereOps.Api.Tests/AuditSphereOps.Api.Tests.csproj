@@ -23,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../AuditSphereOps.Domain.Tests/PgTestSchema.cs" Link="Fixtures/PgTestSchema.cs" />
+    <Compile Include="../AuditSphereOps.Domain.Tests/FindingCommandReceiptSeed.cs" Link="Fixtures/FindingCommandReceiptSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/AuditPlanningReceiptSeed.cs" Link="Fixtures/AuditPlanningReceiptSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/GeneralLedgerWorkspaceSeed.cs" Link="Fixtures/GeneralLedgerWorkspaceSeed.cs" />
     <Compile Include="../AuditSphereOps.Domain.Tests/GeneralLedgerCompletenessSeed.cs" Link="Fixtures/GeneralLedgerCompletenessSeed.cs" />

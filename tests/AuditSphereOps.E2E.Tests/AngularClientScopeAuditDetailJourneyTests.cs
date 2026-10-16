@@ -167,7 +167,8 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 {
                     await Assertions.Expect(page.GetByLabel("Management response", new() { Exact = true })).ToHaveValueAsync(own.FindingResponseMarker);
                     await page.GetByLabel("Management response", new() { Exact = true }).FillAsync("PRIVATE UNSAVED RESPONSE");
-                    await page.GetByLabel("Recommendation rendered in the letter", new() { Exact = true }).FillAsync("PRIVATE UNSAVED RECOMMENDATION");
+                    await Assertions.Expect(page.GetByLabel("Recommendation rendered in the letter", new() { Exact = true })).ToHaveCountAsync(0);
+                    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Preview letter designation", Exact = true })).ToHaveCountAsync(0);
                     await OwnedBrowserFixtureHandoff.WaitAsync(origin, Path(route.OwnId));
                 }
 
@@ -211,7 +212,7 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 if (route.Template == "/app/findings/{0}")
                 {
                     await Assertions.Expect(page.GetByLabel("Management response", new() { Exact = true })).ToHaveValueAsync(own.FindingResponseMarker);
-                    await Assertions.Expect(page.GetByLabel("Recommendation rendered in the letter", new() { Exact = true })).ToHaveValueAsync("");
+                    await Assertions.Expect(page.GetByLabel("Recommendation rendered in the letter", new() { Exact = true })).ToHaveCountAsync(0);
                     Assert.DoesNotContain("PRIVATE UNSAVED", restored, StringComparison.Ordinal);
                     await using var untouched = host.CreateDbContext();
                     Assert.Equal(own.FindingResponseMarker, await untouched.Findings.Where(x => x.Id == own.FindingId).Select(x => x.ManagementResponse).SingleAsync());

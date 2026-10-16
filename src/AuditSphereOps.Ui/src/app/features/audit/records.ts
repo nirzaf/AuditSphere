@@ -6,6 +6,9 @@ import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
+import { FindingCommandState } from './finding-command-state';
+import { FindingCommandReview } from './finding-command-review';
+import { FindingAction, FindingReceipt, findingRevision } from './finding-command-contracts';
 
 export const decodePopulation = obj({ id: guid, engagementId: guid, purpose: text, assertion: text, sourceReceiptReference: text, extractionParameters: text, rowCount: nat,
   monetaryControlTotal: dec, currency: text, exclusions: nullable(text), status: text, createdAt: instant,
@@ -13,7 +16,7 @@ export const decodePopulation = obj({ id: guid, engagementId: guid, purpose: tex
   evidence: arr(obj({ purpose: text, assertion: text, receiptToken: text }), 5000) });
 export const decodeFinding = obj({ id: guid, engagementId: guid, findingType: text, impactDescription: text, monetaryAmount: nullable(dec), corrected: bool,
   managementResponse: nullable(text), status: text, createdAt: instant, professionalWorkBlocked: bool,
-  letterDesignatedAt: nullable(instant), letterRecommendation: nullable(text) });
+  letterDesignatedAt: nullable(instant), letterRecommendation: nullable(text), revision: findingRevision, canRecordResponse: bool, canDesignate: bool });
 export const decodeReviewPoint = obj({ id: guid, engagementId: guid, targetKind: text, targetId: guid, targetRevision: int, raisedByUserId: guid, raisedAt: instant,
   significant: bool, cleared: bool, comment: text, status: text });
 const gate = obj({ state: text, detail: text });
@@ -63,11 +66,11 @@ export class PopulationRecord {
 
 @Component({
   selector: 'audit-finding',
-  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, FindingCommandReview, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <span>Finding</span></nav>
     <audit-page-header title="Finding" eyebrow="Audit findings" description="Finding detail, management response and in-period correction status." />
-    <button matButton="outlined" (click)="rec.reload()" [disabled]="cmd.busy()">Refresh finding</button>
+    <button matButton="outlined" (click)="rec.reload()" [disabled]="flow.busy()">Refresh finding</button>
     <audit-state [loading]="rec.loading()" [error]="rec.error()" label="finding" />
     @if (rec.data(); as f) {
       <p class="actions"><audit-status [value]="f.status" /><a [routerLink]="['/app/engagements', f.engagementId, 'audit-plan']">Audit plan</a><a [routerLink]="['/app/engagements', f.engagementId]">Engagement</a></p>
@@ -78,25 +81,24 @@ export class PopulationRecord {
           <dt>Status</dt><dd>{{ f.status }}</dd><dt>Raised</dt><dd>{{ f.createdAt.slice(0, 16).replace('T', ' ') }} UTC</dd></dl></section>
       <section class="panel"><h2>Management response & action</h2>
         @if (f.managementResponse) { <blockquote>{{ f.managementResponse }}</blockquote> } @else { <p>No management response has been recorded.</p> }</section>
-      <section class="panel"><h2>Record management response</h2>
+      @if (f.canRecordResponse) { <section class="panel"><h2>Record management response</h2>
         <form (submit)="$event.preventDefault(); respond(f.id)">
-          <label>Management response <textarea name="resp" [(ngModel)]="response" rows="4" required maxlength="8000"></textarea></label>
+          <label>Management response <textarea name="resp" [(ngModel)]="response" rows="4" required maxlength="20000"></textarea></label>
           <label><span><input type="checkbox" name="corrected" [(ngModel)]="corrected" /> Management corrected the matter within the period under audit (optional)</span></label>
-          <button matButton="filled" type="submit" [disabled]="cmd.busy() || cmd.uncertain() || f.professionalWorkBlocked">Record response</button>
+          <button matButton="filled" type="submit" [disabled]="!flow.canPrepare('RECORD_RESPONSE') || f.professionalWorkBlocked">Preview management response</button>
         </form>
-        <p><small>Correction inside the audited period and future-period remediation are tracked separately; filing a response here does not state an audit conclusion.</small></p></section>
+        <p><small>Correction inside the audited period and future-period remediation are tracked separately; filing a response here does not state an audit conclusion.</small></p></section> }
       <section class="panel"><h2>Management letter designation</h2>
         <p>Designation status: <audit-status [value]="f.letterDesignatedAt ? 'DESIGNATED' : 'INTERNAL_ONLY'" /></p>
         @if (f.letterRecommendation) { <p>Recommendation held for the client-facing letter:</p><blockquote>{{ f.letterRecommendation }}</blockquote> }
-        <form (submit)="$event.preventDefault(); designate(f.id, designatedFlag)">
+        @if (f.canDesignate) { <form (submit)="$event.preventDefault(); designate(f.id, designatedFlag)">
           <label><span><input type="checkbox" name="designated" [(ngModel)]="designatedFlag" /> Designate this matter for the client-facing management letter</span></label>
           <label>Recommendation rendered in the letter <textarea name="rec" [(ngModel)]="designation" rows="3" [required]="designatedFlag" maxlength="2000"></textarea></label>
-          <button matButton="filled" type="submit" [disabled]="cmd.busy() || cmd.uncertain() || f.professionalWorkBlocked">Record designation</button>
+          <button matButton="filled" type="submit" [disabled]="!flow.canPrepare(designatedFlag ? 'DESIGNATE_MANAGEMENT_LETTER' : 'UNDESIGNATE_MANAGEMENT_LETTER') || f.professionalWorkBlocked">Preview letter designation</button>
         </form>
-        <p><small>Only designated matters with a complete recommendation are rendered in the management letter; findings left internal-only never appear in client reporting. A Manager, Partner or Administrator records the designation, and changing a designated matter invalidates the generated letter.</small></p></section>
+        } <p><small>Only designated matters with a complete recommendation are rendered in the management letter; findings left internal-only never appear in client reporting. A Manager, Partner or Administrator records the designation, and changing a designated matter invalidates the generated letter.</small></p></section>
     }
-    @if (cmd.uncertain()) { <p role="alert">The command outcome for finding {{ id() }} is not confirmed. Further changes to this finding are blocked. Refresh to inspect persisted data; exact-request recovery is not yet available for these actions.</p> }
-    <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
+    @if (rec.data()) { <audit-finding-command-review [flow]="flow" /> }
   `,
 })
 export class FindingRecord {
@@ -108,17 +110,8 @@ export class FindingRecord {
     return record;
   }, 'The requested finding is unavailable in your current scope.');
   private readonly session = inject(SessionService);
-  private readonly commands = new Map<string, CommandState>();
-  private commandSession = '';
-  get cmd(): CommandState {
-    const actor = this.session.current();
-    const session = actor ? `${actor.firmId}/${actor.userId}/${actor.generation}/${this.session.invalidation()}` : '';
-    if (session !== this.commandSession) { this.commands.clear(); this.commandSession = session; }
-    const key = this.id() ?? '';
-    let command = this.commands.get(key);
-    if (!command) { command = new CommandState(this.api); this.commands.set(key, command); }
-    return command;
-  }
+  readonly flow = new FindingCommandState(() => this.id(), () => this.rec.data(),
+    action => this.allowed(action), () => this.rec.reload(), receipt => this.accepted(receipt));
   private scopeGeneration = 0;
   private draftScope = '';
   private responseRevision = 0;
@@ -130,15 +123,15 @@ export class FindingRecord {
   private designatedValue = false;
   private designationValue = '';
   get response(): string { return this.responseValue; }
-  set response(value: string) { this.responseValue = value; this.responseDirty = true; ++this.responseRevision; }
+  set response(value: string) { this.flow.inputChanged(); this.responseValue = value; this.responseDirty = true; ++this.responseRevision; }
   get corrected(): boolean { return this.correctedValue; }
-  set corrected(value: boolean) { this.correctedValue = value; this.responseDirty = true; ++this.responseRevision; }
+  set corrected(value: boolean) { this.flow.inputChanged(); this.correctedValue = value; this.responseDirty = true; ++this.responseRevision; }
   get designatedFlag(): boolean { return this.designatedValue; }
-  set designatedFlag(value: boolean) { this.designatedValue = value; this.designationDirty = true; ++this.designationRevision; }
+  set designatedFlag(value: boolean) { this.flow.inputChanged(); this.designatedValue = value; this.designationDirty = true; ++this.designationRevision; }
   get designation(): string { return this.designationValue; }
-  set designation(value: string) { this.designationValue = value; this.designationDirty = true; ++this.designationRevision; }
+  set designation(value: string) { this.flow.inputChanged(); this.designationValue = value; this.designationDirty = true; ++this.designationRevision; }
   constructor() {
-    inject(DestroyRef).onDestroy(() => { ++this.scopeGeneration; this.clearDraft(); this.commands.clear(); });
+    inject(DestroyRef).onDestroy(() => { ++this.scopeGeneration; this.clearDraft(); });
     effect(() => {
       const actor = this.session.current();
       const scope = `${this.id()}/${actor?.firmId}/${actor?.userId}/${actor?.generation}/${actor?.staff}/${this.session.invalidation()}`;
@@ -154,19 +147,29 @@ export class FindingRecord {
   private clearDraft(): void {
     this.responseValue = ''; this.correctedValue = false; this.designationValue = ''; this.designatedValue = false;
     this.responseDirty = false; this.designationDirty = false;
+    this.preparedResponseRevision = -1; this.preparedDesignationRevision = -1;
+  }
+  private preparedResponseRevision = -1;
+  private preparedDesignationRevision = -1;
+  private allowed(action: FindingAction): boolean {
+    const f = this.rec.data();
+    return !!f && !this.rec.loading() && !this.rec.error() && !f.professionalWorkBlocked &&
+      (action === 'RECORD_RESPONSE' ? f.canRecordResponse : f.canDesignate);
+  }
+  private accepted(receipt: FindingReceipt): void {
+    if (receipt.action === 'RECORD_RESPONSE' && this.preparedResponseRevision === this.responseRevision) this.responseDirty = false;
+    if (receipt.action !== 'RECORD_RESPONSE' && this.preparedDesignationRevision === this.designationRevision) this.designationDirty = false;
   }
   respond(id: string): void {
-    if (this.cmd.busy() || this.cmd.uncertain() || id !== this.id() || this.rec.data()?.id !== id || this.rec.data()?.professionalWorkBlocked || !this.response.trim()) return;
-    const cmd = this.cmd, generation = this.scopeGeneration, revision = this.responseRevision;
-    void cmd.run(`/api/ui/findings/${id}/response`, { managementResponse: this.response, corrected: this.corrected }, 'The management response was recorded.', () => { if (generation === this.scopeGeneration && revision === this.responseRevision) this.responseDirty = false; })
-      .finally(() => { if (generation === this.scopeGeneration && id === this.id()) this.rec.reload(); else { cmd.message.set(''); cmd.failed.set(false); cmd.code.set(''); } });
+    if (id !== this.id() || !this.flow.canPrepare('RECORD_RESPONSE') || !this.response.trim()) return;
+    this.preparedResponseRevision = this.responseRevision;
+    void this.flow.prepare(() => ({ action: 'RECORD_RESPONSE', response: { managementResponse: this.response.trim(), corrected: this.corrected } }));
   }
   designate(id: string, designated: boolean): void {
-    if (this.cmd.busy() || this.cmd.uncertain() || id !== this.id() || this.rec.data()?.id !== id || this.rec.data()?.professionalWorkBlocked || (designated && !this.designation.trim())) return;
-    const cmd = this.cmd, generation = this.scopeGeneration, revision = this.designationRevision;
-    void cmd.run(`/api/ui/findings/${id}/management-letter-designation`, { designated, recommendation: designated ? this.designation : null },
-      designated ? 'The matter was designated for the management letter.' : 'The matter was returned to internal-only.', () => { if (generation === this.scopeGeneration && revision === this.designationRevision) this.designationDirty = false; })
-      .finally(() => { if (generation === this.scopeGeneration && id === this.id()) this.rec.reload(); else { cmd.message.set(''); cmd.failed.set(false); cmd.code.set(''); } });
+    const action = designated ? 'DESIGNATE_MANAGEMENT_LETTER' : 'UNDESIGNATE_MANAGEMENT_LETTER';
+    if (designated !== this.designatedFlag || id !== this.id() || !this.flow.canPrepare(action) || designated && !this.designation.trim()) return;
+    this.preparedDesignationRevision = this.designationRevision;
+    void this.flow.prepare(() => this.designatedFlag ? { action: 'DESIGNATE_MANAGEMENT_LETTER', designation: { recommendation: this.designation.trim() } } : { action: 'UNDESIGNATE_MANAGEMENT_LETTER' });
   }
 }
 

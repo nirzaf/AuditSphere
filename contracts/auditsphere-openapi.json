@@ -31182,6 +31182,254 @@
         ]
       }
     },
+    "/api/ui/findings/{findingId}/commands/state": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "findingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/findings/{findingId}/commands/preview": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "findingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindingCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/findings/{findingId}/commands/actions": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "findingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindingCommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/findings/{findingId}/commands/receipts/{requestId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "findingId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "requestHash",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/audit/library": {
       "get": {
         "tags": [
@@ -44213,6 +44461,82 @@
           }
         }
       },
+      "FindingCommandFields": {
+        "required": [
+          "action"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "response": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FindingResponseFields"
+              }
+            ]
+          },
+          "designation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FindingDesignationFields"
+              }
+            ]
+          }
+        }
+      },
+      "FindingCommandRequest": {
+        "required": [
+          "requestId",
+          "expectedRevision",
+          "reviewBasis",
+          "fields"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": "string"
+          },
+          "reviewBasis": {
+            "type": "string"
+          },
+          "fields": {
+            "$ref": "#/components/schemas/FindingCommandFields"
+          },
+          "expectedRequestHash": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewed": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "FindingDesignationFields": {
+        "required": [
+          "recommendation"
+        ],
+        "type": "object",
+        "properties": {
+          "recommendation": {
+            "type": "string"
+          }
+        }
+      },
       "FindingInput": {
         "required": [
           "findingType",
@@ -44232,6 +44556,21 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "FindingResponseFields": {
+        "required": [
+          "managementResponse",
+          "corrected"
+        ],
+        "type": "object",
+        "properties": {
+          "managementResponse": {
+            "type": "string"
+          },
+          "corrected": {
+            "type": "boolean"
           }
         }
       },

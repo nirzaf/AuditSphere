@@ -94,8 +94,8 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
   }
 
   /// <summary>
-  /// Returns the name of a template database holding the full migration set. The name is a fingerprint of the migration
-  /// list, so a new migration produces a new template and stale templates are never reused. A template is built under a
+  /// Returns the name of a template database holding the full migration set. The name fingerprints the migration
+  /// list and compiled implementation, so corrected migration bodies cannot reuse stale templates. A template is built under a
   /// temporary name and renamed only after every migration succeeds, so a failed build can never be cloned.
   /// </summary>
   private static async Task<string> EnsureTemplateAsync(string rawConnection, string adminConnectionString)
@@ -104,7 +104,10 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
     string[] migrations;
     await using (var probe = new AuditSphereDbContext(probeOptions))
       migrations = probe.Database.GetMigrations().ToArray();
-    var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|', migrations)))).ToLowerInvariant()[..16];
+    // IDs alone cannot distinguish a corrected migration body before it has shipped.
+    // A deterministic compiled module identity also binds the actual migration implementation.
+    var migrationModule = typeof(AuditSphereDbContext).Assembly.ManifestModule.ModuleVersionId.ToString("N");
+    var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(migrationModule + "|" + string.Join('|', migrations)))).ToLowerInvariant()[..16];
     var template = "auditsphere_tpl_" + fingerprint;
 
     await TemplateGate.WaitAsync();

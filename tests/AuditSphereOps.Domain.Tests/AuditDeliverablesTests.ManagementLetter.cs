@@ -50,16 +50,27 @@ public sealed partial class AuditDeliverablesTests
     Assert.DoesNotContain("Housekeeping matter not intended for the client letter", text);
     Assert.Equal(1, text.Split("Credit notes approved without review").Length - 1);
 
-    // A designated matter that lacks its recommendation blocks generation instead of rendering a gap.
-    await db.Findings.Where(x => x.Id == findingId).ExecuteUpdateAsync(s => s.SetProperty(x => x.LetterRecommendation, (string?)null));
-    var blocked = await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter);
-    Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
-    await db.Findings.Where(x => x.Id == findingId).ExecuteUpdateAsync(s => s.SetProperty(x => x.LetterRecommendation, recommendation));
-
-    // Changing a designated matter's content invalidates the already-generated letter through the facts digest.
     var generated = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter);
     Assert.True(await AuditDeliverableService.IsCurrentAsync(db, manager, generated));
-    await db.Findings.Where(x => x.Id == findingId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ManagementResponse, "Workflow live since February."));
+
+    // Direct corruption is refused. Legacy incomplete designation remains fail-closed on read.
+    var corruption = await Assert.ThrowsAnyAsync<Exception>(() => db.Findings.Where(x => x.Id == findingId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.LetterRecommendation, (string?)null)));
+    Assert.Equal("55000", Assert.IsType<Npgsql.PostgresException>(corruption.GetBaseException()).SqlState);
+    var legacyId = Guid.NewGuid();
+    db.Findings.Add(new Finding { Id = legacyId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+      ActorId = manager.UserId, FindingType = "SYNTHETIC legacy incomplete designation", ImpactDescription = "Imported legacy defect",
+      LetterDesignatedAt = DateTimeOffset.UtcNow, LetterDesignatedByUserId = manager.UserId, LetterRecommendation = null, CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+    var blocked = await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter);
+    Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+    Assert.True((await AuditPlanningService.DesignateManagementLetterFindingAsync(db, manager, new(legacyId, false, null))).Succeeded);
+
+    // Changing a designated matter's content invalidates the already-generated letter through the facts digest.
+    var currentLetter = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).Value!.DeliverableId!.Value;
+    generated = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == currentLetter);
+    Assert.True(await AuditDeliverableService.IsCurrentAsync(db, manager, generated));
+    Assert.True((await AuditPlanningService.RecordFindingResponseAsync(db, manager, new(findingId, "Workflow live since February.", false))).Succeeded);
     Assert.False(await AuditDeliverableService.IsCurrentAsync(db, manager, generated));
 
     // Un-designating returns the finding to internal-only and stales the letter the same way.

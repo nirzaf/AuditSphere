@@ -226,6 +226,7 @@ public sealed class WorkpaperSubmission
 
 public sealed class Finding
 {
+  public long Revision { get; set; } = 1;
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid ClientId { get; set; }

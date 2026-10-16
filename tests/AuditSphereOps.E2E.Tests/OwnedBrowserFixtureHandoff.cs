@@ -5,8 +5,10 @@ namespace AuditSphereOps.E2E.Tests;
 /// <summary>Optional bounded manual inspection of a live owned fixture; no persistent reset or credential transfer.</summary>
 internal static class OwnedBrowserFixtureHandoff
 {
-  internal static async Task WaitAsync(string origin, string path)
+  internal static async Task WaitAsync(string origin, string path, string? target = null)
   {
+    var selectedTarget = Environment.GetEnvironmentVariable("AUDITSPHERE_BROWSER_FIXTURE_TARGET");
+    if (!string.IsNullOrEmpty(selectedTarget) && selectedTarget != target) return;
     // Optional bounded handoff reuses this owned synthetic API/database for built-in-browser inspection.
     // Basenames only; never overwrite an existing artifact or touch a persistent application database.
     var readyName = Environment.GetEnvironmentVariable("AUDITSPHERE_BROWSER_FIXTURE_READY_FILE");

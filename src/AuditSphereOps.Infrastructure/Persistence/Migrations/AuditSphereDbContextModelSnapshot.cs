@@ -15135,6 +15135,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(19,6)")
                         .HasColumnName("monetary_amount");
 
+                    b.Property<long>("Revision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("revision");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -15159,7 +15165,180 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("findings", null, t =>
                         {
+                            t.HasCheckConstraint("ck_finding_revision", "revision >= 1");
+
                             t.HasCheckConstraint("ck_finding_values", "length(trim(finding_type)) > 0 AND length(trim(impact_description)) > 0 AND (monetary_amount IS NULL OR monetary_amount >= 0) AND status IN ('OPEN','CORRECTED','EVALUATED') AND ((corrected AND status <> 'OPEN') OR NOT corrected)");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.FindingAmendment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("after_json");
+
+                    b.Property<long>("AfterRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("after_revision");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("before_json");
+
+                    b.Property<long>("BeforeRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("before_revision");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("finding_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "FindingId", "Id")
+                        .HasName("ak_finding_amendment_scope_id");
+
+                    b.HasIndex("FirmId", "ActorId")
+                        .HasDatabaseName("ix_finding_amendment_actor");
+
+                    b.HasIndex("FirmId", "FindingId", "AfterRevision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_finding_amendment_revision");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FindingId")
+                        .HasDatabaseName("ix_finding_amendment_finding");
+
+                    b.ToTable("finding_amendments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_finding_amendment_values", "actor_epoch >= 1 AND before_revision >= 1 AND after_revision = before_revision + 1 AND action IN ('RECORD_RESPONSE','DESIGNATE_MANAGEMENT_LETTER','UNDESIGNATE_MANAGEMENT_LETTER') AND length(before_json) BETWEEN 1 AND 1000000 AND length(after_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(before_json::jsonb) = 'object' AND jsonb_typeof(after_json::jsonb) = 'object'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.FindingCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("AmendmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("amendment_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FindingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("finding_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(150000)
+                        .HasColumnType("character varying(150000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("ReviewBasis")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_basis");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "AmendmentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_finding_receipt_amendment");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_finding_receipt_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FindingId", "AmendmentId")
+                        .HasDatabaseName("ix_finding_receipt_event_scope");
+
+                    b.ToTable("finding_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_finding_command_receipt_values", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND action IN ('RECORD_RESPONSE','DESIGNATE_MANAGEMENT_LETTER','UNDESIGNATE_MANAGEMENT_LETTER') AND length(input_json) BETWEEN 1 AND 150000 AND length(preview_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(preview_json::jsonb) = 'object'");
                         });
                 });
 
@@ -31556,6 +31735,40 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId")
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.FindingAmendment", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.Finding", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FindingId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.FindingCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.FindingAmendment", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FindingId", "AmendmentId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "FindingId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
