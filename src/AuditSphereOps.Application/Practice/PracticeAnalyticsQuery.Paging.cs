@@ -19,14 +19,14 @@ public static partial class PracticeAnalyticsQuery
     var timeBilling = from line in db.InvoiceLines.AsNoTracking()
       join invoice in db.Invoices.AsNoTracking() on line.InvoiceId equals invoice.Id
       join entry in db.TimeEntries.AsNoTracking() on line.SourceId equals (Guid?)entry.Id
-      where invoice.FirmId == firmId && invoice.Status == BillingStates.InvoicePosted && invoice.PostedAt != null &&
+      where invoice.FirmId == firmId && (invoice.Status == BillingStates.InvoicePosted || invoice.Status == BillingStates.InvoiceSent) && invoice.PostedAt != null &&
         line.SourceKind == "TIME" && entry.FirmId == firmId && entry.EngagementId != null
       select entry.EngagementId!.Value;
     var feeBilling = from line in db.InvoiceLines.AsNoTracking()
       join invoice in db.Invoices.AsNoTracking() on line.InvoiceId equals invoice.Id
       join milestone in db.FeeMilestones.AsNoTracking() on line.SourceId equals (Guid?)milestone.Id
       join agreement in db.EngagementFeeAgreements.AsNoTracking() on milestone.AgreementId equals agreement.Id
-      where invoice.FirmId == firmId && invoice.Status == BillingStates.InvoicePosted && invoice.PostedAt != null &&
+      where invoice.FirmId == firmId && (invoice.Status == BillingStates.InvoicePosted || invoice.Status == BillingStates.InvoiceSent) && invoice.PostedAt != null &&
         line.SourceKind == FeeAgreementService.MilestoneSourceKind && milestone.FirmId == firmId &&
         agreement.FirmId == firmId && agreement.EngagementId != null
       select agreement.EngagementId!.Value;
@@ -41,7 +41,7 @@ public static partial class PracticeAnalyticsQuery
     IReadOnlyCollection<Guid> engagementIds, CancellationToken ct) =>
     (from line in db.InvoiceLines.AsNoTracking()
      join invoice in db.Invoices.AsNoTracking() on line.InvoiceId equals invoice.Id
-     where invoice.FirmId == firmId && invoice.Status == BillingStates.InvoicePosted && invoice.PostedAt != null &&
+     where invoice.FirmId == firmId && (invoice.Status == BillingStates.InvoicePosted || invoice.Status == BillingStates.InvoiceSent) && invoice.PostedAt != null &&
        ((line.SourceKind == "TIME" && db.TimeEntries.Any(t => t.FirmId == firmId && t.Id == line.SourceId &&
          t.EngagementId != null && engagementIds.Contains(t.EngagementId.Value))) ||
         (line.SourceKind == FeeAgreementService.MilestoneSourceKind && db.FeeMilestones.Any(m =>

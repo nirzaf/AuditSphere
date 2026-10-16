@@ -1262,18 +1262,21 @@
       "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularArchiveReleaseReadFollowUp"
     },
     "angularParityHostedFollowUp": {
-      "source": "0f34edcf35fdd2c5de504404f4538272c22b2bfd",
-      "run": 38927108509,
-      "build": "PASS",
-      "angular": "PASS",
+      "source": "14ae10253962103a4fcdad487b6dfcebf25451a4",
+      "run": 38929554748,
+      "build": "PASS in full run",
       "docs": "PASS",
-      "focusedPostgres": "PASS",
-      "efDrift": "PASS",
-      "browser": "IN_PROGRESS",
-      "fullRun": 38927144091,
-      "fullSuite": "IN_PROGRESS",
+      "angular": {
+        "passed": 1228,
+        "failed": 3,
+        "failure": "Library reconciliation DOM assertion before final render"
+      },
+      "fullRun": 38929567737,
+      "fullResult": "FAIL",
+      "browser": "NOT_EXECUTED",
+      "modelCheck": "PASS",
       "retirementGate": "NOT_READY",
-      "prior": "status-archive-2026-10.json#keys.targetedVerification.angularParityHostedFollowUpBefore0f34"
+      "prior": "status-archive-2026-10.json#keys.targetedVerification.angularParityHostedFollowUp0f34Progress"
     }
   },
   "externalGates": [

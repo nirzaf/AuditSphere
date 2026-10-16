@@ -175,11 +175,19 @@ export class AccessRevocationDialog {
   readonly form = inject(FormBuilder).nonNullable.group({ reason: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(1000)]], reviewed: [false, Validators.requiredTrue] });
   readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal('');
   private readonly openedGeneration = this.session.invalidation();
-  constructor() { effect(() => { if (this.session.invalidation() !== this.openedGeneration || !this.session.current()?.staff) this.dialog.close(); }); }
-  async save(): Promise<void> { if (this.form.invalid || this.busy() || this.uncertain()) return; const generation = this.session.invalidation(); this.busy.set(true);
+  private destroyed = false;
+  constructor() {
+    const reasonChanges = this.form.controls.reason.valueChanges.subscribe(() => this.form.controls.reviewed.setValue(false, { emitEvent: false }));
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; reasonChanges.unsubscribe(); });
+    effect(() => { if (this.session.invalidation() !== this.openedGeneration || !this.session.current()?.staff) this.dialog.close(); });
+  }
+  async save(): Promise<void> { if (this.destroyed || this.session.invalidation() !== this.openedGeneration || !this.session.current()?.staff || this.form.invalid || this.busy() || this.uncertain()) return; const generation = this.session.invalidation(); this.busy.set(true);
     try { const r = await this.api.command('/api/ui/administration/access/revoke', { grantId: this.data.grant.grantId, groupGrant: this.data.grant.groupGrant, ...this.form.getRawValue() });
+      if (this.destroyed) return;
       if (generation !== this.session.invalidation()) { this.dialog.close(); return; }
-      if (r.ok) this.dialog.close(true); else { this.message.set(r.message); if (r.unknown) this.uncertain.set(true); }
-    } finally { this.busy.set(false); }
+      if (r.ok) this.dialog.close(true);
+      else if (!r.unknown && (['scope.denied', 'generation.stale'].includes(r.code) || [401, 403, 404].includes(r.status))) this.dialog.close('reauthorize');
+      else { this.message.set(r.message); if (r.unknown) this.uncertain.set(true); }
+    } finally { if (!this.destroyed) this.busy.set(false); }
   }
 }

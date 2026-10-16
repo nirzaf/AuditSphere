@@ -82,3 +82,14 @@ recovery remain owned by Application `OperationRecoveryService`.
 ## Remaining gaps
 
 This source row remains `PARTIAL`. Expired Administrator grant revocation and foreign-firm operation list/retry/cancel denial now have focused browser regressions. Other cross-firm capability boundaries, concurrent command, non-accepted/ambiguous retry, quarantine restart approval, operational rollback, and assistive-technology acceptance matrices remain open. The broader AS-PAR-002 retry/idempotency and authorization crosswalk remains open. This slice changed Application `RoleGrantExpiry` transaction handling; it did not change Domain models, API endpoints, EF mappings or schema. The full solution regression remains open. The historical **1001/1001** checkpoint at `ead85032` does not establish current-tree readiness: the later Domain run at `b410768b` recorded 1046 passed and 13 failed, followed by a focused receivables repair. See `docs/execution/status.json` for current regression evidence. This Operations rerun does not close those failures or the full-solution gate. The rollback Web host and Blazor sources remain required until the source/action and external retirement gates pass.
+
+## Current safety findings under correction
+
+At `14ae1025`, the source actions are represented, but operator recovery needs
+additional backend fences: rearming uncertain or reconciliation-blocked work
+must preserve reconciliation rather than execute an external effect again;
+commands must reauthorize after lock waits; quarantine restart/lift must bind to
+the current recovery session and external epoch; read projections need coherent
+mode and final Administrator checks. Queue status alone cannot acknowledge an
+original operator request. Corrections and targeted regressions are in progress;
+live provider acceptance remains separate and this source stays PARTIAL.

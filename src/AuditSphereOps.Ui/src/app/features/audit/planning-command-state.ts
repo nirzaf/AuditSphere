@@ -30,7 +30,7 @@ export class PlanningCommandState {
   private sessionKey = '';
   constructor(private readonly engagement: () => string | null, private readonly context: () => { engagementId: string } | null,
     private readonly canWrite: () => boolean, private readonly otherBusy: () => boolean, private readonly reload: () => void,
-    private readonly actions: readonly PlanningAction[]) {
+    private readonly actions: readonly PlanningAction[], private readonly reauthorize: () => void = reload) {
     const params = inject(ActivatedRoute).paramMap.subscribe(() => this.invalidate());
     const route = inject(Router).events.subscribe(e => { if (e instanceof NavigationStart) this.invalidate(); });
     effect(() => {
@@ -83,13 +83,14 @@ export class PlanningCommandState {
     if (!this.canPrepare(fields.action)) return;
     const retained = this.pending().find(p => p.action === fields.action);
     this.invalidate(); const valid = this.ticket(), operation = ++this.operation, id = this.engagement()!, snapshot = JSON.stringify(input());
-    this.busy.set(true);
+    this.busy.set(true); let readingState = true, reauthorize = false;
     const query = new URLSearchParams({ action: fields.action });
     const assessment = fields.round?.assessmentId ?? fields.approve?.assessmentId, risk = fields.assessRisk?.riskId ?? fields.assignRiskOwner?.riskId ?? fields.clearRisk?.riskId ?? fields.linkProcedureRisk?.riskId;
     if (assessment) query.set('assessmentId', assessment); if (risk) query.set('riskId', risk); if (fields.linkProcedureRisk) query.set('procedureId', fields.linkProcedureRisk.procedureId);
     try {
       const state = await this.api.get(this.base() + '/state?' + query, decodePlanningState);
       if (!valid()) return;
+      readingState = false;
       if (state.engagementId !== id || state.action !== fields.action ||
         (assessment && state.materiality?.assessmentId !== assessment) || (risk && state.risk?.riskId !== risk) ||
         (fields.linkProcedureRisk && state.procedure?.procedureId !== fields.linkProcedureRisk.procedureId)) throw new Error('Wrong planning scope');
@@ -98,14 +99,17 @@ export class PlanningCommandState {
       const request = { requestId: retained?.reference.requestId ?? crypto.randomUUID(), reviewBasis: state.reviewBasis, fields, expectedRequestHash: null, reviewed: false };
       const result = await this.api.command(this.base() + '/preview', request);
       if (!valid()) return;
-      if (!result.ok) { this.failed.set(true); this.message.set(result.message); return; }
+      if (!result.ok) { reauthorize = !result.unknown && [401, 403, 404].includes(result.status); this.failed.set(true); this.message.set(result.message); return; }
       const preview = decodePlanningPreview(result.value, 'preview');
       if (preview.requestId !== request.requestId || preview.reviewBasis !== request.reviewBasis || preview.state.engagementId !== id || preview.state.clientId !== state.clientId ||
         !samePlanningFields(preview.canonicalInput, fields) || snapshot !== JSON.stringify(input()) || (retained && preview.requestHash !== retained.reference.requestHash)) throw new Error('Changed planning preview');
       this.preview.set(preview); this.input = input; this.fingerprint = snapshot;
       if (!preview.state.canProceed) { this.failed.set(true); this.message.set(preview.state.blockers.join(' ')); }
-    } catch { if (valid()) { this.failed.set(true); this.message.set('The exact planning preview could not be verified. Refresh the source and review again.'); } }
-    finally { if (operation === this.operation) this.busy.set(false); }
+    } catch { if (valid()) {
+      // Api.get intentionally hides HTTP status. Reauthorize every failed state read rather than retain protected source data.
+      reauthorize = readingState; this.failed.set(true); this.message.set('The exact planning preview could not be verified. Refresh the source and review again.');
+    } }
+    finally { if (operation === this.operation) { this.busy.set(false); if (reauthorize && valid()) this.reauthorize(); } }
   }
   async execute(): Promise<void> {
     const p = this.preview();

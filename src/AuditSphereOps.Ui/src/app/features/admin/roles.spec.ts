@@ -1,12 +1,16 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { Api } from '../../core/api';
+import { of } from 'rxjs';
+import { UserAccess } from './access';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { decode } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { accessUser, accessWorkspace } from './access-contracts';
-import { RoleAssignmentDialog, roleChoices, roleScopeDescription } from './roles';
+import { AccessRevocationDialog, RoleAssignmentDialog, roleChoices, roleScopeDescription } from './roles';
 
 describe('Role assignment identity choices', () => {
   it('offers only client roles with explicit client or engagement scope for a guest client', () => {
@@ -109,5 +113,75 @@ describe('Role assignment exact engagement review rendering', () => {
     expect(c.review()).toBeNull(); expect(c.confirmed.value).toBe(false); expect(c.replacementGrant()).toBeUndefined();
     expect(f.nativeElement.querySelector('[aria-label="Reviewed proposed access"]')).toBeNull();
     await c.save(); http.expectNone('/api/ui/administration/access/assign');
+  });
+});
+
+
+describe('Access revocation reviewed reason and dialog lifetime', () => {
+  const close = vi.fn(), command = vi.fn(), epoch = signal(0);
+  beforeEach(() => {
+    close.mockReset(); command.mockReset(); epoch.set(0);
+    TestBed.configureTestingModule({ imports: [AccessRevocationDialog], providers: [
+      { provide: Api, useValue: { command } },
+      { provide: SessionService, useValue: { current: signal({ staff: true }), invalidation: epoch } },
+      { provide: MatDialogRef, useValue: { close } },
+      { provide: MAT_DIALOG_DATA, useValue: { displayName: 'Synthetic user', microsoftIdentity: 'synthetic@example.test',
+        grant: { grantId: '00000000-0000-0000-0000-000000000001', role: 'Staff', scopeKind: 'FIRM_WIDE', groupGrant: false } } },
+    ] });
+  });
+  afterEach(() => TestBed.resetTestingModule());
+  function open() {
+    const fixture = TestBed.createComponent(AccessRevocationDialog); fixture.detectChanges();
+    fixture.componentInstance.form.controls.reason.setValue('Reviewed original reason');
+    fixture.componentInstance.form.controls.reviewed.setValue(true); return fixture;
+  }
+  it('requires fresh assent when the reviewed reason changes', async () => {
+    const fixture = open(), c = fixture.componentInstance;
+    c.form.controls.reason.setValue('A different reviewed reason');
+    expect(c.form.controls.reviewed.value).toBe(false); await c.save(); expect(command).not.toHaveBeenCalled();
+  });
+  it('refuses dispatch immediately after session invalidation before the closing effect runs', async () => {
+    const fixture = open(), c = fixture.componentInstance; epoch.set(1); await c.save();
+    expect(command).not.toHaveBeenCalled();
+  });
+  it('refuses dispatch from a destroyed dialog instance', async () => {
+    const fixture = open(), c = fixture.componentInstance; fixture.destroy(); await c.save();
+    expect(command).not.toHaveBeenCalled();
+  });
+  it('ignores a late acknowledgement after the dialog is destroyed', async () => {
+    let finish!: (value: unknown) => void; command.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const fixture = open(), pending = fixture.componentInstance.save(); fixture.destroy();
+    finish({ ok: true }); await pending; expect(close).not.toHaveBeenCalled();
+  });
+  it('closes protected grant context on a definitive authority refusal without retrying', async () => {
+    command.mockResolvedValue({ ok: false, unknown: false, status: 403, code: 'scope.denied', message: 'Access denied.' });
+    const fixture = open(); await fixture.componentInstance.save();
+    expect(close).toHaveBeenCalledTimes(1); expect(close).toHaveBeenCalledWith('reauthorize'); expect(command).toHaveBeenCalledTimes(1);
+  });
+  it('retains a lost acknowledgement as uncertain and never resends automatically', async () => {
+    command.mockResolvedValue({ ok: false, unknown: true, status: 0, code: '', message: 'Outcome unknown.' });
+    const fixture = open(), c = fixture.componentInstance; await c.save(); await c.save();
+    expect(c.uncertain()).toBe(true); expect(command).toHaveBeenCalledTimes(1); expect(close).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('Revocation authority refusal refreshes the parent roster', () => {
+  afterEach(() => TestBed.resetTestingModule());
+  it('reloads protected access when the dialog requests reauthorization', () => {
+    const reload = vi.fn(), open = vi.fn(() => ({ afterClosed: () => of('reauthorize') }));
+    TestBed.configureTestingModule({ providers: [
+      { provide: Api, useValue: { resource: () => ({ data: () => null, reload, loading: () => false, error: () => '' }) } },
+      { provide: SessionService, useValue: { current: signal({ staff: true }), invalidation: signal(0) } },
+      { provide: MatDialog, useValue: { open } },
+    ] });
+    const id = '00000000-0000-0000-0000-000000000001', at = '2026-10-16T00:00:00Z';
+    const user = decode(accessUser, { userId: id, displayName: 'Synthetic user', microsoftIdentity: 'synthetic@example.test',
+      tenantId: id, objectId: id, accountType: 'Staff (Member)', directoryStatus: 'Verified', auditSphereStatus: 'Active',
+      access: [{ grantId: id, role: 'Staff', scopeKind: 'FIRM_WIDE', clientId: null, engagementId: null, groupId: null,
+        grantedAt: at, expiresAt: null, groupGrant: false }], invitationId: null, invitationStatus: 'NONE',
+      lastMicrosoftVerification: null, lastAuditSphereAccess: null, createdBy: 'Synthetic fixture', createdDate: at });
+    const c = TestBed.runInInjectionContext(() => new UserAccess()); c.revoke(user, user.access[0]);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,3 +1,4 @@
+import { PlanningCommandReview } from './planning-command-review';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
@@ -49,19 +50,36 @@ describe('Eight reviewed audit planning actions', () => {
   let selected: PlanningAction, lastPreview: ReturnType<typeof preview>;
   const id = signal<string | null>(a), context = signal<{ engagementId: string } | null>({ engagementId: a }), writable = signal(true), externalBusy = signal(false);
   const session = { current: signal({ staff: true, userId: a, firmId: b, generation: epoch }), invalidation: signal(0) };
-  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>, saved: Map<string, unknown>, reload: ReturnType<typeof vi.fn<() => void>>;
+  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>, saved: Map<string, unknown>, reload: ReturnType<typeof vi.fn<() => void>>, authorityReload: ReturnType<typeof vi.fn<() => void>>;
   beforeEach(() => {
     selected = 'CALCULATE_MATERIALITY'; id.set(a); context.set({ engagementId: a }); writable.set(true); externalBusy.set(false); session.invalidation.set(0); session.current.set({ staff: true, userId: a, firmId: b, generation: epoch });
-    params = new BehaviorSubject(convertToParamMap({ id: a })); saved = new Map(); reload = vi.fn<() => void>();
+    params = new BehaviorSubject(convertToParamMap({ id: a })); saved = new Map(); reload = vi.fn<() => void>(); authorityReload = vi.fn<() => void>(() => reload());
     drafts = { save: vi.fn((scope, reference) => { saved.set(scope.entity, reference); return true; }), clear: vi.fn(entity => { saved.delete(entity); return true; }),
       readPendingRequest: vi.fn(scope => saved.has(scope.entity) ? { state: 'ready', draft: { value: saved.get(scope.entity), submissionPending: true } } : { state: 'absent' }) };
     api = { get: vi.fn(async (url: string, decoder) => decoder(url.includes('/receipts/') ? { found: true, receipt: receipt(lastPreview) } : state(selected), '')),
       command: vi.fn(async (url: string, request) => { if (url.endsWith('/preview')) { lastPreview = preview(request); return { ok: true, value: lastPreview }; } return { ok: true, value: receipt(lastPreview) }; }) };
     TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api }, { provide: SessionService, useValue: session }, { provide: TabDrafts, useValue: drafts },
       { provide: ActivatedRoute, useValue: { paramMap: params } }, { provide: Router, useValue: { events: new Subject() } }] });
-    flow = TestBed.runInInjectionContext(() => new PlanningCommandState(() => id(), () => context(), () => writable(), () => externalBusy(), reload, Object.keys(planningPayloadKey) as PlanningAction[])); TestBed.tick();
+    flow = TestBed.runInInjectionContext(() => new PlanningCommandState(() => id(), () => context(), () => writable(), () => externalBusy(), reload, Object.keys(planningPayloadKey) as PlanningAction[], authorityReload)); TestBed.tick();
   });
   afterEach(() => TestBed.resetTestingModule());
+  it('reauthorizes the protected workspace after a failed state read without dispatching preview', async () => {
+    api.get.mockRejectedValueOnce(new Error('Not available in your current scope.'));
+    await flow.prepare(() => ({ action: 'ASSESS_RISK', ...cases[4][1] }));
+    expect(authorityReload).toHaveBeenCalledTimes(1); expect(reload).toHaveBeenCalledTimes(1); expect(flow.preview()).toBeNull(); expect(flow.reviewed()).toBe(false); expect(api.command).not.toHaveBeenCalled();
+  });
+  for (const status of [401, 403, 404]) it(`reauthorizes protected routing/team after preview authority refusal ${status}`, async () => {
+    selected = 'ASSESS_RISK'; api.command.mockResolvedValueOnce({ ok: false, unknown: false, status, code: 'scope.denied', message: 'Denied' });
+    await flow.prepare(() => ({ action: selected, ...cases[4][1] }));
+    expect(reload).toHaveBeenCalledTimes(1); expect(flow.preview()).toBeNull(); expect(flow.reviewed()).toBe(false); expect(saved.size).toBe(0);
+  });
+  it('does not refresh a newer workspace for a late denied preview after A-B-A', async () => {
+    const late = deferred<unknown>(); api.command.mockReturnValueOnce(late.promise);
+    const preparing = flow.prepare(() => ({ action: selected, ...cases[0][1] })); await Promise.resolve();
+    id.set(b); TestBed.tick(); id.set(a); TestBed.tick();
+    late.resolve({ ok: false, unknown: false, status: 403, message: 'Denied' }); await preparing;
+    expect(reload).not.toHaveBeenCalled(); expect(flow.preview()).toBeNull();
+  });
   for (const [action, payload] of cases) {
     it(`${action}: previews canonical fields, requires fresh assent and sends exactly once`, async () => {
       selected = action; await flow.prepare(() => ({ action, ...payload })); expect(flow.preview()?.state.action).toBe(action);
@@ -154,4 +172,32 @@ describe('Eight reviewed audit planning actions', () => {
     await flow.prepare(input); expect(flow.preview()).toBeNull(); expect(flow.pending()[0].reference).toEqual(retained); expect(flow.uncertain()).toBe(true);
   });
 
+});
+
+
+describe('Risk routing reviewed evidence', () => {
+  afterEach(() => TestBed.resetTestingModule());
+  it('renders current assessment, owner and clearance separately from proposed and recorded results', () => {
+    TestBed.configureTestingModule({ imports: [PlanningCommandReview] });
+    const fields = { action: 'ASSESS_RISK', ...cases[4][1] };
+    const p = decodePlanningPreview(preview({ requestId: d, fields }), '');
+    p.state.risk = { ...risk, likelihood: 2, magnitude: 3, ownerAssignmentId: d, ownerUserId: d,
+      ownerStaffingLevel: 'AUDIT_MANAGER', clearanceId: a, clearedByUserId: a, clearanceNote: 'Prior Partner judgment' };
+    const flow = { preview: signal(p), receipt: signal(null), uncertain: signal(false), busy: signal(false), reviewed: signal(false),
+      message: signal(''), failed: signal(false), execute: vi.fn() };
+    const fixture = TestBed.createComponent(PlanningCommandReview); fixture.componentRef.setInput('flow', flow); fixture.detectChanges();
+    const rendered = fixture.nativeElement as HTMLElement;
+    const content = rendered.textContent!;
+    expect(content).toContain('Current likelihood / magnitude'); expect(content).toContain('2 / 3');
+    expect(content).toContain('Current owner assignment'); expect(content).toContain(d); expect(content).toContain('AUDIT_MANAGER');
+    expect(content).toContain('Clearance recorded by'); expect(content).toContain(a); expect(content).toContain('Prior Partner judgment');
+    expect(content).toContain('Existing clearance does not clear the new assessment');
+    expect(content).toContain('Likelihood'); expect(content).toContain('Magnitude');
+    expect((rendered.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
+    const recorded = decodePlanningReceipt(receipt(preview({ requestId: d, fields })), '');
+    fixture.componentRef.setInput('flow', { ...flow, preview: signal(null), receipt: signal(recorded) }); fixture.detectChanges();
+    expect(rendered.textContent).toContain('Recorded likelihood / magnitude'); expect(rendered.textContent).toContain('3 / 3');
+    expect(rendered.textContent).toContain('Recorded clearance'); expect(rendered.textContent).toContain('Not cleared');
+    expect(rendered.textContent).not.toContain('Prior Partner judgment');
+  });
 });

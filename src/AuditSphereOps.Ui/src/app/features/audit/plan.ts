@@ -302,7 +302,8 @@ export class AuditPlan {
   readonly planning = new PlanningCommandState(() => this.id(), () => this.plan.data(),
     () => !!this.plan.data() && !this.plan.loading() && !this.plan.error() && !this.plan.data()!.professionalWorkBlocked,
     () => this.cmd.busy() || this.cmd.uncertain(), () => this.plan.reload(),
-    ['CALCULATE_MATERIALITY', 'ROUND_MATERIALITY', 'APPROVE_MATERIALITY', 'CREATE_RISK', 'ASSESS_RISK', 'ASSIGN_RISK_OWNER', 'CLEAR_RISK']);
+    ['CALCULATE_MATERIALITY', 'ROUND_MATERIALITY', 'APPROVE_MATERIALITY', 'CREATE_RISK', 'ASSESS_RISK', 'ASSIGN_RISK_OWNER', 'CLEAR_RISK'],
+    () => { this.inputs.clear(); this.inputHeads.clear(); this.plan.reload(); });
 
   private readonly inputs = new Map<string, RowInput>();
   private readonly inputHeads = new Map<string, string | null>();

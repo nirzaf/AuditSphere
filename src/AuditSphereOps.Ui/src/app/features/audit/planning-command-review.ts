@@ -34,6 +34,15 @@ import { PlanningPreview, planningPayloadKey } from './planning-command-contract
           <dt>Drivers</dt><dd>{{ risk.drivers }}</dd><dt>Significance</dt><dd>{{ risk.significanceDecision }}</dd>
           <dt>Response</dt><dd>{{ risk.response }}</dd><dt>Controls considered</dt><dd>{{ risk.controlsConsidered || 'None recorded' }}</dd>
           <dt>Current assessment</dt><dd>{{ risk.assessmentId || 'Not assessed' }} · {{ risk.band || 'No band' }}</dd>
+          <dt>Current likelihood / magnitude</dt><dd>{{ risk.likelihood ?? 'Not assessed' }} / {{ risk.magnitude ?? 'Not assessed' }}</dd>
+          <dt>Assessment recorded by</dt><dd>{{ risk.assessedByUserId || 'None recorded' }}</dd>
+          <dt>Current owner assignment</dt><dd>{{ risk.ownerAssignmentId || 'None recorded' }}</dd>
+          <dt>Current owner</dt><dd>{{ risk.ownerUserId || 'Unassigned' }} · {{ risk.ownerStaffingLevel || 'No staffing level recorded' }}</dd>
+          <dt>Current Partner clearance</dt><dd>{{ risk.clearanceId || 'Not cleared' }}</dd>
+          <dt>Clearance recorded by</dt><dd>{{ risk.clearedByUserId || 'None recorded' }}</dd>
+          <dt>Current clearance note</dt><dd>{{ risk.clearanceNote || 'None recorded' }}</dd>
+          @if (p.canonicalInput.assessRisk) { <dt>Reassessment effect</dt><dd>A new assessment supersedes this assessment. Existing clearance does not clear the new assessment; its owner must meet the resulting band requirements.</dd> }
+          @if (p.canonicalInput.clearRisk; as clearance) { <dt>Proposed clearance note</dt><dd>{{ clearance.note }}</dd><dt>Proposed clearance actor</dt><dd>The currently authorized Partner submitting this reviewed request.</dd> }
           <dt>Assessment rationale</dt><dd>{{ risk.assessmentRationale || 'None recorded' }}</dd>
           <dt>Fraud / critical estimate</dt><dd>{{ risk.fraud ? 'Yes' : 'No' }} / {{ risk.criticalEstimate ? 'Yes' : 'No' }}</dd>
         }
@@ -67,6 +76,15 @@ import { PlanningPreview, planningPayloadKey } from './planning-command-contract
     <section class="panel" aria-label="Verified planning receipt"><h2>Verified planning receipt</h2><p>{{ receipt.action }} · {{ receipt.result.summary }}</p>
       <p>Request {{ receipt.requestId }} · <code>{{ receipt.requestHash }}</code></p><p>Actor {{ receipt.actorId }} · session {{ receipt.actorEpoch }} · {{ receipt.createdAt }}</p>
       <p>Persisted result {{ receipt.result.resultId }}</p>
+      @if (receipt.result.risk; as risk) {
+        <dl><dt>Recorded risk assessment</dt><dd>{{ risk.assessmentId || 'Not assessed' }} · {{ risk.band || 'No band' }}</dd>
+          <dt>Recorded likelihood / magnitude</dt><dd>{{ risk.likelihood ?? 'Not assessed' }} / {{ risk.magnitude ?? 'Not assessed' }}</dd>
+          <dt>Recorded owner</dt><dd>{{ risk.ownerUserId || 'Unassigned' }} · {{ risk.ownerStaffingLevel || 'No staffing level recorded' }}</dd>
+          <dt>Recorded clearance</dt><dd>{{ risk.clearanceId || 'Not cleared' }}</dd>
+          <dt>Recorded clearance actor</dt><dd>{{ risk.clearedByUserId || 'None recorded' }}</dd>
+          <dt>Recorded clearance note</dt><dd>{{ risk.clearanceNote || 'None recorded' }}</dd></dl>
+      }
+
     </section>
   }
   @if (flow().message()) { <p [attr.role]="flow().failed() || flow().uncertain() ? 'alert' : 'status'">{{ flow().message() }}</p> }

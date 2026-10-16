@@ -42,6 +42,14 @@ public sealed class AngularAuditPlanningCommandJourneyTests
         x.EngagementProgramId == adopted.Value && x.SourceProcedureId == "AWP-01-01").Select(x => x.Id).SingleAsync();
     }
     var riskId = fields.AssessRisk?.RiskId ?? fields.AssignRiskOwner?.RiskId ?? fields.ClearRisk?.RiskId ?? fields.LinkProcedureRisk?.RiskId ?? Guid.Empty;
+    if (action == "ASSESS_RISK")
+    {
+      await using var setup = host.CreateDbContext();
+      var prior = await RiskBandService.AssessAsync(setup, actor, new(riskId, 2, 3, false, "SYNTHETIC prior assessment"));
+      Assert.True(prior.Succeeded, prior.Message);
+      var cleared = await RiskBandService.PartnerClearAsync(setup, PbcSeed.Actor(f.Admin, "Partner"), riskId, "SYNTHETIC prior clearance");
+      Assert.True(cleared.Succeeded, cleared.Message);
+    }
     await using var source = host.CreateDbContext();
     var user = await source.Users.AsNoTracking().SingleAsync(x => x.Id == actor.UserId);
     var digest = await source.TrialBalanceDatasets.Where(x => x.EngagementId == f.EngagementId).Select(x => x.NormalizedDatasetDigest).SingleAsync();
@@ -106,6 +114,15 @@ public sealed class AngularAuditPlanningCommandJourneyTests
     }
     var preview = page.GetByRole(AriaRole.Region, new() { Name = "Exact planning preview", Exact = true });
     await Assertions.Expect(preview).ToContainTextAsync(action); await Assertions.Expect(preview).ToContainTextAsync(digest!);
+    if (action == "ASSESS_RISK")
+    {
+      await Assertions.Expect(preview).ToContainTextAsync("2 / 3");
+      await Assertions.Expect(preview).ToContainTextAsync("SYNTHETIC prior clearance");
+      await Assertions.Expect(preview).ToContainTextAsync(f.Admin.Id.ToString("D"));
+      await Assertions.Expect(preview).ToContainTextAsync("Existing clearance does not clear the new assessment");
+    }
+    if (action == "ASSIGN_RISK_OWNER") await Assertions.Expect(preview).ToContainTextAsync(f.Reviewer.Id.ToString("D"));
+    if (action == "CLEAR_RISK") await Assertions.Expect(preview).ToContainTextAsync("SYNTHETIC independent review");
     Assert.Equal(0, writes);
     var confirm = preview.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed planning action", Exact = true }); await Assertions.Expect(confirm).ToBeDisabledAsync();
     await preview.GetByLabel("I reviewed this exact planning preview, source evidence and effect.", new() { Exact = true }).CheckAsync();
@@ -122,6 +139,19 @@ public sealed class AngularAuditPlanningCommandJourneyTests
       await recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact planning receipt", Exact = true }).ClickAsync();
     }
     await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Verified planning receipt", Exact = true })).ToContainTextAsync(action);
+    var verifiedReceipt = page.GetByRole(AriaRole.Region, new() { Name = "Verified planning receipt", Exact = true });
+    if (action == "ASSESS_RISK")
+    {
+      await Assertions.Expect(verifiedReceipt).ToContainTextAsync("3 / 3");
+      await Assertions.Expect(verifiedReceipt).ToContainTextAsync("Not cleared");
+      await Assertions.Expect(page.Locator("[data-risk='CASH']")).ToContainTextAsync("Partner review required");
+    }
+    if (action == "ASSIGN_RISK_OWNER") await Assertions.Expect(verifiedReceipt).ToContainTextAsync(f.Reviewer.Id.ToString("D"));
+    if (action == "CLEAR_RISK")
+    {
+      await Assertions.Expect(verifiedReceipt).ToContainTextAsync(user.Id.ToString("D"));
+      await Assertions.Expect(verifiedReceipt).ToContainTextAsync("SYNTHETIC independent review");
+    }
     Assert.Equal(1, writes);
     await using (var verify = host.CreateDbContext())
     {
@@ -130,6 +160,34 @@ public sealed class AngularAuditPlanningCommandJourneyTests
       Assert.Equal(1, await verify.AuditPlanningCommandReceipts.CountAsync(x => x.EngagementId == f.EngagementId));
     }
     Assert.Empty(errors);
+  }
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  [Trait("CaseId", "AS-ANG-AUDIT-PLANNING-AUTHORITY")]
+  public async Task RoutingAuthorityLoss_ClearsPopulatedRiskAndTeam(bool duringPreview)
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-ANG-AUDIT-PLANNING-AUTHORITY");
+    var database = new FixtureDatabase(host.DbOptions, host.ConnectionString);
+    var world = await AuditPlanningReceiptSeed.SeedAsync(database); var f = world.Fixture;
+    var (actor, fields) = await AuditPlanningReceiptSeed.FieldsAsync(database, world, "ASSIGN_RISK_OWNER");
+    await using var db = host.CreateDbContext(); var user = await db.Users.SingleAsync(x => x.Id == actor.UserId);
+    var origin = await host.StartApiForIdentityAsync(user, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true", ["Application__FirmId"] = f.FirmId.ToString("D") });
+    using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync(); var writes = 0;
+    page.Request += (_, request) => { if (request.Method == "POST" && request.Url.EndsWith("/commands/actions", StringComparison.Ordinal)) writes++; };
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/app/engagements/{f.EngagementId}/audit-plan"));
+    await Assertions.Expect(page.Locator("[data-risk='CASH']")).ToBeVisibleAsync();
+    await page.GetByLabel("Owner for CASH", new() { Exact = true }).SelectOptionAsync(f.Reviewer.Id.ToString("D"));
+    // Simulate definitive server denial on the selected read/preview boundary, then deny the fresh workspace read.
+    await page.RouteAsync("**/audit-plan", route => route.FulfillAsync(new() { Status = 403, ContentType = "application/json", Body = "{\"message\":\"Access denied\"}" }));
+    await page.RouteAsync(duringPreview ? "**/audit-plan/commands/preview" : "**/audit-plan/commands/state?*",
+      route => route.FulfillAsync(new() { Status = 403, ContentType = "application/json", Body = "{\"message\":\"Access denied\"}" }));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Assign owner for CASH", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.Locator("[data-risk='CASH']")).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByLabel("Owner for CASH", new() { Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Exact planning preview", Exact = true })).ToHaveCountAsync(0);
+    Assert.Equal(0, writes);
   }
   private sealed record FixtureDatabase(DbContextOptions<AuditSphereDbContext> Options, string ConnectionString) : ITestPostgresDatabase;
 

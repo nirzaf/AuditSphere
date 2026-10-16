@@ -14,15 +14,13 @@ public static partial class UiEndpoints
   {
     group.MapUiGet("/operations", http => ReadAsync(http, async (db, actor, ct) =>
     {
-      var mode = await OperationRecoveryService.GetFirmOperatingModeAsync(db, actor, ct);
-      if (!mode.Succeeded) return CommandResult<object>.Fail(mode.ErrorCode!, mode.Message!);
-      var listed = await OperationRecoveryService.ListAsync(db, actor, ct);
-      if (!listed.Succeeded) return CommandResult<object>.Fail(listed.ErrorCode!, listed.Message!);
+      var workspace = await OperationRecoveryService.WorkspaceAsync(db, actor, ct);
+      if (!workspace.Succeeded) return CommandResult<object>.Fail(workspace.ErrorCode!, workspace.Message!);
       return CommandResult<object>.Ok(new
       {
-        OperatingMode = mode.Value,
+        OperatingMode = workspace.Value!.OperatingMode,
         RetryableStates = OperationRecoveryService.RetryableStates.Select(x => x.ToString()),
-        Operations = listed.Value!.Select(o => new { o.Id, o.Kind, o.Status, o.AttemptCount, o.NextAttemptAt, o.ErrorCode, o.CancellationDisposition }),
+        Operations = workspace.Value!.Operations.Select(o => new { o.Id, o.Kind, o.Status, o.AttemptCount, o.NextAttemptAt, o.ErrorCode, o.CancellationDisposition }),
       });
     }));
     group.MapPost("/operations/{id:guid}/retry", (Guid id, HttpContext http) =>

@@ -101,6 +101,7 @@ public sealed partial class FirmOperationsTests
     var capacityDays = Enumerable.Range(0, 5).Select(offset => periodStart.AddDays(offset))
       .Count(ResourceGridCalculator.IsWorkingDay);
     Guid entryId;
+    Guid billedInvoiceId;
     Guid completedTaskId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -177,6 +178,7 @@ public sealed partial class FirmOperationsTests
       var account = (await BillingService.CreateBillingAccountAsync(db, finance, new CreateBillingAccountRequest(w.ClientId, "QAR"))).Value;
       var invoice = await BillingService.CreateInvoiceDraftAsync(db, finance, new CreateInvoiceDraftRequest(account, "INV-T1", [new InvoiceLineRequest("Audit fieldwork", 5m, 600m, "TIME", entryId, 1)]));
       Assert.True(invoice.Succeeded, invoice.Message);
+      billedInvoiceId = invoice.Value;
       Assert.True((await BillingService.SubmitInvoiceAsync(db, finance, invoice.Value)).Succeeded);
       Assert.True((await BillingService.ApproveInvoiceAsync(db, w.A("reviewer", "FinanceReviewer"), invoice.Value)).Succeeded);
       Assert.True((await BillingService.PostInvoiceAsync(db, finance, invoice.Value)).Succeeded);
@@ -197,6 +199,22 @@ public sealed partial class FirmOperationsTests
       Assert.Equal<decimal?>(2400m, row.Collected);
       Assert.Equal((100.0m, 80.0m, 2000m, 66.7m, 300), (row.RealizationPercent!.Value, row.CollectionPercent!.Value, row.Profit!.Value, row.MarginPercent!.Value, row.BudgetVarianceMinutes));
       Assert.True(row.CostComplete);
+      // Sending a posted invoice changes delivery status, never its retained financial evidence.
+      // A period without approved time also proves the invoice-only economics selection path.
+      var invoiceOnlyDate = today.AddDays(1);
+      var invoiceOnlyBefore = (await PracticeAnalyticsQuery.GetAsync(db, partner, invoiceOnlyDate, invoiceOnlyDate)).Value!
+        .Engagements.Single(x => x.EngagementId == w.EngagementId);
+      Assert.True((await BillingService.SendInvoiceAsync(db, finance, billedInvoiceId)).Succeeded);
+      var afterSend = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!
+        .Engagements.Single(x => x.EngagementId == w.EngagementId);
+      Assert.Equal(row, afterSend);
+      Assert.Equal((3000m, 2400m, 100m, 80m, 2000m, 66.7m),
+        (afterSend.Billed!.Value, afterSend.Collected!.Value, afterSend.RealizationPercent!.Value,
+          afterSend.CollectionPercent!.Value, afterSend.Profit!.Value, afterSend.MarginPercent!.Value));
+      var invoiceOnlyAfter = (await PracticeAnalyticsQuery.GetAsync(db, partner, invoiceOnlyDate, invoiceOnlyDate)).Value!
+        .Engagements.Single(x => x.EngagementId == w.EngagementId);
+      Assert.Equal(invoiceOnlyBefore, invoiceOnlyAfter);
+
       var audit = view.Departments.Single(x => x.Department == "Audit");
       Assert.Equal((capacityDays * 480, 300, Math.Round(300m * 100m / (capacityDays * 480), 1)),
         (audit.CapacityMinutes, audit.ChargeableMinutes, audit.UtilizationPercent!.Value));
@@ -236,6 +254,44 @@ public sealed partial class FirmOperationsTests
       var gridCells = (await ResourcePlanningService.GetGridAsync(db, manager, workDate, 1)).Value!.Rows.Single(x => x.UserId == w.U["staff"].Id).Weeks;
       Assert.Equal((360, 300), (gridCells[0].ApprovedActualMinutes, gridCells[0].ApprovedBillableMinutes));
     }
+  }
+
+  [Fact]
+  public async Task Analytics_MissingCostRateKeepsChargeOutValueAndZeroCapacityDoesNotInventUtilization()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var manager = w.A("manager", "Manager");
+    var partner = w.A("partner", "Partner");
+    var staff = w.A("staff", "Staff");
+    var date = DateOnly.FromDateTime(DateTime.UtcNow);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var card = await PracticeTimeService.ReviseRateCardAsync(db, manager, new("Staff", "AUDIT", "QAR", 600m));
+    Assert.True(card.Succeeded, card.Message);
+    Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, partner, card.Value)).Succeeded);
+    var task = await PracticeTimeService.CreateTaskAsync(db, manager,
+      new("Synthetic missing-cost-rate work", w.ClientId, w.EngagementId, w.U["staff"].Id));
+    Assert.True(task.Succeeded, task.Message);
+    var entry = await PracticeTimeService.SaveTimeDraftAsync(db, staff,
+      new(task.Value, date, 540, 60, "Staff", "AUDIT", Currency: "QAR"));
+    Assert.True(entry.Succeeded, entry.Message);
+    Assert.True((await PracticeTimeService.SubmitTimeAsync(db, staff, entry.Value)).Succeeded);
+    Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, entry.Value)).Succeeded);
+    Assert.True((await ResourcePlanningService.SaveProfileAsync(db, manager,
+      new(w.U["staff"].Id, "Zero capacity", "", 0, 75m))).Succeeded);
+    Assert.False(await db.StaffCostRates.AnyAsync(x => x.UserId == w.U["staff"].Id));
+    var result = await PracticeAnalyticsQuery.GetAsync(db, partner, date, date);
+    Assert.True(result.Succeeded, result.Message);
+    var row = Assert.Single(result.Value!.Engagements);
+    Assert.Equal("QAR", row.Currency);
+    Assert.Equal(60, row.ActualMinutes);
+    Assert.Equal<decimal?>(600m, row.StandardValue);
+    Assert.Equal<decimal?>(0m, row.Billed);
+    Assert.False(row.CostComplete);
+    Assert.Null(row.ActualCost); Assert.Null(row.Profit); Assert.Null(row.MarginPercent);
+    var department = Assert.Single(result.Value.Departments);
+    Assert.Equal(0, department.CapacityMinutes); Assert.Equal(60, department.ChargeableMinutes);
+    Assert.Null(department.UtilizationPercent); Assert.Equal<decimal?>(75m, department.TargetPercent);
   }
 
   [Fact]

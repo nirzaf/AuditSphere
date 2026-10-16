@@ -233,7 +233,7 @@ public static partial class PracticeAnalyticsQuery
     }
     // Billing traced to engagements through invoice line sources.
     var lines = await db.InvoiceLines.AsNoTracking().Join(db.Invoices.AsNoTracking(), l => l.InvoiceId, i => i.Id, (l, i) => new { l, i })
-      .Where(x => x.i.FirmId == f && x.i.Status == BillingStates.InvoicePosted && x.i.PostedAt != null && selectedInvoiceIds.Contains(x.i.Id)).ToListAsync(ct);
+      .Where(x => x.i.FirmId == f && (x.i.Status == BillingStates.InvoicePosted || x.i.Status == BillingStates.InvoiceSent) && x.i.PostedAt != null && selectedInvoiceIds.Contains(x.i.Id)).ToListAsync(ct);
     var timeSources = lines.Where(x => x.l.SourceKind == "TIME" && x.l.SourceId.HasValue).Select(x => x.l.SourceId!.Value).ToArray();
     var timeEngagement = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == f && timeSources.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.EngagementId, ct);
     var milestoneSources = lines.Where(x => x.l.SourceKind == FeeAgreementService.MilestoneSourceKind && x.l.SourceId.HasValue).Select(x => x.l.SourceId!.Value).ToArray();

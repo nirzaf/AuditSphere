@@ -98,8 +98,8 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
       WITH eligible AS (
         SELECT id FROM durable_operations
         WHERE firm_id = @firm AND execution_group = @group AND next_attempt_at <= statement_timestamp()
-          AND ((@reconcile AND status = 'RESULT_UNCERTAIN') OR
-               (NOT @reconcile AND status IN ('PENDING','RETRY_WAIT') AND attempt_count < @max))
+          AND ((@reconcile AND (status = 'RESULT_UNCERTAIN' OR (status = 'RETRY_WAIT' AND is_reconciliation))) OR
+               (NOT @reconcile AND status IN ('PENDING','RETRY_WAIT') AND NOT is_reconciliation AND attempt_count < @max))
           AND (operation_kind, schema_version, execution_mode, authority_mode) IN
             (SELECT * FROM unnest(@kinds, @schemas, @modes, @authorities))
         ORDER BY next_attempt_at, created_at, id LIMIT 1 FOR UPDATE SKIP LOCKED

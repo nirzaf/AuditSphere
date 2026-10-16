@@ -274,6 +274,59 @@ describe('Practical rounding form (STE 3.2)', () => {
     expect(text).toContain('-1.33%');
     expect(text).toContain('Each effective threshold stays within ±5% of its computed value.');
   });
+  it('clears populated routing/team and local routing inputs while reauthorizing a refused state read', async () => {
+    const f = render(planPayload); await f.whenStable(); const page = f.componentInstance, http = TestBed.inject(HttpTestingController);
+    const row = page.plan.data()!.routing[0], fields = page.input(row); fields.rationale = 'Local routing draft'; fields.note = 'Local note';
+    const preparing = page.assess(row.riskId);
+    http.expectOne(r => r.url.includes('/audit-plan/commands/state')).flush({ message: 'Access denied' }, { status: 403, statusText: 'Forbidden' });
+    await preparing;
+    expect(page.plan.data()).toBeNull(); expect(page.planning.preview()).toBeNull(); expect(page.planning.reviewed()).toBe(false);
+    expect(page.input(row).rationale).toBe(''); expect(page.input(row).note).toBe('');
+    http.expectOne(`/api/ui/engagements/${id1}/audit-plan`).flush({ message: 'Access denied' }, { status: 403, statusText: 'Forbidden' });
+    await f.whenStable(); f.detectChanges();
+    expect(f.nativeElement.querySelector('[data-risk]')).toBeNull(); expect(page.plan.data()).toBeNull();
+    http.expectNone(r => r.method === 'POST');
+  });
+  for (const recover of [false, true]) it(`preserves an unchanged risk B draft after risk A ${recover ? 'receipt recovery' : 'execution'} reload`, async () => {
+    const riskBId = '44444444-4444-4444-8444-444444444444';
+    const rows = [planPayload.routing[0], { ...planPayload.routing[0], riskId: riskBId, area: 'Cash' }];
+    const payload = { ...planPayload, routing: rows };
+    const f = render(payload); await f.whenStable(); const page = f.componentInstance, http = TestBed.inject(HttpTestingController);
+    const a = page.plan.data()!.routing[0], b = page.plan.data()!.routing[1];
+    const draft = page.input(b); Object.assign(draft, { likelihood: 2, magnitude: 1, fraud: false, criticalEstimate: true,
+      rationale: 'Exact B rationale', owner: id2, note: 'Exact B clearance draft' });
+    const original = { ...draft }; Object.assign(page.input(a), { likelihood: 3, magnitude: 3, rationale: 'Assess A only' });
+    const preparing = page.assess(a.riskId);
+    const risk = { riskId: a.riskId, area: a.area, assertion: a.assertion, description: 'Risk A', drivers: 'Drivers', significanceDecision: 'SIGNIFICANT',
+      response: 'Response', controlsConsidered: null, assessmentId: a.assessmentId, likelihood: 2, magnitude: 3, fraud: false, criticalEstimate: false,
+      band: 'RED', assessmentRationale: 'Prior A', assessedByUserId: id2, clearanceId: null, clearedByUserId: null, clearanceNote: null,
+      ownerAssignmentId: null, ownerUserId: null, ownerStaffingLevel: null };
+    const state = { engagementId: id1, clientId: id2, action: 'ASSESS_RISK', reviewBasis: hash64, canProceed: true, blockers: [],
+      source: null, materiality: null, risk, procedure: null, owners: [] };
+    http.expectOne(r => r.url.includes('/commands/state')).flush(state);
+    await Promise.resolve(); await Promise.resolve();
+    const request = http.expectOne(r => r.url.endsWith('/commands/preview'));
+    const preview = { requestId: request.request.body.requestId, requestHash: hash64, reviewBasis: hash64, canonicalInput: request.request.body.fields,
+      state, summary: 'Assess A', materialityOutcome: null, riskBandOutcome: 'RED' };
+    request.flush({ value: preview }); await preparing; page.planning.reviewed.set(true);
+    const recorded = { id: riskBId, actorId: id3, actorEpoch: '1', engagementId: id1, clientId: id2,
+      requestId: preview.requestId, requestHash: hash64, reviewBasis: hash64, action: 'ASSESS_RISK', createdAt: '2026-10-16T00:00:00Z', preview,
+      result: { resultId: riskBId, risk: { ...risk, assessmentId: riskBId }, materiality: null, procedure: null, summary: 'A recorded' } };
+    const executing = page.planning.execute();
+    const action = http.expectOne(r => r.url.endsWith('/commands/actions'));
+    if (recover) action.flush({}, { status: 503, statusText: 'Lost response' }); else action.flush({ value: recorded });
+    await executing;
+    if (recover) {
+      const recovering = page.planning.reconcile('ASSESS_RISK');
+      http.expectOne(r => r.url.includes('/commands/state')).flush(state); await Promise.resolve(); await Promise.resolve();
+      http.expectOne(r => r.url.includes('/commands/receipts/')).flush({ found: true, receipt: recorded }); await recovering;
+    }
+    http.expectOne(`/api/ui/engagements/${id1}/audit-plan`).flush({ ...payload, routing: [{ ...rows[0], assessmentId: riskBId }, rows[1]] });
+    await f.whenStable(); f.detectChanges();
+    const refreshed = page.plan.data()!.routing;
+    expect(page.input(refreshed[1])).toBe(draft); expect({ ...page.input(refreshed[1]) }).toEqual(original);
+    expect(page.input(refreshed[0]).rationale).toBe(''); expect(page.planning.uncertain()).toBe(false);
+  });
   it('routes all seven planning controls to reviewed preparation, never a legacy write', async () => {
     const f = render({ ...planPayload, materiality: { ...planPayload.materiality, preparedByUserId: id1 }, canApplyPracticalRounding: true });
     await f.whenStable(); const page = f.componentInstance;

@@ -255,6 +255,8 @@ export class Leads {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private request?: Subscription;
+  private qualificationRequest?: Subscription;
+  private destroyed = false;
   search = '';
   name = '';
   source = '';
@@ -338,6 +340,8 @@ export class Leads {
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.request?.unsubscribe();
+        this.qualificationRequest?.unsubscribe();
+        this.busy.set(false);
         this.data.set(null);
         this.search = this.name = this.source = this.contactName = this.contactEmail = '';
         this.qualification.set(null);
@@ -366,7 +370,7 @@ export class Leads {
         }
       });
     });
-    inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.request?.unsubscribe(); this.qualificationRequest?.unsubscribe(); });
   }
   create(): void {
     if (!this.data() || this.busy() || this.uncertain() || this.createPending()) return;
@@ -489,20 +493,21 @@ export class Leads {
       });
   }
   qualify(id: string): void {
+    if (this.qualification()?.id !== id || !this.data()?.items.some(lead => lead.id === id && lead.status === 'NEW')) return;
     this.command('/' + id + '/qualify', {});
   }
   private command(path: string, body: object): void {
-    if (!this.data() || this.busy() || this.uncertain()) return;
+    if (this.destroyed || !this.session.current()?.staff || !this.data() || this.busy() || this.uncertain()) return;
     const generation = this.session.invalidation();
     this.busy.set(true);
     this.commandStatus.set('Saving commercial change…');
-    this.http
+    this.qualificationRequest = this.http
       .post('/api/ui/leads' + path, body)
       .pipe(timeout(15000))
       .subscribe({
         next: () => {
+          if (this.destroyed || generation !== this.session.invalidation()) return;
           this.busy.set(false);
-          if (generation !== this.session.invalidation()) return;
           this.name = this.source = this.contactName = this.contactEmail = '';
           this.drafts.clear('commercial-lead-draft');
           this.qualification.set(null);
@@ -510,8 +515,8 @@ export class Leads {
           this.load();
         },
         error: (failure) => {
+          if (this.destroyed || generation !== this.session.invalidation()) return;
           this.busy.set(false);
-          if (generation !== this.session.invalidation()) return;
           if (failure.status >= 400 && failure.status < 500)
             this.commandStatus.set(
               'Change refused. Check current access, required fields and existing leads.',
@@ -521,6 +526,10 @@ export class Leads {
             this.commandStatus.set(
               'Outcome unconfirmed. Review current leads before resubmitting.',
             );
+          }
+          if ([401, 403, 404].includes(failure.status)) {
+            this.data.set(null); this.qualification.set(null);
+            this.error.set('Lead information is unavailable in your current scope.');
           }
           if (failure.status === 401) this.session.clear();
         },

@@ -166,6 +166,14 @@ describe('Technical library scoped reads and honest unknown-action recovery', ()
     c.create(); c.draft(id1); c.publish(id2); http.expectNone(r => r.method === 'POST');
     expect(f.nativeElement.querySelector('button[type="submit"][disabled]')).not.toBeNull();
     const refreshing = c.reconcile(); refreshReads(); await settle(); refreshReads(); await refreshing;
+    // The final awaited entry read resumes reconcile after refreshReads' last render tick.
+    // Flush that continuation's signal writes before asserting the rendered recovery controls.
+    TestBed.tick(); f.detectChanges();
+    expect(c.catalogue.loading()).toBe(false); expect(c.catalogue.error()).toBe('');
+    expect(c.entry.loading()).toBe(false); expect(c.entry.error()).toBe('');
+    expect(c.entry.data()?.id).toBe(id1);
+    expect(Array.from(f.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Discard local command fields'))).toBeDefined();
     expect(c.reconciliationLoaded()).toBe(true); expect(c.cmd.uncertain()).toBe(true);
     expect(f.nativeElement.textContent).toContain('original outcome remains unconfirmed');
     http.expectNone(r => r.method === 'POST');

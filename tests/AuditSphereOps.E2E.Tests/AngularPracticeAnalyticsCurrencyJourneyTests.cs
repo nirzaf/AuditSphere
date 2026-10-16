@@ -62,10 +62,12 @@ public sealed class AngularPracticeAnalyticsCurrencyJourneyTests
     var table = page.GetByRole(AriaRole.Table, new() { Name = "Engagement economics", Exact = false });
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Practice analytics", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(table).ToContainTextAsync("QAR");
-    await Assertions.Expect(table).ToContainTextAsync("600.00");
-    await Assertions.Expect(table).ToContainTextAsync("200.00");
-    await Assertions.Expect(table).ToContainTextAsync("-200.00");
+    var engagementRow = table.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
+    await Assertions.Expect(engagementRow.GetByRole(AriaRole.Cell)).ToHaveTextAsync(new[]
+    {
+      "QAR", "1.0", "1.0", "600.00", "200.00", "0.00", "0.00", "0%", "n/a", "-200.00", "n/a",
+      "Unavailable", "Unavailable", "Unavailable"
+    });
 
     await using (var db = host.CreateDbContext())
     {
@@ -82,9 +84,11 @@ public sealed class AngularPracticeAnalyticsCurrencyJourneyTests
 
     await page.ReloadAsync();
     await Assertions.Expect(table).ToContainTextAsync("Mixed — financial totals unavailable");
-    var engagementRow = table.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
-    await Assertions.Expect(engagementRow).ToContainTextAsync("—");
-    await Assertions.Expect(engagementRow).ToContainTextAsync("n/a");
+    await Assertions.Expect(engagementRow.GetByRole(AriaRole.Cell)).ToHaveTextAsync(new[]
+    {
+      "Mixed — financial totals unavailable", "1.0", "2.0", "—", "—", "—", "—", "n/a", "n/a", "—", "n/a",
+      "Unavailable", "Unavailable", "Unavailable"
+    });
     Assert.Empty(errors);
   }
 }
