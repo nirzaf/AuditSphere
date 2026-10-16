@@ -1283,11 +1283,10 @@
       "blazorRemoved": false,
       "developmentOrLiveDatabaseMigrated": false,
       "fieldworkReviewFollowUp": {
-        "source": "working tree following 410662d4",
-        "change": "Procedure-review reads fenced by selection, exact returned procedure ID, engagement, workspace, session and destruction",
-        "build": "Angular production build passed",
-        "newRegressionCases": "Three Angular cases added; not yet executed",
-        "verification": "Hosted Angular suite and built-in browser observation pending"
+        "source": "after 410662d4",
+        "change": "Procedure-review selection/scope/session/lifetime and returned-ID fences",
+        "build": "Angular production PASS",
+        "tests": "Three specs added; execution and built-in browser pending"
       }
     }
   },
