@@ -7,7 +7,7 @@ import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { TabDrafts } from '../../core/tab-drafts';
 import { PlanningCommandState } from './planning-command-state';
-import { PlanningAction, decodePlanningFields, decodePlanningPreview, decodePlanningReceipt, planningPayloadKey, samePlanningFields } from './planning-command-contracts';
+import { PlanningAction, decodePlanningFields, decodePlanningState, decodePlanningPreview, decodePlanningReceipt, planningPayloadKey, samePlanningFields } from './planning-command-contracts';
 const a = '11111111-1111-4111-8111-111111111111', b = '22222222-2222-4222-8222-222222222222', c = '33333333-3333-4333-8333-333333333333', d = '44444444-4444-4444-8444-444444444444';
 const hash = 'a'.repeat(64), basis = 'b'.repeat(64), epoch = '9007199254740993';
 const cases: [PlanningAction, object][] = [
@@ -181,8 +181,8 @@ describe('Risk routing reviewed evidence', () => {
     TestBed.configureTestingModule({ imports: [PlanningCommandReview] });
     const fields = { action: 'ASSESS_RISK', ...cases[4][1] };
     const p = decodePlanningPreview(preview({ requestId: d, fields }), '');
-    p.state.risk = { ...risk, significanceDecision: 'NORMAL' as const, likelihood: 2, magnitude: 3, ownerAssignmentId: d, ownerUserId: d,
-      ownerStaffingLevel: 'AUDIT_MANAGER', clearanceId: a, clearedByUserId: a, clearanceNote: 'Prior Partner judgment' };
+    p.state = decodePlanningState({ ...p.state, risk: { ...risk, significanceDecision: 'NORMAL', likelihood: 2, magnitude: 3, ownerAssignmentId: d, ownerUserId: d,
+      ownerStaffingLevel: 'AUDIT_MANAGER', clearanceId: a, clearedByUserId: a, clearanceNote: 'Prior Partner judgment' } }, 'reviewed state');
     const flow = { preview: signal(p), receipt: signal(null), uncertain: signal(false), busy: signal(false), reviewed: signal(false),
       message: signal(''), failed: signal(false), execute: vi.fn() };
     const fixture = TestBed.createComponent(PlanningCommandReview); fixture.componentRef.setInput('flow', flow); fixture.detectChanges();
