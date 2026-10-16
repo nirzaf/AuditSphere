@@ -15,6 +15,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## AS-PM8 acceptance follow-up
+
+Refreshed Domain 56/56 and API 18/18 at candidate `6944ab95`, including dashboard and UTC start-minute endpoints omitted from the earlier API filter. Evidence is in `status.json`. Full E2E remains active with a supplier-invoice failure observed; full Domain regression remains open. AS-PM8 is PARTIAL. Whole-product production acceptance is not established by this package.
+
 ## Angular/Blazor parity — receivables exact-offer fixture
 
 The receivables aging fixture now supplies the exact rendered quotation, dispatch identity and immutable client-response evidence required by the fee-agreement command. Its original as-of-date receipt, credit and allocation assertions remain intact and the focused test passed. The build completed after concurrent-output copy retries. Exact source, command, report and caveats are in `status.json` under `targetedVerification.angularBlazorPackageGateFixtureFollowUp.receivablesFollowUp`.
