@@ -17,7 +17,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## AS-PM8 acceptance follow-up
 
-Refreshed Domain 56/56 and API 18/18 at candidate `6944ab95`, including dashboard and UTC start-minute endpoints omitted from the earlier API filter. Evidence is in `status.json`. Full E2E remains active with a supplier-invoice failure observed; full Domain regression remains open. AS-PM8 is PARTIAL. Whole-product production acceptance is not established by this package.
+Refreshed Domain 56/56 and API 18/18 at candidate `6944ab95`, including dashboard and UTC start-minute endpoints omitted from the earlier API filter. Evidence is in `status.json`. Full E2E remains active with a supplier-invoice failure observed; full Domain regression remains open. AS-PM8 is PARTIAL. Whole-product production acceptance is not established by this package. Acceptance release `6944ab95` is healthy; migration/startup rehearsals and live timer/dashboard checks passed. Temporary SSH access was removed. See the deployment record in `status.json`.
 
 ## Angular/Blazor parity — receivables exact-offer fixture
 
