@@ -1242,11 +1242,7 @@
     },
     "angularLibrarySourceClosure": {
       "source": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
-      "domain": "18 passed; library-closure-domain.trx",
-      "browser": "2 passed; library-closure-browser.trx",
-      "implementation": "Unchanged library source from reviewed planning increment",
-      "sourceDisposition": "AuditProgramLibraryPage.razor PARITY_VERIFIED",
-      "retirementGate": "NOT_READY"
+      "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularLibrarySourceClosure"
     },
     "angularBlazorSourceDispositionCounts": {
       "source": "1e56926c2f00542d3d486171aa6d3ec25517c540",
@@ -1263,19 +1259,30 @@
     },
     "angularArchiveReleaseReadFollowUp": {
       "source": "9efddf6d86f2f0eea7c6cc885ecfc70ee6ff8b23",
-      "productBase": "f9f06aca7b2cd74e9f48a52ec7bfb8bdfce58fa3",
-      "angularHosted": {
-        "source": "e03a3700d7e6693298a7586afc0ef342d171430e",
-        "run": 38914354188,
-        "filesPassed": 153,
-        "testsPassed": 1106
+      "archivedAt": "status-archive-2026-10.json#keys.targetedVerification.angularArchiveReleaseReadFollowUp"
+    },
+    "angularParityHostedFollowUp": {
+      "source": "d0c5bee2a570ebe7e4d42de7dad57efbfb13e770",
+      "run": 38916201249,
+      "build": "PASS",
+      "angular": "PASS",
+      "domain": {
+        "passed": 327,
+        "failed": 0
       },
-      "browserBatch": {
-        "passed": 4,
+      "api": {
+        "passed": 39,
         "failed": 1,
-        "failure": "Archive metadata response-body lifetime; corrected test, rerun passed 1/1"
+        "failure": "Activation test helper serialized RequestId instead of requestId"
       },
-      "builtInBrowser": "Synthetic archive: 100\u2192200 of 205 entries; console errors 0",
+      "fullRun": 38912167504,
+      "fullApiObservedFailures": [
+        "TenantSetupMetadata receipt precision",
+        "ResourcePlanning receipt precision",
+        "ClientContactCreation receipt precision"
+      ],
+      "fixSource": "759b783fd4b8dffa2c6acf9c7553172431a7e37a",
+      "fixVerification": "PENDING",
       "retirementGate": "NOT_READY"
     }
   },

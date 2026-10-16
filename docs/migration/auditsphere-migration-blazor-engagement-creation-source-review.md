@@ -63,3 +63,14 @@ open. Blazor retirement remains `NOT_READY`.
 ## Acceptance batch follow-up
 
 The creation journey now exercises blank profiles, reversed periods, native route-length enforcement and fresh assent after correcting fields. API assertions separately reject an oversized route. Current API assertions compare foreign/guessed preview and receipt denials, refuse a resource-mismatched execute hash, and prove another authorized actor cannot recover the original receipt. Exact results and source attribution are in `status.json` under `targetedVerification.angularMigrationAcceptanceBatch`. Valid resource-bound execute authorization, broader error states and human accessibility remain open; activation also needs publication-lock and paid-advance browser transition evidence. This row remains PARTIAL.
+
+## Current source reconciliation awaiting hosted evidence
+
+Independent inspection found no additional concrete missing creation action in
+`d0c5bee2a570ebe7e4d42de7dad57efbfb13e770`. Existing route/profile selection,
+period validation, blocked-shell creation, duplicate handling, reviewed request
+recovery and result navigation are implemented. The strengthened unauthorized
+execute test uses a correctly resource-bound hash and checks scope refusal with
+zero publication. Its passing result and current browser evidence are still
+required before source-row promotion. Human and operational migration acceptance
+remain separate global gates, not inferred from this comparison.

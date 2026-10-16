@@ -67,3 +67,13 @@ regression remains 1001/1001 at
 `ead85032de2ccc4d4c8043398fa8471d395376a9`, an earlier checkpoint. The
 complete migration and AS-PAR-002 audits remain partial; Blazor retirement
 stays `NOT_READY`. This review does not authorize deleting the rollback host.
+
+## Persisted receipt precision follow-up
+
+The full hosted regression at `f9f06aca` found that the first planning receipt
+returned the clock's sub-microsecond timestamp while replay returned PostgreSQL's
+persisted precision. The first reply now rereads the persisted receipt inside
+the guarded transaction before the final authority check and commit. The exact
+replay assertion remains unchanged. The same first-reply correction applies to
+contact creation and local tenant-setup metadata. These changes are committed
+in `759b783f`; verification of the corrected snapshot is pending.

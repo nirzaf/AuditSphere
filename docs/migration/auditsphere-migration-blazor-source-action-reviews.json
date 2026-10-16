@@ -6,33 +6,30 @@
       "source": "src/AuditSphereOps.Web/Components/Acceptance/AcceptanceChecklistPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-acceptance-checklist-source-review.md",
-      "reviewedAtCommit": "147ac2a02675b9c65ec43be520c76bc27837a167",
+      "reviewedAtCommit": "d0c5bee2a570ebe7e4d42de7dad57efbfb13e770",
       "openGaps": [
-        "Complete role/scope and validation matrix",
-        "Stale-content and all command error/recovery states",
-        "Full field-by-field acceptance parity coverage"
+        "Current runtime verification of category, evidence-required and key-change indicators",
+        "Reconcile current checklist command, validation and recovery evidence with the pinned source"
       ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-engagement-activation-source-review.md",
-      "reviewedAtCommit": "147ac2a02675b9c65ec43be520c76bc27837a167",
+      "reviewedAtCommit": "d0c5bee2a570ebe7e4d42de7dad57efbfb13e770",
       "openGaps": [
-        "Preview, execution and receipt ownership HTTP isolation",
-        "All role, blocker, error and display-state parity",
-        "Assistive-technology acceptance"
+        "Current runtime verification of fresh-visit retained activation history and changed acceptance",
+        "Current correctly resource-bound unauthorized execute API test and existing activation journeys must pass"
       ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementCreatePanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-engagement-creation-source-review.md",
-      "reviewedAtCommit": "147ac2a02675b9c65ec43be520c76bc27837a167",
+      "reviewedAtCommit": "d0c5bee2a570ebe7e4d42de7dad57efbfb13e770",
       "openGaps": [
-        "Preview, execution and receipt ownership HTTP isolation",
-        "Complete validation and error-state parity",
-        "Assistive-technology acceptance"
+        "Current correctly resource-bound unauthorized execute API test must pass",
+        "Record current creation validation, recovery and source-action reconciliation results"
       ]
     },
     {
@@ -279,22 +276,20 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/AccountingPeriod.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
-      "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
+      "reviewedAtCommit": "46e9b9d467fb3c47c3457b1cdd2d36ba5af59d1e",
       "openGaps": [
-        "Every handoff/empty state and same-document route transition",
-        "Disabled identity and refresh failure states",
-        "Full role/error matrix"
+        "Current persisted task/PBC handoff and exact-link browser assertions must pass",
+        "Current failed-refresh clearing/retry specs and scoped period query/API cohorts must pass"
       ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AccountingRecords.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
-      "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
+      "reviewedAtCommit": "eafcf3c5eb2542eb7ea6297cf90b16782d4b0fbb",
       "openGaps": [
-        "All role/error/stale queue cases",
-        "All detail variants and recovery states",
-        "Maximum bounded-result behavior"
+        "Current three-queue pagination reset, count/link and transient-failure specs must pass",
+        "Record current scoped queue/detail browser and authorization evidence"
       ]
     },
     {
@@ -375,10 +370,9 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditPopulation.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
-      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
+      "reviewedAtCommit": "f9f06aca7b2cd74e9f48a52ec7bfb8bdfce58fa3",
       "openGaps": [
-        "Full role and stale/error-state matrix",
-        "Assertions for every evidence and selection combination"
+        "Current scoped browser journey must pass with exact populated selection cells and QAR control-total assertions"
       ]
     },
     {
@@ -682,11 +676,9 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-review-point-source-review.md",
-      "reviewedAtCommit": "55ba972d308a3d92fbd690629daa28b70f98ee32",
+      "reviewedAtCommit": "f9f06aca7b2cd74e9f48a52ec7bfb8bdfce58fa3",
       "openGaps": [
-        "Complete role/scope, expired-grant and cross-firm HTTP response matrix",
-        "Network, stale-route and command failure/recovery branches",
-        "Human screen-reader and wider-locale acceptance"
+        "Current Domain, API and browser reviewed-command cohorts must pass; source-action inspection found no additional concrete gap"
       ]
     },
     {
