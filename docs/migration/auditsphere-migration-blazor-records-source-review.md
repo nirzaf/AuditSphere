@@ -144,3 +144,20 @@ late-response fences and cursor validation. Release browser assertions cover
 explicit refresh, wrong-ID refusal, failed-refresh clearing and recovery with no
 issue request. These are implemented assertions, not a recorded passing result.
 The source rows remain `PARTIAL` until current verification is recorded.
+
+### Frozen read-slice verification
+
+At `9efddf6d86f2f0eea7c6cc885ecfc70ee6ff8b23`, the corrected large-manifest
+browser journey passed. The preceding combined run passed both Release journeys
+and the other Archive journeys, but failed the new archive metadata assertion
+because its navigation response body was no longer available. That failure is
+retained in the execution evidence. The correction asserts the known synthetic
+creation time without relying on a discarded navigation response.
+
+The runtime used committed API binaries from `f9f06aca` and the Angular archive/
+release bundle from `e03a3700`; it does not verify the later unbuilt archive-query
+null-cursor correction or the in-progress Workpaper/acceptance changes. The built-in
+browser independently displayed 100 entries, then 200 of the same 205-entry
+manifest, with zero observed console errors. Hosted Angular build and specs passed
+for `e03a3700`; the .NET/full-release outcomes remain pending. No source row is
+promoted from this focused read evidence alone.
