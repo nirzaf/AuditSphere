@@ -25,7 +25,7 @@ public static partial class AuditFieldworkService
 
   // Internal use only after a caller has authorized this exact scope. Never returns internal facts to a client.
   internal static async Task<CommandResult<AuditCompletionEvaluation>> EvaluateCompletionForAuthorizedScopeAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId, CancellationToken ct)
+    IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId, CancellationToken ct = default)
   {
     var blockers = new List<string>();
     var procedures = await db.AuditProcedures.AsNoTracking().Where(x =>
