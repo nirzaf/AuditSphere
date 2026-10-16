@@ -1,51 +1,57 @@
 # AuditSphere — Test Strategy and Definition of Done
 
-**Status: CURRENT.** Applies to every agent and human change. Section 2 is the rule for reporting verification; section 4 is the strategy the restored suites implement.
+**Status: CURRENT.** Applies to human developers and AI coding agents. `AGENTS.md` §3 is the norm for local/CI selection; this document defines evidence and risk-based test design. Never equate CI omission, skipped tests or a discovered-zero test run with a pass.
 
-## 1. Where things stand (2026-10-08)
+## 1. Execution tiers and ownership
 
-- Automated test suites are **restored** (STE-NXT-001; ADR-0008 is `SUPERSEDED`): the Domain, API-host and Playwright projects and the Angular specs are back in the tree.
-- Fast push/PR CI (`.github/workflows/ci.yml`) runs the full Angular build/specs, pinned-SDK locked restore, Release compilation of all projects, database-free architecture and practical-rounding guards, EF model drift, standalone API/Angular publication, OpenAPI drift and documentation gates. It intentionally skips PostgreSQL integration, API and Playwright suites. Those suites remain in the complete unfiltered nightly/manual `.github/workflows/release-verification.yml` workflow. A fast-CI pass is not full regression or migration-retirement acceptance; inspect commit-specific results in `docs/execution/status.json`.
-- Private acceptance image builds reuse separate API/worker/migration registry caches. A new push supersedes older automatic image builds; manually dispatched builds are not superseded by pushes. Cache tags are build inputs only; deployment still uses exact commit image tags and its existing migration/readiness guards. Speed gains require a hosted run and warm cache before they can be measured.
-- A `dotnet test` result counts only when it ran against that test database. A discovery-only run, or a run that found no tests, proves nothing and must not be reported as a pass.
+For browser-visible changes, use the built-in browser as the primary dynamic verification where available: open the target page, exercise the relevant flow, check responsive rendering and inspect console/network errors. Use computer use only when the built-in browser is insufficient. Full automated browser journeys remain in CI/CD.
 
-## 2. Definition of Done
-
-A change is done only when **all** of these hold, and the report says which were run:
-
-1. **Builds and tests:** every command in `AGENTS.md` §3 succeeds with zero warnings and zero errors (Release), including `dotnet test` and `npm --prefix src/AuditSphereOps.Ui run test:ci`. Report the pass and fail counts of each.
-2. **Schema:** no pending EF model changes; any new migration is additive and named for the business change.
-3. **Contract:** if an endpoint shape changed, `contracts/auditsphere-openapi.json` is regenerated and `scripts/contracts/verify-openapi.sh` passes; the Angular decoder matches.
-4. **Invariants reviewed in the diff:** scope check present in each new command/query; no new update path on append-only data; stale-input fence (`ExpectedRevision`/`ExpectedVersion`) on revisioned writes; no clock/network/EF in calculators; fail-closed defaults.
-5. **Tests for new behaviour:** each new command or query has tests for the allowed role, a wrong role, a sibling-scope identifier, a stale revision and a replay where those apply. Each new decoder has tests for a malformed and an over-bound payload.
-6. **Manual evidence, labelled as manual:** for behaviour changes that the tests cannot show, a browser or API walk-through against local PostgreSQL with the exact steps, identities and observed results, recorded in `docs/execution/auditsphere-execution-current-slice.md` as `MANUAL_OBSERVATION` (a label introduced by this document), never as `PASS_LOCAL_SLICE`.
-7. **Truthful status:** `docs/execution/status.json` changes only with observed facts. No status moves to `LOCAL_VERIFIED`, `PASS` or `READY_FOR_REVIEW` on the strength of this section alone.
-8. **Report:** files changed, commands run with results, commands not run and why, assumptions, open questions.
-
-## 3. Restoring the suites (completed, STE-NXT-001)
-
-The suites were restored from the last commit before their removal:
-
-```bash
-git checkout 47ca0b05^ -- $(git diff --name-only --diff-filter=D 47ca0b05^ 47ca0b05)
-```
-
-This brought back only the files the removal deleted (Domain, API-host and E2E tests, Angular specs and the browser-journey scripts). Do **not** run it again: it would overwrite later edits to those files. Failures found after the restore were fixed in the code or in the test, and each fix states which one changed, in the commit message. The commit message of `2713b58`, the last commit before removal, reports the Domain suite passing, so failures after the restore came from changes merged after the removal.
-
-The `npm run test:ci` step is back in the `ui-build` job of `ci.yml`. The .NET test projects are not added to the fast `ci.yml` gate, which stays short; the full suite runs in the separate `release-verification.yml` workflow, which has its own PostgreSQL service and run-time budget. Making that workflow a required check is an owner decision.
-
-## 4. Test layers and rules
-
-| Layer | Tool | What it proves | Rule |
+| Tier | Trigger and owner | What runs | What a PASS proves |
 | --- | --- | --- | --- |
-| Pure calculators (materiality, sampling, FX, consolidation, rates) | xUnit, no database | Arithmetic, ranges, rounding, determinism | Every policy range and rounding boundary has a test at, inside and outside the bound |
-| Application commands and queries | xUnit on a cloned, migrated PostgreSQL template (`PgTestSchema`) | Scope isolation, gates, append-only triggers, idempotent receipts | Each command: allowed role, wrong role, sibling-scope ID, stale revision, replay |
-| HTTP boundary | `AuditSphereOps.Api.Tests` (`StandaloneApiApplicationFactory`) | Session policy, rate limits, error shape, size limits | Every new endpoint: `401` unauthenticated, `403/404` out of scope, `413` where JSON |
-| Angular | Vitest specs beside each feature | Decoders, `can*` rendering, unknown-outcome handling | Each decoder rejects malformed and over-bound payloads |
-| Journeys | Playwright (`AuditSphereOps.E2E.Tests`, `OwnedHost`) | Multi-role flows across gates | One journey per specification flow 3.1–3.5 |
+| **Local fast feedback** | Developer/agent once after a coherent behavior slice | Only affected compilation/contract validation and smallest meaningful existing/new test cohort. For docs-only changes, no application test. | The explicitly selected behavior/checks only. |
+| **Push/PR fast CI** | `.github/workflows/ci.yml` (PR and `master` push) | Full Angular build/specs, pinned locked-restore Release solution build, database-free .NET architecture/rounding guards, EF/OpenAPI, publication and documentation checks. | That workflow's checks for its exact commit; **not** complete .NET regression. |
+| **Full regression CI** | `.github/workflows/release-verification.yml` (nightly or manual release candidate) | Unfiltered Domain, API and Playwright .NET suites with isolated PostgreSQL, Angular full specs, build/contracts and aggregate `release-gate`, pinned to one SHA. | Complete **local/synthetic automated** regression for the tested SHA, **not** live tenant or professional approval. |
+| **External/professional acceptance** | Approved operator and independent reviewer | Real authorized tenant/provider operations and human professional decisions under approved gates. | Only precisely recorded real-world observations and approvals. |
 
-Test names describe behaviour (`Engagement_letter_is_refused_without_partner_risk_clearance`), never `UnitTest1`. Each test owns its data; no shared mutable fixtures across classes.
+**Efficiency rule:** Local agents must **not** run full `.NET` solution tests, all Angular specs or all E2E by default; use the narrowest credible proving tests after a coherent slice. Entire suite execution belongs only to CI/CD; do not run full suites locally. Cached restore/build artifacts may be reused when sound. Fast CI is deliberately not expanded into full PostgreSQL/E2E for every PR.
 
-## 5. External gates
+**Current release limitation:** `.github/workflows/release.yml` gates on successful `ci.yml` for the exact SHA, **not** on `release-verification.yml`. A full CI run for the release SHA must be inspected before making a full-regression release-readiness claim. Adding an automatic production gate is a separate owner decision; do not imply it is already implemented.
 
-Local tests and simulations never close `BLOCKED_EXTERNAL` gates (P1–P10, M365-ADMIN). Those need the named human owner, an authorized environment, observed evidence and independent review (`docs/execution/auditsphere-execution-pending-tasks.md` §5).
+## 2. Definition of Done — by verification level
+
+A **developer slice** is ready for review when all applicable conditions hold:
+
+1. Accepted behavior, scope/non-goals and smallest coherent diff are clear; no unrelated changes or dependencies.
+2. Changed code compiles at the relevant boundary, or the missing build is explicitly `NOT RUN` with reason; a docs-only change needs relevant docs/diff validation only.
+3. The smallest existing test cohort that can establish changed behavior passes. Add **only** missing tests for distinct material risk; failures, no tests discovered and unavailable PostgreSQL are not passes.
+4. For authorization, accounting, approval, immutable evidence, idempotency and concurrency changes, relevant adverse-path evidence is mandatory at the proper enforcement layer; block/mark incomplete if unavailable rather than skip a security or financial invariant for speed.
+5. Relevant EF model drift, HTTP/OpenAPI and Angular contract/decode checks run when those contracts change; the general CI workflow covers its unconditional version.
+6. `git diff --check` passes; report exact commands executed, results, omissions, assumptions and unresolved risks. Record execution status only from observations, not from a checklist.
+
+A **PR** is CI-verified only when actual fast `ci.yml` checks pass for the PR SHA; focused local checks do not replace it. A **full-regression release candidate** is regression-verified only with a successful unfiltered `release-verification.yml` run for the **exact same SHA**. A production or tenant capability can be approved only through its separate external/professional gates. Neither locally invented test counts nor a nightly run for a different SHA satisfies those claims. No automatic release gate beyond the existing `ci.yml` precondition is asserted.
+
+## 3. Minimal effective test design
+
+**Do not optimize test *count* at the expense of undetected material failures.** Optimize overlap and total execution time; retain the smallest set that credibly protects independent behavior and invariants.
+
+1. **Reuse before writing:** inspect affected code, current test and code map. When a refactor retains the observable contract and existing tests already cover it, **zero new tests** is expected.
+2. **One distinct behavior per focused assertion set:** consolidate equivalent inputs into parameterized tests and reusable synthetic fixtures. Avoid testing an identical guard in unit, API and browser layers unless the second layer proves a separate integration contract.
+3. **Place tests where faults are observable:** pure arithmetic/rounding → Domain; grant and transactional authorization, append-only DB guards, revision conflict/replay → Application with PostgreSQL; cookie/session/error mapping → API; decoded payload, permissions rendering, unknown-result UI → Angular; cross-role workflow wiring → a representative E2E only where other layers cannot prove it.
+4. **Risk-driven negative evidence:** where affected, include current permitted scope, denied/sibling scope, stale/revoked grant, independent checker, outdated version, duplicate request, missing external outcome, rollback and historical evidence. **These are coverage dimensions, not an automatic separate test for each method, route or DTO.** Reuse generic proven security tests for shared logic, with focused additions for unique exceptions.
+5. **No duplicate journeys:** prefer one representative E2E for a materially distinct user workflow; do not generate one E2E per endpoint or status code. Test Angular decoders' malformed/oversized responses only when relevant and not already established.
+6. **No blind deletion:** an existing test may be consolidated only if equivalence, same invariant protection and risk of regressions are demonstrated in review. Never delete, disable, skip or weaken tests to satisfy a numeric target, suppress a bug or make CI green.
+7. **No rerun storms:** after a coherent change run selected tests once; after a fix rerun failing/affected cases; expand only for a new plausible regression. Full suite runs in CI. A newly created test must actually execute and assert expected behavior from approved requirements, not implementation-derived expectations.
+
+**Example lean sets:** docs typo → zero application tests; a pure rounding rule → existing boundary theory; a scoped journal posting change → selected DB-backed permission, balance, stale/replay and rollback cases, often grouped in one fixture; a decoder change → one targeted Angular spec using parameterized invalid payloads; a new multi-actor approval path → a relevant existing integration journey, or one new one only if not otherwise proved.
+
+## 4. Existing testing infrastructure
+
+- Restored suites (STE-NXT-001; ADR-0008 `SUPERSEDED`) include `tests/AuditSphereOps.Domain.Tests/`, `tests/AuditSphereOps.Api.Tests/`, `tests/AuditSphereOps.E2E.Tests/`, and Angular specs. Do not run the historical restore-from-deletion command again; it could overwrite later work.
+- The .NET integration/API suites use owned synthetic fixtures and PostgreSQL `auditsphere_tests`; never use the development or production database. `PgTestSchema` and `OwnedHost` are existing fixtures. Use the exact test-project and selector from the code map.
+- `./scripts/agent-check` currently supports bounded `engagement-ui`, `review-permissions`, `accounting-calculation` packets and optional layers. Preflight is not a test run; `--run` is explicit. See `docs/testing/auditsphere-testing-guide-agent-capability-checks-current.md`. A passing packet does not prove omitted or external criteria.
+- CI full verification runs complete projects without `--filter`, with an isolated PostgreSQL service per .NET matrix job. Angular `test:ci` is run in CI. No suite, test class or discover-zero result is credited unless it actually executed.
+- Keep all counts/commits/run IDs and evidence in `docs/execution/status.json` under project rules. Report omitted local tests as `NOT RUN`, CI awaiting completion as `CI PENDING`, and uncertain live gates as `BLOCKED_EXTERNAL`. Local simulations never promote external readiness.
+
+## 5. Independent and external gates
+
+A full automated CI PASS **does not** certify Entra tenant consent, Graph/SharePoint site grants, live release, source-provider correctness, legal/compliance or professional audit opinions. Those require the named owner, authorized environment, exact evidence, appropriate independent approval and the relevant current requirements/ADR. Record unresolved gates as `BLOCKED_EXTERNAL`; do not bypass maker/checker, immutable records or exact financial correctness for faster delivery.
