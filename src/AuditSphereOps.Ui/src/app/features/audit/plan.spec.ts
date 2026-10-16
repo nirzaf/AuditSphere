@@ -276,7 +276,9 @@ describe('Practical rounding form (STE 3.2)', () => {
   });
   it('clears populated routing/team and local routing inputs while reauthorizing a refused state read', async () => {
     const f = render(planPayload); await f.whenStable(); const page = f.componentInstance, http = TestBed.inject(HttpTestingController);
-    const row = page.plan.data()!.routing[0], fields = page.input(row); fields.rationale = 'Local routing draft'; fields.note = 'Local note';
+    const row = page.plan.data()!.routing[0], fields = page.input(row);
+    // This test must reach the authorized state read; the display-only fixture uses legacy scores of four.
+    Object.assign(fields, { likelihood: 3, magnitude: 3, rationale: 'Local routing draft', note: 'Local note' });
     const preparing = page.assess(row.riskId);
     http.expectOne(r => r.url.includes('/audit-plan/commands/state')).flush({ message: 'Access denied' }, { status: 403, statusText: 'Forbidden' });
     await preparing;
