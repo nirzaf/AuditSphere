@@ -328,7 +328,7 @@ describe('Report certificate signing (ADR-0016)', () => {
     f.detectChanges();
     http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(payload);
     f.detectChanges();
-    return { f, http };
+    return { f, http, params };
   }
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
@@ -354,6 +354,40 @@ describe('Report certificate signing (ADR-0016)', () => {
     expect(host.querySelector('[data-report-signing]')?.getAttribute('role')).toBe('alert');
     expect(host.textContent).toContain('No report-signing certificate is configured.');
     f.destroy();
+  });
+
+  it('does not check guessed or unsigned deliverables outside the current report selection', async () => {
+    const { f, http } = open({ ...validPayload, deliverables: [
+      { ...validPayload.deliverables[0], id: id2, signed: false },
+      { ...validPayload.deliverables[0], id: id3, kind: 'MANAGEMENT_LETTER' },
+    ] });
+    await f.componentInstance.verifySignature(id1);
+    await f.componentInstance.verifySignature(id2);
+    await f.componentInstance.verifySignature(id3);
+    http.expectNone(request => request.url.endsWith('/signature'));
+    expect(f.componentInstance.signatureCheck()).toBeNull(); f.destroy();
+  });
+
+  it('rejects an old signature result across A-to-B-to-A navigation without ending the newer check', async () => {
+    const { f, http, params } = open(validPayload), page = f.componentInstance;
+    const oldCheck = page.verifySignature(id2), oldRequest = http.expectOne(`/api/ui/deliverables/${id2}/signature`);
+    params.next(convertToParamMap({ id: id3 })); f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id3}/completion`).flush({ ...validPayload, engagementId: id3 }); f.detectChanges();
+    params.next(convertToParamMap({ id: id1 })); f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(validPayload); f.detectChanges();
+    const newCheck = page.verifySignature(id2), newRequest = http.expectOne(`/api/ui/deliverables/${id2}/signature`);
+    oldRequest.flush({ signatureKind: 'CERTIFICATE', state: 'VALID', subject: null, thumbprintSha256: null, message: 'Old result.' });
+    await oldCheck; expect(page.signatureCheck()).toBeNull(); expect(page.verifying()).toBe(true);
+    newRequest.flush({ signatureKind: 'CERTIFICATE', state: 'ALTERED', subject: null, thumbprintSha256: null, message: 'Current result.' });
+    await newCheck; expect(page.signatureCheck()?.state).toBe('ALTERED'); expect(page.verifying()).toBe(false); f.destroy();
+  });
+
+  it('discards a signature response after the completion component is destroyed', async () => {
+    const { f, http } = open(validPayload), page = f.componentInstance;
+    const checking = page.verifySignature(id2), request = http.expectOne(`/api/ui/deliverables/${id2}/signature`);
+    f.destroy();
+    request.flush({ signatureKind: 'CERTIFICATE', state: 'VALID', subject: null, thumbprintSha256: null, message: 'Synthetic verification.' });
+    await checking; expect(page.signatureCheck()).toBeNull();
   });
 
   it('shows the server result of a signature check and flags a changed document', async () => {

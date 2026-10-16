@@ -597,67 +597,9 @@
       "database": "auditsphere_tests on 127.0.0.1:5433",
       "migrationHead": "20261011201129_ClientSiteWorkerHeartbeats",
       "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
-      "runs": [
-        {
-          "name": "Workspace provisioning API tests",
-          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~WorkspaceProvisioningApiTests",
-          "passed": 4,
-          "failed": 0
-        },
-        {
-          "name": "Client site rollout Domain tests",
-          "classes": [
-            "ClientSharePointSitesTests",
-            "SharePointClientSiteProviderTests",
-            "EngagementWorkspaceProvisioningTests"
-          ],
-          "passed": 36,
-          "failed": 0
-        },
-        {
-          "name": "Client site administration Playwright journey",
-          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~ClientSharePointSitesJourneyTests",
-          "passed": 1,
-          "failed": 0,
-          "browser": "Playwright Chromium against the synthetic PostgreSQL test database"
-        },
-        {
-          "name": "Angular CI specs",
-          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
-          "specFiles": 115,
-          "passed": 634,
-          "failed": 0
-        },
-        {
-          "name": "Angular production build",
-          "command": "env NG_BUILD_CACHE_STORE=sqlite NG_BUILD_MAX_WORKERS=2 npm --prefix src/AuditSphereOps.Ui run build -- --progress=false",
-          "result": "PASS_WITH_WARNING",
-          "warning": "Existing src/app/features/commercial/settings.scss component stylesheet exceeds the 4 KB budget by 3.53 KB."
-        },
-        {
-          "name": "EF model drift",
-          "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
-          "result": "PASS: no pending model changes"
-        },
-        {
-          "name": "OpenAPI drift",
-          "command": "bash scripts/contracts/verify-openapi.sh",
-          "result": "PASS: contract is current"
-        },
-        {
-          "name": "Documentation and source inventory gates",
-          "result": "PASS",
-          "markdownFiles": 198,
-          "relativeLinks": 2665,
-          "filenamePolicy": "PASS",
-          "narrativeMetrics": "PASS",
-          "angularSourceInventory": "PASS"
-        },
-        {
-          "name": "Built-in browser smoke check",
-          "result": "Local Angular app displayed its unauthenticated sign-in gate; the local API was unavailable. Authenticated administration journey was verified by the Playwright test above."
-        }
-      ],
+      "runs": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.clientSitesDefaultRolloutRuns"
+      },
       "externalAcceptance": "NOT_VERIFIED: no live Microsoft provisioning or membership reconciliation; no production database migration; code was not deployed to the VPS.",
       "followUpVerification": {
         "recordedAtUtc": "2026-10-11T21:15:44Z",
@@ -1287,6 +1229,11 @@
         "change": "Procedure-review selection/scope/session/lifetime and returned-ID fences",
         "build": "Angular production PASS",
         "tests": "Three specs added; execution and built-in browser pending"
+      },
+      "completionSignatureFollowUp": {
+        "change": "Signature reads fenced by report/scope/session/lifetime",
+        "build": "Angular PASS",
+        "tests": "New rejection/destroy/navigation specs unrun"
       }
     }
   },

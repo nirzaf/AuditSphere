@@ -15242,7 +15242,106 @@
       }
     },
     "targetedVerification": {
-      "angularBlazorPackageGateFixtureFollowUp":{"sourceCommit":"b410768b88641d0f35df70424814d0ceb2003fdf","result":"FOCUSED_PASS_FULL_DOMAIN_FAIL_RETIREMENT_NOT_READY","focused":{"passed":2,"failed":0,"report":"/tmp/auditsphere-parity-regression/package-gate-repair-final.trx","scope":"PeriodClose_RequiresCurrentReviewsForMatchingFinancialPackages and FinancialPackageRelease_BindsCandidateToCurrentPackageReviews"},"change":"Use actual rendered three-format compositions and independent decisions; retain unreviewed close/approval and missing-checkpoint refusal. Release asserts exact composition and PDF identity/digest pins; current client/package/policy generations replace hard-coded values.","fullDomain":{"passed":1046,"failed":13,"skipped":0,"total":1059,"command":"dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --maxcpucount:1 --logger trx;LogFileName=domain-parity-consolidated.trx --results-directory /tmp/auditsphere-parity-regression","report":"/tmp/auditsphere-parity-regression/domain-parity-consolidated.trx","failedMethods":["ForeignOperation_ZeroReserveStillUsesPerLinePurposes","ForeignOperation_ChangedRateOrComponentStalesOldReview","ForeignOperation_SameCurrencyComponentTranslatesAsIdentity","ForeignOperation_MissingRequiredAverageDoesNotFallback","ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate","ForeignOperationGroup_RequiresPinnedApprovedTranslation","ForeignOperation_ManifestUsesExactLineRateIdentity","ForeignOperation_MissingRequiredHistoricalDoesNotFallback","GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem","ForeignOperation_AssetOnlyProfileNeedsOnlyClosingRate","ForeignOperation_Gold07_ReplayApprovalAndReadbackAreStable","ForeignOperation_GoldR2R07_TranslatesPerLineWithExplainedReserveAndConsolidates","ForeignOperation_UnknownTaxonomyRequiresApprovedMapping"],"attribution":"Product/test sources matched the source commit. Another process temporarily deleted/restored docs/migration during the run; no such deletions were committed here."},"next":"Repair consolidation/foreign-operation fixtures requiring composition-bound approvals; preserve the guard. Complete remaining source-action, browser, operational/human/external retirement gates.","receivablesFollowUp":{"sourceCommit":"8e6793882032198fb885a4354b3999e281d12c50","passed":1,"failed":0,"skipped":0,"command":"dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --maxcpucount:1 --filter FullyQualifiedName~FirmReceivablesAgingQueryTests --logger trx;LogFileName=receivables-offer-fixture-repair.trx --results-directory /tmp/auditsphere-parity-regression","report":"/tmp/auditsphere-parity-regression/receivables-offer-fixture-repair.trx","repair":"Exact rendered quotation, dispatch identity and immutable response evidence added; as-of-date receipt, credit and allocation assertions retained.","buildCaveat":"Three MSB3026 copy retries from concurrent Infrastructure output use; build completed.","limits":"Full Domain not rerun after this repair. Consolidation/foreign-operation fixtures and other retirement criteria stay open."},"timeAndPlanningFollowUp":{"codeCommit":"dfb73530","time":{"passed":2,"failed":0,"skipped":0,"durationSeconds":74,"report":"/tmp/auditsphere-parity-regression/time-scope-current-form.trx"},"planning":{"passed":2,"failed":0,"skipped":0,"durationSeconds":65,"report":"/tmp/auditsphere-parity-regression/planning-navigation-current.trx"},"scope":"API-host Playwright, synthetic owned PostgreSQL; unchanged planning cohort did not reproduce prior timeout. Full solution remains open."},"commercialAndTimerFollowUp":{"codeCommit":"b4dedfef","passed":5,"failed":0,"skipped":0,"durationSeconds":113,"report":"/tmp/auditsphere-parity-regression/commercial-and-timer-followup.trx","scope":"Four commercial cases and one productivity journey. Exact rendered-offer receipt fixture repaired; timer focus diagnostics added, earlier intermittent cause unproven. Full regression and financial composition failures remain open."},"financialCompositionBrowserFollowUp":{"codeCommit":"a3461ced","passed":2,"failed":0,"skipped":0,"durationSeconds":72,"report":"/tmp/auditsphere-parity-regression/financial-source-composition-parity-complete.trx","scope":"Package review/download/revocation and period reopening; real source-backed candidate composition. Full financial-artifact class running; full solution remains open.","fullClass":{"passed":5,"failed":0,"skipped":0,"durationSeconds":137,"report":"/tmp/auditsphere-parity-regression/financial-artifact-parity-cohort.trx","command":"dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~AngularFinancialArtifactParityJourneyTests"}},"profileConfirmationBrowserFollowUp":{"codeCommit":"a3461ced","passed":3,"failed":0,"skipped":0,"durationSeconds":82,"report":"/tmp/auditsphere-parity-regression/profile-confirmation-current-parity.trx","scope":"Both client-profile route modes and confirmation storage-failure navigation; earlier failures not reproduced, no tests changed."}},
+      "angularBlazorPackageGateFixtureFollowUp": {
+        "sourceCommit": "b410768b88641d0f35df70424814d0ceb2003fdf",
+        "result": "FOCUSED_PASS_FULL_DOMAIN_FAIL_RETIREMENT_NOT_READY",
+        "focused": {
+          "passed": 2,
+          "failed": 0,
+          "report": "/tmp/auditsphere-parity-regression/package-gate-repair-final.trx",
+          "scope": "PeriodClose_RequiresCurrentReviewsForMatchingFinancialPackages and FinancialPackageRelease_BindsCandidateToCurrentPackageReviews"
+        },
+        "change": "Use actual rendered three-format compositions and independent decisions; retain unreviewed close/approval and missing-checkpoint refusal. Release asserts exact composition and PDF identity/digest pins; current client/package/policy generations replace hard-coded values.",
+        "fullDomain": {
+          "passed": 1046,
+          "failed": 13,
+          "skipped": 0,
+          "total": 1059,
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --maxcpucount:1 --logger trx;LogFileName=domain-parity-consolidated.trx --results-directory /tmp/auditsphere-parity-regression",
+          "report": "/tmp/auditsphere-parity-regression/domain-parity-consolidated.trx",
+          "failedMethods": [
+            "ForeignOperation_ZeroReserveStillUsesPerLinePurposes",
+            "ForeignOperation_ChangedRateOrComponentStalesOldReview",
+            "ForeignOperation_SameCurrencyComponentTranslatesAsIdentity",
+            "ForeignOperation_MissingRequiredAverageDoesNotFallback",
+            "ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate",
+            "ForeignOperationGroup_RequiresPinnedApprovedTranslation",
+            "ForeignOperation_ManifestUsesExactLineRateIdentity",
+            "ForeignOperation_MissingRequiredHistoricalDoesNotFallback",
+            "GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem",
+            "ForeignOperation_AssetOnlyProfileNeedsOnlyClosingRate",
+            "ForeignOperation_Gold07_ReplayApprovalAndReadbackAreStable",
+            "ForeignOperation_GoldR2R07_TranslatesPerLineWithExplainedReserveAndConsolidates",
+            "ForeignOperation_UnknownTaxonomyRequiresApprovedMapping"
+          ],
+          "attribution": "Product/test sources matched the source commit. Another process temporarily deleted/restored docs/migration during the run; no such deletions were committed here."
+        },
+        "next": "Repair consolidation/foreign-operation fixtures requiring composition-bound approvals; preserve the guard. Complete remaining source-action, browser, operational/human/external retirement gates.",
+        "receivablesFollowUp": {
+          "sourceCommit": "8e6793882032198fb885a4354b3999e281d12c50",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --maxcpucount:1 --filter FullyQualifiedName~FirmReceivablesAgingQueryTests --logger trx;LogFileName=receivables-offer-fixture-repair.trx --results-directory /tmp/auditsphere-parity-regression",
+          "report": "/tmp/auditsphere-parity-regression/receivables-offer-fixture-repair.trx",
+          "repair": "Exact rendered quotation, dispatch identity and immutable response evidence added; as-of-date receipt, credit and allocation assertions retained.",
+          "buildCaveat": "Three MSB3026 copy retries from concurrent Infrastructure output use; build completed.",
+          "limits": "Full Domain not rerun after this repair. Consolidation/foreign-operation fixtures and other retirement criteria stay open."
+        },
+        "timeAndPlanningFollowUp": {
+          "codeCommit": "dfb73530",
+          "time": {
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0,
+            "durationSeconds": 74,
+            "report": "/tmp/auditsphere-parity-regression/time-scope-current-form.trx"
+          },
+          "planning": {
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0,
+            "durationSeconds": 65,
+            "report": "/tmp/auditsphere-parity-regression/planning-navigation-current.trx"
+          },
+          "scope": "API-host Playwright, synthetic owned PostgreSQL; unchanged planning cohort did not reproduce prior timeout. Full solution remains open."
+        },
+        "commercialAndTimerFollowUp": {
+          "codeCommit": "b4dedfef",
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "durationSeconds": 113,
+          "report": "/tmp/auditsphere-parity-regression/commercial-and-timer-followup.trx",
+          "scope": "Four commercial cases and one productivity journey. Exact rendered-offer receipt fixture repaired; timer focus diagnostics added, earlier intermittent cause unproven. Full regression and financial composition failures remain open."
+        },
+        "financialCompositionBrowserFollowUp": {
+          "codeCommit": "a3461ced",
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "durationSeconds": 72,
+          "report": "/tmp/auditsphere-parity-regression/financial-source-composition-parity-complete.trx",
+          "scope": "Package review/download/revocation and period reopening; real source-backed candidate composition. Full financial-artifact class running; full solution remains open.",
+          "fullClass": {
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationSeconds": 137,
+            "report": "/tmp/auditsphere-parity-regression/financial-artifact-parity-cohort.trx",
+            "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~AngularFinancialArtifactParityJourneyTests"
+          }
+        },
+        "profileConfirmationBrowserFollowUp": {
+          "codeCommit": "a3461ced",
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0,
+          "durationSeconds": 82,
+          "report": "/tmp/auditsphere-parity-regression/profile-confirmation-current-parity.trx",
+          "scope": "Both client-profile route modes and confirmation storage-failure navigation; earlier failures not reproduced, no tests changed."
+        }
+      },
       "agentCapabilityRunner20261016": {
         "recordedAtUtc": "2026-10-13T15:34:45.303671+00:00",
         "baseCommit": "cef614954375ac4ccc7c1cb436e11b94ab8802e8",
@@ -16983,114 +17082,174 @@
         },
         "remaining": "Full current-tree regression; remaining source-action, role/scope, mutation, authenticated browser recovery, load, assistive-technology and locale acceptance; production-like cutover/recovery and external gates. Web remains present; retirement NOT_READY.",
         "boundaries": "No persistent database migration, live provider action, deployment or professional approval."
-      }
-    ,
+      },
       "ste22EndToEndIncrement1": {
-      "recordedAtUtc": "2026-10-15T03:20:00Z",
-      "source": "STE v2.2 end-to-end audit and completion story reviewed at b05a6bf6 (F-01..F-15, CP-00..CP-25); first dependency-ordered increment",
-      "baseCommit": "b05a6bf6fb84088dba9123104e974afffac74714",
-      "closedInCode": [
-        "F-15 composition-binding migration Down renames bundle indexes from the lowest free suffix; downgrade refuses once a decision, release or bundle names a composition",
-        "F-01 Angular build form mirrors the server cash/noncash projection role; stored ledger amounts unchanged; projected effect shown",
-        "F-02 client portal view and decision name the exact sealed composition; request identity and expected latest decision; authorized exact-PDF download with browser fingerprint check",
-        "F-03 signing candidate requires every presentation check to pass (statement-candidate-readiness.v1); note/disclosure/equity content via append-only independent content review of the exact draft snapshot; formal decisions, client offer and release recheck the candidate",
-        "F-04 formal decisions: client-safety/package/grant locks with post-wait authority recheck, original-request receipts, expected latest decision, database sequence and predecessor link, latest-effective approval chain for progression and release",
-        "F-05 cash-flow source review takes the client safety row before the package row; lock order recorded in the architecture code map",
-        "F-09 one immutable voucher and one dispatch intent per actual payment; settlement receipt v2 lists constituent payments",
-        "F-11 label: candidate banner no longer claims a review that has not occurred"
-      ],
-      "migrations": [
-        "20261015000622_FinancialStatementReviewCompositionBinding (Down corrected)",
-        "20261015020548_PackageDecisionReceiptsContentReviewAndPaymentVouchers (additive, append-only content reviews, guarded downgrade)"
-      ],
-      "environment": "Local container: .NET SDK 10.0.300, Node 26.8.1, PostgreSQL 18.6 on port 5433 (disposable test databases only)",
-      "runs": [
+        "recordedAtUtc": "2026-10-15T03:20:00Z",
+        "source": "STE v2.2 end-to-end audit and completion story reviewed at b05a6bf6 (F-01..F-15, CP-00..CP-25); first dependency-ordered increment",
+        "baseCommit": "b05a6bf6fb84088dba9123104e974afffac74714",
+        "closedInCode": [
+          "F-15 composition-binding migration Down renames bundle indexes from the lowest free suffix; downgrade refuses once a decision, release or bundle names a composition",
+          "F-01 Angular build form mirrors the server cash/noncash projection role; stored ledger amounts unchanged; projected effect shown",
+          "F-02 client portal view and decision name the exact sealed composition; request identity and expected latest decision; authorized exact-PDF download with browser fingerprint check",
+          "F-03 signing candidate requires every presentation check to pass (statement-candidate-readiness.v1); note/disclosure/equity content via append-only independent content review of the exact draft snapshot; formal decisions, client offer and release recheck the candidate",
+          "F-04 formal decisions: client-safety/package/grant locks with post-wait authority recheck, original-request receipts, expected latest decision, database sequence and predecessor link, latest-effective approval chain for progression and release",
+          "F-05 cash-flow source review takes the client safety row before the package row; lock order recorded in the architecture code map",
+          "F-09 one immutable voucher and one dispatch intent per actual payment; settlement receipt v2 lists constituent payments",
+          "F-11 label: candidate banner no longer claims a review that has not occurred"
+        ],
+        "migrations": [
+          "20261015000622_FinancialStatementReviewCompositionBinding (Down corrected)",
+          "20261015020548_PackageDecisionReceiptsContentReviewAndPaymentVouchers (additive, append-only content reviews, guarded downgrade)"
+        ],
+        "environment": "Local container: .NET SDK 10.0.300, Node 26.8.1, PostgreSQL 18.6 on port 5433 (disposable test databases only)",
+        "runs": [
+          {
+            "name": "Release solution build",
+            "result": "PASS",
+            "warnings": 0,
+            "errors": 0,
+            "note": "local build used DOTNET_GCHeapHardLimit=0x600000000 because the default compiler heap ran out of memory on the Infrastructure project"
+          },
+          {
+            "name": "CI Domain filter (ci.yml)",
+            "result": "PASS",
+            "passed": 145,
+            "failed": 0
+          },
+          {
+            "name": "CI API filter (ci.yml)",
+            "result": "PASS",
+            "passed": 8,
+            "failed": 0
+          },
+          {
+            "name": "Full unfiltered Domain suite, this tree",
+            "passed": 1003,
+            "failed": 27,
+            "total": 1030
+          },
+          {
+            "name": "Full unfiltered Domain suite, base commit b05a6bf6 (same environment)",
+            "passed": 995,
+            "failed": 32,
+            "total": 1027
+          },
+          {
+            "name": "Domain failure comparison",
+            "result": "No failure unique to this tree; all 27 remaining failures reproduce on the base commit (composition-required legacy release paths in translation/group/period-close tests, client-site rollout policy, receipt timestamp-precision tests, restatement, markdown filename test). Fixed versus base: both F-15 tests, CurrentSettlementSchemaRetainsItsGuardAndPermanentFreezeBlocksDowngrade."
+          },
+          {
+            "name": "Full unfiltered API suite, this tree",
+            "passed": 229,
+            "failed": 6,
+            "total": 235,
+            "note": "Each failure (StaffingChangeReviewApiTests.ExactReview…, ClientConversionReviewApiTests.ExactReview…, ClientContactCreationApiTests.CookieCsrf…, ConsolidationWorkspaceApiTests.ScopeWorkspace…, FirmReceivablesAgingApiTests.Terms…, ResourcePlanningReceiptApiTests.PlanningCsrf…) was rerun on base commit b05a6bf6 in the same environment and fails there too; none is unique to this tree."
+          },
+          {
+            "name": "Angular CI specs",
+            "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
+            "specFiles": 129,
+            "tests": 752,
+            "failed": 0
+          },
+          {
+            "name": "Angular production build",
+            "result": "PASS_WITH_WARNING",
+            "warning": "existing commercial/settings.scss budget warning (7.53 kB against 4.00 kB)"
+          },
+          {
+            "name": "EF model drift",
+            "result": "no pending model changes"
+          },
+          {
+            "name": "OpenAPI drift",
+            "result": "regenerated; contract is current"
+          },
+          {
+            "name": "Documentation, filename, narrative-metrics, UI inventory, git diff --check",
+            "result": "PASS"
+          }
+        ],
+        "notRun": [
+          "E2E/Playwright suite",
+          "authenticated browser journeys",
+          "hosted CI and release-verification workflows",
+          "live provider, deployment or production checks"
+        ],
+        "stillOpen": [
+          "F-06",
+          "F-07",
+          "F-08",
+          "F-10",
+          "F-11 publication content",
+          "F-12",
+          "F-13",
+          "F-14",
+          "28 pre-existing Domain failures listed above",
+          "professional decision packets (T003 profile, management signatory/capacity, document wording)"
+        ]
+      },
+      "clientSitesDefaultRolloutRuns": [
         {
-          "name": "Release solution build",
-          "result": "PASS",
-          "warnings": 0,
-          "errors": 0,
-          "note": "local build used DOTNET_GCHeapHardLimit=0x600000000 because the default compiler heap ran out of memory on the Infrastructure project"
-        },
-        {
-          "name": "CI Domain filter (ci.yml)",
-          "result": "PASS",
-          "passed": 145,
+          "name": "Workspace provisioning API tests",
+          "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~WorkspaceProvisioningApiTests",
+          "passed": 4,
           "failed": 0
         },
         {
-          "name": "CI API filter (ci.yml)",
-          "result": "PASS",
-          "passed": 8,
+          "name": "Client site rollout Domain tests",
+          "classes": [
+            "ClientSharePointSitesTests",
+            "SharePointClientSiteProviderTests",
+            "EngagementWorkspaceProvisioningTests"
+          ],
+          "passed": 36,
           "failed": 0
         },
         {
-          "name": "Full unfiltered Domain suite, this tree",
-          "passed": 1003,
-          "failed": 27,
-          "total": 1030
-        },
-        {
-          "name": "Full unfiltered Domain suite, base commit b05a6bf6 (same environment)",
-          "passed": 995,
-          "failed": 32,
-          "total": 1027
-        },
-        {
-          "name": "Domain failure comparison",
-          "result": "No failure unique to this tree; all 27 remaining failures reproduce on the base commit (composition-required legacy release paths in translation/group/period-close tests, client-site rollout policy, receipt timestamp-precision tests, restatement, markdown filename test). Fixed versus base: both F-15 tests, CurrentSettlementSchemaRetainsItsGuardAndPermanentFreezeBlocksDowngrade."
-        },
-        {
-          "name": "Full unfiltered API suite, this tree",
-          "passed": 229,
-          "failed": 6,
-          "total": 235,
-          "note": "Each failure (StaffingChangeReviewApiTests.ExactReview…, ClientConversionReviewApiTests.ExactReview…, ClientContactCreationApiTests.CookieCsrf…, ConsolidationWorkspaceApiTests.ScopeWorkspace…, FirmReceivablesAgingApiTests.Terms…, ResourcePlanningReceiptApiTests.PlanningCsrf…) was rerun on base commit b05a6bf6 in the same environment and fails there too; none is unique to this tree."
+          "name": "Client site administration Playwright journey",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~ClientSharePointSitesJourneyTests",
+          "passed": 1,
+          "failed": 0,
+          "browser": "Playwright Chromium against the synthetic PostgreSQL test database"
         },
         {
           "name": "Angular CI specs",
           "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
-          "specFiles": 129,
-          "tests": 752,
+          "specFiles": 115,
+          "passed": 634,
           "failed": 0
         },
         {
           "name": "Angular production build",
+          "command": "env NG_BUILD_CACHE_STORE=sqlite NG_BUILD_MAX_WORKERS=2 npm --prefix src/AuditSphereOps.Ui run build -- --progress=false",
           "result": "PASS_WITH_WARNING",
-          "warning": "existing commercial/settings.scss budget warning (7.53 kB against 4.00 kB)"
+          "warning": "Existing src/app/features/commercial/settings.scss component stylesheet exceeds the 4 KB budget by 3.53 KB."
         },
         {
           "name": "EF model drift",
-          "result": "no pending model changes"
+          "command": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+          "result": "PASS: no pending model changes"
         },
         {
           "name": "OpenAPI drift",
-          "result": "regenerated; contract is current"
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS: contract is current"
         },
         {
-          "name": "Documentation, filename, narrative-metrics, UI inventory, git diff --check",
-          "result": "PASS"
+          "name": "Documentation and source inventory gates",
+          "result": "PASS",
+          "markdownFiles": 198,
+          "relativeLinks": 2665,
+          "filenamePolicy": "PASS",
+          "narrativeMetrics": "PASS",
+          "angularSourceInventory": "PASS"
+        },
+        {
+          "name": "Built-in browser smoke check",
+          "result": "Local Angular app displayed its unauthenticated sign-in gate; the local API was unavailable. Authenticated administration journey was verified by the Playwright test above."
         }
-      ],
-      "notRun": [
-        "E2E/Playwright suite",
-        "authenticated browser journeys",
-        "hosted CI and release-verification workflows",
-        "live provider, deployment or production checks"
-      ],
-      "stillOpen": [
-        "F-06",
-        "F-07",
-        "F-08",
-        "F-10",
-        "F-11 publication content",
-        "F-12",
-        "F-13",
-        "F-14",
-        "28 pre-existing Domain failures listed above",
-        "professional decision packets (T003 profile, management signatory/capacity, document wording)"
       ]
-    }
     },
     "angularMigrationAsPar002Details20261015": "Verified slices cover firm/client/engagement/group grant scoping; protected details, queues, exports and route reads; revocation denials; stale-content clearing; PBC request/inbox role, recipient, draft, sibling-engagement, cross-client and revocation boundaries; archive/review responsive stale-route cases; an accounting task-owner projection limited to current engagement grants; Angular release-candidate scope, expired-attestation blocking, stale-route clearing and post-revocation hiding; same-client sibling-engagement isolation for workpaper, finding, population and accounting mapping; completion, audit-plan and adopted-fieldwork route clearing/recovery; reviewer-only fieldwork data redaction and command denial; materiality self-approval suppression; refresh-time clearing after revocation for workpaper/finding/audit-plan; exact-source human audit conclusions; reviewed fieldwork/workpaper freezing across reload; package, journal, FX-remeasurement, package-review selection recovery and client-management artifact/decision parity; accounting evidence, period, record-queue, workspace, restatement and roll-forward behavior; prior-continuance evidence-reference retention, reviewed blocked-engagement draft creation, Partner activation review, receipt recovery and revocation clearing, and exact-target confirmation review for local access revocation and lead qualification. All 39 removed ClientScopeJourneyTests, all 13 AuditAndReleaseJourneyTests and all 19 FinancialArtifactJourneyTests methods have assertion crosswalks; the removed-suite E2E method crosswalk is 82/82. AS-PAR-002 remains partial: all 76 source/action rows have dispositions (one parity-verified and 75 partial), and the 28 supporting-file reviews remain partial. Complete assertion-level authorization and recovery crosswalks are still required. The Release candidate now has a PostgreSQL-backed Angular issue and lost-response assertion that confirms persisted ISSUED state, sends one request, and creates one release event and durable operation. Broad retry/idempotency and corresponding HTTP/browser positive-negative checks across remaining actions are still open. A dedicated API-host Angular firm-books journey verifies evidence capture, required reviewer-authored rejection, same-preparer API denial, a second same-day expense submission, independent approval/posting and balanced trial balance; the three finance source/action rows remain partial. The old timestamp-prefix journal-number collision was fixed by including the full expense GUID. Finance malformed/oversized input, cross-firm isolation, retry/revocation and invoice lifecycle gaps remain open. Full AS-PAR-002 acceptance remains open. A focused direct Global Search API browser journey now verifies assigned-client hits, sibling-client and foreign-firm no-hit/no-count behavior, ClientUser denial, revoked-grant empty results, and stale-session 401; ranking/candidate behavior and exhaustive role/scope cases remain open; technical-library audience and firm isolation now have focused coverage. A PostgreSQL-backed GlobalSearchQueryTests invoice case now verifies FinanceManager client scope, ordinary Staff denial, firm-wide FinanceReviewer in-firm visibility, and foreign-firm invoice exclusion; the 11-test query class passed. Remaining result-kind ranking/cap behavior, exhaustive role/scope, empty/error recovery, and assistive-technology coverage remain open. A PostgreSQL-backed portfolio browser journey now checks direct workspace API aggregate counts with sibling-client data present on canonical and /ui routes; it passed 2/2 and reports only the assigned client, engagement, candidate and release totals. At abb798ea, PortfolioWorkspaceTests and PortfolioQueryTests passed 5/5 and now prove exactly 1,000 client rows are exportable while 1,001 fail closed with export.limit. Global Search now has direct API assertions for short and overlong terms and a PostgreSQL test for the six-lead result cap with truncation; GlobalSearchJourneyTests passed 2/2 and GlobalSearchQueryTests passed 12/12. Ranking/candidate behavior across result kinds, exhaustive roles/scopes and additional error/recovery cases remain open; technical-library audience, publication and firm isolation now have focused PostgreSQL query coverage. The existing AngularClientContactCreationJourneyTests cohort was rerun and passed 2/2 on canonical and /ui routes, covering draft restore, reviewed primary replacement, lost-response receipt reconciliation without duplication, and grant-revocation clearing; UI validation/conflict rendering remains open; PostgreSQL service tests cover invalid field samples and stale-generation refusal, while exhaustive role/scope and cross-firm HTTP matrices remain open. The parameterless route sweep passed 1/1 for direct / navigation in canonical mode, and a two-mode authenticated root journey passed 2/2 for /app and /ui/app. An additional unauthenticated root journey passed 2/2, verifying a sign-in prompt, exact return destination and successful arrival in each mode; fallback-host behavior remains open. The Operations page denial copy is pinned by a passing browser assertion; the existing protected action journey confirms firm-wide Administrator access. At code commit cb4efe8f, an expired Administrator grant is revoked once under concurrent browser/API requests, advances the session epoch once and records one EXPIRY event; the stale Operations read returns a safe 401/409 with no operation data. Cross-firm Operations list/retry/cancel isolation now has browser coverage; cross-firm boundaries for other capabilities, concurrent or ambiguous recovery and quarantine paths remain open. The Angular browser journey now also verifies a scoped Staff search renders a published ALL_STAFF technical-library hit as a navigable link, opens the exact library route and clears results; GlobalSearchJourneyTests passed 2/2. Ranking/candidate limits across result kinds, exhaustive role/scope and complete accessibility/recovery acceptance remain open. The 48s GlobalSearchJourneyTests rerun also verifies the supported Practice time page result opens /app/practice/time and clears search after navigation. Per-kind ranking/candidate limits, exhaustive roles/scopes and remaining error/recovery cases are still open. The 14-test PostgreSQL search cohort now verifies six-hit truncation for library and page results (seven matching library entries and more than six matching pages); the Angular browser cohort remains 2/2 for library and supported-page navigation. Client, engagement, PBC and invoice cap/ranking behavior and exhaustive role/scope remain open. An Angular browser rerun with seven published library matches now confirms six visible links and the refinement hint while preserving navigation to the selected exact entry; GlobalSearchJourneyTests passed 2/2 in 47s. Page-only truncation guidance is now verified in Angular: six Page hits return with truncated=true, six links render and the refinement hint appears. PostgreSQL cap/truncation coverage now includes all seven result kinds; client, engagement, PBC and invoice queries each return six of seven authorized matches with truncated=true. At 0fa19701, a PostgreSQL fixture with 31 valid authorized matches per Client, Engagement, PBC request and Invoice verified six-hit caps, truncated=true and stable tie ordering beyond the 25-row candidate window. At c5887ee8, lead results also have a deterministic ID tie-break before the six-hit cap (eight equal-name leads inserted in reverse ID order); GlobalSearchQueryTests passed 17/17 and GlobalSearchJourneyTests passed 4/4. Exhaustive role/scope, broader ranking and additional query/error cases remain open. Search recovery covers synthetic 503/retry, malformed 200 and 401 clearing. At fa386c32, GlobalSearchJourneyTests passed 4/4 in 1m25s, including timeout and explicit-retry recovery plus persisted session-epoch revocation during a pending search. After the protected API returns 401, search content clears and the delayed hit cannot restore stale content; the revocation case passed 1/1 in 29s. Angular unit cancellation tests were not rerun; cross-route revocation matrices remain open. At 8faa79b2, an isolated PostgreSQL/API-host Angular browser journey covers assigned-client invoice receipt recording/allocation and credit-note issuance for a client-scoped FinanceManager, with four sibling/cross-client API mutations denied and no persisted sibling changes. This closes only those scoped billing command checks; complete source/action, role/scope and recovery crosswalks remain open. At d7854fc8, an isolated PostgreSQL/API-host Angular journey covers unknown browser outcomes for accepted invoice approval, posting and sending; each requires explicit state refresh and persists exactly one transition. Other lifecycle, role/scope and recovery crosswalks remain open. At 356d48a9, a PostgreSQL/API-host Angular role journey verifies firm-wide FinanceManager read without close authority, FinanceReviewer close visibility, and safe Partner denial; direct manager close receives 403 and persists no decision. Complete source/action scope and recovery crosswalks remain open."
   }

@@ -1,10 +1,11 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { SessionService } from '../../core/session';
 
 const deliverable = obj({ id: guid, kind: text, title: text, version: nat, signed: bool, current: bool, contentSha256: text, createdAt: instant,
   signatureKind: oneOf('NONE', 'VISUAL', 'CERTIFICATE'), certificateSubject: nullable(text) });
@@ -297,13 +298,31 @@ export class EngagementCompletion {
   send(url: string, body: unknown, ok: string): void { void this.cmd.run(url, body, ok).finally(() => this.ws.reload()); }
   readonly signatureCheck = signal<ReturnType<typeof decodeSignatureCheck> | null>(null);
   readonly verifying = signal(false);
+  private readonly signatureSession = inject(SessionService);
+  private readonly signatureLifetime = inject(DestroyRef);
+  private signatureRequest = 0;
+  private signatureDestroyed = false;
+  constructor() {
+    this.signatureLifetime.onDestroy(() => { this.signatureDestroyed = true; ++this.signatureRequest; this.signatureCheck.set(null); });
+    effect(() => {
+      this.id(); this.ws.data(); this.signatureSession.current(); this.signatureSession.invalidation();
+      untracked(() => { ++this.signatureRequest; this.signatureCheck.set(null); this.verifying.set(false); });
+    });
+  }
   /** Asks the server to re-check the stored signed report; the result is shown, never inferred in the browser. */
   async verifySignature(id: string): Promise<void> {
-    if (this.verifying()) return;
+    const workspace = this.ws.data(), actor = this.signatureSession.current(), epoch = this.signatureSession.invalidation(), engagement = this.id();
+    if (this.signatureDestroyed || this.verifying() || !actor?.staff || !workspace?.deliverables.some(d => d.id === id && d.signed && d.kind === 'INDEPENDENT_AUDITORS_REPORT')) return;
+    const request = ++this.signatureRequest;
+    const current = () => !this.signatureDestroyed && request === this.signatureRequest && workspace === this.ws.data() &&
+      engagement === this.id() && actor === this.signatureSession.current() && epoch === this.signatureSession.invalidation();
     this.verifying.set(true); this.signatureCheck.set(null);
-    try { this.signatureCheck.set(await this.api.get(`/api/ui/deliverables/${id}/signature`, decodeSignatureCheck)); }
-    catch { this.signatureCheck.set({ signatureKind: 'VISUAL', state: 'UNREADABLE', subject: null, thumbprintSha256: null, message: 'The signature could not be checked. Refresh and try again.' }); }
-    finally { this.verifying.set(false); }
+    try {
+      const result = await this.api.get(`/api/ui/deliverables/${id}/signature`, decodeSignatureCheck);
+      if (current()) this.signatureCheck.set(result);
+    }
+    catch { if (current()) this.signatureCheck.set({ signatureKind: 'VISUAL', state: 'UNREADABLE', subject: null, thumbprintSha256: null, message: 'The signature could not be checked. Refresh and try again.' }); }
+    finally { if (current()) this.verifying.set(false); }
   }
   /** Explicit, idempotent dispatch of the current holding letter; the server refuses a superseded letter. */
   dispatchHoldingLetter(): void {
