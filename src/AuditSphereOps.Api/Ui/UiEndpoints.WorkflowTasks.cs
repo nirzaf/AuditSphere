@@ -29,7 +29,9 @@ public static partial class UiEndpoints
   public sealed record WorkflowTemplateStepInput(
     string StableKey, string Phase, string Title, string Instructions, string? SuggestedStaffingLevel,
     int? EstimatedEffortMinutes, int? DueDateOffsetDays, string? PbcRequestReference, bool RequiredTask,
-    int SortOrder, IReadOnlyList<string>? DependsOnStepKeys);
+    int SortOrder, IReadOnlyList<string>? DependsOnStepKeys, WorkflowTemplatePbcDefinitionInput? PbcDefinition = null);
+  public sealed record WorkflowTemplatePbcDefinitionInput(string Objective, string EntityScope, string Area,
+    string RequestedFormat, string? ControlTotals, string Confidentiality, string AcceptanceCriteria);
   public sealed record WorkflowTemplateDraftInput(
     Guid? TemplateId, string Name, string ServiceRoute, string? IndustryKey,
     IReadOnlyList<WorkflowTemplateStepInput> Steps, long? ExpectedRevision);
@@ -246,5 +248,8 @@ public static partial class UiEndpoints
     new(input.TemplateId, input.Name, input.ServiceRoute, input.IndustryKey,
       (input.Steps ?? []).Select(x => new WorkflowTemplateStepDraft(x.StableKey, x.Phase, x.Title, x.Instructions,
         x.SuggestedStaffingLevel, x.EstimatedEffortMinutes, x.DueDateOffsetDays, x.PbcRequestReference,
-        x.RequiredTask, x.SortOrder, x.DependsOnStepKeys)).ToArray(), input.ExpectedRevision);
+        x.RequiredTask, x.SortOrder, x.DependsOnStepKeys, x.PbcDefinition is null ? null :
+          new WorkflowTemplatePbcDefinition(x.PbcDefinition.Objective, x.PbcDefinition.EntityScope, x.PbcDefinition.Area,
+            x.PbcDefinition.RequestedFormat, x.PbcDefinition.ControlTotals, x.PbcDefinition.Confidentiality,
+            x.PbcDefinition.AcceptanceCriteria))).ToArray(), input.ExpectedRevision);
 }
