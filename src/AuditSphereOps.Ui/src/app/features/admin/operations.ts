@@ -75,7 +75,7 @@ const ADMIN_ACCESS_UNAVAILABLE = 'Operations is limited to firm-wide AuditSphere
               <option value="AUTHORIZATION_BLOCKED">Authorization blocked</option><option value="RESULT_UNCERTAIN">Result uncertain</option>
             </select>
           </label>
-          <label for="operation-exact-id">Exact operation ID <input id="operation-exact-id" name="operationId" [ngModel]="discoveryOperationId" (ngModelChange)="setDiscoveryOperationId($event)" autocomplete="off" /></label>
+          <label for="operation-exact-id">Exact operation ID <input id="operation-exact-id" name="operationId" [value]="discoveryOperationId" (input)="setDiscoveryOperationId($any($event.target).value)" autocomplete="off" /></label>
           <button type="submit" matButton="outlined" [disabled]="cmd.busy() || ops.loading() || discovery.loading()">Search unresolved work</button>
         </form>
         @if (discoveryInputError) { <p role="alert">{{ discoveryInputError }}</p> }
