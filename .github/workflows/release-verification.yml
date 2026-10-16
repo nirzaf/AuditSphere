@@ -1,14 +1,18 @@
 name: AuditSphere release verification
 
-# Full release contract on one commit. The fast gate in ci.yml keeps its own triggers and its
-# filtered, focused jobs; this workflow is separate and never runs on push or pull_request. On the
-# exact commit it checks out, it runs the complete unfiltered solution suite (Domain, API host and
-# Playwright E2E projects), the Angular specs, EF model drift, OpenAPI drift, the standalone
-# publication check and the documentation validators.
+# Full release contract on one resolved commit. The fast gate in ci.yml keeps its own triggers and
+# focused jobs; this workflow is separate and never runs on push or pull_request. The complete
+# unfiltered .NET suite runs once per test project, with a separate ephemeral PostgreSQL service for
+# every matrix job. The Angular production bundle is built once and shared with the API/E2E tests.
+# No test project is filtered or omitted, and the aggregate release gate requires every job below.
 #
-# Every command runs through scripts/release/run-verification-step.sh, which records the commit, the
-# command and its exact exit status in the job summary and keeps the full log. Logs and TRX results
-# are uploaded as artifacts. No step uses continue-on-error: a failing command fails the job.
+# Every verification command runs through scripts/release/run-verification-step.sh, which records
+# its command and exact exit status in the job summary and preserves the full log. Per-project logs
+# and TRX files are uploaded as artifacts. No step uses continue-on-error.
+#
+# Resolve the operator's exact requested ref once, then check out that immutable commit in every
+# job. This preserves workflow_dispatch ref selection while preventing moving branches/tags from
+# making parallel jobs verify different source revisions.
 #
 # The release workflow requires a successful ci.yml run for the released SHA. It does not yet require
 # this workflow; making it a required check is an owner decision (branch protection and release gates).
@@ -41,15 +45,140 @@ env:
   Application__AllowSimulationAdapters: 'true'
   DevelopmentIdentity__Enabled: 'false'
   E2E_BROWSER: chromium
-  AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=auditsphere_tests;Username=postgres;Password=postgres;Pooling=false
 
 jobs:
-  full-verification:
-    name: Verify · Full release contract
+  resolve-ref:
+    name: Resolve · Requested ref
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.resolve.outputs.commit }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the requested ref
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref || github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Resolve immutable commit
+        id: resolve
+        env:
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse HEAD)"
+          printf 'commit=%s\n' "$commit" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Release verification source"
+            echo
+            echo "- Requested ref: \`$REQUESTED_REF\`"
+            echo "- Resolved commit: \`$commit\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  angular:
+    name: Build · Angular and full specs
+    needs: resolve-ref
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the resolved requested ref
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.commit }}
+          persist-credentials: false
+
+      - name: Prepare evidence directories and job summary
+        env:
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/release-verification"
+          mkdir -p "$evidence/logs" "$evidence/trx"
+          echo "VERIFICATION_LOG_DIR=$evidence/logs" >> "$GITHUB_ENV"
+          echo "VERIFICATION_TRX_DIR=$evidence/trx" >> "$GITHUB_ENV"
+          {
+            echo "## Angular verification"
+            echo
+            echo "- Requested ref: \`$REQUESTED_REF\`"
+            echo "- Commit: \`$SOURCE_COMMIT\`"
+            echo
+            echo "| Step | Command | Exit status | Result |"
+            echo "| --- | --- | ---: | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: src/AuditSphereOps.Ui/.nvmrc
+          cache: npm
+          cache-dependency-path: src/AuditSphereOps.Ui/package-lock.json
+
+      - name: Angular install, production build and full specs
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "npm ci (Angular)" \
+            npm --prefix src/AuditSphereOps.Ui ci
+          bash scripts/release/run-verification-step.sh "Angular production build" \
+            npm --prefix src/AuditSphereOps.Ui run build
+          bash scripts/release/run-verification-step.sh "Angular full specs (test:ci)" \
+            npm --prefix src/AuditSphereOps.Ui run test:ci
+
+      - name: Upload Angular browser bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: angular-ui-browser
+          path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
+          retention-days: 1
+
+      - name: Upload Angular verification logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-logs-angular
+          path: ${{ runner.temp }}/release-verification/logs
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Record Angular job outcome
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          {
+            echo
+            echo "Angular verification outcome: \`$RESULT\`"
+            echo "Commit: \`$SOURCE_COMMIT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  dotnet-tests:
+    name: Test · .NET ${{ matrix.name }} (unfiltered)
+    needs: [resolve-ref, angular]
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Domain
+            key: domain
+            project: tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj
+          - name: API
+            key: api
+            project: tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj
+          - name: Playwright E2E
+            key: e2e
+            project: tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj
     services:
-      # Same PostgreSQL service and test database as the .NET gate in ci.yml.
+      # Each matrix child runs on its own runner and receives its own PostgreSQL service/container.
       postgres:
         image: postgres:18.6
         env:
@@ -63,19 +192,25 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 15
+    env:
+      AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=auditsphere_tests;Username=postgres;Password=postgres;Pooling=false
+      TEST_PROJECT: ${{ matrix.project }}
+      TEST_PROJECT_KEY: ${{ matrix.key }}
     defaults:
       run:
         shell: bash
     steps:
-      - name: Check out the requested ref
+      - name: Check out the resolved requested ref
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.ref || github.event.repository.default_branch }}
+          ref: ${{ needs.resolve-ref.outputs.commit }}
           persist-credentials: false
 
-      - name: Prepare evidence directories and job summary
+      - name: Prepare evidence directories and project outcome summary
         env:
           REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+          TEST_PROJECT_NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
           evidence="$RUNNER_TEMP/release-verification"
@@ -83,12 +218,12 @@ jobs:
           echo "VERIFICATION_LOG_DIR=$evidence/logs" >> "$GITHUB_ENV"
           echo "VERIFICATION_TRX_DIR=$evidence/trx" >> "$GITHUB_ENV"
           {
-            echo "## Release verification"
+            echo "## .NET test project: $TEST_PROJECT_NAME"
             echo
-            echo "- Commit: \`$(git rev-parse HEAD)\`"
             echo "- Requested ref: \`$REQUESTED_REF\`"
-            echo "- Trigger: \`$GITHUB_EVENT_NAME\`"
-            echo "- Run: \`$GITHUB_RUN_ID\` / attempt \`$GITHUB_RUN_ATTEMPT\`"
+            echo "- Commit: \`$SOURCE_COMMIT\`"
+            echo "- Project: \`$TEST_PROJECT\`"
+            echo "- PostgreSQL: isolated service for this matrix job"
             echo
             echo "| Step | Command | Exit status | Result |"
             echo "| --- | --- | ---: | --- |"
@@ -101,57 +236,121 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
-      - name: Verify the pinned .NET SDK
+      - name: Verify pinned SDK and restore project dependencies
         run: |
           set -euo pipefail
           bash scripts/release/run-verification-step.sh "Pinned .NET SDK disables roll-forward" \
             jq -e '.sdk.rollForward == "disable"' global.json
           bash scripts/release/run-verification-step.sh "Selected .NET SDK matches global.json" \
             bash -c 'test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"'
+          bash scripts/release/run-verification-step.sh "dotnet restore (locked mode, $TEST_PROJECT_KEY)" \
+            dotnet restore "$TEST_PROJECT" --locked-mode
 
-      - name: Set up Node from the Angular .nvmrc
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Download Angular browser bundle for API and E2E hosts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          node-version-file: src/AuditSphereOps.Ui/.nvmrc
-          cache: npm
-          cache-dependency-path: src/AuditSphereOps.Ui/package-lock.json
+          name: angular-ui-browser
+          path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
 
-      - name: Restore tools and packages, then build Release
+      - name: Build and run the complete unfiltered test project
         run: |
           set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Release build ($TEST_PROJECT_KEY)" \
+            dotnet build "$TEST_PROJECT" --no-restore --configuration Release --maxcpucount:1
+          if [ "$TEST_PROJECT_KEY" = e2e ]; then
+            bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
+              pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+          fi
+          bash scripts/release/run-verification-step.sh "Full $TEST_PROJECT_KEY test project (no --filter)" \
+            dotnet test "$TEST_PROJECT" --no-build --no-restore --configuration Release --maxcpucount:1 \
+            --logger "trx;LogFileName=$TEST_PROJECT_KEY.trx" --results-directory "$VERIFICATION_TRX_DIR"
+
+      - name: Upload ${{ matrix.name }} command logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-logs-${{ matrix.key }}
+          path: ${{ runner.temp }}/release-verification/logs
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload ${{ matrix.name }} TRX results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-trx-${{ matrix.key }}
+          path: ${{ runner.temp }}/release-verification/trx
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Record ${{ matrix.name }} project outcome
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          {
+            echo
+            echo "$TEST_PROJECT_KEY test outcome: \`$RESULT\`"
+            echo "Project: \`$TEST_PROJECT\`"
+            echo "Commit: \`$SOURCE_COMMIT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release-contract:
+    name: Verify · Build, contracts and publication
+    needs: [resolve-ref, angular]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the resolved requested ref
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve-ref.outputs.commit }}
+          persist-credentials: false
+
+      - name: Prepare evidence directories and job summary
+        env:
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/release-verification"
+          mkdir -p "$evidence/logs" "$evidence/trx"
+          echo "VERIFICATION_LOG_DIR=$evidence/logs" >> "$GITHUB_ENV"
+          echo "VERIFICATION_TRX_DIR=$evidence/trx" >> "$GITHUB_ENV"
+          {
+            echo "## Build, contract and publication verification"
+            echo
+            echo "- Requested ref: \`$REQUESTED_REF\`"
+            echo "- Commit: \`$SOURCE_COMMIT\`"
+            echo
+            echo "| Step | Command | Exit status | Result |"
+            echo "| --- | --- | ---: | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up the pinned .NET SDK
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Verify SDK, restore tools and packages, then build Release
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Pinned .NET SDK disables roll-forward" \
+            jq -e '.sdk.rollForward == "disable"' global.json
+          bash scripts/release/run-verification-step.sh "Selected .NET SDK matches global.json" \
+            bash -c 'test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"'
           bash scripts/release/run-verification-step.sh "dotnet tool restore" dotnet tool restore
           bash scripts/release/run-verification-step.sh "dotnet restore (locked mode)" \
             dotnet restore AuditSphereOps.slnx --locked-mode
-          # One MSBuild node: the test projects and Web reference the Api, and parallel builds race
-          # on its outputs (see the matching comment in ci.yml).
           bash scripts/release/run-verification-step.sh "dotnet build (Release, one MSBuild node)" \
             dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
-
-      # The Angular browser bundle is a runtime input to the full .NET suite: the API host tests and
-      # the Playwright journeys serve it from src/AuditSphereOps.Ui/dist. It is therefore built before
-      # the .NET test run rather than after it.
-      - name: Angular install, production build and full specs
-        run: |
-          set -euo pipefail
-          bash scripts/release/run-verification-step.sh "npm ci (Angular)" \
-            npm --prefix src/AuditSphereOps.Ui ci
-          bash scripts/release/run-verification-step.sh "Angular production build" \
-            npm --prefix src/AuditSphereOps.Ui run build
-          bash scripts/release/run-verification-step.sh "Angular full specs (test:ci)" \
-            npm --prefix src/AuditSphereOps.Ui run test:ci
-
-      - name: Install Playwright Chromium for the E2E project
-        run: |
-          set -euo pipefail
-          bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
-            pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
-
-      - name: Full solution test suite (no filter)
-        run: |
-          set -euo pipefail
-          bash scripts/release/run-verification-step.sh "Full solution test suite (no --filter)" \
-            dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --maxcpucount:1 \
-            --logger trx --results-directory "$VERIFICATION_TRX_DIR"
 
       - name: EF model drift and OpenAPI contract drift
         run: |
@@ -161,6 +360,12 @@ jobs:
             --startup-project src/AuditSphereOps.Api --no-build --configuration Release
           bash scripts/release/run-verification-step.sh "OpenAPI contract drift" \
             bash scripts/contracts/verify-openapi.sh
+
+      - name: Download Angular browser bundle for standalone publication
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: angular-ui-browser
+          path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
 
       - name: Standalone API and Angular publication
         run: |
@@ -187,30 +392,65 @@ jobs:
           bash scripts/release/run-verification-step.sh "UI source discovery drift" \
             python3 scripts/ui/inventory.py --check
 
-      - name: Upload command logs
+      - name: Upload build and contract verification logs
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-verification-logs
+          name: release-verification-logs-contract
           path: ${{ runner.temp }}/release-verification/logs
+          if-no-files-found: warn
           retention-days: 30
 
-      - name: Upload TRX test results
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-verification-trx
-          path: ${{ runner.temp }}/release-verification/trx
-          retention-days: 30
-
-      - name: Record the job outcome
+      - name: Record build and contract outcome
         if: ${{ always() }}
         env:
           RESULT: ${{ job.status }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
         run: |
           set -euo pipefail
           {
             echo
-            echo "Release verification outcome: \`$RESULT\`"
-            echo "Commit: \`$(git rev-parse HEAD)\`"
+            echo "Build and contract verification outcome: \`$RESULT\`"
+            echo "Commit: \`$SOURCE_COMMIT\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  release-gate:
+    name: Verify · Full release contract
+    if: ${{ always() }}
+    needs: [resolve-ref, angular, dotnet-tests, release-contract]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Require every release verification job to pass
+        env:
+          SOURCE_RESULT: ${{ needs.resolve-ref.result }}
+          ANGULAR_RESULT: ${{ needs.angular.result }}
+          DOTNET_RESULT: ${{ needs.dotnet-tests.result }}
+          CONTRACT_RESULT: ${{ needs.release-contract.result }}
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Full release contract aggregate"
+            echo
+            echo "- Requested ref: \`$REQUESTED_REF\`"
+            echo "- Resolved commit: \`$SOURCE_COMMIT\`"
+            echo
+            echo "| Required gate | Result |"
+            echo "| --- | --- |"
+            echo "| Resolve requested ref | $SOURCE_RESULT |"
+            echo "| Angular build and full specs | $ANGULAR_RESULT |"
+            echo "| All unfiltered .NET project suites | $DOTNET_RESULT |"
+            echo "| Build, contracts and publication | $CONTRACT_RESULT |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$SOURCE_RESULT" != success || "$ANGULAR_RESULT" != success || \
+                "$DOTNET_RESULT" != success || "$CONTRACT_RESULT" != success ]]; then
+            echo "Release verification failed: one or more required gates did not succeed." >&2
+            exit 1
+          fi
+          echo "All release verification gates passed for $SOURCE_COMMIT."
