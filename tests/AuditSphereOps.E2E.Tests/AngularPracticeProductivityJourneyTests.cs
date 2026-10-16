@@ -86,6 +86,28 @@ public sealed class AngularPracticeProductivityJourneyTests
     Assert.True(long.TryParse(apiDueCount, out var parsedDueCount) && parsedDueCount > 0,
       $"Expected a positive exact due-today count, observed '{dueCount}'.");
     Assert.Equal(apiDueCount, displayedCount);
+
+    await page.SetViewportSizeAsync(390, 844);
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+      "The work dashboard must not overflow the 390px document viewport.");
+    var summaryCards = page.Locator("button.summary-card");
+    var expectedSummaryLabels = new[]
+    {
+      "My tasks", "Due today", "Overdue", "Waiting for client", "Under review", "Rework required", "Next 7 days"
+    };
+    await Assertions.Expect(summaryCards).ToHaveCountAsync(expectedSummaryLabels.Length);
+    for (var i = 0; i < expectedSummaryLabels.Length; i++)
+    {
+      var card = summaryCards.Nth(i);
+      await Assertions.Expect(card.Locator(".summary-label")).ToHaveTextAsync(expectedSummaryLabels[i]);
+      Assert.True(await card.EvaluateAsync<bool>("element => element.tabIndex >= 0"),
+        $"The '{expectedSummaryLabels[i]}' summary card must be keyboard reachable.");
+      await card.FocusAsync();
+      await Assertions.Expect(card).ToBeFocusedAsync();
+      await card.PressAsync("Enter");
+      await Assertions.Expect(card).ToHaveAttributeAsync("aria-pressed", "true");
+    }
+
     var dueViewResponseTask = page.WaitForResponseAsync(response => response.Request.Method == "GET" && response.Ok &&
       response.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
       response.Url.Contains("view=DUE_TODAY", StringComparison.Ordinal));
