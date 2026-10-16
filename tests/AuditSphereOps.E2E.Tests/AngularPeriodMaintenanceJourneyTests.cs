@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
@@ -16,37 +17,56 @@ public sealed class AngularPeriodMaintenanceJourneyTests
   };
 
   [Theory]
-  [InlineData(false)]
-  [InlineData(true)]
+  [InlineData(false, false)]
+  [InlineData(true, false)]
+  [InlineData(false, true)]
   [Trait("CaseId", "AS-PAR-002-ANG-ROLLFORWARD-FLOW-01")]
-  public async Task DedicatedRollforwardWorkbenchCreatesReviewedDraftAndOpeningBridge(bool dropResponse)
+  public async Task DedicatedRollforwardWorkbenchCreatesReviewedDraftAndOpeningBridge(bool dropResponse, bool validatedPackage)
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "AS-PAR-002-ANG-ROLLFORWARD-FLOW-01");
-    const string priorCode = "SYN-ROLLFORWARD-2025";
-    const string nextCode = "SYN-ROLLFORWARD-2025-NEXT";
+    var priorCode = validatedPackage ? "FY2026-E2E" : "SYN-ROLLFORWARD-2025";
+    var nextCode = priorCode + "-NEXT";
+    var nextStart = validatedPackage ? "2027-01-01" : "2026-01-01";
+    var nextEnd = validatedPackage ? "2027-12-31" : "2026-12-31";
+    var sourceHash = Hashing.Sha256Hex("rollforward-source");
+    var packageSeed = validatedPackage ? await FinancialPackageFixture.CreatePackageAsync(host) : null;
     Guid priorPeriodId;
     await using (var db = host.CreateDbContext())
     {
-      priorPeriodId = Guid.CreateVersion7();
-      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff,
-        "AccountingPreparer", host.Fixture.ClientId));
-      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      priorPeriodId = packageSeed?.PeriodId ?? Guid.CreateVersion7();
+      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "AccountingPreparer", host.Fixture.ClientId));
+      if (packageSeed is not null)
       {
-        Id = priorPeriodId,
-        FirmId = host.Fixture.FirmId,
-        ClientId = host.Fixture.ClientId,
-        PeriodCode = priorCode,
-        StartDate = new DateOnly(2025, 1, 1),
-        EndDate = new DateOnly(2025, 12, 31),
-        Basis = "STATUTORY",
-        Currency = "QAR",
-        Status = AccountingWorkflowStates.Closed,
-        Revision = 2,
-        CreatedByUserId = host.Fixture.Admin.Id,
-        CreatedAt = DateTimeOffset.UtcNow
+        var sourcePackage = await db.FinancialPackages.SingleAsync(x => x.Id == packageSeed.PackageId);
+        Assert.Equal(AccountingPackageStates.PackageValidated, sourcePackage.Status);
+        sourceHash = sourcePackage.CalculationHash;
+        await db.ClientReportingPeriods.Where(x => x.Id == priorPeriodId)
+          .ExecuteUpdateAsync(x => x.SetProperty(p => p.Status, AccountingWorkflowStates.Closed));
+      }
+      else db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = priorPeriodId, FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId, PeriodCode = priorCode,
+        StartDate = new DateOnly(2025, 1, 1), EndDate = new DateOnly(2025, 12, 31), Basis = "STATUTORY", Currency = "QAR",
+        Status = AccountingWorkflowStates.Closed, Revision = 2, CreatedByUserId = host.Fixture.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync();
+    }
+
+    if (packageSeed is not null)
+    {
+      await using var refuse = host.CreateDbContext();
+      var prior = await refuse.ClientReportingPeriods.AsNoTracking().SingleAsync(x => x.Id == priorPeriodId);
+      var request = new RollForwardPeriodRequest(host.Fixture.ClientId, priorPeriodId, nextCode,
+        prior.EndDate.AddDays(1), new DateOnly(prior.EndDate.Year + 1, 12, 31), "STATUTORY", "QAR", sourceHash,
+        0m, 0m, "synthetic reviewed closing evidence", packageSeed.PackageId, prior.Revision);
+      var actor = PbcSeed.Actor(host.Fixture.Staff, "AccountingPreparer");
+      Assert.Equal(ErrorCodes.GenerationStale, (await ClientAccountingService.RollForwardPeriodAsync(refuse, actor,
+        request with { SourceHash = new string('b', 64) })).ErrorCode);
+      Assert.Equal(ErrorCodes.GenerationStale, (await ClientAccountingService.RollForwardPeriodAsync(refuse, actor,
+        request with { SourcePackageId = Guid.NewGuid() })).ErrorCode);
+      Assert.False(await refuse.ClientReportingPeriods.AnyAsync(x => x.ClientId == host.Fixture.ClientId && x.PeriodCode == nextCode));
+      Assert.Empty(await refuse.OpeningBalanceBridges.ToListAsync());
     }
 
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff, Angular);
@@ -65,8 +85,16 @@ public sealed class AngularPeriodMaintenanceJourneyTests
     var priorPicker = page.Locator("select[name='prior']");
     await Assertions.Expect(priorPicker).ToContainTextAsync(priorCode);
     await Assertions.Expect(page.GetByRole(AriaRole.Status)).ToContainTextAsync("1 closed periods for client");
+    await Assertions.Expect(page.GetByLabel("New period code", new() { Exact = true })).ToHaveValueAsync(nextCode);
+    await Assertions.Expect(page.GetByLabel("Start date", new() { Exact = true })).ToHaveValueAsync(nextStart);
+    await Assertions.Expect(page.GetByLabel("End date", new() { Exact = true })).ToHaveValueAsync(nextEnd);
+    if (packageSeed is not null)
+    {
+      await page.Locator("select[name='package']").SelectOptionAsync(packageSeed.PackageId.ToString("D"));
+      await Assertions.Expect(page.Locator("select[name='package']")).ToHaveValueAsync(packageSeed.PackageId.ToString("D"));
+    }
     await page.GetByLabel("New period code", new() { Exact = true }).FillAsync(nextCode);
-    await page.GetByLabel("Source SHA-256", new() { Exact = true }).FillAsync(Hashing.Sha256Hex("rollforward-source"));
+    await page.GetByLabel("Source SHA-256", new() { Exact = true }).FillAsync(sourceHash);
     await page.GetByLabel("Evidence reference", new() { Exact = true }).FillAsync("synthetic reviewed closing evidence");
     var dispatches = 0;
     string? retainedRequestId = null;
@@ -78,12 +106,19 @@ public sealed class AngularPeriodMaintenanceJourneyTests
       using var input = JsonDocument.Parse(request.PostData!);
       retainedRequestId = input.RootElement.GetProperty("requestId").GetString();
       retainedRequestHash = input.RootElement.GetProperty("expectedRequestHash").GetString();
+      if (packageSeed is not null)
+      {
+        var intent = input.RootElement.GetProperty("rollForward");
+        Assert.Equal(packageSeed.PackageId, intent.GetProperty("sourcePackageId").GetGuid());
+        Assert.Equal(sourceHash, intent.GetProperty("sourceHash").GetString());
+      }
     };
     await page.GetByRole(AriaRole.Button, new() { Name = "Preview roll-forward", Exact = true }).ClickAsync();
     var preview = page.GetByRole(AriaRole.Region, new() { Name = "Exact maintenance preview", Exact = true });
     await Assertions.Expect(preview).ToContainTextAsync(nextCode);
-    await Assertions.Expect(preview).ToContainTextAsync("2026-01-01");
-    await Assertions.Expect(preview).ToContainTextAsync(Hashing.Sha256Hex("rollforward-source"));
+    await Assertions.Expect(preview).ToContainTextAsync(nextStart);
+    await Assertions.Expect(preview).ToContainTextAsync(sourceHash);
+    if (packageSeed is not null) await Assertions.Expect(preview).ToContainTextAsync(packageSeed.PackageId.ToString("D"));
     Assert.Equal(0, dispatches);
     await page.GetByLabel("I reviewed this exact preview, source evidence and effect.", new() { Exact = true }).CheckAsync();
     if (dropResponse)
@@ -106,10 +141,17 @@ public sealed class AngularPeriodMaintenanceJourneyTests
       Assert.Equal("RECONCILED", bridge.Status);
       Assert.Equal("synthetic reviewed closing evidence", bridge.EvidenceReference);
       Assert.Null(bridge.ApprovedByUserId);
+      Assert.Equal(packageSeed?.PackageId, bridge.SourcePackageId); Assert.Equal(sourceHash, bridge.SourceHash);
       var receipt = await verify.PeriodMaintenanceReceipts.SingleAsync(x => x.ClientId == host.Fixture.ClientId && x.Action == "ROLL_FORWARD");
       Assert.Equal(host.Fixture.Staff.Id, receipt.ActorId);
       Assert.Equal(Guid.Parse(retainedRequestId!), receipt.RequestId);
       Assert.Equal(retainedRequestHash, receipt.RequestHash);
+      var retained = JsonSerializer.Deserialize<PeriodMaintenanceRequest>(receipt.InputJson)!;
+      Assert.Equal(packageSeed?.PackageId, retained.RollForward!.SourcePackageId); Assert.Equal(sourceHash, retained.RollForward.SourceHash);
+      using var result = JsonDocument.Parse(receipt.ResultJson);
+      using var snapshot = JsonDocument.Parse(result.RootElement.GetProperty("SnapshotJson").GetString()!);
+      var source = snapshot.RootElement.GetProperty("Bridge").GetProperty("SourcePackageId");
+      Assert.Equal(packageSeed?.PackageId, source.ValueKind == JsonValueKind.Null ? null : source.GetGuid());
       Assert.Equal(1, await verify.ClientReportingPeriods.CountAsync(x => x.ClientId == host.Fixture.ClientId && x.PeriodCode == nextCode));
     }
     Assert.Empty(errors);
