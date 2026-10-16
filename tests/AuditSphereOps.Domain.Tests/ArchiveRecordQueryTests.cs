@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Records;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Infrastructure.Persistence;
 
 namespace AuditSphereOps.Domain.Tests;
