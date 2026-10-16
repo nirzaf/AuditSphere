@@ -23,6 +23,17 @@ public sealed class EngagementCreationReviewApiTests
     var r=new EngagementCreationRequest(Guid.NewGuid(),s.ReviewBasis,new("AccountingOnly","SYNTHETIC","2027-01-01","2027-12-31"));
     Assert.Equal(HttpStatusCode.Forbidden,(await Post(c,"forged",url+"/preview",r)).StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest,(await Post(c,csrf,url,r)).StatusCode);
+    foreach (var fields in new[] {
+      r.Fields with { ServiceProfile = "" },
+      r.Fields with { PeriodStart = "2028-01-01" },
+      r.Fields with { ServiceRoute = new string('A', 51) }
+    })
+    {
+      using var invalidFields = await Post(c, csrf, url + "/preview", r with { Fields = fields });
+      Assert.Equal(HttpStatusCode.BadRequest, invalidFields.StatusCode);
+      using var invalidError = JsonDocument.Parse(await invalidFields.Content.ReadAsStringAsync());
+      Assert.Equal("request.invalid", invalidError.RootElement.GetProperty("code").GetString());
+    }
     using var preview=await Post(c,csrf,url+"/preview",r);Assert.Equal(HttpStatusCode.OK,preview.StatusCode);
     var p=JsonDocument.Parse(await preview.Content.ReadAsStringAsync()).RootElement.GetProperty("value").Deserialize<EngagementCreationPreview>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
     var reviewed=r with{Reviewed=true,ExpectedRequestHash=p.RequestHash};
@@ -39,7 +50,33 @@ public sealed class EngagementCreationReviewApiTests
     Assert.False((await c.GetFromJsonAsync<EngagementCreationLookup>(url+"/receipts/"+Guid.NewGuid()+"?requestHash="+p.RequestHash))!.Found);
     using var hidden=await c.GetAsync("/api/ui/clients/"+foreign.ClientId+"/engagement-creation");using var guessed=await c.GetAsync("/api/ui/clients/"+Guid.NewGuid()+"/engagement-creation");
     Assert.Equal(HttpStatusCode.Forbidden,hidden.StatusCode);Assert.Equal(await hidden.Content.ReadAsStringAsync(),await guessed.Content.ReadAsStringAsync());
+    foreach (var suffix in new[] { "/preview", "" })
+    {
+      using var foreignCommand = await Post(c, csrf, "/api/ui/clients/" + foreign.ClientId + "/engagement-creation" + suffix, reviewed);
+      using var guessedCommand = await Post(c, csrf, "/api/ui/clients/" + Guid.NewGuid() + "/engagement-creation" + suffix, reviewed);
+      // An execute hash is bound to the original resource; cross-resource replay is invalid
+      // before authority is evaluated. Preview reaches the scope check and must remain opaque.
+      Assert.Equal(suffix == "/preview" ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest, foreignCommand.StatusCode);
+      using var commandError = JsonDocument.Parse(await foreignCommand.Content.ReadAsStringAsync());
+      Assert.Equal(suffix == "/preview" ? "scope.denied" : "request.invalid", commandError.RootElement.GetProperty("code").GetString());
+      Assert.Equal(foreignCommand.StatusCode, guessedCommand.StatusCode);
+      Assert.Equal(await foreignCommand.Content.ReadAsStringAsync(), await guessedCommand.Content.ReadAsStringAsync());
+    }
+    using var foreignReceipt = await c.GetAsync("/api/ui/clients/" + foreign.ClientId + "/engagement-creation/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash);
+    using var guessedReceipt = await c.GetAsync("/api/ui/clients/" + Guid.NewGuid() + "/engagement-creation/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash);
+    Assert.Equal(HttpStatusCode.Forbidden, foreignReceipt.StatusCode);
+    Assert.Equal(foreignReceipt.StatusCode, guessedReceipt.StatusCode);
+    Assert.Equal(await foreignReceipt.Content.ReadAsStringAsync(), await guessedReceipt.Content.ReadAsStringAsync());
     using var adminFactory=Factory(pg,f.Admin);using var admin=adminFactory.CreateClient();await SignIn(admin);Assert.Equal(HttpStatusCode.Forbidden,(await admin.GetAsync(url)).StatusCode);
+    await using (var grants = new AuditSphereDbContext(pg.Options))
+    {
+      grants.RoleGrants.Add(PbcSeed.Grant(f.FirmId,f.Admin,"Manager",f.ClientId));
+      await grants.SaveChangesAsync();
+    }
+    Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync(url)).StatusCode);
+    var otherActorLookup = (await admin.GetFromJsonAsync<EngagementCreationLookup>(url + "/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash))!;
+    Assert.False(otherActorLookup.Found);
+    Assert.Null(otherActorLookup.Receipt);
     await using(var db=new AuditSphereDbContext(pg.Options)){Assert.Single(await db.EngagementCreations.ToListAsync());
       await db.RoleGrants.Where(g=>g.UserId==f.Staff.Id&&g.Role=="Manager").ExecuteUpdateAsync(x=>x.SetProperty(g=>g.RevokedAt,DateTimeOffset.UtcNow));}
     Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(url)).StatusCode);Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(url+"/receipts/"+r.RequestId+"?requestHash="+p.RequestHash)).StatusCode);

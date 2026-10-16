@@ -26,6 +26,10 @@ public sealed class AngularEngagementActivationJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
     await Assertions.Expect(page.GetByText("Record a Partner acceptance decision", new() { Exact = false })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Prepare activation review", Exact = true })).ToHaveCountAsync(0);
+    var checklist = page.GetByRole(AriaRole.Link, new() { Name = "Open the acceptance checklist", Exact = true });
+    await Assertions.Expect(checklist).ToBeVisibleAsync();
+    await Assertions.Expect(checklist).ToHaveAttributeAsync("href",
+      $"/app/clients/{f.ClientId}/assessment?engagementId={f.EngagementId}");
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, path);
     await using (var db = host.CreateDbContext())
     {

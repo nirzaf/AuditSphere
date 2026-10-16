@@ -64,6 +64,13 @@
         Return to the engagement for current clearance gates. Resolve acceptance through its
         authorized checklist.
       </p>
+      @if (context.status === 'Draft') {
+        <a
+          [routerLink]="['/app/clients', context.clientId, 'assessment']"
+          [queryParams]="{ engagementId: context.engagementId }"
+          >Open the acceptance checklist</a
+        >
+      }
     </section>
   }
   @if (uncertain()) {

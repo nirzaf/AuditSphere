@@ -27,6 +27,72 @@ public sealed class AngularEngagementCreationJourneyTests
     await page.GetByLabel("Service profile",new(){Exact=true}).FillAsync("SYNTHETIC-REVIEWED-CREATION");
     await page.GetByLabel("Period start",new(){Exact=true}).FillAsync("2027-01-01");
     await page.GetByLabel("Period end",new(){Exact=true}).FillAsync("2027-12-31");
+    var creationPath = "/api/ui/clients/" + f.ClientId + "/engagement-creation";
+    var mutations = new System.Collections.Concurrent.ConcurrentQueue<string>();
+    page.Request += (_, request) => {
+      var requestPath = new Uri(request.Url).AbsolutePath;
+      if (request.Method == "POST" && (requestPath == creationPath || requestPath == creationPath + "/preview"))
+        mutations.Enqueue(requestPath);
+    };
+    var reviewButton = page.GetByRole(AriaRole.Button, new() { Name = "Review engagement", Exact = true });
+    var intent = page.GetByRole(AriaRole.Region, new() { Name = "Reviewed engagement intent", Exact = true });
+    var assent = page.GetByLabel("I reviewed this exact client, service, profile and period.", new() { Exact = true });
+    var validation = page.GetByRole(AriaRole.Status).Filter(new() { HasText = "Enter a service route" });
+    var detailsForm = page.GetByRole(AriaRole.Region, new() { Name = "Engagement details", Exact = true }).Locator("form");
+    foreach (var invalid in new[] {
+      (Label: "Service profile", Value: "", Corrected: "SYNTHETIC-REVIEWED-CREATION"),
+      (Label: "Period start", Value: "2028-01-01", Corrected: "2027-01-01"),
+    }) {
+      // Begin with an assented review so an invalid edit must also invalidate prior authority.
+      var beforeReview = mutations.Count;
+      await reviewButton.ClickAsync();
+      await Assertions.Expect(intent).ToBeVisibleAsync();
+      Assert.Equal(beforeReview + 1, mutations.Count);
+      Assert.Equal(creationPath + "/preview", mutations.Last());
+      await assent.CheckAsync();
+      await Assertions.Expect(intent.GetByRole(AriaRole.Button, new() { Name = "Confirm blocked creation", Exact = true })).ToBeEnabledAsync();
+
+      await page.GetByLabel(invalid.Label, new() { Exact = true }).FillAsync(invalid.Value);
+      await Assertions.Expect(validation).ToBeVisibleAsync();
+      await Assertions.Expect(validation).ToContainTextAsync("start on or before end");
+      await Assertions.Expect(reviewButton).ToBeDisabledAsync();
+      await Assertions.Expect(intent).ToHaveCountAsync(0);
+      await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Confirm blocked creation", Exact = true })).ToHaveCountAsync(0);
+      // Exercise the submit guard even though the visible review button is disabled.
+      await detailsForm.DispatchEventAsync("submit");
+      await Assertions.Expect(validation).ToBeVisibleAsync();
+      Assert.Equal(beforeReview + 1, mutations.Count);
+
+      await page.GetByLabel(invalid.Label, new() { Exact = true }).FillAsync(invalid.Corrected);
+      await Assertions.Expect(validation).ToHaveCountAsync(0);
+      await Assertions.Expect(reviewButton).ToBeEnabledAsync();
+      await Assertions.Expect(intent).ToHaveCountAsync(0);
+      Assert.Equal(beforeReview + 1, mutations.Count);
+      await reviewButton.ClickAsync();
+      await Assertions.Expect(intent).ToBeVisibleAsync();
+      await Assertions.Expect(assent).Not.ToBeCheckedAsync();
+      await Assertions.Expect(intent.GetByRole(AriaRole.Button, new() { Name = "Confirm blocked creation", Exact = true })).ToBeDisabledAsync();
+      Assert.Equal(beforeReview + 2, mutations.Count);
+      Assert.Equal(creationPath + "/preview", mutations.Last());
+    }
+    // Native maxlength prevents an oversized route from entering the Angular model. Do not
+    // bypass that browser boundary merely to manufacture an unreachable invalid UI state.
+    var routeInput = page.GetByLabel("Service route", new() { Exact = true });
+    await Assertions.Expect(routeInput).ToHaveAttributeAsync("maxlength", "50");
+    var beforeRouteEdit = mutations.Count;
+    await routeInput.FillAsync(new string('A', 51));
+    await Assertions.Expect(routeInput).ToHaveValueAsync(new string('A', 50));
+    await Assertions.Expect(intent).ToHaveCountAsync(0);
+    Assert.Equal(beforeRouteEdit, mutations.Count);
+    await routeInput.FillAsync("AccountingOnly");
+    await reviewButton.ClickAsync();
+    await Assertions.Expect(intent).ToBeVisibleAsync();
+    await Assertions.Expect(assent).Not.ToBeCheckedAsync();
+    Assert.DoesNotContain(creationPath, mutations);
+    await using (var db = host.CreateDbContext()) {
+      Assert.Single(await db.Engagements.ToListAsync());
+      Assert.Empty(await db.EngagementCreations.ToListAsync());
+    }
     await page.GetByRole(AriaRole.Button,new(){Name="Save engagement draft",Exact=true}).ClickAsync();
     await page.GetByRole(AriaRole.Link,new(){Name="Client profile",Exact=true}).ClickAsync();
     await page.GetByRole(AriaRole.Button,new(){Name="Save draft and continue",Exact=true}).ClickAsync();

@@ -31,7 +31,33 @@ public sealed class EngagementActivationReviewApiTests
     Assert.False((await c.GetFromJsonAsync<EngagementActivationLookup>(url+"/receipts/"+Guid.NewGuid()+"?requestHash="+p.RequestHash))!.Found);
     using var hidden=await c.GetAsync("/api/ui/engagements/"+foreign.EngagementId+"/activation-review");using var guessed=await c.GetAsync("/api/ui/engagements/"+Guid.NewGuid()+"/activation-review");
     Assert.Equal(HttpStatusCode.Forbidden,hidden.StatusCode);Assert.Equal(await hidden.Content.ReadAsStringAsync(),await guessed.Content.ReadAsStringAsync());
+    foreach (var suffix in new[] { "/preview", "" })
+    {
+      using var foreignCommand = await Post(c, csrf, "/api/ui/engagements/" + foreign.EngagementId + "/activation-review" + suffix, reviewed);
+      using var guessedCommand = await Post(c, csrf, "/api/ui/engagements/" + Guid.NewGuid() + "/activation-review" + suffix, reviewed);
+      // An execute hash is bound to the original resource; cross-resource replay is invalid
+      // before authority is evaluated. Preview reaches the scope check and must remain opaque.
+      Assert.Equal(suffix == "/preview" ? HttpStatusCode.Forbidden : HttpStatusCode.BadRequest, foreignCommand.StatusCode);
+      using var commandError = JsonDocument.Parse(await foreignCommand.Content.ReadAsStringAsync());
+      Assert.Equal(suffix == "/preview" ? "scope.denied" : "request.invalid", commandError.RootElement.GetProperty("code").GetString());
+      Assert.Equal(foreignCommand.StatusCode, guessedCommand.StatusCode);
+      Assert.Equal(await foreignCommand.Content.ReadAsStringAsync(), await guessedCommand.Content.ReadAsStringAsync());
+    }
+    using var foreignReceipt = await c.GetAsync("/api/ui/engagements/" + foreign.EngagementId + "/activation-review/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash);
+    using var guessedReceipt = await c.GetAsync("/api/ui/engagements/" + Guid.NewGuid() + "/activation-review/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash);
+    Assert.Equal(HttpStatusCode.Forbidden, foreignReceipt.StatusCode);
+    Assert.Equal(foreignReceipt.StatusCode, guessedReceipt.StatusCode);
+    Assert.Equal(await foreignReceipt.Content.ReadAsStringAsync(), await guessedReceipt.Content.ReadAsStringAsync());
     using var adminFactory=Factory(pg,f.Admin);using var admin=adminFactory.CreateClient();await SignIn(admin);Assert.Equal(HttpStatusCode.Forbidden,(await admin.GetAsync(url)).StatusCode);
+    await using (var grants = new AuditSphereDbContext(pg.Options))
+    {
+      grants.RoleGrants.Add(PbcSeed.Grant(f.FirmId,f.Admin,"Partner",f.ClientId,f.EngagementId));
+      await grants.SaveChangesAsync();
+    }
+    Assert.Equal(HttpStatusCode.OK, (await admin.GetAsync(url)).StatusCode);
+    var otherActorLookup = (await admin.GetFromJsonAsync<EngagementActivationLookup>(url + "/receipts/" + r.RequestId + "?requestHash=" + p.RequestHash))!;
+    Assert.False(otherActorLookup.Found);
+    Assert.Null(otherActorLookup.Receipt);
     await using(var db=new AuditSphereDbContext(pg.Options)){Assert.Single(await db.EngagementActivations.ToListAsync());
       await db.RoleGrants.Where(g=>g.UserId==f.Staff.Id&&g.Role=="Partner").ExecuteUpdateAsync(x=>x.SetProperty(g=>g.RevokedAt,DateTimeOffset.UtcNow));}
     Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(url)).StatusCode);Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(url+"/receipts/"+r.RequestId+"?requestHash="+p.RequestHash)).StatusCode);

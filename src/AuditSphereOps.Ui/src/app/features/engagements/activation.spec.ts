@@ -157,6 +157,24 @@ describe('Native Partner activation review and request recovery', () => {
     TestBed.tick();
   }
 
+  it('links blocked activation to its exact client and current engagement checklist without sending a command', () => {
+    const f = open();
+    read({
+      ...state,
+      eligible: false,
+      blockers: [{ code: 'acceptance', message: 'Record current acceptance.' }],
+    });
+    const link = [...f.nativeElement.querySelectorAll('a')].find((a: any) =>
+      a.textContent.includes('Open the acceptance checklist'),
+    ) as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe(
+      '/app/clients/' + other + '/assessment?engagementId=' + id,
+    );
+    expect(f.nativeElement.textContent).not.toContain('Prepare activation review');
+    TestBed.inject(HttpTestingController).expectNone((r) => r.method === 'POST');
+  });
+
   it('renders exact acceptance, restores return location, and requires fresh explicit assent', async () => {
     const f = open();
     read();
