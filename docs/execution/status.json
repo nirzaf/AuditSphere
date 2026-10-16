@@ -1249,11 +1249,24 @@
       "retirementGate": "NOT_READY"
     },
     "angularBlazorSourceDispositionCounts": {
-      "source": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
+      "source": "1e56926c2f00542d3d486171aa6d3ec25517c540",
       "counts": {
-        "PARTIAL": 73,
-        "PARITY_VERIFIED": 3
+        "PARTIAL": 71,
+        "PARITY_VERIFIED": 5
       },
+      "retirementGate": "NOT_READY"
+    },
+    "angularPeriodMaintenanceSourceClosure": {
+      "source": "1e56926c2f00542d3d486171aa6d3ec25517c540",
+      "productBase": "8c812d4b8c6e26a20a597e506555d8d84c50e5e2",
+      "build": "E2E project compiled against pinned product binaries; zero warnings/errors",
+      "browser": "6 passed; period-source-closure.trx",
+      "assertions": [
+        "Validated package/hash preserved through preview, dispatch, bridge and receipt",
+        "Mismatched hash/package refused without side effects",
+        "External evidence and independent restatement approval/recovery preserved"
+      ],
+      "sourceDisposition": "PeriodRollforward.razor and PeriodRestatements.razor PARITY_VERIFIED",
       "retirementGate": "NOT_READY"
     }
   },

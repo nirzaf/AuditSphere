@@ -310,25 +310,17 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PeriodRestatements.razor",
-      "disposition": "PARTIAL",
+      "disposition": "PARITY_VERIFIED",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
-      "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
-      "openGaps": [
-        "Validation, stale-package and replay outcomes",
-        "Revocation during package selection",
-        "Full role/scope and error matrix"
-      ]
+      "reviewedAtCommit": "1e56926c2f00542d3d486171aa6d3ec25517c540",
+      "openGaps": []
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PeriodRollforward.razor",
-      "disposition": "PARTIAL",
+      "disposition": "PARITY_VERIFIED",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
-      "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
-      "openGaps": [
-        "Invalid/stale source and lost/unknown command outcomes",
-        "Scope and role denial matrix",
-        "Opening-bridge review and recovery lifecycle"
-      ]
+      "reviewedAtCommit": "1e56926c2f00542d3d486171aa6d3ec25517c540",
+      "openGaps": []
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDetail.razor",
