@@ -27,10 +27,10 @@ public sealed record ArchiveRecordView(Guid Id, Guid EngagementId, string Status
   string? ManifestStatus, string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int TotalEntryCount, int? NextOrdinal, int ActiveHoldCount,
   string? ObservedProtection, string? DesiredLabel, string? ObservedLabel, string? ActionState, string? ExternalReference);
 
-public sealed record WorkpaperSubmissionView(long Revision, DateTimeOffset SubmittedAt, string? Conclusion);
+public sealed record WorkpaperSubmissionView(string Revision, DateTimeOffset SubmittedAt, string? Conclusion);
 public sealed record WorkpaperRecordView(Guid Id, Guid EngagementId, string Index, string Title, string Objective, string TemplateVersion, string Procedure,
-  string? LinkedProcedureTitle, long Revision, string Status, string? WorkPerformed, string? Conclusion, DateTimeOffset CreatedAt, DateTimeOffset? SubmittedAt,
-  IReadOnlyList<WorkpaperSubmissionView> Submissions, WorkpaperDraftResult Draft,
+  string? LinkedProcedureTitle, string Revision, string Status, string? WorkPerformed, string? Conclusion, DateTimeOffset CreatedAt, DateTimeOffset? SubmittedAt,
+  IReadOnlyList<WorkpaperSubmissionView> Submissions, WorkpaperDraftView Draft,
   IReadOnlyList<ProcedureEvidenceView>? Evidence = null, IReadOnlyList<string>? PhysicalEvidence = null);
 
 /// <summary>
@@ -82,7 +82,7 @@ public static class AuditRecordQueries
     var procedure = w.ProcedureId is { } procId ? await db.AuditProcedures.AsNoTracking()
       .Where(p => p.Id == procId && p.FirmId == actor.FirmId && p.ClientId == w.ClientId && p.EngagementId == w.EngagementId).Select(p => p.Title).FirstOrDefaultAsync(ct) : null;
     var submissions = await db.WorkpaperSubmissions.AsNoTracking().Where(s => s.FirmId == actor.FirmId && s.ClientId == w.ClientId && s.EngagementId == w.EngagementId &&
-      s.WorkpaperId == w.Id).OrderByDescending(s => s.Revision).Select(s => new WorkpaperSubmissionView(s.Revision, s.SubmittedAt, s.Conclusion)).ToListAsync(ct);
+      s.WorkpaperId == w.Id).OrderByDescending(s => s.Revision).Select(s => new WorkpaperSubmissionView(s.Revision.ToString(), s.SubmittedAt, s.Conclusion)).ToListAsync(ct);
     IReadOnlyList<ProcedureEvidenceView> evidence = [];
     IReadOnlyList<string> physical = [];
     if (w.ProcedureId is { } pid)
@@ -98,8 +98,10 @@ public static class AuditRecordQueries
                         select $"{i.FileIndex} ({i.BoxReference}) — {i.CurrentLocation}")
                         .ToListAsync(ct);
     }
-    return CommandResult<WorkpaperRecordView>.Ok(new(w.Id, w.EngagementId, w.Index, w.Title, w.Objective, w.TemplateVersion, w.Procedure, procedure, w.Revision, w.Status,
-      w.WorkPerformed, w.Conclusion, w.CreatedAt, w.SubmittedAt, submissions, draft.Value, evidence, physical));
+    if (!await AuthorizeAsync(db, actor, w.ClientId, w.EngagementId, AuditRoles, ct))
+      return CommandResult<WorkpaperRecordView>.Fail(ErrorCodes.ScopeDenied,"Access denied.");
+    return CommandResult<WorkpaperRecordView>.Ok(new(w.Id, w.EngagementId, w.Index, w.Title, w.Objective, w.TemplateVersion, w.Procedure, procedure, w.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture), w.Status,
+      w.WorkPerformed, w.Conclusion, w.CreatedAt.ToUniversalTime(), w.SubmittedAt?.ToUniversalTime(), submissions, WorkpaperCommandWorkspace.DraftView(draft.Value), evidence, physical));
   }
 
   public static async Task<CommandResult<FindingRecordView>> FindingAsync(IAuditSphereDbContext db, ActorContext actor, Guid id, CancellationToken ct = default)

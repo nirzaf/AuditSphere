@@ -1,32 +1,34 @@
-import { Component, DestroyRef, HostListener, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { Api, routeGuid } from '../../core/api';
-import { arr, guid, instant, int, nullable, obj, text } from '../../core/decode';
+import { Decoder, arr, guid, instant, nullable, obj, str, text } from '../../core/decode';
 import { UnsavedChangesDialog } from '../../core/unsaved-changes';
 import { SHARED } from '../../core/ui';
+import { SessionService } from '../../core/session';
+import { WorkpaperCommandState } from './workpaper-command-state';
+import { WorkpaperCommandReview } from './workpaper-command-review';
+import { WorkpaperAction, WorkpaperOwnedDraft, workpaperRevision } from './workpaper-command-contracts';
 
-const draft = obj({ workpaperId: guid, draftId: nullable(guid), baseWorkpaperRevision: int, baseInputGeneration: int, basePolicyGeneration: int, draftRevision: int,
-  workPerformed: text, conclusion: text, lastSaveId: guid, lastSavedAt: nullable(instant), lifecycle: text });
+// Legacy detail numbers are accepted only while exact; command revisions stay strings throughout.
+const detailRevision: Decoder<string> = (value, path) => workpaperRevision(typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? String(value) : value, path);
+
+const draft = obj({ workpaperId: guid, draftId: nullable(guid), baseWorkpaperRevision: detailRevision, baseInputGeneration: detailRevision, basePolicyGeneration: detailRevision, draftRevision: detailRevision,
+  workPerformed: str(100000), conclusion: str(20000), lastSaveId: guid, lastSavedAt: nullable(instant), lifecycle: text });
 const evidenceItem = obj({ linkId: guid, uploadIntentId: guid, fileName: text, contentSha256: text, note: nullable(text), linkedAt: instant });
-export const decodeWorkpaper = obj({ id: guid, engagementId: guid, index: text, title: text, objective: text, templateVersion: text, procedure: text,
-  linkedProcedureTitle: nullable(text), revision: int, status: text, workPerformed: nullable(text), conclusion: nullable(text), createdAt: instant, submittedAt: nullable(instant),
-  submissions: arr(obj({ revision: int, submittedAt: instant, conclusion: nullable(text) }), 1000), draft,
+const workpaperShape = obj({ id: guid, engagementId: guid, index: text, title: text, objective: text, templateVersion: text, procedure: text,
+  linkedProcedureTitle: nullable(text), revision: detailRevision, status: text, workPerformed: nullable(str(100000)), conclusion: nullable(str(20000)), createdAt: instant, submittedAt: nullable(instant),
+  submissions: arr(obj({ revision: detailRevision, submittedAt: instant, conclusion: nullable(text) }), 1000), draft,
   evidence: nullable(arr(evidenceItem, 1000)), physicalEvidence: nullable(arr(text, 1000)) });
-type Draft = ReturnType<typeof draft>;
-type DraftSaveAttempt = {
-  workpaperId: string;
-  expectedDraftRevision: number;
-  baseWorkpaperRevision: number;
-  baseInputGeneration: number;
-  basePolicyGeneration: number;
-  saveId: string;
-  workPerformed: string;
-  conclusion: string;
+export const decodeWorkpaper: Decoder<ReturnType<typeof workpaperShape>> = (value, path) => {
+  const w = workpaperShape(value, path);
+  if (w.draft.workpaperId !== w.id) throw new Error(`${path}: wrong draft workpaper identity`);
+  return w;
 };
+type Draft = ReturnType<typeof draft>;
 const AUTOSAVE_MS = 750;
 
 /**
@@ -67,26 +69,14 @@ const AUTOSAVE_MS = 750;
           @empty { <tr><td colspan="3">No submission has been frozen for this workpaper yet.</td></tr> }</tbody></table></div></section>
       @if (w.status === 'WORKING') {
         <section class="panel"><h2>Working content</h2>
-          <label>Work performed <textarea name="work" rows="5" [(ngModel)]="work" (ngModelChange)="changed()" [disabled]="busy() || conflict() || uncertain()" required></textarea></label>
-          <label>Conclusion <textarea name="conclusion" rows="3" [(ngModel)]="conclusion" (ngModelChange)="changed()" [disabled]="busy() || conflict() || uncertain()" required></textarea></label>
+          <label>Work performed <textarea name="work" rows="5" [(ngModel)]="work" (ngModelChange)="changed()" [disabled]="busy() || conflict() || uncertain() && !flow.absent()" required></textarea></label>
+          <label>Conclusion <textarea name="conclusion" rows="3" [(ngModel)]="conclusion" (ngModelChange)="changed()" [disabled]="busy() || conflict() || uncertain() && !flow.absent()" required></textarea></label>
           <p class="actions">
             <button matButton="outlined" (click)="save()" [disabled]="busy() || conflict() || uncertain() || saving()">Save draft</button>
-            <button matButton="outlined" (click)="discard()" [disabled]="busy() || conflict() || uncertain() || saving() || !state || state.draftRevision < 1">Discard draft</button>
+            <button matButton="outlined" (click)="discard()" [disabled]="busy() || conflict() || uncertain() || saving() || !state || state.draftRevision === '0'">Discard draft</button>
             <button matButton="filled" (click)="submit()" [disabled]="busy() || conflict() || uncertain()">Submit for review</button>
-            <button matButton="outlined" (click)="reload()" [disabled]="busy() || saving()">{{ uncertain() ? 'Discard unconfirmed edits and reload' : 'Reload current target' }}</button></p>
+            <button matButton="outlined" (click)="reload()" [disabled]="busy() || saving()">Refresh current target</button></p>
           <p role="status" aria-live="polite">{{ status() }}</p>
-          @if (uncertain()) {
-            <section class="panel" role="region" aria-label="Workpaper save recovery">
-              <h3>Draft save outcome needs review</h3>
-              <p>Check the saved draft before repeating the action. AuditSphere will not send another save automatically.</p>
-              <p class="actions">
-                <button matButton="outlined" (click)="checkSaveOutcome()" [disabled]="saving()">Check saved draft</button>
-                @if (retryReady()) {
-                  <button matButton="outlined" (click)="retryExactSave()" [disabled]="saving()">Retry the same draft save</button>
-                }
-              </p>
-            </section>
-          }
           <p><small>Drafts are saved on the server and survive a browser refresh. Submission waits for the last acknowledged draft and freezes that exact content; a changed target is refused without overwriting anything.</small></p>
         </section>
       } @else {
@@ -94,258 +84,274 @@ const AUTOSAVE_MS = 750;
           <dl class="facts"><dt>Work performed</dt><dd>{{ w.workPerformed }}</dd><dt>Conclusion</dt><dd>{{ w.conclusion }}</dd><dt>Submitted at</dt><dd>{{ w.submittedAt ? w.submittedAt.slice(0, 16).replace('T', ' ') + ' UTC' : '' }}</dd></dl>
           <p>A frozen submission is immutable; review targets this exact revision.</p></section>
       }
+      @if (hasPreservedLocalEdits()) {
+        <section class="panel" aria-label="Preserved local workpaper edits">
+          <h2>Preserved local edits</h2>
+          <p>The original save receipt is resolved, but the current workpaper has since been submitted. These newer local edits are not part of that frozen submission and cannot be saved to it. Copy any text you need before leaving.</p>
+          <label>Preserved local work performed <textarea name="preserved-work" rows="5" [value]="work" readonly></textarea></label>
+          <label>Preserved local conclusion <textarea name="preserved-conclusion" rows="3" [value]="conclusion" readonly></textarea></label>
+          <p>Abandonment clears only these local edits. No server draft is discarded and no submission is changed.</p>
+          <button matButton="outlined" (click)="abandonLocalEdits()" [disabled]="busy() || saving() || uncertain()">Abandon local edits only</button>
+        </section>
+      }
+      @if (uncertain()) {
+        <section class="panel" role="region" aria-label="Workpaper request recovery">
+          <h2>Recover original workpaper request</h2>
+          <p role="alert">The outcome is not confirmed. Matching current content or history is not an actor-owned receipt. No command will be retried automatically.</p>
+          @for (p of flow.pending(); track p.action) {
+            <p>{{ p.action }} · request {{ p.reference.requestId }} · <code>{{ p.reference.requestHash }}</code></p>
+          }
+          <button matButton="outlined" (click)="checkSaveOutcome()" [disabled]="busy() || saving()">Look up original workpaper receipt</button>
+          @if (flow.absent() && flow.pending().length === 1) {
+            <p>No receipt was found at lookup time; a delayed command may still commit. Retry retains the exact request ID and hash. After reload, re-enter the original save content if needed; changed intent cannot reuse this identity.</p>
+            <button matButton="outlined" (click)="retryPending()" [disabled]="busy() || saving()">Prepare same workpaper request again</button>
+          }
+        </section>
+      }
+      @if (flow.receipt(); as r) {
+        <section class="panel" aria-label="Verified workpaper receipt"><h2>Verified original workpaper receipt</h2>
+          <p>{{ r.action }} · request {{ r.requestId }} · <code>{{ r.requestHash }}</code></p>
+          <p>Actor {{ r.actorId }} · session {{ r.actorEpoch }} · event {{ r.commandEvent.id }}</p>
+          <p>Original draft {{ r.commandEvent.after.draft?.id }} · revision {{ r.commandEvent.before.draft?.draftRevision ?? '0' }} → {{ r.commandEvent.after.draft?.draftRevision }}</p>
+          <p>Original workpaper revision {{ r.commandEvent.before.revision }} → {{ r.commandEvent.after.revision }} · {{ r.commandEvent.after.status }}</p>
+          <p>This acknowledges the original request. Later saved content may differ.</p>
+        </section>
+      }
+      @if (flow.message()) { <p [attr.role]="flow.failed() || uncertain() ? 'alert' : 'status'">{{ flow.message() }}</p> }
       @if (message()) { <p [attr.role]="failed() ? 'alert' : 'status'" [class.error-text]="failed()">{{ message() }}</p> }
     }
   `,
 })
 export class WorkpaperEditor {
   private readonly api = inject(Api);
+  private readonly session = inject(SessionService);
   readonly id = routeGuid();
-  readonly wp = this.api.resource(() => (this.id() ? `/api/ui/audit/workpapers/${this.id()}` : null), decodeWorkpaper, 'The requested workpaper is unavailable in your current scope.');
-  readonly busy = signal(false);
+  private readonly routeEpoch = signal(0);
+  readonly wp = this.api.resource(() => { this.routeEpoch(); return this.id() ? `/api/ui/audit/workpapers/${this.id()}` : null; }, (value, path) => {
+    const w = decodeWorkpaper(value, path);
+    if (w.id !== this.id()) throw new Error('Wrong returned workpaper identity');
+    return w;
+  }, 'The requested workpaper is unavailable in your current scope.');
+  state: Draft | null = null;
+  readonly flow = new WorkpaperCommandState(this.id, this.wp.data, () => this.state);
+  private readonly finalOpen = signal(false);
+  private readonly navigationOpen = signal(false);
+  readonly busy = computed(() => this.finalOpen() || this.flow.busy() && !this.saving());
   readonly saving = signal(false);
-  readonly conflict = signal(false);
-  readonly uncertain = signal(false);
-  readonly retryReady = signal(false);
+  readonly conflict = this.flow.conflict;
+  readonly uncertain = this.flow.uncertain;
+  readonly retryReady = this.flow.absent;
   readonly status = signal('Unsaved changes');
   readonly message = signal('');
   readonly failed = signal(false);
-  state: Draft | null = null;
   work = '';
   conclusion = '';
   private dirty = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private pendingSave: Promise<boolean> | null = null;
-  private uncertainSave: DraftSaveAttempt | null = null;
+  private operation = 0;
+  private lifetime = 0;
+  private finalOperation = 0;
+  private observedActor: object | null = null;
+  private observedSessionInvalidation = -1;
   private observedRouteId: string | null | undefined;
   private readonly dialogs = inject(MatDialog);
+  private reviewDialog: ReturnType<MatDialog['open']> | null = null;
 
   constructor() {
+    const params = inject(ActivatedRoute).paramMap.subscribe(() => this.resetLifetime());
     effect(() => {
-      const routeId = this.id();
-      const w = this.wp.data();
+      const routeId = this.id(), w = this.wp.data(), actor = this.session.current(); const invalidation = this.session.invalidation(); this.routeEpoch(); const loading = this.wp.loading(), readError = this.wp.error();
       untracked(() => {
-        clearTimeout(this.timer);
-        if (this.observedRouteId !== routeId) {
-          this.observedRouteId = routeId;
-          this.message.set('');
-          this.failed.set(false);
+        ++this.operation; ++this.lifetime; ++this.finalOperation; clearTimeout(this.timer); this.saving.set(false); this.pendingSave = null;
+        this.reviewDialog?.close(false); this.reviewDialog = null; this.finalOpen.set(false); this.navigationOpen.set(false);
+        const changedRoute = this.observedRouteId !== routeId;
+        const sameActor = this.observedActor === actor && this.observedSessionInvalidation === invalidation;
+        this.observedActor = actor; this.observedSessionInvalidation = invalidation;
+        this.observedRouteId = routeId;
+        if (changedRoute) { this.message.set(''); this.failed.set(false); this.dirty = false; }
+        if (!w || !actor?.staff) {
+          this.state = null;
+          if (!((loading || readError === 'Temporarily unavailable. Retry shortly.') && !changedRoute && sameActor && actor?.staff)) { this.work = ''; this.conclusion = ''; this.dirty = false; }
+          return;
         }
-        this.state = w?.draft ?? null; this.work = w?.draft.workPerformed ?? ''; this.conclusion = w?.draft.conclusion ?? ''; this.dirty = false;
-        this.uncertainSave = null; this.uncertain.set(false); this.retryReady.set(false);
-        this.conflict.set(w?.draft.lifecycle === 'TARGET_CHANGED');
-        this.status.set(this.conflict() ? 'Target changed — reload before editing.' : w?.draft.lastSavedAt && w.draft.draftRevision > 0
-          ? `Saved at ${w.draft.lastSavedAt.slice(0, 19).replace('T', ' ')} UTC` : 'Unsaved changes');
+        // A refreshed read cannot silently discard newer edits or resolve a pending request.
+        const preserve = !changedRoute && this.dirty;
+        this.state = w.draft; this.flow.conflict.set(w.draft.lifecycle === 'TARGET_CHANGED');
+        if (!preserve) { this.work = w.draft.workPerformed; this.conclusion = w.draft.conclusion; }
+        this.status.set(preserve ? 'Local edits remain unsaved; review the refreshed target before saving.' : this.savedStatus(w.draft));
       });
     });
-    inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
+    inject(DestroyRef).onDestroy(() => { this.resetLifetime(); params.unsubscribe(); });
+  }
+  private resetLifetime(): void {
+    this.routeEpoch.update(value => value + 1);
+    ++this.operation; ++this.lifetime; ++this.finalOperation; clearTimeout(this.timer); this.pendingSave = null; this.saving.set(false);
+    this.reviewDialog?.close(false); this.reviewDialog = null; this.finalOpen.set(false); this.navigationOpen.set(false);
+    this.state = null; this.work = ''; this.conclusion = ''; this.dirty = false;
+  }
+  private savedStatus(d: Draft): string {
+    return d.lifecycle === 'TARGET_CHANGED' ? 'Target changed — reload before editing.' : d.lastSavedAt && d.draftRevision !== '0'
+      ? `Saved at ${d.lastSavedAt.slice(0, 19).replace('T', ' ')} UTC` : 'Unsaved changes';
   }
   private report(ok: boolean, text: string): void { this.failed.set(!ok); this.message.set(text); }
   changed(): void {
-    this.dirty = true; this.status.set('Unsaved changes');
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.save(), AUTOSAVE_MS);
+    this.dirty = true; this.flow.inputChanged(); this.status.set('Unsaved changes'); clearTimeout(this.timer);
+    if (!this.uncertain() && !this.finalOpen() && !this.navigationOpen()) this.timer = setTimeout(() => void this.save(), AUTOSAVE_MS);
   }
-  async save(): Promise<boolean> {
-    const w = this.wp.data(); const s = this.state;
+  private saveFields() {
+    const w = this.wp.data(), s = this.state;
+    return w && s ? { action: 'SAVE_DRAFT', save: { expectedDraftRevision: s.draftRevision, baseWorkpaperRevision: w.revision,
+      baseInputGeneration: s.baseInputGeneration, basePolicyGeneration: s.basePolicyGeneration,
+      workPerformed: this.work.trim(), conclusion: this.conclusion.trim() } } : null;
+  }
+  save(): Promise<boolean> { return this.saveDraft(false); }
+  private async saveDraft(insideFinal: boolean): Promise<boolean> {
     clearTimeout(this.timer);
-    if (!w || !s || this.conflict() || this.uncertain()) return this.pendingSave ?? false;
     if (this.saving()) return this.pendingSave ?? false;
+    if (!this.flow.ready() || this.wp.data()?.status !== 'WORKING' || !this.state || this.conflict() || this.uncertain() || this.flow.busy() || this.finalOpen() && !insideFinal) return false;
+    const valid = this.flow.ticket(), operation = ++this.operation, fields = this.saveFields(), work = this.work, conclusion = this.conclusion;
     this.saving.set(true); this.status.set('Saving…');
-    const work = this.work, conclusion = this.conclusion;
-    const attempt: DraftSaveAttempt = {
-      workpaperId: w.id,
-      expectedDraftRevision: s.draftRevision,
-      baseWorkpaperRevision: w.revision,
-      baseInputGeneration: s.baseInputGeneration,
-      basePolicyGeneration: s.basePolicyGeneration,
-      saveId: crypto.randomUUID(),
-      workPerformed: work,
-      conclusion,
-    };
-    this.pendingSave = (async (): Promise<boolean> => {
+    this.pendingSave = (async () => {
       try {
-        const r = await this.api.command<Draft>(`/api/ui/audit/workpapers/${w.id}/draft`, this.saveBody(attempt));
-        if (!r.ok) {
-          if (r.unknown) {
-            this.uncertainSave = attempt;
-            this.uncertain.set(true);
-            this.retryReady.set(false);
-            this.status.set('Save outcome needs review. Check the persisted draft before continuing.');
-            this.report(false, r.message);
-            return false;
-          }
-          const conflict = r.status === 409 || ['revision.stale', 'generation.stale', 'draft.target-changed', 'draft.conflict'].includes(r.code);
-          this.conflict.set(conflict);
-          this.status.set(conflict ? 'Conflict — a newer draft or target exists. Reload the current workpaper.' : 'Not saved — changes since the last save are not yet saved.');
-          this.report(false, r.message);
-          return false;
-        }
-        this.state = r.value;
-        this.dirty = this.work !== work || this.conclusion !== conclusion;
-        this.status.set(this.dirty ? 'Unsaved changes' : `Saved at ${(r.value.lastSavedAt ?? '').slice(0, 19).replace('T', ' ')} UTC`);
-        this.report(true, 'Draft saved.');
-        return !this.dirty;
-      } finally { this.saving.set(false); this.pendingSave = null; }
+        const receipt = await this.flow.save(fields);
+        if (!valid() || operation !== this.operation) return false;
+        if (!receipt) { this.status.set(this.uncertain() ? 'Save outcome needs review.' : 'Not saved — your edits remain on this page.'); return false; }
+        this.acknowledgeSave(receipt.commandEvent.after.draft!, work, conclusion);
+        this.report(true, 'Draft saved.'); return !this.dirty;
+      } finally {
+        if (operation === this.operation) { this.saving.set(false); this.pendingSave = null; }
+      }
     })();
     return this.pendingSave;
   }
-
-  private saveBody(attempt: DraftSaveAttempt) {
-    return {
-      expectedDraftRevision: attempt.expectedDraftRevision,
-      baseWorkpaperRevision: attempt.baseWorkpaperRevision,
-      baseInputGeneration: attempt.baseInputGeneration,
-      basePolicyGeneration: attempt.basePolicyGeneration,
-      saveId: attempt.saveId,
-      workPerformed: attempt.workPerformed,
-      conclusion: attempt.conclusion,
-    };
+  private acknowledgeSave(d: WorkpaperOwnedDraft, sentWork: string, sentConclusion: string): void {
+    this.state = { workpaperId: this.id()!, draftId: d.id, baseWorkpaperRevision: d.baseWorkpaperRevision,
+      baseInputGeneration: d.baseInputGeneration, basePolicyGeneration: d.basePolicyGeneration, draftRevision: d.draftRevision,
+      workPerformed: d.workPerformed, conclusion: d.conclusion, lastSaveId: d.lastSaveId, lastSavedAt: d.lastSavedAt, lifecycle: d.lifecycle };
+    this.dirty = this.work !== sentWork || this.conclusion !== sentConclusion;
+    this.status.set(this.dirty ? 'Draft saved; newer edits remain unsaved.' : this.savedStatus(this.state));
+    if (this.dirty && !this.finalOpen() && !this.navigationOpen()) {
+      clearTimeout(this.timer); this.timer = setTimeout(() => void this.save(), AUTOSAVE_MS);
+    }
   }
-
   async checkSaveOutcome(): Promise<void> {
-    const attempt = this.uncertainSave;
-    if (!attempt || this.saving()) return;
-    this.saving.set(true);
-    this.retryReady.set(false);
-    this.status.set('Checking the persisted draft…');
-    try {
-      const saved = await this.api.get(`/api/ui/audit/workpapers/${attempt.workpaperId}`, decodeWorkpaper);
-      if (this.wp.data()?.id !== attempt.workpaperId || this.uncertainSave?.saveId !== attempt.saveId) return;
-      const d = saved.draft;
-      const sameTarget = saved.revision === attempt.baseWorkpaperRevision &&
-        d.baseWorkpaperRevision === attempt.baseWorkpaperRevision &&
-        d.baseInputGeneration === attempt.baseInputGeneration &&
-        d.basePolicyGeneration === attempt.basePolicyGeneration;
-      if (saved.id === attempt.workpaperId && saved.status === 'WORKING' && sameTarget &&
-        d.lastSaveId === attempt.saveId && d.draftRevision === attempt.expectedDraftRevision + 1 &&
-        d.workPerformed === attempt.workPerformed.trim() && d.conclusion === attempt.conclusion.trim()) {
-        this.state = d;
-        this.dirty = this.work !== attempt.workPerformed || this.conclusion !== attempt.conclusion;
-        this.uncertainSave = null;
-        this.uncertain.set(false);
-        this.conflict.set(false);
-        this.status.set(this.dirty ? 'The draft was saved. Newer edits remain unsaved.' : `Saved at ${(d.lastSavedAt ?? '').slice(0, 19).replace('T', ' ')} UTC`);
-        this.report(true, 'The persisted draft confirms that save.');
-        return;
-      }
-      if (saved.id === attempt.workpaperId && saved.status === 'WORKING' && sameTarget &&
-        d.draftRevision === attempt.expectedDraftRevision &&
-        (d.lifecycle === 'ACTIVE' || d.lifecycle === 'NONE')) {
-        this.retryReady.set(true);
-        this.status.set('This exact save is not in the persisted draft. You can safely retry the same save.');
-        this.report(false, 'The save was not found. Retry will use the same request ID and content.');
-        return;
-      }
-      this.conflict.set(true);
-      this.status.set('The persisted draft or target changed. Reload the current target before editing.');
-      this.report(false, 'The current draft does not match the unconfirmed save. Reload the current target to review it.');
-    } catch (e) {
-      if (e instanceof Error && e.message === 'Not available in your current scope.') {
-        this.uncertainSave = null;
-        this.uncertain.set(false);
-        this.retryReady.set(false);
-        this.conflict.set(false);
-        this.wp.reload();
-        return;
-      }
-      this.status.set('The save outcome could not be checked. Your text is still on this page.');
-      this.report(false, e instanceof Error ? e.message : 'The saved draft could not be checked.');
-    } finally {
-      this.saving.set(false);
+    if (this.saving() || this.finalOpen()) return;
+    const valid = this.flow.ticket(), receipt = await this.flow.reconcile();
+    if (!valid()) return;
+    if (!receipt) { if (this.flow.failed()) this.wp.reload(); return; }
+    // An original receipt is historical evidence. Re-read the authorized current row rather than reverting to its after-state.
+    if (receipt.action === 'SAVE_DRAFT') {
+      const original = receipt.commandEvent.after.draft!;
+      this.dirty = this.dirty && (this.work.trim() !== original.workPerformed || this.conclusion.trim() !== original.conclusion);
     }
+    this.report(true, 'The original workpaper receipt was verified. Refreshing current persisted state.');
+    this.wp.reload();
   }
-
-  async retryExactSave(): Promise<void> {
-    const attempt = this.uncertainSave;
-    if (!attempt || !this.retryReady() || this.saving()) return;
-    this.saving.set(true);
-    this.retryReady.set(false);
-    this.status.set('Retrying the same reviewed draft save…');
+  async retryExactSave(): Promise<void> { await this.retryPending(); }
+  async retryPending(): Promise<void> {
+    const pending = this.flow.pending()[0];
+    if (!pending || !this.flow.canPrepare(pending.action) || this.saving() || this.finalOpen()) return;
+    if (pending.action !== 'SAVE_DRAFT') { await this.finalAction(pending.action, true); return; }
+    const valid = this.flow.ticket(), operation = ++this.operation; this.saving.set(true);
     try {
-      const r = await this.api.command<Draft>(`/api/ui/audit/workpapers/${attempt.workpaperId}/draft`, this.saveBody(attempt));
-      if (!r.ok) {
-        if (r.unknown) {
-          this.status.set('Retry outcome needs review. Check the persisted draft again.');
-          this.report(false, r.message);
-        } else {
-          const conflict = r.status === 409 || ['revision.stale', 'generation.stale', 'draft.target-changed', 'draft.conflict'].includes(r.code);
-          this.conflict.set(conflict);
-          if (!conflict) {
-            this.uncertainSave = null;
-            this.uncertain.set(false);
-          }
-          this.status.set(conflict ? 'Conflict — reload the current workpaper.' : 'The save was refused; your edits remain on this page.');
-          this.report(false, r.message);
-        }
-        return;
-      }
-      this.state = r.value;
-      this.dirty = this.work !== attempt.workPerformed || this.conclusion !== attempt.conclusion;
-      this.uncertainSave = null;
-      this.uncertain.set(false);
-      this.conflict.set(false);
-      this.status.set(this.dirty ? 'Unsaved changes' : `Saved at ${(r.value.lastSavedAt ?? '').slice(0, 19).replace('T', ' ')} UTC`);
-      this.report(true, 'The exact draft save was confirmed.');
-    } finally {
-      this.saving.set(false);
-    }
+      const receipt = await this.flow.save(this.saveFields());
+      if (!valid() || operation !== this.operation || !receipt) return;
+      const original = receipt.commandEvent.after.draft!;
+      this.dirty = this.dirty && (this.work.trim() !== original.workPerformed || this.conclusion.trim() !== original.conclusion);
+      this.report(true, 'The original draft save receipt was verified. Refreshing current persisted state.'); this.wp.reload();
+    } finally { if (operation === this.operation) this.saving.set(false); }
   }
-  /** Leave guard: navigation waits for an unresolved save outcome, then an acknowledged save, an
-   * explicit discard, or staying protects the typed content. A conflicted target cannot save this
-   * content at all and its refusal is already reported, so leaving it is honest. */
   async confirmNavigation(): Promise<boolean> {
-    if (this.uncertain()) {
-      this.status.set('Check the unconfirmed save before leaving this workpaper.');
-      return false;
-    }
-    // Do not let the autosave debounce race the user's explicit leave decision.
-    // In particular, "discard" must not persist these edits before its discard
-    // command marks the previously saved server draft as discarded.
     clearTimeout(this.timer);
-    if (!this.wp.data() || this.conflict()) return true;
-    if (this.saving() && this.pendingSave) await this.pendingSave.catch(() => false);
-    if (!this.dirty) return true;
-    const decision = await firstValueFrom(this.dialogs.open(UnsavedChangesDialog).afterClosed());
-    if (decision === 'save') return this.save();
-    if (decision === 'discard') return this.discard();
-    return false;
+    if (this.navigationOpen() || this.uncertain() || this.finalOpen() || this.flow.busy() && !this.saving()) return false;
+    const lifetime = this.lifetime; let stayed = false; this.navigationOpen.set(true);
+    try {
+      if (this.saving() && this.pendingSave) await this.pendingSave.catch(() => false);
+      if (lifetime !== this.lifetime || this.uncertain()) return false;
+      if (!this.wp.data() || this.conflict()) return true;
+      if (!this.dirty) return true;
+      if (this.wp.data()?.status === 'SUBMITTED_SNAPSHOT') {
+        this.report(false, 'Copy the preserved local edits, then explicitly abandon local edits before leaving. The submitted workpaper cannot accept a save or server discard.');
+        return false;
+      }
+      const valid = this.flow.ticket();
+      const dialog = this.dialogs.open(UnsavedChangesDialog);
+      this.reviewDialog = dialog;
+      const decision = await firstValueFrom(dialog.afterClosed());
+      if (this.reviewDialog === dialog) this.reviewDialog = null;
+      if (!valid() || this.uncertain()) return false;
+      if (decision === 'save') return await this.save();
+      if (decision === 'discard') return await this.discard();
+      stayed = true; return false;
+    } finally {
+      if (lifetime === this.lifetime) {
+        this.navigationOpen.set(false);
+        if (stayed) this.rearmAutosaveAfterStay();
+      }
+    }
+  }
+  private rearmAutosaveAfterStay(): void {
+    clearTimeout(this.timer);
+    if (this.dirty && this.flow.ready() && this.wp.data()?.status === 'WORKING' && this.state &&
+      !this.saving() && !this.flow.busy() && !this.finalOpen() && !this.navigationOpen() && !this.uncertain() && !this.conflict() && !this.flow.failed())
+      this.timer = setTimeout(() => void this.save(), AUTOSAVE_MS);
+  }
+  hasPreservedLocalEdits(): boolean {
+    const current = this.wp.data(), receipt = this.flow.receipt(), actor = this.session.current();
+    return this.dirty && this.flow.ready() && current?.status === 'SUBMITTED_SNAPSHOT' && receipt?.action === 'SAVE_DRAFT' &&
+      receipt.workpaperId === current.id && receipt.actorId === actor?.userId && receipt.actorEpoch === actor?.generation && !this.uncertain();
+  }
+  abandonLocalEdits(): boolean {
+    if (!this.hasPreservedLocalEdits() || this.busy() || this.saving()) return false;
+    const current = this.wp.data()!;
+    clearTimeout(this.timer);
+    this.work = current.draft.workPerformed; this.conclusion = current.draft.conclusion; this.dirty = false;
+    this.status.set('Local edits abandoned. No server draft was discarded and no submission was changed.');
+    this.report(true, this.status());
+    return true;
   }
   @HostListener('window:beforeunload', ['$event'])
   beforeUnload(event: BeforeUnloadEvent): void {
-    if (this.dirty || this.saving() || this.uncertain()) { event.preventDefault(); event.returnValue = ''; }
+    if (this.dirty || this.saving() || this.uncertain() || this.finalOpen() || this.flow.busy()) { event.preventDefault(); event.returnValue = ''; }
   }
-  async submit(): Promise<void> {
-    const w = this.wp.data();
-    if (!w || this.busy() || this.uncertain()) return;
-    this.busy.set(true);
-    try {
-      if (this.dirty && !(await this.save())) return;
-      const s = this.state;
-      if (!s || s.draftRevision < 1) { this.report(false, 'Save the current draft before submitting it.'); return; }
-      const r = await this.api.command(`/api/ui/audit/workpapers/${w.id}/submit`, { expectedRevision: w.revision, workPerformed: this.work, conclusion: this.conclusion,
-        expectedDraftRevision: s.draftRevision, draftSaveId: s.lastSaveId });
-      this.report(r.ok, r.ok ? 'The submission was recorded.' : r.message);
-      if (r.ok) this.wp.reload();
-    } finally { this.busy.set(false); }
+  async submit(): Promise<void> { await this.finalAction('SUBMIT'); }
+  async discard(): Promise<boolean> { return this.finalAction('DISCARD_DRAFT'); }
+  private finalFields(action: WorkpaperAction) {
+    const w = this.wp.data(), s = this.state;
+    if (!w || !s) return null;
+    return action === 'DISCARD_DRAFT' ? { action, discard: { expectedDraftRevision: s.draftRevision } } : {
+      action, submit: { expectedRevision: w.revision, expectedDraftRevision: s.draftRevision, draftSaveId: s.lastSaveId,
+        workPerformed: this.work.trim(), conclusion: this.conclusion.trim() } };
   }
-  async discard(): Promise<boolean> {
-    const w = this.wp.data(); const s = this.state;
-    if (!w || !s || this.busy() || this.uncertain()) return false;
-    this.busy.set(true);
+  private async finalAction(action: WorkpaperAction, recovery = false): Promise<boolean> {
+    clearTimeout(this.timer);
+    if (!this.flow.ready() || this.wp.data()?.status !== 'WORKING' || this.finalOpen() || this.flow.busy() && !this.saving() || this.conflict() || this.uncertain() && !recovery ||
+      recovery && !this.flow.canPrepare(action)) return false;
+    this.finalOpen.set(true); const lifetime = this.lifetime, finalOperation = ++this.finalOperation;
     try {
-      const r = await this.api.command(`/api/ui/audit/workpapers/${w.id}/draft/discard`, { expectedDraftRevision: s.draftRevision });
-      this.report(r.ok, r.ok ? 'Draft discarded.' : r.message);
-      if (r.ok) this.wp.reload();
-      return r.ok;
-    } finally { this.busy.set(false); }
+      if (this.saving() && this.pendingSave) await this.pendingSave;
+      if (lifetime !== this.lifetime || this.uncertain() && !recovery) return false;
+      if (action === 'SUBMIT' && this.dirty && !recovery && !(await this.saveDraft(true))) return false;
+      if (lifetime !== this.lifetime) return false;
+      const valid = this.flow.ticket();
+      if (!this.state || this.state.draftRevision === '0') { this.report(false, 'Save the current draft before reviewing this action.'); return false; }
+      if (!(await this.flow.prepare(() => this.finalFields(action))) || !valid()) return false;
+      const dialog = this.dialogs.open(WorkpaperCommandReview, { data: { flow: this.flow }, disableClose: true, width: '760px', maxWidth: '95vw' });
+      this.reviewDialog = dialog;
+      const accepted = await firstValueFrom(dialog.afterClosed());
+      if (!valid() || !accepted || this.uncertain()) return false;
+      this.dirty = false;
+      this.report(true, action === 'SUBMIT' ? 'The submission was recorded.' : 'Draft discarded.'); this.wp.reload(); return true;
+    } finally {
+      // A later editor lifetime owns its own dialog/busy state.
+      if (finalOperation === this.finalOperation) {
+        this.reviewDialog = null; this.finalOpen.set(false); this.navigationOpen.set(false); this.flow.resetReview();
+      }
+    }
   }
   reload(): void {
-    this.message.set('');
-    this.uncertainSave = null;
-    this.uncertain.set(false);
-    this.retryReady.set(false);
-    this.conflict.set(false);
-    this.wp.reload();
+    if (this.busy() || this.saving()) return;
+    clearTimeout(this.timer); this.flow.resetReview(); this.flow.conflict.set(false); this.wp.reload();
   }
 }

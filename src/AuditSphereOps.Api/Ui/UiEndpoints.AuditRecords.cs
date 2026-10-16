@@ -86,6 +86,13 @@ public static partial class UiEndpoints
       return Results.File(export.Content, "application/json; charset=utf-8", export.FileName,
         enableRangeProcessing: false);
     });
+    const string workpaperCommands="/audit/workpapers/{id:guid}/commands";
+    group.MapGet(workpaperCommands+"/state",(Guid id,HttpContext http)=>ReadAsync(http,(db,actor,ct)=>WorkpaperCommandWorkspace.StateAsync(db,actor,id,ct)));
+    group.MapPost(workpaperCommands+"/prepare-save",(Guid id,WorkpaperCommandRequest input,HttpContext http)=>CommandAsync(http,(db,actor,ct)=>WorkpaperCommandWorkspace.PrepareSaveAsync(db,actor,id,input,ct)));
+    group.MapPost(workpaperCommands+"/preview",(Guid id,WorkpaperCommandRequest input,HttpContext http)=>CommandAsync(http,(db,actor,ct)=>WorkpaperCommandWorkspace.PreviewAsync(db,actor,id,input,ct)));
+    group.MapPost(workpaperCommands+"/recover",(Guid id,WorkpaperCommandRequest input,HttpContext http)=>CommandAsync(http,(db,actor,ct)=>WorkpaperCommandWorkspace.RecoverAsync(db,actor,id,input,ct)));
+    group.MapPost(workpaperCommands+"/actions",(Guid id,WorkpaperCommandRequest input,HttpContext http)=>CommandAsync(http,(db,actor,ct)=>WorkpaperCommandWorkspace.ExecuteAsync(db,actor,id,input,ct)));
+    group.MapGet(workpaperCommands+"/receipts/{requestId:guid}",(Guid id,Guid requestId,string? requestHash,HttpContext http)=>ReadAsync(http,(db,actor,ct)=>WorkpaperCommandWorkspace.LookupAsync(db,actor,id,requestId,requestHash,ct)));
     group.MapGet("/audit/workpapers/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AuditRecordQueries.WorkpaperAsync(db, actor, id, ct)));
     group.MapPost("/audit/workpapers/{id:guid}/draft", (Guid id, WorkpaperDraftInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditPlanningService.SaveWorkpaperDraftAsync(db, actor, new SaveWorkpaperDraftRequest(id, i.ExpectedDraftRevision,

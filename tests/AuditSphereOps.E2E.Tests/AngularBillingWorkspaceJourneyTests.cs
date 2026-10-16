@@ -134,6 +134,22 @@ public sealed class AngularBillingWorkspaceJourneyTests
     var receiptHistoryTable = page.GetByRole(AriaRole.Table, new() { Name = "Recent receipts for this client billing account", Exact = true });
     var allocatedReceiptRow = receiptHistoryTable.GetByRole(AriaRole.Row).Filter(new() { HasText = "SYN-ANG-BANK-001" });
     await Assertions.Expect(allocatedReceiptRow).ToContainTextAsync("25.00");
+    DateTimeOffset allocationTime;
+    decimal allocationAmount;
+    await using (var db = host.CreateDbContext())
+    {
+      var stored = await db.ReceiptAllocations.AsNoTracking().SingleAsync(x => x.InvoiceId == invoiceId && x.ReceiptId == receiptId);
+      allocationTime = stored.CreatedAt;
+      allocationAmount = stored.Amount;
+    }
+    var allocationTable = page.GetByRole(AriaRole.Table, new() { Name = "Receipt allocations and independently reviewed reversals for this invoice", Exact = true });
+    var allocationRow = allocationTable.GetByRole(AriaRole.Row).Filter(new() { HasText = receiptId.ToString("D") });
+    await Assertions.Expect(allocationRow).ToContainTextAsync("SYN-ANG-BANK-001");
+    await Assertions.Expect(allocationRow).ToContainTextAsync(receiptId.ToString("D"));
+    await Assertions.Expect(allocationRow.GetByRole(AriaRole.Cell).Nth(0)).ToHaveTextAsync(
+      allocationTime.ToUniversalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) + " UTC");
+    await Assertions.Expect(allocationRow.GetByRole(AriaRole.Cell).Nth(1)).ToHaveTextAsync(
+      allocationAmount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture) + " QAR");
     Assert.Equal(1, allocationCalls);
     await page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true }).ClickAsync();
 

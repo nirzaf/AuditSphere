@@ -114,8 +114,8 @@ export const decodeInvoice = obj({
         <p>An approved reversal unapplies part of a receipt allocation and makes that amount available for reallocation. The report uses the independent review date; pending or rejected requests do not change balances.</p>
         <div class="table-scroll"><table><caption class="sr-only">Receipt allocations and independently reviewed reversals for this invoice</caption>
           <thead><tr><th scope="col">Receipt reference</th><th scope="col">Allocated</th><th scope="col" class="number">Original amount</th><th scope="col" class="number">Applied after reversals</th><th scope="col" class="number">Reversed</th><th scope="col">Reversal history and action</th></tr></thead>
-          <tbody>@for (a of i.allocations; track a.id) { <tr>
-            <th scope="row">{{ a.receiptReference }}<small>{{ a.createdAt.slice(0, 10) }} · {{ a.currency }}</small></th>
+          <tbody>@for (a of allocationPage(i.allocations); track a.id) { <tr>
+            <th scope="row">{{ a.receiptReference }}<small>Receipt ID <code>{{ a.receiptId }}</code></small><small>{{ a.createdAt.slice(0, 10) }} · {{ a.currency }}</small></th>
             <td>{{ a.createdAt.slice(0, 16).replace('T', ' ') }} UTC</td><td class="number">{{ a.amount | money }} {{ a.currency }}</td>
             <td class="number">{{ a.appliedAfterReversals | money }} {{ a.currency }}</td><td class="number">{{ a.reversed | money }} {{ a.currency }}</td>
             <td>
@@ -135,6 +135,15 @@ export const decodeInvoice = obj({
             </td>
           </tr> } @empty { <tr><td colspan="6">No receipt allocations have been applied to this invoice.</td></tr> }</tbody>
         </table></div>
+        <p role="status">{{ i.allocations.length }} allocations · original total {{ allocationsTotal(i.allocations) | money }} {{ i.currency ?? '' }}</p>
+        <nav aria-label="Allocation pages" class="actions">
+          <button matButton="outlined" type="button" (click)="previousAllocationPage()" [disabled]="allocationPageIndex() === 0">Previous allocations</button>
+          <span>Page {{ allocationPageIndex() + 1 }} of {{ allocationPages(i.allocations.length) }}</span>
+          <button matButton="outlined" type="button" (click)="nextAllocationPage(i.allocations.length)" [disabled]="allocationPageIndex() + 1 >= allocationPages(i.allocations.length)">Next allocations</button>
+          <label>Allocations per page <select aria-label="Allocations per page" [value]="allocationPageSize()" (change)="setAllocationPageSize($event)">
+            @for (size of allocationPageSizes; track size) { <option [value]="size">{{ size }}</option> }
+          </select></label>
+        </nav>
         @if (selectedAllocation(); as allocation) {
           <h3>Request allocation reversal · {{ allocation.receiptReference }}</h3>
           <form [formGroup]="reversalForm" (ngSubmit)="requestAllocationReversal(allocation)">
@@ -250,7 +259,11 @@ export class InvoiceDetail {
   private readonly session = inject(SessionService);
   private readonly fb = inject(FormBuilder).nonNullable;
   readonly id = routeGuid();
-  readonly invoice = this.api.resource(() => this.id() ? `/api/ui/finance/invoices/${this.id()}` : null, decodeInvoice,
+  readonly invoice = this.api.resource(() => this.id() ? `/api/ui/finance/invoices/${this.id()}` : null, (raw, path) => {
+    const invoice = decodeInvoice(raw, path);
+    if (invoice.id !== this.id()) throw new Error('Invoice route identity mismatch');
+    return invoice;
+  },
     'The requested invoice was not found in the current firm scope.');
   readonly receiptHistory = signal<ReturnType<typeof decodeInvoice>['receipts']>([]);
   readonly receiptHistoryHaveMore = signal(false);
@@ -260,6 +273,9 @@ export class InvoiceDetail {
   readonly creditHistoryHaveMore = signal(false);
   readonly creditHistoryBusy = signal(false);
   readonly creditHistoryMessage = signal('');
+  readonly allocationPageIndex = signal(0);
+  readonly allocationPageSize = signal(10);
+  readonly allocationPageSizes = [10, 25, 50] as const;
   private historyVisit = 0;
   readonly busy = signal(false);
   readonly uncertain = signal(false);
@@ -283,7 +299,9 @@ export class InvoiceDetail {
   constructor() {
     effect(() => {
       const current = this.invoice.data();
+      this.id(); this.session.current(); this.session.invalidation();
       untracked(() => {
+        this.allocationPageIndex.set(0);
         this.historyVisit++;
         this.receiptHistory.set(current?.receipts ?? []);
         this.receiptHistoryHaveMore.set(current?.receiptsHaveMore ?? false);
@@ -297,6 +315,19 @@ export class InvoiceDetail {
       });
     });
   }
+
+  allocationPage(rows: ReturnType<typeof decodeInvoice>['allocations']) {
+    const start = this.allocationPageIndex() * this.allocationPageSize();
+    return rows.slice(start, start + this.allocationPageSize());
+  }
+  allocationPages(count: number): number { return Math.max(1, Math.ceil(count / this.allocationPageSize())); }
+  previousAllocationPage(): void { this.allocationPageIndex.update(n => Math.max(0, n - 1)); }
+  nextAllocationPage(count: number): void { this.allocationPageIndex.update(n => Math.min(this.allocationPages(count) - 1, n + 1)); }
+  setAllocationPageSize(event: Event): void {
+    const size = Number((event.target as HTMLSelectElement).value);
+    if ((this.allocationPageSizes as readonly number[]).includes(size)) { this.allocationPageSize.set(size); this.allocationPageIndex.set(0); }
+  }
+  allocationsTotal(rows: ReturnType<typeof decodeInvoice>['allocations']): string { return this.sum(rows.map(row => row.amount)); }
 
   receiptsWithBalance(): ReturnType<typeof decodeInvoice>['receipts'] {
     return this.receiptHistory().filter((r) => this.isPositive(r.remaining));

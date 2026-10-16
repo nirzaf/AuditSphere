@@ -16661,6 +16661,169 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.WorkpaperCommandEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("after_json");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("before_json");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid>("WorkpaperId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workpaper_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "WorkpaperId", "Id")
+                        .HasName("ak_workpaper_command_event_scope");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_workpaper_command_event_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "WorkpaperId")
+                        .HasDatabaseName("ix_workpaper_command_event_scope");
+
+                    b.ToTable("workpaper_command_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workpaper_command_event", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND action IN ('SAVE_DRAFT','DISCARD_DRAFT','SUBMIT') AND length(before_json) BETWEEN 1 AND 3000000 AND length(after_json) BETWEEN 1 AND 3000000 AND jsonb_typeof(before_json::jsonb)='object' AND jsonb_typeof(after_json::jsonb)='object'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.WorkpaperCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(800000)
+                        .HasColumnType("character varying(800000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("PreviewJson")
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid>("WorkpaperId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workpaper_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "EventId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_workpaper_command_receipt_event");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_workpaper_command_receipt_request");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "WorkpaperId", "EventId")
+                        .HasDatabaseName("ix_workpaper_command_receipt_scope");
+
+                    b.ToTable("workpaper_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workpaper_command_receipt", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND action IN ('SAVE_DRAFT','DISCARD_DRAFT','SUBMIT') AND length(input_json) BETWEEN 1 AND 800000 AND (preview_json IS NULL OR length(preview_json) BETWEEN 1 AND 4000000) AND jsonb_typeof(input_json::jsonb)='object' AND (preview_json IS NULL OR jsonb_typeof(preview_json::jsonb)='object')");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.WorkpaperDraft", b =>
                 {
                     b.Property<Guid>("Id")
@@ -32164,6 +32327,44 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "ProcedureId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.WorkpaperCommandEvent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_workpaper_command_event_actor");
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.Workpaper", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkpaperId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_workpaper_command_event_target");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.WorkpaperCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_workpaper_command_receipt_actor");
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.WorkpaperCommandEvent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkpaperId", "EventId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "WorkpaperId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_workpaper_command_receipt_event");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.WorkpaperDraft", b =>

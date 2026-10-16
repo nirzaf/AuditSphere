@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
@@ -228,46 +229,49 @@ public sealed partial class ClientAccountingTests
   {
     var client = clientId ?? scope.ClientA;
     var engagement = engagementId ?? scope.EngagementA;
-    var now = DateTimeOffset.UtcNow;
-    var procedureId = Guid.CreateVersion7();
-    var workpaperId = Guid.CreateVersion7();
-    var resultId = Guid.CreateVersion7();
-    var sourceProcedureId = "ACCT-" + suffix;
-    db.AuditProcedures.Add(new AuditProcedure
-    {
-      Id = procedureId, FirmId = scope.FirmId, ClientId = client, EngagementId = engagement,
-      SourceProcedureId = sourceProcedureId, SourceSectionNumber = 1, SourceSectionTitle = "Accounting evidence",
-      SourceWording = "Review the accounting evidence.", ApplicabilityStatus = AuditApplicabilityStatuses.Applicable,
-      CurrentResultRevision = 1, Title = "Accounting evidence review", Status = AuditProcedureStatuses.Reviewed, CreatedAt = now
-    });
-    db.Workpapers.Add(new Workpaper
-    {
-      Id = workpaperId, FirmId = scope.FirmId, ClientId = client, EngagementId = engagement, ProcedureId = procedureId,
-      ActorId = preparerId, Index = sourceProcedureId, Title = "Accounting evidence review", Objective = "Support accounting evidence",
-      TemplateVersion = "accounting-fixture-v1", Procedure = "Review the accounting evidence.", WorkPerformed = "Reviewed the supplied accounting evidence.",
-      Conclusion = "No exception noted.", Revision = 1, Status = WorkpaperStatuses.SubmittedSnapshot, SubmittedAt = now, CreatedAt = now
-    });
-    db.WorkpaperSubmissions.Add(new WorkpaperSubmission
-    {
-      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = client, EngagementId = engagement,
-      WorkpaperId = workpaperId, ActorId = preparerId, Revision = 1,
-      WorkPerformed = "Reviewed the supplied accounting evidence.", Conclusion = "No exception noted.", SubmittedAt = now
-    });
-    db.AuditProcedureResults.Add(new AuditProcedureResult
-    {
-      Id = resultId, FirmId = scope.FirmId, ClientId = client, EngagementId = engagement, AuditProcedureId = procedureId,
-      WorkpaperId = workpaperId, Revision = 1, InputGeneration = 1, WorkPerformed = "Reviewed the supplied accounting evidence.",
-      StructuredResultJson = "{\"result\":\"PASS\"}", EvidenceReferencesJson = "[\"accounting-fixture\"]",
-      Conclusion = "No exception noted.", Status = AuditProcedureResultStatuses.Reviewed, PreparedByUserId = preparerId,
-      ReviewedByUserId = reviewerId, ReviewComment = "Evidence and conclusion agree.", SubmittedAt = now, ReviewedAt = now
-    });
-    db.AuditProcedureReviews.Add(new AuditProcedureReview
-    {
-      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = client, EngagementId = engagement,
-      AuditProcedureResultId = resultId, AuditProcedureId = procedureId, ResultRevision = 1,
-      Decision = AuditProcedureReviewDecisions.Reviewed, Comment = "Evidence and conclusion agree.", ReviewerUserId = reviewerId, CreatedAt = now
-    });
+    Assert.NotEqual(preparerId,reviewerId);
+    var preparer=await db.Users.AsNoTracking().SingleAsync(x=>x.FirmId==scope.FirmId && x.Id==preparerId);
+    var reviewer=await db.Users.AsNoTracking().SingleAsync(x=>x.FirmId==scope.FirmId && x.Id==reviewerId);
+    var originalEpoch=preparer.SessionEpoch;
+    var temporaryGrant=new RoleGrant{Id=Guid.CreateVersion7(),FirmId=scope.FirmId,UserId=preparerId,Role="Staff",ClientId=client,EngagementId=engagement,
+      GrantedAt=DateTimeOffset.UtcNow,GrantedByUserId=scope.Partner.Id,Reason="SYNTHETIC disposable fixture publication only; revoked before assertions."};
+    db.RoleGrants.Add(temporaryGrant);
+    var procedureId=Guid.CreateVersion7();
+    db.AuditProcedures.Add(new AuditProcedure{Id=procedureId,FirmId=scope.FirmId,ClientId=client,EngagementId=engagement,
+      SourceProcedureId="ACCT-"+suffix,SourceSectionNumber=1,SourceSectionTitle="Accounting evidence",SourceWording="Review the accounting evidence.",
+      ApplicabilityStatus=AuditApplicabilityStatuses.Applicable,Title="Accounting evidence review",Status=AuditProcedureStatuses.Planned,CreatedAt=DateTimeOffset.UtcNow});
     await db.SaveChangesAsync();
+    Guid resultId;
+    try
+    {
+      var generation=await db.ClientSafetyStates.AsNoTracking().Where(x=>x.FirmId==scope.FirmId && x.Id==client).Select(x=>x.InputGeneration).SingleAsync();
+      var submitted=await AuditProgramService.SubmitResultAsync(db,new ActorContext(preparerId,scope.FirmId,preparer.SessionEpoch,["Staff"]),
+        new(procedureId,generation,"Reviewed the supplied accounting evidence.","{\"result\":\"PASS\"}",["accounting-fixture"],"No exception noted."));
+      Assert.True(submitted.Succeeded,submitted.Message);resultId=submitted.Value!.AuditProcedureResultId;
+      var reviewed=await AuditProgramService.ReviewResultAsync(db,new ActorContext(reviewerId,scope.FirmId,reviewer.SessionEpoch,["Partner"]),
+        new(resultId,AuditProcedureReviewDecisions.Reviewed,"Evidence and conclusion agree."));
+      Assert.True(reviewed.Succeeded,reviewed.Message);
+    }
+    finally
+    {
+      await db.RoleGrants.Where(x=>x.Id==temporaryGrant.Id && x.FirmId==scope.FirmId && x.UserId==preparerId && x.ClientId==client && x.EngagementId==engagement)
+        .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,DateTimeOffset.UtcNow));
+    }
+    // Query persisted identities only after the temporary fixture authority has been removed.
+    Assert.NotNull(await db.RoleGrants.AsNoTracking().Where(x=>x.Id==temporaryGrant.Id).Select(x=>x.RevokedAt).SingleAsync());
+    Assert.Equal(originalEpoch,await db.Users.AsNoTracking().Where(x=>x.Id==preparerId).Select(x=>x.SessionEpoch).SingleAsync());
+    Assert.False(await db.RoleGrants.AsNoTracking().AnyAsync(x=>x.FirmId==scope.FirmId && x.UserId==preparerId && x.Role=="Staff" && x.ClientId==client && x.EngagementId==engagement && x.RevokedAt==null));
+    var result=await db.AuditProcedureResults.AsNoTracking().SingleAsync(x=>x.Id==resultId);
+    var paper=await db.Workpapers.AsNoTracking().SingleAsync(x=>x.Id==result.WorkpaperId);
+    var submission=await db.WorkpaperSubmissions.AsNoTracking().SingleAsync(x=>x.WorkpaperId==paper.Id);
+    var review=await db.AuditProcedureReviews.AsNoTracking().SingleAsync(x=>x.AuditProcedureResultId==resultId);
+    Assert.Equal(preparerId,result.PreparedByUserId);Assert.Equal(preparerId,paper.ActorId);Assert.Equal(preparerId,submission.ActorId);
+    Assert.Equal(reviewerId,result.ReviewedByUserId);Assert.Equal(reviewerId,review.ReviewerUserId);Assert.NotEqual(result.PreparedByUserId,result.ReviewedByUserId);
+    Assert.Equal(client,result.ClientId);Assert.Equal(engagement,result.EngagementId);
+    Assert.Equal(client,paper.ClientId);Assert.Equal(engagement,paper.EngagementId);Assert.Equal(client,submission.ClientId);Assert.Equal(engagement,submission.EngagementId);
+    Assert.Equal(1L,result.Revision);Assert.Equal(1L,paper.Revision);Assert.Equal(1L,submission.Revision);Assert.Equal(1L,review.ResultRevision);
+    Assert.NotNull(result.ReviewedAt);Assert.True(result.ReviewedAt>=result.SubmittedAt);Assert.True(result.ReviewedAt>=submission.SubmittedAt);
+    Assert.True(review.CreatedAt>=result.SubmittedAt);Assert.True(review.CreatedAt>=submission.SubmittedAt);
     return resultId;
   }
 

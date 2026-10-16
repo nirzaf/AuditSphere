@@ -261,7 +261,10 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 var workpaper = await AuditRecordQueries.WorkpaperAsync(db,
                   PbcSeed.Actor(host.Fixture.Staff, "Staff"), own.WorkpaperId);
                 Assert.True(workpaper.Succeeded, workpaper.Message);
-                initialDraft = workpaper.Value!.Draft;
+                var draft = await AuditPlanningService.LoadWorkpaperDraftAsync(db,
+                  PbcSeed.Actor(host.Fixture.Staff, "Staff"), own.WorkpaperId);
+                Assert.True(draft.Succeeded, draft.Message);
+                initialDraft = draft.Value!;
             }
             await using (var db = host.CreateDbContext())
             {

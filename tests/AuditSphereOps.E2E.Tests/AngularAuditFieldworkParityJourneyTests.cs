@@ -225,6 +225,10 @@ public sealed class AngularAuditFieldworkParityJourneyTests
     await Assertions.Expect(page.GetByLabel("Work performed", new() { Exact = true })).ToHaveValueAsync(workPerformed);
     await Assertions.Expect(page.GetByLabel("Conclusion", new() { Exact = true })).ToHaveValueAsync(workpaperConclusion);
     await page.GetByRole(AriaRole.Button, new() { Name = "Submit for review", Exact = true }).ClickAsync();
+    var workpaperReview = page.GetByRole(AriaRole.Dialog);
+    await Assertions.Expect(workpaperReview.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed workpaper action", Exact = true })).ToBeDisabledAsync();
+    await workpaperReview.GetByLabel("I reviewed this exact workpaper, acknowledged draft and proposed effect.", new() { Exact = true }).CheckAsync();
+    await workpaperReview.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed workpaper action", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("The submission was recorded.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByText("1 frozen submissions", new() { Exact = false })).ToBeVisibleAsync();
 

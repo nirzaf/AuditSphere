@@ -457,6 +457,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<WorkpaperDraft> WorkpaperDrafts => Set<WorkpaperDraft>();
 
   public DbSet<WorkpaperSubmission> WorkpaperSubmissions => Set<WorkpaperSubmission>();
+  public DbSet<WorkpaperCommandEvent> WorkpaperCommandEvents => Set<WorkpaperCommandEvent>();
+  public DbSet<WorkpaperCommandReceipt> WorkpaperCommandReceipts => Set<WorkpaperCommandReceipt>();
 
   public DbSet<AuditProgramVersion> AuditProgramVersions => Set<AuditProgramVersion>();
 
@@ -626,6 +628,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureAuditPlanningReceipts(b);
     ConfigureFindingCommands(b);
     ConfigureReviewPointCommands(b);
+    ConfigureWorkpaperCommands(b);
     ConfigureValuationPreparations(b);
     ConfigureDocuments(b);
     ConfigurePbc(b);

@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -38,22 +39,29 @@ internal static class AccountingAnalysisReviewSeed
     var results = new List<Guid>(); var now=DateTimeOffset.UtcNow;
     for(var n=0;n<27;n++)
     {
-      var procedure=Guid.NewGuid();var paper=Guid.NewGuid();var result=Guid.NewGuid();var code=$"SYN-ANALYSIS-{n:D3}";
+      var procedure=Guid.NewGuid();var code=$"SYN-ANALYSIS-{n:D3}";
       db.AuditProcedures.Add(new(){Id=procedure,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,SourceProcedureId=code,
         SourceSectionNumber=1,SourceSectionTitle="Synthetic accounting evidence",SourceWording="Inspect synthetic retained evidence.",ApplicabilityStatus="APPLICABLE",
-        CurrentResultRevision=1,Title=code,Status="REVIEWED",CreatedAt=now});
-      db.Workpapers.Add(new(){Id=paper,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ProcedureId=procedure,ActorId=f.Staff.Id,
-        Index=code,Title=code,Objective="Synthetic inspection",TemplateVersion="synthetic-v1",Procedure="Inspect synthetic evidence",WorkPerformed="Synthetic fixture",
-        Conclusion="Synthetic human conclusion",Revision=1,Status=WorkpaperStatuses.SubmittedSnapshot,SubmittedAt=now,CreatedAt=now});
-      db.WorkpaperSubmissions.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,WorkpaperId=paper,
-        ActorId=f.Staff.Id,Revision=1,WorkPerformed="Synthetic fixture",Conclusion="Synthetic human conclusion",SubmittedAt=now});
-      db.AuditProcedureResults.Add(new(){Id=result,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,AuditProcedureId=procedure,WorkpaperId=paper,
-        Revision=1,InputGeneration=1,WorkPerformed="Synthetic fixture",StructuredResultJson="{}",EvidenceReferencesJson="[]",Conclusion="Synthetic human conclusion",
-        Status="REVIEWED",PreparedByUserId=f.Staff.Id,ReviewedByUserId=f.Reviewer.Id,ReviewComment="Synthetic retained review",SubmittedAt=now,ReviewedAt=now});
-      db.AuditProcedureReviews.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,AuditProcedureResultId=result,
-        AuditProcedureId=procedure,ResultRevision=1,Decision="REVIEWED",Comment="Synthetic retained review",ReviewerUserId=f.Reviewer.Id,CreatedAt=now});results.Add(result);
+        Title=code,Status="PLANNED",CreatedAt=now});
+      await db.SaveChangesAsync();
+      var generation=await db.ClientSafetyStates.AsNoTracking().Where(x=>x.FirmId==f.FirmId && x.Id==f.ClientId).Select(x=>x.InputGeneration).SingleAsync();
+      var submitted=await AuditProgramService.SubmitResultAsync(db,PbcSeed.Actor(f.Staff,"Staff"),
+        new(procedure,generation,"Synthetic fixture","{}",[],"Synthetic human conclusion"));
+      Assert.True(submitted.Succeeded,submitted.Message);var resultId=submitted.Value!.AuditProcedureResultId;
+      var reviewed=await AuditProgramService.ReviewResultAsync(db,PbcSeed.Actor(f.Reviewer,"Reviewer"),
+        new(resultId,"REVIEWED","Synthetic retained review"));
+      Assert.True(reviewed.Succeeded,reviewed.Message);
+      var result=await db.AuditProcedureResults.AsNoTracking().SingleAsync(x=>x.Id==resultId);
+      var paper=await db.Workpapers.AsNoTracking().SingleAsync(x=>x.Id==submitted.Value.WorkpaperId);
+      var submission=await db.WorkpaperSubmissions.AsNoTracking().SingleAsync(x=>x.WorkpaperId==paper.Id);
+      var review=await db.AuditProcedureReviews.AsNoTracking().SingleAsync(x=>x.AuditProcedureResultId==resultId);
+      Assert.Equal(f.Staff.Id,result.PreparedByUserId);Assert.Equal(f.Staff.Id,paper.ActorId);Assert.Equal(f.Staff.Id,submission.ActorId);
+      Assert.Equal(f.Reviewer.Id,result.ReviewedByUserId);Assert.Equal(f.Reviewer.Id,review.ReviewerUserId);Assert.NotEqual(result.PreparedByUserId,result.ReviewedByUserId);
+      Assert.Equal(1L,result.Revision);Assert.Equal(1L,paper.Revision);Assert.Equal(1L,submission.Revision);Assert.Equal(1L,review.ResultRevision);
+      Assert.NotNull(result.ReviewedAt);Assert.True(result.ReviewedAt>=result.SubmittedAt);Assert.True(result.ReviewedAt>=submission.SubmittedAt);
+      Assert.True(review.CreatedAt>=result.SubmittedAt);Assert.True(review.CreatedAt>=submission.SubmittedAt);
+      results.Add(resultId);
     }
-    await db.SaveChangesAsync();
     foreach(var (kind,id) in ids)
     {
       foreach(var result in linkEvidence ? (kind=="SPECIALIST" ? results : results.Take(1)) : [])

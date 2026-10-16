@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -53,8 +54,9 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Workpaper: Synthetic discard refusal workpaper", Exact = true })).ToBeVisibleAsync();
     await page.GetByLabel("Work performed", new() { Exact = true }).FillAsync("These edits are still local.");
-    await page.RouteAsync($"**/api/ui/audit/workpapers/{workpaperId:D}/draft/discard", route =>
+    await page.RouteAsync($"**/api/ui/audit/workpapers/{workpaperId:D}/commands/actions", route =>
     {
+      if (Action(route.Request) != "DISCARD_DRAFT") return route.ContinueAsync();
       discardRefusalInjected = true;
       return route.FulfillAsync(new RouteFulfillOptions
       {
@@ -68,6 +70,7 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
     await Assertions.Expect(dialog.GetByRole(AriaRole.Heading, new() { Name = "Unsubmitted edits", Exact = true }))
       .ToBeVisibleAsync();
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Discard edits and continue", Exact = true }).ClickAsync();
+    await ConfirmReviewedAction(page, "DISCARD_DRAFT");
     await Assertions.Expect(page.GetByText("This record changed since you loaded it. Refresh and review the current revision.", new() { Exact = true }))
       .ToBeVisibleAsync();
     Assert.Contains($"/app/audit/workpapers/{workpaperId:D}", page.Url, StringComparison.Ordinal);
@@ -131,6 +134,7 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
     await Assertions.Expect(dialog.GetByRole(AriaRole.Heading, new() { Name = "Unsubmitted edits", Exact = true }))
       .ToBeVisibleAsync();
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Discard edits and continue", Exact = true }).ClickAsync();
+    await ConfirmReviewedAction(page, "DISCARD_DRAFT");
     await Assertions.Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex($"/app/engagements/{f.EngagementId:D}/audit-plan$"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Audit plan & strategy", Exact = true })).ToBeVisibleAsync();
     await using (var proof = host.CreateDbContext())
@@ -191,6 +195,7 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
       .ToHaveValueAsync("Disposable draft work performed.");
 
     await page.GetByRole(AriaRole.Button, new() { Name = "Discard draft", Exact = true }).ClickAsync();
+    await ConfirmReviewedAction(page, "DISCARD_DRAFT", keyboard: true);
     await Assertions.Expect(page.GetByText("Draft discarded.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByLabel("Work performed", new() { Exact = true })).ToHaveValueAsync("");
     await using (var proof = host.CreateDbContext())
@@ -254,12 +259,15 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Workpaper: Synthetic recovery workpaper", Exact = true })).ToBeVisibleAsync();
 
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, $"/auth/sign-in?returnUrl={Uri.EscapeDataString(path)}", "workpaper-command");
+
     var work = "Reviewed work performed after source inspection.";
     var conclusion = "The selected evidence supports this conclusion.";
     var writeCount = 0;
-    var draftUrl = $"**/api/ui/audit/workpapers/{workpaperId:D}/draft";
+    var draftUrl = $"**/api/ui/audit/workpapers/{workpaperId:D}/commands/actions";
     await page.RouteAsync(draftUrl, async route =>
     {
+      if (Action(route.Request) != "SAVE_DRAFT") { await route.ContinueAsync(); return; }
       var response = await route.FetchAsync();
       Assert.Equal(200, response.Status);
       writeCount++;
@@ -270,20 +278,21 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
     await page.GetByLabel("Work performed", new() { Exact = true }).FillAsync(work);
     await page.GetByLabel("Conclusion", new() { Exact = true }).FillAsync(conclusion);
     var recovery = page.GetByRole(AriaRole.Region,
-      new() { Name = "Workpaper save recovery", Exact = true });
+      new() { Name = "Workpaper request recovery", Exact = true });
     await Assertions.Expect(recovery).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button,
       new() { Name = "Submit for review", Exact = true })).ToBeDisabledAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button,
       new() { Name = "Save draft", Exact = true })).ToBeDisabledAsync();
 
-    await recovery.GetByRole(AriaRole.Button, new() { Name = "Check saved draft", Exact = true }).ClickAsync();
-    await Assertions.Expect(page.GetByText("The persisted draft confirms that save.", new() { Exact = true }))
+    await recovery.GetByRole(AriaRole.Button, new() { Name = "Look up original workpaper receipt", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("The original workpaper receipt was verified. Refreshing current persisted state.", new() { Exact = true }))
       .ToBeVisibleAsync();
     await Assertions.Expect(recovery).ToHaveCountAsync(0);
     Assert.Equal(1, writeCount);
 
     await page.GetByRole(AriaRole.Button, new() { Name = "Submit for review", Exact = true }).ClickAsync();
+    await ConfirmReviewedAction(page, "SUBMIT");
     await Assertions.Expect(page.GetByText("The submission was recorded.", new() { Exact = true })).ToBeVisibleAsync();
     await using (var proof = host.CreateDbContext())
     {
@@ -298,4 +307,36 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
     }
     Assert.Empty(errors);
   }
+
+  private static string Action(IRequest request)
+  {
+    using var body = JsonDocument.Parse(request.PostData ?? "{}");
+    return body.RootElement.GetProperty("fields").GetProperty("action").GetString()!;
+  }
+
+  private static async Task ConfirmReviewedAction(IPage page, string action, bool keyboard = false)
+  {
+    var review = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions
+    { Has = page.GetByRole(AriaRole.Heading, new() { Name = "Review exact workpaper action", Exact = true }) });
+    await Assertions.Expect(review.GetByRole(AriaRole.Region, new() { Name = "Exact workpaper preview", Exact = true }))
+      .ToBeVisibleAsync();
+    await Assertions.Expect(review.GetByText(action + " ·", new() { Exact = false })).ToBeVisibleAsync();
+    var confirm = review.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed workpaper action", Exact = true });
+    await Assertions.Expect(confirm).ToBeDisabledAsync();
+    var assent = review.GetByRole(AriaRole.Checkbox,
+      new() { Name = "I reviewed this exact workpaper, acknowledged draft and proposed effect.", Exact = true });
+    if (keyboard)
+    {
+      foreach (var width in new[] { 320, 390, 768, 1024, 1440 })
+      {
+        await page.SetViewportSizeAsync(width, 900);
+        await page.WaitForFunctionAsync("w => document.documentElement.clientWidth === w", width);
+        Assert.True(await page.EvaluateAsync<int>("() => document.documentElement.scrollWidth") <= width + 1, $"Workpaper review overflows at {width}px.");
+      }
+      await assent.FocusAsync(); await assent.PressAsync("Space"); await Assertions.Expect(assent).ToBeCheckedAsync();
+      await confirm.FocusAsync(); await confirm.PressAsync("Enter");
+    }
+    else { await assent.CheckAsync(); await confirm.ClickAsync(); }
+  }
+
 }

@@ -450,6 +450,7 @@ public static class AuditProgramService
     // Match source publication: firm -> client generation -> engagement -> procedure/result.
     await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     var currentGeneration = await AuditPlanningInputGeneration.ReadSharedAsync(db, actor.FirmId, snapshot.ClientId, ct);
+    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId, sharedEngagement: true);
     if (scope.Denied is not null)
       return CommandResult<ProcedureResultValue>.Fail(scope.Denied, scope.Message);
@@ -573,6 +574,8 @@ public static class AuditProgramService
     });
     procedure.CurrentResultRevision = revision;
     procedure.Status = AuditProcedureStatuses.Submitted;
+    var publicationActor=actor.UserId.ToString();var publicationEpoch=actor.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture);var publicationPaper=workpaper.Id.ToString();
+    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('audit.workpaper_action','PROCEDURE_SUBMIT',true),set_config('audit.workpaper_actor_id',{publicationActor},true),set_config('audit.workpaper_actor_epoch',{publicationEpoch},true),set_config('audit.workpaper_procedure_paper',{publicationPaper},true)",ct);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<ProcedureResultValue>.Ok(new(result.Id, procedure.Id, workpaper.Id, revision, result.Status));
