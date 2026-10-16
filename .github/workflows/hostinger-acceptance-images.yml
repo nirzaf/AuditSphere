@@ -26,8 +26,9 @@ permissions:
   packages: write
 
 concurrency:
-  group: hostinger-acceptance-images-${{ github.ref }}
-  cancel-in-progress: false
+  group: hostinger-acceptance-images-${{ github.event_name }}-${{ github.ref }}
+  # New pushes replace stale automatic image builds; explicit manual builds are retained.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   build-and-push:
@@ -54,6 +55,8 @@ jobs:
         run: |
           set -euo pipefail
           docker buildx build --platform linux/amd64 --push \
+            --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-api:buildcache" \
+            --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-api:buildcache,mode=max" \
             --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-api:${GITHUB_SHA}" \
             --file src/AuditSphereOps.Api/Dockerfile .
 
@@ -61,6 +64,8 @@ jobs:
         run: |
           set -euo pipefail
           docker buildx build --platform linux/amd64 --push \
+            --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-worker:buildcache" \
+            --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-worker:buildcache,mode=max" \
             --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-worker:${GITHUB_SHA}" \
             --file src/AuditSphereOps.Worker/Dockerfile .
 
@@ -68,6 +73,8 @@ jobs:
         run: |
           set -euo pipefail
           docker buildx build --platform linux/amd64 --push \
+            --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-migrations:buildcache" \
+            --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-migrations:buildcache,mode=max" \
             --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-migrations:${GITHUB_SHA}" \
             --file infra/docker/migrations.Dockerfile .
 

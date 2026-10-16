@@ -22,8 +22,8 @@ env:
   DevelopmentIdentity__Enabled: 'false'
 
 jobs:
-  # Angular presentation gate: production build, then the Vitest specs. Runs in parallel with the
-  # .NET gate; its browser bundle is handed to the API publish verification through a build
+  # Angular presentation gate: production build, then the Vitest specs. Runs before the
+  # .NET publication gate; its browser bundle is handed to the API publish verification through a build
   # artifact (the Api publish target globs ../AuditSphereOps.Ui/dist/auditsphere-ui/browser).
   ui-build:
     name: Build · Angular
@@ -66,29 +66,14 @@ jobs:
           printf 'Angular gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
 
-  # Mandatory gate: pinned-SDK locked restore, Release build, focused PostgreSQL-backed workflow
-  # regressions, EF model drift, and standalone API + Angular publication verification. The OpenAPI
-  # drift check below runs the real API host through tools/AuditSphereOps.OpenApiEmitter.
+  # Fast push/PR gate: compile all projects, run database-free guards, check model/contract
+  # drift and standalone publication. PostgreSQL/API/browser regressions are intentionally
+  # deferred to release-verification.yml (nightly + manual, complete unfiltered suites).
   dotnet-build:
     needs: ui-build
     name: Build · .NET Release
     runs-on: ubuntu-24.04
-    # Expanded PostgreSQL and browser parity cohorts exceeded the prior 30-minute cap.
-    timeout-minutes: 60
-    services:
-      postgres:
-        image: postgres:18.6
-        env:
-          POSTGRES_DB: auditsphere_tests
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d auditsphere_tests"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 15
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -128,17 +113,22 @@ jobs:
           # "used by another process" failures.
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
 
-      - name: Run focused workflow PostgreSQL and route regressions
-        env:
-          AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=auditsphere_tests;Username=postgres;Password=postgres;Pooling=false
+      - name: Run fast database-free architecture and rounding guards
         run: |
           set -euo pipefail
           dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore \
             --configuration Release --maxcpucount:1 \
-            --filter 'FullyQualifiedName~OperationRecoverySafetyTests|FullyQualifiedName~DirectoryBindingTests|FullyQualifiedName~RoleAssignmentTests|FullyQualifiedName~WorkpaperCommandReceiptTests|FullyQualifiedName~AuditPlanningTests|FullyQualifiedName~AuditProgramWorkflowTests|FullyQualifiedName~AccountingPeriodRecordQueryTests|FullyQualifiedName~EngagementActivationHistoryTests|FullyQualifiedName~ArchiveRecordQueryTests|FullyQualifiedName~ReviewPointCommandReceiptTests|FullyQualifiedName~FindingCommandReceiptTests|FullyQualifiedName~AuditPlanningCommandReceiptTests|FullyQualifiedName~AuditRecordPublicationTests|FullyQualifiedName~AuditProgramLibraryReadTests|FullyQualifiedName~ClientAccountingTests.Maintenance|FullyQualifiedName~FinancialScheduleSourceQueryTests|FullyQualifiedName~FinancialPackageValidationReadinessTests|FullyQualifiedName~FinancialPackageGateTests|FullyQualifiedName~PackageSealTests|FullyQualifiedName~FinancialStatementTests.MappingPlanAndPackage_AreScopedDeterministicAndReviewGated|FullyQualifiedName~FinancialStatementCompositionMigrationTests|FullyQualifiedName~RelationshipManagerAnnualPreparationTests|FullyQualifiedName~ClientProfileWorkspaceTests|FullyQualifiedName~AnnualEngagementPreparationTests|FullyQualifiedName~AcceptanceChecklistTests|FullyQualifiedName~RecurringEngagementRiskTests|FullyQualifiedName~EngagementActivationReviewTests|FullyQualifiedName~EngagementActivationAdvanceGateTests|FullyQualifiedName~EngagementLifecycleQueryTests|FullyQualifiedName~CommercialWorkflowTests|FullyQualifiedName~EngagementPeriodOverlapTests|FullyQualifiedName~EngagementCreationSafetyTests|FullyQualifiedName~EngagementCreationReviewTests|FullyQualifiedName~FirmOperationsTests.Analytics_|FullyQualifiedName~EngagementWorkflowTaskTests|FullyQualifiedName~WorkflowTemplateTests|FullyQualifiedName~EngagementWorkflowPlanTests|FullyQualifiedName~ReportCertificateSigningTests|FullyQualifiedName~AuditDeliverablesTests.CertificateSignedReport_IsReleased|FullyQualifiedName~AuditDeliverablesTests.FivePartBundle_|FullyQualifiedName~WorkflowDependencyAmendmentTests|FullyQualifiedName~WorkflowEvidenceRuleTests|FullyQualifiedName~WorkflowEvidenceProcedureTests|FullyQualifiedName~DueDateRevisionIsManagerScopedAndRecordedWithExactBeforeAndAfterValues|FullyQualifiedName~ChangesRequiredReviewCreatesOneLinkedOperationalReworkTaskWithoutChangingReviewAuthority|FullyQualifiedName~PriorPeriodAcceptedOfferDoesNotAdvanceANewPeriodEngagement'
-          dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-build --no-restore \
-            --configuration Release --maxcpucount:1 \
-            --filter 'FullyQualifiedName~OperationRecoverySafetyApiTests|FullyQualifiedName~DirectoryContinuationApiTests|FullyQualifiedName~DirectoryContinuationTests|FullyQualifiedName~DirectoryBindingApiTests|FullyQualifiedName~GraphDirectoryReaderTests|FullyQualifiedName~AdministrationAccessInvitationApiTests|FullyQualifiedName~WorkpaperCommandReceiptApiTests|FullyQualifiedName~TenantSetupMetadataApiTests|FullyQualifiedName~ResourcePlanningReceiptApiTests|FullyQualifiedName~ClientContactCreationApiTests|FullyQualifiedName~EngagementCreationReviewApiTests|FullyQualifiedName~EngagementActivationReviewApiTests|FullyQualifiedName~ReviewPointCommandReceiptApiTests|FullyQualifiedName~FindingCommandReceiptApiTests|FullyQualifiedName~AuditPlanningCommandReceiptApiTests|FullyQualifiedName~PeriodMaintenanceReceiptApiTests|FullyQualifiedName~AccountingPeriodRecordApiTests|FullyQualifiedName~AngularRoutingContractTests.ApiDeepLinks_ExactlyMatchTheAngularRouteCatalogue|FullyQualifiedName~AssessmentWorkspaceApiTests|FullyQualifiedName~AssessmentCommandReceiptApiTests|FullyQualifiedName~WorkflowEvidenceApiTests|FullyQualifiedName~WorkflowDependencyApiTests'
+            --filter 'FullyQualifiedName~ArchitectureGuardTests|FullyQualifiedName~MaterialityPracticalRoundingTests' \
+            --logger 'trx;LogFileName=fast-guards.trx' --results-directory "$RUNNER_TEMP/fast-ci-results"
+
+      - name: Upload fast guard results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fast-ci-guards
+          path: ${{ runner.temp }}/fast-ci-results
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Check EF model drift
         run: |
@@ -151,16 +141,6 @@ jobs:
         with:
           name: angular-ui-browser
           path: src/AuditSphereOps.Ui/dist/auditsphere-ui/browser
-
-      - name: Verify workflow coordination through the real API and browser
-        env:
-          AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=auditsphere_tests;Username=postgres;Password=postgres;Pooling=false
-          E2E_BROWSER: chromium
-        run: |
-          set -euo pipefail
-          pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
-          dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --no-restore \
-            --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularPracticeAnalyticsCurrencyJourneyTests|FullyQualifiedName~AngularMicrosoftDirectoryJourneyTests|FullyQualifiedName~AngularTechnicalLibraryParityJourneyTests|FullyQualifiedName~AngularWorkpaperCommandJourneyTests|FullyQualifiedName~AngularWorkpaperSaveRecoveryJourneyTests|FullyQualifiedName~AngularAuditFieldworkParityJourneyTests|FullyQualifiedName~AngularBillingWorkspaceJourneyTests|FullyQualifiedName~AngularInvoiceOutcomeRecoveryJourneyTests|FullyQualifiedName~AngularFinancialArtifactParityJourneyTests.ReopenedPeriodShowsNewRevisionWithoutReplacingValidatedPackage|FullyQualifiedName~AngularFinancialArtifactParityJourneyTests.AccountingQueuesAndDetailsClearAfterRouteChangesAndGrantRevocation|FullyQualifiedName~AngularReleaseParityJourneyTests|FullyQualifiedName~AngularArchiveCompletenessJourneyTests|FullyQualifiedName~AngularReviewPointCommandJourneyTests|FullyQualifiedName~AngularPeriodMaintenanceJourneyTests|FullyQualifiedName~AngularFindingCommandJourneyTests|FullyQualifiedName~AngularAuditPlanningCommandJourneyTests|FullyQualifiedName~AngularAuditProgramLibraryJourneyTests|FullyQualifiedName~AngularClientScopeAuditDetailJourneyTests|FullyQualifiedName~AngularAnalyticsPagingJourneyTests|FullyQualifiedName~AngularEngagementCreationJourneyTests|FullyQualifiedName~AngularEngagementActivationJourneyTests|FullyQualifiedName~AngularScopedAssessmentDecisionJourneyTests|FullyQualifiedName~AngularAnnualEngagementJourneyTests|FullyQualifiedName~AngularAnnualContinuanceJourneyTests|FullyQualifiedName~AngularWorkflowEvidenceJourneyTests|FullyQualifiedName~AngularWorkflowOrderingJourneyTests|FullyQualifiedName~AngularAdministrationJourneyTests|FullyQualifiedName~AngularTenantConnectionJourneyTests|FullyQualifiedName~AngularTenantOperationsJourneyTests|FullyQualifiedName~CompletionDeliverablesJourneyTests|FullyQualifiedName~AngularCashFlowPackageJourneyTests'
 
       - name: Verify standalone API and Angular publication
         run: |
@@ -185,6 +165,7 @@ jobs:
         run: |
           printf '.NET gate outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
+          printf '\nFast CI intentionally omits PostgreSQL integration, API and browser suites. Run release-verification.yml for full acceptance; this build gate is not full regression evidence.\n' >> "$GITHUB_STEP_SUMMARY"
 
   # Documentation health gate: canonical-link integrity, naming policy and
   # HISTORICAL_SOURCE banners. Pure stdlib Python; no .NET or database needed.
