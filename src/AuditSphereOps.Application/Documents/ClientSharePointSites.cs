@@ -195,7 +195,11 @@ public sealed class ClientSharePointSiteDiscovery(IAuditSphereDbContextFactory f
     if (!Uri.TryCreate("https://" + policy.SiteHost, UriKind.Absolute, out var host) || host.Host != policy.SiteHost ||
         !host.Host.EndsWith(".sharepoint.com", StringComparison.Ordinal) || host.AbsolutePath != "/")
       throw new OperationBlockedException("client-site-host-invalid");
-    var cutover = configuredBoundary.ToUniversalTime();
+    // PostgreSQL timestamptz persists microseconds. Normalize the configured boundary to that
+    // precision before comparing it with the durable rollout value, or an unchanged 100 ns
+    // configuration can appear to have changed after its first database round trip.
+    var utcTicks = configuredBoundary.UtcDateTime.Ticks;
+    var cutover = new DateTimeOffset(utcTicks - utcTicks % 10, TimeSpan.Zero);
     await using (var policyDb = await factory.CreateAsync(ct))
     {
       await using var policyTx = await policyDb.Database.BeginTransactionAsync(ct);

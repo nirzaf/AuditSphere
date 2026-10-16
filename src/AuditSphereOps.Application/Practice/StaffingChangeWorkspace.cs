@@ -149,8 +149,9 @@ public static class StaffingChangeWorkspace
     db.StaffingChanges.Add(row);
     await db.SaveChangesAsync(ct);
     if (!await Authorized(db, a, id, ct)) return Unavailable<StaffingChangeReceipt>();
+    var persisted = await db.StaffingChanges.AsNoTracking().SingleAsync(x => x.Id == row.Id && x.FirmId == a.FirmId, ct);
     await tx.CommitAsync(ct);
-    return CommandResult<StaffingChangeReceipt>.Ok(Receipt(row));
+    return CommandResult<StaffingChangeReceipt>.Ok(Receipt(persisted));
   }
 
   public static async Task<CommandResult<StaffingChangeLookup>> LookupAsync(IAuditSphereDbContext db,

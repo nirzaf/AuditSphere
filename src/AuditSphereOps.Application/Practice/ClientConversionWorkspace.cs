@@ -142,7 +142,8 @@ public static class ClientConversionWorkspace
       ActorEpoch=a.SessionEpoch,RequestId=r.RequestId,RequestHash=r.RequestHash!,ReviewBasis=r.ReviewBasis!,PreviewJson=JsonSerializer.Serialize(preview.Value),CreatedAt=DateTimeOffset.UtcNow};
     db.ClientConversions.Add(row);await db.SaveChangesAsync(ct);
     if(!(await Authorize(db,a,ct)).Succeeded)return Unavailable<ClientConversionReceipt>();
-    await tx.CommitAsync(ct);return CommandResult<ClientConversionReceipt>.Ok(Receipt(row));
+    var persisted=await db.ClientConversions.AsNoTracking().SingleAsync(x=>x.Id==row.Id && x.FirmId==a.FirmId,ct);
+    await tx.CommitAsync(ct);return CommandResult<ClientConversionReceipt>.Ok(Receipt(persisted));
   }
 
   public static async Task<CommandResult<ClientConversionLookup>> LookupAsync(IAuditSphereDbContext db,ActorContext a,

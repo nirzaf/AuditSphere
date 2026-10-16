@@ -241,6 +241,11 @@ public sealed partial class ClientAccountingTests
       SourceProcedureId="ACCT-"+suffix,SourceSectionNumber=1,SourceSectionTitle="Accounting evidence",SourceWording="Review the accounting evidence.",
       ApplicabilityStatus=AuditApplicabilityStatuses.Applicable,Title="Accounting evidence review",Status=AuditProcedureStatuses.Planned,CreatedAt=DateTimeOffset.UtcNow});
     await db.SaveChangesAsync();
+    var planning = await MaterialityEngineService.GetLatestAsync(db, scope.FirmId, engagement);
+    if (planning?.State != MaterialityCalculationStates.Approved)
+      await PlanningBasisSeed.EstablishAsync(db, scope.FirmId, client, engagement,
+        new ActorContext(preparerId, scope.FirmId, preparer.SessionEpoch, ["Staff"]),
+        new ActorContext(reviewerId, scope.FirmId, reviewer.SessionEpoch, ["Partner"]));
     Guid resultId;
     try
     {

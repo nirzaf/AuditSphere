@@ -323,7 +323,7 @@ public sealed class CommercialPricingPolicyTests
   }
 
   [Fact]
-  public async Task DeliveryReceipts_DistinguishRefusalUnknownAndProviderAcceptance()
+  public async Task DeliveryReceipts_DistinguishRefusalAndProviderAcceptance()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
@@ -342,12 +342,7 @@ public sealed class CommercialPricingPolicyTests
     Assert.Equal(CommercialDeliveryStates.Rejected, (await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notificationId)).DeliveryState);
     Assert.Null((await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notificationId)).DeliveredAt);
 
-    // An operator re-arm of the refused send re-enters the same durable path; this time the outcome is unknown.
-    await ReArmAsync(pg, w);
-    await RunWorkerAsync(pg, w, new FailingMailSender());
-    Assert.Equal(CommercialDeliveryStates.Unknown, (await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notificationId)).DeliveryState);
-
-    // A second re-arm with a working provider ends at a verified receipt: PROVIDER_ACCEPTED, sent exactly once.
+    // A reviewed operator re-arm after a definite refusal may retry the same immutable mail artifact.
     await ReArmAsync(pg, w);
     var sender = new RecordingSender();
     await RunWorkerAsync(pg, w, sender);
@@ -380,6 +375,37 @@ public sealed class CommercialPricingPolicyTests
     Assert.Single(sender.Plans);
     Assert.Equal(OperationState.AUTHORIZATION_BLOCKED,
       (await recheck.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == op.Value)).Status);
+  }
+
+  [Fact]
+  public async Task UnknownDeliveryOutcomeStaysReconciliationOnlyAndIsNeverBlindlyResent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var proposalId = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True(quote.Succeeded, quote.Message);
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    var notificationId = (await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId)).Id;
+
+    await RunWorkerAsync(pg, w, new FailingMailSender());
+    Assert.Equal(CommercialDeliveryStates.Unknown,
+      (await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notificationId)).DeliveryState);
+
+    await ReArmAsync(pg, w);
+    var mustNotSend = new RecordingSender();
+    await RunWorkerAsync(pg, w, mustNotSend);
+    Assert.Empty(mustNotSend.Plans);
+    Assert.Equal(CommercialDeliveryStates.Unknown,
+      (await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notificationId)).DeliveryState);
+    var operation = await db.DurableOperations.AsNoTracking()
+      .SingleAsync(x => x.OperationKind == CommercialMailDeliveryHandler.Kind && x.TargetId == notificationId);
+    Assert.True(operation.IsReconciliation);
+    Assert.Equal(OperationState.PROVIDER_BLOCKED, operation.Status);
   }
 
   [Fact]

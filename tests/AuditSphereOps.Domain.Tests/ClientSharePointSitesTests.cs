@@ -224,9 +224,16 @@ public sealed class ClientSharePointSitesTests
     await using (var db = rig.H.Db())
     {
       var op = await db.DurableOperations.SingleAsync(x => x.OperationKind == ClientSharePointSiteHandler.Kind && x.Status == OperationState.RESULT_UNCERTAIN);
-      // Re-arm can reset attempts and must still never allow another create.
-      op.Status = OperationState.RETRY_WAIT; op.AttemptCount = 0; op.NextAttemptAt = DateTimeOffset.UtcNow.AddSeconds(-1);
-      await db.SaveChangesAsync();
+      // A reviewed operator re-arm retains the uncertain effect as reconciliation-only.
+      // It may discover the accepted site, but must never issue another create.
+      var actor = PbcSeed.Actor(rig.H.A.Admin, "Administrator");
+      var request = await OperatorCommandReceiptSeed.ReviewAsync(db,
+        new(rig.H.A, op.Id, new(OperationCommandActions.Retry, OperationId: op.Id)));
+      var rearmed = await OperationCommandWorkspace.ExecuteAsync(db, actor, request);
+      Assert.True(rearmed.Succeeded, rearmed.Message);
+      // Simulate the scheduler reaching the persisted five-second retry time without mutating the reviewed state transition.
+      await db.DurableOperations.Where(x => x.Id == op.Id)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.NextAttemptAt, DateTimeOffset.UtcNow.AddSeconds(-1)));
     }
     while (await rig.Dispatcher.ProcessNextAsync()) { }
     var client = rig.Provider.Calls[0].Client;

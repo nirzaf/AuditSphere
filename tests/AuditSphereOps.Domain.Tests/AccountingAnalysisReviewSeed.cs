@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,30 @@ internal static class AccountingAnalysisReviewSeed
   {
     var s = await ReconciliationReviewSeed.SeedAsync(pg); var f = s.Fixture;
     await using var db = new AuditSphereDbContext(pg.Options);
+    var now = DateTimeOffset.UtcNow;
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner", f.ClientId, f.EngagementId));
+    var mappingId = Guid.CreateVersion7();
+    db.MappingVersions.Add(new MappingVersion
+    {
+      Id = mappingId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, DatasetId = s.SourceId,
+      Version = 1, Generation = 1, TaxonomyVersion = "synthetic-analysis-v1", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+      Status = AccountingPackageStates.MappingApproved, CreatedByUserId = f.Staff.Id, ApprovedByUserId = f.Reviewer.Id,
+      ApprovedAt = now, CreatedAt = now
+    });
+    db.MappingAllocations.AddRange(
+      new MappingAllocation { Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        MappingVersionId = mappingId, SourceAccountCode = "1000", DestinationCode = "CASH", StatementSection = "ASSETS",
+        Fraction = 1m, Rationale = "Synthetic current mapping", CreatedAt = now },
+      new MappingAllocation { Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        MappingVersionId = mappingId, SourceAccountCode = "3000", DestinationCode = "EQUITY", StatementSection = "EQUITY",
+        Fraction = 1m, Rationale = "Synthetic current mapping", CreatedAt = now });
+    await db.SaveChangesAsync();
+    var materiality = await MaterialityEngineService.CalculateAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+      new(f.EngagementId, MaterialityBenchmarks.TotalAssets, null, 1m, 75m, 5m, "Synthetic approved planning basis."));
+    if (!materiality.Succeeded) throw new InvalidOperationException(materiality.Message);
+    var approval = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db,
+      PbcSeed.Actor(f.Reviewer, "Partner"), materiality.Value!.AssessmentId);
+    if (!approval.Succeeded) throw new InvalidOperationException(approval.Message);
     var source = await db.TrialBalanceDatasets.AsNoTracking().SingleAsync(x=>x.Id==s.SourceId);
     var actor = PbcSeed.Actor(f.Staff,"AccountingPreparer"); var reviewer = PbcSeed.Actor(f.Reviewer,"AccountingReviewer");
     var rec = await AccountingAnalysisService.CreateReconciliationAsync(db,actor,
@@ -36,13 +61,13 @@ internal static class AccountingAnalysisReviewSeed
       "Synthetic review indicator; no fraud conclusion.",70m,"SYNTHETIC-RISK-EVIDENCE",true,"Synthetic management explanation.","SYNTHETIC-CORROBORATION"));
     foreach(var result in new[]{ecl,inventory,specialist,analytical,zero,risk}) if(!result.Succeeded)throw new InvalidOperationException(result.Message);
     var ids = new Dictionary<string,Guid>{{"ECL",ecl.Value},{"INVENTORY",inventory.Value},{"SPECIALIST",specialist.Value},{"ANALYTICAL",analytical.Value},{"JOURNAL_RISK",risk.Value}};
-    var results = new List<Guid>(); var now=DateTimeOffset.UtcNow;
+    var results = new List<Guid>(); var evidenceAt=DateTimeOffset.UtcNow;
     for(var n=0;n<27;n++)
     {
       var procedure=Guid.NewGuid();var code=$"SYN-ANALYSIS-{n:D3}";
       db.AuditProcedures.Add(new(){Id=procedure,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,SourceProcedureId=code,
         SourceSectionNumber=1,SourceSectionTitle="Synthetic accounting evidence",SourceWording="Inspect synthetic retained evidence.",ApplicabilityStatus="APPLICABLE",
-        Title=code,Status="PLANNED",CreatedAt=now});
+        Title=code,Status="PLANNED",CreatedAt=evidenceAt});
       await db.SaveChangesAsync();
       var generation=await db.ClientSafetyStates.AsNoTracking().Where(x=>x.FirmId==f.FirmId && x.Id==f.ClientId).Select(x=>x.InputGeneration).SingleAsync();
       var submitted=await AuditProgramService.SubmitResultAsync(db,PbcSeed.Actor(f.Staff,"Staff"),
@@ -77,7 +102,7 @@ internal static class AccountingAnalysisReviewSeed
     var hiddenRec=await db.AccountingReconciliations.AsNoTracking().SingleAsync(x=>x.Id==s.SiblingId);var hidden=Guid.NewGuid();
     db.SpecialistAccountingSchedules.Add(new(){Id=hidden,FirmId=f.FirmId,ClientId=hiddenRec.ClientId,EngagementId=hiddenRec.EngagementId,PeriodId=hiddenRec.PeriodId,
       Area="ASSETS",MethodologyVersion="HIDDEN SYNTHETIC",EvidenceReference="HIDDEN SYNTHETIC",DepreciationMethod="STRAIGHT_LINE",UsefulLifeMonths=120,
-      AssumptionsHash=new('a',64),CreatedByUserId=f.Staff.Id,CreatedAt=now});
+      AssumptionsHash=new('a',64),CreatedByUserId=f.Staff.Id,CreatedAt=evidenceAt});
     await db.SaveChangesAsync();
     return new(f,ids,source.Id,hidden,zero.Value,results);
   }
