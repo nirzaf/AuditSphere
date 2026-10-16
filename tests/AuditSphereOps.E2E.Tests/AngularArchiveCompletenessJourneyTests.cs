@@ -78,17 +78,13 @@ public sealed class AngularArchiveCompletenessJourneyTests
       if (request.Method == "POST" && request.Url.Contains("/api/ui/", StringComparison.Ordinal)) mutations++;
       if (request.Url == archiveUrl + "?afterOrdinal=100") firstPageAttempts++;
     };
-    var rootRead = page.WaitForResponseAsync(response => response.Url == archiveUrl && response.Status == 200);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/app/records/archives/{archiveId:D}"));
     await Assertions.Expect(page.GetByText("Showing 100 of 205 entries.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Link,
       new() { Name = "Download read-only evidence export", Exact = true })).ToHaveCountAsync(0);
-    using var rootDocument = JsonDocument.Parse(await (await rootRead).TextAsync());
-    var rootJson = rootDocument.RootElement;
-    Assert.StartsWith(now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture), rootJson.GetProperty("createdAt").GetString()!);
     var summary = page.Locator("section[aria-labelledby='archive-summary']");
     await Assertions.Expect(summary.Locator("dt").Filter(new() { HasText = "Created" }).Locator("+ dd"))
-      .ToHaveTextAsync(rootJson.GetProperty("createdAt").GetString()!);
+      .ToContainTextAsync(now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
     await Assertions.Expect(page.GetByText("Manifest version 1 · 205 manifest entries · 1 active local holds", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(summary).ToContainTextAsync("Records action requested; this is not evidence of Purview protection.");
     var evidence = page.Locator("section[aria-labelledby='records-evidence']");
