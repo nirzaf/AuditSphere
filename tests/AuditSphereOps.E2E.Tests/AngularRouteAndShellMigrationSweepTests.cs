@@ -116,6 +116,9 @@ public sealed class AngularRouteAndShellMigrationSweepTests
         await Assertions.Expect(staffPage.GetByText(
           "Your Microsoft identity has no current AuditSphere access. Contact an authorized AuditSphere administrator to be granted a role and scope.",
           new() { Exact = true })).ToBeVisibleAsync();
+        await Assertions.Expect(staffPage.GetByText(
+          "Forwarding an invitation link cannot grant access.",
+          new() { Exact = true })).ToBeVisibleAsync();
         await Assertions.Expect(staffPage.GetByRole(AriaRole.Link,
           new() { Name = "Sign out", Exact = true })).ToHaveAttributeAsync("href", "/auth/sign-out");
       }

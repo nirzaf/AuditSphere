@@ -121,6 +121,7 @@ public static class UserAccessWorkspaceQuery
       .Select(g => g.Take(20).Select(x => new AccessGrantEvidenceRow(g.Key, x.CreatedAt, x.Action, x.PriorRole,
         x.NewRole, x.Reason, Name(x.ActorUserId), x.Source)))
       .SelectMany(x => x).ToList();
+    if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<UserAccessWorkspace>();
     return CommandResult<UserAccessWorkspace>.Ok(new(
       rows.Where(x => x.AuditSphereStatus != "DISABLED").ToList(),
       rows.Where(x => x.AuditSphereStatus is "DISABLED" or "NO_ACCESS" ||

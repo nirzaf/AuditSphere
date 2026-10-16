@@ -28,6 +28,29 @@ Current-commit GitHub CI and full release verification have been requested.
 Their results, current browser journeys and independent action-matrix review
 remain pending. This row stays PARTIAL and the retirement gate stays NOT_READY.
 
+## Hosted follow-up result
+
+The [CI run for f8300cc2](https://github.com/nirzaf/AuditSphere/actions/runs/38925498113)
+failed its Angular test step: 1,172 passed and one failed. The failing case is
+`Workpaper authored-content and receipt protection > rearms exactly one debounced
+autosave of newer edits after an in-flight save and Stay`; its dialog-open
+assertion observed zero calls rather than one. Documentation health passed.
+The dependent .NET job was skipped, so this run supplies no .NET regression
+pass. Diagnosis and current browser evidence remain outstanding; no parity
+promotion follows from this run.
+
+## Navigation correction awaiting verification
+
+The failing Stay regression exposed an early-return defect: a dispatched save
+already creates a pending checkpoint, so the navigation guard treated a still
+in-flight save as an unresolved outcome and returned before awaiting its reply.
+The correction captures and awaits the current save before evaluating the
+remaining uncertainty. A lost acknowledgement still refuses navigation, leaves
+the checkpoint available for explicit reconciliation, and never retries on a
+timer. The original 749/750 ms debounce and single-dispatch assertions remain.
+This correction requires a new hosted result; the failed runs remain evidence
+of the earlier revision, not a pass for the correction.
+
 ## Legacy behavior and Angular ownership
 
 The legacy page at `src/AuditSphereOps.Web/Components/Pages/Workpaper.razor`

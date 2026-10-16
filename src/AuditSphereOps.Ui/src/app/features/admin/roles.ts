@@ -11,6 +11,22 @@ import { accessWorkspace, accessLine, accessUser, roleReview, invitationAssignme
 type Workspace = ReturnType<typeof accessWorkspace>;
 type User = ReturnType<typeof accessUser>;
 type RoleDialogData = { user: User; workspace: Workspace };
+type RoleScope = Pick<ReturnType<typeof accessLine>, 'scopeKind' | 'clientId' | 'engagementId' | 'groupId'>;
+/** Names aid recognition; immutable scope identifiers distinguish siblings even when their names match. */
+export function roleScopeDescription(scope: RoleScope, workspace: Pick<Workspace, 'clients' | 'engagements' | 'clientGroups'>): string {
+  const identify = (id: string | null, catalogue: { id: string; name: string }[]) => {
+    if (!id) return 'identifier unavailable';
+    const name = catalogue.find(item => item.id === id)?.name;
+    return name ? `${name} (${id})` : id;
+  };
+  switch (scope.scopeKind) {
+    case 'FIRM_WIDE': return 'Firm-wide';
+    case 'CLIENT': return `Client ${identify(scope.clientId, workspace.clients)}`;
+    case 'ENGAGEMENT': return `Engagement ${identify(scope.engagementId, workspace.engagements)}` +
+      (scope.clientId ? ` · Client ${identify(scope.clientId, workspace.clients)}` : '');
+    case 'GROUP': return `Client group ${identify(scope.groupId, workspace.clientGroups)}`;
+  }
+}
 /** Presentation hint only; the Application service independently validates identity kind and scope. */
 export function roleChoices(accountType: string, catalogue: string[]): { roles: string[]; scopes: string[]; initialRole: string } {
   return accountType.startsWith('Client (')
@@ -27,12 +43,12 @@ export function roleChoices(accountType: string, catalogue: string[]): { roles: 
         <label for="role-client">Client</label><select id="role-client" formControlName="clientId"><option value="">Select client</option>@for(c of data.workspace.clients; track c.id) { <option [value]="c.id">{{ c.name }}</option> }</select>
       }
       @if (form.controls.scopeKind.value === 'ENGAGEMENT') {
-        <label for="role-engagement">Engagement</label><select id="role-engagement" formControlName="engagementId"><option value="">Select engagement</option>@for(e of data.workspace.engagements; track e.id) { @if(e.parentId === form.controls.clientId.value) { <option [value]="e.id">{{ e.name }}</option> } }</select>
+        <label for="role-engagement">Engagement</label><select id="role-engagement" formControlName="engagementId"><option value="">Select engagement</option>@for(e of data.workspace.engagements; track e.id) { @if(e.parentId === form.controls.clientId.value) { <option [value]="e.id">{{ e.name }} · {{ e.id }}</option> } }</select>
       }
       @if (form.controls.scopeKind.value === 'GROUP') {
         <label for="role-group">Client group</label><select id="role-group" formControlName="groupId"><option value="">Select group</option>@for(g of data.workspace.clientGroups; track g.id) { <option [value]="g.id">{{ g.name }}</option> }</select>
       }
-      <label for="role-replaces">Replace existing grant (optional)</label><select id="role-replaces" formControlName="replacesGrantId"><option value="">Add separate grant</option>@for(g of data.user.access; track g.grantId) { @if(!g.groupGrant) { <option [value]="g.grantId">{{ g.role }} · {{ g.scopeKind }}</option> } }</select>
+      <label for="role-replaces">Replace existing grant (optional)</label><select id="role-replaces" formControlName="replacesGrantId"><option value="">Add separate grant</option>@for(g of data.user.access; track g.grantId) { @if(!g.groupGrant) { <option [value]="g.grantId">{{ g.role }} · {{ g.scopeKind }} · {{ describeScope(g) }} · grant {{ g.grantId }}</option> } }</select>
       <label for="role-effective">Effective from (local time, optional)</label><input id="role-effective" type="datetime-local" formControlName="effectiveFrom" />
       <label for="role-expiry">Expires at (local time, optional)</label><input id="role-expiry" type="datetime-local" formControlName="expiresAt" />
       <label for="role-reason">Reason</label><textarea id="role-reason" formControlName="reason" maxlength="1000"></textarea>
@@ -41,8 +57,13 @@ export function roleChoices(accountType: string, catalogue: string[]): { roles: 
     </form>
     <audit-state [loading]="catalogue.loading()" [error]="catalogue.error()" label="the role catalogue" />
     @if (review(); as p) {
-      <h3>Current access</h3><ul>@for(g of p.review.currentAccess; track g.grantId) { <li>{{ g.role }} · {{ g.scopeKind }} · {{ g.clientId ?? g.groupId ?? 'Firm' }} · expires {{ g.expiresAt ?? 'No expiry' }}</li> } @empty { <li>No current access</li> }</ul>
-      <h3>Proposed access</h3><p>{{ p.review.proposed.role }} · {{ p.review.proposed.scopeKind }} · {{ p.review.proposed.clientId ?? p.review.proposed.groupId ?? 'Firm' }} · expires {{ p.review.proposed.expiresAt ?? 'No expiry' }}</p>
+      <h3>Current access</h3><ul aria-label="Reviewed current access">@for(g of p.review.currentAccess; track g.grantId) { <li>{{ g.role }} · {{ g.scopeKind }} · {{ describeScope(g) }} · expires {{ g.expiresAt ?? 'No expiry' }}</li> } @empty { <li>No current access</li> }</ul>
+      <h3>Proposed access</h3><p aria-label="Reviewed proposed access">{{ p.review.proposed.role }} · {{ p.review.proposed.scopeKind }} · {{ describeScope(p.review.proposed) }} · expires {{ p.review.proposed.expiresAt ?? 'No expiry' }}</p>
+      @if (replacementGrant(); as g) {
+        <section aria-label="Reviewed replacement grant"><h3>Grant selected for replacement</h3>
+          <p>{{ g.role }} · {{ g.scopeKind }} · {{ describeScope(g) }} · grant {{ g.grantId }}</p>
+        </section>
+      }
       <h3>Added capabilities</h3><ul>@for(c of p.review.addedCapabilities; track c) { <li>{{ c }}</li> } @empty { <li>None</li> }</ul>
       <h3>Removed capabilities</h3><ul>@for(c of p.review.removedCapabilities; track c) { <li>{{ c }}</li> } @empty { <li>None</li> }</ul>
       <p>Scope expansion: {{ p.review.scopeExpansion ? 'Yes' : 'No' }} · scope reduction: {{ p.review.scopeReduction ? 'Yes' : 'No' }}</p>
@@ -61,7 +82,7 @@ export function roleChoices(accountType: string, catalogue: string[]): { roles: 
     }
     <audit-command-message [message]="message()" [failed]="failed()" />
   </mat-dialog-content><mat-dialog-actions><button matButton (click)="dialog.close(changed())" [disabled]="busy()">Close</button></mat-dialog-actions>
-`, styles: `form { display: grid; gap: .5rem; } label { margin-top: .5rem; } textarea { min-height: 5rem; }` })
+`, styles: `form { display: grid; gap: .5rem; } label { margin-top: .5rem; } textarea { min-height: 5rem; } select { width: 100%; min-width: 0; } p, li { overflow-wrap: anywhere; }` })
 export class RoleAssignmentDialog {
   readonly data = inject<RoleDialogData>(MAT_DIALOG_DATA); readonly dialog = inject(MatDialogRef<RoleAssignmentDialog>);
   private readonly api = inject(Api); private readonly session = inject(SessionService); private readonly fb = inject(FormBuilder);
@@ -75,6 +96,11 @@ export class RoleAssignmentDialog {
   private reviewedRequest: ReturnType<RoleAssignmentDialog['request']> | null = null;
   private readonly openedGeneration = this.session.invalidation();
   constructor() { effect(() => { if (this.session.invalidation() !== this.openedGeneration || !this.session.current()?.staff) this.dialog.close(); }); const sub = this.form.valueChanges.subscribe(() => { this.review.set(null); this.confirmed.setValue(false); this.reviewedRequest = null; this.invitation.set(null); this.inviteLink.set(''); }); inject(DestroyRef).onDestroy(() => sub.unsubscribe()); }
+  readonly describeScope = (scope: RoleScope) => roleScopeDescription(scope, this.data.workspace);
+  replacementGrant(): ReturnType<typeof accessLine> | undefined {
+    const id = this.reviewedRequest?.replacesGrantId;
+    return id ? this.review()?.review.currentAccess.find(grant => grant.grantId === id) : undefined;
+  }
   private request() {
     const f = this.form.getRawValue(); const scope = f.scopeKind;
     return { userId: this.data.user.userId, role: f.role, scopeKind: scope, clientId: scope === 'CLIENT' || scope === 'ENGAGEMENT' ? f.clientId || null : null,

@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -29,8 +30,8 @@ describe('Invoice exact read and allocation pagination', () => {
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(SessionService).current.set({ userId: id(90), firmId: id(91), generation: '1', staff: true });
   });
-  afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); });
-  function open(payload = invoice()) {
+  afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); vi.restoreAllMocks(); });
+  function open(payload: object = invoice()) {
     const fixture = TestBed.createComponent(InvoiceDetail); fixture.detectChanges(); TestBed.tick();
     http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush(payload); TestBed.tick(); return fixture;
   }
@@ -80,6 +81,60 @@ describe('Invoice exact read and allocation pagination', () => {
     expect(f.nativeElement.textContent).not.toContain('Post invoice');
     http.expectNone(r => r.method !== 'GET');
   });
+  for (const action of ['approve', 'post', 'send'] as const) {
+    it.each([
+      { status: 403, code: 'scope.denied' },
+      { status: 409, code: 'generation.stale' },
+      { status: 401, code: 'request.failed' },
+      { status: 403, code: 'request.failed' },
+      { status: 404, code: 'request.failed' },
+    ])(`clears protected invoice after ${action} authority refusal $status/$code without retrying the command`, async ({ status, code }) => {
+      const payload = { ...invoice(), status: action === 'approve' ? 'REVIEW_REQUIRED' : action === 'post' ? 'APPROVED' : 'POSTED',
+        canApproveInvoice: action === 'approve', canPostInvoice: action === 'post', canSendInvoice: action === 'send',
+        receipts: [{ id: id(600), reference: 'PRIVATE receipt history', currency: 'QAR', amount: '40.00', allocated: '0.00', remaining: '40.00', receivedAt: '2026-10-01T09:00:00Z' }],
+        creditNotes: [{ id: id(601), noteNumber: 'PRIVATE credit history', currency: 'QAR', amount: '1.00', reason: 'Private correction', createdAt: '2026-10-01T09:00:00Z' }] };
+      const f = open(payload); const c = f.componentInstance;
+      // Keep 401 session revalidation controlled so this tests command-authority clearing directly.
+      const sessionRefresh = vi.spyOn(TestBed.inject(SessionService), 'refresh').mockResolvedValue(false);
+      c.receiptForm.patchValue({ amount: '12', reference: 'PRIVATE unsaved payment', reviewed: true });
+      c.selectedAllocation.set(c.invoice.data()!.allocations[0]);
+      const operation = c.act(id(1), action, 'Unexpected success');
+      http.expectOne(r => r.method === 'POST' && r.url === `/api/ui/finance/invoices/${id(1)}/${action}`)
+        .flush({ code, message: 'Current authority refused.' }, { status, statusText: 'Authority unavailable' });
+      await operation; TestBed.tick();
+      expect(c.invoice.data()).toBeNull(); expect(c.uncertain()).toBe(false); expect(c.failed()).toBe(true);
+      expect(c.receiptHistory()).toEqual([]); expect(c.creditHistory()).toEqual([]); expect(c.selectedAllocation()).toBeNull();
+      expect(c.receiptForm.controls.reference.value).toBe(''); expect(c.receiptForm.controls.reviewed.value).toBe(false);
+      for (const marker of ['SYN-INVOICE-1', 'Synthetic confidential line', '67.50', id(200), 'BANK-0', 'PRIVATE receipt history', 'PRIVATE credit history']) {
+        expect(f.nativeElement.textContent).not.toContain(marker);
+      }
+      expect(f.nativeElement.querySelector('section[aria-labelledby="workflow-heading"]')).toBeNull();
+      expect(f.nativeElement.querySelector('nav[aria-label="Allocation pages"]')).toBeNull();
+      expect(f.nativeElement.textContent).toContain(status === 409
+        ? 'This record changed since you loaded it. Refresh and review the current revision.' : 'Current authority refused.');
+      http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush({}, { status: 403, statusText: 'Forbidden' }); TestBed.tick();
+      expect(c.invoice.data()).toBeNull();
+      http.expectNone(r => r.method !== 'GET');
+      if (status === 401) expect(sessionRefresh).toHaveBeenCalledOnce();
+    });
+  }
+
+  it('preserves loaded content for a business refusal and preserves fail-closed unknown recovery', async () => {
+    const f = open(); const c = f.componentInstance;
+    const refused = c.act(id(1), 'post', 'Unexpected success');
+    http.expectOne(`/api/ui/finance/invoices/${id(1)}/post`)
+      .flush({ code: 'state.protected', message: 'Business prerequisite missing.' }, { status: 409, statusText: 'Conflict' });
+    await refused; TestBed.tick();
+    expect(c.invoice.data()?.id).toBe(id(1)); expect(c.uncertain()).toBe(false);
+    http.expectNone(r => r.method === 'GET');
+    const unknown = c.act(id(1), 'post', 'Unexpected success');
+    http.expectOne(`/api/ui/finance/invoices/${id(1)}/post`).error(new ProgressEvent('error'));
+    await unknown; TestBed.tick();
+    expect(c.invoice.data()?.id).toBe(id(1)); expect(c.uncertain()).toBe(true);
+    await c.act(id(1), 'post', 'Unexpected retry');
+    http.expectNone(r => r.method !== 'GET'); http.expectNone(r => r.method === 'GET');
+  });
+
   it('resets paging on explicit refresh and authorization result replacement while retaining the selected size', async () => {
     const f = open(); const c = f.componentInstance;
     c.setAllocationPageSize({ target: { value: '25' } } as unknown as Event);

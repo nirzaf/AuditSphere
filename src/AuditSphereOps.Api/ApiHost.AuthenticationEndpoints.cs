@@ -191,6 +191,7 @@ public static partial class ApiHost
 main{max-width:34rem;padding:2rem;text-align:center}a.button{display:inline-block;margin-top:1rem;padding:.6rem 1.2rem;border:1px solid #5b6470;border-radius:.4rem;text-decoration:none}</style></head>
 <body><main><h1>Access not assigned</h1>
 <p>Your Microsoft identity has no current AuditSphere access. Contact an authorized AuditSphere administrator to be granted a role and scope.</p>
+<p>Forwarding an invitation link cannot grant access.</p>
 <p><a class="button" href="/auth/sign-out">Sign out</a></p></main></body>
 </html>
 """;

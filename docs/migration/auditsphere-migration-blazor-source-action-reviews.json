@@ -665,11 +665,11 @@
       "source": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-workpaper-source-review.md",
-      "reviewedAtCommit": "6d1f91ad21bb68c4081021eee961e3ebad3c0bf1",
+      "reviewedAtCommit": "75fcfa7095aa115fab4e7e7af9bcf398e9b50fa6",
       "openGaps": [
-        "Complete role/scope, expired-grant, cross-firm and guessed-ID HTTP/browser matrix",
-        "All stale, validation, timeout, failure and recovery states outside the covered discard paths",
-        "Human screen-reader and wider-locale acceptance"
+        "Hosted Angular regression failed on in-flight save navigation before Stay; correction and preserved debounce/lost-acknowledgement assertions await passing verification",
+        "Current reviewed-command browser and scope/revocation cohorts must pass and be reconciled against every legacy source action",
+        "Human assistive-technology and wider-locale acceptance remain separate retirement gates"
       ]
     },
     {

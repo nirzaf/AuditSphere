@@ -286,6 +286,124 @@ public sealed class RoleAssignmentTests
     Assert.Equal(0, await db.Microsoft365ExternalOperations.CountAsync());
   }
 
+  [Fact]
+  public async Task ReviewedInvitationPreservesReplacementExpiryReasonAndAtomicProvenance()
+  {
+    await using var f=await TenantAdministrationFixture.CreateAsync();var staff=await StaffAsync(f);await using var db=f.Db();var now=new DateTimeOffset(DateTimeOffset.UtcNow.Ticks/10*10,TimeSpan.Zero);
+    var old=await RoleAssignmentService.AssignAsync(db,f.AdminActor,new(staff.Id,"Staff","CLIENT",f.ClientId,Reason:"Original fixture access",ConfirmScopeExpansion:true),now);Assert.True(old.Succeeded,old.Message);
+    var epoch=f.CurrentEpoch(staff.Id);var expiry=now.AddDays(2);var request=new RoleAssignmentRequest(staff.Id,"Manager","ENGAGEMENT",f.ClientId,f.EngagementId,ExpiresAt:expiry,Reason:"Reviewed replacement rationale",ReplacesGrantId:old.Value!.GrantId,ConfirmScopeExpansion:true);
+    var preview=await RoleAssignmentService.PreviewAsync(db,f.AdminActor,request,now);Assert.True(preview.Succeeded,preview.Message);
+    var applied=await RoleAssignmentService.AssignWithInvitationAsync(db,f.AdminActor,request,now,RoleAssignmentReviewDigest.Compute(preview.Value!,request));Assert.True(applied.Succeeded,applied.Message);
+    db.ChangeTracker.Clear();var grant=await db.RoleGrants.SingleAsync(x=>x.Id==applied.Value!.RoleGrantId);Assert.Equal(expiry,grant.ExpiresAt);Assert.Equal(request.Reason,grant.Reason);Assert.Equal(f.EngagementId,grant.EngagementId);Assert.Equal(f.ClientId,grant.ClientId);
+    Assert.NotNull((await db.RoleGrants.SingleAsync(x=>x.Id==old.Value.GrantId)).RevokedAt);Assert.Equal(epoch+1,f.CurrentEpoch(staff.Id));
+    var invitation=await db.UserAccessInvitations.SingleAsync();Assert.Equal(grant.Id,invitation.RoleGrantId);Assert.Equal(staff.Id,invitation.UserId);
+    Assert.Equal(2,await db.RoleGrantChangeEvidences.CountAsync(x=>x.TargetUserId==staff.Id && x.Reason==request.Reason));
+  }
+  [Fact]
+  public async Task DifferentExistingExpiryRefusesWithoutEffectsButExplicitReplacementCreatesNewGrant()
+  {
+    await using var f=await TenantAdministrationFixture.CreateAsync();var staff=await StaffAsync(f);await using var db=f.Db();var now=new DateTimeOffset(DateTimeOffset.UtcNow.Ticks/10*10,TimeSpan.Zero);
+    var original=new RoleAssignmentRequest(staff.Id,"Staff","CLIENT",f.ClientId,Reason:"Original unexpiring access",ConfirmScopeExpansion:true);
+    var old=await RoleAssignmentService.AssignAsync(db,f.AdminActor,original,now);Assert.True(old.Succeeded,old.Message);var epoch=f.CurrentEpoch(staff.Id);
+    var changed=original with{ExpiresAt=now.AddDays(3)};var preview=await RoleAssignmentService.PreviewAsync(db,f.AdminActor,changed,now);Assert.NotEmpty(preview.Value!.BlockingReasons);
+    Assert.False((await RoleAssignmentService.AssignAsync(db,f.AdminActor,changed,now)).Succeeded);
+    Assert.False((await RoleAssignmentService.AssignWithInvitationAsync(db,f.AdminActor,changed,now,RoleAssignmentReviewDigest.Compute(preview.Value!,changed))).Succeeded);
+    Assert.Empty(await db.UserAccessInvitations.ToListAsync());Assert.Equal(epoch,f.CurrentEpoch(staff.Id));
+    var replacement=changed with{ReplacesGrantId=old.Value!.GrantId};var reviewed=await RoleAssignmentService.PreviewAsync(db,f.AdminActor,replacement,now);
+    var applied=await RoleAssignmentService.AssignWithInvitationAsync(db,f.AdminActor,replacement,now,RoleAssignmentReviewDigest.Compute(reviewed.Value!,replacement));Assert.True(applied.Succeeded,applied.Message);
+    db.ChangeTracker.Clear();Assert.NotEqual(old.Value.GrantId,applied.Value!.RoleGrantId);Assert.NotNull((await db.RoleGrants.SingleAsync(x=>x.Id==old.Value.GrantId)).RevokedAt);Assert.Equal(changed.ExpiresAt,(await db.RoleGrants.SingleAsync(x=>x.Id==applied.Value.RoleGrantId)).ExpiresAt);
+  }
+  [Fact]
+  public async Task ReplacementOntoExistingGroupGrantInvalidatesEpochAndRecordsReduction()
+  {
+    await using var f=await TenantAdministrationFixture.CreateAsync();var staff=await StaffAsync(f);await using var db=f.Db();var now=new DateTimeOffset(DateTimeOffset.UtcNow.Ticks/10*10,TimeSpan.Zero);var groupId=Guid.NewGuid();
+    db.ClientGroups.Add(new ClientGroup{Id=groupId,FirmId=f.FirmId,Code="EXISTING",Name="Synthetic group",CreatedByUserId=f.Admin.Id,CreatedAt=now});await db.SaveChangesAsync();
+    var local=await RoleAssignmentService.AssignAsync(db,f.AdminActor,new(staff.Id,"Staff","CLIENT",f.ClientId,Reason:"Original local access",ConfirmScopeExpansion:true),now);Assert.True(local.Succeeded,local.Message);
+    var groupRequest=new RoleAssignmentRequest(staff.Id,"Manager","GROUP",GroupId:groupId,Reason:"Original group access",ConfirmScopeExpansion:true);
+    var group=await RoleAssignmentService.AssignAsync(db,f.AdminActor,groupRequest,now);Assert.True(group.Succeeded,group.Message);var epoch=f.CurrentEpoch(staff.Id);
+    var replacement=groupRequest with{ReplacesGrantId=local.Value!.GrantId,Reason="Remove redundant local access"};var preview=await RoleAssignmentService.PreviewAsync(db,f.AdminActor,replacement,now);
+    var result=await RoleAssignmentService.AssignAsync(db,f.AdminActor,replacement,now,expectedReviewDigest:RoleAssignmentReviewDigest.Compute(preview.Value!,replacement));Assert.True(result.Succeeded,result.Message);Assert.True(result.Value!.Replaced);Assert.Equal(group.Value!.GrantId,result.Value.GrantId);Assert.Equal(epoch+1,f.CurrentEpoch(staff.Id));
+    Assert.Single(await db.GroupAccessGrants.ToListAsync());Assert.Contains(await db.Microsoft365AdministrationEvents.ToListAsync(),x=>x.Operation=="ROLE_REPLACED" && x.Reason==replacement.Reason);
+  }
+  private sealed class RejectInvitation:SaveChangesInterceptor
+  {
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,InterceptionResult<int> result,CancellationToken ct=default)
+    {
+      if(data.Context!.ChangeTracker.Entries<AuditSphereOps.Domain.Microsoft365.UserAccessInvitation>().Any(x=>x.State==EntityState.Added))throw new InvalidOperationException("SYNTHETIC invitation publication failure");
+      return ValueTask.FromResult(result);
+    }
+  }
+  [Fact]
+  public async Task InvitationInsertFailureRollsBackReplacementGrantEvidenceAndEpoch()
+  {
+    await using var f=await TenantAdministrationFixture.CreateAsync();var staff=await StaffAsync(f);var now=new DateTimeOffset(DateTimeOffset.UtcNow.Ticks/10*10,TimeSpan.Zero);Guid oldId;RoleAssignmentRequest request;string digest;
+    await using(var setup=f.Db()) {
+      var old=await RoleAssignmentService.AssignAsync(setup,f.AdminActor,new(staff.Id,"Staff","CLIENT",f.ClientId,Reason:"Original fixture access",ConfirmScopeExpansion:true),now);Assert.True(old.Succeeded,old.Message);oldId=old.Value!.GrantId;
+      request=new(staff.Id,"Manager","CLIENT",f.ClientId,Reason:"Atomic replacement failure",ReplacesGrantId:oldId,ConfirmScopeExpansion:true);var p=await RoleAssignmentService.PreviewAsync(setup,f.AdminActor,request,now);digest=RoleAssignmentReviewDigest.Compute(p.Value!,request);
+    }
+    var epoch=f.CurrentEpoch(staff.Id);await using(var writer=new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(f.Pg.Options).AddInterceptors(new RejectInvitation()).Options))
+      await Assert.ThrowsAsync<InvalidOperationException>(()=>RoleAssignmentService.AssignWithInvitationAsync(writer,f.AdminActor,request,now,digest));
+    await using var check=f.Db();Assert.Null((await check.RoleGrants.SingleAsync(x=>x.Id==oldId)).RevokedAt);Assert.Single(await check.RoleGrants.Where(x=>x.UserId==staff.Id).ToListAsync());Assert.Empty(await check.UserAccessInvitations.ToListAsync());Assert.Equal(epoch,f.CurrentEpoch(staff.Id));Assert.False(await check.RoleGrantChangeEvidences.AnyAsync(x=>x.Reason==request.Reason));
+  }
+  [Theory,InlineData("authority"),InlineData("access"),InlineData("hold")]
+  public async Task InvitationRechecksReviewedIntentAndAuthorityAfterWaitingForFirmLock(string change)
+  {
+    await using var f=await TenantAdministrationFixture.CreateAsync();var staff=await StaffAsync(f);var actor=f.AdminActor;var now=new DateTimeOffset(DateTimeOffset.UtcNow.Ticks/10*10,TimeSpan.Zero);
+    var request=new RoleAssignmentRequest(staff.Id,"Manager","CLIENT",f.ClientId,Reason:"Locked invitation review",ConfirmScopeExpansion:true);string digest;
+    await using(var setup=f.Db()){var p=await RoleAssignmentService.PreviewAsync(setup,actor,request,now);digest=RoleAssignmentReviewDigest.Compute(p.Value!,request);}
+    await using var blocker=f.Db();await using var tx=await blocker.Database.BeginTransactionAsync();await blocker.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={f.FirmId} FOR UPDATE").SingleAsync();
+    var signal=new ObserveFirmAdministrationLock();await using var writer=new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(f.Pg.Options).AddInterceptors(signal).Options);
+    using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(30));var attempt=RoleAssignmentService.AssignWithInvitationAsync(writer,actor,request,now,digest,timeout.Token);await signal.Reached.Task.WaitAsync(timeout.Token);
+    if(change=="authority")await blocker.RoleGrants.Where(x=>x.UserId==actor.UserId && x.Role=="Administrator").ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,now));
+    else if(change=="access")blocker.RoleGrants.Add(new RoleGrant{Id=Guid.NewGuid(),FirmId=f.FirmId,UserId=staff.Id,Role="Staff",ClientId=f.ClientId,GrantedAt=now,GrantedByUserId=f.SecondAdmin.Id});
+    else blocker.SpecialistClearances.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,PracticeClientId=f.ClientId,Area="Independence",SpecialistName="Synthetic reviewer",Status="HOLD",CreatedAt=now});
+    await blocker.SaveChangesAsync();await tx.CommitAsync();var result=await attempt;Assert.False(result.Succeeded);Assert.Equal(change=="authority"?ErrorCodes.ScopeDenied:ErrorCodes.StaleRevision,result.ErrorCode);
+    await using var check=f.Db();Assert.Empty(await check.UserAccessInvitations.ToListAsync());Assert.False(await check.RoleGrants.AnyAsync(x=>x.UserId==staff.Id && x.Role=="Manager"));
+  }
+  private sealed class ChangeAuthorityAfterRead(Func<DbCommand,bool> matches,Func<Task> change):DbCommandInterceptor
+  {
+    public int Calls;
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,CommandExecutedEventData data,DbDataReader result,CancellationToken ct=default)
+    {if(matches(command) && Interlocked.CompareExchange(ref Calls,1,0)==0)await change();return result;}
+  }
+  [Theory,InlineData(false),InlineData(true)]
+  public async Task PreviewAndWorkspaceRefuseAuthorityChangedDuringLastProjectionRead(bool workspace)
+  {
+    await using var f=await TenantAdministrationFixture.CreateAsync();var staff=await StaffAsync(f);var actor=f.AdminActor;
+    var interceptor=new ChangeAuthorityAfterRead(c=>workspace?c.CommandText.Contains("role_grant_change_evidence",StringComparison.Ordinal) && c.CommandText.Contains("IS NOT NULL",StringComparison.Ordinal):c.CommandText.Contains("group_access_grants",StringComparison.Ordinal),async()=>{
+      await using var revoke=f.Db();await revoke.RoleGrants.Where(x=>x.UserId==actor.UserId && x.Role=="Administrator").ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,DateTimeOffset.UtcNow));});
+    await using var reader=new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(f.Pg.Options).AddInterceptors(interceptor).Options);
+    if(workspace){var result=await UserAccessWorkspaceQuery.GetAsync(reader,actor,DateTimeOffset.UtcNow);Assert.False(result.Succeeded);Assert.Null(result.Value);}
+    else {var result=await RoleAssignmentService.PreviewAsync(reader,actor,new(staff.Id,"Staff","CLIENT",f.ClientId,Reason:"Final scope read"),DateTimeOffset.UtcNow);Assert.False(result.Succeeded);Assert.Null(result.Value);}
+    Assert.Equal(1,interceptor.Calls);
+  }
+
+  [Fact]
+  public async Task IdenticalExistingGrantReusesInvitationWithoutDuplicateGrantEvidenceOrEpochChange()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    var staff = await StaffAsync(f);
+    await using var db = f.Db();
+    var now = new DateTimeOffset(DateTimeOffset.UtcNow.Ticks / 10 * 10, TimeSpan.Zero);
+    var request = new RoleAssignmentRequest(staff.Id, "Staff", "CLIENT", f.ClientId,
+      ExpiresAt: now.AddDays(2), Reason: "Exact existing grant", ConfirmScopeExpansion: true);
+    var first = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request, now);
+    Assert.True(first.Succeeded, first.Message);
+    var epoch = f.CurrentEpoch(staff.Id);
+    var preview = await RoleAssignmentService.PreviewAsync(db, f.AdminActor, request, now);
+    var digest = RoleAssignmentReviewDigest.Compute(preview.Value!, request);
+    var invitation = await RoleAssignmentService.AssignWithInvitationAsync(db, f.AdminActor, request, now, digest);
+    Assert.True(invitation.Succeeded, invitation.Message);
+    var duplicate = await RoleAssignmentService.AssignWithInvitationAsync(db, f.AdminActor, request, now, digest);
+    Assert.True(duplicate.Succeeded, duplicate.Message);
+    Assert.Equal(invitation.Value, duplicate.Value);
+    Assert.Equal(first.Value!.GrantId, duplicate.Value!.RoleGrantId);
+    Assert.Equal(epoch, f.CurrentEpoch(staff.Id));
+    Assert.Single(await db.UserAccessInvitations.ToListAsync());
+    Assert.Single(await db.RoleGrants.Where(x => x.UserId == staff.Id).ToListAsync());
+    Assert.Single(await db.RoleGrantChangeEvidences.Where(x => x.TargetUserId == staff.Id).ToListAsync());
+  }
+
   private sealed class ObserveFirmAdministrationLock : DbCommandInterceptor
   {
     public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -69,88 +70,144 @@ public static class RoleAssignmentService
     if (!auth.Succeeded) return CommandResult<RoleAssignmentPreview>.Fail(auth.ErrorCode!, auth.Message!);
     var target = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId, ct);
     if (target is null) return CommandResult<RoleAssignmentPreview>.Fail(ErrorCodes.ScopeDenied, "The target identity is unavailable.");
-    return CommandResult<RoleAssignmentPreview>.Ok(await BuildPreviewAsync(db, actor, target, request, now, ct));
+    var preview = await BuildPreviewAsync(db, actor, target, request, now, ct);
+    auth = await RoleAdministrationService.FirmAdministratorAsync(db, actor, ct);
+    return auth.Succeeded
+      ? CommandResult<RoleAssignmentPreview>.Ok(preview)
+      : CommandResult<RoleAssignmentPreview>.Fail(auth.ErrorCode!, auth.Message!);
   }
+
+  private sealed record AssignmentPublication(
+    RoleAssignmentResult Assignment,
+    UserAccessAssignmentResult? Invitation);
 
   public static async Task<CommandResult<RoleAssignmentResult>> AssignAsync(
     IClientAccountingDbContext db, ActorContext actor, RoleAssignmentRequest request, DateTimeOffset now,
     CancellationToken ct = default, string? expectedReviewDigest = null)
   {
+    var result = await AssignCoreAsync(db, actor, request, now, false, ct, expectedReviewDigest);
+    return result.Succeeded
+      ? CommandResult<RoleAssignmentResult>.Ok(result.Value!.Assignment)
+      : CommandResult<RoleAssignmentResult>.Fail(result.ErrorCode!, result.Message!);
+  }
+
+  public static async Task<CommandResult<UserAccessAssignmentResult>> AssignWithInvitationAsync(
+    IClientAccountingDbContext db, ActorContext actor, RoleAssignmentRequest request, DateTimeOffset now,
+    string expectedReviewDigest, CancellationToken ct = default)
+  {
+    var result = await AssignCoreAsync(db, actor, request, now, true, ct, expectedReviewDigest);
+    if (!result.Succeeded)
+      return CommandResult<UserAccessAssignmentResult>.Fail(result.ErrorCode!, result.Message!);
+
+    var invitation = result.Value!.Invitation
+      ?? throw new InvalidOperationException("A successful invitation assignment must retain its invitation result.");
+    return CommandResult<UserAccessAssignmentResult>.Ok(invitation);
+  }
+
+  private static async Task<CommandResult<AssignmentPublication>> AssignCoreAsync(
+    IClientAccountingDbContext db, ActorContext actor, RoleAssignmentRequest request, DateTimeOffset now,
+    bool withInvitation, CancellationToken ct, string? expectedReviewDigest)
+  {
+    if (withInvitation && (request.ScopeKind?.Trim().ToUpperInvariant() == "GROUP" ||
+        string.IsNullOrWhiteSpace(expectedReviewDigest) || !request.ConfirmScopeExpansion))
+      return CommandResult<AssignmentPublication>.Fail("review.required",
+        "Review and confirm the complete non-group invitation assignment.");
+
     var auth = await RoleAdministrationService.FirmAdministratorAsync(db, actor, ct);
-    if (!auth.Succeeded) return CommandResult<RoleAssignmentResult>.Fail(auth.ErrorCode!, auth.Message!);
+    if (!auth.Succeeded)
+      return CommandResult<AssignmentPublication>.Fail(auth.ErrorCode!, auth.Message!);
     if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length < 5 || request.Reason.Length > 1000)
-      return CommandResult<RoleAssignmentResult>.Fail("roles.reason-required", "Record a reason of at least five characters for this access change.");
+      return CommandResult<AssignmentPublication>.Fail("roles.reason-required",
+        "Record a reason of at least five characters for this access change.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     // Same firm guard as revocation and group creation: serializes last-administrator checks.
     var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
-    if (firmGuard is null) return CommandResult<RoleAssignmentResult>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
+    if (firmGuard is null)
+      return CommandResult<AssignmentPublication>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
     auth = await RoleAdministrationService.FirmAdministratorAsync(db, actor, ct);
-    if (!auth.Succeeded) return CommandResult<RoleAssignmentResult>.Fail(auth.ErrorCode!, auth.Message!);
+    if (!auth.Succeeded)
+      return CommandResult<AssignmentPublication>.Fail(auth.ErrorCode!, auth.Message!);
+
     var target = await db.Users.SingleOrDefaultAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId, ct);
     if (target is null || target.Disabled)
-      return CommandResult<RoleAssignmentResult>.Fail(ErrorCodes.ScopeDenied, "The target identity is unavailable.");
+      return CommandResult<AssignmentPublication>.Fail(ErrorCodes.ScopeDenied, "The target identity is unavailable.");
     if (!await RoleAdministrationService.RecentGraphObservationAsync(db, target, ct))
-      return CommandResult<RoleAssignmentResult>.Fail(ErrorCodes.GateBlocked, "Reverify this Microsoft identity before assigning access.");
+      return CommandResult<AssignmentPublication>.Fail(ErrorCodes.GateBlocked,
+        "Reverify this Microsoft identity before assigning access.");
 
     var preview = await BuildPreviewAsync(db, actor, target, request, now, ct);
-    if (expectedReviewDigest is not null && !string.Equals(expectedReviewDigest, RoleAssignmentReviewDigest.Compute(preview, request), StringComparison.Ordinal))
-      return CommandResult<RoleAssignmentResult>.Fail(ErrorCodes.StaleRevision, "The reviewed access changed. Reload and review the proposed assignment.");
+    if (expectedReviewDigest is not null &&
+        !string.Equals(expectedReviewDigest, RoleAssignmentReviewDigest.Compute(preview, request), StringComparison.Ordinal))
+      return CommandResult<AssignmentPublication>.Fail(ErrorCodes.StaleRevision,
+        "The reviewed access changed. Reload and review the proposed assignment.");
     if (preview.BlockingReasons.Count > 0)
-      return CommandResult<RoleAssignmentResult>.Fail("roles.blocked", preview.BlockingReasons[0]);
+      return CommandResult<AssignmentPublication>.Fail("roles.blocked", preview.BlockingReasons[0]);
     if ((preview.ScopeExpansion || preview.IndependenceImpact.Count > 0) && !request.ConfirmScopeExpansion)
-      return CommandResult<RoleAssignmentResult>.Fail("roles.confirmation-required",
+      return CommandResult<AssignmentPublication>.Fail("roles.confirmation-required",
         "This change expands access or has an independence impact. Review the preview and confirm explicitly.");
 
     var scopeKind = request.ScopeKind.Trim().ToUpperInvariant();
     var role = RoleAdministrationService.CanonicalRole(request.Role)!;
     var reason = request.Reason.Trim();
+    var existingLocal = scopeKind == "GROUP" ? null : await db.RoleGrants.SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.UserId == target.Id && x.RevokedAt == null && x.Role == role &&
+      x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
+      (!request.ReplacesGrantId.HasValue || x.Id != request.ReplacesGrantId.Value), ct);
+    if (existingLocal is not null && existingLocal.ExpiresAt != request.ExpiresAt)
+      return CommandResult<AssignmentPublication>.Fail(ErrorCodes.StaleRevision,
+        "An existing grant has a different expiry. Review an explicit replacement instead.");
+
     var replaced = false;
     if (request.ReplacesGrantId is { } replacedId)
     {
       var old = await db.RoleGrants.SingleOrDefaultAsync(x => x.Id == replacedId && x.FirmId == actor.FirmId &&
         x.UserId == target.Id && x.RevokedAt == null, ct);
       if (old is null)
-        return CommandResult<RoleAssignmentResult>.Fail(ErrorCodes.StaleRevision, "The grant being replaced changed; reload before saving.");
+        return CommandResult<AssignmentPublication>.Fail(ErrorCodes.StaleRevision,
+          "The grant being replaced changed; reload before saving.");
       if (IsFirmAdministrator(old) && !await AnotherFirmAdministratorAsync(db, actor.FirmId, old.Id, ct) &&
           !(role == "Administrator" && scopeKind == "FIRM_WIDE"))
-        return CommandResult<RoleAssignmentResult>.Fail("roles.last-admin", "A verified replacement firm administrator is required before this change.");
+        return CommandResult<AssignmentPublication>.Fail("roles.last-admin",
+          "A verified replacement firm administrator is required before this change.");
+
       old.RevokedAt = now;
-      db.RoleGrantChangeEvidences.Add(Evidence(actor, target.Id, old.Id, "REVOKED", old.Role, old.ClientId, old.EngagementId,
-        "REVOKED", null, null, "ADMIN_ACTION", reason, now));
+      db.RoleGrantChangeEvidences.Add(Evidence(actor, target.Id, old.Id, "REVOKED", old.Role,
+        old.ClientId, old.EngagementId, "REVOKED", null, null, "ADMIN_ACTION", reason, now));
       replaced = true;
+      // Persist revocation before a same-key replacement insert; both remain in this transaction.
+      await db.SaveChangesAsync(ct);
     }
 
     Guid grantId;
+    var created = false;
     if (scopeKind == "GROUP")
     {
       var existing = await db.GroupAccessGrants.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
         x.GroupId == request.GroupId && x.UserId == target.Id && x.Role == role && x.RevokedAt == null, ct);
       if (existing is not null)
       {
-        if (replaced) await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
-        return CommandResult<RoleAssignmentResult>.Ok(new(existing.Id, true, replaced));
+        grantId = existing.Id;
       }
-      var groupGrant = new GroupAccessGrant
+      else
       {
-        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = request.GroupId!.Value, UserId = target.Id,
-        Role = role, GrantedAt = now, GrantedByUserId = actor.UserId
-      };
-      db.GroupAccessGrants.Add(groupGrant);
-      grantId = groupGrant.Id;
+        var grant = new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = actor.FirmId, GroupId = request.GroupId!.Value,
+          UserId = target.Id, Role = role, GrantedAt = now, GrantedByUserId = actor.UserId
+        };
+        db.GroupAccessGrants.Add(grant);
+        grantId = grant.Id;
+        created = true;
+      }
+    }
+    else if (existingLocal is not null)
+    {
+      grantId = existingLocal.Id;
     }
     else
     {
-      var existing = await db.RoleGrants.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.UserId == target.Id &&
-        x.RevokedAt == null && x.Role == role && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId, ct);
-      if (existing is not null)
-      {
-        if (replaced) { target.SessionEpoch++; await db.SaveChangesAsync(ct); }
-        await tx.CommitAsync(ct);
-        return CommandResult<RoleAssignmentResult>.Ok(new(existing.Id, false, replaced));
-      }
       var grant = new RoleGrant
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, UserId = target.Id, Role = role,
@@ -158,19 +215,52 @@ public static class RoleAssignmentService
         GrantedByUserId = actor.UserId, ExpiresAt = request.ExpiresAt, Reason = reason
       };
       db.RoleGrants.Add(grant);
-      db.RoleGrantChangeEvidences.Add(Evidence(actor, target.Id, grant.Id, "GRANTED", string.Empty, null, null,
-        role, request.ClientId, request.EngagementId, "ADMIN_ACTION", reason, now));
       grantId = grant.Id;
+      created = true;
+      db.RoleGrantChangeEvidences.Add(Evidence(actor, target.Id, grant.Id, "GRANTED", string.Empty,
+        null, null, role, request.ClientId, request.EngagementId, "ADMIN_ACTION", reason, now));
     }
-    target.SessionEpoch++;
-    TenantAdministration.AddEvent(db, actor, replaced ? "ROLE_REPLACED" : "ROLE_GRANTED", now,
-      oldState: string.Join("; ", preview.CurrentAccess.Select(Describe)).DefaultIfEmpty("NONE"),
-      newState: Describe(preview.Proposed), reason: reason, result: "APPLIED",
-      targetTenantId: target.TenantId, targetObjectId: target.Subject, targetUserId: target.Id,
-      roleScopeChange: $"{(preview.ScopeExpansion ? "expansion" : "no-expansion")};{(preview.ScopeReduction ? "reduction" : "no-reduction")}");
+
+    if (created || replaced)
+    {
+      target.SessionEpoch++;
+      TenantAdministration.AddEvent(db, actor, replaced ? "ROLE_REPLACED" : "ROLE_GRANTED", now,
+        oldState: string.Join("; ", preview.CurrentAccess.Select(Describe)).DefaultIfEmpty("NONE"),
+        newState: Describe(preview.Proposed), reason: reason, result: "APPLIED",
+        targetTenantId: target.TenantId, targetObjectId: target.Subject, targetUserId: target.Id,
+        roleScopeChange: $"{(preview.ScopeExpansion ? "expansion" : "no-expansion")};{(preview.ScopeReduction ? "reduction" : "no-reduction")}");
+    }
+
+    UserAccessInvitation? invitation = null;
+    if (withInvitation)
+    {
+      invitation = await db.UserAccessInvitations.SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.RoleGrantId == grantId, ct);
+      if (invitation is null)
+      {
+        invitation = new UserAccessInvitation
+        {
+          Id = Guid.CreateVersion7(), FirmId = actor.FirmId, UserId = target.Id, RoleGrantId = grantId,
+          RecipientEmail = target.Email.Trim(), DestinationPath = "/auth/landing",
+          DeliveryState = UserAccessInvitationStates.NotSent, CreatedAt = now, UpdatedAt = now
+        };
+        db.UserAccessInvitations.Add(invitation);
+      }
+      else if (!string.Equals(invitation.RecipientEmail, target.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+      {
+        invitation.RecipientEmail = target.Email.Trim();
+        invitation.UpdatedAt = now;
+      }
+    }
+
     await db.SaveChangesAsync(ct);
+    auth = await RoleAdministrationService.FirmAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded)
+      return CommandResult<AssignmentPublication>.Fail(auth.ErrorCode!, auth.Message!);
     await tx.CommitAsync(ct);
-    return CommandResult<RoleAssignmentResult>.Ok(new(grantId, scopeKind == "GROUP", replaced));
+    return CommandResult<AssignmentPublication>.Ok(new(
+      new(grantId, scopeKind == "GROUP", replaced),
+      invitation is null ? null : new(target.Id, grantId, invitation.Id, invitation.DestinationPath, invitation.DeliveryState)));
   }
 
   /// <summary>Revokes a group-scoped grant with evidence and immediate session invalidation.</summary>
@@ -249,6 +339,9 @@ public static class RoleAssignmentService
       .ToList();
     if (request.ReplacesGrantId is { } replaces && !roleGrants.Any(x => x.Id == replaces))
       blocking.Add("The grant being replaced is no longer active.");
+    if (scopeKind != "GROUP" && roleGrants.Any(x => x.Id != request.ReplacesGrantId && x.Role == role &&
+        x.ClientId == request.ClientId && x.EngagementId == request.EngagementId && x.ExpiresAt != request.ExpiresAt))
+      blocking.Add("An existing grant has a different expiry. Review an explicit replacement instead.");
     var remaining = current.Where(x => x.GrantId != request.ReplacesGrantId).ToList();
     var proposed = new AccessLine(Guid.Empty, role ?? request.Role, scopeKind, request.ClientId, request.EngagementId,
       request.GroupId, now, request.ExpiresAt, scopeKind == "GROUP");

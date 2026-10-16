@@ -507,6 +507,16 @@ export class InvoiceDetail {
       if (!result.ok) {
         this.failed.set(true); this.message.set(result.message);
         if (result.unknown) { this.uncertain.set(true); this.reconciliationLoaded.set(false); }
+        else if (['scope.denied', 'generation.stale'].includes(result.code) || [401, 403, 404].includes(result.status)) {
+          // Drop the protected snapshot immediately; only a fresh authorized read may restore it.
+          this.historyVisit++;
+          this.receiptHistory.set([]); this.receiptHistoryHaveMore.set(false); this.receiptHistoryBusy.set(false); this.receiptHistoryMessage.set('');
+          this.creditHistory.set([]); this.creditHistoryHaveMore.set(false); this.creditHistoryBusy.set(false); this.creditHistoryMessage.set('');
+          this.selectedAllocation.set(null); this.allocationPageIndex.set(0);
+          this.receiptForm.reset(); this.allocationForm.reset(); this.creditForm.reset(); this.termsForm.reset();
+          this.termsReviewForm.reset(); this.reversalForm.reset(); this.reversalReviewForm.reset();
+          this.invoice.reload();
+        }
         return;
       }
       afterSuccess?.();

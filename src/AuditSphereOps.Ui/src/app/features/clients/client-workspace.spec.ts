@@ -58,6 +58,9 @@ describe('Client profile request and command ownership', () => {
     expect(f.nativeElement.textContent).toContain('9007199254740993');
     expect(f.nativeElement.textContent).toContain('2026-01-02 12:30 UTC');
     expect(f.nativeElement.querySelectorAll('tbody tr')).toHaveLength(2);
+    // jsdom does not establish viewport visibility: keep the real viewport defer pending.
+    expect(f.nativeElement.textContent).toContain('Organization hierarchy and correspondence routing');
+    expect(f.nativeElement.querySelector('audit-client-relationships')).toBeNull();
     const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     f.componentInstance.page('contact', 1);
     expect(nav).toHaveBeenCalledWith([], expect.objectContaining({queryParams:{...defaultClientLocation,contactPage:1}}));

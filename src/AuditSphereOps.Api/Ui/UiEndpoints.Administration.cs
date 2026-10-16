@@ -63,12 +63,7 @@ public static partial class UiEndpoints
         if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<object>();
         if (!i.Reviewed || !ValidRoleRequest(i.Request) || i.ReviewDigest?.Length != 64 || !i.ReviewDigest.All(Uri.IsHexDigit))
           return CommandResult<object>.Fail("review.required", "Review the proposed access first.");
-        var preview = await RoleAssignmentService.PreviewAsync(db, actor, i.Request, DateTimeOffset.UtcNow, ct);
-        if (!preview.Succeeded) return CommandResult<object>.Fail(preview.ErrorCode!, preview.Message!);
-        if (!string.Equals(i.ReviewDigest, RoleAssignmentReviewDigest.Compute(preview.Value!, i.Request), StringComparison.Ordinal))
-          return CommandResult<object>.Fail(ErrorCodes.StaleRevision, "The reviewed access changed. Reload and review the proposed assignment.");
-        var applied = await RoleAdministrationService.ApplyRoleGrantAndInvitationAsync(db, actor,
-          new(i.Request.UserId, i.Request.Role, i.Request.ScopeKind, i.Request.ClientId, i.Request.EngagementId), ct);
+        var applied = await RoleAssignmentService.AssignWithInvitationAsync(db, actor, i.Request, DateTimeOffset.UtcNow, i.ReviewDigest, ct);
         return applied.Succeeded
           ? CommandResult<object>.Ok(new { applied.Value!.UserId, applied.Value.RoleGrantId, applied.Value.InvitationId,
               applied.Value.DestinationPath, applied.Value.DeliveryState })

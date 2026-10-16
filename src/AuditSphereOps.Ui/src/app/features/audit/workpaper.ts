@@ -264,10 +264,12 @@ export class WorkpaperEditor {
   }
   async confirmNavigation(): Promise<boolean> {
     clearTimeout(this.timer);
-    if (this.navigationOpen() || this.uncertain() || this.finalOpen() || this.flow.busy() && !this.saving()) return false;
+    const inFlightSave = this.saving() ? this.pendingSave : null;
+    // A dispatched save already has a pending checkpoint. Await its acknowledgement before deciding whether it is uncertain.
+    if (this.navigationOpen() || this.finalOpen() || (this.uncertain() || this.flow.busy()) && !inFlightSave) return false;
     const lifetime = this.lifetime; let stayed = false; this.navigationOpen.set(true);
     try {
-      if (this.saving() && this.pendingSave) await this.pendingSave.catch(() => false);
+      if (inFlightSave) await inFlightSave.catch(() => false);
       if (lifetime !== this.lifetime || this.uncertain()) return false;
       if (!this.wp.data() || this.conflict()) return true;
       if (!this.dirty) return true;

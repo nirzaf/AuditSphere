@@ -26,7 +26,7 @@ The compared Blazor source is the restored `AuditSphereOps.Web` at the migration
 
 ## Result
 
-All 13 administration source/action rows have been inspected against their current API/Angular owners and the named tests. None is promoted to full source parity by this review because the mapped evidence is focused and the real-provider gates remain open. The source inventory remains discovery-only; this document is the review record. Subsequent reviews added two PBC rows and six accounting artifact rows; the current aggregate is 21 partial, one parity-verified and 54 unanalyzed source/action rows, plus 28 supporting files. All 82 removed E2E methods now have assertion crosswalks. Other feature families, direct query/search/count/export/command authorization checks, production rollback/canary, human accessibility/locale review and separate owner acceptance remain open.
+All 13 administration source/action rows have been inspected against their current API/Angular owners and the named tests. None is promoted to full source parity by this review because the mapped evidence is focused and the real-provider gates remain open. The source inventory remains discovery-only; this document is the review record. The current aggregate and per-source dispositions are maintained in `auditsphere-migration-blazor-source-action-reviews.json`; the earlier counts in this review are not current migration totals. All 82 removed E2E methods now have assertion crosswalks. Other feature families, direct query/search/count/export/command authorization checks, production rollback/canary, human accessibility/locale review and separate owner acceptance remain open.
 
 ## Current-tree authorization increment
 
@@ -36,4 +36,15 @@ At `1f19d07d`, group-grant revocation uses the same firm-row serialization and p
 
 ## Latest focused CI evidence
 
-At `8959f6e7`, hosted run [38781204290](https://github.com/nirzaf/AuditSphere/actions/runs/38781204290) passed Angular 773/773, focused PostgreSQL Domain 150/150, API 8/8 and browser E2E 19/19; EF and OpenAPI drift, documentation health and GitGuardian also passed. The new tenant operations journeys use simulated Microsoft providers and synthetic fixtures. The source/action inventory remains 75 `PARTIAL` and one `PARITY_VERIFIED`; no row is promoted by this focused run. Full unfiltered regression, live Microsoft acceptance, production cutover/rollback and human accessibility/locale acceptance remain open.
+At `8959f6e7`, hosted run [38781204290](https://github.com/nirzaf/AuditSphere/actions/runs/38781204290) passed Angular 773/773, focused PostgreSQL Domain 150/150, API 8/8 and browser E2E 19/19; EF and OpenAPI drift, documentation health and GitGuardian also passed. The new tenant operations journeys use simulated Microsoft providers and synthetic fixtures. That focused run did not promote a source/action row; consult the source-action register for current dispositions. Full unfiltered regression, live Microsoft acceptance, production cutover/rollback and human accessibility/locale acceptance remain open.
+
+## Current reviewed-assignment findings
+
+Inspection of `f8300cc2` identified concrete gaps requiring correction before
+role-assignment parity: invitation execution did not preserve the full reviewed
+expiry/replacement/reason intent or recheck its digest under the publication
+lock; existing same-scope grants could silently retain different expiry; one
+group replacement path omitted target session invalidation; read projections
+needed final current-Administrator checks. The Angular confirmation also omitted
+the engagement identity when showing engagement scope. Corrections and targeted
+regressions are in progress, with no completion or provider acceptance claimed.

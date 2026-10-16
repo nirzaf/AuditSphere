@@ -136,6 +136,7 @@ describe('Workpaper authored-content and receipt protection', () => {
     vi.useFakeTimers(); const c = open().componentInstance;
     c.work = 'Original pending save.'; c.changed(); const saving = c.save();
     const firstAction = await prepareSave(), firstReceipt = commandReceipt(firstAction.request.body);
+    expect(c.saving()).toBe(true); expect(c.uncertain()).toBe(true); // dispatched checkpoint, not yet an unknown result
     c.work = 'Newer work preserved while saving.'; c.conclusion = 'Newer conclusion preserved while saving.'; c.changed();
     const navigation = c.confirmNavigation();
     firstAction.flush({ value: firstReceipt }); expect(await saving).toBe(false); await settle();
@@ -157,6 +158,15 @@ describe('Workpaper authored-content and receipt protection', () => {
     expect(secondAction.request.body.fields).toEqual(prepare.request.body.fields);
     secondAction.flush({ value: commandReceipt(secondAction.request.body, current) }); await settle();
     expect(c.state?.draftRevision).toBe('4'); expect(c.state?.workPerformed).toBe(c.work); expect(c.state?.conclusion).toBe(c.conclusion);
+    await vi.advanceTimersByTimeAsync(10000); http.expectNone(base + '/state'); http.expectNone(r => r.method === 'POST');
+  });
+  it('awaits an already-dispatched save but refuses navigation if its acknowledgement is lost', async () => {
+    vi.useFakeTimers(); const c = open().componentInstance;
+    c.work = 'Dispatched save with lost acknowledgement.'; c.changed(); const saving = c.save();
+    const action = await prepareSave(); expect(c.saving()).toBe(true); expect(c.uncertain()).toBe(true);
+    const navigation = c.confirmNavigation(); expect(dialogSpy.open).not.toHaveBeenCalled();
+    action.error(new ProgressEvent('error')); expect(await saving).toBe(false); expect(await navigation).toBe(false);
+    expect(c.uncertain()).toBe(true); expect(c.flow.pending()).toHaveLength(1); expect(dialogSpy.open).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(10000); http.expectNone(base + '/state'); http.expectNone(r => r.method === 'POST');
   });
   it('blocks navigation on a known refused save, and permits a corrected save after a non-stale refusal', async () => {
