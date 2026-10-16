@@ -20,7 +20,7 @@ public sealed class AngularExpiredOperationsGrantJourneyTests
     const string privateKind = "SYN-PAR-002-EXPIRED-ADMIN-PRIVATE-OPERATION";
     const string privatePayload = "SYN-PAR-002-EXPIRED-ADMIN-PRIVATE-BYTES";
     var operationId = Guid.NewGuid();
-    var now = DateTimeOffset.UtcNow;
+    var now = new DateTimeOffset(DateTimeOffset.UtcNow.Ticks / 10 * 10, TimeSpan.Zero);
     var grant = PbcSeed.Grant(firm.FirmId, expiredAdministrator, "Administrator");
     grant.GrantedAt = now.AddMinutes(-2);
     grant.ExpiresAt = now.AddMinutes(-1);
