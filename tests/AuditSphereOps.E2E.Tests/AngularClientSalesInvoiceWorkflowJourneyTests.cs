@@ -203,7 +203,15 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
 
     var purchases = makerPage.Locator("audit-client-purchase-invoices");
     await Assertions.Expect(purchases.GetByRole(AriaRole.Heading, new() { Name = "Client supplier invoices", Exact = true })).ToBeVisibleAsync();
+    var suppliersLoaded = makerPage.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      response.Url.Contains($"/api/ui/accounting/clients/{f.ClientId}/counterparties", StringComparison.Ordinal));
+    var purchaseHistoryLoaded = makerPage.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      response.Url.EndsWith($"/api/ui/accounting/clients/{f.ClientId}/purchase-invoices", StringComparison.Ordinal));
     await purchases.GetByRole(AriaRole.Button, new() { Name = "Load client suppliers", Exact = true }).ClickAsync();
+    Assert.Equal(200, (await suppliersLoaded).Status);
+    Assert.Equal(200, (await purchaseHistoryLoaded).Status);
+    await Assertions.Expect(purchases.GetByRole(AriaRole.Button,
+      new() { Name = "Load client suppliers", Exact = true })).ToBeEnabledAsync();
     await purchases.Locator("select[name='supplier']").SelectOptionAsync(supplierId.ToString());
     await purchases.GetByLabel("Internal voucher reference", new() { Exact = true }).FillAsync("PV-UI-001");
     await purchases.GetByLabel("Supplier invoice number", new() { Exact = true }).FillAsync("Supplier 001");
@@ -224,6 +232,8 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     await purchases.GetByLabel("Supplier-stated tax", new() { Exact = true }).FillAsync("0");
     await purchases.GetByLabel("Supplier-stated gross", new() { Exact = true }).FillAsync("100");
     await purchases.GetByRole(AriaRole.Checkbox, new() { Name = "I checked this supplier, client, document dates, coding, supplier-stated totals and evidence reference.", Exact = true }).CheckAsync();
+    await Assertions.Expect(purchases.GetByLabel("Internal voucher reference", new() { Exact = true }))
+      .ToHaveValueAsync("PV-UI-001");
     var draftButton = purchases.GetByRole(AriaRole.Button, new() { Name = "Save client purchase draft", Exact = true });
     var readiness = await purchases.EvaluateAsync<string>("element => JSON.stringify({ disabled: element.querySelector('button[type=submit]')?.disabled, invalid: [...element.querySelectorAll(':invalid')].map(x => ({ name: x.getAttribute('name'), value: x.value, message: x.validationMessage })) })");
     try
