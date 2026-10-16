@@ -148,7 +148,7 @@ public static class RoleAssignmentService
       return CommandResult<AssignmentPublication>.Fail("roles.confirmation-required",
         "This change expands access or has an independence impact. Review the preview and confirm explicitly.");
 
-    var scopeKind = request.ScopeKind.Trim().ToUpperInvariant();
+    var scopeKind = (request.ScopeKind ?? string.Empty).Trim().ToUpperInvariant();
     var role = RoleAdministrationService.CanonicalRole(request.Role)!;
     var reason = request.Reason.Trim();
     var existingLocal = scopeKind == "GROUP" ? null : await db.RoleGrants.SingleOrDefaultAsync(x =>
