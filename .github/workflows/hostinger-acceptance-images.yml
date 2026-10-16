@@ -23,7 +23,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: hostinger-acceptance-images-${{ github.event_name }}-${{ github.ref }}
@@ -32,9 +31,26 @@ concurrency:
 
 jobs:
   build-and-push:
-    name: Build and publish private linux/amd64 images
+    name: Build and publish private linux/amd64 image (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      # Keep every image build running if one image fails.
+      fail-fast: false
+      matrix:
+        include:
+          - name: API
+            image: auditsphere-acceptance-api
+            dockerfile: src/AuditSphereOps.Api/Dockerfile
+          - name: worker
+            image: auditsphere-acceptance-worker
+            dockerfile: src/AuditSphereOps.Worker/Dockerfile
+          - name: migrations
+            image: auditsphere-acceptance-migrations
+            dockerfile: infra/docker/migrations.Dockerfile
     steps:
       - name: Checkout source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -51,33 +67,25 @@ jobs:
       - name: Create Buildx builder
         run: docker buildx create --name hostinger-acceptance --use
 
-      - name: Build and push API image
+      - name: Build and push image
+        env:
+          IMAGE_NAME: ${{ matrix.image }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
         run: |
           set -euo pipefail
           docker buildx build --platform linux/amd64 --push \
-            --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-api:buildcache" \
-            --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-api:buildcache,mode=max" \
-            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-api:${GITHUB_SHA}" \
-            --file src/AuditSphereOps.Api/Dockerfile .
+            --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:buildcache" \
+            --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:buildcache,mode=max" \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:${GITHUB_SHA}" \
+            --file "$DOCKERFILE" .
 
-      - name: Build and push worker image
-        run: |
-          set -euo pipefail
-          docker buildx build --platform linux/amd64 --push \
-            --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-worker:buildcache" \
-            --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-worker:buildcache,mode=max" \
-            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-worker:${GITHUB_SHA}" \
-            --file src/AuditSphereOps.Worker/Dockerfile .
-
-      - name: Build and push migration image
-        run: |
-          set -euo pipefail
-          docker buildx build --platform linux/amd64 --push \
-            --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-migrations:buildcache" \
-            --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-migrations:buildcache,mode=max" \
-            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/auditsphere-acceptance-migrations:${GITHUB_SHA}" \
-            --file infra/docker/migrations.Dockerfile .
-
+  summarize:
+    name: Summarize image references
+    needs: build-and-push
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
       - name: Summarize image references
         run: |
           {
