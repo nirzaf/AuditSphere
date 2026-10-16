@@ -28,3 +28,23 @@ The reviewed legacy source hashes are from inventory snapshot `eb94ae5073558ec71
 ## Result
 
 All six rows remain `PARTIAL`; none is promoted to `PARITY_VERIFIED`. The broader source/action register has 76 rows: one parity-verified, 21 partial and 54 not analyzed, with 28 supporting files still open. All 82 removed E2E methods have assertion crosswalks; this does not close the separate AS-PAR-002 direct query/search/count/export/command and retry/idempotency audit. The overall migration and Blazor retirement remain `NOT_READY`; production rollback/canary, human assistive-technology and wider-locale review, live Microsoft gates, and separate owner acceptance remain open.
+
+## Current composition-bound review follow-up
+
+At code/test commit `a3461ced`, the focused package-review/download/revocation
+and period-reopening browser pair passed **2/2**, with zero failures and skips,
+in 72 seconds. The synthetic review fixture now supplies accepted ledger-backed
+investing and financing events, explicit mapped equity/OCI balances and FX
+evidence, publishes a layout independently, records content review, promotes a
+candidate and seals its exact three-format composition. Formal decisions cite
+the candidate, composition and manifest. Each browser identity explicitly
+selects that composition; the stored accounting decision is checked against its
+PDF artifact version and composition identity. The reviewer/preparer denial,
+exact downloads, revocation and preserved package after period reopening remain
+asserted. No production guard or historical package was changed.
+
+Command: `dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularFinancialArtifactParityJourneyTests.PackageReviewDownloadsAndRevocationRemainExactAndScoped|FullyQualifiedName~AngularFinancialArtifactParityJourneyTests.ReopenedPeriodShowsNewRevisionWithoutReplacingValidatedPackage' --logger 'trx;LogFileName=financial-source-composition-parity-complete.trx' --results-directory /tmp/auditsphere-parity-regression`.
+Local ephemeral report:
+`/tmp/auditsphere-parity-regression/financial-source-composition-parity-complete.trx`.
+The complete financial-artifact class is being rerun separately. Full solution,
+source/action equivalence and operational/external retirement gates remain open.

@@ -145,6 +145,15 @@
         "durationSeconds": 113,
         "report": "/tmp/auditsphere-parity-regression/commercial-and-timer-followup.trx",
         "scope": "Four commercial cases and one productivity journey. Exact rendered-offer receipt fixture repaired; timer focus diagnostics added, earlier intermittent cause unproven. Full regression and financial composition failures remain open."
+      },
+      "financialCompositionBrowserFollowUp": {
+        "codeCommit": "a3461ced",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "durationSeconds": 72,
+        "report": "/tmp/auditsphere-parity-regression/financial-source-composition-parity-complete.trx",
+        "scope": "Package review/download/revocation and period reopening; real source-backed candidate composition. Full financial-artifact class running; full solution remains open."
       }
     },
     "angularBlazorTenantConsentFixtureFollowUp": {
