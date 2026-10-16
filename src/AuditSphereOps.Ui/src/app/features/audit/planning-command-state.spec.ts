@@ -181,7 +181,7 @@ describe('Risk routing reviewed evidence', () => {
     TestBed.configureTestingModule({ imports: [PlanningCommandReview] });
     const fields = { action: 'ASSESS_RISK', ...cases[4][1] };
     const p = decodePlanningPreview(preview({ requestId: d, fields }), '');
-    p.state.risk = { ...risk, likelihood: 2, magnitude: 3, ownerAssignmentId: d, ownerUserId: d,
+    p.state.risk = { ...risk, significanceDecision: 'NORMAL' as const, likelihood: 2, magnitude: 3, ownerAssignmentId: d, ownerUserId: d,
       ownerStaffingLevel: 'AUDIT_MANAGER', clearanceId: a, clearedByUserId: a, clearanceNote: 'Prior Partner judgment' };
     const flow = { preview: signal(p), receipt: signal(null), uncertain: signal(false), busy: signal(false), reviewed: signal(false),
       message: signal(''), failed: signal(false), execute: vi.fn() };
