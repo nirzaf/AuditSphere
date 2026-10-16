@@ -17,6 +17,8 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## AS-PM8 acceptance follow-up
 
+The refreshed complete Angular suite and production build pass; the existing commercial stylesheet warning remains. UI and retirement source inventories match. Acceptance rows now name the specification’s actual atomic task ranges. A complete browser rerun and API regression are running while the remaining consolidation fixtures are corrected.
+
 Refreshed Domain 56/56 and API 18/18 at candidate `6944ab95`, including dashboard and UTC start-minute endpoints omitted from the earlier API filter. Evidence is in `status.json`. Full E2E completed: 247 passed, 2 failed (supplier invoice and budget preparation). Their strengthened test follow-up passed 3/3 at `a24af13d`; a full rerun remains required. Complete API regression is running; full Domain regression remains open. AS-PM8 is PARTIAL. Whole-product production acceptance is not established by this package. Acceptance release `6944ab95` is healthy; migration/startup rehearsals and live timer/dashboard checks passed. Temporary SSH access was removed. See the deployment record in `status.json`.
 
 ## Angular/Blazor parity — receivables exact-offer fixture
