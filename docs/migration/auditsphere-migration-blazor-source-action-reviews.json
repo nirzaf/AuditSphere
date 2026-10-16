@@ -7,21 +7,33 @@
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-acceptance-checklist-source-review.md",
       "reviewedAtCommit": "147ac2a02675b9c65ec43be520c76bc27837a167",
-      "openGaps": ["Complete role/scope and validation matrix", "Stale-content and all command error/recovery states", "Full field-by-field acceptance parity coverage"]
+      "openGaps": [
+        "Complete role/scope and validation matrix",
+        "Stale-content and all command error/recovery states",
+        "Full field-by-field acceptance parity coverage"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-engagement-activation-source-review.md",
       "reviewedAtCommit": "147ac2a02675b9c65ec43be520c76bc27837a167",
-      "openGaps": ["Preview, execution and receipt ownership HTTP isolation", "All role, blocker, error and display-state parity", "Assistive-technology acceptance"]
+      "openGaps": [
+        "Preview, execution and receipt ownership HTTP isolation",
+        "All role, blocker, error and display-state parity",
+        "Assistive-technology acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Acceptance/EngagementCreatePanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-engagement-creation-source-review.md",
       "reviewedAtCommit": "147ac2a02675b9c65ec43be520c76bc27837a167",
-      "openGaps": ["Preview, execution and receipt ownership HTTP isolation", "Complete validation and error-state parity", "Assistive-technology acceptance"]
+      "openGaps": [
+        "Preview, execution and receipt ownership HTTP isolation",
+        "Complete validation and error-state parity",
+        "Assistive-technology acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDecision.razor",
@@ -35,504 +47,765 @@
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Tab-by-tab user and access data parity", "Invitation state coverage", "Stale-content behavior across sections"]
+      "openGaps": [
+        "Tab-by-tab user and access data parity",
+        "Invitation state coverage",
+        "Stale-content behavior across sections"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AccessNotAssigned.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Browser journey for an unmapped Entra identity", "Disabled-identity denial rendering"]
+      "openGaps": [
+        "Browser journey for an unmapped Entra identity",
+        "Disabled-identity denial rendering"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/ClientSharePointSitesPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Live site provisioning", "Live staff membership synchronization", "Production ACL review"]
+      "openGaps": [
+        "Live site provisioning",
+        "Live staff membership synchronization",
+        "Production ACL review"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/CreateUserWizard.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Live Graph creation", "Disabled-account rejection", "Complete validation matrix"]
+      "openGaps": [
+        "Live Graph creation",
+        "Disabled-account rejection",
+        "Complete validation matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/ExternalOperationsPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Recovery coverage for each external-operation kind", "Live Microsoft outcomes"]
+      "openGaps": [
+        "Recovery coverage for each external-operation kind",
+        "Live Microsoft outcomes"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/GuestInvitationPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "660c1605cd943db11a7c3dd86303313d5e5752e4",
-      "openGaps": ["Live B2B invitation acceptance"]
+      "openGaps": [
+        "Live B2B invitation acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/ManagedGroupsPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Live Graph membership outcomes", "Provider paging", "Broader failure and recovery states"]
+      "openGaps": [
+        "Live Graph membership outcomes",
+        "Provider paging",
+        "Broader failure and recovery states"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/Microsoft365StatusPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Live capability verification", "Failure and stale capability state matrix"]
+      "openGaps": [
+        "Live capability verification",
+        "Failure and stale capability state matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/MicrosoftDirectoryPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Multi-page continuation", "Search and filter failure states", "Revoked-directory observations"]
+      "openGaps": [
+        "Multi-page continuation",
+        "Search and filter failure states",
+        "Revoked-directory observations"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/RoleAssignmentDialog.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "8959f6e7a17456acbc5cba4f1e2b3fc469fc54b8",
-      "openGaps": ["Complete role and scope comparison", "Scope-change and concurrent-authority stale-preview invalidation"]
+      "openGaps": [
+        "Complete role and scope comparison",
+        "Scope-change and concurrent-authority stale-preview invalidation"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Administration/WorkspaceProvisioningPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Successful isolated live provisioning", "Production ACL acceptance"]
+      "openGaps": [
+        "Successful isolated live provisioning",
+        "Production ACL acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Legacy template editing assertions", "Complete setup resume assertions", "Live resource verification"]
+      "openGaps": [
+        "Legacy template editing assertions",
+        "Complete setup resume assertions",
+        "Live resource verification"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/TenantConnection.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-administration-source-review.md",
       "reviewedAtCommit": "eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39",
-      "openGaps": ["Real Entra callback and consent", "Production credentials", "Selected-site permission and operator acceptance"]
+      "openGaps": [
+        "Real Entra callback and consent",
+        "Production credentials",
+        "Selected-site permission and operator acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PbcRequests.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-pbc-source-review.md",
       "reviewedAtCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
-      "openGaps": ["Live selected-site worker delivery through the Angular staff path", "Complete authorization and failure/stale/upload-state coverage"]
+      "openGaps": [
+        "Live selected-site worker delivery through the Angular staff path",
+        "Complete authorization and failure/stale/upload-state coverage"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ClientPbcRequest.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-pbc-source-review.md",
       "reviewedAtCommit": "019126cd964bef85799ab1c1923ee5551da4fbff",
-      "openGaps": ["Complete failure, stale-session and expiry matrix", "Full download authorization matrix"]
+      "openGaps": [
+        "Complete failure, stale-session and expiry matrix",
+        "Full download authorization matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/FinancialPackage.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
       "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
-      "openGaps": ["Complete role and error matrix", "Every artifact-version outcome", "Full source-action equivalence"]
+      "openGaps": [
+        "Complete role and error matrix",
+        "Every artifact-version outcome",
+        "Full source-action equivalence"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/FinancialPackageReviews.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
       "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
-      "openGaps": ["Role and stale/error queue matrix", "Storage-unavailable and recovery edge cases", "Broader accessibility acceptance"]
+      "openGaps": [
+        "Role and stale/error queue matrix",
+        "Storage-unavailable and recovery edge cases",
+        "Broader accessibility acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ClientFinancialPackage.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
       "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
-      "openGaps": ["Full client-role and decision validation matrix", "Expiry and stale-session variants", "Complete source-action equivalence"]
+      "openGaps": [
+        "Full client-role and decision validation matrix",
+        "Expiry and stale-session variants",
+        "Complete source-action equivalence"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/CurrencyRemeasurement.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
       "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
-      "openGaps": ["Every supported currency and rate method", "Complete field-validation and provider-failure matrix", "All role/scope combinations"]
+      "openGaps": [
+        "Every supported currency and rate method",
+        "Complete field-validation and provider-failure matrix",
+        "All role/scope combinations"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Journals.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
       "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
-      "openGaps": ["Posting and export validation matrix", "Unknown-result and idempotent retry behavior", "Complete role and error matrix"]
+      "openGaps": [
+        "Posting and export validation matrix",
+        "Unknown-result and idempotent retry behavior",
+        "Complete role and error matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Mapping.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-artifact-source-review.md",
       "reviewedAtCommit": "6b1a7a1d3033b4addb507bfcbcba950422420592",
-      "openGaps": ["Full mapping-editor action parity", "Every validation and error path", "Retry and accessibility state coverage"]
+      "openGaps": [
+        "Full mapping-editor action parity",
+        "Every validation and error path",
+        "Retry and accessibility state coverage"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AccountingEvidence.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
       "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
-      "openGaps": ["Complete evidence-kind and review-action matrix", "Provider/query failure and stale refresh states", "Full role/scope combinations"]
+      "openGaps": [
+        "Complete evidence-kind and review-action matrix",
+        "Provider/query failure and stale refresh states",
+        "Full role/scope combinations"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AccountingPeriod.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
       "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
-      "openGaps": ["Every handoff/empty state and same-document route transition", "Disabled identity and refresh failure states", "Full role/error matrix"]
+      "openGaps": [
+        "Every handoff/empty state and same-document route transition",
+        "Disabled identity and refresh failure states",
+        "Full role/error matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AccountingRecords.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
       "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
-      "openGaps": ["All role/error/stale queue cases", "All detail variants and recovery states", "Maximum bounded-result behavior"]
+      "openGaps": [
+        "All role/error/stale queue cases",
+        "All detail variants and recovery states",
+        "Maximum bounded-result behavior"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AccountingWorkspace.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
       "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
-      "openGaps": ["Profile/period/book/chart/bridge action matrix", "Search/page boundary and stale-selection cases", "Failure/recovery and role/scope matrix"]
+      "openGaps": [
+        "Profile/period/book/chart/bridge action matrix",
+        "Search/page boundary and stale-selection cases",
+        "Failure/recovery and role/scope matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PeriodRestatements.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
       "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
-      "openGaps": ["Validation, stale-package and replay outcomes", "Revocation during package selection", "Full role/scope and error matrix"]
+      "openGaps": [
+        "Validation, stale-package and replay outcomes",
+        "Revocation during package selection",
+        "Full role/scope and error matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PeriodRollforward.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-accounting-maintenance-source-review.md",
       "reviewedAtCommit": "5aff633eaf82be3a4ae4299ed11088b3db38fab2",
-      "openGaps": ["Invalid/stale source and lost/unknown command outcomes", "Scope and role denial matrix", "Opening-bridge review and recovery lifecycle"]
+      "openGaps": [
+        "Invalid/stale source and lost/unknown command outcomes",
+        "Scope and role denial matrix",
+        "Opening-bridge review and recovery lifecycle"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AssessmentDetail.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "openGaps": ["Separate AcceptanceChecklistPanel source/action review", "Complete client-workspace, clearance, refresh-with-draft, role and failure-state matrix"]
+      "openGaps": [
+        "Separate AcceptanceChecklistPanel source/action review",
+        "Complete client-workspace, clearance, refresh-with-draft, role and failure-state matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditFieldwork.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "openGaps": ["Complete fieldwork action, authorization and recovery matrix"]
+      "openGaps": [
+        "Complete fieldwork action, authorization and recovery matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Fieldwork/FieldworkToolsPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
-      "openGaps": ["Full supported role/scope and validation matrix", "Stale evidence and sampling inputs", "Failed/unknown worker outcomes and command recovery"]
+      "openGaps": [
+        "Full supported role/scope and validation matrix",
+        "Stale evidence and sampling inputs",
+        "Failed/unknown worker outcomes and command recovery"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditPlan.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "openGaps": ["Complete materiality validation, approval, role and failure/recovery matrix"]
+      "openGaps": [
+        "Complete materiality validation, approval, role and failure/recovery matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Planning/MaterialityEnginePanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "efdc0738f328129ba4fbfe1c9d5c54b5d3a04085",
-      "openGaps": ["Calculation failure/recovery", "Full materiality role matrix"]
+      "openGaps": [
+        "Calculation failure/recovery",
+        "Full materiality role matrix"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditPopulation.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "openGaps": ["Full role and stale/error-state matrix", "Assertions for every evidence and selection combination"]
+      "openGaps": [
+        "Full role and stale/error-state matrix",
+        "Assertions for every evidence and selection combination"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditProgramLibraryPage.razor",
-      "disposition": "PARTIAL",
+      "disposition": "PARITY_VERIFIED",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
-      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "openGaps": ["All authorization roles and blocked states", "Failed refresh, empty-section and stale/out-of-order search coverage"]
+      "reviewedAtCommit": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
+      "openGaps": []
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Finding.razor",
-      "disposition": "PARTIAL",
+      "disposition": "PARITY_VERIFIED",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
-      "reviewedAtCommit": "02a694f2bf61d015b440ee936f66abb2982c6adb",
-      "openGaps": ["Role-by-role response authorization and stale-command behavior", "Management-letter designation command journey and failure coverage"]
+      "reviewedAtCommit": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
+      "openGaps": []
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Completion.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-completion-file-records-source-review.md",
       "reviewedAtCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
-      "openGaps": ["Complete cross-firm and guessed-ID HTTP/browser authorization matrix", "All role, validation, error, stale-content, and command retry/unknown-result states", "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"]
+      "openGaps": [
+        "Complete cross-firm and guessed-ID HTTP/browser authorization matrix",
+        "All role, validation, error, stale-content, and command retry/unknown-result states",
+        "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Completion/CompletionDeliverablesPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-completion-file-records-source-review.md",
       "reviewedAtCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
-      "openGaps": ["Complete cross-firm and guessed-ID HTTP/browser authorization matrix", "All role, validation, error, stale-content, and command retry/unknown-result states", "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"]
+      "openGaps": [
+        "Complete cross-firm and guessed-ID HTTP/browser authorization matrix",
+        "All role, validation, error, stale-content, and command retry/unknown-result states",
+        "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Completion/FileRecordsPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-completion-file-records-source-review.md",
       "reviewedAtCommit": "2d34fca3966b9be9956dc8a645b71e8234899848",
-      "openGaps": ["Complete cross-firm and guessed-ID HTTP/browser authorization matrix", "All role, validation, error, stale-content, and command retry/unknown-result states", "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"]
+      "openGaps": [
+        "Complete cross-firm and guessed-ID HTTP/browser authorization matrix",
+        "All role, validation, error, stale-content, and command retry/unknown-result states",
+        "Browser assertions for amendment approval/closure and document-lock lifecycle, plus assistive-technology acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Layout/MainLayout.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
-      "openGaps": ["Complete route-by-route menu destination and denial parity matrix", "Screen-reader walk-through and wider locale acceptance"]
+      "openGaps": [
+        "Complete route-by-route menu destination and denial parity matrix",
+        "Screen-reader walk-through and wider locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Layout/GlobalSearch.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "df8a62f551b7728f5537ad8f882b63d9bbb48262",
-      "openGaps": ["Candidate-window exhaustion and complete ordering beyond the verified Client-Engagement-PBC sequence", "Complete role/scope matrix beyond scoped Staff, CommercialManager, EngagementLeader, Auditor, Reviewer, Accountant, AccountingPreparer, AccountingReviewer, FinanceManager, FinanceReviewer, RelationshipManager, Senior, Administrator, client-denial, revoked-grant and stale-session cases", "Assistive-technology acceptance and browser-level timeout/session-invalidation presentation"]
+      "openGaps": [
+        "Candidate-window exhaustion and complete ordering beyond the verified Client-Engagement-PBC sequence",
+        "Complete role/scope matrix beyond scoped Staff, CommercialManager, EngagementLeader, Auditor, Reviewer, Accountant, AccountingPreparer, AccountingReviewer, FinanceManager, FinanceReviewer, RelationshipManager, Senior, Administrator, client-denial, revoked-grant and stale-session cases",
+        "Assistive-technology acceptance and browser-level timeout/session-invalidation presentation"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Home.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
-      "openGaps": ["Unauthenticated and fallback-host behavior across deployment modes"]
+      "openGaps": [
+        "Unauthenticated and fallback-host behavior across deployment modes"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Portfolio.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
-      "openGaps": ["Every summary metric and record type plus maximum search/page boundaries", "Full role, scope, cross-firm and guessed-ID HTTP matrix", "Export failure and unknown-result recovery"]
+      "openGaps": [
+        "Every summary metric and record type plus maximum search/page boundaries",
+        "Full role, scope, cross-firm and guessed-ID HTTP matrix",
+        "Export failure and unknown-result recovery"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ClientDetail.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
-      "openGaps": ["Complete UI-level field-boundary and stale-generation conflict rendering", "Complete role/scope, field-redaction, cross-firm and guessed-ID HTTP matrices", "Assistive-technology acceptance"]
+      "openGaps": [
+        "Complete UI-level field-boundary and stale-generation conflict rendering",
+        "Complete role/scope, field-redaction, cross-firm and guessed-ID HTTP matrices",
+        "Assistive-technology acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-shell-portfolio-source-review.md",
       "reviewedAtCommit": "1e22baaeeaf33283bf0ca311a93c1c493bcd82e6",
-      "openGaps": ["Complete role-by-role profile, workflow-link and authorization matrix", "Cross-firm and guessed-ID HTTP response equivalence", "All stale, hold, query-failure and recovery states plus assistive-technology acceptance"]
+      "openGaps": [
+        "Complete role-by-role profile, workflow-link and authorization matrix",
+        "Cross-firm and guessed-ID HTTP response equivalence",
+        "All stale, hold, query-failure and recovery states plus assistive-technology acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Commercial/FeeAgreementPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
       "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
-      "openGaps": ["Complete finance-role, scope and denial matrix for agreement, invoice and payment actions", "Invoice/payment failure, stale-authority and retry/unknown-result coverage", "Full form, empty/error state and assistive-technology parity"]
+      "openGaps": [
+        "Complete finance-role, scope and denial matrix for agreement, invoice and payment actions",
+        "Invoice/payment failure, stale-authority and retry/unknown-result coverage",
+        "Full form, empty/error state and assistive-technology parity"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Commercial/ProposalWorkflowPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
       "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
-      "openGaps": ["Full author/reviewer role and firm/client scope matrix, including revocation during review", "All send/response validation, stale revision and uncertain-result branches", "External recipient identity and delivery evidence are not established by the local status-only workflow"]
+      "openGaps": [
+        "Full author/reviewer role and firm/client scope matrix, including revocation during review",
+        "All send/response validation, stale revision and uncertain-result branches",
+        "External recipient identity and delivery evidence are not established by the local status-only workflow"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Commercial/QuotationWorkbench.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
       "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
-      "openGaps": ["Full pricing boundary, approval matrix, revision conflict and role/scope cases", "Tender and document variants, download failures and every recovery branch", "Complete field-level validation, stale-state and accessibility parity"]
+      "openGaps": [
+        "Full pricing boundary, approval matrix, revision conflict and role/scope cases",
+        "Tender and document variants, download failures and every recovery branch",
+        "Complete field-level validation, stale-state and accessibility parity"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/CommercialSettings.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
       "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
-      "openGaps": ["Full authorized-role and firm-boundary matrix", "Profile/rule validation, conflicting edits, deactivation and failure/recovery variants", "Field-by-field and assistive-technology parity"]
+      "openGaps": [
+        "Full authorized-role and firm-boundary matrix",
+        "Profile/rule validation, conflicting edits, deactivation and failure/recovery variants",
+        "Field-by-field and assistive-technology parity"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Leads.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
       "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
-      "openGaps": ["Complete commercial-role, firm/client isolation and guessed-ID matrix", "All lead validation, search/paging boundaries, duplicate and lost-response cases", "Empty, failure, stale-route and assistive-technology parity"]
+      "openGaps": [
+        "Complete commercial-role, firm/client isolation and guessed-ID matrix",
+        "All lead validation, search/paging boundaries, duplicate and lost-response cases",
+        "Empty, failure, stale-route and assistive-technology parity"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ProposalDetail.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-commercial-source-review.md",
       "reviewedAtCommit": "4aaffc31243bd524ebc48142af6b3f2c42c66d1a",
-      "openGaps": ["Complete proposal detail/history role, scope and cross-firm/guessed-ID matrix", "Refresh, revision-conflict, stale-content and query-failure behavior", "Full review, conversion and route-transition accessibility/recovery coverage"]
+      "openGaps": [
+        "Complete proposal detail/history role, scope and cross-firm/guessed-ID matrix",
+        "Refresh, revision-conflict, stale-content and query-failure behavior",
+        "Full review, conversion and route-transition accessibility/recovery coverage"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ResourcePlanning.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-resource-planning-source-review.md",
       "reviewedAtCommit": "7ca600d1fb93c331fa1491e575fd4b7b24cdd6e8",
-      "openGaps": ["Complete role, scope, firm/client isolation and inaccessible-ID assertion coverage", "Exhaustive validation, conflict, failure, stale-state and recovery behavior", "Full production, assistive-technology and locale acceptance"]
+      "openGaps": [
+        "Complete role, scope, firm/client isolation and inaccessible-ID assertion coverage",
+        "Exhaustive validation, conflict, failure, stale-state and recovery behavior",
+        "Full production, assistive-technology and locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Planning/EngagementBudgetPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-resource-planning-source-review.md",
       "reviewedAtCommit": "7ca600d1fb93c331fa1491e575fd4b7b24cdd6e8",
-      "openGaps": ["Full budget line, rate-card and reviewer-authority validation matrix", "All conflicts, denials, failure and receipt-recovery branches", "Production, accessibility, locale and owner acceptance"]
+      "openGaps": [
+        "Full budget line, rate-card and reviewer-authority validation matrix",
+        "All conflicts, denials, failure and receipt-recovery branches",
+        "Production, accessibility, locale and owner acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Planning/EngagementStaffingPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-resource-planning-source-review.md",
       "reviewedAtCommit": "7ca600d1fb93c331fa1491e575fd4b7b24cdd6e8",
-      "openGaps": ["Complete staffing role/scope, authorization and validation matrix", "Cross-firm, guessed-ID and all stale/revoked-session behavior", "Live SharePoint membership reconciliation and production acceptance"]
+      "openGaps": [
+        "Complete staffing role/scope, authorization and validation matrix",
+        "Cross-firm, guessed-ID and all stale/revoked-session behavior",
+        "Live SharePoint membership reconciliation and production acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PracticeTime.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
       "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
-      "openGaps": ["Complete role/scope, cross-firm and guessed-ID matrix", "Full validation, revoked-session and command failure/retry coverage", "Broader accessibility, locale and owner acceptance"]
+      "openGaps": [
+        "Complete role/scope, cross-firm and guessed-ID matrix",
+        "Full validation, revoked-session and command failure/retry coverage",
+        "Broader accessibility, locale and owner acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
       "reviewedAtCommit": "10444247ba77285f51dfe69eae8217dcd96ec853",
-      "openGaps": ["Populated metric and formula edge-case assertions", "Missing-rate, mixed-currency and capacity-boundary coverage", "Complete authorization, accessibility and locale acceptance"]
+      "openGaps": [
+        "Populated metric and formula edge-case assertions",
+        "Missing-rate, mixed-currency and capacity-boundary coverage",
+        "Complete authorization, accessibility and locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
       "reviewedAtCommit": "41ee0b2c67468bbae8d176c6f6822ebcd451785e",
-      "openGaps": ["Define and verify a snapshot freshness/staleness acceptance window", "Expired/revoked Administrator session and cross-firm Administrator identity matrix", "Remaining corrupt-file recovery plus assistive-technology and locale acceptance"]
+      "openGaps": [
+        "Define and verify a snapshot freshness/staleness acceptance window",
+        "Expired/revoked Administrator session and cross-firm Administrator identity matrix",
+        "Remaining corrupt-file recovery plus assistive-technology and locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-practice-operations-source-review.md",
       "reviewedAtCommit": "4cb6faffc4bdac3a97b2e70eb4031a018e72ef51",
-      "openGaps": ["Broader role/scope and firm-isolation matrix", "Invalid inputs and stale/error/recovery paths", "Full accessibility and assistive-technology acceptance"]
+      "openGaps": [
+        "Broader role/scope and firm-isolation matrix",
+        "Invalid inputs and stale/error/recovery paths",
+        "Full accessibility and assistive-technology acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Finance.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
       "reviewedAtCommit": "9207a475fb7e2cbb1a39aa060809c229fb80b6f4",
-      "openGaps": ["Complete FinanceManager/FinanceReviewer and scope matrix across firm-wide ledger reads and close actions", "Provider failure and concurrent state-conflict recovery beyond the tested unposted-journal close blocker", "Broader read and command authorization assertions across current finance routes"]
+      "openGaps": [
+        "Complete FinanceManager/FinanceReviewer and scope matrix across firm-wide ledger reads and close actions",
+        "Provider failure and concurrent state-conflict recovery beyond the tested unposted-journal close blocker",
+        "Broader read and command authorization assertions across current finance routes"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/FirmBooks.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
       "reviewedAtCommit": "fa9c21d28db228be43c86b58bed0a5418397bd61",
-      "openGaps": ["Complete remaining FinanceManager/FinanceReviewer scope combinations and direct commands across firm books", "Remaining invalid field/content validation and unknown outcomes for expense record, submit and review; stale/revoked recovery across all finance routes", "Invoice lifecycle parity and broader AS-PAR-002 query/count/export, role/scope and recovery evidence"]
+      "openGaps": [
+        "Complete remaining FinanceManager/FinanceReviewer scope combinations and direct commands across firm books",
+        "Remaining invalid field/content validation and unknown outcomes for expense record, submit and review; stale/revoked recovery across all finance routes",
+        "Invoice lifecycle parity and broader AS-PAR-002 query/count/export, role/scope and recovery evidence"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/InvoiceDetail.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-finance-source-review.md",
       "reviewedAtCommit": "bc2767649b15ace967ec935815b6b0c57011f20e",
-      "openGaps": ["Complete remaining firm-wide/client-scoped FinanceManager and FinanceReviewer role/scope combinations across billing reads and commands", "Other uncertain billing outcomes and retry/reconciliation branches", "Broader accessibility and locale acceptance"]
+      "openGaps": [
+        "Complete remaining firm-wide/client-scoped FinanceManager and FinanceReviewer role/scope combinations across billing reads and commands",
+        "Other uncertain billing outcomes and retry/reconciliation branches",
+        "Broader accessibility and locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Workpaper.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-workpaper-source-review.md",
       "reviewedAtCommit": "6d1f91ad21bb68c4081021eee961e3ebad3c0bf1",
-      "openGaps": ["Complete role/scope, expired-grant, cross-firm and guessed-ID HTTP/browser matrix", "All stale, validation, timeout, failure and recovery states outside the covered discard paths", "Human screen-reader and wider-locale acceptance"]
+      "openGaps": [
+        "Complete role/scope, expired-grant, cross-firm and guessed-ID HTTP/browser matrix",
+        "All stale, validation, timeout, failure and recovery states outside the covered discard paths",
+        "Human screen-reader and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-review-point-source-review.md",
       "reviewedAtCommit": "55ba972d308a3d92fbd690629daa28b70f98ee32",
-      "openGaps": ["Complete role/scope, expired-grant and cross-firm HTTP response matrix", "Network, stale-route and command failure/recovery branches", "Human screen-reader and wider-locale acceptance"]
+      "openGaps": [
+        "Complete role/scope, expired-grant and cross-firm HTTP response matrix",
+        "Network, stale-route and command failure/recovery branches",
+        "Human screen-reader and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/RecordsArchive.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-records-source-review.md",
       "reviewedAtCommit": "21e85a173190132e452f1956106b79feec4651b4",
-      "openGaps": ["Complete role/scope, expired-grant and cross-firm response matrix", "Large-manifest and archive failure/recovery variants", "Human screen-reader and wider-locale acceptance"]
+      "openGaps": [
+        "Complete role/scope, expired-grant and cross-firm response matrix",
+        "Large-manifest and archive failure/recovery variants",
+        "Human screen-reader and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Release.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-records-source-review.md",
       "reviewedAtCommit": "b3b4e1e3ba1d5c359ea240ed6acd6bd816be3485",
-      "openGaps": ["Complete role/scope, expired-grant, cross-firm and route-error matrix", "Remaining validation/error, human screen-reader, locale and production acceptance"]
+      "openGaps": [
+        "Complete role/scope, expired-grant, cross-firm and route-error matrix",
+        "Remaining validation/error, human screen-reader, locale and production acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/StatementDrillDown.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-statement-intake-source-review.md",
       "reviewedAtCommit": "a75ee4e269ebc1cd3706a8b5bc0d8f83e50c9a22",
-      "openGaps": ["Complete per-action role/scope, expired-grant and cross-firm query/export matrix", "All stale-basis, provider-failure and recovery assertions mapped to source actions", "Human screen-reader and wider-locale acceptance"]
+      "openGaps": [
+        "Complete per-action role/scope, expired-grant and cross-firm query/export matrix",
+        "All stale-basis, provider-failure and recovery assertions mapped to source actions",
+        "Human screen-reader and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/TrialBalanceIntake.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-statement-intake-source-review.md",
       "reviewedAtCommit": "a75ee4e269ebc1cd3706a8b5bc0d8f83e50c9a22",
-      "openGaps": ["Complete per-action role/scope, expired-grant and cross-firm authorization matrix", "All file-format, size, malformed-input, mapping-memory and currency-review outcomes crosswalk", "Human screen-reader and wider-locale acceptance"]
+      "openGaps": [
+        "Complete per-action role/scope, expired-grant and cross-firm authorization matrix",
+        "All file-format, size, malformed-input, mapping-memory and currency-review outcomes crosswalk",
+        "Human screen-reader and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Operations.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-operations-recovery-source-review.md",
       "reviewedAtCommit": "1b8a50f5ca56075322ba7b17c5569488dfd230b6",
-      "openGaps": ["Firm quarantine transitions and authorized recovery-lift coverage", "Unknown provider outcome and reconciliation paths", "Complete administrator role, scope, expiry, cross-firm and session-revocation matrix", "Human screen-reader and wider-locale acceptance"]
+      "openGaps": [
+        "Firm quarantine transitions and authorized recovery-lift coverage",
+        "Unknown provider outcome and reconciliation paths",
+        "Complete administrator role, scope, expiry, cross-firm and session-revocation matrix",
+        "Human screen-reader and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/ClientPortal.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-client-portal-source-review.md",
       "reviewedAtCommit": "0063c743036ffaf13c75b51da51714c68f17d2c2",
-      "openGaps": ["Complete client role, scope, cross-firm and sibling-engagement matrix", "Document comment and acknowledgement recovery plus signed-representation validation and failure paths", "Final-bundle authorization and every stale and error state", "Human assistive-technology and wider-locale acceptance"]
+      "openGaps": [
+        "Complete client role, scope, cross-firm and sibling-engagement matrix",
+        "Document comment and acknowledgement recovery plus signed-representation validation and failure paths",
+        "Final-bundle authorization and every stale and error state",
+        "Human assistive-technology and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Planning/RiskRoutingPanel.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md",
       "reviewedAtCommit": "d29f147c77fd7900afa0e25a99f344fb393ff546",
-      "openGaps": ["Complete role, scope, expiry and cross-firm query and command matrix", "Stale and revoked session plus unknown command outcome recovery", "Human assistive-technology and wider-locale acceptance"]
+      "openGaps": [
+        "Complete role, scope, expiry and cross-firm query and command matrix",
+        "Stale and revoked session plus unknown command outcome recovery",
+        "Human assistive-technology and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-confirm-dialog-source-review.md",
       "reviewedAtCommit": "a27c31027f2e229e1a7cf77d5e7ba447a155d1b1",
-      "openGaps": ["Complete role, scope, expiry, cross-firm and unknown-result matrix across both callers", "Human screen-reader and wider-locale acceptance"]
+      "openGaps": [
+        "Complete role, scope, expiry, cross-firm and unknown-result matrix across both callers",
+        "Human screen-reader and wider-locale acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/Consolidation.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-consolidation-source-review.md",
       "reviewedAtCommit": "343592fc5a2403a27551a17034a2c50989e9437a",
-      "openGaps": ["Exhaustive aggregate-field, expired-grant, cross-firm and scope assertions", "Large group/scope paging and load behavior", "Human assistive-technology, wider-locale and production acceptance"]
+      "openGaps": [
+        "Exhaustive aggregate-field, expired-grant, cross-firm and scope assertions",
+        "Large group/scope paging and load behavior",
+        "Human assistive-technology, wider-locale and production acceptance"
+      ]
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor",
       "disposition": "PARTIAL",
       "evidence": "auditsphere-migration-blazor-consolidation-source-review.md",
       "reviewedAtCommit": "343592fc5a2403a27551a17034a2c50989e9437a",
-      "openGaps": ["Every mutation accepted, refused, stale and unknown-outcome behavior across group roles", "Expired-grant, cross-firm and revoked-session matrices for direct API commands", "Human assistive-technology, wider-locale and production acceptance"]
+      "openGaps": [
+        "Every mutation accepted, refused, stale and unknown-outcome behavior across group roles",
+        "Expired-grant, cross-firm and revoked-session matrices for direct API commands",
+        "Human assistive-technology, wider-locale and production acceptance"
+      ]
     }
   ]
 }

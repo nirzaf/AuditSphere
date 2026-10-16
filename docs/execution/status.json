@@ -1195,59 +1195,66 @@
       }
     },
     "angularAuditPlanningRecovery": {
-      "date": "2026-10-16",
-      "source": "working tree based on a8cdcf5f; commit recorded by Git history and hosted workflow",
-      "implementation": [
-        "Eight reviewed planning actions with exact receipt recovery",
-        "Audit record authorization and dirty-draft fences",
-        "Program library stale-read fences and source identity",
-        "Accounting receipt publication barrier"
-      ],
-      "migration": "20261016102652_AuditPlanningReviewedCommandReceipts",
-      "checks": {
-        "releaseBuild": "PASS",
-        "angular": "979 passed",
-        "domain": "146 passed",
-        "api": "13 passed",
-        "browserRegression": "9 passed",
-        "planningBrowser": "12 passed; 4 failed before latest test corrections",
-        "libraryBrowser": "1 passed; 1 failed before latest test corrections",
-        "builtInBrowser": "Planning preview and library browse/search/clear observed; finding inspection unavailable"
-      },
-      "evidenceDirectory": "scratchpad/parity-verification-20261016",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.angularAuditPlanningRecovery",
+      "source": "a8cdcf5f through eb28798e",
+      "implementation": "Reviewed planning receipts, library/read fences, period draft recovery and receipt precision follow-ups",
+      "retirementGate": "NOT_READY",
       "pending": [
         "Latest browser test corrections require verification",
         "Full current-commit hosted verification",
         "Finding durable command receipts",
         "Global Blazor retirement acceptance"
+      ]
+    },
+    "angularFindingRecovery": {
+      "source": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
+      "angular": "1029 passed across 147 files; finding-final-angular.log",
+      "build": "Angular production PASS; existing settings.scss budget warning",
+      "review": "Independent static frontend review found no actionable defect",
+      "pending": [
+        "Hosted full regression on published source",
+        "Global accessibility/locale, rollback/canary and external retirement gates"
       ],
       "retirementGate": "NOT_READY",
-      "blazorRemoved": false,
-      "developmentOrLiveDatabaseMigrated": false,
-      "fieldworkReviewFollowUp": {
-        "source": "after 410662d4",
-        "change": "Procedure-review selection/scope/session/lifetime and returned-ID fences",
-        "build": "Angular production PASS",
-        "tests": "Combined fieldwork/completion Angular cohort: 26 passed; audit-read-fences-angular.log"
+      "migration": "20261016122739_FindingReviewedCommandReceipts",
+      "efModelDrift": "PASS",
+      "openApiDrift": "PASS",
+      "migrationInventory": "PASS",
+      "backendBuild": "Release PASS: zero warnings/errors; finding-utc-build.log",
+      "migrationReview": "Independent static review found no concrete guard defect",
+      "runtimeCorrections": [
+        "SQL CASE/JSON precedence corrected",
+        "UTC snapshot normalization with non-UTC regression",
+        "Template fingerprint binds compiled migration implementation"
+      ],
+      "previousRuntimeBatch": "Domain 51/52; API 9/9; browser 2/11 before UTC/handoff corrections",
+      "hostedTimeout": {
+        "run": "38900112075",
+        "cause": "Confirmed 30-minute job timeout during browser step",
+        "correction": "60-minute cap; all existing cohorts retained"
       },
-      "completionSignatureFollowUp": {
-        "change": "Signature reads fenced by report/scope/session/lifetime",
-        "build": "Angular PASS",
-        "tests": "Combined fieldwork/completion Angular cohort: 26 passed; built-in browser pending"
+      "domain": "55 passed; finding-domain-r3.trx",
+      "api": "9 passed; finding-api-r3.trx",
+      "browser": "11 passed on final editor; finding-browser-r4.trx",
+      "builtInBrowser": "PASS: exact preview, unchecked assent, disabled confirm, zero console errors; finding-preview.png; no execution",
+      "database": "Owned synthetic fixtures only; no development/live migration",
+      "sourceDisposition": "Finding.razor PARITY_VERIFIED; no deletion authorized"
+    },
+    "angularLibrarySourceClosure": {
+      "source": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
+      "domain": "18 passed; library-closure-domain.trx",
+      "browser": "2 passed; library-closure-browser.trx",
+      "implementation": "Unchanged library source from reviewed planning increment",
+      "sourceDisposition": "AuditProgramLibraryPage.razor PARITY_VERIFIED",
+      "retirementGate": "NOT_READY"
+    },
+    "angularBlazorSourceDispositionCounts": {
+      "source": "4f7a9f01074bce74f37eab9c728b4d653ca53ccd",
+      "counts": {
+        "PARTIAL": 73,
+        "PARITY_VERIFIED": 3
       },
-      "periodDraftScopeFollowUp": {
-        "source": "working tree following 02f880d6",
-        "change": "Full editable draft cleanup on client/scope loss or context failure; same-client successful refresh preserves evidence",
-        "angular": "63 passed in period-draft-recovery-angular.log, including unknown request recovery after draft clearing",
-        "browser": "Pending current-source verification"
-      },
-      "hostedPrecisionFollowUp": {
-        "source": "02f880d6",
-        "run": "https://github.com/nirzaf/AuditSphere/actions/runs/38898923583",
-        "domain": "244 passed; 4 receipt equality failures",
-        "correction": "First replies reread stored receipts; forced 100ns clock precision regression added",
-        "verification": "Correction awaits hosted rerun"
-      }
+      "retirementGate": "NOT_READY"
     }
   },
   "externalGates": [
