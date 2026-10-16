@@ -69,7 +69,7 @@ const ADMIN_ACCESS_UNAVAILABLE = 'Operations is limited to firm-wide AuditSphere
         <p>Search is firm scoped. Results show only this page and filter; each recovery action still requires a fresh preview and explicit review.</p>
         <form (ngSubmit)="searchOlderOperations()">
           <label for="operation-state-filter">Unresolved state
-            <select id="operation-state-filter" name="operationState" [ngModel]="discoveryState" (ngModelChange)="setDiscoveryState($event)">
+            <select id="operation-state-filter" name="operationState" [value]="discoveryState" (change)="setDiscoveryState($any($event.target).value)">
               <option value="">All unresolved states</option>
               <option value="PROVIDER_BLOCKED">Provider blocked</option><option value="DEAD_LETTER">Dead letter</option>
               <option value="AUTHORIZATION_BLOCKED">Authorization blocked</option><option value="RESULT_UNCERTAIN">Result uncertain</option>

@@ -57,7 +57,7 @@ public static partial class AuditFieldworkService
       .Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && resultIds.Contains(x.AuditProcedureResultId))
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).ToListAsync(ct);
     var latestReviews = reviews.GroupBy(x => x.AuditProcedureResultId).ToDictionary(x => x.Key, x => x.First());
-    var evaluated = new Dictionary<Guid, CurrentProcedureEvidence>(scoped.Length);
+    var evaluated = new Dictionary<Guid, CurrentProcedureEvidence>(scoped.Count);
     foreach (var procedure in scoped)
     {
       if (!latest.TryGetValue(procedure.Id, out var result))

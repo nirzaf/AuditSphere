@@ -38,9 +38,15 @@ public static partial class UiEndpoints
   public sealed record WorkflowTemplateDecisionInput(long ExpectedRevision, string Rationale);
   public sealed record WorkflowTemplateArchiveInput(string Rationale);
   public sealed record WorkflowPlanOwnerInput(string StepKey, Guid AssigneeUserId);
-  public sealed record WorkflowPlanPreviewInput(Guid TemplateRevisionId, IReadOnlyList<WorkflowPlanOwnerInput>? Owners);
+  public sealed record WorkflowPlanPbcOwnerInput(string StepKey, Guid ClientOwnerUserId, Guid FirmOwnerUserId,
+    Guid ReviewerUserId);
+  public sealed record WorkflowPlanPreviewInput(Guid TemplateRevisionId, IReadOnlyList<WorkflowPlanOwnerInput>? Owners,
+    IReadOnlyList<WorkflowPlanPbcOwnerInput>? PbcOwners = null);
   public sealed record WorkflowPlanExecuteInput(Guid TemplateRevisionId, string ExpectedPreviewDigest,
-    Guid IdempotencyKey, IReadOnlyList<WorkflowPlanOwnerInput>? Owners);
+    Guid IdempotencyKey, IReadOnlyList<WorkflowPlanOwnerInput>? Owners,
+    IReadOnlyList<WorkflowPlanPbcOwnerInput>? PbcOwners = null);
+  public sealed record WorkflowPlanPbcDraftsInput(Guid TemplateRevisionId, string ExpectedPreviewDigest,
+    IReadOnlyList<WorkflowPlanPbcOwnerInput>? PbcOwners = null);
 
   private static void MapWorkflowTaskEndpoints(RouteGroupBuilder group)
   {
@@ -182,12 +188,21 @@ public static partial class UiEndpoints
     plans.MapPost("/preview", (Guid engagementId, WorkflowPlanPreviewInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => EngagementWorkflowPlanService.PreviewAsync(db, actor, engagementId,
         new PreviewEngagementWorkflowPlanRequest(input.TemplateRevisionId,
-          (input.Owners ?? []).Select(x => new WorkflowPlanOwnerSelection(x.StepKey, x.AssigneeUserId)).ToArray()), ct)));
+          (input.Owners ?? []).Select(x => new WorkflowPlanOwnerSelection(x.StepKey, x.AssigneeUserId)).ToArray(),
+          (input.PbcOwners ?? []).Select(x => new WorkflowPlanPbcOwnerSelection(x.StepKey, x.ClientOwnerUserId,
+            x.FirmOwnerUserId, x.ReviewerUserId)).ToArray()), ct)));
     plans.MapPost("/execute", (Guid engagementId, WorkflowPlanExecuteInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => EngagementWorkflowPlanService.ExecuteAsync(db, actor, engagementId,
         new ExecuteEngagementWorkflowPlanRequest(input.TemplateRevisionId, input.ExpectedPreviewDigest,
           input.IdempotencyKey,
-          (input.Owners ?? []).Select(x => new WorkflowPlanOwnerSelection(x.StepKey, x.AssigneeUserId)).ToArray()), ct)));
+          (input.Owners ?? []).Select(x => new WorkflowPlanOwnerSelection(x.StepKey, x.AssigneeUserId)).ToArray(),
+          (input.PbcOwners ?? []).Select(x => new WorkflowPlanPbcOwnerSelection(x.StepKey, x.ClientOwnerUserId,
+            x.FirmOwnerUserId, x.ReviewerUserId)).ToArray()), ct)));
+    plans.MapPost("/pbc-drafts", (Guid engagementId, WorkflowPlanPbcDraftsInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => EngagementWorkflowPlanService.CreatePbcDraftsAsync(db, actor,
+        engagementId, new CreateWorkflowPlanPbcDraftsRequest(input.TemplateRevisionId, input.ExpectedPreviewDigest,
+          (input.PbcOwners ?? []).Select(x => new WorkflowPlanPbcOwnerSelection(x.StepKey, x.ClientOwnerUserId,
+            x.FirmOwnerUserId, x.ReviewerUserId)).ToArray()), ct)));
     plans.MapGet("/receipts/{idempotencyKey:guid}",
       (Guid engagementId, Guid idempotencyKey, HttpContext http) =>
         ReadAsync(http, (db, actor, ct) => EngagementWorkflowPlanService.GetReceiptAsync(
