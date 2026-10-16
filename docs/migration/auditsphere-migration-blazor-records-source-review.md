@@ -38,7 +38,7 @@ and release-evidence owner.
 
 ## Verification evidence
 
-Pinned Razor hashes match the source-discovery inventory:
+Historical source hashes for the runtime evidence below (the Angular file has since changed):
 
 - Archive: `d3601645bc97021062bc444a9f71579f61d27450750a26913463fde99c98ed5b`
 - Release: `0b47f8747fac34b68eb3583a20e1e0836793c81b52600e5a738bad4bdab76d88`
@@ -124,3 +124,23 @@ failure/retry check: a transient next-page read error leaves the first page and
 cursor intact, and an explicit retry appends the next ordered row and clears
 the error. This does not replace the unavailable authenticated Playwright
 failure-injection run.
+
+## Pending current archive and release read verification
+
+The current implementation adds explicit archive and release refresh controls and
+refuses root responses whose record ID differs from the route. Archive paging
+binds each reply to its route/navigation lifetime, session, base projection,
+manifest identity and cursor. Late successes, errors and completion callbacks
+cannot append to or clear a newer view. A transient page failure preserves the
+current rows and cursor for retry; an authorization denial clears protected
+content. Invalid ordering, duplicate ordinals, changed manifest identity and
+non-progressing cursors are refused before append. This preserves incomplete and
+not-yet-built archive display without claiming provider protection.
+
+The archive query also handles an old positive cursor when no manifest exists
+without dereferencing a missing query. `ArchiveRecordQueryTests` covers the empty
+page contract. The Angular archive specs exercise real HTTP-resource behavior,
+late-response fences and cursor validation. Release browser assertions cover
+explicit refresh, wrong-ID refusal, failed-refresh clearing and recovery with no
+issue request. These are implemented assertions, not a recorded passing result.
+The source rows remain `PARTIAL` until current verification is recorded.

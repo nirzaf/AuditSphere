@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Reviews;
@@ -113,6 +114,19 @@ public sealed class AngularReleaseParityJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Release candidate", Exact = true }))
       .ToBeVisibleAsync();
     await page.GetByText(digest, new() { Exact = true }).WaitForAsync(new() { Timeout = 15000 });
+    var candidateReads = 0;
+    var issuePosts = 0;
+    page.Request += (_, request) =>
+    {
+      if (request.Method == "GET" && request.Url.EndsWith($"/api/ui/releases/{candidateId:D}", StringComparison.Ordinal)) candidateReads++;
+      if (request.Method == "POST" && request.Url.Contains("/issue", StringComparison.Ordinal)) issuePosts++;
+    };
+    await page.RunAndWaitForResponseAsync(
+      () => page.GetByRole(AriaRole.Button, new() { Name = "Refresh candidate", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "GET" && response.Url.EndsWith($"/api/ui/releases/{candidateId:D}", StringComparison.Ordinal));
+    await page.GetByText(digest, new() { Exact = true }).WaitForAsync();
+    Assert.True(candidateReads > 0);
+    Assert.Equal(0, issuePosts);
     var body = await page.Locator("main").InnerTextAsync();
     Assert.Contains("expired — Profile AUDITSPHERE-SYNTHETIC-RECORD", body, StringComparison.OrdinalIgnoreCase);
     Assert.Contains("No external records-provider acceptance is claimed", body, StringComparison.Ordinal);
@@ -133,8 +147,35 @@ public sealed class AngularReleaseParityJourneyTests
       .GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true });
     await portfolioLink.FocusAsync();
     await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Refresh candidate", Exact = true })).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Tab");
     await Assertions.Expect(releaseKey).ToBeFocusedAsync();
     await Assertions.Expect(releaseKey).ToHaveCSSAsync("outline-style", "solid");
+
+    // A well-formed response for another candidate must not expose its evidence or issue controls.
+    var readPattern = $"**/api/ui/releases/{candidateId:D}";
+    await page.RouteAsync(readPattern, async intercepted =>
+    {
+      await using var response = await intercepted.FetchAsync();
+      var json = JsonNode.Parse(await response.TextAsync())!.AsObject();
+      json["id"] = Guid.NewGuid().ToString("D");
+      await intercepted.FulfillAsync(new() { Status = 200, ContentType = "application/json", Body = json.ToJsonString() });
+    });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh candidate", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("Unsupported response.");
+    Assert.DoesNotContain(digest, await page.Locator("main").InnerTextAsync(), StringComparison.Ordinal);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Issue release", Exact = true })).ToHaveCountAsync(0);
+    await page.UnrouteAsync(readPattern);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh candidate", Exact = true }).ClickAsync();
+    await page.GetByText(digest, new() { Exact = true }).WaitForAsync();
+    await page.RouteAsync(readPattern, intercepted => intercepted.FulfillAsync(new() { Status = 503, ContentType = "application/json", Body = "{}" }));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh candidate", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("Temporarily unavailable. Retry shortly.");
+    Assert.DoesNotContain(digest, await page.Locator("main").InnerTextAsync(), StringComparison.Ordinal);
+    await page.UnrouteAsync(readPattern);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh candidate", Exact = true }).ClickAsync();
+    await page.GetByText(digest, new() { Exact = true }).WaitForAsync();
+    Assert.Equal(0, issuePosts);
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__releaseParityToken = token", documentToken);

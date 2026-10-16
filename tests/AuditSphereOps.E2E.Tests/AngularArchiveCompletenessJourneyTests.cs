@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
@@ -44,6 +45,18 @@ public sealed class AngularArchiveCompletenessJourneyTests
         EntryKind = "DOCUMENT", SourceKind = "TEST", RelativeName = $"evidence/item-{ordinal:D3}.pdf",
         ContentHash = new string('b', 64), ByteCount = ordinal
       }));
+      db.RecordsActions.Add(new RecordsAction
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ArchiveId = archiveId, ArchiveManifestId = manifestId, DesiredLabel = "SYNTH-PAGED-LABEL", DesiredProtection = "READ_ONLY",
+        State = "REQUESTED", ExternalReference = "SYNTH-PAGED-REFERENCE", RequestedByUserId = f.Staff.Id, RequestedAt = now
+      });
+      db.LegalHolds.AddRange(new[] { "APPLIED", "RELEASED" }.Select(state => new LegalHold
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ArchiveId = archiveId, HoldReference = "SYNTHETIC-" + state, State = state, RequestedByUserId = f.Staff.Id, RequestedAt = now,
+        AppliedAt = state == "APPLIED" ? now : null, ReleasedAt = state == "RELEASED" ? now : null
+      }));
       await db.SaveChangesAsync();
     }
 
@@ -58,26 +71,86 @@ public sealed class AngularArchiveCompletenessJourneyTests
     var page = await context.NewPageAsync();
     var errors = new List<string>();
     page.PageError += (_, error) => errors.Add(error);
+    var mutations = 0; var firstPageAttempts = 0;
+    var archiveUrl = $"{origin}/api/ui/records/archives/{archiveId:D}";
+    page.Request += (_, request) =>
+    {
+      if (request.Method == "POST" && request.Url.Contains("/api/ui/", StringComparison.Ordinal)) mutations++;
+      if (request.Url == archiveUrl + "?afterOrdinal=100") firstPageAttempts++;
+    };
+    var rootRead = page.WaitForResponseAsync(response => response.Url == archiveUrl && response.Status == 200);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/app/records/archives/{archiveId:D}"));
     await Assertions.Expect(page.GetByText("Showing 100 of 205 entries.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Link,
       new() { Name = "Download read-only evidence export", Exact = true })).ToHaveCountAsync(0);
+    using var rootDocument = JsonDocument.Parse(await (await rootRead).TextAsync());
+    var rootJson = rootDocument.RootElement;
+    Assert.StartsWith(now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture), rootJson.GetProperty("createdAt").GetString()!);
+    var summary = page.Locator("section[aria-labelledby='archive-summary']");
+    await Assertions.Expect(summary.Locator("dt").Filter(new() { HasText = "Created" }).Locator("+ dd"))
+      .ToHaveTextAsync(rootJson.GetProperty("createdAt").GetString()!);
+    await Assertions.Expect(page.GetByText("Manifest version 1 · 205 manifest entries · 1 active local holds", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(summary).ToContainTextAsync("Records action requested; this is not evidence of Purview protection.");
+    var evidence = page.Locator("section[aria-labelledby='records-evidence']");
+    await Assertions.Expect(evidence).ToContainTextAsync("SYNTH-PAGED-LABEL");
+    await Assertions.Expect(evidence).ToContainTextAsync("SYNTH-PAGED-REFERENCE");
+    await Assertions.Expect(evidence).ToContainTextAsync("Not observed");
+    await Assertions.Expect(evidence).ToContainTextAsync("Observed active hold");
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, $"/app/records/archives/{archiveId:D}", "archive-detail");
     var rows = page.Locator("[aria-labelledby='archive-contents'] tbody tr");
     await Assertions.Expect(rows).ToHaveCountAsync(100);
     await Assertions.Expect(rows.First).ToContainTextAsync("item-001.pdf");
     await Assertions.Expect(rows.Last).ToContainTextAsync("item-100.pdf");
+    await Assertions.Expect(rows.First.GetByRole(AriaRole.Cell)).ToHaveTextAsync(["1", "DOCUMENT", "evidence/item-001.pdf", new string('b', 64), "1"]);
+    await page.RouteAsync(archiveUrl + "?afterOrdinal=100", route => route.FulfillAsync(new() { Status = 503, ContentType = "application/json", Body = "{}" }));
     var loadMore = page.GetByRole(AriaRole.Button, new() { Name = "Load next 100 entries", Exact = true });
     await loadMore.ClickAsync();
+    await Assertions.Expect(page.GetByText("Entries could not be loaded. Retry shortly.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(rows).ToHaveCountAsync(100); await Assertions.Expect(loadMore).ToBeEnabledAsync();
+    Assert.Equal(1, firstPageAttempts);
+    await page.UnrouteAsync(archiveUrl + "?afterOrdinal=100"); await loadMore.ClickAsync();
     await Assertions.Expect(page.GetByText("Showing 200 of 205 entries.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(rows).ToHaveCountAsync(200);
     await Assertions.Expect(rows.Nth(100)).ToContainTextAsync("item-101.pdf");
     loadMore = page.GetByRole(AriaRole.Button, new() { Name = "Load next 100 entries", Exact = true });
+    await page.RouteAsync(archiveUrl + "?afterOrdinal=200", async route =>
+    {
+      var response = await route.FetchAsync(); var changed = JsonNode.Parse(await response.TextAsync())!;
+      changed["manifestDigest"] = new string('c', 64);
+      await route.FulfillAsync(new() { Status = 200, ContentType = "application/json", Body = changed.ToJsonString() });
+    });
     await loadMore.ClickAsync();
+    await Assertions.Expect(page.GetByText("The archive identity or manifest changed. Refresh the archive.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(rows).ToHaveCountAsync(200); await Assertions.Expect(loadMore).ToBeEnabledAsync();
+    await page.UnrouteAsync(archiveUrl + "?afterOrdinal=200"); await loadMore.ClickAsync();
     await Assertions.Expect(page.GetByText("Showing 205 of 205 entries.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(rows).ToHaveCountAsync(205);
     await Assertions.Expect(rows.Last).ToContainTextAsync("item-205.pdf");
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Load next 100 entries", Exact = true })).ToHaveCountAsync(0);
-    Assert.Empty(errors);
+    await Assertions.Expect(rows.Last.GetByRole(AriaRole.Cell)).ToHaveTextAsync(["205", "DOCUMENT", "evidence/item-205.pdf", new string('b', 64), "205"]);
+    Assert.Equal(Enumerable.Range(1, 205).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)), await rows.Locator("td:first-child").AllTextContentsAsync());
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh archive", Exact = true }).ClickAsync();
+    await Assertions.Expect(rows).ToHaveCountAsync(100);
+    await page.RouteAsync(archiveUrl + "?afterOrdinal=100", route => route.FulfillAsync(new() { Status = 403, ContentType = "application/json", Body = "{}" }));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Load next 100 entries", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("The archive is not available in the current scope.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(rows).ToHaveCountAsync(0); await Assertions.Expect(summary).ToHaveCountAsync(0); await Assertions.Expect(evidence).ToHaveCountAsync(0);
+    await Assertions.Expect(page.Locator("main")).Not.ToContainTextAsync("SYNTH-PAGED-REFERENCE");
+    await page.UnrouteAsync(archiveUrl + "?afterOrdinal=100");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh archive", Exact = true }).ClickAsync();
+    await Assertions.Expect(rows).ToHaveCountAsync(100); await Assertions.Expect(evidence).ToContainTextAsync("SYNTH-PAGED-REFERENCE");
+    await page.RouteAsync(archiveUrl, async route =>
+    {
+      var response = await route.FetchAsync(); var changed = JsonNode.Parse(await response.TextAsync())!;
+      changed["id"] = Guid.NewGuid().ToString("D");
+      await route.FulfillAsync(new() { Status = 200, ContentType = "application/json", Body = changed.ToJsonString() });
+    });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh archive", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("Unsupported response. Refresh the page; if this persists the workspace version may be out of date.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(rows).ToHaveCountAsync(0);
+    await page.UnrouteAsync(archiveUrl); await page.GetByRole(AriaRole.Button, new() { Name = "Refresh archive", Exact = true }).ClickAsync();
+    await Assertions.Expect(rows).ToHaveCountAsync(100);
+    Assert.Equal(0, mutations); Assert.Empty(errors);
   }
 
   [Fact]

@@ -172,7 +172,7 @@ public static class AuditRecordQueries
       .Where(x => x.FirmId == actor.FirmId && x.ArchiveManifestId == manifest.Id);
     var totalEntryCount = entryQuery is null ? 0 : await entryQuery.CountAsync(ct);
     var pageQuery = entryQuery;
-    if (afterOrdinal is > 0) pageQuery = pageQuery!.Where(x => x.Ordinal > afterOrdinal.Value);
+    if (afterOrdinal is > 0 && pageQuery is not null) pageQuery = pageQuery.Where(x => x.Ordinal > afterOrdinal.Value);
     var rows = pageQuery is null ? [] : await pageQuery.OrderBy(x => x.Ordinal).Take(ArchiveEntryPageSize + 1)
       .Select(x => new ArchiveEntryView(x.Ordinal, x.EntryKind, x.RelativeName, x.ContentHash, x.ByteCount)).ToListAsync(ct);
     var hasMore = rows.Count > ArchiveEntryPageSize;

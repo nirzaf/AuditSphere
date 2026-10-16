@@ -1,6 +1,8 @@
-import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router, RouterLink } from '@angular/router';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom, timeout } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
@@ -225,6 +227,7 @@ export class ReviewPointRecord {
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <span>Release candidate</span></nav>
     <audit-page-header title="Release candidate" eyebrow="Release control" description="Exact package release gates and the guarded issue command." />
+    <button matButton="outlined" type="button" (click)="rec.reload()" [disabled]="cmd.busy()">Refresh candidate</button>
     <audit-state [loading]="rec.loading()" [error]="rec.error()" label="release candidate" />
     @if (rec.data(); as c) {
       <p class="actions" aria-label="Release candidate status"><audit-status [value]="c.status" /></p>
@@ -254,7 +257,11 @@ export class ReviewPointRecord {
 export class ReleaseCandidate {
   private readonly api = inject(Api);
   readonly id = routeGuid();
-  readonly rec = this.api.resource(() => (this.id() ? `/api/ui/releases/${this.id()}` : null), decodeRelease, 'The candidate is not available in the current firm scope.');
+  readonly rec = this.api.resource(() => (this.id() ? `/api/ui/releases/${this.id()}` : null), (raw, path) => {
+    const candidate = decodeRelease(raw, path);
+    if (candidate.id !== this.id()) throw new Error('Release candidate route identity mismatch');
+    return candidate;
+  }, 'The candidate is not available in the current firm scope.');
   readonly cmd = new CommandState(this.api);
   private readonly reconcileIssued = effect(() => {
     const candidate = this.rec.data();
@@ -274,12 +281,13 @@ export class ReleaseCandidate {
 
 @Component({
   selector: 'audit-archive',
-  imports: [RouterLink, ...SHARED],
+  imports: [RouterLink, MatButtonModule, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <span>Archive</span></nav>
     <audit-page-header title="Records archive" eyebrow="Records evidence" description="Immutable manifest entries, hashes, holds and protection observations for the authorized archive." />
-    <audit-state [loading]="rec.loading()" [error]="rec.error()" label="archive" />
-    @if (rec.data(); as a) {
+    <button matButton="outlined" (click)="refresh()">Refresh archive</button>
+    <audit-state [loading]="rec.loading()" [error]="readError()" label="archive" />
+    @if (archive(); as a) {
       <p class="actions"><audit-status [value]="a.status" /><a [routerLink]="['/app/engagements', a.engagementId]">Engagement</a></p>
       <p role="status">Manifest version {{ a.manifestVersion ?? '—' }} · {{ a.totalEntryCount }} manifest entries · {{ a.activeHoldCount }} active local holds</p>
       <section class="panel" aria-labelledby="archive-summary"><h2 id="archive-summary">Archive manifest</h2>
@@ -312,43 +320,92 @@ export class ReleaseCandidate {
 })
 export class ArchiveRecord {
   private readonly api = inject(Api);
+  private readonly http = inject(HttpClient);
+  private readonly session = inject(SessionService);
   readonly id = routeGuid();
-  readonly rec = this.api.resource(() => (this.id() ? `/api/ui/records/archives/${this.id()}` : null), decodeArchive, 'The archive is not available in the current scope.');
+  private readonly blocked = signal(false);
+  private readonly active = signal(true);
+  private readonly baseActor = signal<ReturnType<SessionService['current']>>(null);
+  private readonly baseEpoch = signal(-1);
+  readonly rec = this.api.resource(() => (this.active() && this.id() ? `/api/ui/records/archives/${this.id()}` : null), (raw, path) => {
+    const archive = decodeArchive(raw, path);
+    if (archive.id !== this.id()) throw new Error('Archive route identity mismatch');
+    this.validatePage(archive, 0, 0);
+    this.baseActor.set(this.session.current()); this.baseEpoch.set(this.session.invalidation()); this.blocked.set(false);
+    return archive;
+  }, 'The archive is not available in the current scope.');
+  readonly archive = computed(() => !this.destroyed && this.active() && this.session.current()?.staff && this.baseActor() === this.session.current() &&
+    this.baseEpoch() === this.session.invalidation() && !this.blocked() && !this.rec.loading() && !this.rec.error() && this.rec.data()?.id === this.id() ? this.rec.data() : null);
+  readonly readError = computed(() => this.blocked() ? 'The archive is not available in the current scope.' : this.rec.error());
   readonly additionalEntries = signal<ReturnType<typeof decodeArchive>['entries']>([]);
   readonly nextOrdinal = signal<number | null>(null);
   readonly loadingEntries = signal(false);
   readonly entriesError = signal('');
+  private generation = 0;
+  private destroyed = false;
 
   constructor() {
-    effect(() => {
-      this.id();
-      const archive = this.rec.data();
-      this.additionalEntries.set([]);
-      this.nextOrdinal.set(archive?.nextOrdinal ?? null);
-      this.entriesError.set('');
+    const params = inject(ActivatedRoute).paramMap.subscribe(() => this.invalidate());
+    const route = inject(Router).events.subscribe(event => {
+      if (event instanceof NavigationStart) { this.active.set(false); this.invalidate(); }
+      else if (event instanceof NavigationCancel || event instanceof NavigationError) this.active.set(true);
+      else if (event instanceof NavigationEnd) this.active.set(/^\/(?:ui\/)?app\/records\/archives\/[^/]+$/.test(event.urlAfterRedirects.split(/[?#]/)[0]));
     });
+    effect(() => {
+      this.id(); this.session.current(); this.session.invalidation(); this.active();
+      const archive = this.rec.data();
+      untracked(() => { this.invalidate(); this.nextOrdinal.set(this.archive() === archive ? archive?.nextOrdinal ?? null : null); });
+    });
+    inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.invalidate(); params.unsubscribe(); route.unsubscribe(); });
   }
-
+  private invalidate(): void {
+    ++this.generation; this.additionalEntries.set([]); this.nextOrdinal.set(null); this.loadingEntries.set(false); this.entriesError.set('');
+  }
+  refresh(): void { this.invalidate(); this.rec.reload(); }
   visibleEntries(archive: ReturnType<typeof decodeArchive>) {
-    return [...archive.entries, ...this.additionalEntries()];
+    return this.archive() === archive ? [...archive.entries, ...this.additionalEntries()] : [];
   }
-
-  async loadMore(archive: ReturnType<typeof decodeArchive>) {
+  private validatePage(page: ReturnType<typeof decodeArchive>, cursor: number, loaded: number): void {
+    const rows = page.entries, remaining = page.totalEntryCount - loaded;
+    if (remaining < 0 || rows.length !== Math.min(remaining, 100) || page.profileVersion < 1 ||
+      (page.manifestVersion === null ? page.manifestDigest !== null || page.manifestStatus !== null || page.totalEntryCount !== 0 :
+        page.manifestVersion < 1 || !page.manifestStatus || !page.manifestDigest || !/^[a-f0-9]{64}$/i.test(page.manifestDigest)) ||
+      rows.some((row, index) => row.ordinal <= (index === 0 ? cursor : rows[index - 1].ordinal) || row.byteCount < 0 || !/^[a-f0-9]{64}$/i.test(row.contentHash)) ||
+      (remaining > rows.length ? rows.length === 0 || page.nextOrdinal !== rows.at(-1)!.ordinal || page.nextOrdinal <= cursor : page.nextOrdinal !== null)) {
+      throw new Error('The archive page, manifest or cursor is inconsistent. Refresh the archive.');
+    }
+  }
+  private sameManifest(a: ReturnType<typeof decodeArchive>, b: ReturnType<typeof decodeArchive>): boolean {
+    return a.id === b.id && a.engagementId === b.engagementId && a.createdAt === b.createdAt && a.profileId === b.profileId && a.profileVersion === b.profileVersion &&
+      a.manifestVersion === b.manifestVersion && a.manifestDigest === b.manifestDigest && a.manifestStatus === b.manifestStatus &&
+      a.completenessStatus === b.completenessStatus && a.completenessException === b.completenessException && a.totalEntryCount === b.totalEntryCount;
+  }
+  async loadMore(archive: ReturnType<typeof decodeArchive>): Promise<void> {
     const cursor = this.nextOrdinal();
-    if (this.loadingEntries() || cursor === null) return;
-    const id = archive.id;
-    this.loadingEntries.set(true);
-    this.entriesError.set('');
+    if (this.destroyed || this.archive() !== archive || this.loadingEntries() || cursor === null) return;
+    const generation = this.generation, id = this.id(), actor = this.session.current(), epoch = this.session.invalidation();
+    const valid = () => !this.destroyed && generation === this.generation && id === this.id() && actor === this.session.current() &&
+      epoch === this.session.invalidation() && this.archive() === archive && cursor === this.nextOrdinal();
+    const loaded = this.visibleEntries(archive).length;
+    this.loadingEntries.set(true); this.entriesError.set('');
     try {
-      const next = await this.api.get(`/api/ui/records/archives/${id}?afterOrdinal=${cursor}`, decodeArchive);
-      if (this.id() !== id || this.rec.data()?.id !== id || next.id !== id || next.manifestVersion !== archive.manifestVersion) return;
-      const seen = new Set(this.visibleEntries(archive).map(entry => entry.ordinal));
-      this.additionalEntries.update(current => [...current, ...next.entries.filter(entry => !seen.has(entry.ordinal))]);
-      this.nextOrdinal.set(next.nextOrdinal);
+      // Keep HTTP status local to this capability so denied reads clear protected rows, while transient failures remain retryable.
+      const raw = await firstValueFrom(this.http.get<unknown>(`/api/ui/records/archives/${id}?afterOrdinal=${cursor}`).pipe(timeout(30000)));
+      if (!valid()) return;
+      const next = decodeArchive(raw, 'archive page');
+      if (!this.sameManifest(archive, next)) throw new Error('The archive identity or manifest changed. Refresh the archive.');
+      this.validatePage(next, cursor, loaded);
+      this.additionalEntries.update(current => [...current, ...next.entries]); this.nextOrdinal.set(next.nextOrdinal);
     } catch (error) {
-      this.entriesError.set(error instanceof Error ? error.message : 'Entries could not be loaded. Retry shortly.');
+      if (!valid()) return;
+      if (error instanceof HttpErrorResponse && [401, 403, 404].includes(error.status)) {
+        this.invalidate(); this.blocked.set(true);
+        if (error.status === 401) void this.session.refresh();
+      } else this.entriesError.set(error instanceof HttpErrorResponse || !(error instanceof Error) ? 'Entries could not be loaded. Retry shortly.' : error.message);
     } finally {
-      this.loadingEntries.set(false);
+      // Success advances the cursor; completion is fenced by generation/scope/base rather than the old cursor.
+      if (!this.destroyed && generation === this.generation && id === this.id() && actor === this.session.current() &&
+        epoch === this.session.invalidation() && this.archive() === archive) this.loadingEntries.set(false);
     }
   }
 }
