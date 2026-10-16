@@ -64,8 +64,14 @@ export class PortalDocuments {
   select(id: string): void { this.selected.set(id); this.review.reset(); this.signed.reset(); this.file.set(null); }
   choose(e: Event): void { const file = (e.target as HTMLInputElement).files?.[0]; this.file.set(file && file.size > 0 && file.size <= 10 * 1024 * 1024 ? file : null);
     if (!this.file()) { this.failed.set(true); this.message.set('Select a non-empty PDF of at most 10 MB.'); } }
-  comment(id: string): void { if (!this.review.controls.body.value.trim() || this.review.controls.body.invalid) return;
-    void this.run(`/api/ui/portal/documents/${id}/comment`, { body: this.review.controls.body.value }, 'Comment sent to the audit team.'); }
+  comment(id: string): Promise<void> { const submitted = this.review.controls.body.value;
+    if (!submitted.trim() || this.review.controls.body.invalid) return Promise.resolve();
+    return this.run(`/api/ui/portal/documents/${id}/comment`, { body: submitted }, 'Comment sent to the audit team.', () => {
+      if (this.review.controls.body.value === submitted) {
+        this.review.controls.body.setValue('');
+        this.review.controls.body.markAsPristine();
+      }
+    }); }
   acknowledge(id: string, sha: string): void { if (!this.review.controls.reviewed.value) return;
     void this.run(`/api/ui/portal/documents/${id}/acknowledge`, { sha256: sha, reviewed: true }, 'Acknowledged. The exact version reviewed is recorded.'); }
   upload(id: string, hash: string): void { const file = this.file(); if (!file || this.signed.invalid) return;
@@ -78,10 +84,11 @@ export class PortalDocuments {
       { contentSha256: bundle.sha256, manifestSha256: bundle.manifestSha256, received: true },
       'Your receipt report for this exact bundle was recorded. It does not confirm provider delivery or prove a browser download.');
   }
-  private async run(url: string, body: unknown, success: string): Promise<void> {
+  private async run(url: string, body: unknown, success: string, afterSuccess?: () => void): Promise<void> {
     if (this.busy() || this.uncertain()) return; const generation = this.session.invalidation(); this.busy.set(true);
     try { const r = await this.api.command(url, body); if (generation !== this.session.invalidation()) return;
       this.failed.set(!r.ok); this.message.set(r.ok ? success : r.message); if (!r.ok && r.unknown) this.uncertain.set(true);
+      if (r.ok) afterSuccess?.();
       if (r.ok || (!r.ok && r.unknown)) this.ws.reload();
     } finally { this.busy.set(false); }
   }

@@ -12,10 +12,64 @@ const bundleId = '33333333-3333-4333-8333-333333333333';
 const receiptId = '44444444-4444-4444-8444-444444444444';
 const contentSha256 = 'a'.repeat(64);
 const manifestSha256 = 'b'.repeat(64);
+const documentReviewId = '55555555-5555-4555-8555-555555555555';
+const deliverableId = '66666666-6666-4666-8666-666666666666';
 const bundle = (acknowledgedAt: string | null = null) => ({
   id: bundleId, sha256: contentSha256, manifestSha256, assembledAt: '2026-10-15T10:00:00Z', acknowledgedAt,
 });
-const documents = (acknowledgedAt: string | null = null) => ({ documents: [], signedLetters: [], bundles: [bundle(acknowledgedAt)] });
+const sharedDocument = { reviewId: documentReviewId, deliverableId, kind: 'AUDIT_REPORT', title: 'Audited financial statements',
+  version: '3', sha256: contentSha256, acknowledgedAt: null, comments: [] };
+const documents = (acknowledgedAt: string | null = null, items: Array<typeof sharedDocument> = []) => ({
+  documents: items, signedLetters: [], bundles: [bundle(acknowledgedAt)],
+});
+
+describe('client document comments', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [PortalDocuments],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(SessionService).current.set({ userId, firmId, generation: '1', staff: false });
+  });
+
+  afterEach(() => {
+    try { TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true }); }
+    finally { TestBed.resetTestingModule(); }
+  });
+
+  it('clears only a successfully sent draft and preserves a refused draft', async () => {
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(PortalDocuments);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [sharedDocument]));
+    TestBed.tick(); fixture.detectChanges();
+
+    fixture.componentInstance.select(documentReviewId);
+    fixture.componentInstance.review.controls.body.setValue('Please clarify this statement.');
+    fixture.componentInstance.review.controls.body.markAsDirty();
+    const sent = fixture.componentInstance.comment(documentReviewId);
+    const accepted = http.expectOne({ method: 'POST', url: `/api/ui/portal/documents/${documentReviewId}/comment` });
+    expect(accepted.request.body).toEqual({ body: 'Please clarify this statement.' });
+    accepted.flush({ value: receiptId });
+    await sent; fixture.detectChanges();
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [{ ...sharedDocument,
+      comments: [{ body: 'Please clarify this statement.', fromClient: true, resolution: null }] }]));
+    await fixture.whenStable(); TestBed.tick(); fixture.detectChanges();
+    expect(fixture.componentInstance.review.controls.body.value).toBe('');
+    expect(fixture.componentInstance.review.controls.body.pristine).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Client: Please clarify this statement.');
+
+    fixture.componentInstance.review.controls.body.setValue('Keep this draft if refused.');
+    fixture.componentInstance.review.controls.body.markAsDirty();
+    const refused = fixture.componentInstance.comment(documentReviewId);
+    http.expectOne({ method: 'POST', url: `/api/ui/portal/documents/${documentReviewId}/comment` })
+      .flush({ code: 'portal.comment-refused', message: 'Comment was refused.' }, { status: 400, statusText: 'Bad Request' });
+    await refused; fixture.detectChanges();
+    expect(fixture.componentInstance.review.controls.body.value).toBe('Keep this draft if refused.');
+    expect(fixture.componentInstance.review.controls.body.dirty).toBe(true);
+    fixture.destroy();
+  });
+});
 
 describe('client final bundle receipt acknowledgement', () => {
   let http: HttpTestingController;

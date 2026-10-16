@@ -13,6 +13,49 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularPortfolioJourneyTests
 {
   [Fact]
+  [Trait("CaseId", "AS-PAR-002-ANG-PORT-NO-SCOPE-01")]
+  public async Task StaffWithoutActiveScopeGetsGuidanceAndNoPortfolioData()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-PAR-002-ANG-PORT-NO-SCOPE-01");
+    var f = host.Fixture;
+    var staff = PbcSeed.User(f.FirmId, "Staff");
+    var clientId = Guid.NewGuid();
+    const string hiddenClientName = "SYN-PAR-002-UNSCOPED-PORTFOLIO-CLIENT";
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(staff);
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = clientId, FirmId = f.FirmId, LegalName = hiddenClientName, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, staff, "FinanceReviewer"));
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(staff,
+      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true" });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync(
+      "No portfolio data is shown without an active AuditSphere grant");
+    Assert.DoesNotContain(hiddenClientName, await page.Locator("body").InnerTextAsync());
+    Assert.Empty(await page.Locator(".portfolio-metrics").AllAsync());
+
+    await using var denied = await context.APIRequest.GetAsync(origin +
+      "/api/ui/portfolio/workspace?search=&page=0&pageSize=25");
+    Assert.Equal(403, denied.Status);
+    Assert.DoesNotContain(hiddenClientName, await denied.TextAsync(), StringComparison.Ordinal);
+    Assert.Empty(errors);
+  }
+
+  [Fact]
   [Trait("CaseId", "AS-PAR-002-ANG-PORT-FORGED-01")]
   public async Task ClientIdentityWithErroneousFirmWideStaffGrantCannotReadPortfolio()
   {
