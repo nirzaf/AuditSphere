@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink, RouterLinkActive } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -93,6 +93,13 @@ export class AccountingRecords {
   readonly mappings = this.api.resource(() => (this.mode() === 'mappings' ? '/api/ui/accounting/mappings' : null), decodeMappings, 'This queue requires an authorized internal accounting role and an explicit client scope.');
   readonly journals = this.api.resource(() => (this.mode() === 'journals' ? '/api/ui/accounting/journals' : null), decodeJournals, 'This queue requires an authorized internal accounting role and an explicit client scope.');
   readonly differences = this.api.resource(() => (this.mode() === 'differences' ? '/api/ui/accounting/differences' : null), decodeDifferences, 'This queue requires an authorized internal accounting role and an explicit client scope.');
+  constructor() {
+    effect(() => {
+      // Each replacement belongs to a fresh authorized queue, even when the route is unchanged.
+      ({ mappings: this.mappings, journals: this.journals, differences: this.differences })[this.mode()].data();
+      this.pageIndex.set(0);
+    });
+  }
   reload(): void { this.pageIndex.set(0); ({ mappings: this.mappings, journals: this.journals, differences: this.differences })[this.mode()].reload(); }
   page<T>(rows: T[]): T[] { const size = this.pageSize(); return rows.slice(this.pageIndex() * size, (this.pageIndex() + 1) * size); }
   pages(n: number): number { return Math.max(1, Math.ceil(n / this.pageSize())); }
