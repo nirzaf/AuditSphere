@@ -153,7 +153,24 @@
         "skipped": 0,
         "durationSeconds": 72,
         "report": "/tmp/auditsphere-parity-regression/financial-source-composition-parity-complete.trx",
-        "scope": "Package review/download/revocation and period reopening; real source-backed candidate composition. Full financial-artifact class running; full solution remains open."
+        "scope": "Package review/download/revocation and period reopening; real source-backed candidate composition. Full financial-artifact class running; full solution remains open.",
+        "fullClass": {
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "durationSeconds": 137,
+          "report": "/tmp/auditsphere-parity-regression/financial-artifact-parity-cohort.trx",
+          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~AngularFinancialArtifactParityJourneyTests"
+        }
+      },
+      "profileConfirmationBrowserFollowUp": {
+        "codeCommit": "a3461ced",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "durationSeconds": 82,
+        "report": "/tmp/auditsphere-parity-regression/profile-confirmation-current-parity.trx",
+        "scope": "Both client-profile route modes and confirmation storage-failure navigation; earlier failures not reproduced, no tests changed."
       }
     },
     "angularBlazorTenantConsentFixtureFollowUp": {

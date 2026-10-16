@@ -46,5 +46,5 @@ asserted. No production guard or historical package was changed.
 Command: `dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularFinancialArtifactParityJourneyTests.PackageReviewDownloadsAndRevocationRemainExactAndScoped|FullyQualifiedName~AngularFinancialArtifactParityJourneyTests.ReopenedPeriodShowsNewRevisionWithoutReplacingValidatedPackage' --logger 'trx;LogFileName=financial-source-composition-parity-complete.trx' --results-directory /tmp/auditsphere-parity-regression`.
 Local ephemeral report:
 `/tmp/auditsphere-parity-regression/financial-source-composition-parity-complete.trx`.
-The complete financial-artifact class is being rerun separately. Full solution,
+The complete `AngularFinancialArtifactParityJourneyTests` class then passed **5/5**, zero failures or skips, in 137 seconds on the same built code (`--no-build`), including client management decisions, response-loss recovery and accounting queue revocation. Local report: `/tmp/auditsphere-parity-regression/financial-artifact-parity-cohort.trx`. Full solution,
 source/action equivalence and operational/external retirement gates remain open.
