@@ -40,11 +40,15 @@ public static class AccountingPeriodRecordQuery
     async Task<string?> NameAsync(Guid? userId) => userId is null ? null : await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == userId)
       .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleOrDefaultAsync(ct);
     var engagement = pbc is null ? null : await db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == pbc.EngagementId).Select(x => x.ServiceRoute).SingleOrDefaultAsync(ct);
-    return CommandResult<AccountingPeriodRecord>.Ok(new(period.Id, period.ClientId, client ?? "Scoped client", engagement ?? "No linked engagement", period.PeriodCode,
+    var result = new AccountingPeriodRecord(period.Id, period.ClientId, client ?? "Scoped client", engagement ?? "No linked engagement", period.PeriodCode,
       period.StartDate, period.EndDate, period.Basis, book ?? "No book", period.Currency, period.Status, period.Revision, period.PriorPeriodId,
       package?.Id, package is null ? null : $"{package.Status} · v{package.Revision} · {package.Currency}", mapping?.Id, mapping is null ? null : $"{mapping.Status} · v{mapping.Version}",
       pbc is null ? null : new PeriodPbcHandoff(pbc.EngagementId, await NameAsync(pbc.FirmOwnerUserId) ?? "Assigned firm owner",
         string.IsNullOrWhiteSpace(pbc.DueDate) ? "Not recorded" : pbc.DueDate, pbc.State),
-      task is null ? null : new PeriodTaskHandoff(task.Title, await NameAsync(task.AssigneeUserId) ?? "Assigned staff", task.DueDate?.ToString("yyyy-MM-dd") ?? "Not recorded", task.Status)));
+      task is null ? null : new PeriodTaskHandoff(task.Title, await NameAsync(task.AssigneeUserId) ?? "Assigned staff", task.DueDate?.ToString("yyyy-MM-dd") ?? "Not recorded", task.Status));
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId,
+      ClientId: period.ClientId, RequiredRoles: Roles, InternalOnly: true), ct);
+    return auth.Succeeded ? CommandResult<AccountingPeriodRecord>.Ok(result)
+      : CommandResult<AccountingPeriodRecord>.Fail(ErrorCodes.ScopeDenied, "This period is not visible under the current accounting grant.");
   }
 }

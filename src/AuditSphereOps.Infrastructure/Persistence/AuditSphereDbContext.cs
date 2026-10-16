@@ -400,6 +400,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks => Set<AccountingEvidenceAuditLink>();
   public DbSet<AccountingEvidenceAction> AccountingEvidenceActions => Set<AccountingEvidenceAction>();
   public DbSet<AccountingAnalysisPreparation> AccountingAnalysisPreparations => Set<AccountingAnalysisPreparation>();
+  public DbSet<PeriodMaintenanceReceipt> PeriodMaintenanceReceipts => Set<PeriodMaintenanceReceipt>();
   public DbSet<AccountingReconciliationPreparation> AccountingReconciliationPreparations => Set<AccountingReconciliationPreparation>();
   public DbSet<SpecialistSchedulePreparation> SpecialistSchedulePreparations => Set<SpecialistSchedulePreparation>();
   public DbSet<ValuationPreparation> ValuationPreparations => Set<ValuationPreparation>();
@@ -616,6 +617,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureAccountingEvidenceActions(b);
     ConfigureAccountingAnalysisPreparations(b);
     ConfigureAccountingCreationPreparations(b);
+    ConfigurePeriodMaintenanceReceipts(b);
     ConfigureValuationPreparations(b);
     ConfigureDocuments(b);
     ConfigurePbc(b);

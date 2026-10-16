@@ -26,4 +26,13 @@ The six Blazor files below were re-hashed against inventory snapshot `eb94ae5073
 
 ## Result and boundary
 
-All six rows remain `PARTIAL`; none is promoted to `PARITY_VERIFIED`. The source/action register still contains 76 rows: one parity-verified, 27 partial and 48 not analyzed. Twenty-eight supporting files remain open. The removed E2E-method crosswalk remains 82/82; that separate crosswalk does not close AS-PAR-002 direct query/search/count/export/command authorization or retry/idempotency acceptance. Overall migration acceptance and Blazor retirement remain `NOT_READY`. Production rollback/canary, assistive-technology and wider-locale review, live Microsoft gates, and separate owner acceptance remain open.
+All six rows remain `PARTIAL`; none is promoted to `PARITY_VERIFIED`. Current source/action counts and dispositions are maintained in the migration register and `status.json`; this review does not promote a row by route existence alone. Twenty-eight supporting files remain open. The removed E2E-method crosswalk remains 82/82; that separate crosswalk does not close AS-PAR-002 direct query/search/count/export/command authorization or retry/idempotency acceptance. Overall migration acceptance and Blazor retirement remain `NOT_READY`. Production rollback/canary, assistive-technology and wider-locale review, live Microsoft gates, and separate owner acceptance remain open.
+
+
+## Reviewed maintenance recovery increment
+
+The Angular roll-forward and restatement workbenches now use named Application preview, execute and receipt lookup commands. Exact request hashes bind the actor, session epoch, client, action, source fingerprint and normalized input. Explicit assent is required after preview. A retained request reference contains identity and hash only; it does not store assent or editable financial inputs. Receipt recovery returns the original snapshot, and missing lookup results retain the request identity rather than authorizing an unrelated resend.
+
+`PeriodMaintenanceWorkspace` composes `ClientAccountingService` transaction owners. Publication locks the firm, client, actor and affected accounting records, rechecks authorization and writes the effect and append-only receipt atomically. Legacy callers retain transaction ownership. `AccountingPeriodRecordQuery` reauthorizes after composing handoff details. The additive `PeriodMaintenanceReviewedReceipts` migration refuses downgrade when retained receipts exist; it is not a live deployment approval.
+
+All six rows remain `PARTIAL`. Batched verification results and the tested source belong in `status.json`. Complete role/action/error coverage, the wider accounting workspace matrix and the global retirement criteria remain open. No Blazor file is removed by this increment.

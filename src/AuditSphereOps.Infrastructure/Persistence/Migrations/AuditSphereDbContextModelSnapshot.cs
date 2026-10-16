@@ -4190,6 +4190,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "Id")
+                        .HasName("ak_client_period_restatement_scope_id");
+
                     b.HasIndex("FirmId", "ClientId", "PeriodId");
 
                     b.HasIndex("FirmId", "OriginalPackageId", "RevisedPackageId")
@@ -10382,6 +10385,105 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("ownership_interest_versions", null, t =>
                         {
                             t.HasCheckConstraint("ck_ownership_interest_values", "effective_to IS NULL OR effective_from <= effective_to AND ownership_percent >= 0 AND ownership_percent <= 100 AND economic_interest_percent >= 0 AND economic_interest_percent <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.PeriodMaintenanceReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("before_json");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(30000)
+                        .HasColumnType("character varying(30000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<Guid>("PeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("period_id");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid?>("RestatementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("restatement_id");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result_json");
+
+                    b.Property<Guid?>("ResultPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_period_id");
+
+                    b.Property<string>("ReviewBasis")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_basis");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_period_maintenance_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "PeriodId");
+
+                    b.HasIndex("FirmId", "ClientId", "ResultPeriodId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_period_maintenance_result_period");
+
+                    b.HasIndex("FirmId", "ClientId", "RestatementId", "Action")
+                        .IsUnique()
+                        .HasDatabaseName("ux_period_maintenance_restatement_action");
+
+                    b.ToTable("period_maintenance_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_period_maintenance_receipt_values", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND length(input_json) BETWEEN 1 AND 30000 AND length(before_json) BETWEEN 1 AND 1000000 AND length(result_json) BETWEEN 1 AND 1000000 AND ((action = 'ROLL_FORWARD' AND result_period_id IS NOT NULL AND restatement_id IS NULL) OR (action IN ('CREATE_RESTATEMENT','APPROVE_RESTATEMENT') AND result_period_id IS NULL AND restatement_id IS NOT NULL))");
                         });
                 });
 
@@ -30316,6 +30418,43 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "GroupId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.PeriodMaintenanceReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "PeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientPeriodRestatement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "RestatementId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ClientReportingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "ResultPeriodId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_period_maintenance_receipts_client_reporting_periods_firm_~1");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ReportingTaxonomyNode", b =>

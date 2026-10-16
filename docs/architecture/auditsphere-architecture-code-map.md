@@ -10,6 +10,14 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 `docs/execution/status.json`.
 
+## Reviewed accounting period maintenance
+
+- `Application/Accounting/PeriodMaintenanceWorkspace.cs` and its contracts: scoped context/state, exact preview and actor-owned receipt lookup.
+- `Application/Accounting/ClientAccounting/ClientAccountingService.PeriodMaintenanceReceipts.cs`: transaction-owned publication, source fencing, replay and append-only outcome snapshots; existing period/restatement service entry points remain available.
+- `Domain/Accounting/PeriodMaintenanceReceipt.cs`, `Infrastructure/Persistence/AuditSphereDbContext.PeriodMaintenanceReceipts.cs`: immutable scoped request/effect evidence.
+- `Api/Ui/UiEndpoints.PeriodMaintenance.cs`; Angular `features/accounting/rollforward.ts`, `restatements.ts`, shared maintenance contracts and reviewed-state orchestration.
+- `Application/Accounting/AccountingPeriodRecordQuery.cs` and Angular `features/accounting/period.ts`: exact scoped reporting-period handoffs with final authorization and route identity validation.
+
 ## Native client operational bookkeeping
 
 - Client customers/suppliers: `Application/Accounting/ClientBookkeepingCounterpartyWorkspace.cs`, `Domain/Accounting/ClientBookkeepingCounterparty.cs`, `Api/Ui/UiEndpoints.ClientCounterparties.cs` and Angular `features/accounting/counterparties.ts`. Client-scoped immutable initial profiles, combined role, optional tax/defaults, duplicate fences and retained reads after service withdrawal. `ClientBookkeepingCounterpartyWorkspace.Amendments.cs` and Angular `counterparty-history.ts` add exact-revision contact-detail proposals, independent append-only decisions, effective-profile projection and scoped paged history. Database guards protect proposal/decision history and independent, sequential approvals. Legal identity changes, merges/reclassification and frozen invoice snapshots remain separate work; CA-07 remains partial.

@@ -9,6 +9,17 @@ public static partial class UiEndpoints
 
   private static void MapPeriodMaintenanceEndpoints(RouteGroupBuilder group)
   {
+    const string maintenance = "/accounting/period-maintenance/clients/{clientId:guid}";
+    group.MapGet(maintenance + "/context", (Guid clientId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => PeriodMaintenanceWorkspace.ContextAsync(db, actor, clientId, ct)));
+    group.MapGet(maintenance + "/state", (Guid clientId, string action, Guid? periodId, Guid? restatementId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => PeriodMaintenanceWorkspace.StateAsync(db, actor, clientId, action, periodId, restatementId, ct)));
+    group.MapPost(maintenance + "/preview", (Guid clientId, PeriodMaintenanceRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => PeriodMaintenanceWorkspace.PreviewAsync(db, actor, clientId, input, ct)));
+    group.MapPost(maintenance + "/actions", (Guid clientId, PeriodMaintenanceRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => PeriodMaintenanceWorkspace.ExecuteAsync(db, actor, clientId, input, ct)));
+    group.MapGet(maintenance + "/receipts/{requestId:guid}", (Guid clientId, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => PeriodMaintenanceWorkspace.LookupAsync(db, actor, clientId, requestId, requestHash, ct)));
     MapValuationPreparationEndpoints(group);
     const string reconciliation = "/engagements/{id:guid}/reconciliation-preparation";
     group.MapGet(reconciliation, (Guid id, HttpContext http) =>

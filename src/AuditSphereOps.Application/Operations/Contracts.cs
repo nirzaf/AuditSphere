@@ -330,6 +330,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<AccountingEvidenceAuditLink> AccountingEvidenceAuditLinks { get; }
   DbSet<AccountingEvidenceAction> AccountingEvidenceActions { get; }
   DbSet<AccountingAnalysisPreparation> AccountingAnalysisPreparations { get; }
+  DbSet<PeriodMaintenanceReceipt> PeriodMaintenanceReceipts { get; }
   DbSet<AccountingReconciliationPreparation> AccountingReconciliationPreparations { get; }
   DbSet<SpecialistSchedulePreparation> SpecialistSchedulePreparations { get; }
   DbSet<ValuationPreparation> ValuationPreparations { get; }

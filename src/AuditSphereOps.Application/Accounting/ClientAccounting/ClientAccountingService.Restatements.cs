@@ -13,6 +13,31 @@ namespace AuditSphereOps.Application.Accounting;
 public static partial class ClientAccountingService
 {
   public static async Task<CommandResult<Guid>> CreatePeriodRestatementAsync(
+    IClientAccountingDbContext db, ActorContext actor, CreatePeriodRestatementRequest request, CancellationToken ct = default)
+  {
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    await LockMaintenancePeriodAsync(db, actor, request.ClientId, request.PeriodId, ct);
+    await LockMaintenancePackagesAsync(db, actor, request.ClientId, [request.OriginalPackageId, request.RevisedPackageId], ct);
+    var result = await CreatePeriodRestatementCoreAsync(db, actor, request, ct);
+    if (result.Succeeded && tx is not null) await tx.CommitAsync(ct);
+    return result;
+  }
+
+  public static async Task<CommandResult> ApprovePeriodRestatementAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid restatementId, CancellationToken ct = default)
+  {
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var row = await db.ClientPeriodRestatements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == restatementId, ct);
+    if (row is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await LockMaintenancePeriodAsync(db, actor, row.ClientId, row.PeriodId, ct);
+    await LockMaintenanceRestatementAsync(db, actor, row.ClientId, restatementId, ct);
+    await LockMaintenancePackagesAsync(db, actor, row.ClientId, [row.OriginalPackageId, row.RevisedPackageId], ct);
+    var result = await ApprovePeriodRestatementCoreAsync(db, actor, restatementId, ct);
+    if (result.Succeeded && tx is not null) await tx.CommitAsync(ct);
+    return result;
+  }
+
+  private static async Task<CommandResult<Guid>> CreatePeriodRestatementCoreAsync(
     IClientAccountingDbContext db, ActorContext actor, CreatePeriodRestatementRequest request,
     CancellationToken ct = default)
   {
@@ -79,11 +104,11 @@ public static partial class ClientAccountingService
     return CommandResult<Guid>.Ok(restatement.Id);
   }
 
-  public static async Task<CommandResult> ApprovePeriodRestatementAsync(
+  private static async Task<CommandResult> ApprovePeriodRestatementCoreAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid restatementId,
     CancellationToken ct = default)
   {
-    var restatement = await db.ClientPeriodRestatements.SingleOrDefaultAsync(x =>
+    var restatement = await db.ClientPeriodRestatements.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == restatementId && x.FirmId == actor.FirmId, ct);
     if (restatement is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -100,6 +125,9 @@ public static partial class ClientAccountingService
         packages.Single(x => x.Id == restatement.OriginalPackageId).CalculationHash != restatement.OriginalPackageHash ||
         packages.Single(x => x.Id == restatement.RevisedPackageId).CalculationHash != restatement.RevisedPackageHash)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "Restatement package lineage changed; reload the issued evidence.");
+    var tracked = db.ClientPeriodRestatements.Local.SingleOrDefault(x => x.Id == restatement.Id);
+    if (tracked is not null) restatement = tracked;
+    else db.ClientPeriodRestatements.Attach(restatement);
     restatement.Status = AccountingWorkflowStates.Approved;
     restatement.ApprovedByUserId = actor.UserId;
     restatement.ApprovedAt = DateTimeOffset.UtcNow;

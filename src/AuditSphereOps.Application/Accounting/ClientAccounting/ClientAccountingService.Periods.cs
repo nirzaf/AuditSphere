@@ -53,6 +53,16 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, RollForwardPeriodRequest request,
     CancellationToken ct = default)
   {
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var result = await RollForwardPeriodCoreAsync(db, actor, request, ct);
+    if (result.Succeeded) await tx.CommitAsync(ct);
+    return result;
+  }
+
+  private static async Task<CommandResult<Guid>> RollForwardPeriodCoreAsync(
+    IClientAccountingDbContext db, ActorContext actor, RollForwardPeriodRequest request,
+    CancellationToken ct = default)
+  {
     var currency = (string.IsNullOrWhiteSpace(request.Currency) ? AccountingDefaults.DefaultCurrency : request.Currency).Trim().ToUpperInvariant();
     var sourceHash = request.SourceHash.Trim().ToLowerInvariant();
     if (request.ClientId == Guid.Empty || request.PriorPeriodId == Guid.Empty || string.IsNullOrWhiteSpace(request.PeriodCode) ||
@@ -67,10 +77,9 @@ public static partial class ClientAccountingService
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
     var prior = await db.ClientReportingPeriods
       .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {request.PriorPeriodId} AND firm_id = {actor.FirmId} FOR UPDATE")
-      .SingleOrDefaultAsync(ct);
+      .AsNoTracking().SingleOrDefaultAsync(ct);
     if (prior is null || prior.ClientId != request.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The prior period is outside the client scope.");
     auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
@@ -128,7 +137,6 @@ public static partial class ClientAccountingService
       EvidenceReference = request.EvidenceReference.Trim(), CreatedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(current.Id);
   }
 

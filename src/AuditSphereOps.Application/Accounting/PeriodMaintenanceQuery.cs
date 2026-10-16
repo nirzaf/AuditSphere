@@ -28,7 +28,7 @@ public static class PeriodMaintenanceQuery
   {
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<PeriodMaintenanceOverview>.Fail(ErrorCodes.ScopeDenied, "Sign in with an authorized accounting identity.");
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null && AccountingRoles.Contains(x.Role))
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > DateTimeOffset.UtcNow) && AccountingRoles.Contains(x.Role))
       .Select(x => new { x.Role, x.ClientId, x.EngagementId }).ToListAsync(ct);
     var firmWide = grants.Any(x => x.ClientId is null && x.EngagementId is null);
     var clientIds = grants.Where(x => x.ClientId.HasValue && x.EngagementId is null).Select(x => x.ClientId!.Value).Distinct().ToArray();
@@ -43,12 +43,18 @@ public static class PeriodMaintenanceQuery
     var byId = periods.ToDictionary(x => x.Id);
     var restatements = await db.ClientPeriodRestatements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && (firmWide || clientIds.Contains(x.ClientId)))
       .OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+    var currentGrants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
+      x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > DateTimeOffset.UtcNow) && AccountingRoles.Contains(x.Role))
+      .Select(x => new { x.Role, x.ClientId, x.EngagementId }).ToListAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded || !grants.ToHashSet().SetEquals(currentGrants))
+      return CommandResult<PeriodMaintenanceOverview>.Fail(ErrorCodes.ScopeDenied, "Accounting scope changed; refresh the maintenance workspace.");
     return CommandResult<PeriodMaintenanceOverview>.Ok(new(clients,
       periods.Select(x => new MaintenancePeriodRow(x.Id, x.ClientId, names.GetValueOrDefault(x.ClientId, "Scoped client"), x.PeriodCode, x.StartDate, x.EndDate, x.Status,
         x.Revision, x.PriorPeriodId is { } p && byId.TryGetValue(p, out var prior) ? prior.PeriodCode : "—")).ToList(),
       restatements.Select(x => new MaintenanceRestatementRow(x.Id, x.ClientId, names.GetValueOrDefault(x.ClientId, "Scoped client"),
         byId.GetValueOrDefault(x.PeriodId)?.PeriodCode ?? "Unknown period", x.RevisedBasis, x.Status, x.EvidenceReference,
-        x.Status == AccountingWorkflowStates.Submitted && (reviewFirmWide || reviewClients.Contains(x.ClientId)))).ToList()));
+        x.Status == AccountingWorkflowStates.Submitted && x.CreatedByUserId != actor.UserId && (reviewFirmWide || reviewClients.Contains(x.ClientId)))).ToList()));
   }
 
   /// <summary>Closed periods of one client with the validated packages that exactly match each period's dates.</summary>
@@ -60,6 +66,8 @@ public static class PeriodMaintenanceQuery
       .OrderByDescending(x => x.EndDate).ToListAsync(ct);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Status == AccountingPackageStates.PackageValidated)
       .OrderBy(x => x.CreatedAt).Select(x => new { x.Id, x.Currency, x.CalculationHash, x.PeriodStart, x.PeriodEnd }).ToListAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: AccountingRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<IReadOnlyList<MaintenanceClosedPeriod>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<IReadOnlyList<MaintenanceClosedPeriod>>.Ok(periods.Select(p =>
     {
       var start = p.StartDate.ToString("yyyy-MM-dd"); var end = p.EndDate.ToString("yyyy-MM-dd");
