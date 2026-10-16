@@ -1,6 +1,6 @@
 ## Operations — 2026-10-16
 
-`eb210bc1` pushed; CI pending; details: `status.json`.
+`e4686058` pushed; release CI run 38946802126 active.
 
 ## Audit planning and finding recovery — 2026-10-16
 

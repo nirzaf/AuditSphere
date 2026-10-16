@@ -50,6 +50,8 @@ python3 scripts/ui/inventory.py --check
 
 **Automated test suites are present.** They were removed on 2026-10-08 (commit `47ca0b05`) and restored by STE-NXT-001; ADR-0008 is `SUPERSEDED`. The Angular specs run in CI. The .NET suites run locally against the PostgreSQL test database `auditsphere_tests` on port 5433, never the development database. Report a test result only from the commands above and say which ran. Follow `docs/testing/auditsphere-testing-strategy-definition-of-done-current.md` for the rest of the verification rules.
 
+**Test design and evidence.** Prioritize correctness against requirements over test quantity. Run relevant existing tests and add minimal, behavior-focused tests where they provide meaningful regression protection. Derive expected outcomes from requirements and established domain rules, not merely from the generated implementation. Do not weaken tests solely to make a failing patch pass. Validate end-to-end behavior where unit tests or mocks cannot establish correctness.
+
 ## 4. Core invariants
 
 - **Scope-checked authorization.** Every command, query and queue enforces explicit `RoleGrant` scope (`FIRM_WIDE`, `CLIENT`, `ENGAGEMENT`, `GROUP`). An engagement-only grant never widens to sibling engagements or clients. Enforce it in Application, never only in UI.
