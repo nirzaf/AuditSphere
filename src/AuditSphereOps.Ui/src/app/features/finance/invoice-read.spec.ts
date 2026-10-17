@@ -180,7 +180,7 @@ describe('Invoice exact read and allocation pagination', () => {
     http.expectNone(r => r.method !== 'GET');
   });
 
-  it('resets drafts across A to B to A visits and ignores a delayed command from the old visit', async () => {
+  it.each(['success', 'refusal', 'unknown'] as const)('resets drafts across A to B to A visits and ignores a delayed %s command from the old visit', async outcome => {
     const f = open(); const c = f.componentInstance;
     c.receiptForm.patchValue({ amount: '12', reference: 'PRIVATE invoice A', reviewed: true });
     const oldCommand = c.act(id(1), 'post', 'Old invoice A command completed.');
@@ -190,13 +190,38 @@ describe('Invoice exact read and allocation pagination', () => {
     http.expectOne(`/api/ui/finance/invoices/${id(2)}`).flush(invoice(1, 2)); TestBed.tick();
     expect(c.receiptForm.controls.reference.value).toBe('');
     expect(c.receiptForm.controls.reviewed.value).toBe(false);
-    command.flush({ ok: true, value: {} }); await oldCommand; TestBed.tick();
-    expect(c.invoice.data()?.id).toBe(id(2));
-    expect(c.message()).not.toBe('Old invoice A command completed.');
-
     params.next(convertToParamMap({ id: id(1) })); TestBed.tick();
     http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush(invoice()); TestBed.tick();
+    if (outcome === 'success') command.flush({ value: {} });
+    else if (outcome === 'refusal') command.flush({ code: 'state.protected', message: 'Protected.' }, { status: 409, statusText: 'Conflict' });
+    else command.error(new ProgressEvent('error'));
+    await oldCommand; TestBed.tick();
+    expect(c.invoice.data()?.id).toBe(id(1));
+    expect(c.message()).not.toBe('Old invoice A command completed.');
     expect(c.receiptForm.controls.reference.value).toBe('');
     expect(c.receiptForm.controls.reviewed.value).toBe(false);
+    expect(c.uncertain()).toBe(false);
+    expect(c.pendingBillingCommand()).toBeNull();
+  });
+
+  it('clears review assent when billing inputs change or the current payment-terms revision changes', () => {
+    const payload = { ...invoice(), paymentTerms: [{ id: id(401), revision: 1, dueDate: '2026-12-31', basis: 'CONTRACTUAL_DUE_DATE',
+      termsDescription: 'NET 30', evidenceReference: 'ENGAGEMENT-REV-1', status: 'PENDING_REVIEW', submittedByUserId: id(90),
+      submittedAt: '2026-10-01T09:00:00Z', reviewedByUserId: null, reviewedAt: null, reviewReason: null }], canReviewPaymentTerms: true };
+    const f = open(payload); const c = f.componentInstance;
+    c.receiptForm.patchValue({ amount: '12', reference: 'SYN-RECEIPT-1', reviewed: true });
+    expect(c.receiptForm.controls.reviewed.value).toBe(true);
+    c.receiptForm.controls.amount.setValue('13');
+    expect(c.receiptForm.controls.reviewed.value).toBe(false);
+    c.receiptForm.controls.reviewed.setValue(true);
+    c.receiptForm.controls.reference.setValue('SYN-RECEIPT-2');
+    expect(c.receiptForm.controls.reviewed.value).toBe(false);
+
+    c.termsReviewForm.patchValue({ reason: 'Verified exact terms.', reviewed: true });
+    expect(c.termsReviewForm.controls.reviewed.value).toBe(true);
+    c.invoice.reload(); TestBed.tick();
+    http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush({ ...payload, paymentTerms: [{ ...payload.paymentTerms[0], id: id(402), revision: 2 }] }); TestBed.tick();
+    expect(c.termsReviewForm.controls.reviewed.value).toBe(false);
+    expect(c.termsReviewForm.controls.reason.value).toBe('');
   });
 });

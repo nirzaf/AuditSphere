@@ -1,5 +1,5 @@
 import { Component, DestroyRef, HostListener, effect, inject, signal, untracked } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, routeGuid } from '../../core/api';
@@ -285,6 +285,7 @@ export class InvoiceDetail {
   private historyVisit = 0;
   private visitToken = 0;
   private visitOwner = '';
+  private termsReviewRevisionId = '';
   private destroyed = false;
   readonly busy = signal(false);
   readonly uncertain = signal(false);
@@ -308,6 +309,13 @@ export class InvoiceDetail {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.visitToken++; });
+    this.clearAssentOnEdit(this.receiptForm.controls, this.receiptForm.controls.reviewed);
+    this.clearAssentOnEdit(this.allocationForm.controls, this.allocationForm.controls.reviewed);
+    this.clearAssentOnEdit(this.creditForm.controls, this.creditForm.controls.reviewed);
+    this.clearAssentOnEdit(this.termsForm.controls, this.termsForm.controls.reviewed);
+    this.clearAssentOnEdit(this.termsReviewForm.controls, this.termsReviewForm.controls.reviewed);
+    this.clearAssentOnEdit(this.reversalForm.controls, this.reversalForm.controls.reviewed);
+    this.clearAssentOnEdit(this.reversalReviewForm.controls, this.reversalReviewForm.controls.reviewed);
     effect(() => {
       const id = this.id();
       const current = this.session.current();
@@ -329,6 +337,11 @@ export class InvoiceDetail {
       const current = this.invoice.data();
       this.id(); this.session.current(); this.session.invalidation();
       untracked(() => {
+        const currentTermsRevisionId = current?.paymentTerms[0]?.id ?? '';
+        if (currentTermsRevisionId !== this.termsReviewRevisionId) {
+          this.termsReviewRevisionId = currentTermsRevisionId;
+          this.termsReviewForm.reset({ reason: '', reviewed: false });
+        }
         this.allocationPageIndex.set(0);
         this.historyVisit++;
         this.receiptHistory.set(current?.receipts ?? []);
@@ -448,6 +461,13 @@ export class InvoiceDetail {
 
   async reviewTerms(revisionId: string, approve: boolean): Promise<void> {
     if (this.termsReviewForm.invalid || this.busy() || this.uncertain()) { this.termsReviewForm.markAllAsTouched(); return; }
+    if (this.invoice.data()?.paymentTerms[0]?.id !== revisionId || revisionId !== this.termsReviewRevisionId) {
+      this.termsReviewForm.reset({ reason: '', reviewed: false });
+      this.invoice.reload();
+      this.failed.set(true);
+      this.message.set('Payment terms changed. Refresh and review the current revision before deciding.');
+      return;
+    }
     const { reason, reviewed } = this.termsReviewForm.getRawValue();
     await this.run(`/api/ui/finance/invoice-payment-terms/${revisionId}/review`, { approve, reason, reviewed },
       approve ? 'Payment terms approved and effective from the review date.' : 'Payment terms rejected; the previous approved terms remain in effect.',
@@ -543,6 +563,14 @@ export class InvoiceDetail {
   private isDirty(): boolean {
     return this.receiptForm.dirty || this.allocationForm.dirty || this.creditForm.dirty || this.termsForm.dirty ||
       this.termsReviewForm.dirty || this.reversalForm.dirty || this.reversalReviewForm.dirty;
+  }
+
+  private clearAssentOnEdit(controls: object, assent: AbstractControl<boolean>): void {
+    for (const [name, control] of Object.entries(controls)) {
+      if (name !== 'reviewed') (control as AbstractControl).valueChanges.subscribe(() => {
+        if (assent.value) assent.setValue(false);
+      });
+    }
   }
 
   private resetVisitDrafts(): void {
