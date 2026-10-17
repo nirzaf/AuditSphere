@@ -19,6 +19,14 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## API and Angular parity: task implementation verification complete (T025, T028)
+
+Both remaining parity implementation tasks from the 51-task specification have been verified with targeted checks:
+- **T025 (Resolve component replacement retention before exposing correction):** In-place destructive component replacement is declined in favor of immutable new scope versions preserving original scope and component evidence. The correction handoff in `overview.ts` and `component-correction.ts` enforces selecting the identical reporting period and group from authorized options. Verified via `component-correction.spec.ts`.
+- **T028 (Complete external component-pack intake, review and pinning):** Five external pack operations (submit with exact digest/hashes, reconcile, return with reason, independent approval, and pinning to scope) are fully implemented and verified. Unit tests in `external-packs.spec.ts` and scope workspace integration in `scope-workspace.spec.ts` ensure exact SHA-256 digests, six-place decimal bounds, pagination, and independent review. The PostgreSQL integration test in `ConsolidationWorkspaceApiTests` validates concurrent review serialization and retained lineage.
+
+All 51 parity tasks in `status.json` and `auditsphere-execution-tracker-api-angular-parity-current.md` now have `implementationStatus: IMPLEMENTED_VERIFICATION_PENDING`. Full acceptance remains subject to CI/CD release verification.
+
 ## API and Angular parity: complete member discovery
 
 Matching counterparties can now be discovered through bounded pages and search. Exact seller/buyer resolution retains selections across pages, and the outside-party path rejects an eligible member even when off page. The shared API exception envelope is documented once at the UI group boundary. Focused checks and synthetic browser search passed; see `status.json` under `apiAngularParity.localVerification.matchingOptionsSlice`. Full acceptance remains pending the original task crosswalk and current-source CI/CD evidence.

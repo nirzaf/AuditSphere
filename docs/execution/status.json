@@ -1222,87 +1222,13 @@
     },
     "atomicAuditWorkingProcessTask02": {
       "result": "PARTIAL",
-      "implementationCommit": "8b0c3303b35f23f9a51360821db20c2eea449c0a",
-      "source": "Owner-authorized implementation of Atomic Task 02 from the supplied audit working-process specification.",
-      "migration": "NONE",
-      "checks": {
-        "apiReleaseBuild": "PASS: 0 warnings, 0 errors",
-        "webReleaseBuild": "PASS: 0 warnings, 0 errors",
-        "domain": {
-          "passed": 1,
-          "failed": 0,
-          "filter": "ControlledCatalog_UsesScopedAppendOnlyWorkflow"
-        },
-        "api": {
-          "passed": 1,
-          "failed": 0,
-          "filter": "PublicationRequiresAntiforgeryAndAnIndependentFirmWideReviewer"
-        },
-        "angular": {
-          "passed": 12,
-          "failed": 0,
-          "spec": "src/app/features/audit/fieldwork.spec.ts"
-        },
-        "e2eProjectCompilation": "PASS: 0 warnings, 0 errors; journeys not executed",
-        "openApiContract": "FAIL on commit 8b0c3303: the generated contract was stale; regeneration on Task 03 includes the adoption endpoint and corrected contracts. CI independently confirmed this drift on follow-up fa60da52.",
-        "gitDiffCheck": "PASS"
-      },
-      "ci": {
-        "runId": 39033648749,
-        "headSha": "8b0c3303b35f23f9a51360821db20c2eea449c0a",
-        "observed": "CI for 8b0c3303 was superseded/cancelled. Follow-up fa60da52 passed Docs \u00b7 Health and Angular, but failed .NET Release at OpenAPI contract drift; Task 03 regenerates the contract from the freshly built API."
-      },
-      "builtInBrowser": "NOT RUN: no authenticated local synthetic engagement fixture was available; no deployment was performed.",
-      "notDone": [
-        "Atomic Tasks 04-11",
-        "Authenticated browser journey",
-        "Full Domain/API/Angular/Playwright CI verification",
-        "Professional methodology-owner and independent acceptance",
-        "Live-provider and production acceptance"
-      ]
+      "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask02",
+      "note": "Implementation evidence is archived; professional methodology acceptance and full-suite/external gates remain open."
     },
     "atomicAuditWorkingProcessTask03": {
       "result": "PARTIAL",
-      "implementationCommit": "3ae06950f8c7775bbfdcebb9831e097c7cb3b8c6",
-      "source": "Owner-authorized implementation of Atomic Task 03 from the supplied audit working-process specification.",
-      "migration": "20261017125840_AuditProcedureDefinitionHistory",
-      "migrationAppliedToPersistentDatabase": false,
-      "checks": {
-        "domain": {
-          "passed": 1,
-          "failed": 0,
-          "filter": "ProcedureTailoringAndWorkpaperGeneration_EnforcesLifecycleAndInvalidation",
-          "duration": "43 seconds"
-        },
-        "api": {
-          "passed": 1,
-          "failed": 0,
-          "filter": "AuditProgramCommandsApiTests.PublicationRequiresAntiforgeryAndAnIndependentFirmWideReviewer",
-          "duration": "44 seconds"
-        },
-        "angular": {
-          "passed": 12,
-          "failed": 0,
-          "spec": "src/app/features/audit/fieldwork.spec.ts"
-        },
-        "efModelDrift": "PASS: no pending model changes",
-        "openApiContract": "PASS: regenerated from freshly built API and verified",
-        "documentation": "PASS: documentation health, filenames, narrative metrics and UI source inventory",
-        "gitDiffCheck": "PASS"
-      },
-      "builtInBrowser": "NOT RUN: no authenticated local synthetic engagement fixture was available; no deployment was performed.",
-      "ci": {
-        "runId": 39035083051,
-        "headSha": "3ae06950f8c7775bbfdcebb9831e097c7cb3b8c6",
-        "observed": "Queued at the time of this record; full CI not yet verified."
-      },
-      "notDone": [
-        "Atomic Tasks 04-11",
-        "Authenticated browser journey",
-        "Full Domain/API/Angular/Playwright CI verification",
-        "Professional methodology-owner and independent acceptance",
-        "Live-provider and production acceptance"
-      ]
+      "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask03",
+      "note": "Implementation evidence is archived; professional methodology acceptance and full-suite/external gates remain open."
     },
     "atomicAuditWorkingProcessTask01": {
       "result": "PARTIAL",
@@ -1800,7 +1726,7 @@
       },
       {
         "id": "T025",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1815,7 +1741,7 @@
       },
       {
         "id": "T028",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -2043,7 +1969,7 @@
       },
       "matchingOptionsSlice": {
         "sourceBase": "270c9c9184f942e5b3677dd376018600a1aa64e1",
-        "sourceState": "WORKING_TREE",
+        "sourceState": "COMMITTED",
         "domain": {
           "result": "PASS",
           "passed": 2,
@@ -2076,6 +2002,22 @@
           ]
         },
         "independentReview": "Backend and Angular reviewed by separate agents; reported off-page outside-side error corrected before final UI test"
+      },
+      "externalPacksSlice": {
+        "sourceBase": "884c7a52768746c304d0f292a65d8a4fac9ba4b9",
+        "sourceState": "COMMITTED",
+        "api": {
+          "result": "PASS",
+          "passed": 1,
+          "filter": "ExternalComponentPacks_PageEveryLineAndSerializeConcurrentReviewWithRetainedLineage"
+        },
+        "angular": {
+          "result": "PASS",
+          "passed": 26,
+          "scope": "external-packs.spec.ts (5 tests), component-correction.spec.ts (5 tests), scope-workspace.spec.ts (16 tests)"
+        },
+        "angularBuild": "PASS; existing commercial settings stylesheet budget warning",
+        "openApiDrift": "PASS"
       },
       "historicalVerification": "status-archive-2026-10.json: apiAngularParity.localVerification.supersededBeforeMatchingOptions20261017"
     }
