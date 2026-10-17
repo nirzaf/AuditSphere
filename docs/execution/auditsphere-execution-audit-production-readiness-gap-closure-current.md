@@ -1,4 +1,8 @@
-# AuditSphere — Current Code Audit and Production-Readiness Gap Closure
+# AuditSphere — Production-Readiness Audit and Gap Closure
+
+**Status: NOT COMPLETE — PARTIAL PRODUCTION-READINESS AUDIT.** This is a gap-closure register and audit snapshot, not a completion certificate or current-SHA verification. Open items include F-05/F-06, CP-11 source-kind completion, CP-12/CP-13/CP-14 professional and source approvals, and the production/external gates in Section 6. Revalidate against the current `master` before changing this status.
+
+**Audited snapshot:** evidence through the commits cited below. Later `master` changes (including the merged Blazor retirement and the procedure command/evidence work) are not re-audited here.
 
 **Evidence boundary.** The branch was rechecked before completion and still pointed to the audited commit. This review reads pinned repository code, migrations, test definitions, requirements/ADR maps and existing GitHub Actions results. It does not execute a new .NET/Angular/PostgreSQL/browser test suite, certify every line of the repository, inspect an operator's uncommitted work, apply migrations, test a production tenant or grant professional approval. A local Git read could not resolve the GitHub host; connected GitHub reads remained available. Code counterexamples below are reasoned from actual guards, not represented as newly executed repository tests. [H01] [H02] [CI01] [CI02]
 

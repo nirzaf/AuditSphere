@@ -7,7 +7,7 @@ namespace AuditSphereOps.Domain.Tests;
 /// (docs/architecture/auditsphere-architecture-document-naming-policy.md):
 /// Every markdown file must have a globally unique, deterministic, business-semantic
 /// basename adhering to auditsphere-<area>-<document-type>-<subject>[-<id>][-<status>].md,
-/// with the sole conventional exceptions of root README.md and AGENTS.md.
+/// with the conventional exceptions of root README.md, AGENTS.md and CLAUDE.md.
 /// </summary>
 public sealed class MarkdownNamingGuardTests
 {
@@ -15,8 +15,7 @@ public sealed class MarkdownNamingGuardTests
   {
     "README.md",
     "AGENTS.md",
-    "CLAUDE.md",
-    "Audit_and_Gap_Closure.md"
+    "CLAUDE.md"
   };
 
   private static readonly HashSet<string> ProhibitedGenericNames = new(StringComparer.OrdinalIgnoreCase)
