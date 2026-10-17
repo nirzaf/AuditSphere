@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "8ea17226cd2caaad973730c42a2232dc00dcdfa7",
+  "headCommit": "7589b8e6a6b9e6b38be9dcf8c6a7b437033eb85f",
   "verifiedCommit": "12e51e6031605245c22df8331d7ca12f345dbf36",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1216,6 +1216,24 @@
         "Resolve each component to accepted source evidence rather than preparer-entered references.",
         "Obtain approved professional policy for reserves, profit convention, distributions and opening balances.",
         "Cover opening/no-movement cases and complete independent professional acceptance."
+      ]
+    },
+    "cp10PeriodScopedPackageFreshness": {
+      "recordedAtUtc": "2026-10-17T05:38:10Z",
+      "codeCommit": "7589b8e6a6b9e6b38be9dcf8c6a7b437033eb85f",
+      "status": "PARTIAL",
+      "verified": {
+        "focusedTests": "2/2 passed: two-period GL isolation and package release generation applicability.",
+        "periodBehavior": "Separate packages retain own source review; current-period replacement stales only its package. Prior presentation reaches layout guard; current presentation is refused.",
+        "commit": "7589b8e6a6b9e6b38be9dcf8c6a7b437033eb85f pushed to origin/master."
+      },
+      "notRun": [
+        "Full Domain/API/Angular/E2E suites; hosted CI for this SHA was queued when recorded.",
+        "Successful comparative pin/release, live provider acceptance and professional restatement policy."
+      ],
+      "open": [
+        "Full comparative presentation/release, same-period TB replacement, restatement/reselection and as-issued retention.",
+        "Cross-engagement history denial and no inheritance of prior audit/management approvals."
       ]
     }
   },
