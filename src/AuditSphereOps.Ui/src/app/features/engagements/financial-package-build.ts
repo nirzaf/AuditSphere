@@ -56,6 +56,7 @@ export interface BuildForm {
   mappingVersionId: string; adjustmentPlanId: string; periodId: string; framework: string; templateVersion: string;
   periodStart: string; periodEnd: string; cashBeginning: string; cashEnding: string; cashAccountCodes: string;
   openingEvidence: string; closingEvidence: string; comparativePackageId: string; comparativeBasis: string; comparativeEvidence: string;
+  fxAssessmentState: '' | 'ASSESSED_ZERO' | 'EFFECTS_RECORDED'; fxAssessmentEvidence: string; fxAssessmentRationale: string;
   movements: MovementForm[]; disclosures: DisclosureForm[];
   equityLines: EquityLineForm[]; equityTransfers: EquityTransferForm[]; noteLines: NoteLineForm[]; fxCashEffects: FxCashEffectForm[];
 }
@@ -131,6 +132,7 @@ export function emptyBuildForm(): BuildForm {
   return { mappingVersionId: '', adjustmentPlanId: '', periodId: '', framework: 'IFRS', templateVersion: '', periodStart: '', periodEnd: '',
     cashBeginning: '0', cashEnding: '0', cashAccountCodes: '', openingEvidence: '', closingEvidence: '',
     comparativePackageId: '', comparativeBasis: '', comparativeEvidence: '', movements: [], disclosures: [],
+    fxAssessmentState: '', fxAssessmentEvidence: '', fxAssessmentRationale: '',
     equityLines: [], equityTransfers: [], noteLines: [], fxCashEffects: [] };
 }
 
@@ -254,7 +256,15 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
     if (!row.currencyPair.trim() || row.currencyPair.trim().length > 20) return { error: `${at}: enter a currency pair of up to 20 characters.` };
     if (!AMOUNT.test(row.amount)) return { error: `${at}: enter an amount with at most six decimals.` };
     if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
+    if (toMicro(row.amount) === 0n) return { error: `${at}: zero is recorded with an assessed-zero population, not as an effect row.` };
   }
+  if (form.fxAssessmentState && (!form.fxAssessmentEvidence.trim() || form.fxAssessmentEvidence.trim().length > 2000 ||
+      !form.fxAssessmentRationale.trim() || form.fxAssessmentRationale.trim().length > 2000))
+    return { error: 'An FX cash-effect assessment needs bounded evidence and a rationale.' };
+  if (form.fxAssessmentState === 'ASSESSED_ZERO' && form.fxCashEffects.length > 0)
+    return { error: 'An assessed-zero FX population cannot contain FX effect rows.' };
+  if (form.fxAssessmentState === 'EFFECTS_RECORDED' && form.fxCashEffects.length === 0)
+    return { error: 'An effects-recorded FX assessment needs at least one non-zero evidenced effect row.' };
   return {
     body: {
       adjustmentPlanId: form.adjustmentPlanId, mappingVersionId: form.mappingVersionId, framework: form.framework.trim(),
@@ -293,6 +303,9 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
         fxCashEffects: form.fxCashEffects.length ? form.fxCashEffects.map((row) => ({
           currencyPair: row.currencyPair.trim(), amount: row.amount, evidenceReference: row.evidenceReference.trim(),
         })) : null,
+        fxCashAssessment: form.fxAssessmentState ? {
+          state: form.fxAssessmentState, evidenceReference: form.fxAssessmentEvidence.trim(), rationale: form.fxAssessmentRationale.trim(),
+        } : null,
         cashAccountCodes: list(form.cashAccountCodes), openingCashEvidenceReferences: list(form.openingEvidence),
         closingCashEvidenceReferences: list(form.closingEvidence),
       },
@@ -310,8 +323,14 @@ export function scheduleBlockers(form: BuildForm): string[] {
     open.push('Equity rollforward: no rows entered. Each equity line must reconcile opening balance, profit or loss, OCI, capital movements, dividends and closing balance, with evidence.');
   if (form.noteLines.length === 0)
     open.push('Numeric note lines: none entered. Each note amount must cross-cast to its statement face destination.');
-  if (form.fxCashEffects.length === 0)
-    open.push('FX cash effect: none entered. The cash bridge must reconcile including FX effects, and this screen cannot yet record an assessed no-FX zero.');
+  if (!form.fxAssessmentState)
+    open.push('FX cash-effect population: not assessed. Missing evidence is not treated as zero.');
+  else if (!form.fxAssessmentEvidence.trim() || !form.fxAssessmentRationale.trim())
+    open.push('FX cash-effect assessment: evidence and rationale are required.');
+  if (form.fxAssessmentState === 'ASSESSED_ZERO' && form.fxCashEffects.length > 0)
+    open.push('FX cash-effect assessment is inconsistent: assessed zero cannot contain effect rows.');
+  if (form.fxAssessmentState === 'EFFECTS_RECORDED' && form.fxCashEffects.length === 0)
+    open.push('FX cash-effect assessment is inconsistent: recorded effects need at least one effect row.');
   if (form.movements.length === 0) open.push('Cash-flow movements: none entered. Add at least one movement.');
   for (const [index, m] of form.movements.entries()) {
     const at = `Cash-flow source lineage: movement ${index + 1}`;
@@ -506,7 +525,17 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
         <button matButton="outlined" type="button" (click)="form.noteLines.push(newNoteLine())">Add note line</button>
 
         <h2>FX cash effects</h2>
-        <p><small>Foreign-exchange effects on cash, each with its evidence. The cash bridge must reconcile including these effects.</small></p>
+        <p><small>Explicitly assess the period FX cash population. Zero is an evidenced assessment state, never an implied default.</small></p>
+        <label>FX cash-effect assessment
+          <select name="fxAssessmentState" [(ngModel)]="form.fxAssessmentState">
+            <option value="">Not assessed</option><option value="ASSESSED_ZERO">Assessed zero</option><option value="EFFECTS_RECORDED">Effects recorded</option>
+          </select>
+        </label>
+        @if (form.fxAssessmentState) {
+          <label>FX assessment evidence reference <input name="fxAssessmentEvidence" [(ngModel)]="form.fxAssessmentEvidence" maxlength="2000" /></label>
+          <label>FX assessment rationale <textarea name="fxAssessmentRationale" [(ngModel)]="form.fxAssessmentRationale" maxlength="2000" rows="2"></textarea></label>
+        }
+        <p><small>FX effects and this assessment require independent review with the cash-flow source links before statement presentation can pass.</small></p>
         @for (row of form.fxCashEffects; track $index; let i = $index) {
           <fieldset class="movement">
             <legend>FX cash effect {{ i + 1 }}</legend>

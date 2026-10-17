@@ -47,7 +47,8 @@ public sealed record FinancialSupplementaryInformation(
   IReadOnlyList<string>? CashAccountCodes = null,
   IReadOnlyList<string>? OpeningCashEvidenceReferences = null,
   IReadOnlyList<string>? ClosingCashEvidenceReferences = null,
-  IReadOnlyList<EquityComponentTransferInput>? EquityTransfers = null);
+  IReadOnlyList<EquityComponentTransferInput>? EquityTransfers = null,
+  FxCashAssessmentInput? FxCashAssessment = null);
 
 /// <summary>
 /// One manually prepared cash-flow movement. Activity and evidence are recorded verbatim as preparer inputs;
@@ -76,6 +77,15 @@ internal sealed record ResolvedCashFlowSourceLink(int MovementIndex, Guid Genera
   Guid SourceImportBatchId, string SourceLineHash, decimal SignedAmount, string Currency, bool PopulationComplete);
 
 public sealed record FxCashEffectInput(string CurrencyPair, decimal Amount, string EvidenceReference);
+
+public static class FxCashAssessmentStates
+{
+  public const string AssessedZero = "ASSESSED_ZERO";
+  public const string EffectsRecorded = "EFFECTS_RECORDED";
+}
+
+/// <summary>Preparer's FX population assessment. It is not approved until an independent cash-flow reviewer approves its exact digest.</summary>
+public sealed record FxCashAssessmentInput(string State, string EvidenceReference, string Rationale);
 
 public sealed record DisclosureInput(string Code, string Response, bool NotApplicable = false, string? Rationale = null);
 

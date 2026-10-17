@@ -18,7 +18,8 @@ public sealed record CashFlowSourceReviewEntry(Guid Id, string Decision, string 
 /// </summary>
 public sealed record CashFlowSourceReviewState(Guid FinancialPackageId, int Movements, int ResolvedMovements, int SourceLinks,
   Guid? CurrentSourceImportBatchId, bool Approved, bool CanReview, IReadOnlyList<CashFlowSourceReviewEntry> Reviews,
-  string LinkDigest, Guid? LatestReviewId);
+  string LinkDigest, Guid? LatestReviewId, string? FxAssessmentState, string? FxAssessmentEvidenceReference,
+  string? FxAssessmentRationale, bool FxAssessmentMatchesEffects);
 
 /// <summary>
 /// Independent review of cash-flow source links (CP-11). The preparer who resolved a link can never review it. A decision carries the
@@ -118,13 +119,21 @@ public static partial class FinancialStatementService
     if (latest?.Id != expectedPreviousReviewId)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
         "A source decision was recorded after this review was loaded. Reload the review before deciding.");
-    var linkDigest = CashFlowLinkDigest(locked, current.Lines, current.Allocations);
+    var fxAssessment = await db.FinancialPackageFxAssessments.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.FinancialPackageId == locked.Id, ct);
+    var fxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == locked.Id).ToListAsync(ct);
+    var fxAssessmentMatches = FxAssessmentMatchesPersisted(locked, fxAssessment, fxEffects);
+    var linkDigest = CashFlowLinkDigest(locked, current.Lines, current.Allocations, fxAssessment, fxEffects);
     if (!string.Equals(linkDigest, digest, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
         "The source links changed after this review was loaded. Reload the review before deciding.");
 
     if (normalized == "APPROVED")
     {
+      if (!fxAssessmentMatches)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "Record an evidenced FX cash-effect assessment that matches its effect rows before independent source review.");
       if (!current.AllResolved)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Every cash-flow movement must be fully allocated before approval.");
       if (!await LineageValidatedAsync(db, locked.FirmId, locked.Id, ct))
@@ -173,16 +182,22 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id)
       .OrderByDescending(x => x.Sequence).Take(MaxCashFlowSourceReviewEntries).ToListAsync(ct);
     var latest = reviews.FirstOrDefault();
+    var fxAssessment = await db.FinancialPackageFxAssessments.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id, ct);
+    var fxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+    var fxAssessmentMatches = FxAssessmentMatchesPersisted(package, fxAssessment, fxEffects);
+    var currentDigest = CashFlowLinkDigest(package, current.Lines, current.Allocations, fxAssessment, fxEffects);
     // Approval also requires the persisted lineage result: the build recorded every cash event as explained. A resolved-looking link alone is not enough.
     var lineagePassed = await LineageValidatedAsync(db, package.FirmId, package.Id, ct);
-    var approved = lineagePassed && current.AllResolved && current.CurrentBatchId is Guid batch && latest is { Decision: "APPROVED" } &&
-      latest.SourceImportBatchId == batch && current.Allocations.All(x => x.SourceImportBatchId == batch);
-    var canReview = actor.Roles.Any(CashFlowSourceReviewRoles.Contains) && current.Allocations.Count > 0 &&
+    var approved = fxAssessmentMatches && lineagePassed && current.AllResolved && current.CurrentBatchId is Guid batch && latest is { Decision: "APPROVED" } &&
+      latest.SourceImportBatchId == batch && current.Allocations.All(x => x.SourceImportBatchId == batch) && latest.LinkDigest == currentDigest;
+    var canReview = fxAssessmentMatches && actor.Roles.Any(CashFlowSourceReviewRoles.Contains) && current.Allocations.Count > 0 &&
       current.Allocations.All(x => x.CreatedByUserId != Guid.Empty && x.CreatedByUserId != actor.UserId);
     return CommandResult<CashFlowSourceReviewState>.Ok(new CashFlowSourceReviewState(package.Id, current.Movements,
       current.Resolved.Count(x => x), current.Allocations.Count, current.CurrentBatchId, approved, canReview,
       reviews.Select(x => new CashFlowSourceReviewEntry(x.Id, x.Decision, x.Reason, x.ReviewedByUserId, x.ReviewedAt, x.SourceImportBatchId)).ToArray(),
-      CashFlowLinkDigest(package, current.Lines, current.Allocations), latest?.Id));
+      currentDigest, latest?.Id, fxAssessment?.State, fxAssessment?.EvidenceReference, fxAssessment?.Rationale, fxAssessmentMatches));
   }
 
   /// <summary>Presentation read: true only for a current independent approval. Any failure reads as not approved.</summary>
@@ -191,10 +206,15 @@ public static partial class FinancialStatementService
     var movements = await db.FinancialPackageCashFlowLines.AsNoTracking().Where(x =>
       x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
       x.FinancialPackageId == package.Id).OrderBy(x => x.Id).ToListAsync(ct);
-    if (movements.Count == 0) return true;
     var allocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking().Where(x =>
       x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
       x.FinancialPackageId == package.Id).ToListAsync(ct);
+    var fxAssessment = await db.FinancialPackageFxAssessments.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == package.FirmId && x.FinancialPackageId == package.Id, ct);
+    var fxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
+      .Where(x => x.FirmId == package.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+    if (!FxAssessmentMatchesPersisted(package, fxAssessment, fxEffects)) return false;
+    if (movements.Count == 0 && allocations.Count == 0) return false;
     if (allocations.Count == 0 || allocations.Any(x => x.CreatedByUserId == Guid.Empty || x.Currency != package.Currency)) return false;
     if (!await LineageValidatedAsync(db, package.FirmId, package.Id, ct)) return false;
     var movementIndexes = movements.Select((line, index) => (line.Id, index)).ToDictionary(x => x.Id, x => x.index);
@@ -216,7 +236,8 @@ public static partial class FinancialStatementService
           x.Status == "SEALED" && x.NormalizedDatasetDigest == accepted.SourceIdentityHash, ct)) return false;
     var latest = await LatestCashFlowSourceReviewAsync(db, package.FirmId, package.Id, ct);
     return latest is { Decision: "APPROVED" } && latest.SourceImportBatchId == accepted.ImportBatchId &&
-      allocations.All(x => x.CreatedByUserId != latest.ReviewedByUserId);
+      allocations.All(x => x.CreatedByUserId != latest.ReviewedByUserId) &&
+      latest.LinkDigest == CashFlowLinkDigest(package, movements, allocations, fxAssessment, fxEffects);
   }
 
   /// <summary>
@@ -224,7 +245,8 @@ public static partial class FinancialStatementService
   /// stable order, including who resolved each link. A changed link, movement, batch, preparer or package generation changes it.
   /// </summary>
   internal static string CashFlowLinkDigest(FinancialPackage package, IReadOnlyList<FinancialPackageCashFlowLine> movements,
-    IReadOnlyList<FinancialPackageCashFlowAllocation> allocations)
+    IReadOnlyList<FinancialPackageCashFlowAllocation> allocations, FinancialPackageFxAssessment? fxAssessment = null,
+    IReadOnlyList<FinancialPackageFxEffect>? fxEffects = null)
   {
     var position = movements.Select((line, index) => (line.Id, index)).ToDictionary(x => x.Id, x => x.index);
     // The movement facts are part of what the reviewer decides on: a changed amount, section or classification changes the digest.
@@ -238,11 +260,57 @@ public static partial class FinancialStatementService
         Movement = position.GetValueOrDefault(x.CashFlowLineId, -1), x.GeneralLedgerLineId, x.GeneralLedgerTransactionId,
         x.SourceImportBatchId, x.SourceLineHash, SignedAmount = MoneyPolicy.Normalize(x.SignedAmount), x.Currency, x.CreatedByUserId,
       }).ToArray();
-    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    var baseDigest = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
       Version = "cash-flow-link-digest.v2", PackageId = package.Id, package.CalculationHash, package.Revision, package.Generation,
       Movements = movementFacts, Links = links,
     }));
+    if (fxAssessment is null && fxEffects is not { Count: > 0 }) return baseDigest;
+    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "cash-flow-link-digest.v3.fx-assessment", Base = baseDigest,
+      FxAssessment = fxAssessment is null ? null : new
+      {
+        fxAssessment.Id, fxAssessment.State, fxAssessment.EvidenceReference, fxAssessment.Rationale,
+        fxAssessment.EffectDigest, fxAssessment.AssessedByUserId, fxAssessment.AssessedAt
+      },
+      FxEffects = (fxEffects ?? []).OrderBy(x => x.CurrencyPair, StringComparer.Ordinal)
+        .ThenBy(x => x.EvidenceReference, StringComparer.Ordinal).ThenBy(x => x.Id).Select(x => new
+        {
+          x.Id, x.CurrencyPair, Amount = MoneyPolicy.Normalize(x.Amount), x.Currency, x.EvidenceReference
+        }).ToArray()
+    }));
+  }
+
+  internal static string CashFlowFxAssessmentDigest(FinancialPackage package, string state, string evidenceReference,
+    string rationale, IReadOnlyList<FinancialPackageFxEffect> fxEffects) =>
+    Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "cash-flow-fx-assessment.v1", PackageId = package.Id, package.ClientId, package.EngagementId,
+      package.CalculationHash, package.Revision, package.Generation, State = state.Trim().ToUpperInvariant(),
+      EvidenceReference = evidenceReference.Trim(), Rationale = rationale.Trim(),
+      Effects = fxEffects.OrderBy(x => x.CurrencyPair, StringComparer.Ordinal)
+        .ThenBy(x => x.EvidenceReference, StringComparer.Ordinal).ThenBy(x => x.Id).Select(x => new
+        {
+          x.CurrencyPair, Amount = MoneyPolicy.Normalize(x.Amount), x.Currency, x.EvidenceReference
+        }).ToArray()
+    }));
+
+  internal static bool FxAssessmentMatchesPersisted(FinancialPackage package, FinancialPackageFxAssessment? assessment,
+    IReadOnlyList<FinancialPackageFxEffect> effects)
+  {
+    if (assessment is null || assessment.FirmId != package.FirmId || assessment.ClientId != package.ClientId ||
+        assessment.EngagementId != package.EngagementId || assessment.FinancialPackageId != package.Id ||
+        assessment.AssessedByUserId == Guid.Empty || string.IsNullOrWhiteSpace(assessment.EvidenceReference) ||
+        string.IsNullOrWhiteSpace(assessment.Rationale)) return false;
+    var rowsMatch = assessment.State switch
+    {
+      FxCashAssessmentStates.AssessedZero => effects.Count == 0,
+      FxCashAssessmentStates.EffectsRecorded => effects.Count > 0 && effects.All(x => x.Amount != 0m && x.Currency == package.Currency),
+      _ => false
+    };
+    return rowsMatch && assessment.EffectDigest == CashFlowFxAssessmentDigest(package, assessment.State,
+      assessment.EvidenceReference, assessment.Rationale, effects);
   }
 
   private static string ReviewIntentHash(string decision, string reason, string linkDigest, Guid? expectedPreviousReviewId) =>

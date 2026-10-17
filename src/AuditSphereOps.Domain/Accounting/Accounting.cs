@@ -645,6 +645,22 @@ public sealed class FinancialPackageFxEffect
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Preparer's explicit FX cash-effect assessment, bound to the exact FX rows and reviewed with cash-flow source lineage.</summary>
+public sealed class FinancialPackageFxAssessment
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string State { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public string Rationale { get; set; } = string.Empty;
+  public string EffectDigest { get; set; } = string.Empty;
+  public Guid AssessedByUserId { get; set; }
+  public DateTimeOffset AssessedAt { get; set; }
+}
+
 public sealed class FinancialPackageDisclosure
 {
   public Guid Id { get; set; }

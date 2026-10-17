@@ -219,7 +219,10 @@ internal static class FinancialPackageFixture
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 175_000m, 0m, 0m, 0m, 175_000m, "e2e-equity"),
           ..(completeForReview ? new EquityLineInput[] { new("SHARE_CAPITAL", "Share capital", 0m, 0m, 0m, 100m, 0m, 100m, "SYN-CAPITAL") } : [])],
         NoteLines: [new NoteLineInput("E2E_NOTE", "CASH", 175_000m, "e2e-note")],
-        FxCashEffects: completeForReview ? [new FxCashEffectInput("QAR/QAR", 0m, "Synthetic QAR-only population; no foreign-currency exposure.")] : null,
+        FxCashAssessment: completeForReview
+          ? new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "synthetic-functional-currency-cash-population",
+            "Synthetic cash is QAR-only; no foreign-currency cash effect exists.")
+          : null,
         CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash-e2e"], ClosingCashEvidenceReferences: ["synthetic-closing-cash-e2e"]));
     Guid packageId;
     var expected = new Dictionary<string, (byte[] Bytes, string Sha256)>(StringComparer.Ordinal);

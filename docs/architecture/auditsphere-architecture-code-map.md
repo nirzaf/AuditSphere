@@ -119,6 +119,8 @@ Critical invariants: mapping allocations are append-only; review decisions are s
 immutable; artifacts are exact-byte sealed; release candidates bind the current reviewed package.
 Equity component transfers are paired, zero-sum package inputs, recorded in `FinancialPackageEquityTransfer`, included in package/presentation hashes and rendered as linked outflow/inflow rows.
 
+Cash-flow FX assessment is persisted in `FinancialPackageFxAssessment`, alongside—not inferred from—FX effect rows. `FinancialStatementService.CashFlowSourceReview.cs` binds the assessment, evidence, assessor and exact effects into the independent review digest; `FinancialStatementPresentation.cs` requires that current review before FX completeness passes. The Angular build form leaves assessment unset until evidenced and shows the missing state as a blocker. The migration is `FinancialPackageFxAssessment`.
+
 A signing candidate is created only when every presentation check passes, with note, disclosure and equity
 content approved by an independent content review of the exact draft snapshot. Formal decisions carry an
 original request identity and the latest decision the decider saw; only the latest-effective approval at each

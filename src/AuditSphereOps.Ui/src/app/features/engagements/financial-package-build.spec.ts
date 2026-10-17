@@ -28,6 +28,7 @@ function fullForm(): BuildForm {
       closingAmount: '1150.499999', evidenceReference: ' equity statement ' }],
     noteLines: [{ ...emptyNoteLine(), noteCode: '  rev-1 ', faceDestinationCode: 'REV', amount: '-12.500000', evidenceReference: 'revenue note' }],
     fxCashEffects: [{ ...emptyFxCashEffect(), currencyPair: ' QAR/USD ', amount: '0.250000', evidenceReference: ' rate table ' }],
+    fxAssessmentState: 'EFFECTS_RECORDED', fxAssessmentEvidence: 'fx population schedule', fxAssessmentRationale: 'Foreign-currency cash balances reconciled.',
   };
 }
 
@@ -166,6 +167,8 @@ describe('equity, numeric note and FX schedules', () => {
     }]);
     expect(body.noteLines).toEqual([{ noteCode: 'rev-1', faceDestinationCode: 'REV', amount: '-12.500000', evidenceReference: 'revenue note', sourceAllocations: null }]);
     expect(body.fxCashEffects).toEqual([{ currencyPair: 'QAR/USD', amount: '0.250000', evidenceReference: 'rate table' }]);
+    expect(body.fxCashAssessment).toEqual({ state: 'EFFECTS_RECORDED', evidenceReference: 'fx population schedule',
+      rationale: 'Foreign-currency cash balances reconciled.' });
   });
 
   it('never sends null for a schedule the preparer entered, and sends null only when no rows exist', () => {
@@ -173,11 +176,14 @@ describe('equity, numeric note and FX schedules', () => {
     expect(Array.isArray(entered.equityLines)).toBe(true);
     expect(Array.isArray(entered.noteLines)).toBe(true);
     expect(Array.isArray(entered.fxCashEffects)).toBe(true);
+    expect(entered.fxCashAssessment).toEqual({ state: 'EFFECTS_RECORDED', evidenceReference: 'fx population schedule',
+      rationale: 'Foreign-currency cash balances reconciled.' });
 
     const none = (toBuildRequest(completeForm()) as { body: any }).body.supplementaryInformation;
     expect(none.equityLines).toBeNull();
     expect(none.noteLines).toBeNull();
     expect(none.fxCashEffects).toBeNull();
+    expect(none.fxCashAssessment).toBeNull();
   });
 
   it('serializes optional note provenance and requires exact signed allocation totals', () => {
@@ -315,7 +321,7 @@ describe('schedule blockers', () => {
     const open = scheduleBlockers(completeForm());
     expect(open.some((b) => b.startsWith('Equity rollforward'))).toBe(true);
     expect(open.some((b) => b.startsWith('Numeric note lines'))).toBe(true);
-    expect(open.some((b) => b.startsWith('FX cash effect'))).toBe(true);
+    expect(open.some((b) => b.startsWith('FX cash-effect population'))).toBe(true);
     expect(open.some((b) => b.startsWith('Disclosures'))).toBe(false);
     expect(open.some((b) => b.startsWith('Cash-flow source lineage'))).toBe(false);
     expect(open).toHaveLength(3);
@@ -344,6 +350,22 @@ describe('schedule blockers', () => {
 
   it('lists nothing when every schedule is supplied and every movement is linked', () => {
     expect(scheduleBlockers(fullForm())).toEqual([]);
+  });
+
+  it('requires an evidenced explicit zero assessment and never sends zero as an FX effect row', () => {
+    const form = fullForm();
+    form.fxCashEffects = [];
+    form.fxAssessmentState = 'ASSESSED_ZERO';
+    form.fxAssessmentEvidence = 'functional-currency cash population';
+    form.fxAssessmentRationale = 'All selected cash accounts are denominated in QAR.';
+    const built = toBuildRequest(form) as { body: any };
+    expect(built.body.supplementaryInformation.fxCashEffects).toBeNull();
+    expect(built.body.supplementaryInformation.fxCashAssessment).toEqual({
+      state: 'ASSESSED_ZERO', evidenceReference: 'functional-currency cash population',
+      rationale: 'All selected cash accounts are denominated in QAR.',
+    });
+    form.fxAssessmentState = '';
+    expect(scheduleBlockers(form).some((blocker) => blocker.includes('not assessed'))).toBe(true);
   });
 
   it('labels the submit control as a draft while any blocker is open', () => {

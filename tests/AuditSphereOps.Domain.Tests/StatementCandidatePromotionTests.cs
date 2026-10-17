@@ -264,7 +264,8 @@ public sealed class StatementCandidatePromotionTests
               new EquityLineInput("REVALUATION_RESERVE", "Revaluation reserve", 0m, 0m, 10m, 0m, 0m, 10m, "valuation-report-candidate"),
               new EquityLineInput("SHARE_CAPITAL", "Share capital", 5m, 0m, 0m, 0m, 0m, 5m, "share-register-candidate")
             ],
-            FxCashEffects: [new FxCashEffectInput("USD/QAR", 0m, "USD account translated at the unchanged 3.64 peg")],
+            FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+              "The selected cash population has no foreign-currency cash effect."),
             CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-candidate"],
             ClosingCashEvidenceReferences: ["closing-cash-candidate"])
         });

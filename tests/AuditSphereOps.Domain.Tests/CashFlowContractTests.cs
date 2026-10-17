@@ -50,7 +50,9 @@ public sealed class CashFlowContractTests
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"],
+        FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+          "All selected cash accounts are denominated in the functional currency."))
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -131,7 +133,9 @@ public sealed class CashFlowContractTests
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-fx-1")],
         FxCashEffects: [new FxCashEffectInput("USD/QAR", 10m, "fx-rate-evidence-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-2"], ClosingCashEvidenceReferences: ["closing-bank-statement-2"])
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-2"], ClosingCashEvidenceReferences: ["closing-bank-statement-2"],
+        FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.EffectsRecorded, "fx-population-evidence",
+          "Foreign-currency cash effects were identified and reconciled to the rate evidence."))
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -148,7 +152,7 @@ public sealed class CashFlowContractTests
     var unexplained = request with
     {
       TemplateVersion = "fx-v1-unexplained",
-      SupplementaryInformation = request.SupplementaryInformation! with { FxCashEffects = null }
+      SupplementaryInformation = request.SupplementaryInformation! with { FxCashEffects = null, FxCashAssessment = null }
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -156,6 +160,32 @@ public sealed class CashFlowContractTests
       Assert.False(rejected.Succeeded);
       Assert.Contains("bridge", rejected.Message!, StringComparison.OrdinalIgnoreCase);
     }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task MissingFxAssessment_CannotBeApprovedAsZeroByIndependentSourceReview()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+    var request = SourceRequest(planId, mappingId, "fx-assessment-missing-v1", 0m, 100m,
+      CashMovement("OPERATING", "Cash receipts", 100m, false, "CASH_RECEIPTS",
+        new CashFlowSourceAllocationInput(source.Receivable, -100m)));
+    request = request with { SupplementaryInformation = request.SupplementaryInformation! with { FxCashAssessment = null } };
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
+    Assert.True(built.Succeeded, built.Message);
+    var state = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, built.Value!.PackageId)).Value!;
+    Assert.Null(state.FxAssessmentState);
+    Assert.False(state.FxAssessmentMatchesEffects);
+    Assert.False(state.CanReview);
+    Assert.Equal(ErrorCodes.GateBlocked,
+      (await CashFlowSourceReviewCall.RecordAsync(db, reviewer, built.Value.PackageId, "APPROVED", null)).ErrorCode);
   }
 
   [Fact]
@@ -747,6 +777,8 @@ public sealed class CashFlowContractTests
     request = request with { SupplementaryInformation = request.SupplementaryInformation! with
     {
       FxCashEffects = [new FxCashEffectInput("USD/QAR", 100m, "fx-omitted-cash-event")],
+      FxCashAssessment = new FxCashAssessmentInput(FxCashAssessmentStates.EffectsRecorded, "fx-omitted-cash-event",
+        "Recorded FX amount is intentionally unable to mask an omitted ledger cash event."),
     } };
     await using var db = new AuditSphereDbContext(pg.Options);
     var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
@@ -791,7 +823,9 @@ public sealed class CashFlowContractTests
       [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
        new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
       [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
-      CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+      CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"],
+      FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+        "The accepted cash population has no foreign-currency cash effect."))
   };
 
   [Fact]
@@ -1244,6 +1278,8 @@ public sealed class CashFlowContractTests
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
         Comparative: comparative, CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"],
         ClosingCashEvidenceReferences: ["closing-bank-statement-1"],
+        FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+          "The selected cash accounts have no foreign-currency effect."),
         NoteLines: [new NoteLineInput("CASH_POLICY", "CASH", 100m, "cash-note-" + template)])
     };
     var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);

@@ -186,6 +186,8 @@ describe('Cash-flow source review contract (CP-11)', () => {
 
   const review = {
     financialPackageId: id1, movements: 2, resolvedMovements: 2, sourceLinks: 2, currentSourceImportBatchId: id2, approved: true, canReview: false,
+    fxAssessmentState: 'ASSESSED_ZERO', fxAssessmentEvidenceReference: 'functional-currency-cash',
+    fxAssessmentRationale: 'No foreign-currency cash effect.', fxAssessmentMatchesEffects: true,
     reviews: [{ id: id1, decision: 'APPROVED', reason: '', reviewedByUserId: id2, reviewedAt: '2026-10-14T10:00:00Z', sourceImportBatchId: id2 }],
     linkDigest: 'a'.repeat(64), latestReviewId: id1,
   };
@@ -207,6 +209,8 @@ describe('Cash-flow source review recovery UI (CP-11)', () => {
   const reviewState = {
     financialPackageId: id1, movements: 1, resolvedMovements: 1, sourceLinks: 1, currentSourceImportBatchId: id2,
     approved: false, canReview: true, reviews: [], linkDigest: hash64, latestReviewId: null,
+    fxAssessmentState: 'ASSESSED_ZERO', fxAssessmentEvidenceReference: 'functional-currency-cash',
+    fxAssessmentRationale: 'No foreign-currency cash effect.', fxAssessmentMatchesEffects: true,
   };
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let command: ReturnType<typeof vi.fn>;

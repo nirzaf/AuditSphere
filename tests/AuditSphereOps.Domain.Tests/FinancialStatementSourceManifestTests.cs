@@ -106,4 +106,23 @@ public sealed class FinancialStatementSourceManifestTests
       ReviewedAt = approval.ReviewedAt };
     Assert.NotEqual(approved, FinancialStatementService.ComputePresentationSourceManifestHash([package], cash, [], [], [], "notes", [returned]));
   }
+
+  [Fact]
+  public void FxCashAssessment_EntersThePresentationManifestAndChangesWithItsEvidence()
+  {
+    var package = new FinancialPackage { Id = Guid.NewGuid() };
+    var assessment = new FinancialPackageFxAssessment
+    {
+      Id = Guid.NewGuid(), FinancialPackageId = package.Id, State = FxCashAssessmentStates.AssessedZero,
+      EvidenceReference = "cash-population", Rationale = "All cash is functional currency.",
+      EffectDigest = new string('a', 64), AssessedByUserId = Guid.NewGuid(), AssessedAt = DateTimeOffset.UtcNow
+    };
+    var withoutAssessment = FinancialStatementService.ComputePresentationSourceManifestHash([package], [], [], [], [], "notes");
+    var withAssessment = FinancialStatementService.ComputePresentationSourceManifestHash([package], [], [], [], [], "notes",
+      fxAssessments: [assessment]);
+    Assert.NotEqual(withoutAssessment, withAssessment);
+    assessment.EvidenceReference = "replacement-evidence";
+    Assert.NotEqual(withAssessment, FinancialStatementService.ComputePresentationSourceManifestHash([package], [], [], [], [], "notes",
+      fxAssessments: [assessment]));
+  }
 }

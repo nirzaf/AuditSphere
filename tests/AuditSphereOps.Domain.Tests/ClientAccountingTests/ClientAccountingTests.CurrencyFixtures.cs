@@ -152,8 +152,8 @@ public sealed partial class ClientAccountingTests
            new DisclosureInput("OCI_POLICY", "No OCI transactions occurred during the period.")],
           [new EquityLineInput("CAPITAL", "Capital", 0m, 0m, 0m, capital, 0m, capital, "capital-" + suffix),
            new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, profit, 0m, 0m, 0m, profit, "profit-" + suffix)],
-          FxCashEffects: [new FxCashEffectInput(currency + "/" + currency, 0m,
-            "All cash is denominated in functional currency; no entity-level exchange exposure.")],
+          FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+            "All cash is denominated in functional currency; no entity-level exchange exposure."),
           CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-" + suffix],
           ClosingCashEvidenceReferences: ["closing-" + suffix])
       });

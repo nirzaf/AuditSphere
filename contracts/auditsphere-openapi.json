@@ -45532,6 +45532,16 @@
             "items": {
               "$ref": "#/components/schemas/EquityComponentTransferInput"
             }
+          },
+          "fxCashAssessment": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FxCashAssessmentInput"
+              }
+            ]
           }
         }
       },
@@ -45752,6 +45762,25 @@
         "type": "object",
         "properties": {
           "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "FxCashAssessmentInput": {
+        "required": [
+          "state",
+          "evidenceReference",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "rationale": {
             "type": "string"
           }
         }

@@ -8087,6 +8087,79 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageFxAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AssessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assessed_at");
+
+                    b.Property<Guid>("AssessedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assessed_by_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("EffectDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("effect_digest")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("evidence_reference");
+
+                    b.Property<Guid>("FinancialPackageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_package_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Rationale")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("rationale");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("state");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "Id")
+                        .HasName("ak_financial_package_fx_assessments_scope_id");
+
+                    b.HasIndex("FirmId", "AssessedByUserId");
+
+                    b.HasIndex("FirmId", "FinancialPackageId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_financial_package_fx_assessment_package");
+
+                    b.ToTable("financial_package_fx_assessments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_financial_package_fx_assessment_values", "assessed_by_user_id <> '00000000-0000-0000-0000-000000000000'::uuid AND state IN ('ASSESSED_ZERO','EFFECTS_RECORDED') AND length(trim(evidence_reference)) > 0 AND length(trim(rationale)) > 0 AND effect_digest ~ '^[0-9a-f]{64}$'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageFxEffect", b =>
                 {
                     b.Property<Guid>("Id")
@@ -30880,6 +30953,24 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageEquityTransfer", b =>
                 {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageFxAssessment", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "AssessedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_financial_package_fx_assessment_preparer");
+
                     b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")

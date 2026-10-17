@@ -130,7 +130,8 @@ public static class CompletionBundleFixture
             new EquityLineInput("REVALUATION_RESERVE", "Revaluation reserve", 0m, 0m, 10m, 0m, 0m, 10m, "valuation-report-test"),
             new EquityLineInput("SHARE_CAPITAL", "Share capital", 5m, 0m, 0m, 0m, 0m, 5m, "share-register-test")],
           NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", cashAmount, "note-test")],
-          FxCashEffects: [new FxCashEffectInput("USD/QAR", 0m, "USD account translated at the unchanged 3.64 peg")],
+          FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+            "The selected QAR cash population has no foreign-currency cash effect."),
           CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-bundle"], ClosingCashEvidenceReferences: ["closing-cash-bundle"])));
       Assert.True(built.Succeeded, built.Message);
       Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);

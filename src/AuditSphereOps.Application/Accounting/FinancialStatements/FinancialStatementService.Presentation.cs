@@ -68,6 +68,8 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
     var currentFxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
+    var currentFxAssessment = await db.FinancialPackageFxAssessments.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id, ct);
     var typedAccounting = db as IClientAccountingDbContext;
     var currentEquityLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityLines.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
@@ -83,6 +85,7 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     IReadOnlyList<FinancialPackageCashFlowLine> priorCashLines = [];
     IReadOnlyList<FinancialPackageFxEffect> priorFxEffects = [];
+    FinancialPackageFxAssessment? priorFxAssessment = null;
     IReadOnlyList<FinancialPackageEquityLine> priorEquityLines = [];
     if (comparative is not null)
     {
@@ -90,6 +93,8 @@ public static partial class FinancialStatementService
         .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == comparative.Id).ToListAsync(ct);
       priorFxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == comparative.Id).ToListAsync(ct);
+      priorFxAssessment = await db.FinancialPackageFxAssessments.AsNoTracking()
+        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.FinancialPackageId == comparative.Id, ct);
       priorEquityLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityLines.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == comparative.Id).ToListAsync(ct);
     }
@@ -121,7 +126,7 @@ public static partial class FinancialStatementService
       packageValidations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
       cashAllocations.Where(x => x.FinancialPackageId == package.Id).ToArray(),
       typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, package, ct),
-      lineagePassedIds.Contains(package.Id));
+      lineagePassedIds.Contains(package.Id), currentFxAssessment);
     var priorSupplementary = comparative is null
       ? null
       : ToPresentationSchedules(comparative, priorCashLines, priorFxEffects, priorEquityLines,
@@ -129,7 +134,7 @@ public static partial class FinancialStatementService
         packageValidations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
         cashAllocations.Where(x => x.FinancialPackageId == comparative.Id).ToArray(),
         typedAccounting is not null && await CashFlowSourceApprovedAsync(typedAccounting, comparative, ct),
-        lineagePassedIds.Contains(comparative.Id));
+        lineagePassedIds.Contains(comparative.Id), priorFxAssessment);
     var built = FinancialStatementPresentationBuilder.Build(
       layoutLines,
       currentLines.Select(x => new PresentationBalance(x.DestinationCode, x.StatementSection, x.Amount)).ToList(),
@@ -156,7 +161,7 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageEquityTransfer> equityTransfers,
     IReadOnlyList<FinancialPackageValidation> packageValidations,
     IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations,
-    bool cashFlowSourceApproved, bool cashFlowLineagePassed) => new(
+    bool cashFlowSourceApproved, bool cashFlowLineagePassed, FinancialPackageFxAssessment? fxAssessment) => new(
       package.CashBeginning,
       package.CashEnding,
       CashMovementsWithLineage(cashLines, cashAllocations, cashFlowLineagePassed),
@@ -168,7 +173,8 @@ public static partial class FinancialStatementService
       packageValidations.Select(x => new PresentationPackageValidation(x.Code, x.Passed, x.Detail)).ToList(),
       cashFlowSourceApproved,
       equityTransfers.Select(x => new PresentationEquityTransfer(x.TransferReference, x.SourceLineCode,
-        x.DestinationLineCode, x.Amount, x.EvidenceReference)).ToList());
+        x.DestinationLineCode, x.Amount, x.EvidenceReference)).ToList(),
+      fxAssessment is null ? null : new PresentationFxCashAssessment(fxAssessment.State, fxAssessment.EvidenceReference, fxAssessment.Rationale));
 
   private static IReadOnlyList<PresentationCashFlowMovement> CashMovementsWithLineage(
     IReadOnlyList<FinancialPackageCashFlowLine> cashLines, IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, bool lineagePassed)
@@ -203,8 +209,10 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     var equityTransfers = await db.FinancialPackageEquityTransfers.AsNoTracking()
       .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
+    var fxAssessments = await db.FinancialPackageFxAssessments.AsNoTracking()
+      .Where(x => x.FirmId == firmId && packageIds.Contains(x.FinancialPackageId)).ToListAsync(ct);
     return ComputePresentationSourceManifestHash(packages, cash, fx, equity, cashAllocations,
-      ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures), cashSourceReviews, equityTransfers);
+      ComputeNoteSourceManifestHash(packageIds, noteLines, disclosures), cashSourceReviews, equityTransfers, fxAssessments);
   }
 
   /// <summary>
@@ -218,7 +226,8 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageEquityLine> equity,
     IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, string noteHash,
     IReadOnlyList<FinancialPackageCashFlowSourceReview>? cashSourceReviews = null,
-    IReadOnlyList<FinancialPackageEquityTransfer>? equityTransfers = null)
+    IReadOnlyList<FinancialPackageEquityTransfer>? equityTransfers = null,
+    IReadOnlyList<FinancialPackageFxAssessment>? fxAssessments = null)
   {
     var baseHash = ComputeBasePresentationSourceManifestHash(packages, cash, fx, equity, cashAllocations, noteHash);
     if (equityTransfers is { Count: > 0 })
@@ -231,8 +240,11 @@ public static partial class FinancialStatementService
             x.SourceLineCode, x.DestinationLineCode, x.Amount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToArray()
       }));
     if (cashSourceReviews is not { Count: > 0 } reviews)
-      return baseHash;
-    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      if (fxAssessments is not { Count: > 0 }) return baseHash;
+      return HashFxAssessments(baseHash, fxAssessments);
+    }
+    baseHash = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
       Version = "auditsphere.statement-source-manifest.v3.reviewed",
       Base = baseHash,
@@ -242,7 +254,20 @@ public static partial class FinancialStatementService
         x.ReviewedByUserId, x.ReviewedAt
       }).ToArray(),
     }));
+    return fxAssessments is { Count: > 0 } ? HashFxAssessments(baseHash, fxAssessments) : baseHash;
   }
+
+  private static string HashFxAssessments(string baseHash, IReadOnlyList<FinancialPackageFxAssessment> assessments) =>
+    Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "auditsphere.statement-source-manifest.v5.fx-assessment",
+      Base = baseHash,
+      FxAssessments = assessments.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id).Select(x => new
+      {
+        x.Id, x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.State, x.EvidenceReference,
+        x.Rationale, x.EffectDigest, x.AssessedByUserId, x.AssessedAt
+      }).ToArray()
+    }));
 
   private static string ComputeBasePresentationSourceManifestHash(
     IReadOnlyList<FinancialPackage> packages,

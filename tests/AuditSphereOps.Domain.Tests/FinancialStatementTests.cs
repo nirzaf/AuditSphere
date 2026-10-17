@@ -807,7 +807,9 @@ public sealed class FinancialStatementTests
               -signedProfitOrLoss, "synthetic-equity-movement")],
             CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash"],
             ClosingCashEvidenceReferences: ["synthetic-closing-cash"],
-            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")] )));
+            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")],
+            FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "synthetic-functional-currency-cash",
+              "The synthetic selected cash population has no foreign-currency effect."))));
       Assert.True(completed.Succeeded, completed.Message);
       packageId = completed.Value!.PackageId;
     }
@@ -1095,7 +1097,9 @@ public sealed class FinancialStatementTests
               -signedProfitOrLoss, "synthetic-equity-movement")],
             CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash"],
             ClosingCashEvidenceReferences: ["synthetic-closing-cash"],
-            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")] )));
+            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")],
+            FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "synthetic-functional-currency-cash",
+              "The synthetic selected cash population has no foreign-currency effect."))));
       Assert.True(completed.Succeeded, completed.Message);
       packageId = completed.Value!.PackageId;
     }

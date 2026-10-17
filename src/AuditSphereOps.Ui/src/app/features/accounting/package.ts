@@ -113,6 +113,8 @@ export function writePendingSourceIntent(packageId: string, intent: PendingSourc
 export const decodeCashFlowSourceReview = obj({
   financialPackageId: guid, movements: nat, resolvedMovements: nat, sourceLinks: nat,
   currentSourceImportBatchId: nullable(guid), approved: bool, canReview: bool,
+  fxAssessmentState: nullable(text), fxAssessmentEvidenceReference: nullable(text), fxAssessmentRationale: nullable(text),
+  fxAssessmentMatchesEffects: bool,
   reviews: arr(obj({ id: guid, decision: oneOf('APPROVED', 'RETURNED'), reason: text, reviewedByUserId: guid, reviewedAt: instant,
     sourceImportBatchId: guid }), 50),
   // The digest of the exact links and the latest decision are sent back so the server decides only on what was reviewed.
@@ -193,6 +195,10 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
           @if (sourceReview.data(); as review) {
             <p role="status">{{ review.resolvedMovements }} of {{ review.movements }} movements fully allocated to {{ review.sourceLinks }} source contribution(s).
               {{ review.approved ? 'Approved by an independent reviewer against the current accepted general ledger.' : 'Not approved for the current accepted general ledger.' }}</p>
+            <p>FX cash-effect assessment: {{ review.fxAssessmentState ?? 'Not assessed' }}.
+              {{ review.fxAssessmentMatchesEffects ? 'Evidence and effect rows reconcile.' : 'Evidence is missing or does not match the recorded effect rows.' }}</p>
+            @if (review.fxAssessmentEvidenceReference) { <p>FX assessment evidence: {{ review.fxAssessmentEvidenceReference }}</p> }
+            @if (review.fxAssessmentRationale) { <p>FX assessment rationale: {{ review.fxAssessmentRationale }}</p> }
             <div class="table-scroll"><table><caption class="sr-only">Immutable cash-flow source review decisions</caption>
               <thead><tr><th scope="col">Decision</th><th scope="col">Reason</th><th scope="col">Reviewed at</th></tr></thead>
               <tbody>@for (x of review.reviews; track x.id) { <tr><td><audit-status [value]="x.decision" /></td><td>{{ x.reason || 'No reason recorded' }}</td><td><time [attr.datetime]="x.reviewedAt">{{ x.reviewedAt }}</time></td></tr> }

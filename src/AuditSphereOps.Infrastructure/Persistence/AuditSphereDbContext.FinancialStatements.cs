@@ -529,6 +529,26 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var fxCashAssessment = b.Entity<FinancialPackageFxAssessment>();
+    fxCashAssessment.Property(x => x.State).HasMaxLength(30);
+    fxCashAssessment.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    fxCashAssessment.Property(x => x.Rationale).HasMaxLength(2000);
+    fxCashAssessment.Property(x => x.EffectDigest).HasMaxLength(64).IsFixedLength();
+    fxCashAssessment.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
+      .HasName("ak_financial_package_fx_assessments_scope_id");
+    fxCashAssessment.HasIndex(x => new { x.FirmId, x.FinancialPackageId }).IsUnique()
+      .HasDatabaseName("ux_financial_package_fx_assessment_package");
+    fxCashAssessment.ToTable("financial_package_fx_assessments", t => t.HasCheckConstraint("ck_financial_package_fx_assessment_values",
+      "assessed_by_user_id <> '00000000-0000-0000-0000-000000000000'::uuid AND state IN ('ASSESSED_ZERO','EFFECTS_RECORDED') AND length(trim(evidence_reference)) > 0 AND " +
+      "length(trim(rationale)) > 0 AND effect_digest ~ '^[0-9a-f]{64}$'"));
+    fxCashAssessment.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    fxCashAssessment.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, AssessedByUserId = x.AssessedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, Id = x.Id }).OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_financial_package_fx_assessment_preparer");
+
     var disclosure = b.Entity<FinancialPackageDisclosure>();
     disclosure.Property(x => x.Code).HasMaxLength(100);
     disclosure.Property(x => x.Response).HasMaxLength(4000);

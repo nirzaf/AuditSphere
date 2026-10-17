@@ -275,8 +275,10 @@ public static partial class FinancialStatementService
     var cashBridgeReconciled = request.SupplementaryInformation is { } supplied &&
       ValidateSupplementaryInformation(supplied, request.PeriodStart, request.PeriodEnd) is null;
     AddValidation(db, package, "CASH_FLOW_RECONCILED", hasSupplementary && cashBridgeReconciled,
-      hasSupplementary
-        ? "Cash movements, FX cash effects and noncash disclosures reconcile to the supplied opening and closing cash."
+      hasSupplementary && cashBridgeReconciled
+        ? "Cash movements, recorded FX effects and noncash disclosures reconcile numerically to the supplied opening and closing cash; separate FX assessment and independent review are required for presentation."
+        : hasSupplementary
+          ? "Cash-flow amounts do not reconcile to the supplied opening and closing cash, or required schedule inputs are incomplete."
         : "Cash-flow workings are not supplied.");
     AddValidation(db, package, "DISCLOSURES_COMPLETE", hasSupplementary,
       hasSupplementary ? "Disclosure responses are present, including rationale for not-applicable items." : "Disclosure responses are not supplied.");
@@ -410,15 +412,29 @@ public static partial class FinancialStatementService
               ? $"{unexplained} cash event(s) in the accepted general ledger are not explained by any cash-flow movement."
               : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines.");
       }
-      foreach (var fxEffect in request.SupplementaryInformation.FxCashEffects ?? [])
-        db.FinancialPackageFxEffects.Add(new FinancialPackageFxEffect
+      var persistedFxEffects = (request.SupplementaryInformation.FxCashEffects ?? []).Select(fxEffect => new FinancialPackageFxEffect
         {
           Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
           EngagementId = package.EngagementId, FinancialPackageId = package.Id,
           CurrencyPair = fxEffect.CurrencyPair.Trim().ToUpperInvariant(),
           Amount = MoneyPolicy.Normalize(fxEffect.Amount), Currency = package.Currency,
           EvidenceReference = fxEffect.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
-        });
+        }).ToArray();
+      db.FinancialPackageFxEffects.AddRange(persistedFxEffects);
+      if (request.SupplementaryInformation.FxCashAssessment is { } fxAssessment)
+      {
+        var assessment = new FinancialPackageFxAssessment
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          State = fxAssessment.State.Trim().ToUpperInvariant(), EvidenceReference = fxAssessment.EvidenceReference.Trim(),
+          Rationale = fxAssessment.Rationale.Trim(),
+          EffectDigest = CashFlowFxAssessmentDigest(package, fxAssessment.State, fxAssessment.EvidenceReference, fxAssessment.Rationale,
+            persistedFxEffects),
+          AssessedByUserId = actor.UserId, AssessedAt = package.CreatedAt
+        };
+        db.FinancialPackageFxAssessments.Add(assessment);
+      }
       foreach (var disclosure in request.SupplementaryInformation.Disclosures)
         db.FinancialPackageDisclosures.Add(new FinancialPackageDisclosure
         {
@@ -615,8 +631,19 @@ public static partial class FinancialStatementService
     if (input.FxCashEffects is { Count: > 0 } fxEffects &&
         fxEffects.Any(x => string.IsNullOrWhiteSpace(x.CurrencyPair) || x.CurrencyPair.Trim().Length > 20 ||
           string.IsNullOrWhiteSpace(x.EvidenceReference) || x.EvidenceReference.Trim().Length > 2000 ||
-          MoneyPolicy.Normalize(x.Amount) != x.Amount))
-      return "Each FX cash effect needs a currency pair, bounded amount and evidence reference.";
+          x.Amount == 0m || MoneyPolicy.Normalize(x.Amount) != x.Amount))
+      return "Each FX cash effect needs a currency pair, non-zero bounded amount and evidence reference; assessed zero is recorded separately.";
+    if (input.FxCashAssessment is { } fxAssessment &&
+        (fxAssessment.State.Trim().ToUpperInvariant() is not (FxCashAssessmentStates.AssessedZero or FxCashAssessmentStates.EffectsRecorded) ||
+         string.IsNullOrWhiteSpace(fxAssessment.EvidenceReference) || fxAssessment.EvidenceReference.Trim().Length > 2000 ||
+         string.IsNullOrWhiteSpace(fxAssessment.Rationale) || fxAssessment.Rationale.Trim().Length > 2000))
+      return "An FX assessment needs a supported state, bounded evidence reference and rationale.";
+    if (input.FxCashAssessment?.State.Trim().Equals(FxCashAssessmentStates.AssessedZero, StringComparison.OrdinalIgnoreCase) == true &&
+        input.FxCashEffects is { Count: > 0 })
+      return "An assessed-zero FX population cannot contain FX effect rows.";
+    if (input.FxCashAssessment?.State.Trim().Equals(FxCashAssessmentStates.EffectsRecorded, StringComparison.OrdinalIgnoreCase) == true &&
+        input.FxCashEffects is not { Count: > 0 })
+      return "An effects-recorded FX assessment requires at least one evidenced non-zero FX effect row.";
     if (input.CashFlowLines.GroupBy(x => x.Section.Trim().ToUpperInvariant() + "\u001f" + x.Description.Trim(), StringComparer.Ordinal).Any(x => x.Count() != 1))
       return "Cash-flow section and description pairs must be unique.";
     if (MoneyPolicy.Normalize(input.CashBeginning) != input.CashBeginning ||
@@ -684,6 +711,13 @@ public static partial class FinancialStatementService
 
   private static bool ValidActivityCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Trim().Length <= 100 &&
     code.Trim().All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.');
+
+  private static bool FxAssessmentMatchesEffects(FinancialSupplementaryInformation input) => input.FxCashAssessment?.State.Trim().ToUpperInvariant() switch
+  {
+    FxCashAssessmentStates.AssessedZero => input.FxCashEffects is null or { Count: 0 },
+    FxCashAssessmentStates.EffectsRecorded => input.FxCashEffects is { Count: > 0 } effects && effects.All(x => x.Amount != 0m),
+    _ => false
+  };
 
   private static bool ValidCashFlowMovement(CashFlowLineInput line, DateOnly start, DateOnly end) =>
     line.Section.Trim().ToUpperInvariant() is "OPERATING" or "INVESTING" or "FINANCING" &&

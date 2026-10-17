@@ -79,6 +79,8 @@ public sealed record PresentationCashFlowMovement(string Section, string Descrip
 
 public sealed record PresentationFxCashEffect(string CurrencyPair, decimal Amount);
 
+public sealed record PresentationFxCashAssessment(string State, string EvidenceReference, string Rationale);
+
 public sealed record PresentationEquityMovement(
   string LineCode, string Description, decimal OpeningAmount, decimal ProfitOrLossAmount,
   decimal OciAmount, decimal CapitalMovementAmount, decimal DividendsAmount, decimal ClosingAmount,
@@ -98,7 +100,8 @@ public sealed record PresentationSupplementarySchedules(
   IReadOnlyList<PresentationPackageValidation>? PackageValidations = null,
   // True only when an independent reviewer approved this package's source links against the current accepted ledger.
   bool CashFlowSourceApproved = false,
-  IReadOnlyList<PresentationEquityTransfer>? EquityTransfers = null);
+  IReadOnlyList<PresentationEquityTransfer>? EquityTransfers = null,
+  PresentationFxCashAssessment? FxCashAssessment = null);
 
 public sealed record PresentationHeader(
   string Entity, string Framework, string Currency, string CurrentPeriodEnd, string? PriorPeriodEnd, string Reference);
@@ -765,7 +768,15 @@ public static class FinancialStatementPresentationBuilder
     var fxKeys = currentFx.Select(x => Normal(x.CurrencyPair)).Concat(priorFx.Select(x => Normal(x.CurrencyPair)))
       .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
     rows.Add(new PresentationRow(PresentationRowKinds.Heading, "CF_FX_HEADING", "Foreign exchange effect on cash", 0, null, null, null));
-    if (fxKeys.Length == 0)
+    var currentFxAssessment = current?.FxCashAssessment;
+    var priorFxAssessment = prior?.FxCashAssessment;
+    if (fxKeys.Length == 0 && currentFxAssessment?.State == FxCashAssessmentStates.AssessedZero)
+    {
+      rows.Add(new PresentationRow(PresentationRowKinds.Line, "CF_FX_ASSESSED_ZERO",
+        "Foreign exchange effect assessed at zero", 1, null, 0m,
+        priorFxAssessment?.State == FxCashAssessmentStates.AssessedZero ? 0m : null));
+    }
+    else if (fxKeys.Length == 0)
     {
       rows.Add(new PresentationRow(PresentationRowKinds.Line, "CF_FX_NOT_SUPPLIED", "Foreign exchange effect not supplied", 1, null, null, null));
     }
@@ -784,8 +795,37 @@ public static class FinancialStatementPresentationBuilder
         priorFx.Count == 0 ? null : MoneyPolicy.Normalize(priorFx.Sum(x => x.Amount))));
     }
 
-    var currentComplete = sections.All(x => sectionTotals[x] is not null) && currentFx.Count > 0;
-    var priorComplete = sections.All(x => priorSectionTotals[x] is not null) && priorFx.Count > 0;
+    var currentFxAssessed = currentFxAssessment?.State switch
+    {
+      FxCashAssessmentStates.AssessedZero => currentFx.Count == 0,
+      FxCashAssessmentStates.EffectsRecorded => currentFx.Count > 0 && currentFx.All(x => x.Amount != 0m),
+      _ => false
+    };
+    var priorFxAssessed = priorFxAssessment?.State switch
+    {
+      FxCashAssessmentStates.AssessedZero => priorFx.Count == 0,
+      FxCashAssessmentStates.EffectsRecorded => priorFx.Count > 0 && priorFx.All(x => x.Amount != 0m),
+      _ => false
+    };
+    var currentFxReviewPassed = currentFxAssessed && current?.CashFlowSourceApproved == true;
+    var priorFxReviewPassed = priorFxAssessed && prior?.CashFlowSourceApproved == true;
+    var currentComplete = sections.All(x => sectionTotals[x] is not null) && currentFxReviewPassed;
+    var priorComplete = sections.All(x => priorSectionTotals[x] is not null) && priorFxReviewPassed;
+    checks.Add(new PresentationCheck("CASH_FLOW_FX_ASSESSMENT", currentFxReviewPassed,
+      currentFxReviewPassed
+        ? currentFxAssessment!.State == FxCashAssessmentStates.AssessedZero
+          ? "The preparer assessed no FX cash effect with evidence, and an independent reviewer approved that exact assessment."
+          : "The recorded FX cash effects and their evidence were independently reviewed with the cash-flow source links."
+        : currentFxAssessment is null
+          ? "The FX cash-effect population has not been assessed; missing data is not treated as zero."
+          : "The FX assessment is inconsistent with its effect rows or has no current independent review."));
+    if (prior is not null)
+      checks.Add(new PresentationCheck("PRIOR_CASH_FLOW_FX_ASSESSMENT", priorFxReviewPassed,
+        priorFxReviewPassed
+          ? "The comparative FX cash-effect population and effect rows were independently reviewed against the current accepted ledger for that period."
+          : priorFxAssessment is null
+            ? "The comparative FX cash-effect population has not been assessed; missing data is not treated as zero."
+            : "The comparative FX assessment is inconsistent with its effect rows or has no current independent review."));
     var missingCurrentSections = sections.Where(x => sectionTotals[x] is null).ToArray();
     checks.Add(new PresentationCheck("CASH_FLOW_REQUIRED_SECTIONS", missingCurrentSections.Length == 0,
       missingCurrentSections.Length == 0 ? "Operating, investing and financing cash movements are all present."
