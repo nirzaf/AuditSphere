@@ -201,7 +201,7 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
               <form class="inline-form" (submit)="$event.preventDefault(); reviewSources(p.id)">
                 <label>Decision <select name="sourceDecision" [(ngModel)]="sourceDecision"><option value="APPROVED">APPROVED</option><option value="RETURNED">RETURNED</option></select></label>
                 <label>Reason <textarea name="sourceReason" [(ngModel)]="sourceReason" maxlength="2000" rows="2"></textarea></label>
-                <button matButton="filled" type="submit" [disabled]="cmd.busy()">{{ cmd.busy() ? 'Recording…' : 'Record source decision' }}</button>
+                <button matButton="filled" type="submit" [disabled]="cmd.busy() || sourceIntentRecoveryBlocked()">{{ cmd.busy() ? 'Recording…' : 'Record source decision' }}</button>
               </form>
               <p><small>The preparer who resolved the links cannot record this decision. A decision made against an earlier general ledger is refused.</small></p>
             }
@@ -241,6 +241,7 @@ export class FinancialPackage {
   readonly cmd = new CommandState(this.api);
   readonly sourceReview = this.api.resource(() => (this.id() ? `/api/ui/accounting/packages/${this.id()}/cash-flow-source-review` : null),
     decodeCashFlowSourceReview, 'The cash-flow source review is not available in the current firm scope.');
+  readonly sourceIntentRecoveryBlocked = signal(false);
   sourceDecision = 'APPROVED';
   sourceReason = '';
   private readonly restorePendingSourceIntent = effect(() => {
@@ -260,6 +261,7 @@ export class FinancialPackage {
   r = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', mode: 'SIGNED_IN', reference: '', comment: '' };
   passed(p: ReturnType<typeof decodePackage>): number { return p.validations.filter((v) => v.passed).length; }
   reviewSources(id: string): void {
+    if (this.sourceIntentRecoveryBlocked()) return;
     const state = this.sourceReview.data();
     if (!state) return;
     // The original intent is kept until the server answers, so a lost reply followed by a reload retries the same decision.
@@ -275,7 +277,11 @@ export class FinancialPackage {
       () => { this.sourceReason = ''; writePendingSourceIntent(id, null); })
       .then((accepted) => {
         // A known stale refusal was not committed; clear its now-obsolete fence so the refreshed state can form a new intent.
-        if (!accepted && !this.cmd.uncertain() && this.cmd.code() === 'revision.stale') writePendingSourceIntent(id, null);
+        if (!accepted && !this.cmd.uncertain() && this.cmd.code() === 'revision.stale' && !writePendingSourceIntent(id, null)) {
+          this.sourceIntentRecoveryBlocked.set(true);
+          this.cmd.failed.set(true);
+          this.cmd.message.set('The server refused this stale review without recording it, but this browser could not clear its recovery reference. Enable session storage and reload before retrying; no new decision was sent.');
+        }
       })
       .finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
   }

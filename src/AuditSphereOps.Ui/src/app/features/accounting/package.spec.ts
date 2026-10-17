@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { Api } from '../../core/api';
 import { decodeCashFlowSourceReview, decodePackage, latestCompositionDecisionId, packageReviewIntentFor, packageReviewRequestFor,
   readPendingSourceIntent, sourceIntentFor, sourceReviewRequestFor, writePendingSourceIntent } from './package';
+import { FinancialPackage } from './package';
 import { decodeReviewQueue } from './reviews';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -195,5 +200,56 @@ describe('Cash-flow source review contract (CP-11)', () => {
   it('refuses an unknown decision and a malformed reviewer identity', () => {
     expect(() => decodeCashFlowSourceReview({ ...review, reviews: [{ ...review.reviews[0], decision: 'PENDING' }] }, 'review')).toThrow();
     expect(() => decodeCashFlowSourceReview({ ...review, reviews: [{ ...review.reviews[0], reviewedByUserId: 'me' }] }, 'review')).toThrow();
+  });
+});
+
+describe('Cash-flow source review recovery UI (CP-11)', () => {
+  const reviewState = {
+    financialPackageId: id1, movements: 1, resolvedMovements: 1, sourceLinks: 1, currentSourceImportBatchId: id2,
+    approved: false, canReview: true, reviews: [], linkDigest: hash64, latestReviewId: null,
+  };
+  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let command: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<FinancialPackage>>;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    const resource = { data: () => reviewState, error: () => '', loading: () => false, reload: vi.fn() };
+    command = vi.fn(async () => ({ ok: false as const, unknown: false as const, code: 'revision.stale', message: 'Review is stale.', status: 409 }));
+    TestBed.configureTestingModule({ imports: [FinancialPackage], providers: [
+      { provide: ActivatedRoute, useValue: { paramMap: params } },
+      { provide: Api, useValue: { resource: () => resource, command } },
+    ] });
+    TestBed.overrideComponent(FinancialPackage, { set: { template: '<button [disabled]="sourceIntentRecoveryBlocked()" (click)="reviewSources(id()!)">Review</button>' } });
+    fixture = TestBed.createComponent(FinancialPackage);
+  });
+
+  afterEach(() => { vi.restoreAllMocks(); TestBed.resetTestingModule(); sessionStorage.clear(); });
+
+  it('does not dispatch when recovery storage is unavailable', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage disabled'); });
+    fixture.componentInstance.reviewSources(id1);
+    await fixture.whenStable();
+
+    expect(command).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.cmd.message()).toContain('no decision was sent');
+  });
+
+  it('blocks another decision when a known-stale intent cannot be removed', async () => {
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+    fixture.componentInstance.reviewSources(id1);
+    await fixture.whenStable();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(command).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.sourceIntentRecoveryBlocked()).toBe(true);
+    expect(fixture.nativeElement.querySelector('button').disabled).toBe(true);
+    expect(fixture.componentInstance.cmd.message()).toContain('no new decision was sent');
+
+    fixture.componentInstance.reviewSources(id1);
+    await fixture.whenStable();
+    expect(command).toHaveBeenCalledTimes(1);
   });
 });
