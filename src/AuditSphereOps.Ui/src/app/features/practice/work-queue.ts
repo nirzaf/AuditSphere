@@ -25,6 +25,14 @@ const queueTask = obj({
   reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
 });
 type QueueTask = ReturnType<typeof queueTask>;
+/** Readiness presentation from server-evaluated facts; never inferred from viewer action permissions. */
+export function hasBlockingPrerequisites(task: Pick<QueueTask,
+  'taskStatus' | 'unmetTaskDependencies' | 'unmetEvidencePrerequisites' | 'pbcRequestId' | 'pbcState'>): boolean {
+  return ['OPEN', 'IN_PROGRESS'].includes(task.taskStatus) &&
+    (task.unmetTaskDependencies > 0 || task.unmetEvidencePrerequisites > 0 ||
+      task.pbcRequestId !== null && !['ACCEPTED', 'CLOSED'].includes(task.pbcState ?? ''));
+}
+
 /** Work overview cards in display order; each opens its server queue view through selectView. */
 const summaryCards: { key: QueueView; label: string }[] = [
   { key: 'MY_TASKS', label: 'My tasks' },
@@ -171,6 +179,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         <small><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a> · {{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small>
         <small>{{ task.phase.replaceAll('_', ' ') }} · {{ task.dueDate ? 'due ' + task.dueDate : 'no due date' }} · {{ task.assigneeDisplayName ?? 'Unassigned' }}</small>
         <small><audit-status [value]="task.taskStatus" />@if (task.reviewState) { · <audit-status [value]="task.reviewState" /> }@if (task.pbcState) { · PBC {{ task.pbcState }} }</small>
+        @if (blockedPrerequisites(task)) { <small class="prerequisite-status">Prerequisites: <audit-status value="BLOCKED" /></small> }
         @if (task.unmetTaskDependencies) { <small>{{ task.unmetTaskDependencies }} task prerequisite(s) incomplete</small> }
         @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
         <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
@@ -256,7 +265,9 @@ const queueViews: { key: QueueView; label: string }[] = [
                 }
               </td>
               <td>{{ task.assigneeDisplayName ?? 'Unassigned' }}</td>
-              <td><audit-status [value]="task.taskStatus" /></td>
+              <td><audit-status [value]="task.taskStatus" />
+                @if (blockedPrerequisites(task)) { <small class="prerequisite-status">Prerequisites: <audit-status value="BLOCKED" /></small> }
+              </td>
               <td>{{ task.unmetTaskDependencies ? task.unmetTaskDependencies + ' task prerequisite(s) incomplete' : 'No task prerequisites pending' }}
                 @if (task.unmetEvidencePrerequisites) { <small>{{ task.unmetEvidencePrerequisites }} evidence prerequisite(s) pending</small> }
                 <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
@@ -367,6 +378,7 @@ export class WorkflowWorkQueue {
   readonly displays = QUEUE_DISPLAYS;
   /** How the loaded page is arranged. It never changes which tasks are requested or shown. */
   readonly display = signal<QueueDisplay>('LIST');
+  readonly blockedPrerequisites = hasBlockingPrerequisites;
   readonly board = boardColumns;
   readonly calendar = queueCalendar;
   readonly selectedView = signal<QueueView>('MY_TASKS');

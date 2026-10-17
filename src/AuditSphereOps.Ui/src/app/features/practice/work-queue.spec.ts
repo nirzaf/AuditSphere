@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeActivity, decodeQueueSummary } from './work-queue';
+import { decodeActivity, decodeQueueSummary, hasBlockingPrerequisites } from './work-queue';
 
 const activity = {
   engagementId: 'b43c00a8-a7a1-4efb-8e3d-1fd88f7ee447',
@@ -144,6 +144,33 @@ describe('workflow queue assignment filters', () => {
     const countOf = (label: string) => card(label).querySelector('.summary-count')?.textContent?.trim();
     return { fixture, http, session, userId, host, overview, cards, card, countOf, component: fixture.componentInstance };
   };
+
+  it('shows prerequisite blocking in each layout from server facts without inventing permission or historical blockers', () => {
+    expect(hasBlockingPrerequisites({ ...task, unmetTaskDependencies: 1 })).toBe(true);
+    expect(hasBlockingPrerequisites({ ...task, unmetEvidencePrerequisites: 1 })).toBe(true);
+    expect(hasBlockingPrerequisites({ ...task, pbcRequestId: task.taskId, pbcState: 'SENT' })).toBe(true);
+    expect(hasBlockingPrerequisites({ ...task, pbcRequestId: task.taskId, pbcState: null })).toBe(true);
+    expect(hasBlockingPrerequisites({ ...task, pbcRequestId: task.taskId, pbcState: 'ACCEPTED' })).toBe(false);
+    expect(hasBlockingPrerequisites({ ...task, pbcRequestId: task.taskId, pbcState: 'CLOSED' })).toBe(false);
+    expect(hasBlockingPrerequisites(task)).toBe(false); // canComplete=false alone is not prerequisite evidence.
+    expect(hasBlockingPrerequisites({ ...task, taskStatus: 'COMPLETED', unmetTaskDependencies: 1 })).toBe(false);
+    const { fixture, http, host, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [{ ...task, unmetTaskDependencies: 1 }], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      for (const display of ['LIST', 'BOARD', 'CALENDAR'] as const) {
+        component.display.set(display); fixture.detectChanges(); TestBed.tick();
+        const labels = host.querySelectorAll('.prerequisite-status');
+        expect(labels.length).toBe(1);
+        expect(labels[0].textContent).toContain('Prerequisites: blocked');
+        expect(host.textContent).toContain(task.title);
+      }
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
 
   it('renders exact complete counts above the review inbox and opens each card view with paging and assignment reset', () => {
     const { fixture, http, userId, host, overview, cards, card, countOf, component } = start();
