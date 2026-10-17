@@ -45182,6 +45182,38 @@
           }
         }
       },
+      "EquityComponentTransferInput": {
+        "required": [
+          "transferReference",
+          "sourceLineCode",
+          "destinationLineCode",
+          "amount",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "transferReference": {
+            "type": "string"
+          },
+          "sourceLineCode": {
+            "type": "string"
+          },
+          "destinationLineCode": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "evidenceReference": {
+            "type": "string"
+          }
+        }
+      },
       "EquityLineInput": {
         "required": [
           "lineCode",
@@ -45490,6 +45522,15 @@
             ],
             "items": {
               "type": "string"
+            }
+          },
+          "equityTransfers": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EquityComponentTransferInput"
             }
           }
         }
