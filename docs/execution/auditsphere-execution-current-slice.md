@@ -19,6 +19,12 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## PBC exact-version reviewer acceptance
+
+Staff acceptance now requires the assigned, independently authorized reviewer to confirm the exact provider-verified upload ID, revision and content hash. The accepted request stores an immutable receipt binding that source to its request submission revision, provider identity/digest, reviewer and time. Database constraints validate the receipt against the request, received upload and completed transfer operation, and prevent rewriting the accepted decision or source. Legacy upload rows remain readable but cannot be accepted without matching current provider evidence.
+
+Focused PBC Domain and PostgreSQL guard regressions passed, as did the PBC Angular contract spec; the API Release build and OpenAPI contract drift passed; Angular production build passed with the existing `settings.scss` budget warning. The built-in browser rendered the synthetic engagement but did not open its PBC route for the available session, so positive reviewer UI acceptance is unverified. Full suites remain assigned to CI/CD, and live-provider/business acceptance remains external. Exact commands and counts are in `status.json` under `targetedVerification.pbcExactVersionAcceptance20261018`.
+
 ## Certification administrative review integration
 
 Exact-source applicability rules, append-only review persistence and independent administrator publication are implemented. Current evidence and commit identities are in `status.json` under `completePracticeManagement.certificationReview`. The read workspace, API and Angular review dialog have focused verification, including a synthetic browser verification/withdrawal flow. Staffing eligibility readers are integrated and focused checks pass; deterministic revocation/assignment concurrency and broader acceptance remain unfinished; existing assignment history is preserved and legacy qualifications are not automatically verified. Only the synthetic browser database received the review migration; live/development databases remain unchanged. Client portal write-gate corrections are committed separately, with focused evidence in the crosswalk.
@@ -328,9 +334,3 @@ Completing every task in a published pinned plan still refuses activation withou
 ## Release bundle integrity — 2026-10-13
 
 Assembly rechecks signing policy and matching certificate on new creation/replay, including later certificate-required policy. All stored artifact hashes, including the representation template, are checked. Web forwards host policy; downloads remain scope checked. Focused Domain, Angular/reference journeys and built-in browser checks passed: ZIP/certificate integrity, lineage, stale sources and bounded correspondence with injected appends. Evidence: `targetedVerification.releaseBundleSigningReplay`, `releaseBundleCorrespondence` and `releaseBundleRaceAndAngular` in [status.json](status.json). Further adverse cases, full release and operator rotation review remain open. No global policy or persistent database changed.
-
-## Reviewed task dependency amendments — 2026-10-13
-
-WF-08 now supports manager-reviewed required/withdrawn task edges as append-only amendments over the original pinned template graph. Both task revisions, exact engagement scope and a reason are bound to the actor-owned idempotency receipt. The complete effective graph is serialized and checked for cycles, including opposite-edge races; PostgreSQL also rejects raw cyclic inserts and history mutation. Queue readiness and both completion routes use the same effective graph. No professional approval or pinned template row changes.
-
-The Angular ordering panel provides exact review and assent, receipt-only recovery for lost replies, explicit dropdown labels and session/scope clearing. The focused Domain/API/Angular/browser batch passed after correcting analyzer assertions and a label lookup issue. Built-in-browser inspection confirmed a reviewed withdrawal appends history and restores only the operational action. Exact counts, source hash, artifacts and limitations are under `targetedVerification.workflowTaskDependencyAmendments` in [status.json](status.json). No persistent database was migrated. Template-declared domain rules, other workflow gaps and full release/external/professional acceptance remain open.
