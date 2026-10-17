@@ -122,9 +122,6 @@ public sealed class AuditProgramCommandsApiTests
     using var selfApprovalResponse = await Post(preparer, preparerCsrf, applicabilityUrl, selfApproval);
     Assert.Equal(HttpStatusCode.Forbidden, selfApprovalResponse.StatusCode);
 
-    using var reviewerFactory = Factory(pg, f.Reviewer);
-    using var reviewer = reviewerFactory.CreateClient(new() { AllowAutoRedirect = false });
-    var reviewerCsrf = await SignIn(reviewer);
     using var reviewerWorkspace = await reviewer.GetAsync($"/api/ui/engagements/{f.EngagementId:D}/fieldwork");
     Assert.Equal(HttpStatusCode.OK, reviewerWorkspace.StatusCode);
     using var reviewerWorkspaceJson = JsonDocument.Parse(await reviewerWorkspace.Content.ReadAsStringAsync());

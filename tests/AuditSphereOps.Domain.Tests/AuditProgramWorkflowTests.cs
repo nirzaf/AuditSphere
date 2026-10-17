@@ -319,7 +319,7 @@ public sealed class AuditProgramWorkflowTests
       Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
         new DecideProcedureApplicabilityRequest(cash.Id, AuditApplicabilityStatuses.Applicable,
           "Bank confirmations are required for this engagement.", cash.CurrentApplicabilityRevision,
-          cash.CurrentDefinitionRevision, Guid.NewGuid())).Succeeded);
+          cash.CurrentDefinitionRevision, Guid.NewGuid()))).Succeeded);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -381,7 +381,7 @@ public sealed class AuditProgramWorkflowTests
     // Make procedure applicable
     Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
       new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, "Mandatory cash test",
-        procedure.CurrentApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid())).Succeeded);
+        procedure.CurrentApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid()))).Succeeded);
 
     // Initial workpaper generation initializes the workpaper and advances procedure to InProgress
     var wpResult = await AuditProgramService.GetOrCreateWorkpaperAsync(db, scope.Actor, procedure.Id);
