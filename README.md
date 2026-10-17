@@ -19,10 +19,28 @@ Three isolated domains — enforced in Domain, services, and database. Import-fi
 
 ## Architecture
 
-```text
-Angular UI → ASP.NET Core API → Application (static capability services, RoleGrant auth)
-                                        → Domain (pure) + Infrastructure (EF Core) → PostgreSQL 18.6
-                                                        ↘ Worker (durable outbox: SKIP LOCKED claims, leases, quarantine)
+```mermaid
+flowchart TB
+    U["Angular 22 + Material/CDK<br/>Staff and Client Portals"]
+    A["ASP.NET Core 10<br/>API + OIDC / Cookie Auth"]
+    APP["Application Layer<br/>Commands · Queries · RoleGrants"]
+    D["Domain Layer<br/>Financial Rules · Audit Invariants"]
+    I["Infrastructure<br/>EF Core 10 · Npgsql"]
+    PG[("PostgreSQL 18<br/>Business Data · Audit History")]
+    W[".NET Worker<br/>Durable Operations"]
+    M["Microsoft Entra ID<br/>Authentication"]
+    G["Microsoft Graph / SharePoint<br/>Selected Resource Access"]
+    R["Authoritative<br/>Release & Archive Store"]
+    U --> A
+    A --> APP
+    APP --> D
+    APP --> I
+    I --> PG
+    W --> PG
+    W --> APP
+    A --> M
+    W --> G
+    W --> R
 ```
 
 Reference direction: `Domain → nothing; Application → Domain; Infrastructure → Application, Domain; Api/Worker → all`. Details: [current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) · [code map](docs/architecture/auditsphere-architecture-code-map.md) · [enterprise target (PROPOSED)](docs/architecture/auditsphere-architecture-specification-enterprise-target-proposed.md). Routes: `src/AuditSphereOps.Ui/src/app/app.routes.ts`.
