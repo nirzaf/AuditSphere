@@ -13,10 +13,12 @@ const task = (n: number, taskStatus: string, dueDate: string | null, canComplete
   engagementPeriod: '2026', title: `Queue task ${n}`, phase: 'AUDIT_FIELDWORK', ordinal: n, taskStatus,
   assigneeUserId: null, assigneeDisplayName: null, dueDate, mappingVersionId: null, fsliCode: null,
   unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0, canComplete, canChangeDueDate: false, canAssign: false, revision: 1,
+  sourceKey: 'test:work-queue-display', templateRevisionId: null, templateStepId: null,
   pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
 });
 const queue = {
   view: 'MY_TASKS', hasMore: false, nextCursor: null,
+  summary: null,
   tasks: [task(1, 'OPEN', '2026-10-11', true), task(2, 'IN_PROGRESS', '2026-10-15'), task(3, 'COMPLETED', null)],
 };
 
@@ -56,9 +58,10 @@ describe('work queue display modes', () => {
     expect(columns.map((c) => c.querySelector('h2')?.textContent?.trim().replace(/\s+/g, ' '))).toEqual(['Open (1)', 'In progress (1)', 'Completed (1)']);
     expect(titles(root, '.task-card')).toHaveLength(3);
     expect(root.textContent).toContain('cards cannot be dragged');
-    // The only action a card offers is the task's own completion command, and only where the server allows it.
+    // Activity is read-only; the only state-changing card action is server-authorized task completion.
     const actions = [...root.querySelectorAll('.task-card button')].map((b) => b.textContent?.trim());
-    expect(actions.filter(x => x !== 'Review prerequisites' && x !== 'Review task ordering')).toEqual(['Complete task']);
+    expect(actions.filter(x => x === 'View activity')).toHaveLength(3);
+    expect(actions.filter(x => !['Review prerequisites', 'Review task ordering', 'View activity'].includes(x ?? ''))).toEqual(['Complete task']);
     expect(actions.filter(x => x === 'Review prerequisites')).toHaveLength(3);
     expect(actions.filter(x => x === 'Review task ordering')).toHaveLength(3);
 
