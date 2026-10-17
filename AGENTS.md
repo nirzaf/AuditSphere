@@ -10,6 +10,8 @@
 4. **Task state:** `docs/execution/auditsphere-execution-index-task-board-current.md`. Read only relevant/newest sections of the current-slice handoff; query `docs/execution/status.json` with `jq` for specific fields. Historical verification is not today's verification.
 5. If essential context is missing, ask a focused question or report `BLOCKED_CONTEXT`. If authority conflicts, report `BLOCKED_DECISION`. Do not guess paths, signatures, contracts or results.
 
+Apply an approved ADR within its explicit scope without asking for the same decision again. The owner delegates reversible documentation corrections and routine engineering choices that comply with current requirements and approved ADRs: choose the smallest backward-compatible, fail-closed change and record its rationale and acceptance rule. This delegation does not supply professional policy, human review, release evidence or permission for external effects.
+
 ## 2. Technical boundaries
 
 **Stack:** pinned .NET 10 / C# 14, ASP.NET Core API, Angular 22 / Material-CDK, EF Core 10 / Npgsql / PostgreSQL 18.6, .NET Worker and existing durable operations. Honor `global.json`, `.config/dotnet-tools.json`, `Directory.Packages.props`, NuGet locks and `src/AuditSphereOps.Ui/.nvmrc`.
@@ -105,5 +107,7 @@ Run additional checks only when impacted: EF model drift after model/migration c
 Do not introduce Frappe/ERPNext, a second ERP, React/Python backend, microservices, brokers, Kubernetes, MediatR/Wolverine/MassTransit, AutoMapper, generic repositories/UnitOfWork, event sourcing, ClamAV/antivirus or rate-limit infrastructure without separately approved scope. No incidental npm/NuGet packages. Never log/commit secrets, tokens, financial data or live tenant credentials.
 
 Always try to work directly in the `master` branch. Commit and push each completed coherent slice directly to `master` as work progresses. Use another branch or worktree only when the user requests it or repository protections require it. Never force-push or rewrite history. Deployment, merges, production data/permission changes and destructive migrations require the owner's explicit authorization; green CI is not authorization for those actions.
+
+**Owner-directed documentation reconciliation exception:** use a dedicated `codex/` branch, preserve concurrent changes, and prepare a reviewable PR. Do not push this work directly to `master` or merge it without the exact owner codeword `AUDITSPHERE-MERGE-APPROVED`. Engineering delegation does not authorize professional audit/accounting judgments, Partner/client approval, legal/fee policy, posting, tenant permissions, certificate/legal/provider acceptance, deployment or irreversible actions. Keep each dependent gate with its qualified owner and required evidence; continue independent technical work.
 
 On completion report changed files, behavior, focused verification and results, deferred CI, blockers and assumptions. Update `docs/execution/status.json` and current-slice handoff only with relevant observed evidence. Keep this file aligned with `docs/testing/auditsphere-testing-strategy-definition-of-done-current.md`. Wiki is the canonical operator deployment guide: update an existing page only for a material operator change and with explicit authorization; redact secrets and separate local from live instructions.

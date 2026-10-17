@@ -19,6 +19,11 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Documentation reconciliation — review branch
+
+The [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) records corrected current instructions, approved ADR scopes and delegated engineering defaults. This documentation slice uses a dedicated branch and reviewable PR; no direct master push or merge without `AUDITSPHERE-MERGE-APPROVED`. Pre-existing API/Angular integration remains preserved and outside the documentation PR. D1-DRAFT-01 is an unapproved review packet, not a change to audit gates. Qualified T003/G16/EOS and external acceptance requirements remain open. Exact baseline and observed documentation checks are in `status.json` under `documentationReconciliation`; no application test or provider acceptance is claimed.
+
+
 ## API and Angular bidirectional parity — active implementation
 
 The [parity implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md) covers the attached API/Angular specification independently of the R2R and audit-programme task identifiers. Current source contains the authorization, decimal precision, workflow entry, recovery, supplier selection, portal refresh/history and consolidation ownership slices. Code presence is not final functional acceptance; current checks and remaining tasks are recorded under `apiAngularParity` in [status.json](status.json).

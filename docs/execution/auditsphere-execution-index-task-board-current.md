@@ -14,6 +14,8 @@ The [supplied implementation backlog](auditsphere-execution-user-stories-ste-v22
 
 The API/Angular bidirectional parity backlog uses a separate [implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md). Its `T` identifiers do not replace the R2R identifiers below; code presence and functional acceptance are recorded separately.
 
+The [documentation reconciliation](auditsphere-execution-report-documentation-reconciliation-current.md) applies approved ADRs and delegated engineering defaults without duplicate approvals. Remaining OWNER_DECISION entries retain qualified professional policy; code/evidence and external gates remain separate. AS-AWP-EXEC Task 10/D1 is proposed only and does not waive terminal procedures. No card status or independent review is changed by that report.
+
 ## 1. Summary
 
 | Code verdict | Items |
@@ -27,7 +29,7 @@ The API/Angular bidirectional parity backlog uses a separate [implementation tra
 | NOT_AUDITED | 84 |
 | **Total** | **99** |
 
-Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 69 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
+Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 68 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
 
 ## 2. Board
 
@@ -62,10 +64,10 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 69 NOT_STARTED of 75 
 | T027 | R2R-08 | Build bounded statement-layout definitions and publication | NOT_STARTED | NOT_AUDITED | T026 (BLOCKED) | — | Audit against the codebase before building |
 | T028 | R2R-08 | Implement comparative-basis selection and historical differences | NOT_STARTED | NOT_AUDITED | T027 (NOT_STARTED) | — | Audit against the codebase before building |
 | T029 | R2R-08 | Build canonical statement sets and exact line drill-down | NOT_STARTED | NOT_AUDITED | T028 (NOT_STARTED) | — | Audit against the codebase before building |
-| T030 | R2R-09 | Build source-backed cash-flow schedules | NOT_STARTED | NOT_AUDITED | T029 (NOT_STARTED) | — | Audit against the codebase before building |
+| T030 | R2R-09 | Build source-backed cash-flow schedules | BLOCKED | NOT_AUDITED | T029 (NOT_STARTED) | — | Audit against the codebase before building |
 | T031 | R2R-09 | Build equity-movement schedules | NOT_STARTED | NOT_AUDITED | T029 (NOT_STARTED) | — | Audit against the codebase before building |
 | T032 | R2R-09 | Build disclosure notes and reviewed applicability | NOT_STARTED | NOT_AUDITED | T029 (NOT_STARTED) | — | Audit against the codebase before building |
-| T033 | R2R-09 | Complete statement review and restatement lifecycle | NOT_STARTED | NOT_AUDITED | T030 (NOT_STARTED), T031 (NOT_STARTED), T032 (NOT_STARTED) | — | Audit against the codebase before building |
+| T033 | R2R-09 | Complete statement review and restatement lifecycle | NOT_STARTED | NOT_AUDITED | T030 (BLOCKED), T031 (NOT_STARTED), T032 (NOT_STARTED) | — | Audit against the codebase before building |
 | T034 | R2R-10 | Persist financial-package composition and revisions | NOT_STARTED | NOT_AUDITED | T033 (NOT_STARTED) | — | Audit against the codebase before building |
 | T035 | R2R-10 | Render genuine XLSX, DOCX and PDF with durable operations | NOT_STARTED | NOT_AUDITED | T034 (NOT_STARTED) | — | Audit against the codebase before building |
 | T036 | R2R-10 | Validate artifact sets and atomically seal packages | NOT_STARTED | NOT_AUDITED | T035 (NOT_STARTED) | — | Audit against the codebase before building |
@@ -137,7 +139,7 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 69 NOT_STARTED of 75 
 
 T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variation (MediatR and bUnit declined). The helper now lets T003 start; the audit verdicts on T002 and on the cards that were rewritten are superseded by that decision and are shown as such in section 2.
 
-- **T003** (OWNER_DECISION): Still blocked on qualified methodology ownership and independent professional review. ADR-0014 resolves the technical six-decimal and ToEven convention only; it does not choose framework editions, FX methodology, consolidation policy, resource bounds, or gold…
+- **T003** (OWNER_DECISION): PROFESSIONAL_POLICY: qualified owners must approve framework/FX/consolidation and all eight GOLD-R2R outcomes. ADR-0014 closes arithmetic. Existing NFR bounds are engineering defaults; production capacity needs operations evidence.
 
 ## 4. Open gaps by item
 
@@ -145,13 +147,13 @@ T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variat
 
 - A named qualified methodology owner and independent reviewer must approve supported framework editions and effective periods (R2R-ADR-04), consolidation profiles (R2R-ADR-09), and FX methodology beyond ADR-0014 (R2R-ADR-03).
 - A versioned framework and edition policy registry backing FrameworkPolicyRef, after its supported values are professionally approved.
-- Approval and independent review for all eight GOLD-R2R fixture outcomes, then executable tests for the six fixtures without tests.
-- Owner and technical review of section 10.1 resource limits; record any deferred limits and publish a versioned resource policy.
+- Qualified approval and independent review for all eight GOLD-R2R expected outcomes; map current assertions and exact-SHA execution per fixture. The ledger records only GOLD-R2R-07 numerical evidence; unmapped/NOT_RUN rows are not proof that tests are absent.
+- ENGINEERING_DEFAULT: retain existing stricter NFR request bounds; map proposed section 10.1 limits and record missing enforcement as CODE_OR_TEST_GAP. Operations owns new capacity targets and observed acceptance; no limits change here.
 - Do not mark T003 complete until approved policy records, fixture approvals, required tests, and the card-level independent review are recorded.
 
 ### T004 — Make command and query boundaries explicit as static services without changing transaction behavior (PARTIAL)
 
-- After T003, inspect one representative command and query and record the owning service, API boundary, and current wire behavior.
+- Independent command/query inventory and transaction analysis may proceed under engineering delegation. Card completion and policy-dependent changes retain T003 and exact reviewed dependency evidence.
 - Complete a transaction-owner registry and an architecture check for the selected single-owner invariant.
 - Record observed before/after or characterization evidence for the selected command/query without changing business behavior.
 
@@ -201,7 +203,7 @@ T002 was COMPLETED on 2026-10-09 under the owner-delegated static-service variat
 
 ### STE-GAP-007 — Provider-Enforced Read-Only Compliance Archive (EXTERNAL_BLOCKED)
 
-- Obtain approved provider protection strategy, exact-resource readback and real-tenant edit/delete/overwrite denial evidence.
+- APPROVED_ALREADY: ADR-0009 selects the authoritative release/archive store plus a secondary read-only SharePoint library. Implement/verify the copy, exact hashes, reconciled grants and live staff edit/delete/overwrite denials; remain BLOCKED_EXTERNAL.
 
 ### STE-GAP-009 — Approved STE Default Charge-Out Rate Policy (COMPLETE)
 

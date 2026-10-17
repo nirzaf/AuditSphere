@@ -17,12 +17,15 @@ Scope:
 - In: <layers and files you expect to change>
 - Out: <what must not change, e.g. no migration, no Web/Razor edits, no new npm packages>
 
+Branch/PR policy:
+- <owner-directed branch/worktree and whether staging, commit, push, PR creation and merge are authorized; include the exact merge codeword when one is required>
+
 Constraints:
-- AGENTS.md applies in full.
+- AGENTS.md applies in full except where the owner states an explicit task-specific rule; follow that narrower rule for the named task and preserve global guidance unchanged.
 - <story-specific constraints>
 
-Verify with (run all; report each result):
-- <commands from AGENTS.md §3 that apply>
+Verify with (run each applicable focused check once; report results and omitted checks with reasons):
+- <focused commands from AGENTS.md §4 that apply>
 - <story-specific checks, or the manual steps per the Definition of Done §2>
 
 Stop and ask if:
@@ -59,7 +62,7 @@ Constraints:
 - Amounts stay decimal strings end to end.
 
 Verify with:
-- dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1
+- dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --no-restore --configuration Release --maxcpucount:1
 - npm --prefix src/AuditSphereOps.Ui run build
 - bash scripts/contracts/verify-openapi.sh (after regenerating the contract)
 - Manual, as Manager then Partner on a local engagement with an approved mapping and sealed TB:
@@ -78,4 +81,5 @@ Report: as in the template.
 - Name files, never "the relevant files".
 - Give one pattern file. Agents copy patterns closely, so pick the cleanest example.
 - Put the stopping conditions in; agents otherwise push through ambiguity.
+- When the owner requires a dedicated branch or reviewable PR, name the exact branch/worktree and state whether staging, committing, pushing and PR creation are authorized. Preserve unrelated dirty changes and stage only authorized task-owned paths. Never push directly to `master`; never merge without the exact owner codeword `AUDITSPHERE-MERGE-APPROVED`. A task-specific instruction to leave work unstaged, uncommitted or unpushed takes precedence. Do not rewrite global or historical instructions as part of a task-specific branch policy.
 - Never paste specification text into the prompt; link the story, which links the specification.

@@ -82,7 +82,7 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 
 ## 5. Presentation boundary
 
-No presentation rewrite is part of this task. Preserve the current API contract and Angular UI; the legacy Blazor host remains rollback/reference per ADR-0002.
+No presentation rewrite is part of this task. Preserve the current API contract and Angular UI. ADR-0002's retirement amendment makes the removed Blazor host historical reference only; do not recreate it. Independent source inventory and contract/transaction analysis can proceed under engineering delegation, while task completion retains its recorded dependencies and review requirements.
 
 ## 6. Edge Cases, Security & Verification
 

@@ -7440,12 +7440,12 @@
  "currentDispositions": {
   "T003": {
    "verdict": "OWNER_DECISION",
-   "summary": "Still blocked on qualified methodology ownership and independent professional review. ADR-0014 resolves the technical six-decimal and ToEven convention only; it does not choose framework editions, FX methodology, consolidation policy, resource bounds, or golden expected results.",
+   "summary": "PROFESSIONAL_POLICY: qualified owners must approve framework/FX/consolidation and all eight GOLD-R2R outcomes. ADR-0014 closes arithmetic. Existing NFR bounds are engineering defaults; production capacity needs operations evidence.",
    "missing": [
     "A named qualified methodology owner and independent reviewer must approve supported framework editions and effective periods (R2R-ADR-04), consolidation profiles (R2R-ADR-09), and FX methodology beyond ADR-0014 (R2R-ADR-03).",
     "A versioned framework and edition policy registry backing FrameworkPolicyRef, after its supported values are professionally approved.",
-    "Approval and independent review for all eight GOLD-R2R fixture outcomes, then executable tests for the six fixtures without tests.",
-    "Owner and technical review of section 10.1 resource limits; record any deferred limits and publish a versioned resource policy.",
+    "Qualified approval and independent review for all eight GOLD-R2R expected outcomes; map current assertions and exact-SHA execution per fixture. The ledger records only GOLD-R2R-07 numerical evidence; unmapped/NOT_RUN rows are not proof that tests are absent.",
+    "ENGINEERING_DEFAULT: retain existing stricter NFR request bounds; map proposed section 10.1 limits and record missing enforcement as CODE_OR_TEST_GAP. Operations owns new capacity targets and observed acceptance; no limits change here.",
     "Do not mark T003 complete until approved policy records, fixture approvals, required tests, and the card-level independent review are recorded."
    ],
    "conflicts": []
@@ -7454,7 +7454,7 @@
    "verdict": "PARTIAL",
    "summary": "ADR-0001 resolves the architecture choice: keep static capability services and do not add a mediator facade or dependency. The card was rewritten to match. No architecture decision remains open; T004 itself remains NOT_STARTED and blocked by T003.",
    "missing": [
-    "After T003, inspect one representative command and query and record the owning service, API boundary, and current wire behavior.",
+    "Independent command/query inventory and transaction analysis may proceed under engineering delegation. Card completion and policy-dependent changes retain T003 and exact reviewed dependency evidence.",
     "Complete a transaction-owner registry and an architecture check for the selected single-owner invariant.",
     "Record observed before/after or characterization evidence for the selected command/query without changing business behavior."
    ],
@@ -7558,7 +7558,7 @@
    "verdict": "EXTERNAL_BLOCKED",
    "summary": "Local frozen-state controls and reviewed-manifest/structured-record export pass current-tree evidence; these do not establish provider-side read-only protection.",
    "missing": [
-    "Obtain approved provider protection strategy, exact-resource readback and real-tenant edit/delete/overwrite denial evidence."
+    "APPROVED_ALREADY: ADR-0009 selects the authoritative release/archive store plus a secondary read-only SharePoint library. Implement/verify the copy, exact hashes, reconciled grants and live staff edit/delete/overwrite denials; remain BLOCKED_EXTERNAL."
    ],
    "conflicts": [],
    "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",

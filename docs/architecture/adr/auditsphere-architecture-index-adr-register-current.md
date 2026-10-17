@@ -5,6 +5,8 @@
 
 ADR-0001 to ADR-0007, ADR-0009 to ADR-0011, and ADR-0013 to ADR-0015 are approved under the repository owner's delegated project decision dated 2026-10-10. ADR-0012 is accepted as the unconditional activation control. These decisions do not approve professional accounting treatments, live provider behavior, external consent, or independent release acceptance. ADR-0008 is superseded.
 
+ADR-0016 is approved for firm-held X.509 PDF signing under the owner's 2026-10-10 instruction; ADR-0017 and ADR-0018 record the delegated product/reporting decisions dated 2026-10-12. Apply each record only within its stated scope. No repeat approval is needed for an already-approved choice; real certificate/legal acceptance, remaining professional policy and live evidence are separate gates.
+
 | ID | Decision | Status | Supersedes / relates to |
 | --- | --- | --- | --- |
 | [ADR-0001](auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-approved.md) | One modular monolith; static capability services returning `CommandResult`, no mediator layer | APPROVED | Records the variation from R2R-ADR-02 |

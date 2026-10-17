@@ -1,8 +1,8 @@
 # AuditSphere Angular presentation migration
 
-**Status: CURRENT for implemented API/Angular boundaries; local owner-approved route cutover is complete, and the Blazor host was retired and merged to `master` as `e7ebe27c`. Historical parity and operational acceptance remains PARTIAL/unverified.**
+**Status: CURRENT for implemented API/Angular boundaries; local owner-approved route cutover and physical Blazor-host retirement are complete. ADR-0002 records the owner decision and removal at `e7ebe27c`. Historical source-action parity and operational rollback acceptance remain PARTIAL/unverified.**
 
-The owner requested implementation of the attached Blazor-to-Angular guide. Angular replaces presentation incrementally. The .NET modular monolith remains the capability, session and database authority. Angular owns canonical API routes. Commit `59387b54` physically removed the Web host before all behavior and operational gates passed; the source and solution project were later restored as a buildable reference. On 2026-10-17 the owner authorized retirement despite the removal gate remaining `NOT_READY`; the removal was merged to `master` as `e7ebe27c`, so the host is absent from the current tree. The authorization and merge do not establish parity, operational rollback or production acceptance. Sections below describe the state when written; this decision supersedes statements that the host is retained or that removal is blocked. Production deployment, canary, assistive-technology and live Microsoft gates remain separate acceptance work.
+The owner requested implementation of the attached Blazor-to-Angular guide. Angular became the canonical presentation while feature behavior migrated incrementally; the .NET modular monolith remains the capability, session and database authority. Commit `59387b54` physically removed the Web host before all behavior and operational gates passed; the source and solution project were later restored as a buildable reference. On 2026-10-17 the owner authorized physical retirement despite the removal gate remaining `NOT_READY`; the removal was merged to `master` as `e7ebe27c`, so the host is absent from the current tree. [ADR-0002](adr/auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md) records that decision. The authorization and merge do not establish source-action parity, operational rollback or production acceptance. Sections below preserve dated migration evidence; this decision supersedes statements that the host is retained or that physical removal is blocked. Production deployment, canary, assistive-technology and live Microsoft gates remain separate acceptance work.
 
 ## API and Angular project boundary
 
@@ -10,17 +10,17 @@ The owner subsequently requested an ASP.NET Core API backend and a separate Angu
 
 The Blazor `AuditSphereOps.Web` host, its Razor components and MudBlazor were retired and merged to `master` as `e7ebe27c`; they are absent from the current tree and preserved only at the pinned pre-removal commit `c3905e07`. API serves Angular as the canonical presentation path and does not route API/auth/health failures into the SPA. The retired source and a successful historical build do not establish operational rollback acceptance.
 
-Same-origin delivery remains the supported production boundary: build Angular separately, publish its browser artifacts with API, and terminate HTTPS at the approved host. The Angular development server proxies API/auth calls; no permissive cross-origin policy or browser bearer-token store is added. Existing private development user secrets remain in the approved `AuditSphereOps.Web.Development` namespace for local API development; no secret is copied into project configuration. Independent local API publication has been checked. Production deployment and canary acceptance remain open.
+Same-origin delivery remains the supported production boundary: build Angular separately, publish its browser artifacts with API, and terminate HTTPS at the approved host. The Angular development server proxies API/auth calls; no permissive cross-origin policy or browser bearer-token store is added. Existing private development user secrets remain in the legacy-named `AuditSphereOps.Web.Development` namespace for local API development; no secret is copied into project configuration. Independent local API publication has been checked. Production deployment and canary acceptance remain open.
 
-The owner approved local cutover on 2026-10-04. `AngularUi:Enabled` and
+**Historical route-cutover snapshot, superseded on host presence by ADR-0002:** The owner approved local cutover on 2026-10-04. `AngularUi:Enabled` and
 `AngularUi:CanonicalRoutes` are true in the API's checked-in base configuration.
 `AuditSphereOps.Web` was restored after the premature physical deletion in
 `59387b54`; it is included in the solution but not referenced by API.Tests or
 E2E.Tests. The API-only E2E host conversion landed in `8ea3ef01` and its fixture
 now uses API-specific method names. The current Angular, Release, PostgreSQL-backed
-full-suite, and EF model checks pass locally. Source-action parity and operational
-rollback acceptance remain open. Angular assets/API builds remain the active
-route owner.
+full-suite, and EF model checks passed in that historical snapshot. Source-action parity
+and operational rollback acceptance remained open. Angular assets/API builds were the
+route owner; the later physical retirement did not satisfy those acceptance gates.
 
 ## Implemented ownership
 
@@ -35,18 +35,19 @@ No external operation, professional conclusion, role grant or engagement activat
 is inferred. Retained evidence prevents rollback of the receipt migration.
 
 Deployments require their usual approved database migration before these new
-contracts are used. Existing assessment endpoints remain available to retained UI
-builds. Native Angular preview/forms/reference recovery integration and retirement
-acceptance are still pending; the backend alone does not establish UI parity.
+contracts are used. Existing assessment endpoints remain available to existing clients.
+This backend slice alone does not establish Angular source-action parity; physical host
+retirement is a separate ADR-0002 decision and does not certify that parity or operational
+rollback acceptance.
 
-### Existing presentation and host ownership
+### Current Angular presentation and API host ownership
 
 - Angular workspace: `src/AuditSphereOps.Ui`, standalone Angular with Material/CDK, zoneless change notification and lazy capability routes.
 - Shared Material typography uses an installed system font stack for both the shell and body-mounted dialogs, with no external font dependency.
 - API serves only the explicit `/ui` route catalogue shared by `UiEndpoints.SpaRoutes` and Angular `app.routes.ts`; a contract test prevents catalogue drift. Native families include practice, accounting, consolidation, audit, completion, administration and the restricted portal. Auth, consent callbacks, API, protected file transports and health keep their HTTP owners. Unknown routes are not a blanket SPA fallback.
-- `AngularUi:Enabled` and `AngularUi:CanonicalRoutes` default to true in API. Enabling requires a production browser build. `AngularUi:BuildPath` optionally supplies its directory. Local publication bundles browser artifacts under `ui/`; API includes no Web/MudBlazor dependency. A backend-only publication is explicit and must disable local SPA serving or supply approved assets. The restored Web project is a separate solution rollback/reference host, not part of API composition or current API-only test hosting.
+- `AngularUi:Enabled` and `AngularUi:CanonicalRoutes` default to true in API. Enabling requires a production browser build. `AngularUi:BuildPath` optionally supplies its directory. Local publication bundles browser artifacts under `ui/`; API includes no Web/MudBlazor dependency. A backend-only publication is explicit and must disable local SPA serving or supply approved assets. The Blazor Web project was physically removed by the owner-authorized change recorded in ADR-0002 and is absent from the current solution/tree; its source survives only at the pinned pre-removal commit. This removal is not rollback readiness or functional parity.
 - Angular navigation stays within its declared routes. Search validates destinations against that same catalogue, handles multiple hits sharing one destination and shows an unavailable state for an unowned page. Skip navigation focuses the current main content without changing workspace context.
-- API owns `/api/ui/session`, `/api/ui/portfolio` and CSRF-validated `POST /api/ui/sign-out`. Angular uses these same-origin contracts. The separate rollback Web host is not involved in these API routes. They resolve trusted cookie identity and current epoch, never accept browser actor/firm/role authority, and return no-store responses.
+- API owns `/api/ui/session`, `/api/ui/portfolio` and CSRF-validated `POST /api/ui/sign-out`. Angular uses these same-origin contracts. They resolve trusted cookie identity and current epoch, never accept browser actor/firm/role authority, and return no-store responses. No retired Web host is a current caller or route owner.
 - Initial setup has a native `/ui/setup/microsoft365` page and cookie-authenticated `/api/setup/session` / `/api/setup/bootstrap` contracts. Only the exact deployment-approved Microsoft tenant/object identity can submit the installation proof with CSRF protection and explicit review. Application onboarding performs the local binding and evidence transaction; the API returns no raw proof/capability and requires fresh sign-in for the new session epoch. A revoked administrator cannot reopen bootstrap. Tenant preparation uses the deployment tenant and expected draft revision, preserving immutable connection history without asserting consent or selected-site verification.
 - In Development/Test, the synthetic sign-in route mirrors the approved first-sign-in path only when the configured identity's immutable `tid` and `oid` exactly match the deployment-approved bootstrap identity and the installation proof is configured. Its cookie has no session epoch and can reach only the proof-backed setup endpoints before local binding; all ordinary protected workspace access remains unavailable until bootstrap creates the `AppUser` and Administrator `RoleGrant`. Production continues to use the Microsoft OIDC callback.
 - The Application `PortfolioQuery` owns bounded scoped clients, current-scope summary counts, recent release/package projections and formula-safe CSV export. Each projection uses one authorized scope snapshot and rechecks every contributing scope before delivery. Group membership never authorizes this query.
@@ -208,13 +209,13 @@ acceptance decision on behalf of a practitioner.
 
 The owner-approved API configuration now enables `AngularUi:CanonicalRoutes` by
 default. Deployments can explicitly set it to `false` to keep the `/ui` preview
-prefix during rollback. When enabled, the exact native catalogue also owns `/app`,
+prefix during an Angular route-mode rollback. When enabled, the exact native catalogue also owns `/app`,
 `/portal` and `/setup` destinations with a root router base. Preview routes remain
 available under `/ui` for existing tabs. API, auth, health, protected file paths
-and unknown destinations never receive an HTML fallback. The restored Web project
-is not referenced by API route composition; it remains a separate rollback/reference
-host while route ownership stays with Angular. Disabled Angular serving or an incompatible build also
-fails startup.
+and unknown destinations never receive an HTML fallback. The Web project was removed
+under ADR-0002 and is absent from current route composition; Angular route-mode fallback
+and retained fingerprinted assets do not start a Web host or establish operational
+rollback readiness. Disabled Angular serving or an incompatible build also fails startup.
 
 One production build uses `/ui/` for fingerprinted script/style asset URLs in both
 route modes. Router links, search, deep-link sign-in, first-administrator setup and
@@ -229,7 +230,8 @@ may resolve from that directory when an existing tab requests them. Old HTML,
 source maps and unhashed files are excluded from the fallback. The deployment
 operator must confirm API compatibility and retain the previous build for the
 approved rollback window. No older API/database writer is started by this option.
-Local mode/asset checks do not establish production rollout or final retirement.
+Local mode/asset checks do not establish production rollout or operational rollback
+acceptance. Physical Web-host retirement was authorized separately by ADR-0002.
 
 ### Responsive shell navigation and preserved bookmarks
 
@@ -257,7 +259,7 @@ Search length at most 100, page size 1–100, nonnegative bounded page index. Ro
 
 The generated [source discovery inventory](../execution/angular-source-inventory.json) identifies routes, event expressions, service injections and literal links. It is not manually accepted coverage: nested/dynamic commands, dialogs, drafts, permissions and source tests still require review.
 
-The implementation covers native route families for practice, accounting, consolidation, audit, completion, portal and administration. Route presence is not accepted source-action parity. Full form/draft/control parity, comprehensive security and behavioral coverage, measurable production-like performance, rollback readiness and retirement acceptance remain open. The migration backlog records partial story coverage. The Web host was retired and merged to `master` as `e7ebe27c`; historical operational rollback acceptance remains unverified.
+The implementation covers native route families for practice, accounting, consolidation, audit, completion, portal and administration. Route presence is not accepted source-action parity. Full form/draft/control parity, comprehensive security and behavioral coverage, measurable production-like performance and operational rollback acceptance remain open. The migration backlog records partial story coverage. Physical host retirement was authorized and merged to `master` as `e7ebe27c` under ADR-0002; historical rollback acceptance remains unverified.
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
@@ -428,7 +430,7 @@ The following notes preserve the implemented slices and their safeguards. Earlie
 
 ### Client contacts
 
-The client projection now includes bounded contacts and an independently authorized contact-management capability. `POST /api/ui/clients/{id}/contacts` validates antiforgery, resolves current server identity, checks client-wide access and delegates to `PracticeCrmService`. The browser sends the reviewed safety-generation string; the Application service checks it under the client safety-row lock before inserting. A repeated request with that generation is rejected after the first accepted insertion. Angular never retries commands automatically and labels an unconfirmed transport outcome for review. Existing Blazor callers retain their current optional-generation behavior. This is revision fencing, not a persisted command receipt; comprehensive reconciliation, drafts and full feature parity remain open.
+The client projection now includes bounded contacts and an independently authorized contact-management capability. `POST /api/ui/clients/{id}/contacts` validates antiforgery, resolves current server identity, checks client-wide access and delegates to `PracticeCrmService`. The browser sends the reviewed safety-generation string; the Application service checks it under the client safety-row lock before inserting. A repeated request with that generation is rejected after the first accepted insertion. Angular never retries commands automatically and labels an unconfirmed transport outcome for review. The optional-generation behavior of former Blazor callers is historical source only and is not a current caller contract. This is revision fencing, not a persisted command receipt; comprehensive reconciliation, drafts and full feature parity remain open.
 
 ### Engagement planning read panels
 
@@ -547,7 +549,7 @@ Worker workspace receipts now bind the exact resource, credential reference fing
 
 ### Confirmation workspace
 
-The [curated confirmation action audit](../execution/angular-confirmation-parity.json) records implemented controls and remaining dispositions independently from the generated Razor discovery inventory.
+The [curated confirmation action audit](../execution/angular-confirmation-parity.json) records implemented controls and remaining dispositions independently from the historical generated Razor source-discovery inventory.
 
 The native engagement confirmation route composes `ConfirmationWorkspace` and the existing fieldwork/deliverable services. The register is paged with outstanding and critical filters. Case review pins current response and alternative revisions, identity, actor/session epoch and register generation. Reviewed commands take firm/client/engagement and case locks and participate in one local transaction. Creation refuses duplicate source/date identities; an uncertain response fences further writes until persisted-state refresh and fresh review. There is no external-send command or delivery claim.
 
@@ -579,7 +581,7 @@ Input reads exclude expired grants and enforce exact client/engagement ancestry.
 
 Angular uses native Signal Forms, exact bounded decimal text and explicit reviewed submission. Remeasurement intent uses the versioned tab-draft policy above, scoped to the exact period and engagement. Recovery never restores review assent. Context changes clear previous line fields only after the keep/save/discard choice; refresh retains edits while changed approved inputs block submission until explicit rebase and fresh review. Session invalidation withdraws forms, detail and drafts. An unconfirmed submission is saved as pending intent where tab storage is available and cannot be replayed automatically.
 
-The standalone API, native browser journey and Angular component tests cover this workpaper vertical slice. Currency intake review and the complete source-action/rate-method editor parity remain separate open acceptance items; this section does not retire the legacy presentation.
+The standalone API, native browser journey and Angular component tests cover this workpaper vertical slice. Currency intake review and the complete source-action/rate-method editor parity remain separate open acceptance items. This historical implementation note does not establish parity or operational rollback acceptance; physical host retirement is recorded separately in ADR-0002.
 
 ### Native intake currency comparison
 
@@ -609,8 +611,9 @@ and base revision. Identity/session/context-bound tab drafts restore bounded int
 fresh review. Changed contexts protect unsaved edits. Unknown outcomes fence new commands until a
 successful persisted-state refresh and explicit reconciliation; commands are never automatically
 replayed. Server and browser regression checks, publication and remaining acceptance are recorded
-in the execution ledger. This vertical slice does not establish complete migration or Blazor
-retirement acceptance.
+in the execution ledger. This vertical slice does not establish complete source-action parity or
+operational rollback acceptance. Physical host retirement is the separate owner decision recorded
+in ADR-0002.
 
 ### Reviewed multi-period intake
 
@@ -663,8 +666,9 @@ Native Signal Forms preserve evidence-reference intent through explicit, bounded
 Pending/stale checkpoints fence writes on reload; recovery never restores assent. A persisted
 read plus acknowledgment is required after an unknown outcome, and no command is automatically
 retried. Protected data is cleared on identity changes or failed reads. Native GL upload and
-completeness are covered by the subsequent slices below; reviewed mapping editing and full
-story/retirement acceptance remain pending.
+completeness are covered by the subsequent slices below; reviewed mapping editing, full
+source-action parity and operational rollback acceptance remain pending. Physical host
+retirement is separately authorized under ADR-0002.
 
 ### Native general-ledger inspection
 
@@ -716,8 +720,9 @@ tab. Assent is never restored. Context changes and failed reads remove protected
 Lost response checkpoints require an explicit persisted-state read and acknowledgment before
 more writes or navigation. Completed calculation, extract coverage, independent approval,
 source selection and professional conclusions are separate facts. The bounded native GL CSV
-import is described below; wider intake/form/retirement acceptance remains open. Verification
-facts live in the execution ledger.
+import is described below; wider intake/form parity and operational rollback acceptance remain
+open. Physical host retirement is separately authorized under ADR-0002. Verification facts
+live in the execution ledger.
 
 ### Native general-ledger CSV upload
 
@@ -880,7 +885,8 @@ blocks another creation and navigation after an unknown response. Opening a reco
 requires acknowledgment of its retained receipt. The creation-evidence migration preserves
 append-only events and refuses rollback while such evidence exists. Owned local tests exercise
 it; shared Development and production are not migrated. Management/client-response and
-reflection/application controls, wider migration acceptance and retirement remain open.
+reflection/application controls, wider migration acceptance and operational rollback acceptance
+remain open. Physical host retirement is separately authorized under ADR-0002.
 
 ### Native journal management response
 
@@ -910,8 +916,9 @@ stores only bounded editable fields and request metadata, excluding assent; clie
 remain in memory. Current session/scope loss clears protected context and fences late responses.
 
 The additive management-evidence migration is exercised only in owned synthetic databases.
-Shared Development/production migration application and full story, QA, cutover and retirement
-acceptance remain open. Observed verification and initial failures live in `status.json`.
+Shared Development/production migration application, full story and QA acceptance, production
+cutover, and operational rollback acceptance remain open. Physical host retirement is separately
+authorized under ADR-0002. Observed verification and initial failures live in `status.json`.
 
 ### Native adjustment-plan eligibility review
 
@@ -968,7 +975,8 @@ Same-engagement hold paging preserves the editor. Late dialog results cannot sav
 under a changed identity or engagement, and busy/unknown writes fence departure.
 Tab departure warns without trapping sign-out. Application services retain all
 business authority. Backend staffing/revocation and approval request recovery are
-still incomplete; full planning parity and UI retirement acceptance remain open.
+still incomplete; full planning/source-action parity and operational rollback acceptance remain
+open. Physical host retirement is separately authorized under ADR-0002.
 
 ### Planning action authority
 
@@ -1028,4 +1036,5 @@ text is excluded from tab persistence. Conversion and its immutable receipt shar
 the existing Application transaction; unknown responses reconcile by actor-owned
 request reference. Professional acceptance, engagement activation and portal
 invitation remain separate authorities. This slice has focused local verification;
-assessment, remaining quality gates and retirement acceptance remain pending.
+assessment, remaining quality gates and operational rollback acceptance remain pending.
+Physical host retirement is separately authorized under ADR-0002.

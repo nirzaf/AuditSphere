@@ -40,10 +40,15 @@ this document wins and the source text remains a historical requirement record.
 ```
 
 - **One modular monolith**, with `Domain`, `Application`, `Infrastructure`, `Api`
-  and `Worker`. The owner authorized retirement of the Blazor rollback host on
-  2026-10-17; the removal was merged to `master` as `e7ebe27c`, so the host is
-  absent from the current tree. API serves Angular as the canonical route owner.
-  No microservices, no message broker, no second ERP.
+  and `Worker`. `AuditSphereOps.Api` is the HTTP host and serves
+  `AuditSphereOps.Ui` (Angular) as the canonical presentation. The owner authorized
+  physical retirement of the Blazor rollback host on 2026-10-17; its removal was
+  merged to `master` as `e7ebe27c`. No Blazor project or `.razor` files remain in
+  the current tree. This physical removal does not establish source-action parity
+  or operational rollback acceptance. No microservices, no message broker, no
+  second ERP. [ADR-0002](adr/auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md)
+  records the canonical Angular decision, retirement authorization and the unverified
+  parity/rollback conditions.
 - **Microsoft tenant administration** follows the
   [capability permission decision](auditsphere-m365-tenant-administration-permissions.md):
   each Microsoft capability (directory read, optional user creation, guest
@@ -148,7 +153,7 @@ flowchart LR
 
 ## Angular presentation migration
 
-The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend. API owns the authorized contracts, authentication/consent and protected file transports. On 2026-10-17 the owner authorized retirement of the Blazor rollback/reference host despite the readiness gate; the removal was merged to `master` as `e7ebe27c`, so the host is absent from the current tree. The retired project is not referenced by API composition or the current API-only test projects, and the removed source remains available at commit `c3905e07`. Operators use the API host with Angular. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries remain separate. Production canary, operational rollback, assistive-technology, locale, and live Microsoft acceptance gates remain open.
+The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend; [ADR-0002](adr/auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md) is the decision record. API owns the authorized contracts, authentication/consent and protected file transports. On 2026-10-17 the owner authorized physical retirement of the Blazor rollback/reference host despite the readiness gate; the removal was merged to `master` as `e7ebe27c`, so no Web project or `.razor` source remains in the current tree. The removed source remains available at commit `c3905e07` as historical evidence only. Operators use the API host with Angular. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries remain separate. Source-action parity, operational rollback, production canary, assistive-technology, locale, and live Microsoft acceptance remain unverified or open; physical retirement does not resolve those gates.
 
 Native journal management evidence composes the existing local treatment command in Application.
 Client and staff routes derive signed-in versus offline evidence from current identity, preserve
@@ -168,11 +173,12 @@ The migration detail and code map describe separate reflection/application gates
 3. **One fact, one authority.** Volatile project state (test counts, verified SHA, migration
    count, external blockers, verification dates) lives in `docs/execution/status.json` only.
    Do not copy exact volatile numbers into README or narrative docs.
-4. **Web composes Application.** Razor components may compose Application commands/queries and
-   scoped reads; do not add new business-state mutations directly through `DbContext`. When an
-   existing page is substantially modified, move complex reads or business operations into a
-   named Application query/service when that reduces page responsibility. Do not bulk-refactor
-   unaffected pages.
+4. **API and Angular own the presentation boundary.** `AuditSphereOps.Api` composes the
+   authenticated HTTP contracts, session/consent boundaries and protected file transports;
+   `AuditSphereOps.Ui` owns the Angular routes and presentation and calls the same-origin API.
+   Keep authorization and business mutations in Application services, never in browser-only
+   state. Do not add a server-side Razor presentation host; ADR-0002 records the canonical
+   Angular decision and the later physical retirement of the Blazor host.
 5. **Authorization is scope-checked and records are append-only.** Every command, query and
    queue enforces explicit `RoleGrant` scope; sealed datasets, approved mappings, applied
    journals, issued packages and review decisions change only through new revisions. History
@@ -187,12 +193,14 @@ these solve the navigability problem the physical splits solve.
 
 ## Where to look first
 
-Use [`auditsphere-architecture-code-map.md`](auditsphere-architecture-code-map.md) to find the Domain/Application/Infrastructure/Web/tests files
-for a business capability before searching the whole repository.
+Use [`auditsphere-architecture-code-map.md`](auditsphere-architecture-code-map.md) to find the
+Domain/Application/Infrastructure/API/Angular/tests files for a business capability before
+searching the whole repository. The removed Web/Razor paths in that map are historical references
+only, not current owners or evidence of Angular parity.
 
 ## Dedicated client SharePoint sites
 
-The owner-approved [client-site decision](auditsphere-client-sharepoint-sites-current.md) adds an isolated Acceptance `client-sites` worker for supported SharePoint site creation, exact document-worker grants and reconciliation of assigned staff into a site group with Full Control. Its privileged certificate is never mounted in Web or the `pbc` worker. A persisted new-client rollout boundary preserves existing repositories and blocks shared-site fallback for newer clients. Local RoleGrant scopes remain unchanged. Staff have site-wide sharing/deletion authority; external immutable archive protection remains a separately verified requirement.
+The owner-approved [client-site decision](auditsphere-client-sharepoint-sites-current.md) adds an isolated Acceptance `client-sites` worker for supported SharePoint site creation, exact document-worker grants and reconciliation of assigned staff into a site group with Full Control. Its privileged certificate was never mounted in the retired Web host and is not mounted in the `pbc` worker. A persisted new-client rollout boundary preserves existing repositories and blocks shared-site fallback for newer clients. Local RoleGrant scopes remain unchanged. Staff have site-wide sharing/deletion authority; external immutable archive protection remains a separately verified requirement.
 
 ### STE commercial and completion evidence
 

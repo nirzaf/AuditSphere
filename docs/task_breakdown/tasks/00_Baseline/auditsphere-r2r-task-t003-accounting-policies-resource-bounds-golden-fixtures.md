@@ -25,7 +25,7 @@ updated_at: "2026-10-10T13:14:02+00:00"
 
 Obtain the professional and numerical policy decisions needed by all downstream tasks.
 
-**Open decision register:** R2R-specific standards, effective-period and consolidation-profile approvals; all eight GOLD-R2R fixture approvals; and the proposed resource-bound approvals. These are distinct from the approved repository architecture ADRs. The owner-delegated approval of ADR-0001–0007 and ADR-0009 does not supply professional policy sign-off or an independent review.
+**Open decision register:** R2R-specific standards, effective-period and consolidation-profile approvals and all eight GOLD-R2R fixture approvals need qualified ownership and independent review. ADR-0014 already closes six-decimal/ToEven arithmetic; ADR-0015 closes reporting-context identity, not its implementation. Retain the existing enforced NFR request bounds as the delegated engineering default. A new versioned resource policy and production capacity acceptance remain technical/operations evidence work; they do not block independent contract inventory or require an accountant to reapprove existing constants. No ADR or engineering delegation supplies professional sign-off or independent fixture review.
 
 **Original work package:** `R2R-00` — Pin current SHA; inventory existing models/services/migrations/UI/tests; reconcile ADRs and scope conflicts
 **Original package exit:** Existing/new symbol ledger, policy approvals, preserved baseline tests and dependency licence decisions.
@@ -51,7 +51,7 @@ Hard dependencies must be COMPLETED, with reviewed handoff evidence:
 
 1. Reuse ADR-0014 for R2R-ADR-03's technical six-decimal/ToEven convention. A qualified methodology owner and independent reviewer must still approve FX sources/effective periods, framework editions and supported methods, and R2R-ADR-09 consolidation profiles; do not record these as approved without that evidence.
 2. Review all eight GOLD-R2R fixtures independently; retain their identities and exact expected values separately from existing approved fixtures.
-3. Approve or lower the proposed resource limits in section 10.1; retain any stricter existing limit until changed by an approved decision.
+3. Map section 10.1's proposed resource limits against existing enforced NFR constants; retain the stricter existing behavior without changing limits in this documentation slice. Record unimplemented bounds as code/evidence gaps. Any changed capacity target needs operations evidence; do not present it as an agreed professional or production policy.
 4. Separate source-derived standards research from current professional approval. Do not infer tax balances, new methods, market FX rates or a universal compliance claim.
 
 ## 1. Domain Modeling (`.Domain`)
@@ -83,9 +83,9 @@ Use predecessor outputs by exact identity/revision/manifest, not by selecting a 
 
 - [T004 — Make command and query boundaries explicit as static services without changing transaction behavior](../01_CQRS/auditsphere-r2r-task-t004-command-query-boundary.md)
 
-## 5. Blazor UI Architecture (`.Web`)
+## 5. Current presentation boundary
 
-Extend the source-listed existing routes before adding a parallel workspace. Use immutable DTOs in per-circuit scoped UI state, separate EditContexts, EventCallbacks, server field errors and save/discard/cancel dirty guards. No circuit-owned DbContext, cross-user static state, optimistic approval or fake completion. Recheck selection tokens and clear protected content on route/scope loss.
+Use the existing Angular/API route and typed DTOs; any future policy editor must retain independent review, server field errors, explicit dirty-state handling and scope/session invalidation. No browser-owned DbContext, cross-user state, optimistic professional approval or fake completion. The original Blazor architecture remains historical reference only under ADR-0002.
 
 ## 6. Edge Cases, Security & Verification
 
