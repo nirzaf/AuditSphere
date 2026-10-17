@@ -730,6 +730,7 @@
         "openApi": "PASS: regenerated contracts/auditsphere-openapi.json and scripts/contracts/verify-openapi.sh is current",
         "earlierSlices": "Angular specs 28 passed and tsc clean at 4075d2b2 (package and build screens); not rerun after 0eb44ece, which changed no Angular file",
         "candidatePromotionTests": "3 passed at working tree (StatementCandidatePromotionTests: candidate successor, refusal/idempotency, same-candidate review binding); 60/60 re-verified in CashFlowContract, FinancialPackageGate, FinancialStatementPresentation, FinancialStatementTests",
+        "f01TransactionCoverage": "F-01 cash-event projection: 1/1, 60169c51.",
         "statementComposition": "StatementCompositionTests (2) and StatementCandidatePromotionTests (3) pass; append-only trigger proven by a regression; Domain focused classes 264 passed at 459e9701",
         "compositionReviewReleaseBundle": "PASS: 35/35 PostgreSQL-backed Domain tests across StatementCandidatePromotion, FinancialPackageGate, AuditDeliverables and ClientAccounting financial packages; exact composition approval, release pin and bundle integrity covered",
         "angularFullSuite": "PASS: npm run test:ci; 127 files and 736 tests",
