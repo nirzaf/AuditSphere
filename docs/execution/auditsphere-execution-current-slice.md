@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Retained firm expense paging and recovery
+
+Firm books now exposes bounded expense pages and exact firm-scoped expense lookup for uncertain action recovery. Focused database, API and Angular checks pass; the positive browser finance journey remains pending because the synthetic browser identity has no finance assignment. No access grant changed. Exact source/results are in the execution ledger.
+
 ## Firm monthly date boundaries
 
 Monthly P&L safely handles supported year-0001 and December-9999 periods, preserving null missing comparatives. Monthly series above the existing 1,200-row UI boundary are refused before activity calculation. The existing balanced-ledger regression passes; full acceptance remains open. Exact results are in the execution ledger.
@@ -324,9 +328,3 @@ The Angular ordering panel provides exact review and assent, receipt-only recove
 WF-08 task prerequisites now reference current independently approved materiality, an exact accepted/closed PBC request or a current independently reviewed procedure. Satisfaction is evaluated live; no editable satisfaction flag exists. Scoped managers review revision-fenced changes with reasons and recover uncertain replies by reading their actor-owned receipt. Append-only policy history and exact source foreign keys are database-enforced; both workflow and legacy task completion honor required evidence. PBC waits feed the client-wait queue; stale procedure generations and open review notes remain blockers. Expired role grants no longer elevate task completion.
 
 The focused .NET, Angular and owned browser batch passed after correcting synthetic fixture/assertion issues. Built-in-browser inspection also confirmed a reviewed withdrawal changes only operational policy and retains the unsatisfied professional source. Exact counts, source digest, artifacts and migration evidence are in `targetedVerification.workflowDomainEvidencePrerequisites` in [status.json](status.json). No persistent database was migrated. WF-08 remains partial: template-declared domain rules and safe manual task-edge amendments are next; broader workflow, release and external/professional acceptance remain open.
-
-## Agent capability evidence and pilot comparison — 2026-10-13
-
-The existing [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) maps acceptance to named checks, exposes synthetic actors/states and omitted evidence, parses sanitized assertion/request-ID context, and detects HTML/SCSS/new-file changes. Explicit browser execution builds the current UI first; reports cannot overwrite source or prior evidence. Matching-cohort comparisons retain missing measurements instead of inventing gains. Focused UI/browser, authorization/API and calculator pilots passed; source hashes, the resolved socket-denial attempt and limitations are under `targetedVerification.agentCapabilityRunner` in [status.json](status.json). Comparative productivity measurements, broader release checks and external/professional acceptance remain open.
-
-Earlier workflow analytics, FX and release/rework increment notes are retained verbatim in the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).

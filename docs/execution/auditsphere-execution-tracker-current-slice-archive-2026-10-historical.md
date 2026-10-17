@@ -7285,3 +7285,9 @@ Annual receipts now open the exact new engagement in the existing client assessm
 ## Annual reference metadata — 2026-10-13
 
 Annual preparation suggests active client contacts valid at the next-period start and approved mappings from the exact prior engagement and period. Accounting metadata requires source-engagement accounting read authority; RelationshipManagers receive a restricted state. References are bounded and never copy allocations, routing, access, consent or approvals. Evidence is under `targetedVerification.workflowAnnualReferenceMetadata` in [status.json](status.json). Fresh-checklist orchestration and broader acceptance remain open.
+
+## Agent capability evidence and pilot comparison — 2026-10-13
+
+The existing [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) maps acceptance to named checks, exposes synthetic actors/states and omitted evidence, parses sanitized assertion/request-ID context, and detects HTML/SCSS/new-file changes. Explicit browser execution builds the current UI first; reports cannot overwrite source or prior evidence. Matching-cohort comparisons retain missing measurements instead of inventing gains. Focused UI/browser, authorization/API and calculator pilots passed; source hashes, the resolved socket-denial attempt and limitations are under `targetedVerification.agentCapabilityRunner` in [status.json](status.json). Comparative productivity measurements, broader release checks and external/professional acceptance remain open.
+
+Earlier workflow analytics, FX and release/rework increment notes are retained verbatim in the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
