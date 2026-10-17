@@ -1,6 +1,15 @@
 <a class="skip-link" href="#main" (click)="skipToMain($event)">Skip to main content</a>
 <header class="app-header">
   <strong class="brand-wordmark"><span class="brand-mark" aria-hidden="true">AS</span><span>AuditSphere</span></strong>
+  @if (session.current() && !publicSetup() && !compact()) {
+    <button type="button" class="shell-button desktop-navigation-toggle"
+      [attr.aria-pressed]="navigationCompact()"
+      [attr.aria-label]="navigationCompact() ? 'Expand sidebar navigation' : 'Compact sidebar navigation'"
+      [attr.title]="navigationCompact() ? 'Expand navigation' : 'Compact navigation'"
+      aria-controls="workspace-navigation" (click)="toggleNavigationCompact()">
+      <audit-nav-icon [name]="navigationCompact() ? 'panel-left-open' : 'panel-left-close'" />
+    </button>
+  }
   <span class="spacer"></span>
   @if (session.current()?.staff && !publicSetup()) {
     @defer (on interaction; on idle) {
@@ -16,15 +25,7 @@
     @else if (!session.checked()) { Verifying session }
     @else { Workspace }
   </span>
-  @if (session.current() && !publicSetup() && !compact()) {
-    <button type="button" class="shell-button desktop-navigation-toggle"
-      [attr.aria-pressed]="navigationCompact()"
-      [attr.aria-label]="navigationCompact() ? 'Expand sidebar navigation' : 'Compact sidebar navigation'"
-      [attr.title]="navigationCompact() ? 'Expand navigation' : 'Compact navigation'"
-      aria-controls="workspace-navigation" (click)="toggleNavigationCompact()">
-      <audit-nav-icon [name]="navigationCompact() ? 'panel-left-open' : 'panel-left-close'" />
-    </button>
-  }
+
   @if (session.current() && !publicSetup()) {
     <button class="shell-button navigation-toggle" aria-haspopup="dialog"
       [attr.aria-expanded]="navigationOpen()" [attr.aria-busy]="navigationLoading()"
