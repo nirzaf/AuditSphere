@@ -1177,7 +1177,19 @@
       "fixAngular": "PASS",
       "fixRemaining": "NET/browser pending"
     },
-    "operatorReceiptRecovery": "PARTIAL; D18 API7 E2E8 Angular1283 pass; 7 migrations pending; live VPS not checked; e4686058 build PASS; Domain 29/29; run 38946802126 running"
+    "operatorReceiptRecovery": "PARTIAL; D18 API7 E2E8 Angular1283 pass; 7 migrations pending; live VPS not checked; e4686058 build PASS; Domain 29/29; run 38946802126 running",
+    "cashFlowSourceReviewRevocationRace": {
+      "recordedAtUtc": "2026-10-17T05:09:20Z",
+      "sourceCommit": "1ee3c0e7ed743a3b2a838cad102c76428e07c267",
+      "run": "https://github.com/nirzaf/AuditSphere/actions/runs/39003733534",
+      "workflow": "AuditSphere release verification",
+      "cohort": "Test · .NET Domain (unfiltered)",
+      "result": "PASS",
+      "test": "CashFlowContractTests.SourceReview_RevokedActorDuringLockWait_RecordsNothing",
+      "evidence": "The test observes the source-review command waiting on the package lock, revokes the reviewer role while the user retains a non-review grant, releases the lock, and verifies ScopeDenied with no source-review row persisted.",
+      "disposition": "CLOSES the prior F-02 post-lock revocation timing-test blocker for this current candidate. F-02 source-kind/provenance and broader story acceptance remain open.",
+      "unrelatedJobs": "API and Playwright E2E jobs in the same release run were still in progress when recorded."
+    }
   },
   "externalGates": [
     {
