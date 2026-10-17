@@ -26,6 +26,15 @@ public static class ResourceGridCalculator
   /// <summary>The Sunday that opens the firm week containing the date. A week runs Sunday to Saturday.</summary>
   public static DateOnly WeekStart(DateOnly date) => date.AddDays(-(int)date.DayOfWeek);
 
+  /// <summary>Preserves every configured weekly minute; remainder minutes go to the earliest working days (Sunday first).</summary>
+  public static int DailyCapacityMinutes(int weeklyCapacityMinutes, DayOfWeek day, IReadOnlyCollection<DayOfWeek>? workingDays = null)
+  {
+    var days = (workingDays ?? FirmWorkingWeek).Distinct().OrderBy(x => x).ToArray();
+    var index = Array.IndexOf(days, day);
+    if (index < 0 || weeklyCapacityMinutes <= 0) return 0;
+    return weeklyCapacityMinutes / days.Length + (index < weeklyCapacityMinutes % days.Length ? 1 : 0);
+  }
+
   public static IReadOnlyList<ResourceWeekCell> Build(
     int weeklyCapacityMinutes, IReadOnlyCollection<StaffAvailability> availability, IReadOnlyCollection<StaffAllocation> allocations,
     IReadOnlyCollection<(DateOnly WorkDate, int Minutes)> approvedTime, DateOnly firstWeek, int weeks, IReadOnlyCollection<DayOfWeek>? workingDays = null,
@@ -36,7 +45,6 @@ public static class ResourceGridCalculator
     // minutes still show all approved time. A caller that does not separate the two is treated as all billable.
     approvedBillableTime ??= approvedTime;
     var cells = new List<ResourceWeekCell>(weeks);
-    var perDayCapacity = workingDays.Count == 0 ? 0 : weeklyCapacityMinutes / workingDays.Count;
     for (var w = 0; w < weeks; w++)
     {
       var start = WeekStart(firstWeek).AddDays(7 * w);
@@ -46,7 +54,7 @@ public static class ResourceGridCalculator
       {
         if (!workingDays.Contains(d.DayOfWeek)) continue;
         var dayOff = availability.Where(a => a.StartDate <= d && a.EndDate >= d).Sum(a => a.MinutesPerDay);
-        unavailable += Math.Min(dayOff, perDayCapacity);
+        unavailable += Math.Min(dayOff, DailyCapacityMinutes(weeklyCapacityMinutes, d.DayOfWeek, workingDays));
       }
       var capacity = Math.Max(0, weeklyCapacityMinutes - unavailable);
       var planned = allocations.Where(a => a.WeekStart == start).Sum(a => a.PlannedMinutes);

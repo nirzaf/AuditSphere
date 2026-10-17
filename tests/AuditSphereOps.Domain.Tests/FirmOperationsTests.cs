@@ -292,6 +292,23 @@ public sealed partial class FirmOperationsTests
     var department = Assert.Single(result.Value.Departments);
     Assert.Equal(0, department.CapacityMinutes); Assert.Equal(60, department.ChargeableMinutes);
     Assert.Null(department.UtilizationPercent); Assert.Equal<decimal?>(75m, department.TargetPercent);
+    Assert.True((await ResourcePlanningService.SaveProfileAsync(db, manager,
+      new(w.U["staff"].Id, "Remainder capacity", "", 2401, 75m))).Succeeded);
+    var sunday = new DateOnly(2026, 10, 11);
+    var completeWeek = await PracticeAnalyticsQuery.GetAsync(db, partner, sunday, sunday.AddDays(4));
+    Assert.True(completeWeek.Succeeded, completeWeek.Message);
+    Assert.Equal(2401, Assert.Single(completeWeek.Value!.Departments).CapacityMinutes);
+    var grid = await ResourcePlanningService.GetGridAsync(db, manager, sunday, 1);
+    Assert.Equal(2401, grid.Value!.Rows.Single(x => x.UserId == w.U["staff"].Id).Weeks[0].CapacityMinutes);
+    Assert.True((await ResourcePlanningService.AddAvailabilityAsync(db, manager,
+      new(w.U["staff"].Id, sunday, sunday, StaffAvailabilityKinds.Leave, 481))).Succeeded);
+    var withLeave = await PracticeAnalyticsQuery.GetAsync(db, partner, sunday, sunday.AddDays(4));
+    Assert.Equal(1920, Assert.Single(withLeave.Value!.Departments).CapacityMinutes);
+    var leaveGrid = await ResourcePlanningService.GetGridAsync(db, manager, sunday, 1);
+    Assert.Equal(1920, leaveGrid.Value!.Rows.Single(x => x.UserId == w.U["staff"].Id).Weeks[0].CapacityMinutes);
+    var finalDate = await PracticeAnalyticsQuery.GetAsync(db, partner, DateOnly.MaxValue, DateOnly.MaxValue);
+    Assert.True(finalDate.Succeeded, finalDate.Message);
+
   }
 
   [Fact]

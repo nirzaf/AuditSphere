@@ -116,6 +116,14 @@ public sealed class SteV22OwnerDecisionTests
     var cells = ResourceGridCalculator.Build(2400, [wholeWeek], [], [], sunday, 2);
     Assert.Equal((0, 2400), (cells[0].CapacityMinutes, cells[0].UnavailableMinutes));
     Assert.Equal((2400, 0), (cells[1].CapacityMinutes, cells[1].UnavailableMinutes));
+    // 2,401 minutes must not lose its remainder or retain phantom capacity after a full week of leave.
+    Assert.Equal(481, ResourceGridCalculator.DailyCapacityMinutes(2401, DayOfWeek.Sunday));
+    Assert.Equal(480, ResourceGridCalculator.DailyCapacityMinutes(2401, DayOfWeek.Thursday));
+    Assert.Equal(2401, ResourceGridCalculator.FirmWorkingWeek.Sum(day => ResourceGridCalculator.DailyCapacityMinutes(2401, day)));
+    var oddLeave = new StaffAvailability { StartDate = sunday, EndDate = sunday.AddDays(4), MinutesPerDay = 481, Kind = StaffAvailabilityKinds.Leave };
+    var oddWeek = ResourceGridCalculator.Build(2401, [oddLeave], [], [], sunday, 1).Single();
+    Assert.Equal((0, 2401), (oddWeek.CapacityMinutes, oddWeek.UnavailableMinutes));
+
   }
 
   [Fact]
