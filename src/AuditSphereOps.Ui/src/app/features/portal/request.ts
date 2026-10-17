@@ -103,20 +103,55 @@ export class ClientPbcRequest {
   readonly busy = signal(false); readonly uncertain = signal(false); readonly uploadUncertain = signal(false);
   readonly failed = signal(false); readonly message = signal('');
   private abort = new AbortController(); private selection = 0;
+  private lastDraftContext: { identity: string; authorization: string } | null = null;
   statusLabel(state: string): string { return clientRequestStatusLabel(state); }
   constructor() {
-    effect(() => { this.id(); this.session.invalidation(); if (!this.session.current() || !this.ws.data()) {
-      this.abort.abort(); this.abort = new AbortController(); this.selection++; this.file.set(null); this.hash.set('');
-      this.dragOver.set(false);
-      this.reply.reset(); this.delegation.reset(); this.sent.set(0);
-      if (!this.session.current() || !this.id()) { this.uploadUncertain.set(false); this.uncertain.set(false); }
-    } });
+    effect(() => {
+      const requestId = this.id();
+      const generation = this.session.invalidation();
+      const actor = this.session.current();
+      const error = this.ws.error();
+      const workspace = this.ws.data();
+      if (!requestId || !actor || error || workspace && workspace.id !== requestId) {
+        this.clearDrafts();
+        this.lastDraftContext = null;
+        return;
+      }
+
+      const identity = `${generation}:${actor.userId}:${actor.firmId}:${actor.generation}:${requestId}`;
+      // Api.resource intentionally drops decoded data during reload. Keep the last authorized context
+      // across that pending interval, but only while route and session identity remain unchanged.
+      if (!workspace) {
+        if (this.lastDraftContext && this.lastDraftContext.identity !== identity) {
+          this.clearDrafts();
+          this.lastDraftContext = null;
+        }
+        return;
+      }
+
+      const authorization = `${workspace.canWrite}:${workspace.canDelegate}:${workspace.firstSignIn.completed}`;
+      if (this.lastDraftContext && (this.lastDraftContext.identity !== identity || this.lastDraftContext.authorization !== authorization)) {
+        this.clearDrafts();
+      }
+      this.lastDraftContext = { identity, authorization };
+    });
     const interval = setInterval(() => {
       if (!this.busy() && !this.ws.loading() && this.session.current()) {
         this.ws.reload();
       }
     }, 30_000);
     inject(DestroyRef).onDestroy(() => { this.abort.abort(); clearInterval(interval); });
+  }
+  private clearDrafts(): void {
+    this.abort.abort(); this.abort = new AbortController(); this.selection++;
+    this.file.set(null); this.hash.set(''); this.sent.set(0); this.dragOver.set(false);
+    this.reply.reset(); this.delegation.reset();
+    this.uploadUncertain.set(false); this.uncertain.set(false);
+  }
+  private currentWorkspace(): { id: string; canWrite: boolean; canDelegate: boolean; firstSignIn: { completed: boolean } } | null {
+    const workspace = this.ws.data();
+    return this.session.current() && !this.ws.error() && !this.ws.loading() && workspace?.id === this.id()
+      ? workspace : null;
   }
   timeline(): { id: string; at: string; speaker: string; body: string }[] {
     const w = this.ws.data(); if (!w) return [];
@@ -132,7 +167,7 @@ export class ClientPbcRequest {
     return !!file && !!hash && file.name === upload.fileName && String(file.size) === upload.declaredByteCount &&
       hash.toLowerCase() === upload.sha256.toLowerCase();
   }
-  refresh(): void { if (this.busy()) return; this.ws.reload(); /* unknown mutations remain fenced; verify with the audit team before repeating */ }
+  refresh(): void { if (this.busy() || this.ws.loading()) return; this.ws.reload(); /* unknown mutations remain fenced; verify with the audit team before repeating */ }
   async choose(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const selected = input.files?.[0] ?? null;
@@ -180,7 +215,7 @@ export class ClientPbcRequest {
     catch { if (sequence === this.selection) { this.failed.set(true); this.message.set('The fingerprint could not be calculated. Select the file again.'); } }
   }
   private async command(path: string, body: unknown, success: string): Promise<void> {
-    if (this.busy() || this.uncertain()) return;
+    if (this.busy() || this.uncertain() || !this.currentWorkspace()) return;
     const generation = this.session.invalidation(); this.busy.set(true); this.message.set('');
     try {
       const r = await this.api.command(path, body);
@@ -192,13 +227,15 @@ export class ClientPbcRequest {
     } finally { this.busy.set(false); }
   }
   sendReply(): void { if (this.reply.invalid || !this.reply.controls.body.value.trim()) return;
+    if (!this.currentWorkspace()?.canWrite) return;
     void this.command(`/api/ui/portal/requests/${this.id()}/reply`, this.reply.getRawValue(), 'Reply added to the request timeline.'); }
-  delegate(): void { if (this.delegation.invalid) return;
+  delegate(): void { if (this.delegation.invalid || !this.currentWorkspace()?.canDelegate) return;
     void this.command(`/api/ui/portal/requests/${this.id()}/delegations`, this.delegation.getRawValue(), 'Delegation recorded.'); }
-  revoke(id: string): void { void this.command(`/api/ui/portal/requests/${this.id()}/delegations/${id}/revoke`, {}, 'Delegation revoked.'); }
+  revoke(id: string): void { if (!this.currentWorkspace()?.canDelegate) return;
+    void this.command(`/api/ui/portal/requests/${this.id()}/delegations/${id}/revoke`, {}, 'Delegation revoked.'); }
   async upload(): Promise<void> {
     const file = this.file(), hash = this.hash(), requestId = this.id();
-    if (!file || !hash || !requestId || this.busy() || this.uncertain() || !this.ws.data()?.canWrite) return;
+    if (!file || !hash || !requestId || this.busy() || this.uncertain() || !this.currentWorkspace()?.canWrite) return;
     const generation = this.session.invalidation(), abort = this.abort; this.busy.set(true); this.message.set(''); this.sent.set(0);
     try {
       const started = await this.api.command(`/api/ui/portal/requests/${requestId}/uploads`, { fileName: file.name,
@@ -214,7 +251,7 @@ export class ClientPbcRequest {
     finally { this.busy.set(false); if (generation === this.session.invalidation()) this.ws.reload(); }
   }
   async resumeUpload(upload: PortalUploadRow): Promise<void> {
-    const file = this.file(), hash = this.hash(), requestId = this.id(), current = this.ws.data();
+    const file = this.file(), hash = this.hash(), requestId = this.id(), current = this.currentWorkspace();
     if (!file || !hash || !requestId || !current?.canWrite || !current.firstSignIn.completed || !this.canResume(upload) ||
         !this.matchesUpload(upload) || this.busy()) return;
     const generation = this.session.invalidation(), abort = this.abort;
