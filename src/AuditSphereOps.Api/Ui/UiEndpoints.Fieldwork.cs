@@ -25,6 +25,7 @@ public static partial class UiEndpoints
   public sealed record AdHocInput(string Title, string Wording, string Reason, string? SectionTitle);
   public sealed record ReviewNoteInput(Guid ResultId, string Field, string Excerpt, string Body);
   public sealed record ReviewNoteEventInput(string Kind, string? Body);
+  public sealed record AdoptProgramInput(Guid ProgramVersionId, string SourceHash, string ContentDigest, Guid? ExpectedAdoptionId);
 
   private static void MapFieldworkEndpoints(RouteGroupBuilder group)
   {
@@ -32,6 +33,8 @@ public static partial class UiEndpoints
       ReadAsync(http, (db, actor, ct) => ManagerReviewSummaryQuery.GetAsync(db, actor, id, ct)));
     group.MapGet("/engagements/{id:guid}/fieldwork", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.GetAsync(db, actor, id, ct)));
+    group.MapGet("/engagements/{id:guid}/fieldwork/program-options", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementAuditProgramQuery.GetOptionsAsync(db, actor, id, ct)));
     group.MapGet("/procedures/{id:guid}/review", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.ProcedureAsync(db, actor, id, ct)));
     group.MapPost("/procedures/{id:guid}/tailor", (Guid id, TailorProcedureInput i, HttpContext http) =>
@@ -44,8 +47,11 @@ public static partial class UiEndpoints
       CommandAsync(http, (db, actor, ct) => AuditProgramService.ReviewResultAsync(db, actor,
         new ReviewProcedureResultRequest(id, i.Decision ?? "", i.Comment), ct,
         http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"))));
-    group.MapPost("/engagements/{id:guid}/fieldwork/program", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.PublishAndAdoptAsync(db, actor, id, AuditFieldworkWorkspaceQuery.DefaultProgramVersion, ct)));
+    group.MapPost("/engagements/{id:guid}/fieldwork/program", (Guid id, AdoptProgramInput input, HttpContext http) =>
+      string.IsNullOrWhiteSpace(input.SourceHash) || string.IsNullOrWhiteSpace(input.ContentDigest)
+        ? Task.FromResult(Invalid("Refresh and submit the exact published programme source and content identities."))
+        : CommandAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.AdoptPublishedAsync(db, actor,
+          new AdoptAuditProgramRequest(id, input.ProgramVersionId, input.SourceHash, input.ContentDigest, input.ExpectedAdoptionId), ct)));
     group.MapPost("/procedures/{id:guid}/applicability", (Guid id, ApplicabilityInput i, HttpContext http) =>
       i.Decision is AuditApplicabilityStatuses.Applicable or AuditApplicabilityStatuses.NotApplicablePendingReview
         ? CommandAsync(http, (db, actor, ct) => AuditProgramService.DecideApplicabilityAsync(db, actor, new DecideProcedureApplicabilityRequest(id, i.Decision,

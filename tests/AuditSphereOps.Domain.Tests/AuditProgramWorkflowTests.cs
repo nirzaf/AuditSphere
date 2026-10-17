@@ -93,10 +93,32 @@ public sealed class AuditProgramWorkflowTests
     Assert.Equal(published.Value.ProgramVersionId, idempotent.Value!.ProgramVersionId);
     Assert.Equal(165, await db.AuditProgramProcedures.CountAsync());
 
-    var adopted = await AuditProgramService.AdoptAsync(db, scope.Actor,
-      new AdoptAuditProgramRequest(scope.EngagementId, published.Value.ProgramVersionId));
+    var options = await EngagementAuditProgramQuery.GetOptionsAsync(db, scope.Actor, scope.EngagementId);
+    Assert.True(options.Succeeded, options.Message);
+    var option = Assert.Single(options.Value!.Options, x => x.Version == "2026.1" && x.Eligible);
+    Assert.Equal(AuditProgramCatalog.ContentDigest, option.ContentDigest);
+    var adoptRequest = new AdoptAuditProgramRequest(scope.EngagementId, option.ProgramVersionId,
+      option.SourceHash, option.ContentDigest, options.Value.CurrentAdoptionId);
+    var adopted = await AuditProgramService.AdoptAsync(db, scope.Actor, adoptRequest);
     Assert.True(adopted.Succeeded);
     Assert.Equal(165, adopted.Value!.ProcedureCount);
+    Assert.Equal(165, adopted.Value.BaselineProcedureCount);
+    Assert.Equal(0, adopted.Value.AdHocProcedureCount);
+    var adoptionReplay = await AuditProgramService.AdoptAsync(db, scope.Actor,
+      adoptRequest with { ExpectedAdoptionId = adopted.Value.EngagementProgramId });
+    Assert.True(adoptionReplay.Succeeded, adoptionReplay.Message);
+    Assert.Equal(adopted.Value.EngagementProgramId, adoptionReplay.Value!.EngagementProgramId);
+    var staleSource = await AuditProgramService.AdoptAsync(db, scope.Actor,
+      adoptRequest with { ExpectedSourceHash = new string('0', 64) });
+    Assert.False(staleSource.Succeeded);
+    var secondVersion = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
+      new PublishAuditProgramRequest("2026.2", AuditProgramCatalog.SourceHash));
+    Assert.True(secondVersion.Succeeded, secondVersion.Message);
+    var versionConflict = await AuditProgramService.AdoptAsync(db, scope.Actor,
+      new AdoptAuditProgramRequest(scope.EngagementId, secondVersion.Value!.ProgramVersionId,
+        secondVersion.Value.SourceHash, secondVersion.Value.ContentDigest, adopted.Value.EngagementProgramId));
+    Assert.False(versionConflict.Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, versionConflict.ErrorCode);
     Assert.Equal(165, await db.AuditProcedures.CountAsync(x => x.EngagementId == scope.EngagementId));
     Assert.Equal(0, await db.AuditProcedures.CountAsync(x => x.EngagementId == scope.EngagementId && x.RiskId != null));
     Assert.False((await AuditProgramService.AdoptAsync(db, scope.Actor,

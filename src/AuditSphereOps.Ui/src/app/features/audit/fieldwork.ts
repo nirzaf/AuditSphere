@@ -37,6 +37,11 @@ export const decodeFieldwork = obj({ engagementId: guid, catalogProcedureCount: 
   physicalItems: arr(obj({ id: guid, fileIndex: text, boxReference: text, description: text, currentLocation: text,
     movements: arr(obj({ toLocation: text, movedAt: instant }), 1000), procedureTitles: arr(text, 1000) }), 5000),
   canManageFieldwork: bool, canReviewSelections: bool, canViewReviewNotes: bool, canAddOrResolveReviewNotes: bool, canRespondToReviewNotes: bool });
+export const decodeProgramOptions = obj({ engagementId: guid, currentAdoptionId: nullable(guid), currentProgramVersionId: nullable(guid),
+  currentVersion: nullable(text), currentSourceHash: nullable(text), currentContentDigest: nullable(text), baselineProcedureCount: nat,
+  adHocProcedureCount: nat, currentAdoptionComplete: bool, currentAdoptionBlocker: nullable(text),
+  options: arr(obj({ programVersionId: guid, programCode: text, version: text, sourceHash: text, contentDigest: nullable(text),
+    procedureCount: nat, eligible: bool, blocker: nullable(text) }), 50) });
 const samplingPreviewDecoder = obj({ previewDigest: text, sourceDigest: text, outcome: obj({ method: text, populationCount: nat, populationSignedTotal: dec,
   populationAbsoluteTotal: dec, selectedCount: nat, selectedAbsoluteTotal: dec, coveragePercent: dec, seed: nullable(int), interval: nullable(dec),
   keyItemThreshold: nullable(dec), items: arr(obj({ stableRowId: text, signedAmount: dec, absoluteAmount: dec, inclusionReason: text,
@@ -326,10 +331,30 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
         @if (w.program; as p) {
           <dl class="facts"><dt>Program</dt><dd>{{ p.programCode }} v{{ p.version }}</dd><dt>Source hash</dt><dd><code>{{ p.sourceHash }}</code></dd>
             <dt>Adopted procedures</dt><dd>{{ w.procedures.length }}</dd><dt>Applicable / reviewed</dt><dd>{{ count(w, 'APPLICABLE') }} / {{ reviewed(w) }}</dd></dl>
+          @if (programOptions.data(); as options) {
+            <p>Controlled baseline {{ options.baselineProcedureCount }} · ad hoc {{ options.adHocProcedureCount }}. The baseline and engagement-added procedures are counted separately.</p>
+            @if (!options.currentAdoptionComplete || options.currentAdoptionBlocker) { <p class="error" role="alert">{{ options.currentAdoptionBlocker ?? 'The current adoption is not verified complete. Review its source and retained procedures before relying on coverage.' }}</p> }
+          }
           <p class="actions"><a [routerLink]="['/app/engagements', w.engagementId, 'audit-plan']">Open planning</a><a routerLink="/app/audit/library">Program library</a><a [routerLink]="['/app/engagements', w.engagementId, 'completion']">Open completion</a></p>
         } @else {
           <p>No published program has been adopted for this engagement.</p>
-          <button matButton="filled" (click)="send('/api/ui/engagements/' + w.engagementId + '/fieldwork/program', {}, 'Published programme adopted.')" [disabled]="cmd.busy()">Adopt published programme {{ w.catalogVersion }}</button>
+          @if (programOptions.data(); as options) {
+            @if (options.currentAdoptionBlocker) { <p class="error" role="alert">{{ options.currentAdoptionBlocker }}</p> }
+            @if (options.options.length) {
+              <label for="published-program-version">Published programme version</label>
+              <select id="published-program-version" [ngModel]="selectedProgramVersion(options)" (ngModelChange)="selectedProgramVersionId.set($event)">
+                @for (option of options.options; track option.programVersionId) {
+                  <option [value]="option.programVersionId" [disabled]="!option.eligible">{{ option.programCode }} v{{ option.version }} · {{ option.procedureCount }} procedures{{ option.eligible ? '' : ' · unavailable' }}</option>
+                }
+              </select>
+              @if (selectedProgram(options); as selected) {
+                <p>Source SHA-256 <code>{{ selected.sourceHash }}</code> · content SHA-256 <code>{{ selected.contentDigest ?? 'unverified' }}</code> · baseline {{ selected.procedureCount }}</p>
+                @if (selected.blocker) { <p role="status">{{ selected.blocker }}</p> }
+                <button matButton="filled" (click)="adoptProgram(options)" [disabled]="cmd.busy() || !selected.eligible || !!options.currentAdoptionId || !!options.currentAdoptionBlocker">Adopt exact published version {{ selected.version }}</button>
+              }
+            } @else { <p role="status">No published eligible programme is available. A firm-wide owner must publish a reviewed version first.</p> }
+          } @else if (programOptions.loading()) { <p role="status">Loading engagement-scoped published versions…</p> }
+          @else if (programOptions.error()) { <p class="error" role="alert">{{ programOptions.error() }}</p> }
         }
       </section>
 
@@ -448,6 +473,10 @@ export class AuditFieldwork {
   readonly focusedRisks = computed(() => focusRisks(this.ws.data()?.risks ?? [], this.statementFocus.line));
   readonly ws = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/fieldwork` : null), decodeFieldwork,
     'Fieldwork unavailable: an authorized internal engagement scope is required.');
+  readonly programOptions = this.api.resource(() => this.id() && this.ws.data()?.canManageFieldwork
+    ? `/api/ui/engagements/${this.id()}/fieldwork/program-options` : null, decodeProgramOptions,
+    'Published programme options unavailable for this authorized engagement.');
+  readonly selectedProgramVersionId = signal('');
   readonly managerReview = this.api.resource(() => this.id() && this.ws.data()?.canReviewSelections
     ? `/api/ui/engagements/${this.id()}/manager-review` : null, decodeManagerReview,
     'Manager review summary unavailable: an authorized reviewer scope is required.');
@@ -633,6 +662,21 @@ export class AuditFieldwork {
     return this.cmd.run(url, body, ok, after).finally(() => this.ws.reload());
   }
   private invalid(m: string): void { this.cmd.failed.set(true); this.cmd.message.set(m); }
+  selectedProgram(options: ReturnType<typeof decodeProgramOptions>) {
+    const selectedId = this.selectedProgramVersionId();
+    return options.options.find(x => x.programVersionId === selectedId) ?? options.options.find(x => x.eligible) ?? null;
+  }
+  selectedProgramVersion(options: ReturnType<typeof decodeProgramOptions>): string {
+    return this.selectedProgram(options)?.programVersionId ?? '';
+  }
+  adoptProgram(options: ReturnType<typeof decodeProgramOptions>): void {
+    const selected = this.selectedProgram(options);
+    if (!selected?.eligible || options.currentAdoptionId || options.currentAdoptionBlocker) return;
+    void this.send(`/api/ui/engagements/${this.id()}/fieldwork/program`, {
+      programVersionId: selected.programVersionId, sourceHash: selected.sourceHash,
+      contentDigest: selected.contentDigest, expectedAdoptionId: options.currentAdoptionId,
+    }, 'Exact published programme adopted.');
+  }
   private base(): string { return `/api/ui/engagements/${this.id()}/fieldwork`; }
   decide(procedureId: string, decision: string): void { void this.send(`/api/ui/procedures/${procedureId}/applicability`, { decision }, 'Recorded.'); }
   aggregate(w: Fieldwork): void { void this.send(this.base() + '/aggregate', { conclusion: this.aggregateConclusion }, 'Aggregate conclusion recorded.'); }

@@ -278,17 +278,18 @@ else
         if (_actor is null || _engagement is null) return;
         _busy = true;
         await using var db = await DbFactory.CreateDbContextAsync();
-        var published = await db.AuditProgramVersions.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.FirmId == _actor.FirmId && x.ProgramCode == AuditProgramCatalog.ProgramCode &&
-            x.Version == _version && x.Status == AuditProgramStatuses.Published);
-        if (published is not null)
+        var options = await EngagementAuditProgramQuery.GetOptionsAsync(db, _actor, EngagementId);
+        var published = options.Value?.Options.SingleOrDefault(x => x.Version == _version && x.Eligible);
+        if (options.Succeeded && published is not null)
         {
-            var adopted = await AuditProgramService.AdoptAsync(db, _actor, new AdoptAuditProgramRequest(EngagementId, published.Id));
+            var adopted = await AuditProgramService.AdoptAsync(db, _actor, new AdoptAuditProgramRequest(
+                EngagementId, published.ProgramVersionId, published.SourceHash, published.ContentDigest, options.Value!.CurrentAdoptionId));
             _result = adopted.Succeeded ? CommandResult.Ok() : CommandResult.Fail(adopted.ErrorCode!, adopted.Message!);
         }
         else
         {
-            _result = CommandResult.Fail(AuditSphereOps.Domain.Shared.ErrorCodes.GateBlocked, "A firm-wide owner must prepare and independently publish this version in the audit library before adoption.");
+            _result = CommandResult.Fail(options.ErrorCode ?? AuditSphereOps.Domain.Shared.ErrorCodes.GateBlocked,
+                options.Message ?? "A firm-wide owner must prepare and independently publish this version in the audit library before adoption.");
         }
         _busy = false;
         await LoadAsync();

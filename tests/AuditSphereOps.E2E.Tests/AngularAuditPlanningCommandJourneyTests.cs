@@ -38,11 +38,15 @@ public sealed class AngularAuditPlanningCommandJourneyTests
       var published = await AuditProgramTestHelpers.PublishAsync(setup, PbcSeed.Actor(f.Admin, "Partner"),
         new("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(published.Succeeded, published.Message);
-      var adopted = await AuditFieldworkWorkspaceQuery.PublishAndAdoptAsync(setup,
-        PbcSeed.Actor(f.Admin, "Partner"), f.EngagementId, "2026.1");
+      var adoptionActor = PbcSeed.Actor(f.Admin, "Partner");
+      var options = await EngagementAuditProgramQuery.GetOptionsAsync(setup, adoptionActor, f.EngagementId);
+      Assert.True(options.Succeeded, options.Message);
+      var option = Assert.Single(options.Value!.Options, x => x.Version == "2026.1" && x.Eligible);
+      var adopted = await AuditProgramService.AdoptAsync(setup, adoptionActor,
+        new AdoptAuditProgramRequest(f.EngagementId, option.ProgramVersionId, option.SourceHash, option.ContentDigest, options.Value.CurrentAdoptionId));
       Assert.True(adopted.Succeeded, adopted.Message);
       procedureId = await setup.AuditProcedures.Where(x => x.EngagementId == f.EngagementId &&
-        x.EngagementProgramId == adopted.Value && x.SourceProcedureId == "AWP-01-01").Select(x => x.Id).SingleAsync();
+        x.EngagementProgramId == adopted.Value!.EngagementProgramId && x.SourceProcedureId == "AWP-01-01").Select(x => x.Id).SingleAsync();
     }
     var riskId = fields.AssessRisk?.RiskId ?? fields.AssignRiskOwner?.RiskId ?? fields.ClearRisk?.RiskId ?? fields.LinkProcedureRisk?.RiskId ?? Guid.Empty;
     if (action == "ASSESS_RISK")

@@ -62,9 +62,32 @@ public sealed class AuditProgramCommandsApiTests
     Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
     using var replayJson = JsonDocument.Parse(await replay.Content.ReadAsStringAsync());
     Assert.Equal(versionId, replayJson.RootElement.GetProperty("value").GetProperty("programVersionId").GetGuid());
+
+    var optionsUrl = $"/api/ui/engagements/{f.EngagementId:D}/fieldwork/program-options";
+    using var optionsResponse = await preparer.GetAsync(optionsUrl);
+    Assert.Equal(HttpStatusCode.OK, optionsResponse.StatusCode);
+    using var optionsJson = JsonDocument.Parse(await optionsResponse.Content.ReadAsStringAsync());
+    var option = optionsJson.RootElement.GetProperty("options").EnumerateArray()
+      .Single(x => x.GetProperty("programVersionId").GetGuid() == versionId);
+    Assert.True(option.GetProperty("eligible").GetBoolean());
+    var adoptionUrl = $"/api/ui/engagements/{f.EngagementId:D}/fieldwork/program";
+    var adoptionBody = new { programVersionId = versionId, sourceHash = AuditProgramCatalog.SourceHash,
+      contentDigest, expectedAdoptionId = (Guid?)null };
+    Assert.Equal(HttpStatusCode.Forbidden, (await Post(preparer, "invalid", adoptionUrl, adoptionBody)).StatusCode);
+    using var adoptionResponse = await Post(preparer, preparerCsrf, adoptionUrl, adoptionBody);
+    Assert.Equal(HttpStatusCode.OK, adoptionResponse.StatusCode);
+    using var adoptionJson = JsonDocument.Parse(await adoptionResponse.Content.ReadAsStringAsync());
+    var adoption = adoptionJson.RootElement.GetProperty("value");
+    var adoptionId = adoption.GetProperty("engagementProgramId").GetGuid();
+    Assert.Equal(165, adoption.GetProperty("baselineProcedureCount").GetInt32());
+    Assert.Equal(0, adoption.GetProperty("adHocProcedureCount").GetInt32());
+    var adoptionReplay = await Post(preparer, preparerCsrf, adoptionUrl, adoptionBody with { expectedAdoptionId = adoptionId });
+    Assert.Equal(HttpStatusCode.OK, adoptionReplay.StatusCode);
     await using var proof = new AuditSphereDbContext(pg.Options);
     Assert.Single(await proof.AuditProgramVersions.ToListAsync());
     Assert.Equal(165, await proof.AuditProgramProcedures.CountAsync());
+    Assert.Single(await proof.EngagementAuditPrograms.ToListAsync());
+    Assert.Equal(165, await proof.AuditProcedures.CountAsync());
   }
 
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg, AppUser user) => new(new Dictionary<string, string?>

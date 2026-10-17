@@ -25,6 +25,14 @@ public sealed record EngagementProgramView(
   string? SourceHash, int TotalProcedures,
   IReadOnlyList<EngagementProgramSectionCoverage> Sections);
 
+public sealed record EngagementProgramOption(Guid ProgramVersionId, string ProgramCode, string Version,
+  string SourceHash, string? ContentDigest, int ProcedureCount, bool Eligible, string? Blocker);
+
+public sealed record EngagementProgramOptionsView(Guid EngagementId, Guid? CurrentAdoptionId,
+  Guid? CurrentProgramVersionId, string? CurrentVersion, string? CurrentSourceHash, string? CurrentContentDigest,
+  int BaselineProcedureCount, int AdHocProcedureCount, bool CurrentAdoptionComplete, string? CurrentAdoptionBlocker,
+  IReadOnlyList<EngagementProgramOption> Options);
+
 public sealed record EngagementProcedurePage(
   Guid EngagementId, IReadOnlyList<EngagementProcedureView> Items, int TotalCount, int Page, int PageSize);
 
@@ -32,6 +40,77 @@ public static class EngagementAuditProgramQuery
 {
   private static readonly string[] ReadRoles =
     ["Auditor", "Reviewer", "Manager", "Partner", "Administrator", "AccountingPreparer", "AccountingReviewer"];
+  private static readonly string[] AdoptionRoles =
+    ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
+
+  /// <summary>Shows exact published programme identities only within an authorized engagement scope.</summary>
+  public static async Task<CommandResult<EngagementProgramOptionsView>> GetOptionsAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    if (engagementId == Guid.Empty)
+      return CommandResult<EngagementProgramOptionsView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == engagementId && x.FirmId == actor.FirmId, ct);
+    if (engagement is null)
+      return CommandResult<EngagementProgramOptionsView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
+        AdoptionRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!authorization.Succeeded)
+      return CommandResult<EngagementProgramOptionsView>.Fail(authorization.ErrorCode!, authorization.Message!);
+
+    var adoptions = await db.EngagementAuditPrograms.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId &&
+        x.Status == EngagementAuditProgramStatuses.Adopted)
+      .OrderByDescending(x => x.AdoptedAt).ThenByDescending(x => x.Id).Take(2).ToListAsync(ct);
+    var current = adoptions.Count == 1 ? adoptions[0] : null;
+    var currentProgram = current is null ? null : await db.AuditProgramVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == current.ProgramVersionId, ct);
+    var currentProcedures = current is null ? [] : await db.AuditProcedures.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId &&
+        x.EngagementProgramId == current.Id).ToListAsync(ct);
+    var currentTemplates = current is null ? [] : await db.AuditProgramProcedures.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.ProgramVersionId == current.ProgramVersionId)
+      .OrderBy(x => x.SectionNumber).ThenBy(x => x.Ordinal).ToListAsync(ct);
+    var isCurrentComplete = current is not null && currentProgram is not null &&
+      string.Equals(currentProgram.SourceHash, AuditProgramCatalog.SourceHash, StringComparison.OrdinalIgnoreCase) &&
+      string.Equals(currentProgram.ContentDigest, AuditProgramCatalog.ContentDigest, StringComparison.OrdinalIgnoreCase) &&
+      AuditProgramService.MatchesControlledCatalog(currentTemplates) &&
+      AuditProgramService.HasCompleteAdoption(currentProcedures, currentTemplates);
+
+    var versions = await db.AuditProgramVersions.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.ProgramCode == AuditProgramCatalog.ProgramCode && x.Status == AuditProgramStatuses.Published)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Take(50).ToListAsync(ct);
+    var versionIds = versions.Select(x => x.Id).ToArray();
+    var allTemplates = versionIds.Length == 0 ? [] : await db.AuditProgramProcedures.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && versionIds.Contains(x.ProgramVersionId))
+      .OrderBy(x => x.SectionNumber).ThenBy(x => x.Ordinal).ToListAsync(ct);
+    var templateMap = allTemplates.ToLookup(x => x.ProgramVersionId);
+    var options = versions.Select(version =>
+    {
+      var templates = templateMap[version.Id].ToArray();
+      var eligible = string.Equals(version.SourceHash, AuditProgramCatalog.SourceHash, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(version.ContentDigest, AuditProgramCatalog.ContentDigest, StringComparison.OrdinalIgnoreCase) &&
+        AuditProgramService.MatchesControlledCatalog(templates);
+      return new EngagementProgramOption(version.Id, version.ProgramCode, version.Version, version.SourceHash,
+        version.ContentDigest, templates.Length, eligible,
+        eligible ? null : "This published version is legacy-unverified or differs from the controlled source.");
+    }).ToArray();
+
+    var currentBaseline = currentProcedures.Count(x => x.ProgramProcedureId.HasValue);
+    var currentAdHoc = currentProcedures.Count - currentBaseline;
+    var blocker = adoptions.Count > 1 ? "More than one active programme exists; controlled reconciliation is required."
+      : current is not null && !isCurrentComplete ? "The retained adoption is incomplete or does not match its published source; it was not repaired."
+      : null;
+    var recheck = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
+        AdoptionRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
+    if (!recheck.Succeeded)
+      return CommandResult<EngagementProgramOptionsView>.Fail(recheck.ErrorCode!, recheck.Message!);
+    return CommandResult<EngagementProgramOptionsView>.Ok(new(engagementId, current?.Id, current?.ProgramVersionId,
+      currentProgram?.Version, currentProgram?.SourceHash, currentProgram?.ContentDigest,
+      currentBaseline, currentAdHoc, isCurrentComplete, blocker, options));
+  }
 
   /// <summary>Tailored procedure list for one engagement, optionally limited to one
   /// source section, with the exact preserved source wording and decision evidence.</summary>

@@ -28,13 +28,18 @@ public sealed record AuditProgramResult(
   DateTimeOffset CreatedAt,
   DateTimeOffset? ApprovedAt);
 
-public sealed record AdoptAuditProgramRequest(Guid EngagementId, Guid ProgramVersionId);
+public sealed record AdoptAuditProgramRequest(Guid EngagementId, Guid ProgramVersionId,
+  string? ExpectedSourceHash = null, string? ExpectedContentDigest = null, Guid? ExpectedAdoptionId = null);
 
 public sealed record EngagementAuditProgramResult(
   Guid EngagementProgramId,
   Guid ProgramVersionId,
   int ProcedureCount,
-  string Status);
+  string Status,
+  string SourceHash,
+  string? ContentDigest,
+  int BaselineProcedureCount,
+  int AdHocProcedureCount);
 
 public sealed record DecideProcedureApplicabilityRequest(
   Guid AuditProcedureId,
@@ -258,7 +263,7 @@ public static class AuditProgramService
       .AsNoTracking().ToListAsync(ct);
   }
 
-  private static bool MatchesControlledCatalog(IReadOnlyList<AuditProgramProcedure> persisted) =>
+  internal static bool MatchesControlledCatalog(IReadOnlyList<AuditProgramProcedure> persisted) =>
     persisted.Count == AuditProgramCatalog.Items.Count && persisted.Zip(AuditProgramCatalog.Items).All(pair =>
       pair.First.SourceProcedureId == pair.Second.SourceProcedureId &&
       pair.First.SectionNumber == pair.Second.SectionNumber && pair.First.SectionTitle == pair.Second.SectionTitle &&
@@ -292,23 +297,56 @@ public static class AuditProgramService
     if (program is null)
       return CommandResult<EngagementAuditProgramResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
+    if (!string.Equals(program.SourceHash, AuditProgramCatalog.SourceHash, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(program.ContentDigest, AuditProgramCatalog.ContentDigest, StringComparison.OrdinalIgnoreCase) ||
+        (request.ExpectedSourceHash is not null && !string.Equals(request.ExpectedSourceHash, program.SourceHash, StringComparison.OrdinalIgnoreCase)) ||
+        (request.ExpectedContentDigest is not null && !string.Equals(request.ExpectedContentDigest, program.ContentDigest, StringComparison.OrdinalIgnoreCase)))
+      return CommandResult<EngagementAuditProgramResult>.Fail(ErrorCodes.GenerationStale,
+        "The selected programme source changed or is not the complete current controlled catalogue. Refresh the engagement options.");
+
+    var active = await db.EngagementAuditPrograms.AsNoTracking().Where(x => x.FirmId == scope.FirmId &&
+        x.ClientId == scope.ClientId && x.EngagementId == request.EngagementId && x.Status == EngagementAuditProgramStatuses.Adopted)
+      .OrderBy(x => x.AdoptedAt).ThenBy(x => x.Id).ToListAsync(ct);
+    if (active.Count > 1)
+      return CommandResult<EngagementAuditProgramResult>.Fail(ErrorCodes.GateBlocked,
+        "This engagement has inconsistent active programme adoptions; controlled reconciliation is required.");
+
     var existing = await db.EngagementAuditPrograms.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientId &&
         x.EngagementId == request.EngagementId && x.ProgramVersionId == program.Id, ct);
     if (existing is not null)
     {
+      if (existing.Status != EngagementAuditProgramStatuses.Adopted ||
+          active.Count != 1 || active[0].Id != existing.Id ||
+          (request.ExpectedAdoptionId.HasValue && request.ExpectedAdoptionId != existing.Id))
+        return CommandResult<EngagementAuditProgramResult>.Fail(ErrorCodes.IdempotencyConflict,
+          "This programme version is historical or differs from the engagement's current adoption.");
+      var existingProcedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == scope.FirmId &&
+          x.ClientId == scope.ClientId && x.EngagementId == request.EngagementId && x.EngagementProgramId == existing.Id)
+        .ToListAsync(ct);
+      var existingTemplates = await db.AuditProgramProcedures.AsNoTracking().Where(x =>
+          x.FirmId == scope.FirmId && x.ProgramVersionId == program.Id)
+        .OrderBy(x => x.SectionNumber).ThenBy(x => x.Ordinal).ToListAsync(ct);
+      if (!MatchesControlledCatalog(existingTemplates) || !HasCompleteAdoption(existingProcedures, existingTemplates))
+        return CommandResult<EngagementAuditProgramResult>.Fail(ErrorCodes.GateBlocked,
+          "The retained engagement adoption is incomplete or inconsistent; no automatic repair was performed.");
+      var baselineCount = existingProcedures.Count(x => x.ProgramProcedureId.HasValue);
+      var adHocCount = existingProcedures.Count - baselineCount;
       await tx.CommitAsync(ct);
       return CommandResult<EngagementAuditProgramResult>.Ok(new(existing.Id, existing.ProgramVersionId,
-        await db.AuditProcedures.CountAsync(x => x.FirmId == scope.FirmId && x.EngagementId == request.EngagementId &&
-          x.EngagementProgramId == existing.Id, ct), existing.Status));
+        existingProcedures.Count, existing.Status, program.SourceHash, program.ContentDigest, baselineCount, adHocCount));
     }
+
+    if (active.Count == 1 || request.ExpectedAdoptionId.HasValue)
+      return CommandResult<EngagementAuditProgramResult>.Fail(ErrorCodes.IdempotencyConflict,
+        "A different programme is already adopted or the expected adoption changed. Existing work was preserved.");
 
     var templates = await db.AuditProgramProcedures.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ProgramVersionId == program.Id)
       .OrderBy(x => x.SectionNumber).ThenBy(x => x.Ordinal).ToListAsync(ct);
-    if (templates.Count != AuditProgramCatalog.Items.Count)
+    if (!MatchesControlledCatalog(templates))
       return CommandResult<EngagementAuditProgramResult>.Fail(InvalidCode,
-        "The published program does not contain the complete controlled catalog.");
+        "The published programme does not match the complete controlled source catalogue.");
 
     var adoption = new EngagementAuditProgram
     {
@@ -344,7 +382,26 @@ public static class AuditProgramService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<EngagementAuditProgramResult>.Ok(new(adoption.Id, adoption.ProgramVersionId,
-      templates.Count, adoption.Status));
+      templates.Count, adoption.Status, program.SourceHash, program.ContentDigest, templates.Count, 0));
+  }
+
+  internal static bool HasCompleteAdoption(IReadOnlyList<AuditProcedure> procedures,
+    IReadOnlyList<AuditProgramProcedure> templates)
+  {
+    var byTemplateId = templates.ToDictionary(x => x.Id);
+    var baseline = procedures.Where(x => x.ProgramProcedureId.HasValue).ToList();
+    if (baseline.Count != AuditProgramCatalog.Items.Count ||
+        baseline.Select(x => x.ProgramProcedureId).Distinct().Count() != AuditProgramCatalog.Items.Count)
+      return false;
+    foreach (var procedure in baseline)
+    {
+      if (!byTemplateId.TryGetValue(procedure.ProgramProcedureId!.Value, out var template) ||
+          !string.Equals(procedure.SourceProcedureId, template.SourceProcedureId, StringComparison.Ordinal) ||
+          procedure.SourceSectionNumber != template.SectionNumber ||
+          !string.Equals(procedure.SourceSectionTitle, template.SectionTitle, StringComparison.Ordinal))
+        return false;
+    }
+    return true;
   }
 
   public static async Task<CommandResult<ProcedureApplicabilityResult>> DecideApplicabilityAsync(

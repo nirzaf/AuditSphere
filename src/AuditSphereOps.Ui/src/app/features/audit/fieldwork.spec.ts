@@ -6,7 +6,7 @@ import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { TabDrafts } from '../../core/tab-drafts';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AuditFieldwork, decodeFieldwork, decodeProcedureReview, decodeSampleSet, focusRisks } from './fieldwork';
+import { AuditFieldwork, decodeFieldwork, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, focusRisks } from './fieldwork';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -223,6 +223,17 @@ describe('Audit Fieldwork Contracts', () => {
     expect(() => decodeFieldwork(null, 'fieldwork')).toThrow();
     expect(() => decodeFieldwork({}, 'fieldwork')).toThrow();
     expect(() => decodeProcedureReview(null, 'procedureReview')).toThrow();
+  });
+
+  it('decodes engagement-scoped programme options and separate baseline/ad-hoc counts', () => {
+    const decoded = decodeProgramOptions({ engagementId: id1, currentAdoptionId: null, currentProgramVersionId: null,
+      currentVersion: null, currentSourceHash: null, currentContentDigest: null, baselineProcedureCount: 0,
+      adHocProcedureCount: 0, currentAdoptionComplete: false, currentAdoptionBlocker: null,
+      options: [{ programVersionId: id2, programCode: 'CORE-AUDIT', version: '2026.1', sourceHash: hash64,
+        contentDigest: hash64, procedureCount: 165, eligible: true, blocker: null }] }, 'programOptions');
+    expect(decoded.options[0].eligible).toBe(true);
+    expect(decoded.options[0].procedureCount).toBe(165);
+    expect(() => decodeProgramOptions({ engagementId: id1, options: [] }, 'programOptions')).toThrow();
   });
 });
 
