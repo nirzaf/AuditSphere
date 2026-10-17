@@ -155,8 +155,8 @@ function isHash(value: string): boolean { return /^[0-9a-f]{64}$/.test(value); }
   selector: 'audit-consolidation-external-packs',
   imports: [FormsModule, ...SHARED],
   template: `
-    <section class="panel" id="external-packs" aria-labelledby="external-packs-heading">
-      <h2 id="external-packs-heading">External component packs</h2>
+    <section class="panel" id="external-pack-workbench" aria-labelledby="external-pack-workbench-heading">
+      <h2 id="external-pack-workbench-heading">External component packs</h2>
       <p>Source packs and every returned or resubmitted version stay visible with their source hashes, lines, reconciliation evidence and bridge lineage. Intake never writes to a component book or calls an external provider.</p>
       <audit-state [loading]="workspace.loading()" [error]="workspace.error()" label="external component pack history" />
 
@@ -205,7 +205,7 @@ function isHash(value: string): boolean { return /^[0-9a-f]{64}$/.test(value); }
             <audit-state [loading]="detail.loading()" [error]="detail.error()" label="the selected external component pack" />
             @if (detail.data(); as d) {
               @if (!detailCurrent(d, w)) {
-                <p role="alert">The selected detail no longer matches this scope's current group revision. Refresh and review current evidence before continuing.</p>
+                <p role="alert">This retained detail is read-only. Changes require a current draft scope and matching group revision; refresh the evidence if its revision changed.</p>
               }
               <dl>
                 <dt>Pack identity</dt><dd><code>{{ d.pack.id }}</code> · version {{ d.pack.version }} · {{ d.pack.status }}</dd>
@@ -280,7 +280,7 @@ function isHash(value: string): boolean { return /^[0-9a-f]{64}$/.test(value); }
                 @for (client of clientOptions(w); track client.clientId) { <option [value]="client.clientId">{{ client.legalName }} · {{ client.clientId }} · membership from {{ client.membershipEffectiveFrom }}</option> }
               </select></label>
               <div class="option-pages">
-                <label>Find eligible entity <input name="clientSearch" [(ngModel)]="clientSearchInput" maxlength="100" /></label>
+                <label>Find eligible entity <input name="clientSearch" [(ngModel)]="clientSearchInput" (keydown.enter)="$event.preventDefault(); searchClients(w)" maxlength="100" /></label>
                 <button type="button" (click)="searchClients(w)" [disabled]="workspace.loading()">Search entities</button>
                 <button type="button" (click)="changeClientPage(w, -1)" [disabled]="w.eligibleClientPage <= 1 || workspace.loading()">Previous entities</button>
                 <span>Entity page {{ w.eligibleClientPage }} · {{ w.eligibleClientTotalCount }} eligible</span>
@@ -292,7 +292,7 @@ function isHash(value: string): boolean { return /^[0-9a-f]{64}$/.test(value); }
                 @for (engagement of engagementOptions(w); track engagement.engagementId) { <option [value]="engagement.engagementId">{{ engagement.serviceRoute }} · {{ engagement.periodStart }}–{{ engagement.periodEnd }} · {{ engagement.status }} · {{ engagement.engagementId }}</option> }
               </select></label>
               <div class="option-pages">
-                <label>Find eligible engagement <input name="engagementSearch" [(ngModel)]="engagementSearchInput" maxlength="100" /></label>
+                <label>Find eligible engagement <input name="engagementSearch" [(ngModel)]="engagementSearchInput" (keydown.enter)="$event.preventDefault(); searchEngagements(w)" maxlength="100" /></label>
                 <button type="button" (click)="searchEngagements(w)" [disabled]="workspace.loading() || !clientResolved(w)">Search engagements</button>
                 <button type="button" (click)="changeEngagementPage(w, -1)" [disabled]="w.eligibleEngagementPage <= 1 || workspace.loading()">Previous engagements</button>
                 <span>Engagement page {{ w.eligibleEngagementPage }} · {{ w.eligibleEngagementTotalCount }} eligible</span>
@@ -500,6 +500,7 @@ export class ConsolidationExternalPacks {
   }
 
   clientChanged(clientId: string): void {
+    this.prepareReviewed.set(false);
     this.form.clientId = clientId;
     this.form.engagementId = '';
     this.form.priorPackId = '';
@@ -512,6 +513,7 @@ export class ConsolidationExternalPacks {
   }
 
   engagementChanged(engagementId: string): void {
+    this.prepareReviewed.set(false);
     this.form.engagementId = engagementId;
     this.selectedEngagementId.set(engagementId);
     this.clearReviewAssent();

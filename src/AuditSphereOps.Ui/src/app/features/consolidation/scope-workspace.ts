@@ -855,7 +855,7 @@ export class ConsolidationScopeWorkspace {
   }
 
   readonly intercompanyNatures = INTERCOMPANY_NATURES;
-  intercompanyForm = {
+  private newIntercompanyForm() { return {
     sellerClientId: '',
     buyerClientId: '',
     outsideClientId: '',
@@ -874,7 +874,8 @@ export class ConsolidationScopeWorkspace {
     evidenceReference: '',
     differenceReason: '',
     reviewed: false,
-  };
+  }; }
+  intercompanyForm = this.newIntercompanyForm();
   private intercompanyApprovalChecks: Record<string, boolean> = {};
 
   // Component Submission Form State
@@ -889,6 +890,8 @@ export class ConsolidationScopeWorkspace {
       this.runsPageNumber.set(1);
       this.intercompanyPageNumber.set(1);
       this.intercompanyUnresolvedOnly.set(false);
+      this.intercompanyForm = this.newIntercompanyForm();
+      this.intercompanyApprovalChecks = {};
       this.selectedPackageId = '';
     });
   });
@@ -1058,12 +1061,7 @@ export class ConsolidationScopeWorkspace {
       'Intercompany match submitted for independent review.',
     ).then((success) => {
       if (!success) return;
-      this.intercompanyForm = {
-        sellerClientId: '', buyerClientId: '', outsideClientId: '', outsidePartySide: 'BUYER',
-        accountNature: 'RECEIVABLE_PAYABLE', periodCode: '', transactionReference: '', matchMode: 'ONE_TO_ONE',
-        matchGroupReference: '', outsidePerimeterReview: false, sellerAmount: '', buyerAmount: '', matchedAmount: '',
-        sellerTaxonomyCode: '', buyerTaxonomyCode: '', evidenceReference: '', differenceReason: '', reviewed: false,
-      };
+      this.intercompanyForm = this.newIntercompanyForm();
       this.intercompanyPageNumber.set(1);
       this.ws.reload();
       this.intercompanyMatchOptions.reload();

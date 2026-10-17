@@ -64,7 +64,7 @@ public static partial class ApiHost
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await Microsoft365InstallationService.BootstrapAsync(db, InstallationOptions(config), identity,
         input.Proof ?? string.Empty, input.Reviewed, DateTimeOffset.UtcNow, http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { completed = true, requiresFreshSignIn = true }) : UiEndpoints.Failure(result.ErrorCode, result.Message);
+      return result.Succeeded ? Results.Ok(new InstallationBootstrapResponse(true, true)) : UiEndpoints.Failure(result.ErrorCode, result.Message);
     })
       .Produces<InstallationBootstrapResponse>(StatusCodes.Status200OK)
       .Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status400BadRequest)

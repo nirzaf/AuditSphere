@@ -85,7 +85,7 @@ public sealed class ConsolidationQueryTests
         SellerClientId = fixture.ClientA, BuyerClientId = fixture.ClientB, AccountNature = "RECEIVABLE_PAYABLE",
         SellerTaxonomyCode = "REVENUE", BuyerTaxonomyCode = "EXPENSE",
         PeriodCode = "FY2026", Currency = "QAR", TransactionReference = "IC-001",
-        SellerAmount = 100m, BuyerAmount = 90m, MatchedAmount = 90m, Difference = 10m,
+        SellerAmount = 100m, BuyerAmount = -90m, MatchedAmount = 90m, Difference = 10m,
         Status = AccountingWorkflowStates.Submitted, EvidenceReference = "ic-evidence-1",
         CreatedByUserId = fixture.Manager.Id, CreatedAt = matchesCreatedAt
       });
@@ -292,6 +292,32 @@ public sealed class ConsolidationQueryTests
       Assert.Equal(AccountingWorkflowStates.Approved, incompatible.ComponentState);
       Assert.False(incompatible.CurrencyCompatible);
       Assert.Contains("same-currency", incompatible.MismatchReason, StringComparison.Ordinal);
+      for (var index = 0; index < 499; index++)
+      {
+        var clientId = Guid.CreateVersion7();
+        db.PracticeClients.Add(new PracticeClient
+        {
+          Id = clientId, FirmId = fixture.FirmId, LegalName = $"Readiness boundary entity {index}",
+          CreatedAt = DateTimeOffset.UtcNow
+        });
+        db.ClientGroupMemberships.Add(new ClientGroupMembership
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId, ClientId = clientId,
+          EffectiveFrom = new DateOnly(2026, 1, 1), Status = AccountingWorkflowStates.Approved,
+          ControlMethod = "CONTROLLED", OwnershipPercent = 100m, EconomicInterestPercent = 100m,
+          EvidenceReference = "SYNTHETIC-READINESS-BOUNDARY", CreatedByUserId = fixture.Manager.Id,
+          CreatedAt = DateTimeOffset.UtcNow
+        });
+      }
+      await db.SaveChangesAsync();
+      var fullReadiness = await ConsolidationQuery.GetComponentReadinessAsync(db, manager, fixture.ScopeId);
+      Assert.Equal(501, fullReadiness.Value!.Members.Count);
+      var workspace = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(db, manager, fixture.ScopeId);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      Assert.False(workspace.Value!.ComponentReadiness.Available);
+      Assert.Null(workspace.Value.ComponentReadiness.Value);
+      Assert.Equal(ErrorCodes.GateBlocked, workspace.Value.ComponentReadiness.ErrorCode);
+      Assert.Single(workspace.Value.Components);
     }
   }
 

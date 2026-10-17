@@ -89,7 +89,7 @@ public static partial class ConsolidationService
     var memberIds = await memberships.Select(x => x.ClientId).ToHashSetAsync(ct);
     var sellerIsMember = memberIds.Contains(request.SellerClientId);
     var buyerIsMember = memberIds.Contains(request.BuyerClientId);
-    if (request.ExpectedGroupRevision > 0 && sellerIsMember != buyerIsMember && !request.OutsidePerimeterReview)
+    if (request.ExpectedGroupRevision > 0 && (!sellerIsMember || !buyerIsMember) && !request.OutsidePerimeterReview)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "A counterparty outside the reporting-period group perimeter must be explicitly reviewed as outside-perimeter.");
     if (request.OutsidePerimeterReview)
@@ -161,7 +161,7 @@ public static partial class ConsolidationService
     auth = await GroupAuthAsync(db, actor, matchScope.GroupId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
-    if (lockedGroup.Revision != matchScope.GroupRevision ||
+    if (lockedGroup.Revision != matchScope.GroupRevision || expectedGroupRevision < 0 ||
         expectedGroupRevision > 0 && expectedGroupRevision != matchScope.GroupRevision)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (lockedMatch.Status != AccountingWorkflowStates.Submitted || lockedMatch.CreatedByUserId == actor.UserId)

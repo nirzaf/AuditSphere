@@ -44,7 +44,7 @@ public static partial class UiEndpoints
       .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/engagements/{id:guid}/completion/clearance", (Guid id, ClearanceInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.PartnerClearAsync(db, actor, i.SrmId, i.KeyRiskAreasComment ?? "", i.NotesComment ?? "", ct)))
-      .WithUiResponse<UiValueResponse<Guid>>();
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/engagements/{id:guid}/completion/opinion", (Guid id, OpinionInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.DecideOpinionAsync(db, actor, id, i.OpinionType, i.FocusArea, i.Basis, ct)))
       .WithUiResponse<UiValueResponse<Guid>>();

@@ -264,9 +264,12 @@ public static class ConsolidationScopeWorkspaceQuery
 
     // Component Readiness
     var readinessResult = await ConsolidationQuery.GetComponentReadinessAsync(db, actor, scope.Id, ct);
-    var readiness = ReadResult(readinessResult.Succeeded
-      ? CommandResult<IReadOnlyList<ComponentReadinessRow>>.Ok(readinessResult.Value!.Members)
-      : CommandResult<IReadOnlyList<ComponentReadinessRow>>.Fail(readinessResult.ErrorCode!, readinessResult.Message!));
+    var readiness = ReadResult(!readinessResult.Succeeded
+      ? CommandResult<IReadOnlyList<ComponentReadinessRow>>.Fail(readinessResult.ErrorCode!, readinessResult.Message!)
+      : readinessResult.Value!.Members.Count > 500
+        ? CommandResult<IReadOnlyList<ComponentReadinessRow>>.Fail(ErrorCodes.GateBlocked,
+          "Member readiness exceeds this workspace's 500-row display bound. Complete paged readiness support is required for this group; no readiness success is inferred from a partial list.")
+        : CommandResult<IReadOnlyList<ComponentReadinessRow>>.Ok(readinessResult.Value.Members));
 
     // Intercompany Exceptions
     var intercompanyResult = await ConsolidationQuery.GetIntercompanyExceptionsAsync(

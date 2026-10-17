@@ -26,7 +26,7 @@ public static partial class UiEndpoints
       !input.Reviewed
         ? Task.FromResult(Invalid("Confirm that you reviewed the treatment before confirming it."))
         : CommandAsync(http, (db, actor, ct) => LedgerService.ConfirmEndOfServiceTreatmentAsync(db, actor, id, input.Note ?? "", ct)))
-      .Produces<UiValueResponse<bool>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
+      .Produces<UiValueResponse<bool>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapUiPost("/finance/end-of-service/accruals", async http =>
     {
       if (!http.Request.HasFormContentType) return Invalid("Send the accrual and any supporting document as a multipart form.");

@@ -80,7 +80,10 @@ export function displayUtcInstant(value: string | null): string {
     <p><small>Only explicitly granted group scopes appear here. The enabled first profile is same-currency, fully-owned consolidation; configured foreign-operation translation is shown separately, while advanced methods remain fail-closed until approved source-bound schedules and execution verification are complete.</small></p>
     @let correction = correctionContext();
     @switch (correction.state) {
-      @case ('pending') { <p role="status">Checking the correction source against the groups and scope versions available to this identity…</p> }
+      @case ('pending') {
+        @if (groups.error()) { <p role="alert">The correction source could not be checked. Retry loading the authorized groups before continuing.</p> }
+        @else { <p role="status">Checking the correction source against the groups and scope versions available to this identity…</p> }
+      }
       @case ('valid') {
         <section class="panel" aria-labelledby="component-correction-heading">
           <h2 id="component-correction-heading">Correct a component in a new scope version</h2>
@@ -270,10 +273,8 @@ export class ConsolidationOverview {
   readonly selectedGroupId = signal('');
   private readonly chosenScopeGroupId = signal('');
   readonly scopeGroupId = computed(() => {
-    const chosen = this.chosenScopeGroupId();
-    if (chosen) return chosen;
     const correction = this.correctionContext();
-    return correction.state === 'valid' ? correction.group.id : '';
+    return correction.state === 'valid' ? correction.group.id : this.chosenScopeGroupId();
   });
   readonly scopeOptions = this.api.resource(() => this.scopeGroupId() ? `/api/ui/consolidation/groups/${this.scopeGroupId()}/scope-options` : null,
     decodeScopeOptions, 'Scope options are unavailable for this group.');

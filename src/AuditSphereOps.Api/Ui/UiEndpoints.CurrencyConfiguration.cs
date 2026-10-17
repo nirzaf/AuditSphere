@@ -15,15 +15,18 @@ public static partial class UiEndpoints
       .Produces<CurrencyConfigurationCatalogue>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
       .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet(root + "/sets/{id:guid}", (Guid id, HttpContext h) => ReadAsync(h, (db, a, ct) => CurrencyConfigurationWorkspace.RateSetAsync(db, a, id, ct)))
       .Produces<CurrencyRateSetReview>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
       .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet(root + "/policies/{id:guid}", (Guid id, HttpContext h) => ReadAsync(h, (db, a, ct) => CurrencyConfigurationWorkspace.PolicyAsync(db, a, id, ct)))
       .Produces<CurrencyPolicyReview>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
       .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost(root + "/sets", (CurrencySetInput i, HttpContext h) =>
     {

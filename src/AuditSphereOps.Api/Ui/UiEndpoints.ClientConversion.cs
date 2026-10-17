@@ -29,6 +29,7 @@ public static partial class UiEndpoints
     group.MapGet(route + "/receipts/{requestId:guid}", (Guid id, Guid requestId, string requestHash, HttpContext http) =>
       ReadAsync(http, (db, a, ct) => ClientConversionWorkspace.LookupAsync(db, a, id, requestId, requestHash, ct)))
       .Produces<ClientConversionLookup>(StatusCodes.Status200OK, "application/json")
+      .Produces(StatusCodes.Status400BadRequest)
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
       .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");

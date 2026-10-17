@@ -146,7 +146,7 @@ public static partial class ApiHost
         new ManualParameterMetadata("Origin", ParameterLocation.Header, true, JsonSchemaType.String,
           Format: "uri", Description: "Must match the request scheme, host and port."),
         new ManualParameterMetadata("X-Upload-Offset", ParameterLocation.Header, true, JsonSchemaType.Integer,
-          Format: "int64", Description: "Nonnegative byte offset for this retained upload chunk."),
+          Format: "int64", Description: "Nonnegative byte offset for this retained upload chunk.", Minimum: 0),
         new ManualParameterMetadata("X-Content-SHA256", ParameterLocation.Header, true, JsonSchemaType.String,
           Pattern: "^[a-fA-F0-9]{64}$", Description: "SHA-256 of the exact chunk bytes."),
         new ManualParameterMetadata("X-Pbc-Upload-Capability", ParameterLocation.Header, true, JsonSchemaType.String,

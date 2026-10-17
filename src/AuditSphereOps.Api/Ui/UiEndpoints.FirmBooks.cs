@@ -64,7 +64,7 @@ public static partial class UiEndpoints
       .Produces<UiValueResponse<Guid>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapGet("/finance/books/expenses/receipts/{requestId:guid}", (Guid requestId, string requestHash, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FirmExpenseService.LookupCreationAsync(db, actor, requestId, requestHash, ct)))
-      .Produces<FirmExpenseCreationLookup>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
+      .Produces<FirmExpenseCreationLookup>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapPost("/finance/books/expenses/{id:guid}/submit", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FirmExpenseService.SubmitAsync(db, actor, id, ct)))
       .Produces<UiValueResponse<bool>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);

@@ -123,7 +123,7 @@ describe('External consolidation component packs', () => {
       { taxonomyCode: 'BS-Z', amount: '2.000000', currency: 'QAR', sourceLineReference: 'L99' },
       { taxonomyCode: 'BS-Z', amount: '-2.000000', currency: 'QAR', sourceLineReference: 'L99' },
     ];
-    const bytes = new TextEncoder().encode(JSON.stringify({ lines: [...rows, ...tiedRows] }));
+    const bytes = new TextEncoder().encode(JSON.stringify({ lines: [...rows].reverse().concat(tiedRows) }));
     const file = {
       name: 'trial-balance.json', size: bytes.byteLength,
       arrayBuffer: vi.fn().mockResolvedValue(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)),
@@ -136,7 +136,7 @@ describe('External consolidation component packs', () => {
       'BS-Z|-2.000000|QAR|L99', 'BS-Z|2.000000|QAR|L99'].join('\n');
     expect(component.rawSourceHash()).toBe(await sha256Hex(bytes));
     expect(component.normalizedSourceDigest()).toBe(await sha256Hex(new TextEncoder().encode(canonical)));
-    expect(component.sourceLines()[0].amount).toBe('9007199254.740993');
+    expect(component.sourceLines().find(line => line.sourceLineReference === 'L00')?.amount).toBe('9007199254.740993');
     expect(component.declaredSignedTotal()).toBe('9007199254.741018');
     expect(component.sourcePreview()).toHaveLength(25);
     expect(component.sourceLines()).toHaveLength(28);
@@ -144,6 +144,12 @@ describe('External consolidation component packs', () => {
 
   it('submits exact hashes, amounts, current revision and returned-pack lineage', async () => {
     await mount();
+    component.prepareReviewed.set(true);
+    component.clientChanged(id2);
+    expect(component.prepareReviewed()).toBe(false);
+    component.prepareReviewed.set(true);
+    component.engagementChanged(id3);
+    expect(component.prepareReviewed()).toBe(false);
     const returned = pack();
     workspaceData.set(decodeExternalPackPage(pagePayload({
       items: [returned], resolvedClient: pagePayload().eligibleClients[0], resolvedEngagement: pagePayload().eligibleEngagements[0],
@@ -225,6 +231,13 @@ describe('External consolidation component packs', () => {
 
   it('blocks stale scopes and invalid typed amounts before sending a command', async () => {
     await mount();
+    for (const name of ['clientSearch', 'engagementSearch']) {
+      const input = fixture.nativeElement.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+      const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      input.dispatchEvent(enter);
+      expect(enter.defaultPrevented).toBe(true);
+      expect(api.command).not.toHaveBeenCalled();
+    }
     const stale = decodeExternalPackPage(pagePayload({
       pinnedGroupRevision: 8, currentGroupRevision: 9, canSubmitPack: false, canReviewPacks: false, canPinApprovedPacks: false,
     }), 'root');

@@ -10,7 +10,7 @@ public static partial class UiEndpoints
     var state = group.MapGet(route,(Guid id,HttpContext http)=>ReadAsync(http,(db,a,ct)=>ClientContactCreationWorkspace.StateAsync(db,a,id,ct)))
       .WithSummary("Read the client contact creation workspace")
       .WithDescription("Returns the scoped contact-creation context and current client generation.");
-    WithUiDirectResponse<ContactCreationState>(state);
+    WithUiDirectResponse<ContactCreationState>(state, includeBadRequest: true);
 
     var preview = group.MapPost(route+"/preview",(Guid id,ContactCreationRequest input,HttpContext http)=>CommandAsync(http,(db,a,ct)=>ClientContactCreationWorkspace.PreviewAsync(db,a,id,input,ct)))
       .WithSummary("Preview client contact creation")

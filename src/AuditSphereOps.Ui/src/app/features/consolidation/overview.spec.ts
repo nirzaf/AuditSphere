@@ -246,6 +246,8 @@ describe('consolidation correction handoff context', () => {
     http.expectOne(optionsUrl).flush(scopeOptions);
     await harness.fixture.whenStable();
     expect(component.scopeGroupId()).toBe(groupId);
+    component.selectScopeGroup(otherGroupId);
+    expect(component.scopeGroupId()).toBe(groupId);
     expect(harness.routeNativeElement?.textContent).toContain('Correct a component in a new scope version');
     expect(harness.routeNativeElement?.textContent).toContain('newly reviewed component package');
     expect(harness.routeNativeElement?.textContent).toContain('original scope, component, package and prior run remain');
@@ -269,7 +271,7 @@ describe('consolidation correction handoff context', () => {
     expect(component.scopeValidation()).toContain('retain the original reporting period');
     http.expectNone(request => request.method === 'POST');
 
-    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     component.scopePeriodId = scopeOptions.periods[0].id;
     component.scopeMethod = correctionScope.method;
     component.scopeCurrency = 'QAR';
@@ -279,6 +281,7 @@ describe('consolidation correction handoff context', () => {
     expect(create.request.body.expectedGroupRevision).toBe(7);
     create.flush({ value: '12121212-1212-4212-8212-121212121212' });
     await creating;
+    expect(navigate).toHaveBeenCalledWith(['/app/consolidation/scopes', '12121212-1212-4212-8212-121212121212']);
   });
 
   it('rejects a stale, unknown, malformed or wrong-group correction source', () => {

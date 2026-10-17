@@ -25,7 +25,9 @@ type CorrectionSource =
         @switch (current.state) {
           @case ('invalid') { <p role="alert">The correction source identity is missing or invalid. Reopen this handoff from a current authorized scope.</p> }
           @case ('loading') { <p role="status">Loading the original scope evidence…</p> }
-          @case ('unavailable') { <p role="alert">The source scope is unavailable in the current authorization context. Reopen this handoff from an authorized scope.</p> }
+          @case ('unavailable') {
+            @if (!workspace.error()) { <p role="alert">The source scope is unavailable in the current authorization context. Reopen this handoff from an authorized scope.</p> }
+          }
           @case ('stale-scope') { <p role="alert">The fetched scope identity no longer matches this handoff. Reopen it from the current scope workspace.</p> }
           @case ('wrong-group') { <p role="alert">The fetched scope belongs to a different group than this handoff. No correction link is available.</p> }
           @case ('unknown-component') { <p role="alert">This component identity is not present in the current authorized source scope. The handoff may be stale; reopen it from the scope workspace.</p> }

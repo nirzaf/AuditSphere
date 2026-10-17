@@ -8,7 +8,7 @@ public static partial class UiEndpoints
       (Guid id,Guid sourceEngagementId,HttpContext http)=>ReadAsync(http,(db,a,ct)=>AnnualEngagementPreparationWorkspace.StateAsync(db,a,id,sourceEngagementId,ct)))
       .WithSummary("Read annual engagement preparation")
       .WithDescription("Returns the scoped source-engagement context available for preparing a subsequent engagement.");
-    WithUiDirectResponse<AnnualEngagementPreparationState>(annual);
+    WithUiDirectResponse<AnnualEngagementPreparationState>(annual, includeBadRequest: true);
 
     const string route="/clients/{id:guid}/engagement-creation";
     var state = group.MapGet(route,(Guid id,HttpContext http)=>ReadAsync(http,(db,a,ct)=>EngagementCreationWorkspace.StateAsync(db,a,id,ct)))

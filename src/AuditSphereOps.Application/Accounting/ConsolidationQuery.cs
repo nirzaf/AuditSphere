@@ -201,7 +201,12 @@ public static class ConsolidationQuery
       .OrderBy(x => x.ClientId)
       .Select(x => new { x.ClientId, x.PackageId, x.ExternalComponentPackId })
       .Take(501).ToListAsync(ct);
-    var approvedComponentClientIds = components.Select(x => x.ClientId).ToHashSet();
+    // Membership options must not infer a missing component from a separately
+    // bounded taxonomy sample. Read exact existence for the displayed members.
+    var approvedComponentClientIds = await db.ConsolidationComponents.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id &&
+        x.Status == AccountingWorkflowStates.Approved && memberIdsShown.Contains(x.ClientId))
+      .Select(x => x.ClientId).ToHashSetAsync(ct);
     var packageIds = components.Where(x => x.PackageId.HasValue).Select(x => x.PackageId!.Value).Distinct().ToArray();
     var externalPackIds = components.Where(x => x.ExternalComponentPackId.HasValue)
       .Select(x => x.ExternalComponentPackId!.Value).Distinct().ToArray();

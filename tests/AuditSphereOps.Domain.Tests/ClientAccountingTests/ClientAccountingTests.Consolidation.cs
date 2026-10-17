@@ -272,9 +272,17 @@ public sealed partial class ClientAccountingTests
         Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = groupViewer.Id,
         Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
       });
+      var periodId = Guid.NewGuid();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = scope.FirmId, ClientId = scope.ClientA, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
       await db.SaveChangesAsync();
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "", ConsolidationCalculator.RestrictedMethod, "OPENING-2026"))).Value;
+        new ConsolidationScopeRequest(groupId, periodId, "", ConsolidationCalculator.RestrictedMethod, "OPENING-2026"))).Value;
       Assert.Equal(AccountingDefaults.DefaultCurrency,
         await db.ConsolidationScopeVersions.Where(x => x.Id == consolidationScopeId).Select(x => x.ReportingCurrency).SingleAsync());
       await BuildCurrencyPackageAsync(db, scope, scope.ClientA, scope.EngagementA, Gold07Lines, "group-a", "QAR");
@@ -314,6 +322,26 @@ public sealed partial class ClientAccountingTests
       sourcePackagesBefore = await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]);
       foreach (var componentId in components)
         Assert.True((await ConsolidationService.ApproveComponentAsync(db, reviewer, componentId)).Succeeded);
+      // Approved component rows cannot substitute for reporting-period membership.
+      // Roll back the future dates so the existing legacy workflow keeps its original basis.
+      await using (var futureMemberships = await db.Database.BeginTransactionAsync())
+      {
+        Assert.Equal(2, await db.ClientGroupMemberships.Where(x => x.FirmId == scope.FirmId && x.GroupId == groupId)
+          .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.EffectiveFrom, new DateOnly(2027, 1, 1))));
+        Assert.Equal(2, await db.ConsolidationComponents.CountAsync(x => x.FirmId == scope.FirmId &&
+          x.ScopeVersionId == consolidationScopeId && x.Status == AccountingWorkflowStates.Approved));
+        var groupRevision = await db.ClientGroups.Where(x => x.Id == groupId).Select(x => x.Revision).SingleAsync();
+        var matchesBefore = await db.IntercompanyMatches.CountAsync(x => x.ScopeVersionId == consolidationScopeId);
+        var bothOutside = await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,
+          new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
+            ConsolidationEliminationKinds.ReceivablePayable, "FY2026", "QAR", "IC-BOTH-FUTURE",
+            100m, -100m, 100m, "both-future-membership-evidence", "CASH", "REVENUE",
+            ExpectedGroupRevision: groupRevision));
+        Assert.False(bothOutside.Succeeded);
+        Assert.Equal(ErrorCodes.GateBlocked, bothOutside.ErrorCode);
+        Assert.Equal(matchesBefore, await db.IntercompanyMatches.CountAsync(x => x.ScopeVersionId == consolidationScopeId));
+        await futureMemberships.RollbackAsync();
+      }
       var creatorApproval = await ConsolidationService.ApproveScopeAsync(db, preparer, consolidationScopeId);
       Assert.False(creatorApproval.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.MappingInvalid, creatorApproval.ErrorCode);
@@ -348,6 +376,11 @@ public sealed partial class ClientAccountingTests
         new IntercompanyMatchRequest(consolidationScopeId, scope.ClientA, scope.ClientB,
           ConsolidationEliminationKinds.ReceivablePayable, "2026", "QAR", "IC-001", 100m, -100m, 100m, "ic-evidence",
             "CASH", "REVENUE"))).Value;
+      var negativeRevisionApproval = await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, matchId, -1);
+      Assert.False(negativeRevisionApproval.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, negativeRevisionApproval.ErrorCode);
+      Assert.Equal(AccountingWorkflowStates.Submitted,
+        (await db.IntercompanyMatches.AsNoTracking().SingleAsync(x => x.Id == matchId)).Status);
       Assert.True((await ConsolidationService.ApproveIntercompanyMatchAsync(db, reviewer, matchId)).Succeeded);
 
       var groupedFirst = (await ConsolidationService.AddIntercompanyMatchAsync(db, preparer,

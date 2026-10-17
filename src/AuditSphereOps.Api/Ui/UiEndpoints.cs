@@ -137,8 +137,7 @@ public static partial class UiEndpoints
       .Produces(StatusCodes.Status204NoContent)
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
-      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
-      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/clients/{id:guid}/engagements", async (Guid id, EngagementInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -155,8 +154,7 @@ public static partial class UiEndpoints
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
-      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
-      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/engagements/{id:guid}/activate", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

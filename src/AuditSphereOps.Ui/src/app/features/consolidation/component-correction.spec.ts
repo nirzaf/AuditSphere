@@ -129,5 +129,13 @@ describe('consolidation component correction handoff', () => {
     await fixture.whenStable();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('missing or invalid');
     http.expectNone(() => true);
+    fixture.destroy();
+    const failed = createComponent();
+    http.expectOne(scopeUrl).flush({}, { status: 503, statusText: 'Unavailable' });
+    await failed.whenStable();
+    failed.detectChanges();
+    const page = failed.nativeElement as HTMLElement;
+    expect(page.querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(page.textContent).not.toContain('Reopen this handoff from an authorized scope.');
   });
 });

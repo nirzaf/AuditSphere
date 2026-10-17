@@ -15,7 +15,7 @@ public sealed class RetainedBinaryContentTypeMetadata { }
 
 /// <summary>Documents scalar inputs read manually from HttpContext without changing binding or refusal order.</summary>
 public sealed record ManualParameterMetadata(string Name, ParameterLocation Location, bool Required,
-  JsonSchemaType Type, string? Format = null, string? Pattern = null, string? Description = null);
+  JsonSchemaType Type, string? Format = null, string? Pattern = null, string? Description = null, decimal? Minimum = null);
 
 /// <summary>Transport-only session declaration for handlers that resolve the cookie actor themselves.</summary>
 public sealed class CookieSessionContractMetadata { }
@@ -87,7 +87,11 @@ public static class ApiContract
           {
             Name = parameter.Name, In = parameter.Location, Required = parameter.Required,
             Description = parameter.Description,
-            Schema = new OpenApiSchema { Type = parameter.Type, Format = parameter.Format, Pattern = parameter.Pattern }
+            Schema = new OpenApiSchema
+            {
+              Type = parameter.Type, Format = parameter.Format, Pattern = parameter.Pattern,
+              Minimum = parameter.Minimum?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            }
           });
         }
         var authorized = metadata.OfType<IAuthorizeData>().Any() || metadata.OfType<CookieSessionContractMetadata>().Any();
@@ -98,7 +102,27 @@ public static class ApiContract
           [new OpenApiSecuritySchemeReference(SessionCookieSchemeId, context.Document)] = new List<string>()
         });
         operation.Responses ??= new OpenApiResponses();
-        operation.Responses.TryAdd("401", BoundaryError("The request has no current AuditSphere session."));
+        if (!operation.Responses.ContainsKey("401") &&
+            context.Description.RelativePath?.StartsWith("api/ui/", StringComparison.OrdinalIgnoreCase) == true)
+        {
+          // UI handlers emit either {code,message} or {code}; neither is the
+          // correlation-bearing boundary error. Cookie challenges may have no body.
+          var failure = await context.GetOrCreateSchemaAsync(typeof(AuditSphereOps.Api.Ui.UiEndpoints.UiFailureResponse), null, ct);
+          var codeOnly = await context.GetOrCreateSchemaAsync(typeof(AuditSphereOps.Api.Ui.UiEndpoints.UiCodeErrorResponse), null, ct);
+          operation.Responses.Add("401", new OpenApiResponse
+          {
+            Description = "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            Content = new Dictionary<string, OpenApiMediaType>
+            {
+              ["application/json"] = new OpenApiMediaType
+              {
+                Schema = new OpenApiSchema { AnyOf = [failure, codeOnly] }
+              }
+            }
+          });
+        }
+        else
+          operation.Responses.TryAdd("401", BoundaryError("The request has no current AuditSphere session."));
         operation.Responses.TryAdd("429", BoundaryError("The boundary rate limit rejected the request."));
         if (HttpMethods.IsPost(context.Description.HttpMethod ?? "") && context.Description.AcceptsJsonBody())
           operation.Responses.TryAdd("413", BoundaryError("The JSON command body exceeded the accepted size."));

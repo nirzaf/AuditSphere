@@ -18,7 +18,7 @@ public static partial class UiEndpoints
     IReadOnlyList<UiOperationSummary> Operations);
   public sealed record UiOperationDiscoveryResponse(string? State, Guid? OperationId,
     IReadOnlyList<UiDiscoveredOperationSummary> Operations, string? NextCursor, string? FirstPageCursor);
-  public sealed record UiProjectProgressResponse(ProjectProgressSnapshot Snapshot, IReadOnlyList<string> Untracked);
+  public sealed record UiProjectProgressResponse(ProjectProgressSnapshot Snapshot, IReadOnlyList<ProjectUntrackedArea> Untracked);
 
   public sealed record OperationCancelInput(string Disposition);
 

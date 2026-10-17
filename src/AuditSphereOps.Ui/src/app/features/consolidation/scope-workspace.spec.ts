@@ -173,7 +173,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
       resource: vi.fn((_url, decoder) => {
         resourceIndex++;
         if (resourceIndex === 1 || decoder === decodeScopeWorkspace) return resource;
-        return resourceIndex === 2 ? intercompanyOptionsResource : intercompanyMatchesResource;
+        return resourceIndex === 2 ? intercompanyOptionsResource : resourceIndex === 3 ? intercompanyMatchesResource
+          : { data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() };
       }),
       command: vi.fn().mockResolvedValue({ ok: true, value: true }),
     };
@@ -218,8 +219,16 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(urls.some(url => url?.startsWith(`${scopeUrl}/external-packs?`))).toBe(true);
 
     const oldWorkspace = component.ws.data()!;
+    component.intercompanyForm.sellerClientId = id2;
+    component.intercompanyForm.buyerClientId = id3;
+    component.intercompanyForm.sellerAmount = '1200.000000';
+    component.intercompanyForm.reviewed = true;
     params.next(convertToParamMap({ id: id2 }));
     fixture.detectChanges();
+    expect(component.intercompanyForm.sellerClientId).toBe('');
+    expect(component.intercompanyForm.buyerClientId).toBe('');
+    expect(component.intercompanyForm.sellerAmount).toBe('');
+    expect(component.intercompanyForm.reviewed).toBe(false);
     expect(page.querySelector('audit-consolidation-external-packs')).toBeNull();
     component.toggleExternalPacks(oldWorkspace);
     fixture.detectChanges();

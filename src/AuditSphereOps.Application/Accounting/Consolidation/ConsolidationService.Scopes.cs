@@ -18,7 +18,9 @@ public static partial class ConsolidationService
     var currency = (string.IsNullOrWhiteSpace(request.ReportingCurrency) ? AccountingDefaults.DefaultCurrency : request.ReportingCurrency).Trim().ToUpperInvariant();
     var method = request.Method.Trim().ToUpperInvariant();
     var advancedMethod = AdvancedConsolidationMethods.All.Contains(method);
-    if (request.GroupId == Guid.Empty || request.PeriodId == Guid.Empty || request.ExpectedGroupRevision < 0 || currency.Length != 3 ||
+    if (request.ExpectedGroupRevision < 0)
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The expected group revision must not be negative.");
+    if (request.GroupId == Guid.Empty || request.PeriodId == Guid.Empty || currency.Length != 3 ||
         currency.Any(c => c is < 'A' or > 'Z') ||
         (method is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod) && !advancedMethod) ||
         string.IsNullOrWhiteSpace(request.OpeningBasis))

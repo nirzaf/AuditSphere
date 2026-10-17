@@ -40,7 +40,7 @@ public static partial class UiEndpoints
     UiEndpointContractMetadata.WithUiResponse<FinancialScheduleSources>(group.MapGet(specialist + "/source-lines", (Guid id, Guid periodId, int? page, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FinancialScheduleSourceQuery.GetAsync(db, actor, id, periodId, page ?? 1, ct))), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<SpecialistPreparationState>(group.MapGet(specialist + "/state", (Guid id, Guid periodId, string? area, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => SpecialistSchedulePreparationWorkspace.StateAsync(db, actor, id, periodId, area, ct))), includeBadRequest: false);
+      ReadAsync(http, (db, actor, ct) => SpecialistSchedulePreparationWorkspace.StateAsync(db, actor, id, periodId, area, ct))));
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<SpecialistPreparationPreview>>(group.MapPost(specialist + "/preview", (Guid id, SpecialistPreparationRequest input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => SpecialistSchedulePreparationWorkspace.PreviewAsync(db, actor, id, input, ct))), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<SpecialistPreparationReceipt>>(group.MapPost(specialist, (Guid id, SpecialistPreparationRequest input, HttpContext http) =>
