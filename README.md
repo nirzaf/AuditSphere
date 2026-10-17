@@ -25,7 +25,7 @@ Angular UI → ASP.NET Core API → Application (static capability services, Rol
                                                         ↘ Worker (durable outbox: SKIP LOCKED claims, leases, quarantine)
 ```
 
-Reference direction: `Domain → nothing; Application → Domain; Infrastructure → Application, Domain; Api/Worker → all`. Details: [current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) · [code map](docs/architecture/auditsphere-architecture-code-map.md). Routes: `src/AuditSphereOps.Ui/src/app/app.routes.ts`.
+Reference direction: `Domain → nothing; Application → Domain; Infrastructure → Application, Domain; Api/Worker → all`. Details: [current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) · [code map](docs/architecture/auditsphere-architecture-code-map.md) · [enterprise target (PROPOSED)](docs/architecture/auditsphere-architecture-specification-enterprise-target-proposed.md). Routes: `src/AuditSphereOps.Ui/src/app/app.routes.ts`.
 
 ## Record-to-Report modules (20–26)
 

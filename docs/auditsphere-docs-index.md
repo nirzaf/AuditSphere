@@ -16,7 +16,7 @@ The repository ships Angular as the canonical staff/client presentation. The leg
 
 | Need | Start here |
 |---|---|
-| Runtime architecture, boundaries and flows | [Current architecture](architecture/auditsphere-architecture-current-architecture.md) · [Code map](architecture/auditsphere-architecture-code-map.md) |
+| Runtime architecture, boundaries and flows | [Current architecture](architecture/auditsphere-architecture-current-architecture.md) · [Code map](architecture/auditsphere-architecture-code-map.md) · [Enterprise target (PROPOSED)](architecture/auditsphere-architecture-specification-enterprise-target-proposed.md) |
 | Data, schema and HTTP contracts | [Data model](architecture/auditsphere-architecture-contract-data-model-current.md) · [HTTP boundary](architecture/auditsphere-architecture-http-boundary-and-contract-current.md) · [OpenAPI artifact](../contracts/auditsphere-openapi.json) |
 | Approved decisions and deviations | [ADR register](architecture/adr/auditsphere-architecture-index-adr-register-current.md) |
 | Product requirements | [STE v2.2 requirements](requirements/auditsphere-accounting-module-requirements-current.md) |
@@ -110,6 +110,8 @@ When two documents appear to conflict or contain differing detail, precedence is
 |---|---|---|
 
 | [`docs/architecture/auditsphere-architecture-current-architecture.md`](architecture/auditsphere-architecture-current-architecture.md) | Authoritative modular monolith architecture, capability partials, pure calculators, and durable operation patterns. | `CURRENT` |
+
+| [`docs/architecture/auditsphere-architecture-specification-enterprise-target-proposed.md`](architecture/auditsphere-architecture-specification-enterprise-target-proposed.md) | Enterprise target: retain-and-harden monolith, five priorities with code anchors, adoption plan. Proposes no rewrite; authorizes nothing. | `PROPOSED` |
 
 | [`docs/architecture/auditsphere-architecture-code-map.md`](architecture/auditsphere-architecture-code-map.md) | Business-capability-to-code directory mapping services, DbContext partials, calculators, UI workbenches, and tests. | `CURRENT` |
 
