@@ -51,8 +51,7 @@ public static partial class ConsolidationService
     if (!scopeResult.Succeeded)
       return CommandResult<Guid>.Fail(scopeResult.ErrorCode!, scopeResult.Message!);
     var scope = scopeResult.Value!.Scope;
-    if (!await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.ClientId == request.ClientId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct))
+    if (!await HasExternalPackMembershipAsync(db, actor.FirmId, scope, request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The external component entity is not in the approved perimeter.");
     if (!await db.Engagements.AsNoTracking().AnyAsync(x => x.Id == request.EngagementId && x.FirmId == actor.FirmId && x.PracticeClientId == request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The external component engagement is outside the requested scope.");
@@ -251,8 +250,7 @@ public static partial class ConsolidationService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only an approved and reconciled external pack can enter consolidation.");
     if (request.OwnershipPercent != 100m || !request.ControlMethod.Equals("CONTROLLED", StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile requires a fully-owned controlled component.");
-    if (!await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.ClientId == pack.ClientId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct))
+    if (!await HasExternalPackMembershipAsync(db, actor.FirmId, scope, pack.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The component legal entity is not in the approved perimeter.");
     if (scope.Method == ConsolidationCalculator.RestrictedMethod && pack.ReportingCurrency != scope.ReportingCurrency)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile accepts only same-currency component packs.");
@@ -291,6 +289,11 @@ public static partial class ConsolidationService
   private sealed record ExternalPackScopeLock(ClientGroup Group, ConsolidationScopeVersion Scope);
   private sealed record ExternalPackLock(ExternalPackScopeLock ScopeLock, ExternalComponentPack Pack);
 
+  private static Task<bool> HasExternalPackMembershipAsync(
+    IClientAccountingDbContext db, Guid firmId, ConsolidationScopeVersion scope, Guid clientId, CancellationToken ct) =>
+    ConsolidationExternalComponentPackQuery.EligibleMemberships(db, firmId, scope)
+      .AnyAsync(x => x.ClientId == clientId, ct);
+
   private static async Task<CommandResult<ExternalPackScopeLock>> LockExternalPackScopeAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid scopeVersionId,
     IReadOnlyList<string> roles, long expectedGroupRevision, CancellationToken ct)
@@ -305,7 +308,11 @@ public static partial class ConsolidationService
     if (!auth.Succeeded)
       return CommandResult<ExternalPackScopeLock>.Fail(auth.ErrorCode!, auth.Message!);
 
-    // Match the group -> scope -> pack order used by membership and scope changes.
+    // Role revocation takes the firm row exclusively. Hold its shared fence before
+    // group -> scope -> pack locks, then reauthorize, so a committed revocation wins.
+    if (!await LockGroupAuthorityFenceAsync(db, actor.FirmId, ct))
+      return CommandResult<ExternalPackScopeLock>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
+
     var group = await db.ClientGroups.FromSqlInterpolated($"""
       SELECT * FROM client_groups WHERE id = {scopeIdentity.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
@@ -359,6 +366,9 @@ public static partial class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, scopeLock.Group.Id, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<ExternalPackLock>.Fail(auth.ErrorCode!, auth.Message!);
+    if (!await HasExternalPackMembershipAsync(db, actor.FirmId, scopeLock.Scope, freshPack.ClientId, ct))
+      return CommandResult<ExternalPackLock>.Fail(ErrorCodes.GateBlocked,
+        "The component legal entity is not in the approved reporting-period perimeter.");
 
     return CommandResult<ExternalPackLock>.Ok(new ExternalPackLock(scopeLock, freshPack));
   }

@@ -1107,16 +1107,30 @@ public sealed class ConsolidationWorkspaceApiTests
       DisplayName = "Wrong Group Pack Reviewer", TenantId = "tenant-001", Subject = "sub-wrong-group-pack-reviewer"
     };
     var otherGroupId = Guid.CreateVersion7();
+    var reviewerGrantId = Guid.CreateVersion7();
+    var futureEngagementId = Guid.CreateVersion7();
+    var childEngagementId = Guid.CreateVersion7();
     int operationalJournalCountBefore;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       db.Users.Add(wrongGroupReviewer);
       db.GroupAccessGrants.Add(new GroupAccessGrant
       {
-        Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId,
+        Id = reviewerGrantId, FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId,
         UserId = fixture.Seed.Reviewer.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow,
         GrantedByUserId = fixture.Seed.Staff.Id
       });
+      foreach (var (engagementId, clientId) in new[]
+        {
+          (futureEngagementId, fixture.FutureClientId),
+          (childEngagementId, fixture.ChildClientId)
+        })
+        db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+        {
+          Id = engagementId, FirmId = fixture.Seed.FirmId, PracticeClientId = clientId,
+          PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+        });
       db.ClientGroups.Add(new ClientGroup
       {
         Id = otherGroupId, FirmId = fixture.Seed.FirmId, Code = "OTHER-PACK-REVIEW-GROUP",
@@ -1161,10 +1175,10 @@ public sealed class ConsolidationWorkspaceApiTests
       lines = sourceLines
     }));
     object PackInput(string sourceVersion, Guid? priorPackId, string? normalizedDigestOverride = null,
-      long expectedGroupRevision = 1) => new
+      long expectedGroupRevision = 1, Guid? clientId = null, Guid? engagementId = null) => new
     {
-      clientId = fixture.Seed.ClientId,
-      engagementId = fixture.Seed.EngagementId,
+      clientId = clientId ?? fixture.Seed.ClientId,
+      engagementId = engagementId ?? fixture.Seed.EngagementId,
       periodStart = "2026-01-01",
       periodEnd = "2026-12-31",
       framework = "IFRS",
@@ -1188,16 +1202,26 @@ public sealed class ConsolidationWorkspaceApiTests
       $"&engagementPage=1&engagementPageSize=1&selectedEngagementId={fixture.Seed.EngagementId}");
     Assert.True(options.GetProperty("canSubmitPack").GetBoolean());
     Assert.Equal(1, options.GetProperty("eligibleClientPageSize").GetInt32());
-    Assert.Equal(3, options.GetProperty("eligibleClientTotalCount").GetInt32());
+    Assert.Equal(2, options.GetProperty("eligibleClientTotalCount").GetInt32());
     Assert.Equal(1, options.GetProperty("eligibleClients").GetArrayLength());
     Assert.Equal(fixture.Seed.ClientId, options.GetProperty("resolvedClient").GetProperty("clientId").GetGuid());
     Assert.Equal(fixture.Seed.EngagementId, options.GetProperty("resolvedEngagement").GetProperty("engagementId").GetGuid());
     var firstEligibleClientId = options.GetProperty("eligibleClients")[0].GetProperty("clientId").GetGuid();
     var secondOptionPage = await Read(preparer, packsUrl + "?clientPage=2&clientPageSize=1");
     Assert.Equal(2, secondOptionPage.GetProperty("eligibleClientPage").GetInt32());
-    Assert.Equal(3, secondOptionPage.GetProperty("eligibleClientTotalCount").GetInt32());
+    Assert.Equal(2, secondOptionPage.GetProperty("eligibleClientTotalCount").GetInt32());
     Assert.NotEqual(firstEligibleClientId,
       secondOptionPage.GetProperty("eligibleClients")[0].GetProperty("clientId").GetGuid());
+    Assert.NotEqual(fixture.FutureClientId, firstEligibleClientId);
+    Assert.NotEqual(fixture.FutureClientId,
+      secondOptionPage.GetProperty("eligibleClients")[0].GetProperty("clientId").GetGuid());
+
+    using var futureMembership = await Post(preparer, preparerCsrf, packsUrl,
+      PackInput("future-membership", null, clientId: fixture.FutureClientId, engagementId: futureEngagementId));
+    Assert.Equal(HttpStatusCode.BadRequest, futureMembership.StatusCode);
+    await using (var futureProof = new AuditSphereDbContext(pg.Options))
+      Assert.False(await futureProof.ExternalComponentPacks.AnyAsync(x =>
+        x.ScopeVersionId == fixture.ScopeId && x.ClientId == fixture.FutureClientId));
 
     using var staleRevision = await Post(preparer, preparerCsrf, packsUrl, PackInput("stale-revision", null,
       expectedGroupRevision: 2));
@@ -1261,7 +1285,9 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(HttpStatusCode.OK, reconciled.StatusCode);
     var reconciledDetail = await Read(preparer, $"{packsUrl}/{secondPackId}?linePage=1&linePageSize=100");
     Assert.False(reconciledDetail.GetProperty("pack").GetProperty("canReconcile").GetBoolean());
-    Assert.True(reconciledDetail.GetProperty("pack").GetProperty("canApprove").GetBoolean());
+    Assert.False(reconciledDetail.GetProperty("pack").GetProperty("canApprove").GetBoolean());
+    var reviewerReconciledDetail = await Read(reviewer, $"{packsUrl}/{secondPackId}?linePage=1&linePageSize=100");
+    Assert.True(reviewerReconciledDetail.GetProperty("pack").GetProperty("canApprove").GetBoolean());
 
     // Hold the group fence until both independent decisions are waiting on it.
     await using var blocker = new AuditSphereDbContext(pg.Options);
@@ -1343,6 +1369,72 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(currentPackId, component.ExternalComponentPackId);
     Assert.Equal(100m, component.OwnershipPercent);
     Assert.Equal("CONTROLLED", component.ControlMethod);
+    Assert.Equal(operationalJournalCountBefore, await proof.ClientOperationalJournals.CountAsync());
+
+    using var authFencePack = await Post(preparer, preparerCsrf, packsUrl,
+      PackInput("auth-fence", null, clientId: fixture.ChildClientId, engagementId: childEngagementId));
+    Assert.Equal(HttpStatusCode.OK, authFencePack.StatusCode);
+    var authFencePackId = JsonDocument.Parse(await authFencePack.Content.ReadAsStringAsync())
+      .RootElement.GetProperty("value").GetGuid();
+    var reviewerEpochBefore = await proof.Users.AsNoTracking()
+      .Where(x => x.Id == fixture.Seed.Reviewer.Id).Select(x => x.SessionEpoch).SingleAsync();
+
+    async Task WaitForFirmWaiters(int expected, CancellationToken ct)
+    {
+      while (true)
+      {
+        var count = await observer.Database.SqlQueryRaw<int>(
+          "SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() " +
+          "AND wait_event_type='Lock' AND query LIKE '%firm_safety_states%'").SingleAsync(ct);
+        if (count >= expected) return;
+        await Task.Delay(25, ct);
+      }
+    }
+
+    await using var firmBlocker = new AuditSphereDbContext(pg.Options);
+    await using var firmFence = await firmBlocker.Database.BeginTransactionAsync();
+    await firmBlocker.FirmSafetyStates.FromSqlInterpolated($"""
+      SELECT * FROM firm_safety_states WHERE id = {fixture.Seed.FirmId} FOR UPDATE
+      """).AsNoTracking().SingleAsync();
+    await using var revoker = new AuditSphereDbContext(pg.Options);
+    using var authFenceTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    // Queue the real exclusive revocation first, then the pack command's shared fence.
+    // Revocation must persist the grant and epoch before releasing its firm lock.
+    var revocation = AuditSphereOps.Application.Security.RoleAssignmentService.RevokeGroupGrantAsync(
+      revoker, PbcSeed.Actor(fixture.Seed.Admin, "Administrator"), reviewerGrantId,
+      "Revoke external-pack review while its command is waiting on the firm fence.",
+      DateTimeOffset.UtcNow, authFenceTimeout.Token);
+    Task<HttpResponseMessage>? waitingReconciliation = null;
+    try
+    {
+      await WaitForFirmWaiters(1, authFenceTimeout.Token);
+      waitingReconciliation = Post(reviewer, reviewerCsrf, $"{packsUrl}/{authFencePackId}/reconcile", new
+      {
+        expectedGroupRevision = 1, reviewed = true, evidenceReference = "MUST-NOT-PERSIST-AFTER-REVOCATION"
+      });
+      await WaitForFirmWaiters(2, authFenceTimeout.Token);
+      await firmFence.CommitAsync();
+    }
+    finally
+    {
+      if (firmBlocker.Database.CurrentTransaction is not null)
+        await firmFence.RollbackAsync();
+    }
+    var revoked = await revocation;
+    Assert.True(revoked.Succeeded, revoked.Message);
+    using var refusedReconciliation = await waitingReconciliation!;
+    Assert.Equal(HttpStatusCode.Forbidden, refusedReconciliation.StatusCode);
+    var retainedAuthFencePack = await proof.ExternalComponentPacks.AsNoTracking()
+      .SingleAsync(x => x.Id == authFencePackId);
+    Assert.Equal(ExternalComponentPackStates.Submitted, retainedAuthFencePack.Status);
+    Assert.Equal(ExternalComponentReconciliationStates.Pending, retainedAuthFencePack.ReconciliationStatus);
+    Assert.Equal(string.Empty, retainedAuthFencePack.ReconciliationReference);
+    Assert.Equal(0m, retainedAuthFencePack.ReconciledSignedTotal);
+    Assert.Null(retainedAuthFencePack.ReconciledByUserId);
+    Assert.Null(retainedAuthFencePack.ReconciledAt);
+    Assert.NotNull((await proof.GroupAccessGrants.AsNoTracking().SingleAsync(x => x.Id == reviewerGrantId)).RevokedAt);
+    Assert.Equal(reviewerEpochBefore + 1, await proof.Users.AsNoTracking()
+      .Where(x => x.Id == fixture.Seed.Reviewer.Id).Select(x => x.SessionEpoch).SingleAsync());
     Assert.Equal(operationalJournalCountBefore, await proof.ClientOperationalJournals.CountAsync());
   }
 

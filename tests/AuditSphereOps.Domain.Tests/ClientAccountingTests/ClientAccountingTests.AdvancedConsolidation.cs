@@ -363,7 +363,7 @@ public sealed partial class ClientAccountingTests
     await db.SaveChangesAsync();
 
     var targetScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-      new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.NestedGroup,
+      new ConsolidationScopeRequest(groupId, await CreateExternalPackFixturePeriodAsync(db, fixture), "QAR", AdvancedConsolidationMethods.NestedGroup,
         "OPENING-2026"))).Value;
     var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
       new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
@@ -376,7 +376,7 @@ public sealed partial class ClientAccountingTests
     var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
       new ExternalComponentPackRequest(targetScopeId, fixture.ClientA, fixture.EngagementA, "2026-01-01", "2026-12-31",
         "IFRS", "QAR", "STATUTORY", "tax-v1", "mapping-v1", "nested-schedule-pack",
-        new string('a', 64), new string('b', 64), 0m,
+        new string('a', 64), Hashing.Sha256Hex("CASH|100.000000|QAR|line-1\nEQUITY|-100.000000|QAR|line-2"), 0m,
         [new("CASH", 100m, "QAR", "line-1"), new("EQUITY", -100m, "QAR", "line-2")]))).Value;
     Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
       new ExternalComponentReconciliationRequest(packId, "nested-pack-reconciliation"))).Succeeded);
@@ -471,7 +471,7 @@ public sealed partial class ClientAccountingTests
     Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
 
     var scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-      new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.ForeignCurrencyReserve,
+      new ConsolidationScopeRequest(groupId, await CreateExternalPackFixturePeriodAsync(db, fixture), "QAR", AdvancedConsolidationMethods.ForeignCurrencyReserve,
         "OPENING-2026", rateSetId, policyId, rateDate, "CLOSING"))).Value;
     var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
       new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
@@ -484,7 +484,7 @@ public sealed partial class ClientAccountingTests
     var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
       new ExternalComponentPackRequest(scopeId, fixture.ClientA, fixture.EngagementA, "2026-01-01", "2026-12-31",
         "IFRS", "USD", "STATUTORY", "tax-v1", "mapping-v1", "advanced-fx-pack",
-        new string('c', 64), new string('d', 64), 0m,
+        new string('c', 64), Hashing.Sha256Hex("CASH|100.000000|USD|line-1\nEQUITY|-100.000000|USD|line-2"), 0m,
         [new("CASH", 100m, "USD", "line-1"), new("EQUITY", -100m, "USD", "line-2")]))).Value;
     Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
       new ExternalComponentReconciliationRequest(packId, "advanced-fx-reconciliation"))).Succeeded);
@@ -546,12 +546,12 @@ public sealed partial class ClientAccountingTests
       await db.SaveChangesAsync();
 
       scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", AdvancedConsolidationMethods.AcquisitionNci,
+        new ConsolidationScopeRequest(groupId, await CreateExternalPackFixturePeriodAsync(db, fixture), "QAR", AdvancedConsolidationMethods.AcquisitionNci,
           "OPENING-2026"))).Value;
       var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
         new ExternalComponentPackRequest(scopeId, fixture.ClientA, fixture.EngagementA, "2026-01-01", "2026-12-31",
           "IFRS", "QAR", "STATUTORY", "tax-v1", "mapping-v1", "advanced-execution-fixture",
-          new string('a', 64), new string('b', 64), 0m,
+          new string('a', 64), Hashing.Sha256Hex("CASH|100.000000|QAR|line-1\nEQUITY|-100.000000|QAR|line-2"), 0m,
           [new("CASH", 100m, "QAR", "line-1"), new("EQUITY", -100m, "QAR", "line-2")]))).Value;
       Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
         new ExternalComponentReconciliationRequest(packId, "external-pack-reconciliation"))).Succeeded);
@@ -691,7 +691,7 @@ public sealed partial class ClientAccountingTests
     await db.SaveChangesAsync();
 
     var scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-      new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", method, "OPENING-2026"))).Value;
+      new ConsolidationScopeRequest(groupId, await CreateExternalPackFixturePeriodAsync(db, fixture), "QAR", method, "OPENING-2026"))).Value;
     var profileId = (await ClientAccountingService.CreateCapabilityProfileAsync(db, reviewer,
       new CapabilityProfileRequest(null, groupId, AccountingCapabilityServiceKinds.GroupReporting, "IFRS", "2026",
         "ANNUAL", "QAR", "STATUTORY", method, "PARTNER", "GROUP"))).Value;
@@ -703,7 +703,7 @@ public sealed partial class ClientAccountingTests
     var packId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
       new ExternalComponentPackRequest(scopeId, fixture.ClientA, fixture.EngagementA, "2026-01-01", "2026-12-31",
         "IFRS", "QAR", "STATUTORY", "tax-v1", "mapping-v1", $"pack-{method}",
-        new string('e', 64), new string('f', 64), 0m,
+        new string('e', 64), Hashing.Sha256Hex("CASH|100.000000|QAR|line-1\nEQUITY|-100.000000|QAR|line-2"), 0m,
         [new("CASH", 100m, "QAR", "line-1"), new("EQUITY", -100m, "QAR", "line-2")]))).Value;
     Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
       new ExternalComponentReconciliationRequest(packId, $"reconcile-{method}"))).Succeeded);

@@ -61,6 +61,13 @@ public static class ConsolidationExternalComponentPackQuery
   private sealed record Context(
     ConsolidationScopeVersion Scope, long CurrentGroupRevision, bool CanPrepare, bool CanReview);
 
+  internal static IQueryable<ClientGroupMembership> EligibleMemberships(
+    IClientAccountingDbContext db, Guid firmId, ConsolidationScopeVersion scope) =>
+    db.ClientGroupMemberships.AsNoTracking().Where(x => x.FirmId == firmId && x.GroupId == scope.GroupId &&
+      x.Status == AccountingWorkflowStates.Approved && db.ClientReportingPeriods.Any(p =>
+        p.FirmId == firmId && p.Id == scope.PeriodId && p.StartDate != default && p.EndDate >= p.StartDate &&
+        x.EffectiveFrom <= p.EndDate && (x.EffectiveTo == null || x.EffectiveTo >= p.StartDate)));
+
   private static async Task<CommandResult<Context>> LoadContextAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid scopeId, CancellationToken ct)
   {
@@ -105,8 +112,10 @@ public static class ConsolidationExternalComponentPackQuery
     var context = loaded.Value!;
     var scope = context.Scope;
     var isCurrent = context.CurrentGroupRevision == scope.GroupRevision;
-    var canSubmit = context.CanPrepare && isCurrent && scope.Status == AccountingWorkflowStates.Draft;
-    var canReview = context.CanReview && isCurrent;
+    var memberQuery = EligibleMemberships(db, actor.FirmId, scope);
+    var hasEligibleMembers = await memberQuery.AnyAsync(ct);
+    var canSubmit = context.CanPrepare && isCurrent && hasEligibleMembers && scope.Status == AccountingWorkflowStates.Draft;
+    var canReview = context.CanReview && isCurrent && hasEligibleMembers;
 
     var packs = db.ExternalComponentPacks.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id);
@@ -121,13 +130,13 @@ public static class ConsolidationExternalComponentPackQuery
       .Where(x => x.FirmId == actor.FirmId && pageClientIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
     var allowedCurrencies = await AllowedComponentCurrenciesAsync(db, actor.FirmId, scope, ct);
+    var eligiblePackClients = await memberQuery.Where(x => pageClientIds.Contains(x.ClientId))
+      .Select(x => x.ClientId).ToHashSetAsync(ct);
     var items = pageRows.Select(pack => ToSummary(
       pack, clientNames.GetValueOrDefault(pack.ClientId), scope, context.CurrentGroupRevision,
-      actor.UserId, context.CanPrepare, context.CanReview, existingComponentClients.Contains(pack.ClientId), allowedCurrencies)).ToArray();
+      actor.UserId, context.CanPrepare, context.CanReview, existingComponentClients.Contains(pack.ClientId), allowedCurrencies,
+      eligiblePackClients.Contains(pack.ClientId))).ToArray();
 
-    var memberQuery = db.ClientGroupMemberships.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null);
     var eligibleClientQuery = db.PracticeClients.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && memberQuery.Any(m => m.ClientId == x.Id));
     var normalizedClientSearch = (clientSearch ?? string.Empty).Trim();
@@ -227,8 +236,10 @@ public static class ConsolidationExternalComponentPackQuery
     var existingComponent = await db.ConsolidationComponents.AsNoTracking()
       .AnyAsync(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.ClientId == pack.ClientId, ct);
     var allowedCurrencies = await AllowedComponentCurrenciesAsync(db, actor.FirmId, scope, ct);
+    var membershipEligible = await EligibleMemberships(db, actor.FirmId, scope)
+      .AnyAsync(x => x.ClientId == pack.ClientId, ct);
     var summary = ToSummary(pack, clientName, scope, context.CurrentGroupRevision,
-      actor.UserId, context.CanPrepare, context.CanReview, existingComponent, allowedCurrencies);
+      actor.UserId, context.CanPrepare, context.CanReview, existingComponent, allowedCurrencies, membershipEligible);
     var linesQuery = db.ExternalComponentPackLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id && x.ExternalComponentPackId == pack.Id);
     var lineCount = await linesQuery.CountAsync(ct);
@@ -247,22 +258,23 @@ public static class ConsolidationExternalComponentPackQuery
   private static ExternalComponentPackSummary ToSummary(
     ExternalComponentPack pack, string? clientName, ConsolidationScopeVersion scope, long currentGroupRevision,
     Guid currentUserId, bool hasPreparerGrant, bool hasReviewerGrant, bool componentAlreadySubmitted,
-    IReadOnlySet<string> allowedCurrencies)
+    IReadOnlySet<string> allowedCurrencies, bool membershipEligible)
   {
     var currentRevision = scope.GroupRevision == currentGroupRevision;
-    var canReviewActivePack = hasReviewerGrant && currentRevision && scope.Status == AccountingWorkflowStates.Draft &&
+    var canReviewActivePack = hasReviewerGrant && currentRevision && membershipEligible && scope.Status == AccountingWorkflowStates.Draft &&
       ActiveSubmissionStates.Contains(pack.Status, StringComparer.Ordinal) &&
       pack.SubmittedByUserId != currentUserId;
     var canReconcile = canReviewActivePack && pack.ReconciliationStatus == ExternalComponentReconciliationStates.Pending;
     var canReturn = canReviewActivePack;
     var canApprove = canReviewActivePack && pack.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled &&
       (pack.CompatibilityBridgeStatus != ExternalComponentBridgeStates.Pending || !string.IsNullOrWhiteSpace(pack.CompatibilityBridgeReference));
-    var canPin = hasPreparerGrant && currentRevision && scope.Status == AccountingWorkflowStates.Draft &&
+    var canPin = hasPreparerGrant && currentRevision && membershipEligible && scope.Status == AccountingWorkflowStates.Draft &&
       pack.Status == ExternalComponentPackStates.Approved &&
       pack.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled && !componentAlreadySubmitted &&
       SupportsCurrency(allowedCurrencies, pack.ReportingCurrency);
 
     var blockers = new List<string>();
+    if (!membershipEligible) blockers.Add("The entity has no approved membership overlapping the scope reporting period, or that period is unavailable.");
     if (!currentRevision) blockers.Add("The group perimeter changed; create a new scope version before continuing.");
     if (scope.Status != AccountingWorkflowStates.Draft) blockers.Add("The scope is no longer a draft accepting component packs.");
     if (pack.SubmittedByUserId == currentUserId && ActiveSubmissionStates.Contains(pack.Status, StringComparer.Ordinal))

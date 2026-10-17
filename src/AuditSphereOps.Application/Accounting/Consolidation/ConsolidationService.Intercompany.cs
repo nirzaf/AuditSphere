@@ -46,6 +46,8 @@ public static partial class ConsolidationService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockGroupAuthorityFenceAsync(db, actor.FirmId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
     var lockedGroup = await db.ClientGroups.FromSqlInterpolated(
       $"SELECT * FROM client_groups WHERE id = {scope.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
@@ -142,6 +144,8 @@ public static partial class ConsolidationService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (!await LockGroupAuthorityFenceAsync(db, actor.FirmId, ct))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
     var lockedGroup = await db.ClientGroups.FromSqlInterpolated(
       $"SELECT * FROM client_groups WHERE id = {matchScope.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
