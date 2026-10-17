@@ -106,7 +106,7 @@ public static partial class FinancialStatementService
     if (!lineage.Succeeded)
       return CommandResult<Guid>.Fail(lineage.ErrorCode!, lineage.Message!);
     var current = lineage.Value!;
-    if (current.Allocations.Count == 0)
+    if (current.Allocations.Count == 0 && current.ScheduleAllocations.Count == 0)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "This package has no source-linked cash-flow movements to review.");
     if (current.Allocations.Any(x => x.CreatedByUserId == Guid.Empty) || current.ScheduleAllocations.Any(x => x.CreatedByUserId == Guid.Empty))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A source link has no recorded preparer. Rebuild the package before review.");
