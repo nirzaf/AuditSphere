@@ -127,7 +127,7 @@ public sealed class FinancialStatementPresentationTests
 
     Assert.Equal(FinancialStatementPresentationPolicy.DraftStatus, p.Status);
     Assert.Equal(new[] { "FINANCIAL_POSITION", "PROFIT_OR_LOSS", "CHANGES_IN_EQUITY", "CASH_FLOWS" }, p.Statements.Select(x => x.Code));
-    Assert.All(p.Checks.Where(x => x.Code is not ("EQUITY_SCHEDULE" or "CASH_FLOW_REQUIRED_SECTIONS" or "CASH_FLOW_BRIDGE" or
+    Assert.All(p.Checks.Where(x => x.Code is not ("EQUITY_SCHEDULE" or "CASH_FLOW_FX_ASSESSMENT" or "CASH_FLOW_REQUIRED_SECTIONS" or "CASH_FLOW_BRIDGE" or
       "CASH_FLOW_PACKAGE_RECONCILIATION" or "CASH_FLOW_COMPARATIVE_REQUIRED_SECTIONS" or "CASH_FLOW_COMPARATIVE_BRIDGE" or
       "CASH_FLOW_COMPARATIVE_PACKAGE_RECONCILIATION" or "CASH_FLOW_SCHEDULE" or "CASH_FLOW_COMPARATIVE" or "EQUITY_COMPARATIVE" or "NOTE_CONTENT")),
       check => Assert.True(check.Passed, $"{check.Code}: {check.Detail}"));
@@ -288,10 +288,11 @@ public sealed class FinancialStatementPresentationTests
         new("OPERATING", "Operating receipts and payments", 1200000m, false, "OPERATING_NET", SourceResolved: true),
         new("FINANCING", "New borrowing", 32621m, false, "BORROWING", SourceResolved: secondResolved)
       ],
-      [new("USD/QAR", 0m)],
+      [],
       [new("RETAINED_EARNINGS", "Retained earnings", 979299m, 3818172m, 0m, 0m, 0m, 4797471m)],
       [new("CASH_FLOW_RECONCILED", true, "Cash bridge and selected closing-cash population reconcile to the package build.")],
-      CashFlowSourceApproved: approved);
+      CashFlowSourceApproved: approved,
+      FxCashAssessment: new(FxCashAssessmentStates.AssessedZero, "synthetic-source-review-cash-population", "Synthetic fixture assessed no foreign-currency cash effect."));
 
     var resolved = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
       currentSupplementary: Schedules(secondResolved: true), priorSupplementary: null);
@@ -324,25 +325,27 @@ public sealed class FinancialStatementPresentationTests
         new("INVESTING", "Lease asset recognised", -50000m, true, "NONCASH_LEASE"),
         new("FINANCING", "New borrowing", 32621m, false, "BORROWING")
       ],
-      [new("USD/QAR", 0m)],
+      [],
       [new("RETAINED_EARNINGS", "Retained earnings", 979299m, 3818172m, 0m, 0m, 0m, 4797471m)],
-      [new("CASH_FLOW_RECONCILED", true, "Cash bridge and selected closing-cash population reconcile to the package build.")]);
+      [new("CASH_FLOW_RECONCILED", true, "Cash bridge and selected closing-cash population reconcile to the package build.")],
+      FxCashAssessment: new(FxCashAssessmentStates.AssessedZero, "synthetic-cash-population", "Synthetic fixture assessed no foreign-currency cash effect."));
 
     var result = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
       currentSupplementary: schedules, priorSupplementary: null);
     Assert.True(result.Succeeded, result.Message);
     var presentation = result.Value!;
 
-    Assert.Equal(1032621m, Amount(Row(presentation, "CF_NET_CHANGE").Current));
+    Assert.Null(Row(presentation, "CF_NET_CHANGE").Current);
     Assert.Equal(58372m, Amount(Row(presentation, "CF_BEGINNING_CASH").Current));
     Assert.Equal(1090993m, Amount(Row(presentation, "CF_ENDING_CASH").Current));
     Assert.Null(Row(presentation, "CF_NET_CHANGE").Prior);
     Assert.Contains(presentation.Statements.Single(x => x.Code == "CASH_FLOWS").Rows,
       x => x.Label.Contains("Noncash transaction", StringComparison.Ordinal) && x.Current == -50000m);
-    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_BRIDGE" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_BRIDGE" && !x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_REQUIRED_SECTIONS" && x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_PACKAGE_RECONCILIATION" && x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_SOURCE_LINEAGE" && !x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "CASH_FLOW_FX_ASSESSMENT" && !x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_ROLLFORWARD" && x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_PROFIT_CROSS_CAST" && x.Passed);
     Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_OCI_CROSS_CAST" && x.Passed);
@@ -373,17 +376,21 @@ public sealed class FinancialStatementPresentationTests
       [new("OPERATING", "Net operating cash", 1200000m, false, "OPERATING"),
        new("INVESTING", "Investment payments", -200000m, false, "INVESTING"),
        new("FINANCING", "New borrowing", 32621m, false, "FINANCING")],
-      [new("USD/QAR", 0m)],
+      [],
       [new("EQUITY", "Total equity", 979299m, 3818172m, 0m, 0m, 0m, 4797471m)],
-      [new("CASH_FLOW_RECONCILED", true, "Current bridge and cash population reconcile.")]);
+      [new("CASH_FLOW_RECONCILED", true, "Current bridge and cash population reconcile.")],
+      CashFlowSourceApproved: true,
+      FxCashAssessment: new(FxCashAssessmentStates.AssessedZero, "current-cash-population", "Synthetic current comparative fixture assessed no foreign-currency cash effect."));
     var prior = new PresentationSupplementarySchedules(
       0m, 58372m,
       [new("OPERATING", "Net operating cash", 58372m, false, "OPERATING"),
        new("INVESTING", "Investment payments", 0m, false, "INVESTING"),
        new("FINANCING", "Financing cash", 0m, false, "FINANCING")],
-      [new("USD/QAR", 0m)],
+      [],
       [new("EQUITY", "Total equity", -8247m, 2695325m, 0m, 0m, 0m, 2687078m)],
-      [new("CASH_FLOW_RECONCILED", true, "Comparative bridge and cash population reconcile.")]);
+      [new("CASH_FLOW_RECONCILED", true, "Comparative bridge and cash population reconcile.")],
+      CashFlowSourceApproved: true,
+      FxCashAssessment: new(FxCashAssessmentStates.AssessedZero, "prior-cash-population", "Synthetic prior comparative fixture assessed no foreign-currency cash effect."));
 
     var result = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(),
       Header(withPrior: true), Manifest(withPrior: true), currentSupplementary: current, priorSupplementary: prior);

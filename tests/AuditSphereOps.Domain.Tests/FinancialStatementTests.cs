@@ -812,6 +812,8 @@ public sealed class FinancialStatementTests
               "The synthetic selected cash population has no foreign-currency effect."))));
       Assert.True(completed.Succeeded, completed.Message);
       packageId = completed.Value!.PackageId;
+      var sourceReview = await CashFlowSourceReviewCall.RecordAsync(db, reviewer, packageId, "APPROVED", null);
+      Assert.True(sourceReview.Succeeded, sourceReview.Message);
     }
 
     static StatementLineDefinition Heading(string code, string label, string section, int order) =>
@@ -863,7 +865,7 @@ public sealed class FinancialStatementTests
       var knownUnapprovedGaps = new[]
       {
         "NOTE_CONTENT", "EQUITY_PROFIT_CROSS_CAST", "EQUITY_OCI_CROSS_CAST", "EQUITY_SFP_CROSS_CAST",
-        "EQUITY_SOURCE_LINEAGE", "CASH_FLOW_REQUIRED_SECTIONS", "CASH_FLOW_BRIDGE", "CASH_FLOW_SOURCE_LINEAGE"
+        "EQUITY_SOURCE_LINEAGE", "CASH_FLOW_REQUIRED_SECTIONS", "CASH_FLOW_BRIDGE"
       };
       Assert.Equal(knownUnapprovedGaps.OrderBy(x => x, StringComparer.Ordinal),
         p.Checks.Where(check => !check.Passed).Select(check => check.Code).OrderBy(x => x, StringComparer.Ordinal));
@@ -1009,10 +1011,10 @@ public sealed class FinancialStatementTests
       Assert.Equal(ErrorCodes.ScopeDenied,
         (await FinancialStatementService.GetPinnedPresentationAsync(db, stranger, packageId, pin.RevisionId)).ErrorCode);
 
-      // A changed client input generation makes the pin stale instead of silently refreshing its snapshot.
-      var safety = await db.ClientSafetyStates.SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == fixture.ClientId);
-      safety.InputGeneration++;
-      await db.SaveChangesAsync();
+      // Replacing the exact accepted GL source reviewed by this package makes the pin stale.
+      var replacement = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId,
+        fixture.EngagementId, fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "layout-stale-pin");
+      Assert.NotEqual(source.BatchId, replacement.BatchId);
       var stalePin = await FinancialStatementService.GetPinnedPresentationAsync(db, reviewer, packageId, pin.RevisionId);
       Assert.False(stalePin.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, stalePin.ErrorCode);

@@ -137,7 +137,9 @@ public sealed class FinancialPackageGateTests
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-stage-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-stage"], ClosingCashEvidenceReferences: ["closing-cash-stage"])
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-stage"], ClosingCashEvidenceReferences: ["closing-cash-stage"],
+        FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "cash-population-stage",
+          "The selected synthetic cash population has no foreign-currency effect."))
     };
     Guid packageId;
     await using (var db = new AuditSphereDbContext(pg.Options))

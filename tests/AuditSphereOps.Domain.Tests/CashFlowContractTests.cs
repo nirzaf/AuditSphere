@@ -237,7 +237,9 @@ public sealed class CashFlowContractTests
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"],
+        FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+          "All selected cash accounts are denominated in the functional currency."))
     };
     static CashFlowLineInput Movement(string section, string description, decimal amount, bool nonCash, string activity,
       params CashFlowSourceAllocationInput[] allocations) => new(section, description, amount, IsNonCash: nonCash,
@@ -321,7 +323,9 @@ public sealed class CashFlowContractTests
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"],
+        FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+          "All selected cash accounts are denominated in the functional currency."))
     };
     static CashFlowLineInput Movement(string section, string description, decimal amount, bool nonCash, string activity,
       params CashFlowSourceAllocationInput[] allocations) => new(section, description, amount, IsNonCash: nonCash,
