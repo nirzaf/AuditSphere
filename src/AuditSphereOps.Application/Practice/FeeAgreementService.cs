@@ -147,7 +147,7 @@ public static partial class FeeAgreementService
     if (kind == FeeMilestoneKinds.Balance)
     {
       var advance = await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Advance, ct);
-      if (advance.State != FeeMilestoneStates.Paid)
+      if (!await IsMilestoneCurrentlyPaidAsync(db, advance, ct))
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The advance must be fully paid before the balance is invoiced.");
       if (agreement.EngagementId is null || !await db.Releases.AsNoTracking().AnyAsync(x =>
             x.FirmId == actor.FirmId && x.EngagementId == agreement.EngagementId && x.ClientId == agreement.PracticeClientId, ct))
@@ -262,15 +262,37 @@ public static partial class FeeAgreementService
       if (!allocation.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(allocation.ErrorCode!, allocation.Message!);
     }
 
-    var outstanding = await OutstandingAsync(db, actor.FirmId, invoice, ct);
-    var allocated = invoice.Total - outstanding;
+    // Allocation commands have committed before this settlement projection. Reacquire
+    // their firm fence so a reversal cannot race the cash check and PAID transition.
+    await using var settlementTx = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(auth.ErrorCode!, auth.Message!);
+    var currentMilestone = await db.FeeMilestones.AsNoTracking()
+      .SingleAsync(x => x.Id == milestone.Id && x.FirmId == actor.FirmId, ct);
+    milestone.State = currentMilestone.State;
+    milestone.ReceiptId = currentMilestone.ReceiptId;
+    milestone.PaidAt = currentMilestone.PaidAt;
+    // Credits cannot replace the mandatory cash advance. Preserve the existing
+    // credit-adjusted settlement policy for the final balance milestone.
+    var netCash = await BillingService.GetNetAppliedToInvoiceAsync(db, actor.FirmId, invoice.Id, ct);
+    var outstanding = kind == FeeMilestoneKinds.Advance
+      ? MoneyPolicy.Normalize(Math.Max(0m, milestone.Amount - netCash))
+      : await OutstandingAsync(db, actor.FirmId, invoice, ct);
+    var allocated = kind == FeeMilestoneKinds.Advance ? netCash : invoice.Total - outstanding;
     // Every actual payment receives its own voucher and one dispatch intent, partial or not. A missing profile or recipient keeps the
     // payment and leaves the voucher recoverable: recording the same reference again completes it without a second receipt.
     var voucher = await EnsurePaymentVoucherAsync(db, actor, agreement, milestone, invoice, receipt, ct);
     if (outstanding > 0)
+    {
+      if (settlementTx is not null) await settlementTx.CommitAsync(ct);
       return CommandResult<AdvancePaymentOutcome>.Ok(new(receipt.Id, allocated, outstanding, false, null, false,
         $"Partial {kind.ToLowerInvariant()} recorded; {outstanding.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} remains outstanding. {voucher.Message}",
         voucher.DocumentId, voucher.EmailQueued));
+    }
 
     var tracked = await db.FeeMilestones.SingleAsync(x => x.Id == milestone.Id && x.FirmId == actor.FirmId, ct);
     if (tracked.State != FeeMilestoneStates.Paid)
@@ -285,6 +307,7 @@ public static partial class FeeAgreementService
       await AuditSphereOps.Application.Documents.ClientPortalService.RefreshCommercialIntentAsync(db, actor.FirmId, agreement.PracticeClientId, ct);
     }
     var settled = await EnsureReceiptDocumentAndEmailAsync(db, actor, agreement, tracked, invoice, receipt, ct);
+    if (settlementTx is not null) await settlementTx.CommitAsync(ct);
     return settled.Succeeded
       ? CommandResult<AdvancePaymentOutcome>.Ok(settled.Value! with { VoucherDocumentId = voucher.DocumentId, VoucherEmailQueued = voucher.EmailQueued })
       : settled;
@@ -398,7 +421,13 @@ public static partial class FeeAgreementService
     {
       Invoice? invoice = milestone.InvoiceId.HasValue
         ? await db.Invoices.AsNoTracking().SingleOrDefaultAsync(x => x.Id == milestone.InvoiceId && x.FirmId == actor.FirmId, ct) : null;
-      var outstanding = invoice is null ? milestone.Amount : await OutstandingAsync(db, actor.FirmId, invoice, ct);
+      var outstanding = invoice is null ? milestone.Amount : milestone.Kind == FeeMilestoneKinds.Advance
+        ? MoneyPolicy.Normalize(Math.Max(0m, milestone.Amount - await BillingService.GetNetAppliedToInvoiceAsync(db, actor.FirmId, invoice.Id, ct)))
+        : await OutstandingAsync(db, actor.FirmId, invoice, ct);
+      // This untracked read projection reflects current settlement while the persisted
+      // PAID milestone and original settlement receipt remain immutable history.
+      if (milestone.State == FeeMilestoneStates.Paid && !await IsMilestoneCurrentlyPaidAsync(db, milestone, ct))
+        milestone.State = FeeMilestoneStates.Invoiced;
       views.Add(new(milestone, invoice?.InvoiceNumber, invoice?.Status, milestone.Amount - outstanding, outstanding));
     }
     var released = agreement.EngagementId.HasValue && await db.Releases.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == agreement.EngagementId, ct);

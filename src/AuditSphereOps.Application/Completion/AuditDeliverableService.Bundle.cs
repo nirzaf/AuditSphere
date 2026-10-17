@@ -274,7 +274,7 @@ public static partial class AuditDeliverableService
     if (agreements.Count == 1)
     {
       var agreementId = agreements[0].Id;
-      var advancePaid = await db.FeeMilestones.AnyAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Advance && x.State == FeeMilestoneStates.Paid, ct);
+      var advancePaid = await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, actor.FirmId, agreementId, ct);
       var milestone = await db.FeeMilestones.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Balance, ct);
       if (advancePaid && milestone?.InvoiceId is { } invoiceId)
       {

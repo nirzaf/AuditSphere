@@ -11,7 +11,7 @@ internal static class EngagementActivationReviewSeed
   /// default seeds a <c>PAID</c> advance. Pass another milestone state to model an unpaid advance, or <c>null</c> to
   /// leave the engagement with no linked fee agreement at all.
   /// </param>
-  internal static async Task<Guid> PopulateAsync(AuditSphereDbContext db,PbcSeed.Fixture f,string? advanceState=FeeMilestoneStates.Paid)
+  internal static async Task<Guid> PopulateAsync(AuditSphereDbContext db,PbcSeed.Fixture f,string? advanceState=FeeMilestoneStates.Paid,decimal allocatedAdvance=10000m)
   {
     const long generation=9007199254740993;
     await db.Engagements.Where(e=>e.Id==f.EngagementId).ExecuteUpdateAsync(s=>s.SetProperty(e=>e.Status,"Draft")
@@ -22,7 +22,7 @@ internal static class EngagementActivationReviewSeed
     var id=Guid.NewGuid();db.AcceptanceDecisions.Add(new(){Id=id,FirmId=f.FirmId,PracticeClientId=f.ClientId,ServiceRoute="FinancialStatementAudit",
       Decision="Accepted",Path=AcceptancePaths.NewClient,Generation=generation,Rationale="Synthetic owner-approved test evidence",
       EvaluationTemplateVersion="synthetic.v1",EvaluationSnapshotDigest=new string('a',64),DecidedByUserId=f.Staff.Id,DecidedAt=DateTimeOffset.Parse("2026-10-01T12:00:00Z")});
-    if(advanceState is not null) LinkFeeAgreement(db,f.FirmId,f.ClientId,f.EngagementId,f.Staff.Id,advanceState);
+    if(advanceState is not null) LinkFeeAgreement(db,f.FirmId,f.ClientId,f.EngagementId,f.Staff.Id,advanceState,allocatedAdvance:allocatedAdvance);
     await db.SaveChangesAsync();return id;
   }
 
@@ -31,7 +31,7 @@ internal static class EngagementActivationReviewSeed
   /// proposal → fee agreement → advance milestone. Rows are staged only, so the caller owns SaveChanges.
   /// </summary>
   internal static void LinkFeeAgreement(AuditSphereDbContext db,Guid firmId,Guid clientId,Guid engagementId,Guid userId,
-    string advanceState,string serviceRoute="FinancialStatementAudit")
+    string advanceState,string serviceRoute="FinancialStatementAudit",decimal allocatedAdvance=10000m)
   {
     var leadId=Guid.NewGuid();
     db.Leads.Add(new Lead{Id=leadId,FirmId=firmId,Name="Synthetic lead",Source=LeadChannels.Email,Status=CrmStates.LeadQualified,
@@ -72,11 +72,34 @@ internal static class EngagementActivationReviewSeed
     db.EngagementFeeAgreements.Add(new EngagementFeeAgreement{Id=agreementId,FirmId=firmId,ProposalId=proposalId,
       QuotationVersionId=quotationId,PracticeClientId=clientId,EngagementId=engagementId,Currency="QAR",AgreedFee=20000m,
       AdvancePercent=50m,CreatedByUserId=userId,CreatedAt=now});
-    // ck_fee_milestone_values: PLANNED has no invoice, INVOICED has one, PAID has an invoice, a receipt and a paid time.
-    db.FeeMilestones.Add(new FeeMilestone{Id=Guid.CreateVersion7(),FirmId=firmId,AgreementId=agreementId,
+    var milestone = new FeeMilestone{Id=Guid.CreateVersion7(),FirmId=firmId,AgreementId=agreementId,
       Kind=FeeMilestoneKinds.Advance,Amount=10000m,State=advanceState,
       InvoiceId=advanceState==FeeMilestoneStates.Planned?null:Guid.CreateVersion7(),
       ReceiptId=advanceState==FeeMilestoneStates.Paid?Guid.CreateVersion7():null,
-      PaidAt=advanceState==FeeMilestoneStates.Paid?DateTimeOffset.UtcNow:null,CreatedAt=DateTimeOffset.UtcNow});
+      PaidAt=advanceState==FeeMilestoneStates.Paid?now:null,CreatedAt=now};
+    db.FeeMilestones.Add(milestone);
+    if (milestone.InvoiceId is { } invoiceId)
+    {
+      // These are accepted synthetic financial inputs for activation tests, not a
+      // substitute for the separate invoice posting/receipt workflow acceptance.
+      var account = db.BillingAccounts.Local.FirstOrDefault(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.Currency == "QAR")
+        ?? db.BillingAccounts.SingleOrDefault(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.Currency == "QAR");
+      if (account is null)
+      {
+        account = new BillingAccount { Id=Guid.CreateVersion7(),FirmId=firmId,PracticeClientId=clientId,Currency="QAR",CreatedAt=now };
+        db.BillingAccounts.Add(account);
+      }
+      db.Invoices.Add(new Invoice { Id=invoiceId,FirmId=firmId,BillingAccountId=account.Id,
+        InvoiceNumber="SYNTHETIC-ADV-"+agreementId.ToString("N"),Currency="QAR",Subtotal=10000m,Total=10000m,
+        Status=BillingStates.InvoicePosted,CreatedByUserId=userId,PostedAt=now,CreatedAt=now });
+      if (milestone.ReceiptId is { } receiptId)
+      {
+        db.Receipts.Add(new Receipt { Id=receiptId,FirmId=firmId,BillingAccountId=account.Id,Amount=allocatedAdvance > 0m ? allocatedAdvance : 10000m,Currency="QAR",
+          Reference="SYNTHETIC-ADV-"+agreementId.ToString("N"),RecordedByUserId=userId,ReceivedAt=now });
+        if (allocatedAdvance > 0m)
+          db.ReceiptAllocations.Add(new ReceiptAllocation { Id=Guid.CreateVersion7(),FirmId=firmId,
+            ReceiptId=receiptId,InvoiceId=invoiceId,Amount=allocatedAdvance,CreatedAt=now });
+      }
+    }
   }
 }

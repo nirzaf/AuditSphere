@@ -1024,6 +1024,112 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(2, agreementFinance.Invoices.Count);
     Assert.Equal(4, agreementFinance.Receipts.Count); // 2 advance receipts + 2 balance receipts
     Assert.Equal("0", agreementFinance.OutstandingBalance);
+
+    // An approved cash unapplication must reopen the current advance gate without
+    // rewriting the receipt proving that it was previously settled.
+    var advanceMilestone = await db.FeeMilestones.SingleAsync(x =>
+      x.FirmId == w.FirmId && x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Advance);
+    var originalPaidReceiptId = advanceMilestone.ReceiptId;
+    var originalPaidAt = advanceMilestone.PaidAt;
+    var originalSettlementId = paid.Value.ReceiptDocumentId!.Value;
+    var originalSettlementBytes = (await db.CommercialDocuments.AsNoTracking()
+      .SingleAsync(x => x.Id == originalSettlementId)).Bytes.ToArray();
+    var advanceAllocation = await db.ReceiptAllocations.AsNoTracking()
+      .SingleAsync(x => x.FirmId == w.FirmId && x.InvoiceId == advanceInvoice.Value && x.ReceiptId == partial.Value.ReceiptId);
+    var rejectedReversal = await ReceiptAllocationReversalService.SubmitAsync(db, w.FinanceManager, advanceAllocation.Id,
+      new(100m, "SYNTHETIC-ADVANCE-REJECTED", "Reviewed correction fixture.", 0, true));
+    Assert.True(rejectedReversal.Succeeded, rejectedReversal.Message);
+    Assert.Equal(FeeMilestoneStates.Paid, advanceMilestone.State);
+    Assert.True((await ReceiptAllocationReversalService.ReviewAsync(db, w.FinanceReviewer, rejectedReversal.Value,
+      new(false, "The original allocation is valid.", true))).Succeeded);
+    Assert.Equal(FeeMilestoneStates.Paid, advanceMilestone.State);
+
+    var approvedReversal = await ReceiptAllocationReversalService.SubmitAsync(db, w.FinanceManager, advanceAllocation.Id,
+      new(100m, "SYNTHETIC-ADVANCE-UNAPPLY", "Independently confirmed unapplication.", 1, true));
+    Assert.True(approvedReversal.Succeeded, approvedReversal.Message);
+    var reversalReview = new ReviewReceiptAllocationReversal(true, "Verified the retained correction evidence.", true);
+    await using (var blocker = new AuditSphereDbContext(pg.Options))
+    await using (var reviewingDb = new AuditSphereDbContext(pg.Options))
+    await using (var replayDb = new AuditSphereDbContext(pg.Options))
+    await using (var observer = new AuditSphereDbContext(pg.Options))
+    {
+      await using var fence = await blocker.Database.BeginTransactionAsync();
+      await blocker.FirmSafetyStates.FromSqlInterpolated(
+        $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+      using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+      async Task WaitForFirmWaiters(int expected)
+      {
+        while (await observer.Database.SqlQueryRaw<int>(
+          "SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE datname=current_database() " +
+          "AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query LIKE '%firm_safety_states%'")
+          .SingleAsync(timeout.Token) < expected)
+          await Task.Delay(25, timeout.Token);
+      }
+      var reviewTask = ReceiptAllocationReversalService.ReviewAsync(reviewingDb, w.FinanceReviewer,
+        approvedReversal.Value, reversalReview, timeout.Token);
+      await WaitForFirmWaiters(1);
+      // This replay reads its PAID milestone before waiting; reversal must win before
+      // it can republish settlement from that stale tracked instance.
+      var paymentReplay = FeeAgreementService.RecordAdvancePaymentAsync(replayDb, w.FinanceManager,
+        agreementId, 7500m, "TT-2", ct: timeout.Token);
+      try
+      {
+        await WaitForFirmWaiters(2);
+        await fence.CommitAsync(timeout.Token);
+      }
+      finally
+      {
+        if (blocker.Database.CurrentTransaction is not null) await fence.RollbackAsync();
+      }
+      var reviewedReversal = await reviewTask;
+      Assert.True(reviewedReversal.Succeeded, reviewedReversal.Message);
+      var replayedPayment = await paymentReplay;
+      Assert.True(replayedPayment.Succeeded, replayedPayment.Message);
+      Assert.False(replayedPayment.Value!.MilestonePaid);
+      Assert.Equal(100m, replayedPayment.Value.Outstanding);
+    }
+    await db.Entry(advanceMilestone).ReloadAsync();
+    await db.Entry(db.ReceiptAllocationReversals.Local.Single(x => x.Id == approvedReversal.Value)).ReloadAsync();
+    Assert.Equal(FeeMilestoneStates.Paid, advanceMilestone.State); // retained historical settlement
+    Assert.Equal(originalPaidReceiptId, advanceMilestone.ReceiptId);
+    Assert.Equal(originalPaidAt, advanceMilestone.PaidAt);
+    Assert.False(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
+    Assert.Equal(12400m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
+    var reopenedReadiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Partner, engagementId);
+    Assert.True(reopenedReadiness.Succeeded, reopenedReadiness.Message);
+    Assert.NotEqual(OnboardingReadinessStatuses.Paid, reopenedReadiness.Value!.AdvancePayment.Status);
+    Assert.True((await ReceiptAllocationReversalService.ReviewAsync(db, w.FinanceReviewer, approvedReversal.Value, reversalReview)).Succeeded);
+    Assert.Equal(12400m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
+    Assert.Equal(originalSettlementBytes, (await db.CommercialDocuments.AsNoTracking()
+      .SingleAsync(x => x.Id == originalSettlementId)).Bytes);
+
+    var restored = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 100m, "TT-REPLACEMENT");
+    Assert.True(restored.Succeeded, restored.Message);
+    Assert.True(restored.Value!.MilestonePaid);
+    Assert.Equal(12500m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
+    Assert.Equal(FeeMilestoneStates.Paid, advanceMilestone.State);
+    Assert.True(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
+    Assert.Equal(originalSettlementBytes, (await db.CommercialDocuments.AsNoTracking()
+      .SingleAsync(x => x.Id == originalSettlementId)).Bytes);
+
+    // A credit can settle AR, but cannot replace the required cash allocation.
+    var cashReversal = await ReceiptAllocationReversalService.SubmitAsync(db, w.FinanceManager, advanceAllocation.Id,
+      new(100m, "SYNTHETIC-ADVANCE-CREDIT-CHECK", "Separate AR credit from actual allocated cash.", 2, true));
+    Assert.True(cashReversal.Succeeded, cashReversal.Message);
+    Assert.True((await ReceiptAllocationReversalService.ReviewAsync(db, w.FinanceReviewer, cashReversal.Value,
+      new(true, "Confirmed the second cash correction.", true))).Succeeded);
+    var credit = await BillingService.IssueCreditNoteAsync(db, w.FinanceManager,
+      new(advanceInvoice.Value, "CN-SYNTHETIC-ADVANCE", 100m, "AR credit is not cash.", Guid.CreateVersion7()));
+    Assert.True(credit.Succeeded, credit.Message);
+    Assert.Equal(0m, (await BillingService.GetInvoiceBalanceAsync(db, w.FinanceManager, advanceInvoice.Value)).Value!.Outstanding);
+    var cashStillMissing = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager,
+      agreementId, 100m, "TT-REPLACEMENT");
+    Assert.True(cashStillMissing.Succeeded, cashStillMissing.Message);
+    Assert.False(cashStillMissing.Value!.MilestonePaid);
+    Assert.Equal(12400m, cashStillMissing.Value.Allocated);
+    Assert.Equal(100m, cashStillMissing.Value.Outstanding);
+    Assert.Equal(FeeMilestoneStates.Paid, advanceMilestone.State);
+    Assert.False(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
   }
 
   [Fact]

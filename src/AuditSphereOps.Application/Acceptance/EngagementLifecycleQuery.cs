@@ -296,9 +296,8 @@ public static class EngagementLifecycleQuery
         .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id, ct);
       if (agreement is null) feeBlocked.Add("Create the fee agreement and its 50% advance milestone");
       else if (agreement.EngagementId != engagementId) feeBlocked.Add("Link the fee agreement to this engagement");
-      // Activation reads the milestone state (PAID), never a receipt total or a user-entered flag, so the same state is required here.
-      var advancePaid = agreement is not null && await db.FeeMilestones.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
-        x.AgreementId == agreement.Id && x.Kind == FeeMilestoneKinds.Advance && x.State == FeeMilestoneStates.Paid, ct);
+      // Use the activation predicate: retained paid evidence plus the effect of approved allocation reversals.
+      var advancePaid = agreement is not null && await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db, actor.FirmId, agreement.Id, ct);
       if (!advancePaid) feeBlocked.Add("50% advance invoice payment allocation required to activate portal onboarding");
       return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.AdvanceBilling, "Advance Billing & Payment", 4, feeBlocked,

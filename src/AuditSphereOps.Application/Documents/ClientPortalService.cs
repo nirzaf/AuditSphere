@@ -34,7 +34,7 @@ public static class ClientPortalService
     var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.ProposalId == intent.SourceProposalId && x.PracticeClientId == clientId, ct);
     return agreement is not null && await AuditSphereOps.Application.Practice.AutomaticFeeInvoiceHandler.HasCurrentLetterAsync(db, agreement, ct) &&
       await db.Proposals.AnyAsync(x => x.FirmId == firmId && x.Id == intent.SourceProposalId && x.Status == "ACCEPTED" && x.ResponseAt != null, ct) &&
-      await db.FeeMilestones.AnyAsync(x => x.FirmId == firmId && x.AgreementId == agreement.Id && x.Kind == "ADVANCE" && x.State == "PAID", ct);
+      await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db, firmId, agreement.Id, ct);
   }
 
   internal static async Task RefreshCommercialIntentAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)

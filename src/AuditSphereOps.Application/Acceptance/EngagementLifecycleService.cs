@@ -88,8 +88,7 @@ public static partial class EngagementLifecycleService
     if (linkedAgreement is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "A linked engagement fee agreement with a fully paid and allocated 50% advance is required before the engagement can be activated.");
-    if (linkedAgreement is not null && !await db.FeeMilestones.AnyAsync(x => x.FirmId == actor.FirmId && x.AgreementId == linkedAgreement.Id &&
-      x.Kind == FeeMilestoneKinds.Advance && x.State == FeeMilestoneStates.Paid, ct))
+    if (linkedAgreement is not null && !await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db, actor.FirmId, linkedAgreement.Id, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "The 50% advance must be fully paid and allocated before the engagement can be activated.");
     // AUD-WF-01: the client commercial key is the second, independent key. A paid advance never substitutes for it.

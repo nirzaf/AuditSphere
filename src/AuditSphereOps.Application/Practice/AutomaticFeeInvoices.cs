@@ -99,7 +99,7 @@ public sealed class AutomaticFeeInvoiceDiscovery(IAuditSphereDbContextFactory fa
       var agreement = await read.EngagementFeeAgreements.AsNoTracking().SingleAsync(x => x.Id == milestone.AgreementId && x.FirmId == options.FirmId, ct);
       if (milestone.Kind == FeeMilestoneKinds.Advance && !await AutomaticFeeInvoiceHandler.HasCurrentLetterAsync(read, agreement, ct)) continue;
       if (milestone.Kind == FeeMilestoneKinds.Balance && (agreement.EngagementId is null ||
-          !await read.FeeMilestones.AnyAsync(x => x.FirmId == options.FirmId && x.AgreementId == agreement.Id && x.Kind == FeeMilestoneKinds.Advance && x.State == FeeMilestoneStates.Paid, ct) ||
+          !await FeeAgreementService.AdvanceCurrentlyPaidAsync(read, options.FirmId, agreement.Id, ct) ||
           !await read.Releases.AnyAsync(x => x.FirmId == options.FirmId && x.ClientId == agreement.PracticeClientId && x.EngagementId == agreement.EngagementId &&
             read.ReleaseCandidates.Any(c => c.FirmId == options.FirmId && c.Id == x.ReleaseCandidateId && c.TargetKind == ReleaseTargetKinds.FinancialPackage), ct))) continue;
       var intent = new FeeInvoiceIntent(milestone.Id, agreement.Id, milestone.Kind, finance.Id, finance.SessionEpoch, admin.Id, admin.SessionEpoch);

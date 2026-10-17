@@ -73,8 +73,10 @@ public static class EngagementActivationWorkspace
     // configured. These blockers mirror EngagementLifecycleService so the workspace never implies eligibility.
     var linkedAgreementIds=await db.EngagementFeeAgreements.AsNoTracking()
       .Where(x=>x.FirmId==a.FirmId&&x.EngagementId==id).Select(x=>x.Id).ToListAsync(ct);
-    var advancePaid=await db.FeeMilestones.AsNoTracking().AnyAsync(x=>x.FirmId==a.FirmId&&
-      x.Kind==FeeMilestoneKinds.Advance&&x.State==FeeMilestoneStates.Paid&&linkedAgreementIds.Contains(x.AgreementId),ct);
+    var advancePaid=false;
+    foreach(var agreementId in linkedAgreementIds)
+      if(await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db,a.FirmId,agreementId,ct))
+      { advancePaid=true; break; }
     if(linkedAgreementIds.Count==0)
       blockers.Add(new("advance.fee-agreement-missing","A linked fee agreement with a fully paid and allocated 50% advance is required before activation."));
     if(linkedAgreementIds.Count>0 && !advancePaid)
