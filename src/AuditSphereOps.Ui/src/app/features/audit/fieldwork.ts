@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -80,7 +81,7 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
 
 @Component({
   selector: 'audit-fieldwork',
-  imports: [FormsModule, RouterLink, MatButtonModule, MatTabsModule, PlanningCommandReview, ...SHARED],
+  imports: [DatePipe, FormsModule, RouterLink, MatButtonModule, MatTabsModule, PlanningCommandReview, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Audit fieldwork</span></nav>
     @if (statementFocus.line) {
