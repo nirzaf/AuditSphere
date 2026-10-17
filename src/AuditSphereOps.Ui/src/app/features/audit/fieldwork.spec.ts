@@ -364,6 +364,81 @@ describe('Procedure execution and review workspace', () => {
   });
 });
 
+describe('Audit fieldwork decimal inputs (T005)', () => {
+  afterEach(() => TestBed.resetTestingModule());
+  function open() {
+    const workspace = signal({ engagementId: id1, canManageFieldwork: true, canViewReviewNotes: true, aggregate: null,
+      risks: [], procedures: [{ id: id2, riskId: null }] });
+    const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })),
+      command: vi.fn(), get: vi.fn() };
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api },
+      { provide: SessionService, useValue: { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) } },
+      { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
+      { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
+    const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, api };
+  }
+  function sampleData() {
+    return decodeSampleSet({ selectionId: id1, procedureId: id2, method: 'MUS', rationale: 'Approved sample plan.', status: 'REVIEWED',
+      selectedCount: 1, selectedSignedTotal: '100.00', inputGeneration: 1, testedCount: 0, exceptionCount: 0,
+      cutOffRecordedCount: 0, subsequentMatchedCount: 0, totalCount: 1, page: 1, pageSize: 100,
+      items: [{ selectionItemId: id3, stableRowId: 'ROW-001', signedAmount: '100.00', currency: 'QAR', inclusionReason: 'MUS interval',
+        testResult: 'PENDING', testRevision: 0, exceptionAmount: null, auditItemTestId: null, testWorkPerformed: null,
+        evidenceReferences: [], contradictoryEvidence: null, followUp: null, testReviewed: false,
+        testReviewDecision: null, testReviewComment: null, canReviewTest: false }] }, 'sampleSet');
+  }
+
+  it('transmits six-place exception amounts, refuses invalid nonblank amounts, and keeps blank optional amounts null', async () => {
+    const { page, api } = open();
+    const set = sampleData(), item = set.items[0];
+    api.command.mockResolvedValue({ ok: true, value: null });
+
+    page.sampleSet.set(set);
+    Object.assign(page.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
+      result: 'EXCEPTION', exceptionAmount: '123.456789', followUp: 'Investigate the difference.' });
+    await page.recordItemTest(item);
+    expect(api.command).toHaveBeenCalledTimes(1);
+    expect(api.command.mock.calls[0][1]).toMatchObject({ exceptionAmount: '123.456789' });
+
+    page.sampleSet.set(set);
+    Object.assign(page.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
+      result: 'EXCEPTION', exceptionAmount: '123.4567890', followUp: 'Investigate the difference.' });
+    await page.recordItemTest(item);
+    expect(api.command).toHaveBeenCalledTimes(1);
+
+    page.sampleSet.set(set);
+    Object.assign(page.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
+      result: 'EXCEPTION', exceptionAmount: '  ', followUp: 'Investigate the difference.' });
+    await page.recordItemTest(item);
+    expect(api.command).toHaveBeenCalledTimes(2);
+    expect(api.command.mock.calls[1][1]).toMatchObject({ exceptionAmount: null });
+  });
+
+  it('preserves six-place sampling intervals and thresholds without changing sampling behavior', async () => {
+    const { page, api } = open();
+    const preview = (method: string, interval: string | null, keyItemThreshold: string | null) => ({ previewDigest: hash64, sourceDigest: hash64,
+      outcome: { method, populationCount: 1, populationSignedTotal: '12.345678', populationAbsoluteTotal: '12.345678',
+        selectedCount: 1, selectedAbsoluteTotal: '12.345678', coveragePercent: '100.000000', seed: null, interval, keyItemThreshold,
+        items: [{ stableRowId: 'ROW-001', signedAmount: '12.345678', absoluteAmount: '12.345678', inclusionReason: 'Selected',
+          cumulativeAbsoluteAmount: '12.345678' }], strata: null } });
+    Object.assign(page.s, { procedure: id2, schedule: id3, method: 'MUS', interval: '12.345678', key: '', rationale: 'Approved plan.' });
+    api.command.mockResolvedValueOnce({ ok: true, value: preview('MUS', '12.345678', null) });
+    await page.sample();
+    expect(api.command.mock.calls[0][1]).toMatchObject({ interval: '12.345678', keyItemThreshold: null });
+    expect(page.previewMatchesInputs()).toBe(true);
+
+    Object.assign(page.s, { method: 'KEY_ITEM', interval: '', key: '0.123456' });
+    api.command.mockResolvedValueOnce({ ok: true, value: preview('KEY_ITEM', null, '0.123456') });
+    await page.sample();
+    expect(api.command.mock.calls[1][1]).toMatchObject({ interval: null, keyItemThreshold: '0.123456' });
+    expect(page.previewMatchesInputs()).toBe(true);
+
+    Object.assign(page.s, { method: 'MUS', interval: '12.3456789' });
+    await page.sample();
+    expect(api.command).toHaveBeenCalledTimes(2);
+    expect(page.previewMatchesInputs()).toBe(false);
+  });
+});
+
 describe('Procedure risk link reviewed preparation', () => {
   afterEach(() => TestBed.resetTestingModule());
   function open() {

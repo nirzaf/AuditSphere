@@ -806,15 +806,15 @@ export class AuditFieldwork {
   private samplingFingerprint(): string {
     const s = this.s;
     return JSON.stringify({ procedureId: s.procedure, scheduleId: s.schedule, method: s.method.trim().toUpperCase(),
-      interval: s.method === 'MUS' ? (s.interval.trim() ? decimalInput(s.interval) : null) : null,
-      keyItemThreshold: ['KEY_ITEM', 'STRATIFIED'].includes(s.method) ? (s.key.trim() ? decimalInput(s.key) : null) : null,
+      interval: s.method === 'MUS' ? (s.interval.trim() ? decimalInput(s.interval, 6) : null) : null,
+      keyItemThreshold: ['KEY_ITEM', 'STRATIFIED'].includes(s.method) ? (s.key.trim() ? decimalInput(s.key, 6) : null) : null,
       sampleSize: this.countBased() ? s.size : null, seed: this.countBased() ? s.seed : null,
       rationale: s.rationale.trim(), attributeFields: s.method === 'ATTRIBUTE_STRATA' ? [...s.attributeFields].sort() : null });
   }
   private samplingInput(): Record<string, unknown> | null {
     const s = this.s;
-    const interval = s.method === 'MUS' && s.interval.trim() ? decimalInput(s.interval) : null;
-    const keyItemThreshold = ['KEY_ITEM', 'STRATIFIED'].includes(s.method) && s.key.trim() ? decimalInput(s.key) : null;
+    const interval = s.method === 'MUS' && s.interval.trim() ? decimalInput(s.interval, 6) : null;
+    const keyItemThreshold = ['KEY_ITEM', 'STRATIFIED'].includes(s.method) && s.key.trim() ? decimalInput(s.key, 6) : null;
     if (!s.procedure || !s.schedule || !s.rationale.trim()) {
       this.invalid('Choose a procedure and approved schedule, and enter a rationale.'); return null;
     }
@@ -949,11 +949,10 @@ export class AuditFieldwork {
       return this.invalid('Pass and exception results require at least one evidence reference.');
     if (['EXCEPTION', 'LIMITATION'].includes(draft.result) && !draft.followUp.trim())
       return this.invalid('Exceptions and limitations require documented follow-up.');
-    let exceptionAmount: string | null = null;
-    if (draft.exceptionAmount.trim()) {
-      try { exceptionAmount = decimalInput(draft.exceptionAmount); }
-      catch { return this.invalid('Enter the exception amount as a decimal.'); }
-    }
+    const enteredExceptionAmount = draft.exceptionAmount.trim();
+    const exceptionAmount = enteredExceptionAmount ? decimalInput(enteredExceptionAmount, 6) : null;
+    if (enteredExceptionAmount && exceptionAmount === null)
+      return this.invalid('Enter a valid exception amount with no more than six decimal places.');
     const set = this.sampleSet();
     if (!set) return;
     this.sampleActionBusy.set(true); this.cmd.failed.set(false); this.cmd.message.set('');
