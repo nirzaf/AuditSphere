@@ -368,3 +368,16 @@ Grid reads and allocation writes now share a bounded complete-week range check. 
 ### RES-02 certification truthfulness
 
 The current record stores recorder/time and expiry but no administrative verification decision. The resource grid now labels all retained entries Not verified, separately stating expired, not expired or expiry not recorded. The entry form explains that recording/expiry does not establish authenticity or eligibility. Existing resource component checks cover those three states; the focused cohort and Angular build pass. The built-in browser confirms the disclosure, with no console warnings/errors and no qualification records created. An attributable administrative verification workflow remains missing; this is not RES-02 completion.
+
+### RES-02 implementation packet: independent certification verification
+
+Source inspection found an inseparable eligibility dependency: `StaffingService` assignment/candidate projections and `StaffingChangeWorkspace` preview treat any non-expired certification row as sufficient for higher staffing levels. The resource disclosure alone does not repair that rule. This is the next RES-02 implementation priority.
+
+- Retain certification recording separately from verification and expiry. Do not infer staff declaration or verification from recorder identity, an issuer string, a future date or legacy row existence.
+- Add append-only, exact-source-bound administrative decisions with current firm-wide authority, independent reviewer, evidence reference, reason, timestamp and revision/idempotency fences. Preserve old decisions and disclose stale source separately. No legacy verification backfill, automated eligibility or Microsoft role assignment.
+- Reuse `ResourcePlanningService.Authority.cs` firm/user lock order. Review publication and staffing commands must recheck the effective decision under that same fence; withdrawn/expired/stale evidence cannot satisfy a new assignment. Existing assignment history must not be rewritten.
+- Extend the existing resource command/workspace, API contract and Angular review panel as one coherent change. Expose exact certification identity, retained decision and expiry independently. Keep the current no-proof label until the supported review path exists.
+- Update all eligibility readers together: `StaffingService.cs`, `StaffingChangeWorkspace.cs` and resource projections. Preserve professional review and existing staffing roles; a certification decision is not a role grant or a professional opinion.
+- Focused acceptance: recorded-only, expired, withdrawn and stale-source records fail eligibility; an independent authorized review of exact current source can satisfy it; self-review and wrong-firm scope fail; stale/concurrent requests cannot publish duplicate heads; revocation wins before publication; old assignment/evidence history remains intact. Verify the UI review and staffing preview with synthetic identities before acceptance.
+
+This packet is implementation preparation, not a completed verification workflow or permission to manufacture qualifications. RES-02 remains PARTIAL; its eligibility gap is now explicitly identified rather than hidden behind expiry status.
