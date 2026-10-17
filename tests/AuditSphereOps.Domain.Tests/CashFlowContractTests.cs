@@ -711,21 +711,40 @@ public sealed class CashFlowContractTests
       // Pin a genuine two-period presentation while both period-specific source reviews are current.
       var currentLines = await db.FinancialPackageLines.AsNoTracking()
         .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.StatementSection).ThenBy(x => x.DestinationCode).ToListAsync();
+      var priorPackageLines = await db.FinancialPackageLines.AsNoTracking()
+        .Where(x => x.FinancialPackageId == priorPackageId).ToListAsync();
+      var definitions = currentLines.Select((line, index) => new StatementLineDefinition(
+        "L" + index, line.DestinationCode, StatementLayoutLineKinds.MappedTaxonomyBalance,
+        line.StatementSection is "INCOME" or "EXPENSE" or "REVENUE" or "PROFIT_LOSS"
+          ? StatementLayoutSections.ProfitOrLoss : StatementLayoutSections.FinancialPosition,
+        index + 1, DisplaySign: line.StatementSection is "INCOME" or "EXPENSE" or "REVENUE" or "PROFIT_LOSS"
+          ? StatementLayoutDisplaySigns.Inverted : StatementLayoutDisplaySigns.Signed,
+        TaxonomyNodeCode: line.DestinationCode)).ToArray();
       var layout = await StatementLayoutService.SaveLayoutDraftAsync(db, preparer,
         new StatementLayoutDraftRequest(fixture.ClientId, "IFRS", "Two-period package freshness",
-          currentLines.Select((line, index) => new StatementLineDefinition(
-            "L" + index, line.DestinationCode, StatementLayoutLineKinds.MappedTaxonomyBalance,
-            line.StatementSection is "INCOME" or "EXPENSE" or "REVENUE" or "PROFIT_LOSS"
-              ? StatementLayoutSections.ProfitOrLoss : StatementLayoutSections.FinancialPosition,
-            index + 1, DisplaySign: line.StatementSection is "INCOME" or "EXPENSE" or "REVENUE" or "PROFIT_LOSS"
-              ? StatementLayoutDisplaySigns.Inverted : StatementLayoutDisplaySigns.Signed,
-            TaxonomyNodeCode: line.DestinationCode)).ToArray()));
+          definitions));
       Assert.True(layout.Succeeded, layout.Message);
       var validLayout = await StatementLayoutService.ValidateLayoutAsync(db, preparer, layout.Value!.LayoutVersionId);
       Assert.True(validLayout.Value!.IsValid, string.Join("; ", validLayout.Value.Errors.Select(x => x.Message)));
       Assert.True((await StatementLayoutService.PublishLayoutAsync(db, reviewer, layout.Value.LayoutVersionId,
         "Reviewed two-period package freshness layout")).Succeeded);
       layoutId = layout.Value.LayoutVersionId;
+
+      var comparativePresentation = await FinancialStatementService.BuildPresentationAsync(db, reviewer, packageId, layoutId);
+      Assert.True(comparativePresentation.Succeeded, comparativePresentation.Message);
+      Assert.Equal(priorPackageId, comparativePresentation.Value!.Manifest.ComparativePackageId);
+      foreach (var currentLine in currentLines)
+      {
+        var definition = Assert.Single(definitions, x => x.TaxonomyNodeCode == currentLine.DestinationCode);
+        var row = Assert.Single(comparativePresentation.Value.Statements.SelectMany(x => x.Rows), x => x.Code == definition.LineCode);
+        var priorLine = Assert.Single(priorPackageLines, x => x.DestinationCode == currentLine.DestinationCode);
+        var expectedCurrent = decimal.Round(StatementLayoutEngine.ToDisplayAmount(currentLine.Amount, definition.DisplaySign),
+          FinancialStatementPresentationPolicy.DefaultDisplayDecimals, MidpointRounding.ToEven);
+        var expectedPrior = decimal.Round(StatementLayoutEngine.ToDisplayAmount(priorLine.Amount, definition.DisplaySign),
+          FinancialStatementPresentationPolicy.DefaultDisplayDecimals, MidpointRounding.ToEven);
+        Assert.Equal(expectedCurrent, row.Current);
+        Assert.Equal(expectedPrior, row.Prior);
+      }
 
       var currentPin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layoutId);
       Assert.True(currentPin.Succeeded, currentPin.Message);
