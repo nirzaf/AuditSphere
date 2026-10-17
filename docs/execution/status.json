@@ -1219,14 +1219,15 @@
       ]
     },
     "cp10PeriodScopedPackageFreshness": {
-      "recordedAtUtc": "2026-10-17T05:57:20Z",
-      "codeCommit": "b6e465bcdead151516bb9a65fbde222c0ea160bc",
+      "recordedAtUtc": "2026-10-17T06:03:26Z",
+      "codeCommit": "15ae84078b87784416c6db225e6adbec38cad5ef",
       "status": "PARTIAL",
       "verified": {
-        "focusedTests": "Focused PostgreSQL test TwoPeriods_RetainTheirOwnAcceptedCashSources passed 1/1 on b6e465bc; full suites deferred to CI/CD.",
-        "periodBehavior": "Period-specific GL/TB sources coexist; exact current/prior face values, one synthetic comparative note and prior package pin are checked. Current GL/TB replacement invalidates only current-period pending presentation; prior pin stays current.",
+        "focusedTests": "New PostgreSQL regression passed 1/1; source-acceptance Angular spec passed 5/5 on 15ae8407.",
+        "selectionBehavior": "TB selection keys period/book/basis/currency/entity; replacement is local to that scope; unauthorized reads fail closed.",
+        "periodBehavior": "GL/TB sources coexist by period; current replacement invalidates only its pending presentation; prior pin stays current.",
         "approvalReleaseBehavior": "Approval/release survives unrelated client generation changes.",
-        "commit": "b6e465bc pushed to master."
+        "commit": "15ae8407 pushed to master."
       },
       "notRun": [
         "Full Domain/API/Playwright E2E regressions deferred to hosted CI/CD.",
