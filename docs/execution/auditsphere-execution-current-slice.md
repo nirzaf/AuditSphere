@@ -22,6 +22,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## R2R-07 reconciliation carry-forward safety — 2026-10-17
+
+Commit `d91a2713` rejects carrying settled reconciliation items and rejects a target reporting book outside the selected client and target period. The carry reconciliation and copied items now save in one transaction. The focused PostgreSQL regression `ReconciliationRevision_CreatesSuccessorAndCarryForward` passed 1/1. T026 remains PARTIAL: T025 proof/correction handoff is still NOT_STARTED, and reviewed rework lifecycle and export remain open. Full suites are deferred to CI/CD. Evidence: `targetedVerification.r2r07CarryForwardSafety` in `status.json`.
+
 ## CP-19 Partner authority and capability projection — 2026-10-17
 
 Partner decisions and release eligibility require the current assigned Engagement Partner and its linked exact engagement-scoped Partner grant. The review queue and financial-package workspace now use the same check before projecting Partner approval as available. The focused PostgreSQL regression passed, including assigned/unassigned positive and negative projections; broader CP-19 signatory, offline-evidence and recovery requirements remain open. Full suites are deferred to CI/CD.
