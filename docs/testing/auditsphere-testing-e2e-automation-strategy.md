@@ -73,7 +73,7 @@ Use a separate PostgreSQL service/instance per CI job while retaining the exact 
 5. Start role-specific Web processes and the matching Worker processes with scenario-only connection/storage settings. Claim only that scenario's seeded firm and appropriate operation group/deployment epoch. Ordinary accounting/PBC work uses `general`; release checkpoints require a separate `release` group Worker, as defined by [ReleaseCheckpointHandler](../../src/AuditSphereOps.Application/Completion/ReleaseCheckpointHandler.cs). Start only the groups needed by the scenario.
 6. Run each stateful multi-role journey within one shard and one scenario lifetime. No parallel use of the launcher's fixed `auditsphere_browser` database or port 5029.
 
-Give every scenario owned staging, simulated-provider, checkpoint, logs and temporary roots. Only that scenario's Web/Worker processes may share these roots. Use synthetic nonproduction email domains such as `example.invalid`; never use production backups, real client data, tenant identifiers, credentials, cookies or signed URLs as fixtures/public artifacts.
+Give every scenario owned staging, simulated-provider, checkpoint, logs and temporary roots. Only that scenario's API/Worker processes may share these roots. Use synthetic nonproduction email domains such as `example.invalid`; never use production backups, real client data, tenant identifiers, credentials, cookies or signed URLs as fixtures/public artifacts.
 
 ### Multi-actor authentication
 
@@ -87,7 +87,7 @@ Development alone does not execute simulated PBC transfers. These journeys requi
 
 The proposed orchestrator must use try/finally and cancellation handlers from the first allocation onward:
 - Capture redacted diagnostics and final durable dispositions before removing resources.
-- Close BrowserContexts/download handles, then stop and await only manifest-owned Web/Worker processes, checking PID plus process start identity before signaling.
+- Close BrowserContexts/download handles, then stop and await only manifest-owned API/Worker processes, checking PID plus process start identity before signaling.
 - Dispose clients, EF factories/data sources and scoped pools before removing owned databases/schemas.
 - Remove only manifest-owned files/databases after verifying the exact loopback target and run ownership. Never stop shared PostgreSQL, drop `auditsphere`, or clean by broad wildcard.
 - Bound graceful shutdown; record forced termination and cleanup failures. A cleanup failure makes an otherwise passing run fail and preserves the manifest for remediation.
@@ -501,7 +501,7 @@ dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj \
   --collect:"XPlat Code Coverage" -- Playwright.BrowserName=chromium
 ```
 
-The real helper also supplies the scenario CaseId filter and owned host manifest. Code coverage from the test process does **not** automatically instrument separately launched Web/Worker processes. Keep baseline service/unit Cobertura separate; collect host coverage only after an explicit supported instrumentation design. Never describe browser test-assembly coverage as complete application coverage.
+The real helper also supplies the scenario CaseId filter and owned host manifest. Code coverage from the test process does **not** automatically instrument separately launched API/Worker processes. Keep baseline service/unit Cobertura separate; collect host coverage only after an explicit supported instrumentation design. Never describe browser test-assembly coverage as complete application coverage.
 
 ## 8. Protected external-acceptance example
 
@@ -588,7 +588,7 @@ Every completed run should emit a machine-readable summary with schema version, 
 
 Retain the first-attempt result. At most one separately labeled diagnostic rerun may collect more evidence; it must not erase the initial failure or make the required check green. Record flaky signatures, owners and corrective action; no silent quarantine or widening skip allowance.
 
-Collect TRX and Cobertura from current tests; redacted Web/Worker/PostgreSQL logs, migration/version evidence and per-failure Playwright traces/screenshots from future scenarios. Keep `summary.json` with diagnostics and the coverage/trend summary with coverage. Retain ordinary diagnostics for **14 days**, coverage/trends for **30 days**, subject to repository/organization limits. Public-repository artifacts may be publicly accessible; synthetic-only does not excuse uploading cookies, capabilities or bootstrap hashes.
+Collect TRX and Cobertura from current tests; redacted API/Worker/PostgreSQL logs, migration/version evidence and per-failure Playwright traces/screenshots from future scenarios. Keep `summary.json` with diagnostics and the coverage/trend summary with coverage. Retain ordinary diagnostics for **14 days**, coverage/trends for **30 days**, subject to repository/organization limits. Public-repository artifacts may be publicly accessible; synthetic-only does not excuse uploading cookies, capabilities or bootstrap hashes.
 
 For live tenants, suppress browser captures by default or place them under separately approved restricted custody. Redacting text logs cannot sanitize screenshots/DOM/network payloads in traces. Sanitize before upload using an allowlisted publication directory; never upload the entire run root, key ring, database dump, environment dump or Playwright storage state. Artifact upload uses `if: always()` but cannot guarantee output after hard cancellation/runner loss; missing required artifacts remain visible failures.
 
