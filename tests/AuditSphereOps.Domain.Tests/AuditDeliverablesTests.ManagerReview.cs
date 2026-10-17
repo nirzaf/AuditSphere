@@ -75,7 +75,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(summary.Succeeded, summary.Message);
     Assert.False(summary.Value!.PartnerHandoffReady);
     Assert.Equal(1, summary.Value.ProceduresNeedingReview);
-    Assert.Contains(summary.Value.Blockers, x => x.Code == "procedure-review-required");
+    Assert.Contains(summary.Value.Blockers, x => x.Code == "procedure-review-stale");
 
     var replay = await AuditProgramService.ReviewResultAsync(db, reviewer,
       new ReviewProcedureResultRequest(w.ResultId, AuditProcedureReviewDecisions.ChangesRequired, "Reconcile the sample exception to source evidence."),

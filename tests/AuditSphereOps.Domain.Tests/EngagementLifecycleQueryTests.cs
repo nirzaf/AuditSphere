@@ -264,6 +264,32 @@ public sealed class EngagementLifecycleQueryTests
       db.AuditProcedures.AddRange(proc, approvedNotApplicable);
       await db.SaveChangesAsync();
 
+      // This is a real current approval, not a legacy cache that merely says NA_APPROVED.
+      var applicabilityProposal = new AuditProcedureApplicabilityDecision
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        AuditProcedureId = approvedNotApplicable.Id, Revision = 1, DefinitionRevision = 0, InputGeneration = 1,
+        Action = AuditApplicabilityActions.ProposeNotApplicable, Rationale = "Outside this engagement's approved scope.",
+        CommandId = Guid.NewGuid(), RequestDigest = new string('a', 64), ActorUserId = seed.Staff.Id,
+        ActorEpoch = seed.Staff.SessionEpoch, OccurredAt = now
+      };
+      db.AuditProcedureApplicabilityDecisions.Add(applicabilityProposal);
+      await db.SaveChangesAsync();
+      var applicabilityApproval = new AuditProcedureApplicabilityDecision
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
+        AuditProcedureId = approvedNotApplicable.Id, Revision = 2, DefinitionRevision = 0, InputGeneration = 1,
+        Action = AuditApplicabilityActions.ApproveNotApplicable, ProposalDecisionId = applicabilityProposal.Id,
+        PreviousDecisionId = applicabilityProposal.Id, CommandId = Guid.NewGuid(), RequestDigest = new string('b', 64),
+        ActorUserId = seed.Admin.Id, ActorEpoch = seed.Admin.SessionEpoch, OccurredAt = now.AddSeconds(1)
+      };
+      approvedNotApplicable.CurrentApplicabilityRevision = applicabilityApproval.Revision;
+      approvedNotApplicable.CurrentApplicabilityDecisionId = applicabilityApproval.Id;
+      approvedNotApplicable.ApplicabilityDecidedByUserId = seed.Admin.Id;
+      approvedNotApplicable.ApplicabilityDecidedAt = applicabilityApproval.OccurredAt;
+      db.AuditProcedureApplicabilityDecisions.Add(applicabilityApproval);
+      await db.SaveChangesAsync();
+
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
       Assert.Equal(CanonicalEngagementStages.FieldworkExecution, report.Value!.Summary.CanonicalStage);

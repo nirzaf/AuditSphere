@@ -213,12 +213,19 @@ public static class AuditFieldworkWorkspaceQuery
     var currentDecisions = await AuditProgramService.CurrentApplicabilityDecisionsAsync(db, firmId, clientId, engagementId, rows, ct);
     var currentList = currentDecisions.Values.ToArray();
     var proposals = await AuditProgramService.ProposalDecisionsAsync(db, firmId, clientId, engagementId, currentList, ct);
-    var history = await db.AuditProcedureApplicabilityDecisions.AsNoTracking().Where(x =>
-      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && ids.Contains(x.AuditProcedureId))
-      .GroupBy(x => x.AuditProcedureId).SelectMany(group => group.OrderByDescending(x => x.Revision).Take(20))
+    var history = await db.AuditProcedureApplicabilityDecisions.FromSqlInterpolated($"""
+      SELECT ranked.*
+      FROM (
+        SELECT d.*, ROW_NUMBER() OVER (PARTITION BY d.audit_procedure_id ORDER BY d.revision DESC) AS history_rank
+        FROM audit_procedure_applicability_decisions AS d
+        WHERE d.firm_id = {firmId} AND d.client_id = {clientId} AND d.engagement_id = {engagementId}
+          AND d.audit_procedure_id = ANY ({ids})
+      ) AS ranked
+      WHERE ranked.history_rank <= 20
+      """).AsNoTracking()
       .ToListAsync(ct);
     var historyByProcedure = history.GroupBy(x => x.AuditProcedureId).ToDictionary(x => x.Key,
-      x => (IReadOnlyList<FieldworkApplicabilityHistoryItem>)x.OrderBy(y => y.Revision).Select(y =>
+      x => (IReadOnlyList<FieldworkApplicabilityHistoryItem>)x.OrderByDescending(y => y.Revision).Take(20).OrderBy(y => y.Revision).Select(y =>
         new FieldworkApplicabilityHistoryItem(y.Id, y.Revision, y.Action, y.Rationale,
           y.ProposalDecisionId, y.ActorUserId, y.OccurredAt, y.DefinitionRevision, y.InputGeneration)).ToList());
     var inputGeneration = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == firmId && x.Id == clientId)

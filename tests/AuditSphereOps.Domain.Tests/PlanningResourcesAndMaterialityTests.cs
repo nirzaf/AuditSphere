@@ -563,7 +563,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       Assert.True(adopt.Succeeded);
       var proc = await db.AuditProcedures.FirstAsync(x => x.EngagementId == w.EngagementId);
       procedureId = proc.Id;
-      Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, partner, new(proc.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+      Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, partner, proc.Id)).Succeeded);
     }
 
     // Create a Red risk and assess it
@@ -652,7 +652,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       receivablesProcedure = (await db.AuditProcedures.AsNoTracking().Where(x => x.EngagementId == w.EngagementId && x.SourceProcedureId.StartsWith("AWP-03-"))
         .OrderBy(x => x.SourceProcedureId).FirstAsync()).Id;
       foreach (var id in new[] { cashProcedure, receivablesProcedure })
-        Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, partner, new(id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+        Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, partner, id)).Succeeded);
       await PlanningBasisSeed.EstablishAsync(db, w.FirmId, w.ClientId, w.EngagementId, partner, partner2);
     }
 

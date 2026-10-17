@@ -310,8 +310,9 @@ public sealed class AuditPlanningCommandReceiptTests
     await using var pg = await PgTestSchema.CreateAsync(); var w = await AuditPlanningReceiptSeed.SeedAsync(pg); var f = w.Fixture;
     await using var db = new AuditSphereDbContext(pg.Options);
     var migrations = db.Database.GetMigrations().ToArray(); var index = Array.IndexOf(migrations,"20261016102652_AuditPlanningReviewedCommandReceipts"); Assert.True(index>0);
-    await db.GetService<IMigrator>().MigrateAsync(migrations[index-1]); Assert.True(await db.AuditProcedures.AnyAsync(x=>x.Id==w.ProcedureId));
-    await db.GetService<IMigrator>().MigrateAsync(migrations[index]);
+    await db.GetService<IMigrator>().MigrateAsync(migrations[index-1]);
+    Assert.True(await db.Database.SqlQuery<bool>($"SELECT EXISTS (SELECT 1 FROM audit_procedures WHERE id = {w.ProcedureId}) AS \"Value\"").SingleAsync());
+    await db.GetService<IMigrator>().MigrateAsync(migrations[^1]);
     var (a, fields) = await AuditPlanningReceiptSeed.FieldsAsync(pg,w,AuditPlanningActions.CreateRisk);
     var request = await AuditPlanningReceiptSeed.ReviewAsync(db,a,f.EngagementId,fields);
     Assert.True((await AuditPlanningCommandWorkspace.ExecuteAsync(db,a,f.EngagementId,request)).Succeeded);

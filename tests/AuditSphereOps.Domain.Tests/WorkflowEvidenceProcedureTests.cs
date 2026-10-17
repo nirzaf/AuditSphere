@@ -28,7 +28,7 @@ public sealed class WorkflowEvidenceProcedureTests
     var tasks = new List<Guid>(); var results = new List<Guid>();
     foreach (var procedure in procedures)
     {
-      Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, manager, new(procedure.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+      Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, manager, procedure.Id)).Succeeded);
       var task = await EngagementWorkflowTaskService.CreateAsync(db, manager, f.EngagementId,
         new("Coordinate " + procedure.SourceProcedureId, WorkflowTaskPhases.ManagerReview, tasks.Count + 1, AssigneeUserId: f.Staff.Id, IdempotencyKey: Guid.NewGuid()));
       Assert.True(task.Succeeded, task.Message); tasks.Add(task.Value);

@@ -85,8 +85,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Assert.True(adopted.Succeeded, adopted.Message);
     var procedure = await db.AuditProcedures.Where(x => x.EngagementId == w.EngagementId)
       .OrderBy(x => x.SourceProcedureId).FirstAsync();
-    Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, partner,
-      new(procedure.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+    Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, partner, procedure.Id)).Succeeded);
     Assert.True((await AuditProgramService.LinkRiskAsync(db, partner, procedure.Id, riskId)).Succeeded);
     return procedure.Id;
   }
