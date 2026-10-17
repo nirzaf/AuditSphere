@@ -659,16 +659,43 @@ public sealed class CashFlowContractTests
     }
     var prior = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg.Options, fixture.FirmId, fixture.ClientId, fixture.EngagementId,
       priorPeriodId, priorBookId, fixture.Preparer.Id, reviewer, "contract-prior", postingDate: new DateOnly(2025, 6, 30));
+    var priorDatasetId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = priorDatasetId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        PeriodId = priorPeriodId, BookId = priorBookId, Basis = "STATUTORY",
+        SourceKind = "Raw", Revision = 1, Currency = "QAR", Balanced = true,
+        ValidationStatus = "Accepted", ControlTotal = 0m, ImportedAt = DateTimeOffset.UtcNow,
+        ImportedByUserId = fixture.Preparer.Id
+      });
+      db.TrialBalanceRows.AddRange(
+        new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = priorDatasetId, AccountCode = "1000", AccountName = "Cash", Amount = 100m, Currency = "QAR", Entity = "TEST" },
+        new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = priorDatasetId, AccountCode = "4000", AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "TEST" });
+      await db.SaveChangesAsync();
+    }
+
+    // Both periods own their complete accounting inputs; mappings and plans are not shared across datasets.
+    var (priorMappingId, priorPlanId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer,
+      priorDatasetId, "2025-01-01", "2025-12-31");
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
     // The current period still resolves and approves against its own ledger, although the prior period was accepted last.
     var packageId = await BuildCompletePackageAsync(pg, planId, mappingId, preparer, source, "two-periods-v1");
+    var priorPackageId = await BuildCompletePackageAsync(pg, priorPlanId, priorMappingId, preparer, prior, "two-periods-prior-v1",
+      "2025-01-01", "2025-12-31", new DateOnly(2025, 6, 30));
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.True((await CashFlowSourceReviewCall.RecordAsync(db, reviewer, packageId, "APPROVED", null)).Succeeded);
       var approved = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!;
       Assert.True(approved.Approved);
       Assert.Equal(source.BatchId, approved.CurrentSourceImportBatchId);
+
+      Assert.True((await CashFlowSourceReviewCall.RecordAsync(db, reviewer, priorPackageId, "APPROVED", null)).Succeeded);
+      var priorApproved = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, priorPackageId)).Value!;
+      Assert.True(priorApproved.Approved);
+      Assert.Equal(prior.BatchId, priorApproved.CurrentSourceImportBatchId);
     }
 
     // Replacing the current period's ledger stales only the current period. The prior period keeps its own accepted ledger.
@@ -678,9 +705,23 @@ public sealed class CashFlowContractTests
       var stale = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!;
       Assert.False(stale.Approved);
       Assert.Equal(replacement.BatchId, stale.CurrentSourceImportBatchId);
+      var priorReview = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, priorPackageId)).Value!;
+      Assert.True(priorReview.Approved);
+      Assert.Equal(prior.BatchId, priorReview.CurrentSourceImportBatchId);
       var priorSelected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, reviewer,
         fixture.ClientId, fixture.EngagementId, priorPeriodId);
       Assert.Equal(prior.BatchId, priorSelected.Value!.ImportBatchId);
+
+      // Period-bound source review remains current; an unrelated current-period acceptance must not
+      // trip the client-wide generation fence for the prior-period presentation.
+      var priorPin = await FinancialStatementService.PinPresentationAsync(db, preparer, priorPackageId, Guid.NewGuid());
+      Assert.False(priorPin.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingIncomplete, priorPin.ErrorCode); // reached the published-layout guard
+
+      // The same-period package is still refused because its own accepted GL no longer matches the review.
+      var currentPin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, Guid.NewGuid());
+      Assert.False(currentPin.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, currentPin.ErrorCode);
     }
   }
 
@@ -904,12 +945,29 @@ public sealed class CashFlowContractTests
   }
 
   private static async Task<Guid> BuildCompletePackageAsync(PgTestSchema pg, Guid planId, Guid mappingId, ActorContext preparer,
-    CashFlowSourceSeed.Source source, string template)
+    CashFlowSourceSeed.Source source, string template, string periodStart = "2026-01-01", string periodEnd = "2026-12-31",
+    DateOnly? movementDate = null)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
-    var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, SourceRequest(planId, mappingId, template, 0m, 100m,
-      CashMovement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m)),
-      CashMovement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m))));
+    var date = movementDate ?? new DateOnly(2026, 6, 30);
+    var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", periodStart, periodEnd, template)
+    {
+      SupplementaryInformation = new FinancialSupplementaryInformation(0m, 100m,
+        [new CashFlowLineInput("OPERATING", "Cash receipts from customers", 100m,
+           MovementDate: date, ActivityCode: "CASH_RECEIPTS", SourceReferences: ["gl-source-projection"],
+           ClassificationRationale: "Linked to accepted general-ledger lines.",
+           SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)]),
+         new CashFlowLineInput("OPERATING", "Depreciation adjustment", 25m, IsNonCash: true,
+           MovementDate: date, ActivityCode: "NON_CASH_ADJUSTMENT", SourceReferences: ["gl-source-projection"],
+           ClassificationRationale: "Linked to accepted general-ledger lines.",
+           SourceAllocations: [new CashFlowSourceAllocationInput(source.Depreciation, 25m)])],
+        [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
+         new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"],
+        ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+    };
+    var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
     Assert.True(built.Succeeded, built.Message);
     Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
     return built.Value.PackageId;
@@ -927,25 +985,29 @@ public sealed class CashFlowContractTests
       "contract", amount, null, optional);
 
   private static async Task<(Guid MappingId, Guid PlanId)> CreateApprovedMappingAndPlanAsync(
-    PgTestSchema pg, Fixture fixture, ActorContext preparer, ActorContext reviewer)
+    PgTestSchema pg, Fixture fixture, ActorContext preparer, ActorContext reviewer,
+    Guid? datasetId = null, string periodStart = "2026-01-01", string periodEnd = "2026-12-31")
   {
     Guid mappingId;
+    long mappingVersion;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       mappingId = (await FinancialStatementService.CreateMappingVersionAsync(db, preparer,
-        new CreateMappingVersionRequest(fixture.DatasetId, "tax-v1", "2026-01-01", "2026-12-31", [
+        new CreateMappingVersionRequest(datasetId ?? fixture.DatasetId, "tax-v1", periodStart, periodEnd, [
           new MappingAllocationInput("1000", "CASH", "ASSETS", 1m, "Cash mapping"),
           new MappingAllocationInput("4000", "REVENUE", "INCOME", 1m, "Revenue mapping")
         ]))).Value;
+      mappingVersion = await db.MappingVersions.AsNoTracking().Where(x => x.Id == mappingId)
+        .Select(x => x.Version).SingleAsync();
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
-      Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewer, mappingId, 1)).Succeeded);
+      Assert.True((await FinancialStatementService.ApproveMappingAsync(db, reviewer, mappingId, mappingVersion)).Succeeded);
 
     Guid planId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      planId = (await AdjustmentPlanService.CreatePlanAsync(db, preparer, fixture.DatasetId, [])).Value;
+      planId = (await AdjustmentPlanService.CreatePlanAsync(db, preparer, datasetId ?? fixture.DatasetId, [])).Value;
       Assert.True((await AdjustmentPlanService.FinalizeAsync(db, preparer, planId)).Succeeded);
     }
     return (mappingId, planId);

@@ -64,9 +64,12 @@ public static partial class FinancialStatementService
         return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
           "The comparative package is no longer available to pin.");
     }
-    if (lockedSafety.InputGeneration != package.Generation)
-      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GenerationStale,
-        "The source package is stale against current client inputs and cannot be pinned.");
+    // Client input generation is client-wide. Accepting a source for another reporting period
+    // must not stale this package; the package snapshot and its period-scoped source review are
+    // the authoritative freshness boundary here.
+    if (!await CashFlowSourceApprovedAsync(db, package, ct))
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
+        "The package's period-specific cash-flow source review is no longer current.");
     var writeAuth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId,
       PreparerRoles, ct);
     if (!writeAuth.Succeeded)
@@ -199,10 +202,6 @@ public static partial class FinancialStatementService
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (package is null || package.ClientId != packageClientId.Value)
       return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-
-    if (lockedSafety.InputGeneration != package.Generation)
-      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GenerationStale,
-        "The source package is stale against current client inputs and cannot be promoted to a candidate.");
 
     var auth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId, PreparerRoles, ct);
     if (!auth.Succeeded)
@@ -454,11 +453,9 @@ public static partial class FinancialStatementService
         package.CalculationHash != revision.PackageCalculationHash || package.ComparativePackageId != revision.ComparativePackageId)
       return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
         "The package no longer matches the exact source revision recorded for this draft.");
-    var currentSafety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == revision.FirmId && x.Id == revision.ClientId, ct);
-    if (currentSafety is null || currentSafety.InputGeneration != revision.PackageGeneration)
+    if (!await CashFlowSourceApprovedAsync(db, package, ct))
       return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
-        "Client source inputs changed after this draft was pinned.");
+        "The package's period-specific cash-flow source review changed after this draft was pinned.");
     var layout = await db.StatementLayoutVersions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == revision.LayoutVersionId && x.FirmId == revision.FirmId && x.ClientId == revision.ClientId, ct);
     if (layout is null || layout.Status != StatementLayoutStatuses.Published || layout.LayoutHash != revision.LayoutHash)
@@ -479,6 +476,9 @@ public static partial class FinancialStatementService
           comparative.CalculationHash != revision.ComparativeCalculationHash)
         return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
           "The comparative package no longer matches the exact source revision recorded for this draft.");
+      if (!await CashFlowSourceApprovedAsync(db, comparative, ct))
+        return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
+          "The comparative package's period-specific cash-flow source review changed after this draft was pinned.");
     }
     var packageIds = comparative is null ? new[] { package.Id } : new[] { package.Id, comparative.Id };
     var noteLines = await db.FinancialPackageNoteLines.AsNoTracking()
@@ -682,9 +682,7 @@ public static partial class FinancialStatementService
         package.CalculationHash != revision.PackageCalculationHash || package.ComparativePackageId != revision.ComparativePackageId ||
         package.ComparativeBasis != revision.ComparativeBasis || package.ComparativeEvidenceReference != revision.ComparativeEvidenceReference)
       return false;
-    var safety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == revision.FirmId && x.Id == revision.ClientId, ct);
-    if (safety is null || safety.InputGeneration != revision.PackageGeneration)
+    if (!await CashFlowSourceApprovedAsync(db, package, ct))
       return false;
 
     var layout = await db.StatementLayoutVersions.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -703,6 +701,8 @@ public static partial class FinancialStatementService
       if (comparative is null || comparative.ClientId != package.ClientId || comparative.Framework != package.Framework ||
           comparative.Currency != package.Currency || comparative.Revision != revision.ComparativePackageRevision ||
           comparative.Generation != revision.ComparativePackageGeneration || comparative.CalculationHash != revision.ComparativeCalculationHash)
+        return false;
+      if (!await CashFlowSourceApprovedAsync(db, comparative, ct))
         return false;
     }
     var packageIds = comparative is null ? new[] { package.Id } : new[] { package.Id, comparative.Id };

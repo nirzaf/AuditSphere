@@ -11,6 +11,7 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -154,6 +155,17 @@ public sealed partial class ClientAccountingTests
     var approval = await ApprovalService.CreateAsync(db, partner,
       new CreateApprovalRequest(ReleaseTargetKinds.FinancialPackage, source.PackageId, package.Revision, generation, policy, manifest));
     Assert.True(approval.Succeeded, approval.Message);
+
+    // A client-wide generation can advance for another reporting period without changing this
+    // package. Keep the global generation as the command's concurrency token, while approval
+    // applicability remains bound to the immutable package generation.
+    await db.ClientSafetyStates.Where(x => x.FirmId == source.FirmId && x.Id == source.ClientId)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.InputGeneration, x => x.InputGeneration + 1));
+    generation++;
+    var stillCurrent = await ApprovalService.EvaluateAsync(db, partner, approval.Value);
+    Assert.True(stillCurrent.Succeeded, stillCurrent.Message);
+    Assert.Equal(ApprovalStates.Current, stillCurrent.Value!.Status);
+
     var candidate = await ReleaseService.CreateCandidateAsync(db, partner,
       new CreateReleaseCandidateRequest(approval.Value, ReleaseTargetKinds.FinancialPackage,
         source.PackageId, package.Revision, generation, policy, manifest));
@@ -169,6 +181,8 @@ public sealed partial class ClientAccountingTests
         new LocalAppendOnlyCheckpointStore(root), partner,
         new RecordReleaseCheckpointRequest(candidate.Value, 1, "financial-package-release-001", manifest, manifestBytes));
       Assert.True(checkpoint.Succeeded, checkpoint.Message);
+      await db.ClientSafetyStates.Where(x => x.FirmId == source.FirmId && x.Id == source.ClientId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.InputGeneration, x => x.InputGeneration + 1));
       var issued = await ReleaseService.IssueAsync(db, partner,
         new IssueReleaseRequest(candidate.Value, 1, manifest, "financial-package-release-001"));
       Assert.True(issued.Succeeded, issued.Message);

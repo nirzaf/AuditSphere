@@ -163,7 +163,7 @@ public static partial class FinancialStatementService
       x.Id == plan.Id && x.FirmId == plan.FirmId, ct);
     if (currentMapping is null || currentPlan is null ||
         currentMapping.Version != mapping.Version ||
-        currentMapping.Generation != client.InputGeneration ||
+        currentMapping.Generation != mapping.Generation ||
         currentMapping.Status != AccountingPackageStates.MappingApproved ||
         currentPlan.Status != "Finalized" || currentPlan.ResultHash != plan.ResultHash)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
