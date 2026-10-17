@@ -7672,6 +7672,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(19,6)")
                         .HasColumnName("amount");
 
+                    b.Property<string>("CalculationRole")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("calculation_role");
+
                     b.Property<string>("ClassificationRationale")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
@@ -7741,7 +7746,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("financial_package_cash_flow_lines", null, t =>
                         {
-                            t.HasCheckConstraint("ck_financial_package_cash_flow_values", "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND ((movement_date IS NULL AND activity_code IS NULL AND classification_rationale IS NULL AND cardinality(source_references) = 0) OR (movement_date IS NOT NULL AND length(trim(activity_code)) > 0 AND cardinality(source_references) > 0 AND length(trim(classification_rationale)) > 0))");
+                            t.HasCheckConstraint("ck_financial_package_cash_flow_values", "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND ((movement_date IS NULL AND activity_code IS NULL AND classification_rationale IS NULL AND cardinality(source_references) = 0) OR (movement_date IS NOT NULL AND length(trim(activity_code)) > 0 AND cardinality(source_references) > 0 AND length(trim(classification_rationale)) > 0)) AND (calculation_role IS NULL OR (calculation_role = 'STARTING_PROFIT_SUBTOTAL' AND section = 'OPERATING' AND NOT is_non_cash) OR (calculation_role = 'NONCASH_PROFIT_ADJUSTMENT' AND section = 'OPERATING' AND is_non_cash) OR (calculation_role = 'OPERATING_BALANCE_MOVEMENT' AND section = 'OPERATING') OR (calculation_role = 'INVESTING_CASH_MOVEMENT' AND section = 'INVESTING' AND NOT is_non_cash) OR (calculation_role = 'FINANCING_CASH_MOVEMENT' AND section = 'FINANCING' AND NOT is_non_cash) OR (calculation_role = 'NONCASH_INVESTING_FINANCING_DISCLOSURE' AND section IN ('INVESTING','FINANCING') AND is_non_cash))");
                         });
                 });
 
@@ -17576,6 +17581,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("from_client");
 
+                    b.Property<Guid?>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("RequestSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_sha256");
+
                     b.Property<string>("Resolution")
                         .HasColumnType("text")
                         .HasColumnName("resolution");
@@ -17591,15 +17605,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ReviewId")
                         .HasColumnType("uuid")
                         .HasColumnName("review_id");
-
-                    b.Property<Guid?>("RequestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("request_id");
-
-                    b.Property<string>("RequestSha256")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("request_sha256");
 
                     b.HasKey("Id");
 

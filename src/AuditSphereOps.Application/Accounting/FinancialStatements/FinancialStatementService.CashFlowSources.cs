@@ -48,8 +48,22 @@ public static partial class FinancialStatementService
   /// </summary>
   internal static string? ValidateCashFlowSourceAllocationShape(IReadOnlyList<CashFlowLineInput> lines)
   {
+    var explicitlyClassified = lines.Count(x => !string.IsNullOrWhiteSpace(x.CalculationRole));
+    if (explicitlyClassified > 0 && explicitlyClassified != lines.Count)
+      return "An explicitly classified cash-flow schedule must assign a calculation role to every movement; do not mix it with legacy interpretation.";
+
     foreach (var line in lines)
     {
+      var roleCode = line.CalculationRole?.Trim().ToUpperInvariant();
+      if (roleCode is not null && (!CashFlowCalculationRoles.IsSupported(roleCode) ||
+          !CashFlowCalculationRoles.IsValidForSection(roleCode, line.Section.Trim().ToUpperInvariant())))
+        return $"The calculation role for '{line.Description.Trim()}' is unsupported or does not match its section.";
+      var noncashRole = roleCode is CashFlowCalculationRoles.NoncashProfitAdjustment or
+        CashFlowCalculationRoles.NoncashInvestingFinancingDisclosure;
+      var cashRole = roleCode is CashFlowCalculationRoles.StartingProfitSubtotal or
+        CashFlowCalculationRoles.InvestingCashMovement or CashFlowCalculationRoles.FinancingCashMovement;
+      if ((noncashRole && !line.IsNonCash) || (cashRole && line.IsNonCash))
+        return $"The noncash-source flag for '{line.Description.Trim()}' conflicts with its explicit calculation role.";
       var allocations = line.SourceAllocations ?? [];
       var scheduleAllocations = line.ScheduleSourceAllocations ?? [];
       if (allocations.Count == 0 && scheduleAllocations.Count == 0) continue;

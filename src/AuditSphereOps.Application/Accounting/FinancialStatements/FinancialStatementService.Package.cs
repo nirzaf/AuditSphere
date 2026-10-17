@@ -440,6 +440,7 @@ public static partial class FinancialStatementService
           EngagementId = package.EngagementId, FinancialPackageId = package.Id,
           Section = line.Section.Trim().ToUpperInvariant(), Description = line.Description.Trim(),
           Amount = MoneyPolicy.Normalize(line.Amount), IsNonCash = line.IsNonCash,
+          CalculationRole = line.CalculationRole?.Trim().ToUpperInvariant(),
           MovementDate = line.MovementDate,
           ActivityCode = line.ActivityCode!.Trim().ToUpperInvariant(),
           SourceReferences = NormalizeReferences(line.SourceReferences),
@@ -810,8 +811,8 @@ public static partial class FinancialStatementService
         (comparative.PackageId == Guid.Empty || string.IsNullOrWhiteSpace(comparative.Basis) || string.IsNullOrWhiteSpace(comparative.EvidenceReference)))
       return "A comparative package needs an exact package identity, basis and evidence reference.";
     var expected = MoneyPolicy.Normalize(input.CashEnding - input.CashBeginning);
-    var cashMovements = MoneyPolicy.Normalize(
-      input.CashFlowLines.Where(x => !x.IsNonCash).Sum(x => x.Amount));
+    var cashMovements = MoneyPolicy.Normalize(input.CashFlowLines
+      .Where(x => CashFlowCalculationRoles.IsIncludedInCashBridge(x.CalculationRole, x.IsNonCash)).Sum(x => x.Amount));
     var fxTotal = MoneyPolicy.Normalize(input.FxCashEffects?.Sum(x => x.Amount) ?? 0m);
     return expected == MoneyPolicy.Normalize(cashMovements + fxTotal)
       ? null

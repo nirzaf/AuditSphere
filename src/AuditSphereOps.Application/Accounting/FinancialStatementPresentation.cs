@@ -11,7 +11,7 @@ namespace AuditSphereOps.Application.Accounting;
 /// </summary>
 public static class FinancialStatementPresentationPolicy
 {
-  public const string BuilderVersion = "auditsphere.statement-presentation.v7";
+  public const string BuilderVersion = "auditsphere.statement-presentation.v8";
   public const string RendererVersion = "auditsphere.statement-renderer.v3";
   public const string DisplayPolicy = "whole units; half-even rounding of displayed amounts; negatives in brackets; zero shown as a dash";
   public const string DraftStatus = "UNAPPROVED_DRAFT";
@@ -75,7 +75,7 @@ public sealed record PresentationNote(
 
 /// <summary>SourceResolved is true only when persisted contributions from accepted general-ledger lines total this movement exactly.</summary>
 public sealed record PresentationCashFlowMovement(string Section, string Description, decimal Amount, bool IsNonCash, string? ActivityCode,
-  bool SourceResolved = false);
+  bool SourceResolved = false, string? CalculationRole = null);
 
 public sealed record PresentationFxCashEffect(string CurrencyPair, decimal Amount);
 
@@ -722,7 +722,7 @@ public static class FinancialStatementPresentationBuilder
     var currentLines = current?.CashFlowLines ?? [];
     var priorLines = prior?.CashFlowLines ?? [];
     static string Key(PresentationCashFlowMovement x) =>
-      $"{Normal(x.Section)}\u001f{Normal(x.ActivityCode ?? string.Empty)}\u001f{x.IsNonCash}\u001f{x.Description.Trim()}";
+      $"{Normal(x.Section)}\u001f{Normal(x.ActivityCode ?? string.Empty)}\u001f{x.IsNonCash}\u001f{Normal(x.CalculationRole ?? string.Empty)}\u001f{x.Description.Trim()}";
     var currentByKey = currentLines.ToDictionary(Key, StringComparer.Ordinal);
     var priorByKey = priorLines.ToDictionary(Key, StringComparer.Ordinal);
     var rows = new List<PresentationRow>();
@@ -750,12 +750,23 @@ public static class FinancialStatementPresentationBuilder
           currentByKey.TryGetValue(key, out var c);
           priorByKey.TryGetValue(key, out var p);
           var line = c ?? p!;
-          var label = line.IsNonCash ? $"Noncash transaction — {line.Description}" : line.Description;
+          var label = line.CalculationRole switch
+          {
+            CashFlowCalculationRoles.StartingProfitSubtotal => $"Starting profit — {line.Description}",
+            CashFlowCalculationRoles.NoncashProfitAdjustment => $"Profit reconciliation — {line.Description}",
+            CashFlowCalculationRoles.OperatingBalanceMovement => $"Operating balance movement — {line.Description}",
+            CashFlowCalculationRoles.InvestingCashMovement => $"Investing cash movement — {line.Description}",
+            CashFlowCalculationRoles.FinancingCashMovement => $"Financing cash movement — {line.Description}",
+            CashFlowCalculationRoles.NoncashInvestingFinancingDisclosure => $"Noncash investing/financing disclosure — {line.Description}",
+            _ => line.IsNonCash ? $"Noncash transaction — {line.Description}" : line.Description
+          };
           rows.Add(new PresentationRow(PresentationRowKinds.Line, $"CF_{rowIndex++}", label, 1, null,
             c?.Amount, p?.Amount));
         }
-        var currentSectionLines = currentLines.Where(x => Normal(x.Section) == section && !x.IsNonCash).ToArray();
-        var priorSectionLines = priorLines.Where(x => Normal(x.Section) == section && !x.IsNonCash).ToArray();
+        var currentSectionLines = currentLines.Where(x => Normal(x.Section) == section &&
+          CashFlowCalculationRoles.IsIncludedInCashBridge(x.CalculationRole, x.IsNonCash)).ToArray();
+        var priorSectionLines = priorLines.Where(x => Normal(x.Section) == section &&
+          CashFlowCalculationRoles.IsIncludedInCashBridge(x.CalculationRole, x.IsNonCash)).ToArray();
         sectionTotals[section] = currentSectionLines.Length == 0 ? null : MoneyPolicy.Normalize(currentSectionLines.Sum(x => x.Amount));
         priorSectionTotals[section] = priorSectionLines.Length == 0 ? null : MoneyPolicy.Normalize(priorSectionLines.Sum(x => x.Amount));
         rows.Add(new PresentationRow(PresentationRowKinds.Subtotal, $"CF_{section}_TOTAL", $"Net {TitleCase(section).ToLowerInvariant()} cash flows", 0,

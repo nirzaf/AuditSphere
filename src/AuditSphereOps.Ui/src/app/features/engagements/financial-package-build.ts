@@ -37,7 +37,7 @@ export function isTerminalBuildStatus(status: BuildStatus['status']): boolean {
 export interface AllocationForm { generalLedgerLineId: string; signedAmount: string }
 export interface ScheduleAllocationForm { specialistScheduleId: string; componentCode: 'DEPRECIATION' | 'IMPAIRMENT'; signedAmount: string }
 export interface MovementForm {
-  section: string; description: string; amount: string; isNonCash: boolean; movementDate: string; activityCode: string;
+  section: string; description: string; amount: string; isNonCash: boolean; calculationRole: string; movementDate: string; activityCode: string;
   sourceReferences: string; rationale: string; allocations: AllocationForm[]; scheduleAllocations: ScheduleAllocationForm[];
 }
 export interface DisclosureForm { code: string; response: string; notApplicable: boolean; rationale: string }
@@ -141,7 +141,7 @@ export function emptyBuildForm(): BuildForm {
 }
 
 export function emptyMovement(): MovementForm {
-  return { section: 'OPERATING', description: '', amount: '', isNonCash: false, movementDate: '', activityCode: '', sourceReferences: '',
+  return { section: 'OPERATING', description: '', amount: '', isNonCash: false, calculationRole: '', movementDate: '', activityCode: '', sourceReferences: '',
     rationale: '', allocations: [], scheduleAllocations: [] };
 }
 
@@ -182,6 +182,16 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
   for (const [index, m] of form.movements.entries()) {
     const at = `Movement ${index + 1}`;
     if (!['OPERATING', 'INVESTING', 'FINANCING'].includes(m.section)) return { error: `${at}: choose a section.` };
+    const roleSections: Record<string, readonly string[]> = {
+      STARTING_PROFIT_SUBTOTAL: ['OPERATING'], NONCASH_PROFIT_ADJUSTMENT: ['OPERATING'], OPERATING_BALANCE_MOVEMENT: ['OPERATING'],
+      INVESTING_CASH_MOVEMENT: ['INVESTING'], FINANCING_CASH_MOVEMENT: ['FINANCING'],
+      NONCASH_INVESTING_FINANCING_DISCLOSURE: ['INVESTING', 'FINANCING'],
+    };
+    const requiresNoncashSource = ['NONCASH_PROFIT_ADJUSTMENT', 'NONCASH_INVESTING_FINANCING_DISCLOSURE'].includes(m.calculationRole);
+    const requiresCashSource = ['STARTING_PROFIT_SUBTOTAL', 'INVESTING_CASH_MOVEMENT', 'FINANCING_CASH_MOVEMENT'].includes(m.calculationRole);
+    if (m.calculationRole && (!roleSections[m.calculationRole]?.includes(m.section) ||
+      (requiresNoncashSource && !m.isNonCash) || (requiresCashSource && m.isNonCash)))
+      return { error: `${at}: calculation role, section, and noncash-source flag must agree.` };
     if (!m.description.trim() || m.description.length > 2000) return { error: `${at}: enter a description.` };
     if (!AMOUNT.test(m.amount)) return { error: `${at}: enter an amount with at most six decimals.` };
     if (!DATE.test(m.movementDate)) return { error: `${at}: enter the movement date.` };
@@ -292,6 +302,7 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
         comparative: comparativeId ? { packageId: comparativeId, basis: form.comparativeBasis.trim(), evidenceReference: form.comparativeEvidence.trim() } : null,
         cashFlowLines: form.movements.map((m) => ({
           section: m.section, description: m.description.trim(), amount: m.amount, isNonCash: m.isNonCash,
+          calculationRole: m.calculationRole || null,
           movementDate: m.movementDate, activityCode: m.activityCode.trim(), sourceReferences: list(m.sourceReferences),
           classificationRationale: m.rationale.trim(),
           sourceAllocations: m.allocations.length
@@ -444,7 +455,17 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
             <label>Section <select [name]="'section' + i" [(ngModel)]="m.section"><option>OPERATING</option><option>INVESTING</option><option>FINANCING</option></select></label>
             <label>Description <input [name]="'description' + i" [(ngModel)]="m.description" maxlength="2000" /></label>
             <label>Amount <input [name]="'amount' + i" [(ngModel)]="m.amount" inputmode="decimal" /></label>
-            <label><input type="checkbox" [name]="'noncash' + i" [(ngModel)]="m.isNonCash" /> Noncash (excluded from the cash bridge)</label>
+            <label>Indirect calculation role <select [name]="'calcRole' + i" [(ngModel)]="m.calculationRole">
+              <option value="">Legacy interpretation (role not recorded)</option>
+              <option value="STARTING_PROFIT_SUBTOTAL">Starting profit subtotal</option>
+              <option value="NONCASH_PROFIT_ADJUSTMENT">Noncash profit adjustment</option>
+              <option value="OPERATING_BALANCE_MOVEMENT">Operating balance movement</option>
+              <option value="INVESTING_CASH_MOVEMENT">Investing cash movement</option>
+              <option value="FINANCING_CASH_MOVEMENT">Financing cash movement</option>
+              <option value="NONCASH_INVESTING_FINANCING_DISCLOSURE">Noncash investing/financing disclosure</option>
+            </select></label>
+            <label><input type="checkbox" [name]="'noncash' + i" [(ngModel)]="m.isNonCash" /> Noncash source provenance (source links only; a selected calculation role governs the bridge)</label>
+            <p><small>Calculation roles classify draft output only; they do not mean the selected methodology has been professionally approved. Noncash profit adjustments are included in the operating reconciliation; noncash investing/financing disclosures are shown separately and excluded from cash totals.</small></p>
             <label>Movement date <input type="date" [name]="'date' + i" [(ngModel)]="m.movementDate" /></label>
             <label>Activity code <input [name]="'activity' + i" [(ngModel)]="m.activityCode" maxlength="100" /></label>
             <label>Evidence references (comma separated) <input [name]="'evidence' + i" [(ngModel)]="m.sourceReferences" /></label>

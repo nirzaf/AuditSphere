@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 
@@ -143,7 +144,18 @@ public static class FinancialStatementCalculator
           comparativeRevision?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
           comparativeCalculationHash ?? string.Empty));
     }
-    return Hashing.Sha256Hex(string.Join('\n', parts));
+    var legacyHash = Hashing.Sha256Hex(string.Join('\n', parts));
+    if (!input.CashFlowLines.Any(x => !string.IsNullOrWhiteSpace(x.CalculationRole))) return legacyHash;
+    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "financial-supplementary-information.v4.calculation-role",
+      Base = legacyHash,
+      Roles = input.CashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(x => x.Description, StringComparer.Ordinal).ThenBy(x => x.MovementDate)
+        .ThenBy(x => x.ActivityCode, StringComparer.Ordinal)
+        .Select(x => new { Section = x.Section.Trim().ToUpperInvariant(), Description = x.Description.Trim(),
+          Role = x.CalculationRole?.Trim().ToUpperInvariant() }).ToArray()
+    }));
   }
 
   public static string ComputeEquityHash(

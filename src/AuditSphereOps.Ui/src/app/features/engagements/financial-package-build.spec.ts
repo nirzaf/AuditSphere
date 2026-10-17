@@ -48,6 +48,39 @@ describe('financial package build request', () => {
     expect(body.supplementaryInformation.equityLines).toBeNull();
   });
 
+  it('sends an explicit indirect calculation role separately from the legacy noncash source flag', () => {
+    const form = completeForm();
+    form.movements[0].isNonCash = true;
+    form.movements[0].calculationRole = 'NONCASH_PROFIT_ADJUSTMENT';
+    form.movements[0].amount = '12';
+    form.movements[0].allocations = [];
+    form.movements[0].scheduleAllocations = [{ specialistScheduleId: line, componentCode: 'DEPRECIATION', signedAmount: '12' }];
+
+    const built = toBuildRequest(form);
+    expect('body' in built).toBe(true);
+    expect((built as { body: any }).body.supplementaryInformation.cashFlowLines[0]).toMatchObject({
+      isNonCash: true, calculationRole: 'NONCASH_PROFIT_ADJUSTMENT', amount: '12',
+    });
+  });
+
+  it('refuses an indirect role that conflicts with its section or noncash provenance', () => {
+    const form = completeForm();
+    form.movements[0].calculationRole = 'FINANCING_CASH_MOVEMENT';
+    expect(toBuildRequest(form)).toMatchObject({ error: expect.stringContaining('calculation role') });
+  });
+
+  it('allows a working-capital movement to retain noncash source provenance and still enter the indirect bridge', () => {
+    const form = completeForm();
+    form.movements[0].isNonCash = true;
+    form.movements[0].calculationRole = 'OPERATING_BALANCE_MOVEMENT';
+    form.movements[0].allocations = [];
+    const built = toBuildRequest(form);
+    expect('body' in built).toBe(true);
+    expect((built as { body: any }).body.supplementaryInformation.cashFlowLines[0]).toMatchObject({
+      isNonCash: true, calculationRole: 'OPERATING_BALANCE_MOVEMENT',
+    });
+  });
+
   it('keeps a movement without links unlinked, so the server records it as a draft', () => {
     const form = completeForm();
     form.movements[0].allocations = [];

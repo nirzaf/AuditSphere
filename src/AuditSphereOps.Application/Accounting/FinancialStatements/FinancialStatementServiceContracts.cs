@@ -66,7 +66,9 @@ public sealed record CashFlowLineInput(
   // Accepted general-ledger lines that make up this movement. Null or empty keeps the movement a draft without lineage.
   IReadOnlyList<CashFlowSourceAllocationInput>? SourceAllocations = null,
   // Exact independently approved specialist schedule components, currently ASSETS depreciation and impairment.
-  IReadOnlyList<CashFlowScheduleSourceAllocationInput>? ScheduleSourceAllocations = null);
+  IReadOnlyList<CashFlowScheduleSourceAllocationInput>? ScheduleSourceAllocations = null,
+  // Optional for compatibility. Null preserves the historical IsNonCash cash-bridge behavior.
+  string? CalculationRole = null);
 
 /// <summary>The part of one accepted general-ledger line that contributes to a cash-flow movement. The sign follows the ledger line (debit-positive); the statement effect is projected separately.</summary>
 public sealed record CashFlowSourceAllocationInput(Guid GeneralLedgerLineId, decimal SignedAmount);

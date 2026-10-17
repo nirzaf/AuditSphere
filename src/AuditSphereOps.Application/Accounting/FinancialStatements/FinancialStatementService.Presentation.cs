@@ -193,7 +193,7 @@ public static partial class FinancialStatementService
         .Concat(cashLines.Select((line, index) => (line, index)).SelectMany(x => cashScheduleAllocations
           .Where(a => a.CashFlowLineId == x.line.Id).Select(a => (MovementIndex: x.index, LedgerSignedAmount: a.SignedAmount, PopulationComplete: true)))));
     return cashLines.Select((x, index) => new PresentationCashFlowMovement(x.Section, x.Description, x.Amount, x.IsNonCash,
-      x.ActivityCode, resolved[index] && lineagePassed)).ToList();
+      x.ActivityCode, resolved[index] && lineagePassed, x.CalculationRole)).ToList();
   }
 
   // The public/DB field retains its legacy NoteSourceManifestHash name. Version 3 also seals
@@ -297,8 +297,9 @@ public static partial class FinancialStatementService
     IReadOnlyList<FinancialPackageCashFlowLine> cash,
     IReadOnlyList<FinancialPackageFxEffect> fx,
     IReadOnlyList<FinancialPackageEquityLine> equity,
-    IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, string noteHash) =>
-    Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    IReadOnlyList<FinancialPackageCashFlowAllocation> cashAllocations, string noteHash)
+  {
+    var legacyHash = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
       Version = "auditsphere.statement-source-manifest.v3",
       NoteHash = noteHash,
@@ -335,6 +336,15 @@ public static partial class FinancialStatementService
         x.DividendsAmount, x.ClosingAmount, x.EvidenceReference
       }).ToArray()
     }));
+    if (!cash.Any(x => !string.IsNullOrWhiteSpace(x.CalculationRole))) return legacyHash;
+    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "auditsphere.statement-source-manifest.v4.calculation-role",
+      Base = legacyHash,
+      Roles = cash.OrderBy(x => x.FinancialPackageId).ThenBy(x => x.Id)
+        .Select(x => new { x.Id, Role = x.CalculationRole?.Trim().ToUpperInvariant() }).ToArray()
+    }));
+  }
 
   private static string ComputeNoteSourceManifestHash(
     IReadOnlyCollection<Guid> packageIds,

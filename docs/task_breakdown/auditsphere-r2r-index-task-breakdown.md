@@ -64,9 +64,9 @@ These are separate layers and must not be merged into one module implementation.
 | COMPLETED | 2 |
 | IN_REVIEW | 0 |
 | IN_PROGRESS | 0 |
-| BLOCKED | 2 |
+| BLOCKED | 5 |
 | REOPENED | 0 |
-| NOT_STARTED | 71 |
+| NOT_STARTED | 68 |
 
 These are task-tracking totals, not a software-completion percentage or a transferred status from the source repository. Original criterion, fixture and integration acceptance are tracked separately.
 <!-- END PROGRESS -->
@@ -353,8 +353,8 @@ The following table is the only master navigation/status index. Each task opens 
 | Done | Task file | Direct dependencies | Status | Readiness | Owner |
 |---|---|---|---|---|---|
 | [ ] | [T024 — Build reconciliation schedules and typed source items](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t024-reconciliation-schedules-typed-source-items.md) | [T023](tasks/06_M22_Adjustments/auditsphere-r2r-task-t023-reflection-treatment-adjusted-tb-snapshots.md) | NOT_STARTED | WAITING: T023 | Unassigned |
-| [ ] | [T025 — Implement reconciliation proof and correction-journal handoff](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t025-reconciliation-proof-correction-journals.md) | [T024](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t024-reconciliation-schedules-typed-source-items.md) | NOT_STARTED | WAITING: T024 | Unassigned |
-| [ ] | [T026 — Implement reconciliation review, rework and export](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t026-reconciliation-review-rework-export.md) | [T025](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t025-reconciliation-proof-correction-journals.md) | NOT_STARTED | WAITING: T025 | Unassigned |
+| [ ] | [T025 — Implement reconciliation proof and correction-journal handoff](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t025-reconciliation-proof-correction-journals.md) | [T024](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t024-reconciliation-schedules-typed-source-items.md) | BLOCKED | WAITING: T024 | Unassigned |
+| [ ] | [T026 — Implement reconciliation review, rework and export](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t026-reconciliation-review-rework-export.md) | [T025](tasks/07_M23_Reconciliations/auditsphere-r2r-task-t025-reconciliation-proof-correction-journals.md) | BLOCKED | WAITING: T025 | Unassigned |
 
 <a id="wp-08"></a>
 ### R2R-08 — M24 versioned layout, current/prior balances, line drill-down and statement-set snapshots
@@ -376,7 +376,7 @@ The following table is the only master navigation/status index. Each task opens 
 
 | Done | Task file | Direct dependencies | Status | Readiness | Owner |
 |---|---|---|---|---|---|
-| [ ] | [T030 — Build source-backed cash-flow schedules](tasks/09_M24_Supplements/auditsphere-r2r-task-t030-source-backed-cash-flow-schedules.md) | [T029](tasks/08_M24_Statements/auditsphere-r2r-task-t029-canonical-statement-sets-line-drilldown.md) | NOT_STARTED | WAITING: T029 | Unassigned |
+| [ ] | [T030 — Build source-backed cash-flow schedules](tasks/09_M24_Supplements/auditsphere-r2r-task-t030-source-backed-cash-flow-schedules.md) | [T029](tasks/08_M24_Statements/auditsphere-r2r-task-t029-canonical-statement-sets-line-drilldown.md) | BLOCKED | WAITING: T029 | Codex implementation |
 | [ ] | [T031 — Build equity-movement schedules](tasks/09_M24_Supplements/auditsphere-r2r-task-t031-equity-movement-schedules.md) | [T029](tasks/08_M24_Statements/auditsphere-r2r-task-t029-canonical-statement-sets-line-drilldown.md) | NOT_STARTED | WAITING: T029 | Unassigned |
 | [ ] | [T032 — Build disclosure notes and reviewed applicability](tasks/09_M24_Supplements/auditsphere-r2r-task-t032-disclosure-notes-reviewed-applicability.md) | [T029](tasks/08_M24_Statements/auditsphere-r2r-task-t029-canonical-statement-sets-line-drilldown.md) | NOT_STARTED | WAITING: T029 | Unassigned |
 | [ ] | [T033 — Complete statement review and restatement lifecycle](tasks/09_M24_Supplements/auditsphere-r2r-task-t033-statement-review-restatement-lifecycle.md) | [T030](tasks/09_M24_Supplements/auditsphere-r2r-task-t030-source-backed-cash-flow-schedules.md), [T031](tasks/09_M24_Supplements/auditsphere-r2r-task-t031-equity-movement-schedules.md), [T032](tasks/09_M24_Supplements/auditsphere-r2r-task-t032-disclosure-notes-reviewed-applicability.md) | NOT_STARTED | WAITING: T030, T031, T032 | Unassigned |

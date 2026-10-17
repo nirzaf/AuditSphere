@@ -10,7 +10,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record PackageValidationView(string Code, bool Passed, string Detail);
 public sealed record PackageSectionTotal(string Section, decimal Amount);
 public sealed record PackageCashFlowView(
-  Guid Id, string Section, string Description, decimal Amount, bool IsNonCash, string Currency,
+  Guid Id, string Section, string Description, decimal Amount, bool IsNonCash, string? CalculationRole, string Currency,
   DateOnly? MovementDate, string? ActivityCode, IReadOnlyList<string> SourceReferences, string? ClassificationRationale);
 public sealed record PackageDisclosureView(string Code, string Response, bool NotApplicable, string? Rationale);
 public sealed record PackageReviewView(string Stage, string Decision, string EvidenceMode, string EvidenceReference, string PackageHash,
@@ -45,7 +45,7 @@ public static class FinancialPackageWorkspaceQuery
       .Select(x => new PackageSectionTotal(x.Key, MoneyPolicy.Normalize(x.Sum(y => y.Amount)))).ToList();
     var cash = await db.FinancialPackageCashFlowLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == p.ClientId && x.EngagementId == p.EngagementId &&
       x.FinancialPackageId == p.Id).OrderBy(x => x.Section).ThenBy(x => x.Description)
-      .Select(x => new PackageCashFlowView(x.Id, x.Section, x.Description, x.Amount, x.IsNonCash, x.Currency,
+      .Select(x => new PackageCashFlowView(x.Id, x.Section, x.Description, x.Amount, x.IsNonCash, x.CalculationRole, x.Currency,
         x.MovementDate, x.ActivityCode, x.SourceReferences, x.ClassificationRationale)).ToListAsync(ct);
     var disclosures = await db.FinancialPackageDisclosures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == p.ClientId && x.EngagementId == p.EngagementId &&
       x.FinancialPackageId == p.Id).OrderBy(x => x.Code).Select(x => new PackageDisclosureView(x.Code, x.Response, x.NotApplicable, x.Rationale)).ToListAsync(ct);

@@ -24,7 +24,7 @@ public sealed class CashFlowContractTests
 
   [Fact]
   [Trait("Profile", "Database")]
-  public async Task SourceBackedNonCashOperatingAndInvestingMovements_AreRetainedButExcludedFromCashBridge()
+  public async Task TypedNonCashProfitAddback_CannotBeHiddenFromCashBridgeReconciliation()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
@@ -38,15 +38,18 @@ public sealed class CashFlowContractTests
     {
       SupplementaryInformation = new FinancialSupplementaryInformation(
         0m, 100m,
-        [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
+        [new CashFlowLineInput("OPERATING", "Trade receivables decrease", 100m, MovementDate: new DateOnly(2026, 6, 30),
            ActivityCode: "CASH_RECEIPTS", SourceReferences: ["bank-ledger-cash-1"], ClassificationRationale: "Receipt agreed to the synthetic bank ledger.",
-           SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)]),
+           SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)],
+           CalculationRole: CashFlowCalculationRoles.OperatingBalanceMovement),
          new CashFlowLineInput("OPERATING", "Depreciation adjustment", 25m, IsNonCash: true, MovementDate: new DateOnly(2026, 6, 30),
            ActivityCode: "NON_CASH_ADJUSTMENT", SourceReferences: ["fixed-asset-register-1"], ClassificationRationale: "Noncash depreciation is an indirect-method adjustment.",
-           SourceAllocations: [new CashFlowSourceAllocationInput(source.Depreciation, 25m)]),
+           SourceAllocations: [new CashFlowSourceAllocationInput(source.Depreciation, 25m)],
+           CalculationRole: CashFlowCalculationRoles.NoncashProfitAdjustment),
          new CashFlowLineInput("INVESTING", "Equipment acquired under finance lease", 500m, IsNonCash: true, MovementDate: new DateOnly(2026, 6, 30),
            ActivityCode: "NON_CASH_ACQUISITION", SourceReferences: ["lease-contract-1"], ClassificationRationale: "Lease acquisition did not consume cash in the period.",
-           SourceAllocations: [new CashFlowSourceAllocationInput(source.NoncashEquipment, 500m)])],
+           SourceAllocations: [new CashFlowSourceAllocationInput(source.NoncashEquipment, 500m)],
+           CalculationRole: CashFlowCalculationRoles.NoncashInvestingFinancingDisclosure)],
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
@@ -57,24 +60,29 @@ public sealed class CashFlowContractTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
-      Assert.True(built.Succeeded, built.Message);
-      var builtPackage = built.Value!;
-      var failedCodes = await db.FinancialPackageValidations.AsNoTracking()
-        .Where(x => x.FinancialPackageId == builtPackage.PackageId && !x.Passed)
-        .Select(x => x.Code).ToListAsync();
-      Assert.True(builtPackage.Status == AccountingPackageStates.PackageValidated,
-        $"Failed: {string.Join(",", failedCodes)}");
-      Assert.Equal(3, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == builtPackage.PackageId));
-      var line = await db.FinancialPackageCashFlowLines.SingleAsync(x => x.Description.Contains("finance lease"));
-      Assert.True(line.IsNonCash);
-      Assert.Equal(new DateOnly(2026, 6, 30), line.MovementDate);
-      Assert.Equal(["lease-contract-1"], line.SourceReferences);
-      var operating = await db.FinancialPackageCashFlowLines.SingleAsync(x => x.ActivityCode == "CASH_RECEIPTS");
-      Assert.False(operating.IsNonCash);
-      Assert.Equal("CASH_RECEIPTS", operating.ActivityCode);
+      Assert.False(built.Succeeded);
+      Assert.Contains("total 125", built.Message!, StringComparison.OrdinalIgnoreCase);
+      Assert.Contains("bridge is 100", built.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
-    // An unreferenced movement is refused, while the noncash operating adjustment above is valid.
+    var mixedInterpretation = request with
+    {
+      TemplateVersion = "cash-v1-mixed-interpretation",
+      SupplementaryInformation = request.SupplementaryInformation with
+      {
+        CashFlowLines = [request.SupplementaryInformation.CashFlowLines[0],
+          request.SupplementaryInformation.CashFlowLines[1] with { CalculationRole = null },
+          request.SupplementaryInformation.CashFlowLines[2]]
+      }
+    };
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var rejected = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, mixedInterpretation);
+      Assert.False(rejected.Succeeded);
+      Assert.Contains("must assign a calculation role to every movement", rejected.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // An unreferenced movement is refused independently of the typed-role cash bridge check above.
     var invalid = request with
     {
       TemplateVersion = "cash-v1-invalid",
