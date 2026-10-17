@@ -112,3 +112,14 @@ Engagement audit workbench under `/app/audit/programs/{EngagementId}` with secti
 | Reviewer and acceptance decision | Not recorded |
 
 **Tracking-only note:** filling these fields or running the status helper is not proof that tests ran, a professional approval, merge authorization or permission to perform a tenant operation.
+
+## Implementation notes (status unchanged)
+
+Repository evidence observed on 2026-10-17. These notes do not change `status`, the completion checklist or the handoff table above. They are not an independent review and do not make this card complete.
+
+- **Spec link:** `docs/task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md` (the spec header links AS-AUD-002 / T055 and AS-AUD-003 / T056). The spec says T055/T056 completion keeps the repository's dependency and independent-review rules.
+- **Implementing commits on `master`:** `8b0c3303` feat(audit): adopt exact published programme versions (spec Atomic Task 02, exact programme adoption); docs follow-up `fa60da52`.
+- **Recorded focused checks** (`docs/execution/status.json` → `targetedVerification.atomicAuditWorkingProcessTask02`; `docs/execution/auditsphere-execution-current-slice.md`): Domain adoption regression 1/1; API adoption/options regression 1/1; Angular fieldwork spec 12/12; E2E project compilation passed; API and Web Release builds passed; OpenAPI drift and `git diff --check` passed. The browser journey was not run.
+- **Hosted CI:** `8b0c3303` cancelled; head `master` `fa60da52` fails at `Build · .NET Release` (OpenAPI contract drift).
+- **Dependencies:** T056 depends on T014 (NOT_STARTED) and T055 (NOT_STARTED).
+- **Review:** no independent reviewer decision is recorded for these commits.

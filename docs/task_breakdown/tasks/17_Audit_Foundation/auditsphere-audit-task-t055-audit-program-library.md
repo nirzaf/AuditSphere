@@ -115,3 +115,14 @@ Source procedures (preserved wording):
 | Reviewer and acceptance decision | Not recorded |
 
 **Tracking-only note:** filling these fields or running the status helper is not proof that tests ran, a professional approval, merge authorization or permission to perform a tenant operation.
+
+## Implementation notes (status unchanged)
+
+Repository evidence observed on 2026-10-17. These notes do not change `status`, the completion checklist or the handoff table above. They are not an independent review and do not make this card complete.
+
+- **Spec link:** `docs/task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md` (the spec header links AS-AUD-002 / T055 and AS-AUD-003 / T056). The spec says T055/T056 completion keeps the repository's dependency and independent-review rules.
+- **Implementing commit on `master`:** `efc358da` feat(audit): require reviewed controlled programme publication (spec Atomic Task 01, controlled programme publication).
+- **Recorded focused checks** (`docs/execution/status.json` → `targetedVerification.atomicAuditWorkingProcessTask01`; `docs/execution/auditsphere-execution-current-slice.md`): API Release build passed; focused API publication endpoint test 1/1; Domain source-manifest/publication tests 2/2; touched Domain scope-isolation regression 1/1; Angular library spec 17/17; E2E project compilation passed; EF reports no pending model changes; `git diff --check` passed. No full suite and no browser journey were run.
+- **Hosted CI:** `efc358da` failed (`Docs · Health`, `Build · .NET Release`). Head `master` `fa60da52` fails at `Build · .NET Release` (OpenAPI contract drift).
+- **Dependencies:** T055 depends on T003, which is BLOCKED.
+- **Review:** no independent reviewer decision is recorded for this commit.
