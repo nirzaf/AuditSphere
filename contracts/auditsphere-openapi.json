@@ -46421,6 +46421,36 @@
           },
           "evidenceReference": {
             "type": "string"
+          },
+          "sourceAllocations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/NoteSourceAllocationInput"
+            }
+          }
+        }
+      },
+      "NoteSourceAllocationInput": {
+        "required": [
+          "generalLedgerLineId",
+          "signedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "generalLedgerLineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
