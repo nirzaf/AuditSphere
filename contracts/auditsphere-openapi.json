@@ -19946,16 +19946,6 @@
                 }
               }
             }
-          },
-          "413": {
-            "description": "The JSON command body exceeded the accepted size.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
           }
         },
         "security": [
@@ -47447,6 +47437,22 @@
           }
         }
       },
+      "PortalDocumentCommentInput": {
+        "required": [
+          "requestId",
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
       "PortalFirstSignInInput": {
         "required": [
           "acknowledged"
@@ -47516,22 +47522,6 @@
               "string"
             ],
             "format": "uuid"
-          }
-        }
-      },
-      "PortalDocumentCommentInput": {
-        "required": [
-          "requestId",
-          "body"
-        ],
-        "type": "object",
-        "properties": {
-          "requestId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "body": {
-            "type": "string"
           }
         }
       },
