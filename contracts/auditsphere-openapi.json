@@ -38718,12 +38718,50 @@
       },
       "ApplicabilityInput": {
         "required": [
-          "decision"
+          "decision",
+          "rationale",
+          "expectedApplicabilityRevision",
+          "expectedDefinitionRevision",
+          "commandId",
+          "proposalDecisionId"
         ],
         "type": "object",
         "properties": {
           "decision": {
             "type": "string"
+          },
+          "rationale": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedApplicabilityRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "expectedDefinitionRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "proposalDecisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
