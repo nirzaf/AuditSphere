@@ -452,6 +452,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageFxAssessment> FinancialPackageFxAssessments => db.FinancialPackageFxAssessments;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageSeal> FinancialPackageSeals => db.FinancialPackageSeals;
     public DbSet<AuditSphereOps.Domain.Accounting.FinancialPackageDisclosure> FinancialPackageDisclosures => db.FinancialPackageDisclosures;
+    public DbSet<AuditSphereOps.Domain.Practice.BillingCommandReceipt> BillingCommandReceipts => db.BillingCommandReceipts;
     public DbSet<Engagement> Engagements => db.Engagements;
     public DbSet<EngagementCreation> EngagementCreations => db.EngagementCreations;
     public DbSet<BudgetPreparation> BudgetPreparations => db.BudgetPreparations;

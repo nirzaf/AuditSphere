@@ -581,7 +581,9 @@ export class InvoiceDetail {
 
   private async run(url: string, body: unknown, success: string, afterSuccess?: () => void,
     retry?: { requestId: string; url: string; body: Record<string, unknown>; success: string; afterSuccess?: () => void }): Promise<void> {
-    if (this.busy() || this.uncertain()) return;
+    const isRetainedRetry = retry !== undefined && this.pendingBillingCommand() === retry &&
+      retry.url === url && retry.body === body && retry.body['requestId'] === retry.requestId;
+    if (this.busy() || (this.uncertain() && !isRetainedRetry)) return;
     const visit = this.visitToken;
     const invoiceId = this.id();
     const generation = this.session.invalidation();

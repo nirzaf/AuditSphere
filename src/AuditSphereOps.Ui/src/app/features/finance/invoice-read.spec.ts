@@ -135,6 +135,31 @@ describe('Invoice exact read and allocation pagination', () => {
     http.expectNone(r => r.method !== 'GET'); http.expectNone(r => r.method === 'GET');
   });
 
+  it('retries only the retained billing request after an unknown outcome', async () => {
+    const f = open(); const c = f.componentInstance;
+    c.receiptForm.patchValue({ amount: '12.00', reference: 'SYN-RETRY-001', reviewed: true });
+    const firstAttempt = c.recordReceipt(c.invoice.data()!);
+    const first = http.expectOne(r => r.method === 'POST' && r.url === `/api/ui/finance/billing-accounts/${id(50)}/receipts`);
+    const originalBody = first.request.body as { requestId: string; amount: string; reference: string; reviewed: boolean };
+    first.error(new ProgressEvent('error'));
+    await firstAttempt; TestBed.tick();
+    expect(c.uncertain()).toBe(true);
+    expect(c.pendingBillingCommand()?.requestId).toBe(originalBody.requestId);
+
+    await c.act(id(1), 'post', 'Must not replace unresolved payment.');
+    http.expectNone(r => r.method === 'POST');
+
+    const retryAttempt = c.retryPendingBillingCommand();
+    const retry = http.expectOne(r => r.method === 'POST' && r.url === `/api/ui/finance/billing-accounts/${id(50)}/receipts`);
+    expect(retry.request.body).toEqual(originalBody);
+    retry.flush({ value: id(700) });
+    await retryAttempt; TestBed.tick();
+    http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush(invoice()); TestBed.tick();
+    expect(c.uncertain()).toBe(false);
+    expect(c.pendingBillingCommand()).toBeNull();
+    expect(c.message()).toContain('Receipt recorded');
+  });
+
   it('resets paging on explicit refresh and authorization result replacement while retaining the selected size', async () => {
     const f = open(); const c = f.componentInstance;
     c.setAllocationPageSize({ target: { value: '25' } } as unknown as Event);
