@@ -10,6 +10,8 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 `docs/execution/status.json`.
 
+> **Blazor retirement note (2026-10-17):** The legacy Blazor host (`AuditSphereOps.Web`, its `Web/Components/Pages` screens and MudBlazor) was retired and merged to `master` as `e7ebe27c`; no `.razor` file remains in the current tree. Every `.razor` or `Web/` entry below is historical lineage preserved only at the pinned pre-removal commit `c3905e07`, not a current UI target. The canonical presentation is Angular under `src/AuditSphereOps.Ui`, served by `src/AuditSphereOps.Api`.
+
 ## Reviewed accounting period maintenance
 
 - `Application/Accounting/PeriodMaintenanceWorkspace.cs` and its contracts: scoped context/state, exact preview and actor-owned receipt lookup.
@@ -191,7 +193,7 @@ replay/approval/readback); the group-report export/archive leg is a declared M37
 
 - Persistence: `AuditSphereDbContext.Audit.cs`, `.Fieldwork.cs`
 
-- Angular: `features/audit/plan.ts`, `fieldwork.ts`, `records.ts` and `library.ts`; API `Ui/UiEndpoints.AuditPlan.cs`, `UiEndpoints.Fieldwork.cs` and audit record endpoints. Legacy `AuditPlan.razor`, `AuditFieldwork.razor`, `AuditPopulation.razor` and `AuditProgramLibraryPage.razor` remain rollback/reference sources until the retirement gate passes.
+- Angular: `features/audit/plan.ts`, `fieldwork.ts`, `records.ts` and `library.ts`; API `Ui/UiEndpoints.AuditPlan.cs`, `UiEndpoints.Fieldwork.cs` and audit record endpoints. The retired `AuditPlan.razor`, `AuditFieldwork.razor`, `AuditPopulation.razor` and `AuditProgramLibraryPage.razor` were removed with the Blazor host and are preserved only at the pinned pre-removal commit.
 - Exact population/finding projections: `Application/Audit/AuditRecordQueries.cs`; both reauthorize after composing details. Angular record decoders bind the returned identity to the route and finding drafts clear on route/session transitions.
 
 - Tests: `tests/.../AuditFieldwork*` and audit sections of `SourceAcceptanceAndComparativesTests.cs`
@@ -316,7 +318,7 @@ accounting or consolidation workspaces.
 
 - Persistence: `AuditSphereDbContext.Security.cs`, `.Microsoft365.cs`; dedicated certificate and Graph directory reader, `GraphCapabilityCredential.cs`, `GraphTenantAdministrationProviders.cs`, `GraphTenantConsentVerifier.cs` and the Development/Test-only `SimulatedMicrosoftTenant.cs` in `Infrastructure/Providers/`
 
-- API/Angular: `Api/Ui/UiEndpoints.Microsoft365.cs`, `.TenantOperations.cs`, `.SelectedResources.cs`; `Ui/src/app/features/admin/tenant.ts`, `sharepoint.ts`, `provisioning.ts`, `groups.ts`, `operation-recovery.ts`; API owns consent/authentication callback composition. Legacy presentation: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor` and `Components/Administration/*` remain the parity/rollback reference until retirement acceptance.
+- API/Angular: `Api/Ui/UiEndpoints.Microsoft365.cs`, `.TenantOperations.cs`, `.SelectedResources.cs`; `Ui/src/app/features/admin/tenant.ts`, `sharepoint.ts`, `provisioning.ts`, `groups.ts`, `operation-recovery.ts`; API owns consent/authentication callback composition. Retired presentation: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor` and `Components/Administration/*` were removed with the Blazor host and are preserved only at the pinned pre-removal commit.
 
 - Tests: `tests/.../` Microsoft 365 and security suites
 
