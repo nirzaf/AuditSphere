@@ -98,6 +98,12 @@ function workspacePayload(overrides: Record<string, unknown> = {}) {
     : rawExceptions;
   return {
     ...payload,
+    componentPaging: overrides['componentPaging'] ?? { totalCount: payload.components.length, page: 1, pageSize: 100 },
+    readinessPaging: overrides['readinessPaging'] ?? (Array.isArray(payload.componentReadiness)
+      ? { totalCount: payload.componentReadiness.length, page: 1, pageSize: 100 }
+      : (payload.componentReadiness as unknown as { available: boolean; value: unknown[] | null }).available
+        ? { totalCount: (payload.componentReadiness as unknown as { value: unknown[] }).value.length, page: 1, pageSize: 100 } : null),
+    resolvedComponent: null,
     eligiblePackages: page(payload.eligiblePackages),
     journals: page(payload.journals),
     runs: page(payload.runs),
@@ -254,6 +260,9 @@ describe('Consolidation Scope Workspace Contracts', () => {
       canPrepare: true,
       canReview: true,
       currentUserId: id1,
+      componentPaging: { totalCount: 1, page: 1, pageSize: 100 },
+      readinessPaging: { totalCount: 1, page: 1, pageSize: 100 },
+      resolvedComponent: null,
       components: [
         {
           id: id2,
@@ -378,6 +387,12 @@ describe('Consolidation Scope Workspace Contracts', () => {
     const decoded = decodeScopeWorkspace(raw, 'root');
     expect(decoded.scope.groupCode).toBe('ACME-GRP');
     expect(decoded.components.length).toBe(1);
+    expect(() => decodeScopeWorkspace({ ...raw, componentPaging: { totalCount: 2, page: 1, pageSize: 100 } }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, componentPaging: { totalCount: 1, page: 1, pageSize: 101 } }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, readinessPaging: null }, 'root')).toThrow();
+    const refusedReadiness = { available: false, value: null, errorCode: 'readiness.denied', message: 'Readiness refused.' };
+    expect(() => decodeScopeWorkspace({ ...raw, componentReadiness: refusedReadiness }, 'root')).toThrow();
+    expect(decodeScopeWorkspace({ ...raw, componentReadiness: refusedReadiness, readinessPaging: null }, 'root').componentReadiness.available).toBe(false);
     expect(decoded.components[0].clientLegalName).toBe('Acme Subsidiary QSTP-LLC');
     expect(decoded.eligiblePackages.items.length).toBe(1);
     expect(decoded.journals.items.length).toBe(1);
@@ -587,7 +602,12 @@ describe('Consolidation Scope Workspace Contracts', () => {
     const secondJournalId = '88888888-8888-4888-8888-888888888888';
     const thirdJournalId = '99999999-9999-4999-8999-999999999999';
     const exception101Id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const pinned = consolidationComponent(matchId1, id2);
     const initial = workspacePayload({
+      components: [pinned],
+      componentPaging: { totalCount: 2, page: 1, pageSize: 1 },
+      componentReadiness: [{ clientId: id2, memberName: 'Synthetic member', componentState: 'APPROVED', componentId: pinned.id, currency: 'QAR', periodBasis: 'ANNUAL', taxonomyVersion: 'v1', mappingVersion: 'v1', currencyCompatible: true, mismatchReason: null }],
+      readinessPaging: { totalCount: 2, page: 1, pageSize: 1 },
       scope: { ...workspacePayload().scope, status: 'DRAFT' },
       eligiblePackages: { items: [], totalCount: 501, page: 1, pageSize: 100 },
       journals: { items: [], totalCount: 601, page: 1, pageSize: 100 },
@@ -607,6 +627,14 @@ describe('Consolidation Scope Workspace Contracts', () => {
     const pageUrl = api.resource.mock.calls[2][0] as () => string | null;
     expect(workspaceUrl()).toContain('eligiblePackagesPage=1&journalsPage=1&runsPage=1');
     expect(pageUrl()).toContain('page=1&pageSize=50');
+    expect(fixture.nativeElement.querySelector('[aria-label="Component pages"]')?.textContent).toContain('2 components');
+    (fixture.nativeElement.querySelector('[aria-label="Component pages"] button:last-child') as HTMLButtonElement).click();
+    expect(component.componentsPageNumber()).toBe(2);
+    expect(component.readinessPageNumber()).toBe(1);
+    (fixture.nativeElement.querySelector('[aria-label="Readiness pages"] button:last-child') as HTMLButtonElement).click();
+    expect(component.readinessPageNumber()).toBe(2);
+    expect(workspaceUrl()).toContain('componentsPage=2&readinessPage=2');
+
 
     const nextException = fixture.nativeElement.querySelector('[aria-label="Intercompany match pages"] button:last-child') as HTMLButtonElement;
     nextException.click();
@@ -645,6 +673,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(component.eligiblePackagesPageNumber()).toBe(2);
     expect(component.journalsPageNumber()).toBe(2);
     expect(component.runsPageNumber()).toBe(2);
+    const decodeResponse = api.resource.mock.calls[0][1] as (value: unknown, path: string) => ScopeWorkspace;
+    expect(() => decodeResponse(initial, 'root')).toThrow();
 
     params.next(convertToParamMap({ id: id3 }));
     await fixture.whenStable();
@@ -652,6 +682,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(component.journalsPageNumber()).toBe(1);
     expect(component.runsPageNumber()).toBe(1);
     expect(component.intercompanyPageNumber()).toBe(1);
+    expect(component.componentsPageNumber()).toBe(1);
+    expect(component.readinessPageNumber()).toBe(1);
     expect(workspaceUrl()).toContain(`/api/ui/consolidation/scopes/${id3}?eligiblePackagesPage=1&journalsPage=1&runsPage=1`);
   });
 

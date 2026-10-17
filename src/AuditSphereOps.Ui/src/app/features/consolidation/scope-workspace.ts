@@ -108,11 +108,11 @@ export function formatOwnershipPercent(value: string): string {
 
       <!-- Quick Navigation Tabs -->
       <nav aria-label="Scope sections" class="actions">
-        <a [routerLink]="[]" fragment="components">Components ({{ w.components.length }})</a>
+        <a [routerLink]="[]" fragment="components">Components ({{ w.componentPaging.totalCount }})</a>
         <a [routerLink]="[]" fragment="external-packs">External component packs</a>
         <a [routerLink]="[]" fragment="journals">Elimination journals ({{ w.journals.totalCount }})</a>
         <a [routerLink]="[]" fragment="runs">Runs & Reports ({{ w.runs.totalCount }})</a>
-        <a [routerLink]="[]" fragment="readiness">Readiness ({{ w.componentReadiness.available ? w.componentReadiness.value?.length ?? 0 : 'unavailable' }})</a>
+        <a [routerLink]="[]" fragment="readiness">Readiness ({{ w.componentReadiness.available ? w.readinessPaging?.totalCount ?? 0 : 'unavailable' }})</a>
         <a [routerLink]="[]" fragment="intercompany">Intercompany ({{ intercompanyCountLabel(w) }})</a>
         <a [routerLink]="[]" fragment="ownership">Ownership relationships</a>
       </nav>
@@ -219,6 +219,11 @@ export function formatOwnershipPercent(value: string): string {
               }
             </tbody>
           </table>
+        </div>
+        <div class="actions" aria-label="Component pages">
+          <button matButton="outlined" type="button" (click)="previousComponentsPage()" [disabled]="w.componentPaging.page <= 1 || ws.loading()">Previous</button>
+          <span>{{ w.componentPaging.totalCount }} components · Page {{ w.componentPaging.page }} of {{ Math.max(1, Math.ceil(w.componentPaging.totalCount / w.componentPaging.pageSize)) }}</span>
+          <button matButton="outlined" type="button" (click)="nextComponentsPage(w.componentPaging)" [disabled]="w.componentPaging.page * w.componentPaging.pageSize >= w.componentPaging.totalCount || ws.loading()">Next</button>
         </div>
         @if (selectedComponentCorrectionFor(w); as correction) {
           <audit-consolidation-component-correction
@@ -549,6 +554,13 @@ export function formatOwnershipPercent(value: string): string {
             </tbody>
           </table>
         </div>
+        @if (w.readinessPaging; as paging) {
+          <div class="actions" aria-label="Readiness pages">
+            <button matButton="outlined" type="button" (click)="previousReadinessPage()" [disabled]="paging.page <= 1 || ws.loading()">Previous</button>
+            <span>{{ paging.totalCount }} members · Page {{ paging.page }} of {{ Math.max(1, Math.ceil(paging.totalCount / paging.pageSize)) }}</span>
+            <button matButton="outlined" type="button" (click)="nextReadinessPage(paging)" [disabled]="paging.page * paging.pageSize >= paging.totalCount || ws.loading()">Next</button>
+          </div>
+        }
       </section>
 
       <!-- Intercompany Matching, Independent Review and Retained History -->
@@ -763,6 +775,8 @@ export function formatOwnershipPercent(value: string): string {
 export class ConsolidationScopeWorkspace {
   private readonly api = inject(Api);
   readonly id = routeGuid();
+  readonly componentsPageNumber = signal(1);
+  readonly readinessPageNumber = signal(1);
   readonly eligiblePackagesPageNumber = signal(1);
   readonly journalsPageNumber = signal(1);
   readonly runsPageNumber = signal(1);
@@ -780,11 +794,13 @@ export class ConsolidationScopeWorkspace {
   readonly Math = Math;
   readonly ws = this.api.resource(
     () => this.id()
-      ? `/api/ui/consolidation/scopes/${this.id()}?eligiblePackagesPage=${this.eligiblePackagesPageNumber()}&journalsPage=${this.journalsPageNumber()}&runsPage=${this.runsPageNumber()}`
+      ? `/api/ui/consolidation/scopes/${this.id()}?eligiblePackagesPage=${this.eligiblePackagesPageNumber()}&journalsPage=${this.journalsPageNumber()}&runsPage=${this.runsPageNumber()}&componentsPage=${this.componentsPageNumber()}&readinessPage=${this.readinessPageNumber()}`
       : null,
     (value, path) => {
       const workspace = decodeScopeWorkspace(value, path);
       if (workspace.scope.id.toLowerCase() !== this.id()?.toLowerCase() ||
+          workspace.componentPaging.page !== this.componentsPageNumber() ||
+          (workspace.readinessPaging !== null && workspace.readinessPaging.page !== this.readinessPageNumber()) ||
           workspace.eligiblePackages.page !== this.eligiblePackagesPageNumber() ||
           workspace.journals.page !== this.journalsPageNumber() || workspace.runs.page !== this.runsPageNumber())
         throw new Error('Consolidation history belongs to a different scope or page.');
@@ -824,6 +840,26 @@ export class ConsolidationScopeWorkspace {
     return w.intercompanyExceptions.available
       ? String(workspacePage?.totalCount ?? 0)
       : `unavailable (${w.intercompanyExceptions.errorCode})`;
+  }
+
+  previousComponentsPage(): void {
+    this.componentsPageNumber.update(page => Math.max(1, page - 1));
+    this.selectedComponentCorrection.set(null);
+  }
+
+  nextComponentsPage(page: ScopeWorkspace['componentPaging']): void {
+    if (page.page * page.pageSize < page.totalCount) {
+      this.componentsPageNumber.set(page.page + 1);
+      this.selectedComponentCorrection.set(null);
+    }
+  }
+
+  previousReadinessPage(): void {
+    this.readinessPageNumber.update(page => Math.max(1, page - 1));
+  }
+
+  nextReadinessPage(page: NonNullable<ScopeWorkspace['readinessPaging']>): void {
+    if (page.page * page.pageSize < page.totalCount) this.readinessPageNumber.set(page.page + 1);
   }
 
   previousEligiblePackagesPage(): void {
@@ -885,6 +921,8 @@ export class ConsolidationScopeWorkspace {
     untracked(() => {
       if (scopeId === this.historyPageScopeId) return;
       this.historyPageScopeId = scopeId;
+      this.componentsPageNumber.set(1);
+      this.readinessPageNumber.set(1);
       this.eligiblePackagesPageNumber.set(1);
       this.journalsPageNumber.set(1);
       this.runsPageNumber.set(1);

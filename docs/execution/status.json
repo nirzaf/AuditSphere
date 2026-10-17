@@ -50,13 +50,13 @@
   },
   "remainingLocalWork": [
     {
-      "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
+      "item": "AS-PAR-002 \u2014 remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
       "details": "Whole-application scope, revocation, source-action behavior and dynamic acceptance remain partial. Use apiAngularParity for the attached backlog; the previous verification narrative is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
+      "item": "AS-PAR-009 \u2014 Pricing review, evidence-bound dispatch and client response",
       "status": "PARTIAL",
       "details": "Pricing implementation exists; firm-approved policy, provider delivery evidence and current end-to-end acceptance remain separate gates. Earlier implementation and check history is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -68,43 +68,43 @@
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
+      "item": "STE-NXT-014 \u2014 End-of-service accrual as a provision (ADR-0010)",
       "status": "PARTIAL",
       "details": "End-of-service accrual requires the existing approved treatment, provision and expense account configuration and independent Partner confirmation. Prior technical verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
+      "item": "ADR-0016 \u2014 Certificate signing of the final report (specification 4.4.1, 4.4.2)",
       "status": "PARTIAL",
       "details": "Final report certificate policy, legal acceptance and live deployment remain explicit external/operator gates. Earlier technical signing evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
+      "item": "FSR-002 / FSR-010 / FSR-011 first slice \u2014 typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
       "status": "PARTIAL",
       "details": "Typed and pinned financial statement presentation is implemented incrementally. Professional policy, complete approved schedules/disclosures, report composition and release acceptance remain governed by their current records. Prior slice narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
+      "item": "FSR-005 first slice \u2014 cash-flow movement evidence and adjusted cash cross-cast",
       "status": "PARTIAL",
       "details": "Source-backed cash flow and its professional classification policy remain governed by their current completion records. Historical first-slice verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "CP-13 — signed equity components and transfer workflow",
+      "item": "CP-13 \u2014 signed equity components and transfer workflow",
       "status": "PARTIAL",
       "details": "Equity components and transfer workflows remain subject to source lineage and independent professional acceptance. Historical increment evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
+      "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
       "details": "Workflow implementation does not replace professional approval or production acceptance. Current focused evidence is in targetedVerification; earlier long-form incremental narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) — NOT COMPLETE",
+      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) \u2014 NOT COMPLETE",
       "status": "PARTIAL",
       "details": "The production-readiness backlog remains incomplete; its external and independent acceptance gates are not closed by local parity implementation.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -727,7 +727,7 @@
         "staffSession": "NOT_AVAILABLE",
         "authenticatedSearchRibbonAndNavigation": "NOT_VERIFIED"
       },
-      "remaining": "Route inventory, authenticated screenshots and staff interaction, engagement context selector, feature workspaces UX-06–12, zoom/screen-reader/forced-colors review and UX-15 visual sign-off.",
+      "remaining": "Route inventory, authenticated screenshots and staff interaction, engagement context selector, feature workspaces UX-06\u201312, zoom/screen-reader/forced-colors review and UX-15 visual sign-off.",
       "recordedAtUtc": "2026-10-15T12:39:26Z",
       "implementationCommit": "48e9f2059662d0712f2d1b23d5616b4e8494dad4"
     },
@@ -785,49 +785,49 @@
       "matrix": [
         [
           "01",
-          "01–03",
+          "01\u201303",
           "PASS",
           "DueTodaySummaryCountsTheCompleteAuthorizedPopulationRatherThanTheLoadedPage;DateViewsUseTheUtcCalendarDateAndSummaryStaysScopedDeniedAndReadOnly"
         ],
         [
           "02",
-          "04–06",
+          "04\u201306",
           "PASS",
           "PracticeTimeTests.TimeWorkflow_RequiresReview_UsesIntegerMinutes_AndRejectsOverlap;PracticeTimeStartMinuteApiTests.RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior;AngularPracticeProductivityJourneyTests.DashboardAndForegroundTimerAreReadOnlyUntilEachDraftIsExplicitlySaved"
         ],
         [
           "03",
-          "07–08",
+          "07\u201308",
           "PASS",
           "PortalWorkspaceReturnsParticipantScopedClarificationAndCurrentEligibility;PortalActionEligibilityFailsClosedForReviewStatesAndUploadRouteStillRequiresFirstSignIn"
         ],
         [
           "04",
-          "09–11",
+          "09\u201311",
           "PASS",
           "SevenSourcesUseStableRankAndIdPagingSnapshotAndReadOnlyProjection;InvalidRequestsAndNonManagerScopesFailClosedWithStableMessages"
         ],
         [
           "05",
-          "12–14",
+          "12\u201314",
           "PASS",
           "TaskDatesIncludeOnlyYesterdayTodayAndSevenDaysForActiveTasks;FrozenSuppressesRemindersButPastScheduledFreezeDoesNotAndReadsCreateNoWrites"
         ],
         [
           "06",
-          "15–16",
+          "15\u201316",
           "PASS",
           "AnnualMilestonesUseCurrentSourceRevisionAndStayRestrictedWithoutBlockingReviewedCreation;ChangedOrForeignAnnualReferenceFailsWithoutPublishingANewShell"
         ],
         [
           "07",
-          "17–19",
+          "17\u201319",
           "PASS",
           "StandardValuesNormalizeEachEntryAndKeepCurrencyAndFeeBasisSubtotalsSeparate;CrossClientBillingParentFailsTheWholeReportAndClientScopedFinanceIsDenied"
         ],
         [
           "08",
-          "20–25",
+          "20\u201325",
           "PASS",
           "PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits;PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles"
         ]
@@ -1039,7 +1039,7 @@
       "sourceCommit": "1ee3c0e7ed743a3b2a838cad102c76428e07c267",
       "run": "https://github.com/nirzaf/AuditSphere/actions/runs/39003733534",
       "workflow": "AuditSphere release verification",
-      "cohort": "Test · .NET Domain (unfiltered)",
+      "cohort": "Test \u00b7 .NET Domain (unfiltered)",
       "result": "PASS",
       "test": "CashFlowContractTests.SourceReview_RevokedActorDuringLockWait_RecordsNothing",
       "evidence": "The test observes the source-review command waiting on the package lock, revokes the reviewer role while the user retains a non-review grant, releases the lock, and verifies ScopeDenied with no source-review row persisted.",
@@ -1205,7 +1205,7 @@
       "followUp": {
         "f02CurrentSourceRegression": "CashFlowContractTests.SourceReview_RevokedActorDuringLockWait_RecordsNothing passed 1/1 locally on the current source using the focused PostgreSQL test command; release CI run 39003733534 also passed this exact test at source commit 1ee3c0e7.",
         "f09PartnerAssignment": "Current FinancialPackageReviewService requires the current assigned Engagement Partner for Partner decisions. Existing PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement covers assigned, other-engagement, revoked, unassigned and dual-role actors; not rerun in this follow-up.",
-        "currentCi": "Run 39029682104 targets master commit 343aa587: Docs · Health and Build · Angular passed; .NET Release failed only because the committed OpenAPI contract omitted optional calculationRole on CashFlowScheduleSourceAllocationInput. Rebuilt the emitter from current source, regenerated the six-line contract addition, and scripts/contracts/verify-openapi.sh passes locally. Hosted CI has not yet rerun with the corrected contract. Hostinger image-build run 39029682172 succeeded; it built images only and did not deploy."
+        "currentCi": "Run 39029682104 targets master commit 343aa587: Docs \u00b7 Health and Build \u00b7 Angular passed; .NET Release failed only because the committed OpenAPI contract omitted optional calculationRole on CashFlowScheduleSourceAllocationInput. Rebuilt the emitter from current source, regenerated the six-line contract addition, and scripts/contracts/verify-openapi.sh passes locally. Hosted CI has not yet rerun with the corrected contract. Hostinger image-build run 39029682172 succeeded; it built images only and did not deploy."
       },
       "openBlockers": [
         "F-05 indirect cash-flow method and F-06 equity/note source policy require qualified methodology approval (T003).",
@@ -1250,7 +1250,7 @@
       "ci": {
         "runId": 39033648749,
         "headSha": "8b0c3303b35f23f9a51360821db20c2eea449c0a",
-        "observed": "CI for 8b0c3303 was superseded/cancelled. Follow-up fa60da52 passed Docs · Health and Angular, but failed .NET Release at OpenAPI contract drift; Task 03 regenerates the contract from the freshly built API."
+        "observed": "CI for 8b0c3303 was superseded/cancelled. Follow-up fa60da52 passed Docs \u00b7 Health and Angular, but failed .NET Release at OpenAPI contract drift; Task 03 regenerates the contract from the freshly built API."
       },
       "builtInBrowser": "NOT RUN: no authenticated local synthetic engagement fixture was available; no deployment was performed.",
       "notDone": [
@@ -1359,7 +1359,7 @@
     {
       "gate": "P10",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Full §47 real-tenant acceptance and professional sign-off"
+      "required": "Full \u00a747 real-tenant acceptance and professional sign-off"
     },
     {
       "gate": "M365-ADMIN",
@@ -1830,7 +1830,7 @@
       },
       {
         "id": "T031",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -2033,7 +2033,54 @@
       },
       "openApiDrift": "PASS: final emitter matches committed contract",
       "angularBuild": "PASS: existing commercial/settings.scss size warning remains",
-      "remainingDisplayLimit": "Groups exceeding 500 readiness rows return an explicit unavailable subpanel rather than a truncated success; complete paged readiness remains open."
+      "remainingDisplayLimit": "RESOLVED in T031 working-tree slice: components and readiness use bounded 100-row pages; exact selected-component lookup is independent of current page.",
+      "pagingSlice": {
+        "sourceBase": "8758a8f9a2b8269633079cc861f95052f4fd3ee0",
+        "sourceState": "WORKING_TREE",
+        "domain": {
+          "result": "PASS",
+          "passed": 4,
+          "failed": 0,
+          "scope": "501 readiness/component records across six pages; exact off-page component lookup; mixed scoped grant denials and firm-wide positive"
+        },
+        "angular": {
+          "result": "PASS",
+          "passed": 62,
+          "files": 4,
+          "scope": "scope workspace, component correction, portal request, financial-package build"
+        },
+        "api": {
+          "result": "PASS",
+          "passed": 12,
+          "scope": "scope paging and OpenAPI contract cohort; separate portal history recheck recorded below"
+        },
+        "portalPackageHistory": {
+          "result": "PASS",
+          "passed": 1
+        },
+        "portalRequestHistory": {
+          "result": "PASS",
+          "passed": 1,
+          "scope": "bounded middle/final pages retain all 31 messages plus request/acknowledgement; foreign request and invalid page denied"
+        },
+        "angularBuild": "PASS; existing commercial settings stylesheet budget warning",
+        "openApiDrift": "PASS",
+        "browser": {
+          "result": "FOCUSED_SMOKE_PASS",
+          "environment": "localhost:5029; auditsphere_browser; external effects disabled",
+          "observed": [
+            "Component and readiness counts/page controls rendered",
+            "Exact selected component retained evidence loaded",
+            "No console warning/error entries"
+          ],
+          "notVerified": [
+            "Multi-page browser fixture",
+            "Full maker/checker workflow",
+            "Responsive acceptance",
+            "Live provider acceptance"
+          ]
+        }
+      }
     }
   }
 }

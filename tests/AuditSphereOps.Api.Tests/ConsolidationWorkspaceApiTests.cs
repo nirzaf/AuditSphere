@@ -521,7 +521,7 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Null(saved.PriorScopeVersionId);
 
     var pagedWorkspace = await Read(client,
-      $"/api/ui/consolidation/scopes/{scopeId}?eligiblePackagesPage=2&journalsPage=3&runsPage=4");
+      $"/api/ui/consolidation/scopes/{scopeId}?eligiblePackagesPage=2&journalsPage=3&runsPage=4&componentsPage=2&readinessPage=2&selectedComponentId={Guid.NewGuid()}");
     foreach (var (section, requestedPage) in new[] { ("eligiblePackages", 2), ("journals", 3), ("runs", 4) })
     {
       var history = pagedWorkspace.GetProperty(section);
@@ -529,9 +529,27 @@ public sealed class ConsolidationWorkspaceApiTests
       Assert.Equal(100, history.GetProperty("pageSize").GetInt32());
       Assert.Empty(history.GetProperty("items").EnumerateArray());
     }
-    foreach (var parameter in new[] { "eligiblePackagesPage", "journalsPage", "runsPage" })
+    foreach (var section in new[] { "componentPaging", "readinessPaging" })
+    {
+      Assert.Equal(2, pagedWorkspace.GetProperty(section).GetProperty("page").GetInt32());
+      Assert.Equal(100, pagedWorkspace.GetProperty(section).GetProperty("pageSize").GetInt32());
+    }
+    Assert.Equal(0, pagedWorkspace.GetProperty("componentPaging").GetProperty("totalCount").GetInt32());
+    Assert.Equal(1, pagedWorkspace.GetProperty("readinessPaging").GetProperty("totalCount").GetInt32());
+    Assert.Empty(pagedWorkspace.GetProperty("components").EnumerateArray());
+    Assert.True(pagedWorkspace.GetProperty("componentReadiness").GetProperty("available").GetBoolean());
+    Assert.Empty(pagedWorkspace.GetProperty("componentReadiness").GetProperty("value").EnumerateArray());
+    Assert.Equal(JsonValueKind.Null, pagedWorkspace.GetProperty("resolvedComponent").ValueKind);
+    foreach (var parameter in new[] { "eligiblePackagesPage", "journalsPage", "runsPage", "componentsPage", "readinessPage" })
     {
       using var invalidPage = await client.GetAsync($"/api/ui/consolidation/scopes/{scopeId}?{parameter}=0");
+      Assert.Equal(HttpStatusCode.BadRequest, invalidPage.StatusCode);
+    }
+
+    foreach (var parameter in new[] { "componentsPage", "readinessPage" })
+    foreach (var invalid in new[] { -1, int.MaxValue })
+    {
+      using var invalidPage = await client.GetAsync($"/api/ui/consolidation/scopes/{scopeId}?{parameter}={invalid}");
       Assert.Equal(HttpStatusCode.BadRequest, invalidPage.StatusCode);
     }
 

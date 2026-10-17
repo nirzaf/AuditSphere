@@ -67824,7 +67824,7 @@
         "tags": [
           "AuditSphereOps.Api"
         ],
-        "description": "Returns the authorized scope workspace with independent eligiblePackagesPage, journalsPage and runsPage query parameters. Each defaults to 1 and must be positive with a representable row offset; each history page contains at most 100 items.",
+        "description": "Returns the authorized scope workspace with independent eligiblePackagesPage, journalsPage, runsPage, componentsPage and readinessPage query parameters. selectedComponentId resolves one exact same-scope component independently of the current page. Each page parameter defaults to 1 and must be positive with a representable row offset; each page contains at most 100 items. components retains its array shape with componentPaging; successful readiness has readinessPaging, while failed readiness has null paging.",
         "parameters": [
           {
             "name": "scopeId",
@@ -67873,6 +67873,40 @@
               "format": "int32",
               "default": 1
             }
+          },
+          {
+            "name": "componentsPage",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "readinessPage",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "selectedComponentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -67888,6 +67922,16 @@
           },
           "400": {
             "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -94114,6 +94158,40 @@
           }
         }
       },
+      "ConsolidationPageInfo": {
+        "required": [
+          "totalCount",
+          "page",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "ConsolidationPageOfConsolidationJournalDto": {
         "required": [
           "items",
@@ -94920,7 +94998,10 @@
           "runs",
           "latestReport",
           "componentReadiness",
-          "intercompanyExceptions"
+          "intercompanyExceptions",
+          "componentPaging",
+          "readinessPaging",
+          "resolvedComponent"
         ],
         "type": "object",
         "properties": {
@@ -94960,6 +95041,29 @@
           },
           "intercompanyExceptions": {
             "$ref": "#/components/schemas/ConsolidationReadResultOfIntercompanyExceptionsPage"
+          },
+          "componentPaging": {
+            "$ref": "#/components/schemas/ConsolidationPageInfo"
+          },
+          "readinessPaging": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConsolidationPageInfo"
+              }
+            ]
+          },
+          "resolvedComponent": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ConsolidationComponentDto"
+              }
+            ]
           }
         }
       },

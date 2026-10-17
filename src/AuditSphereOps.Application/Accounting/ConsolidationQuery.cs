@@ -233,6 +233,55 @@ public static class ConsolidationQuery
         packageTaxonomyCodes.Count > 500 || externalTaxonomyCodes.Count > 500 || allTaxonomyCodes.Count > 500));
   }
 
+  /// <summary>Returns one bounded readiness page with the complete authorized member count.</summary>
+  public static async Task<CommandResult<ConsolidationPage<ComponentReadinessRow>>> GetComponentReadinessAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scopeVersionId, int page, int pageSize,
+    CancellationToken ct = default)
+  {
+    var offset = (long)(page - 1) * pageSize;
+    if (page < 1 || pageSize is < 1 or > 100 || offset > int.MaxValue)
+      return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "A valid positive readiness page and page size (1-100) are required.");
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == scopeVersionId && x.FirmId == actor.FirmId, ct);
+    if (scope is null)
+      return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(auth.ErrorCode!, auth.Message!);
+    var groupRevision = await db.ClientGroups.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId).Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
+    if (groupRevision is null)
+      return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var membersQuery = db.ClientGroupMemberships.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
+        x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null);
+    var total = await membersQuery.CountAsync(ct);
+    var memberIds = await membersQuery.OrderBy(x => x.ClientId).Skip((int)offset).Take(pageSize)
+      .Select(x => x.ClientId).ToArrayAsync(ct);
+    var components = await db.ConsolidationComponents.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
+        memberIds.Contains(x.ClientId)).ToListAsync(ct);
+    var names = await db.PracticeClients.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && memberIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
+    var rows = memberIds.Select(id => ReadinessRow(scope, id, names.GetValueOrDefault(id, "Scoped member"),
+      components.FirstOrDefault(x => x.ClientId == id))).ToArray();
+    auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(auth.ErrorCode!, auth.Message!);
+    var finalScope = await db.ConsolidationScopeVersions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == scope.Id && x.FirmId == actor.FirmId, ct);
+    var finalGroupRevision = await db.ClientGroups.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId).Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
+    if (finalScope is null || finalScope.GroupId != scope.GroupId || finalScope.GroupRevision != scope.GroupRevision ||
+        finalScope.Status != scope.Status || finalScope.PeriodId != scope.PeriodId ||
+        finalScope.ReportingCurrency != scope.ReportingCurrency || finalScope.Method != scope.Method || finalGroupRevision != groupRevision)
+      return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(ErrorCodes.GenerationStale,
+        "The scope or group changed while readiness was read. Reload the current page.");
+    return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Ok(new(rows, total, page, pageSize));
+  }
+
   /// <summary>Per-member component readiness for one scope: required approved
   /// members, their pinned component state and explicit compatibility mismatches.
   /// Reports missing inputs without exposing unauthorized package content.</summary>
@@ -263,27 +312,29 @@ public static class ConsolidationQuery
     var memberRows = new List<ComponentReadinessRow>(members.Count);
     foreach (var member in members)
     {
-      var component = components.FirstOrDefault(x => x.ClientId == member.ClientId);
-      string? mismatch = null;
-      var state = component is null ? "NONE" : component.Status;
-      if (component is null)
-        mismatch = "No component has been pinned for this required member.";
-      else if (component.Status != AccountingWorkflowStates.Approved)
-        mismatch = "The pinned component is not independently approved.";
-      else if (!string.Equals(component.Currency, scope.ReportingCurrency, StringComparison.Ordinal) &&
-        scope.Method == ConsolidationCalculator.RestrictedMethod)
-        mismatch = "The restricted profile accepts only same-currency component packages.";
-
-      memberRows.Add(new ComponentReadinessRow(
-        member.ClientId, memberNames.GetValueOrDefault(member.ClientId, "Scoped member"),
-        state, component?.Id, component?.Currency ?? string.Empty,
-        component?.PeriodBasis ?? string.Empty, component?.TaxonomyVersion ?? string.Empty,
-        component?.MappingVersion ?? string.Empty,
-        CurrencyCompatible: mismatch is null,
-        mismatch));
+      memberRows.Add(ReadinessRow(scope, member.ClientId,
+        memberNames.GetValueOrDefault(member.ClientId, "Scoped member"),
+        components.FirstOrDefault(x => x.ClientId == member.ClientId)));
     }
 
     return CommandResult<ComponentReadinessReport>.Ok(new ComponentReadinessReport(
       scope.GroupId, scope.Id, scope.ReportingCurrency, scope.Method, scope.Status, memberRows));
+  }
+
+  private static ComponentReadinessRow ReadinessRow(
+    ConsolidationScopeVersion scope, Guid clientId, string legalName, ConsolidationComponent? component)
+  {
+    string? mismatch = null;
+    if (component is null)
+      mismatch = "No component has been pinned for this required member.";
+    else if (component.Status != AccountingWorkflowStates.Approved)
+      mismatch = "The pinned component is not independently approved.";
+    else if (!string.Equals(component.Currency, scope.ReportingCurrency, StringComparison.Ordinal) &&
+      scope.Method == ConsolidationCalculator.RestrictedMethod)
+      mismatch = "The restricted profile accepts only same-currency component packages.";
+    return new ComponentReadinessRow(clientId, legalName, component?.Status ?? "NONE", component?.Id,
+      component?.Currency ?? string.Empty, component?.PeriodBasis ?? string.Empty,
+      component?.TaxonomyVersion ?? string.Empty, component?.MappingVersion ?? string.Empty,
+      CurrencyCompatible: mismatch is null, mismatch);
   }
 }

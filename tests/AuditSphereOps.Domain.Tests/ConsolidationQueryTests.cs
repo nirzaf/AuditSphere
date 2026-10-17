@@ -292,21 +292,45 @@ public sealed class ConsolidationQueryTests
       Assert.Equal(AccountingWorkflowStates.Approved, incompatible.ComponentState);
       Assert.False(incompatible.CurrencyCompatible);
       Assert.Contains("same-currency", incompatible.MismatchReason, StringComparison.Ordinal);
-      for (var index = 0; index < 499; index++)
+      var lastComponentId = Guid.Empty;
+      var submittedAt = DateTimeOffset.UtcNow;
+      for (var index = 0; index < 500; index++)
       {
-        var clientId = Guid.CreateVersion7();
-        db.PracticeClients.Add(new PracticeClient
+        var clientId = index == 499 ? fixture.ClientB : Guid.CreateVersion7();
+        var engagementId = index == 499 ? fixture.EngagementB : Guid.CreateVersion7();
+        if (index != 499)
         {
-          Id = clientId, FirmId = fixture.FirmId, LegalName = $"Readiness boundary entity {index}",
-          CreatedAt = DateTimeOffset.UtcNow
-        });
-        db.ClientGroupMemberships.Add(new ClientGroupMembership
+          db.PracticeClients.Add(new PracticeClient
+          {
+            Id = clientId, FirmId = fixture.FirmId, LegalName = $"Readiness boundary entity {index}",
+            CreatedAt = DateTimeOffset.UtcNow
+          });
+          db.ClientGroupMemberships.Add(new ClientGroupMembership
+          {
+            Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId, ClientId = clientId,
+            EffectiveFrom = new DateOnly(2026, 1, 1), Status = AccountingWorkflowStates.Approved,
+            ControlMethod = "CONTROLLED", OwnershipPercent = 100m, EconomicInterestPercent = 100m,
+            EvidenceReference = "SYNTHETIC-READINESS-BOUNDARY", CreatedByUserId = fixture.Manager.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+          });
+          db.Engagements.Add(new Engagement
+          {
+            Id = engagementId, FirmId = fixture.FirmId, PracticeClientId = clientId,
+            ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+          });
+        }
+        var packageId = AddValidatedPackage(db, fixture, clientId, engagementId, "QAR", $"readiness-page-{index}");
+        lastComponentId = Guid.CreateVersion7();
+        var package = db.FinancialPackages.Local.Single(x => x.Id == packageId);
+        db.ConsolidationComponents.Add(new ConsolidationComponent
         {
-          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId, ClientId = clientId,
-          EffectiveFrom = new DateOnly(2026, 1, 1), Status = AccountingWorkflowStates.Approved,
-          ControlMethod = "CONTROLLED", OwnershipPercent = 100m, EconomicInterestPercent = 100m,
-          EvidenceReference = "SYNTHETIC-READINESS-BOUNDARY", CreatedByUserId = fixture.Manager.Id,
-          CreatedAt = DateTimeOffset.UtcNow
+          Id = lastComponentId, FirmId = fixture.FirmId, GroupId = fixture.GroupId, ScopeVersionId = fixture.ScopeId,
+          ClientId = clientId, EngagementId = engagementId, PackageId = packageId,
+          PackageHash = package.CalculationHash, PeriodBasis = "STATUTORY", TaxonomyVersion = package.TaxonomyVersion,
+          MappingVersion = package.MappingVersionId.ToString("D"), Currency = "QAR", OwnershipPercent = 100m,
+          ControlMethod = "CONTROLLED", Status = AccountingWorkflowStates.Approved,
+          SubmittedByUserId = fixture.Manager.Id, SubmittedAt = submittedAt.AddSeconds(index),
+          ApprovedByUserId = fixture.GroupReviewer.Id, ApprovedAt = submittedAt.AddSeconds(index + 1)
         });
       }
       await db.SaveChangesAsync();
@@ -314,10 +338,42 @@ public sealed class ConsolidationQueryTests
       Assert.Equal(501, fullReadiness.Value!.Members.Count);
       var workspace = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(db, manager, fixture.ScopeId);
       Assert.True(workspace.Succeeded, workspace.Message);
-      Assert.False(workspace.Value!.ComponentReadiness.Available);
-      Assert.Null(workspace.Value.ComponentReadiness.Value);
-      Assert.Equal(ErrorCodes.GateBlocked, workspace.Value.ComponentReadiness.ErrorCode);
-      Assert.Single(workspace.Value.Components);
+      Assert.True(workspace.Value!.ComponentReadiness.Available);
+      Assert.Equal(new ConsolidationPageInfo(501, 1, 100), workspace.Value.ReadinessPaging);
+      Assert.Equal(new ConsolidationPageInfo(501, 1, 100), workspace.Value.ComponentPaging);
+      Assert.Equal(100, workspace.Value.Components.Count);
+      Assert.Equal(100, workspace.Value.ComponentReadiness.Value!.Count);
+      Assert.Null(workspace.Value.ResolvedComponent);
+      var componentIds = new HashSet<Guid>();
+      var memberIds = new List<Guid>();
+      for (var page = 1; page <= 6; page++)
+      {
+        var paged = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(
+          db, manager, fixture.ScopeId, 1, 1, 1, page, page, lastComponentId);
+        Assert.True(paged.Succeeded, paged.Message);
+        Assert.Equal(new ConsolidationPageInfo(501, page, 100), paged.Value!.ComponentPaging);
+        Assert.Equal(new ConsolidationPageInfo(501, page, 100), paged.Value.ReadinessPaging);
+        Assert.True(paged.Value.ComponentReadiness.Available);
+        Assert.Equal(page == 6 ? 1 : 100, paged.Value.Components.Count);
+        Assert.Equal(page == 6 ? 1 : 100, paged.Value.ComponentReadiness.Value!.Count);
+        foreach (var item in paged.Value.Components) Assert.True(componentIds.Add(item.Id));
+        memberIds.AddRange(paged.Value.ComponentReadiness.Value.Select(x => x.ClientId));
+        Assert.Equal(lastComponentId, paged.Value.ResolvedComponent!.Id);
+        Assert.Equal(fixture.ClientB, paged.Value.ResolvedComponent.ClientId);
+        if (page == 1) Assert.DoesNotContain(paged.Value.Components, x => x.Id == lastComponentId);
+      }
+      Assert.Equal(501, componentIds.Count);
+      Assert.Equal(501, memberIds.Distinct().Count());
+      Assert.Equal(fullReadiness.Value.Members.Select(x => x.ClientId), memberIds);
+      var absentSelection = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(
+        db, manager, fixture.ScopeId, 1, 1, 1, 7, 7, Guid.NewGuid());
+      Assert.True(absentSelection.Succeeded, absentSelection.Message);
+      Assert.Null(absentSelection.Value!.ResolvedComponent);
+      Assert.Empty(absentSelection.Value.Components);
+      Assert.True(absentSelection.Value.ComponentReadiness.Available);
+      Assert.Empty(absentSelection.Value.ComponentReadiness.Value!);
+      Assert.Equal(501, absentSelection.Value.ComponentPaging.TotalCount);
+      Assert.Equal(501, absentSelection.Value.ReadinessPaging!.TotalCount);
     }
   }
 

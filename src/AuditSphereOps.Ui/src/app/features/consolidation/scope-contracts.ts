@@ -221,19 +221,42 @@ export const decodeIntercompanyMatchOptions = (value: unknown, path: string) => 
   return options;
 };
 
-export const decodeScopeWorkspace = obj({
+const decodePaging = obj({ totalCount: nat, page: int, pageSize: int });
+
+const decodeScopeWorkspaceShape = obj({
   scope: decodeScopeSummary,
   canPrepare: bool,
   canReview: bool,
   currentUserId: guid,
-  components: arr(decodeConsolidationComponent, 500),
+  components: arr(decodeConsolidationComponent, 100),
+  componentPaging: decodePaging,
+  resolvedComponent: nullable(decodeConsolidationComponent),
   eligiblePackages: pageOf(decodeEligiblePackage),
   journals: pageOf(decodeConsolidationJournal),
   runs: pageOf(decodeConsolidationRun),
   latestReport: readResultOf(decodeConsolidationReport),
-  componentReadiness: readResultOf(arr(decodeComponentReadiness, 500)),
+  componentReadiness: readResultOf(arr(decodeComponentReadiness, 100)),
+  readinessPaging: nullable(decodePaging),
   intercompanyExceptions: readResultOf(decodeIntercompanyExceptionsPage),
 });
+
+export const decodeScopeWorkspace = (value: unknown, path: string) => {
+  const workspace = decodeScopeWorkspaceShape(value, path);
+  const validate = (paging: ReturnType<typeof decodePaging>, count: number) => {
+    const remaining = Math.max(0, paging.totalCount - (paging.page - 1) * paging.pageSize);
+    if (paging.page < 1 || paging.pageSize < 1 || paging.pageSize > 100 ||
+        count !== Math.min(paging.pageSize, remaining))
+      throw new Error(`${path || 'response'}: inconsistent bounded component page`);
+  };
+  validate(workspace.componentPaging, workspace.components.length);
+  if (workspace.componentReadiness.available) {
+    if (!workspace.readinessPaging) throw new Error(`${path || 'response'}: missing readiness paging`);
+    validate(workspace.readinessPaging, workspace.componentReadiness.value!.length);
+  } else if (workspace.readinessPaging !== null) {
+    throw new Error(`${path || 'response'}: refused readiness cannot have paging`);
+  }
+  return workspace;
+};
 
 export type ScopeWorkspace = ReturnType<typeof decodeScopeWorkspace>;
 export type ScopeSummary = ReturnType<typeof decodeScopeSummary>;

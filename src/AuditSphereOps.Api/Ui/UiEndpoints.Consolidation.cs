@@ -189,12 +189,14 @@ public static partial class UiEndpoints
 
     // Scope workspace detail & lifecycle
     group.MapGet("/consolidation/scopes/{scopeId:guid}",
-      (Guid scopeId, HttpContext http, int eligiblePackagesPage = 1, int journalsPage = 1, int runsPage = 1) =>
+      (Guid scopeId, HttpContext http, int eligiblePackagesPage = 1, int journalsPage = 1, int runsPage = 1,
+        int componentsPage = 1, int readinessPage = 1, Guid? selectedComponentId = null) =>
         ReadAsync(http, (db, actor, ct) => ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(
-          db, actor, scopeId, eligiblePackagesPage, journalsPage, runsPage, ct)))
-      .WithDescription("Returns the authorized scope workspace with independent eligiblePackagesPage, journalsPage and runsPage query parameters. Each defaults to 1 and must be positive with a representable row offset; each history page contains at most 100 items.")
+          db, actor, scopeId, eligiblePackagesPage, journalsPage, runsPage, componentsPage, readinessPage, selectedComponentId, ct)))
+      .WithDescription("Returns the authorized scope workspace with independent eligiblePackagesPage, journalsPage, runsPage, componentsPage and readinessPage query parameters. selectedComponentId resolves one exact same-scope component independently of the current page. Each page parameter defaults to 1 and must be positive with a representable row offset; each page contains at most 100 items. components retains its array shape with componentPaging; successful readiness has readinessPaging, while failed readiness has null paging.")
       .Produces<ConsolidationScopeWorkspaceDto>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapGet("/consolidation/scopes/{scopeId:guid}/intercompany-match-options", (Guid scopeId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => ConsolidationQuery.GetIntercompanyMatchOptionsAsync(db, actor, scopeId, ct)))

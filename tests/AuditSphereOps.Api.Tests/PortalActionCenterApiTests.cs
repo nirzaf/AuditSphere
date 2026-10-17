@@ -218,7 +218,19 @@ public sealed class PortalActionCenterApiTests
     Assert.Equal("Message 20", page.Conversation[0].Body);
     Assert.Equal("Message 29", page.Conversation[^1].Body);
     Assert.True(page.HasMoreUploads);
-    Assert.False(page.HasMoreConversation);
+    Assert.True(page.HasMoreConversation);
+
+    using var lastResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}/history?uploadPage=3&conversationPage=3&pageSize=10");
+    Assert.Equal(HttpStatusCode.OK, lastResponse.StatusCode);
+    var last = await lastResponse.Content.ReadFromJsonAsync<PortalRequestHistory>();
+    Assert.NotNull(last);
+    Assert.Single(last.Uploads);
+    Assert.Equal("upload-00.pdf", last.Uploads[0].FileName);
+    // The fixture also retains the original request and client acknowledgement.
+    Assert.Equal(new[] { "Message 30", "Bank statements", "The client acknowledged this request." },
+      last.Conversation.Select(message => message.Body));
+    Assert.False(last.HasMoreUploads);
+    Assert.False(last.HasMoreConversation);
 
     using var foreignResponse = await client.GetAsync($"/api/ui/portal/requests/{foreignRequestId}/history?uploadPage=0&conversationPage=0&pageSize=10");
     Assert.NotEqual(HttpStatusCode.OK, foreignResponse.StatusCode);

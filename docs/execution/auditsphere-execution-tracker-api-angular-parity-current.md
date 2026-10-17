@@ -38,7 +38,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | T028 | Complete external component-pack intake, review and pinning | IN_PROGRESS | [ConsolidationExternalComponentPackQuery.cs](../../src/AuditSphereOps.Application/Accounting/ConsolidationExternalComponentPackQuery.cs) |
 | T029 | Preserve portal request drafts during a same-context refresh | IMPLEMENTED_VERIFICATION_PENDING | [request.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.ts) |
 | T030 | Let slow package-build status reads finish | IMPLEMENTED_VERIFICATION_PENDING | [financial-package-build.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts) |
-| T031 | Preserve consolidation pagination and bounded subquery errors | IN_PROGRESS | [ConsolidationScopeWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationScopeWorkspaceQuery.cs) |
+| T031 | Preserve consolidation pagination and bounded subquery errors | IMPLEMENTED_VERIFICATION_PENDING | [ConsolidationScopeWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationScopeWorkspaceQuery.cs) |
 | T032 | Provide bounded portal request and package history continuation | IMPLEMENTED_VERIFICATION_PENDING | [ClientPortalWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Documents/ClientPortalWorkspaceQuery.cs) |
 | T033 | Show statutory milestone preview before save | IMPLEMENTED_VERIFICATION_PENDING | [plan.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/plan.ts) |
 | T034 | Show the statement body of a selected pinned presentation | IMPLEMENTED_VERIFICATION_PENDING | [presentation.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/presentation.ts) |
@@ -63,3 +63,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 ## Retention and acceptance decisions
 
 Component corrections use a new scope version, retaining original scope, component and package evidence. The presentation handoff re-reads the authorized source scope and exact component/package identities, then accepts scope/group query identities only when the authorized overview contains that pair. Stale, unknown and wrong-group sources have no correction link. The scope workspace opens this retained-source handoff. Correction creation must retain the source period from the authorized scope options; missing or different periods are refused. No same-draft replacement adapter is authorized. Professional audit decisions and live-provider acceptance remain governed by their existing controls.
+
+## Bounded component and readiness continuation
+
+The scope workspace now pages components and readiness independently, alongside the existing package, journal, run and exception histories. Component correction resolves the exact authorized component independently of the displayed page. Readiness refusal retains its error state and has no successful page metadata. Scope/group revision checks fence the paged reads. The former large-readiness unavailable fallback is replaced by accessible bounded pages. Focused checks and their limits are recorded under `apiAngularParity.localVerification.pagingSlice` in [status.json](status.json); full acceptance remains unverified.

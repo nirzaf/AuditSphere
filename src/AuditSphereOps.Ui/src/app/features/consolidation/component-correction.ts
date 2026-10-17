@@ -79,7 +79,7 @@ export class ConsolidationComponentCorrection {
   readonly workspace = this.api.resource(
     () => {
       const identity = this.identity();
-      return identity ? `/api/ui/consolidation/scopes/${identity.scopeId}` : null;
+      return identity ? `/api/ui/consolidation/scopes/${identity.scopeId}?selectedComponentId=${identity.componentId}` : null;
     },
     decodeScopeWorkspace,
     'The original consolidation scope is unavailable in the current authorization context.',
@@ -92,7 +92,9 @@ export class ConsolidationComponentCorrection {
     if (!workspace) return this.workspace.loading() ? { state: 'loading' } : { state: 'unavailable' };
     if (workspace.scope.id.toLowerCase() !== identity.scopeId) return { state: 'stale-scope' };
     if (workspace.scope.groupId.toLowerCase() !== identity.groupId) return { state: 'wrong-group' };
-    const component = workspace.components.find(x => x.id.toLowerCase() === identity.componentId);
+    if (workspace.resolvedComponent && workspace.resolvedComponent.id.toLowerCase() !== identity.componentId)
+      return { state: 'unknown-component' };
+    const component = workspace.resolvedComponent ?? workspace.components.find(x => x.id.toLowerCase() === identity.componentId);
     return component ? { state: 'ready', scope: workspace.scope, component } : { state: 'unknown-component' };
   });
 }

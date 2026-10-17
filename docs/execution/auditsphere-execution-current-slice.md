@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## API and Angular parity: bounded scope continuation
+
+Components and readiness now have independent bounded pages and complete counts. Exact component correction remains available when the selected component is outside the displayed page. The focused browser check loaded the current contract and retained evidence using the synthetic local database with external effects disabled. This does not establish multi-page browser or full workflow acceptance. Current verification evidence and remaining gates are in `status.json` under `apiAngularParity.localVerification.pagingSlice`. Continue the original parity specification; do not equate this slice with completion of all tasks.
+
 ## Documentation reconciliation — review branch
 
 The [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) records corrected current instructions, approved ADR scopes and delegated engineering defaults. This documentation slice uses a dedicated branch and reviewable PR; no direct master push or merge without `AUDITSPHERE-MERGE-APPROVED`. Pre-existing API/Angular integration remains preserved and outside the documentation PR. D1-DRAFT-01 is an unapproved review packet, not a change to audit gates. Qualified T003/G16/EOS and external acceptance requirements remain open. Exact baseline and observed documentation checks are in `status.json` under `documentationReconciliation`; no application test or provider acceptance is claimed.

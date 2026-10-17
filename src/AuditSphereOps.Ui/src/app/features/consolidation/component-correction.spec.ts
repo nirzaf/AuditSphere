@@ -14,7 +14,7 @@ const componentId = '55555555-5555-4555-8555-555555555555';
 const clientId = '66666666-6666-4666-8666-666666666666';
 const actorId = '77777777-7777-4777-8777-777777777777';
 const firmId = '88888888-8888-4888-8888-888888888888';
-const scopeUrl = `/api/ui/consolidation/scopes/${scopeId}`;
+const scopeUrl = `/api/ui/consolidation/scopes/${scopeId}?selectedComponentId=${componentId}`;
 const packageHash = 'a'.repeat(64);
 
 function workspace(overrides: Record<string, unknown> = {}) {
@@ -33,6 +33,9 @@ function workspace(overrides: Record<string, unknown> = {}) {
       submittedByUserId: actorId, submittedAt: '2026-10-12T10:11:12Z',
       approvedByUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', approvedAt: '2026-10-13T11:12:13Z',
     }],
+    componentPaging: { totalCount: 1, page: 1, pageSize: 100 },
+    resolvedComponent: null,
+    readinessPaging: { totalCount: 0, page: 1, pageSize: 100 },
     eligiblePackages: { items: [], totalCount: 0, page: 1, pageSize: 25 },
     journals: { items: [], totalCount: 0, page: 1, pageSize: 25 },
     runs: { items: [], totalCount: 0, page: 1, pageSize: 25 },
@@ -93,6 +96,22 @@ describe('consolidation component correction handoff', () => {
     http.expectNone(request => request.method !== 'GET');
   });
 
+  it('resolves a component beyond the first page and refuses mismatched resolved identity', async () => {
+    const fixture = createComponent();
+    const original = workspace().components[0];
+    http.expectOne(scopeUrl).flush(workspace({ components: [{ ...original, id: wrongScopeId }], componentPaging: { totalCount: 2, page: 1, pageSize: 1 }, resolvedComponent: original }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.source().state).toBe('ready');
+    fixture.componentRef.setInput('componentId', clientId);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/consolidation/scopes/${scopeId}?selectedComponentId=${clientId}`).flush(workspace({ resolvedComponent: original }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.source().state).toBe('unknown-component');
+    expect(fixture.nativeElement.querySelector('a[href*="/app/consolidation"]')).toBeNull();
+  });
+
   it('withholds evidence and the correction link when the fetched scope belongs to another group', async () => {
     const fixture = createComponent();
     http.expectOne(scopeUrl).flush(workspace({ scope: { ...workspace().scope, groupId: wrongGroupId } }));
@@ -116,7 +135,7 @@ describe('consolidation component correction handoff', () => {
     staleFixture.destroy();
 
     const unknownFixture = createComponent({ scopeId, groupId, componentId: wrongScopeId });
-    http.expectOne(scopeUrl).flush(workspace());
+    http.expectOne(`/api/ui/consolidation/scopes/${scopeId}?selectedComponentId=${wrongScopeId}`).flush(workspace());
     await unknownFixture.whenStable();
     unknownFixture.detectChanges();
     expect((unknownFixture.nativeElement as HTMLElement).textContent).toContain('component identity is not present');

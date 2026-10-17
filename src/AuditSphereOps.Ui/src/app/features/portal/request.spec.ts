@@ -43,6 +43,7 @@ describe('Client request draft polling', () => {
     const component = fixture.componentInstance;
     const root = fixture.nativeElement as HTMLElement;
     component.reply.controls.body.setValue('Unsent synthetic reply');
+    component.delegation.controls.userId.setValue('40000000-0000-4000-8000-000000000009');
     const file = new File(['synthetic evidence'], 'support.pdf', { type: 'application/pdf' });
     component.file.set(file); component.hash.set('a'.repeat(64));
     fixture.detectChanges();
@@ -52,10 +53,25 @@ describe('Client request draft polling', () => {
     expect(component.reply.controls.body.value).toBe('Unsent synthetic reply');
     expect(component.file()).toBe(file);
     expect(component.hash()).toBe('a'.repeat(64));
+    expect(component.delegation.controls.userId.value).toBe('40000000-0000-4000-8000-000000000009');
     http.expectNone((request) => request.method === 'POST');
     poll.flush(requestWorkspace()); TestBed.tick(); fixture.detectChanges();
     expect(component.reply.controls.body.value).toBe('Unsent synthetic reply');
     expect(component.file()).toBe(file);
+
+    const session = TestBed.inject(SessionService);
+    session.current.update(actor => actor ? { ...actor, generation: '2' } : null);
+    TestBed.tick(); fixture.detectChanges();
+    expect(component.reply.controls.body.value).toBe('');
+    expect(component.delegation.controls.userId.value).toBe('');
+    expect(component.file()).toBeNull();
+    expect(component.hash()).toBe('');
+    component.sendReply();
+    http.expectNone(request => request.method === 'POST');
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush(requestWorkspace());
+    TestBed.tick(); fixture.detectChanges();
+    component.reply.controls.body.setValue('Draft after fresh authorized context');
+    component.file.set(file); component.hash.set('a'.repeat(64));
 
     await vi.advanceTimersByTimeAsync(30_000); fixture.detectChanges();
     http.expectOne(`/api/ui/portal/requests/${id}`).flush({ code: 'scope.denied', message: 'Denied' },
