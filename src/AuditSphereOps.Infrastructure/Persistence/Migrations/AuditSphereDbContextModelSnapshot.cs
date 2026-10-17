@@ -13964,6 +13964,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int>("CurrentDefinitionRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("current_definition_revision");
+
                     b.Property<long>("CurrentResultRevision")
                         .HasColumnType("bigint")
                         .HasColumnName("current_result_revision");
@@ -14040,7 +14046,109 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("audit_procedures", null, t =>
                         {
-                            t.HasCheckConstraint("ck_audit_procedure_values", "length(trim(title)) > 0 AND status IN ('PLANNED','IN_PROGRESS','SUBMITTED','IN_REVIEW','CHANGES_REQUIRED','REVIEWED') AND applicability_status IN ('PENDING','APPLICABLE','NA_PENDING_REVIEW','NA_APPROVED')");
+                            t.HasCheckConstraint("ck_audit_procedure_values", "length(trim(title)) > 0 AND status IN ('PLANNED','IN_PROGRESS','SUBMITTED','IN_REVIEW','CHANGES_REQUIRED','REVIEWED') AND applicability_status IN ('PENDING','APPLICABLE','NA_PENDING_REVIEW','NA_APPROVED') AND current_definition_revision >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedureDefinitionRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("AuditProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("audit_procedure_id");
+
+                    b.Property<DateTimeOffset?>("AuthoredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("authored_at");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("CommandId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("command_id");
+
+                    b.Property<string>("EffectiveTitle")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("effective_title");
+
+                    b.Property<string>("EffectiveWording")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("effective_wording");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<bool>("IsLegacySnapshot")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_legacy_snapshot");
+
+                    b.Property<Guid?>("PreviousRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_revision_id");
+
+                    b.Property<Guid?>("ProgramProcedureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("program_procedure_id");
+
+                    b.Property<string>("Rationale")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("rationale");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_digest");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer")
+                        .HasColumnName("revision");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId", "Id")
+                        .HasName("AK_audit_procedure_definition_scope_id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "ProgramProcedureId");
+
+                    b.HasIndex("FirmId", "AuditProcedureId", "CommandId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_procedure_definition_command");
+
+                    b.HasIndex("FirmId", "AuditProcedureId", "Revision")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_procedure_definition_revision");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "AuditProcedureId", "PreviousRevisionId");
+
+                    b.ToTable("audit_procedure_definition_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_procedure_definition_values", "revision > 0 AND length(trim(effective_title)) > 0 AND length(trim(effective_wording)) BETWEEN 1 AND 2000 AND length(request_digest) = 64 AND ((is_legacy_snapshot AND actor_user_id IS NULL AND authored_at IS NULL) OR (NOT is_legacy_snapshot AND actor_user_id IS NOT NULL AND authored_at IS NOT NULL))");
                         });
                 });
 
@@ -14064,6 +14172,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20000)
                         .HasColumnType("character varying(20000)")
                         .HasColumnName("conclusion");
+
+                    b.Property<Guid?>("DefinitionRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("definition_revision_id");
 
                     b.Property<Guid>("EngagementId")
                         .HasColumnType("uuid")
@@ -14138,13 +14250,16 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ReviewedByUserId");
 
+                    b.HasIndex("FirmId", "AuditProcedureId", "DefinitionRevisionId")
+                        .HasDatabaseName("ix_audit_procedure_result_definition");
+
                     b.HasIndex("FirmId", "AuditProcedureId", "Revision")
                         .IsUnique()
                         .HasDatabaseName("ux_audit_procedure_result_revision");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "AuditProcedureId");
-
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "WorkpaperId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "AuditProcedureId", "DefinitionRevisionId");
 
                     b.ToTable("audit_procedure_results", null, t =>
                         {
@@ -32448,6 +32563,41 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedureDefinitionRevision", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProgramProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ProgramProcedureId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedureDefinitionRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId", "PreviousRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditProcedureResult", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
@@ -32481,6 +32631,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "WorkpaperId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedureDefinitionRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId", "DefinitionRevisionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

@@ -83,6 +83,16 @@ public sealed class AuditProgramCommandsApiTests
     Assert.Equal(0, adoption.GetProperty("adHocProcedureCount").GetInt32());
     var adoptionReplay = await Post(preparer, preparerCsrf, adoptionUrl, adoptionBody with { expectedAdoptionId = adoptionId });
     Assert.Equal(HttpStatusCode.OK, adoptionReplay.StatusCode);
+    using var fieldworkResponse = await preparer.GetAsync($"/api/ui/engagements/{f.EngagementId:D}/fieldwork");
+    Assert.Equal(HttpStatusCode.OK, fieldworkResponse.StatusCode);
+    using var fieldworkJson = JsonDocument.Parse(await fieldworkResponse.Content.ReadAsStringAsync());
+    var displayedProcedure = fieldworkJson.RootElement.GetProperty("procedures").EnumerateArray()
+      .Single(x => x.GetProperty("sourceProcedureId").GetString() == "AWP-01-01");
+    var sourceWording = AuditProgramCatalog.Items.Single(x => x.SourceProcedureId == "AWP-01-01").SourceWording;
+    Assert.Equal(sourceWording, displayedProcedure.GetProperty("originalWording").GetString());
+    Assert.Equal(sourceWording, displayedProcedure.GetProperty("effectiveWording").GetString());
+    Assert.Equal("AUTHORED_REVISION", displayedProcedure.GetProperty("definitionProvenance").GetString());
+    Assert.Equal(1, displayedProcedure.GetProperty("definitionRevision").GetInt32());
     await using var proof = new AuditSphereDbContext(pg.Options);
     Assert.Single(await proof.AuditProgramVersions.ToListAsync());
     Assert.Equal(165, await proof.AuditProgramProcedures.CountAsync());

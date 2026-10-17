@@ -5,6 +5,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -430,16 +431,36 @@ public sealed class AuditProgramWorkflowTests
     Assert.False(crossResult.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, crossResult.ErrorCode);
 
-    // Tailoring updates title and custom wording
-    var tailorReq = new TailorProcedureRequest(procedure.Id, "Custom Tailored Cash Review", "Perform detailed cash count and trace to general ledger.", "High-risk client location");
+    // Tailoring appends effective instructions and preserves the exact controlled source text.
+    var originalWording = procedure.SourceWording;
+    var tailorCommand = Guid.NewGuid();
+    var tailorReq = new TailorProcedureRequest(procedure.Id, "Custom Tailored Cash Review",
+      "Perform detailed cash count and trace to general ledger.", "High-risk client location", 1, tailorCommand);
     var tailorResult = await AuditProgramService.TailorProcedureAsync(db, scope.Actor, tailorReq);
     Assert.True(tailorResult.Succeeded, tailorResult.Message);
 
     var updatedProc = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
     Assert.Equal("Custom Tailored Cash Review", updatedProc.Title);
-    Assert.Equal("Perform detailed cash count and trace to general ledger.", updatedProc.SourceWording);
-    Assert.Equal("High-risk client location", updatedProc.ApplicabilityRationale);
+    Assert.Equal(originalWording, updatedProc.SourceWording);
+    Assert.Equal(2, updatedProc.CurrentDefinitionRevision);
+    Assert.Equal("Mandatory cash test", updatedProc.ApplicabilityRationale);
     Assert.Equal(0, updatedProc.CurrentResultRevision);
+    var source = await db.AuditProgramProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.ProgramProcedureId);
+    Assert.Equal(source.SourceWording, originalWording);
+    var firstDefinition = await db.AuditProcedureDefinitionRevisions.AsNoTracking().SingleAsync(x =>
+      x.AuditProcedureId == procedure.Id && x.Revision == 1);
+    var tailoredDefinition = await db.AuditProcedureDefinitionRevisions.AsNoTracking().SingleAsync(x =>
+      x.AuditProcedureId == procedure.Id && x.Revision == 2);
+    Assert.Equal(firstDefinition.Id, tailoredDefinition.PreviousRevisionId);
+    Assert.Equal("Perform detailed cash count and trace to general ledger.", tailoredDefinition.EffectiveWording);
+
+    // An exact retry returns the retained command, while changed content under the same identity conflicts.
+    Assert.True((await AuditProgramService.TailorProcedureAsync(db, scope.Actor, tailorReq)).Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, (await AuditProgramService.TailorProcedureAsync(db, scope.Actor,
+      tailorReq with { CustomWording = "Changed request with reused id" })).ErrorCode);
+    Assert.Equal(ErrorCodes.GenerationStale, (await AuditProgramService.TailorProcedureAsync(db, scope.Actor,
+      tailorReq with { CommandId = Guid.NewGuid() })).ErrorCode);
+    Assert.Equal(2, await db.AuditProcedureDefinitionRevisions.CountAsync(x => x.AuditProcedureId == procedure.Id));
 
     // Submit procedure result
     Assert.True((await AuditProgramService.SubmitResultAsync(db, scope.Actor,
@@ -448,12 +469,42 @@ public sealed class AuditProgramWorkflowTests
     var submittedProc = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
     Assert.Equal(AuditProcedureStatuses.Submitted, submittedProc.Status);
 
-    // Tailoring an already submitted procedure resets status to InProgress and increments revision to force re-testing
-    var reTailorReq = new TailorProcedureRequest(procedure.Id, "Custom Tailored Cash Review v2", "Updated testing procedures after management query.", "Revised scope");
+    var submitted = await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.AuditProcedureId == procedure.Id && x.Revision == 1);
+    Assert.Equal(tailoredDefinition.Id, submitted.DefinitionRevisionId);
+
+    // New wording stales that exact result without fabricating a result revision or changing its evidence.
+    var reTailorReq = new TailorProcedureRequest(procedure.Id, "Custom Tailored Cash Review v2",
+      "Updated testing procedures after management query.", "Revised scope", 2, Guid.NewGuid());
     Assert.True((await AuditProgramService.TailorProcedureAsync(db, scope.Actor, reTailorReq)).Succeeded);
 
     var reTailoredProc = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
     Assert.Equal(AuditProcedureStatuses.InProgress, reTailoredProc.Status);
-    Assert.Equal(2, reTailoredProc.CurrentResultRevision);
+    Assert.Equal(1, reTailoredProc.CurrentResultRevision);
+    Assert.Equal(3, reTailoredProc.CurrentDefinitionRevision);
+    var reviewer = await AuditProgramService.ReviewResultAsync(db, scope.Actor, new(submitted.Id, "REVIEWED", null));
+    Assert.Equal(ErrorCodes.GenerationStale, reviewer.ErrorCode);
+    var retained = await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.Id == submitted.Id);
+    Assert.Null(retained.ReviewedAt);
+    var currentEvidence = await AuditFieldworkService.EvaluateProcedureEvidenceForAuthorizedScopeAsync(
+      db, scope.FirmId, scope.ClientId, scope.EngagementId, procedure.Id, CancellationToken.None);
+    Assert.Equal("STALE_DEFINITION", currentEvidence.State);
+    var resubmitted = await AuditProgramService.SubmitResultAsync(db, scope.Actor,
+      new SubmitProcedureResultRequest(procedure.Id, 1, "Repeated the tests under the revised instructions.",
+        "{\"count\": 5000, \"followUp\": true}", ["cash-doc-2"], "Revised objective met."));
+    Assert.True(resubmitted.Succeeded, resubmitted.Message);
+    var currentResult = await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.Id == resubmitted.Value!.AuditProcedureResultId);
+    var latestDefinition = await db.AuditProcedureDefinitionRevisions.AsNoTracking().SingleAsync(x =>
+      x.AuditProcedureId == procedure.Id && x.Revision == 3);
+    Assert.Equal(latestDefinition.Id, currentResult.DefinitionRevisionId);
+    var currentEvidenceAfterResubmit = await AuditFieldworkService.EvaluateProcedureEvidenceForAuthorizedScopeAsync(
+      db, scope.FirmId, scope.ClientId, scope.EngagementId, procedure.Id, CancellationToken.None);
+    Assert.Equal("MISSING_REVIEW", currentEvidenceAfterResubmit.State);
+
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE audit_procedure_definition_revisions SET rationale = rationale WHERE id = {tailoredDefinition.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"DELETE FROM audit_procedure_definition_revisions WHERE id = {tailoredDefinition.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE audit_procedures SET source_wording = 'legacy writer must be rejected' WHERE id = {procedure.Id}"));
   }
 }

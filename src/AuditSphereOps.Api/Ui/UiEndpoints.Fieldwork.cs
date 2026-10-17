@@ -8,7 +8,8 @@ public static partial class UiEndpoints
 {
   public sealed record ApplicabilityInput(string Decision);
   public sealed record ProcedureRiskInput(Guid? RiskId);
-  public sealed record TailorProcedureInput(string Title, string CustomWording, string? Rationale);
+  public sealed record TailorProcedureInput(string Title, string CustomWording, string? Rationale,
+    int ExpectedDefinitionRevision, Guid CommandId);
   public sealed record SubmitProcedureResultInput(long? ExpectedInputGeneration, string WorkPerformed, string? StructuredResultJson, string[]? EvidenceReferences, string Conclusion);
   public sealed record ReviewProcedureResultInput(string Decision, string? Comment);
   public sealed record AggregateConclusionInput(string Conclusion);
@@ -38,7 +39,8 @@ public static partial class UiEndpoints
     group.MapGet("/procedures/{id:guid}/review", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.ProcedureAsync(db, actor, id, ct)));
     group.MapPost("/procedures/{id:guid}/tailor", (Guid id, TailorProcedureInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditProgramService.TailorProcedureAsync(db, actor, new TailorProcedureRequest(id, i.Title ?? "", i.CustomWording ?? "", i.Rationale), ct)));
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.TailorProcedureAsync(db, actor,
+        new TailorProcedureRequest(id, i.Title ?? "", i.CustomWording ?? "", i.Rationale, i.ExpectedDefinitionRevision, i.CommandId), ct)));
     group.MapPost("/procedures/{id:guid}/workpaper", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditProgramService.GetOrCreateWorkpaperAsync(db, actor, id, ct)));
     group.MapPost("/procedures/{id:guid}/results", (Guid id, SubmitProcedureResultInput i, HttpContext http) =>

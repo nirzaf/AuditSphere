@@ -82,14 +82,16 @@ public sealed record TailorProcedureRequest(
   Guid AuditProcedureId,
   string Title,
   string CustomWording,
-  string? Rationale);
+  string? Rationale,
+  int ExpectedDefinitionRevision = 0,
+  Guid CommandId = default);
 
 /// <summary>
 /// Shared program/adoption/procedure execution commands. Account areas use this path rather than
 /// creating separate workflow engines. The source catalog is immutable; engagement rows are copies
 /// that retain the exact adopted version and source wording.
 /// </summary>
-public static class AuditProgramService
+public static partial class AuditProgramService
 {
   private static readonly string[] ProgramOwnerRoles = ["Partner", "Administrator"];
   private static readonly string[] PlanningRoles =
@@ -327,9 +329,10 @@ public static class AuditProgramService
       var existingTemplates = await db.AuditProgramProcedures.AsNoTracking().Where(x =>
           x.FirmId == scope.FirmId && x.ProgramVersionId == program.Id)
         .OrderBy(x => x.SectionNumber).ThenBy(x => x.Ordinal).ToListAsync(ct);
-      if (!MatchesControlledCatalog(existingTemplates) || !HasCompleteAdoption(existingProcedures, existingTemplates))
+      if (!MatchesControlledCatalog(existingTemplates) || !HasCompleteAdoption(existingProcedures, existingTemplates) ||
+          !await HasCurrentDefinitionHistoryAsync(db, existingProcedures.Where(x => x.ProgramProcedureId.HasValue).ToList(), ct))
         return CommandResult<EngagementAuditProgramResult>.Fail(ErrorCodes.GateBlocked,
-          "The retained engagement adoption is incomplete or inconsistent; no automatic repair was performed.");
+          "The retained engagement adoption or its current definition history is incomplete or inconsistent; no automatic repair was performed.");
       var baselineCount = existingProcedures.Count(x => x.ProgramProcedureId.HasValue);
       var adHocCount = existingProcedures.Count - baselineCount;
       await tx.CommitAsync(ct);
@@ -360,7 +363,8 @@ public static class AuditProgramService
       AdoptedAt = DateTimeOffset.UtcNow
     };
     db.EngagementAuditPrograms.Add(adoption);
-    db.AuditProcedures.AddRange(templates.Select(template => new AuditProcedure
+    var adoptedAt = DateTimeOffset.UtcNow;
+    var procedures = templates.Select(template => new AuditProcedure
     {
       Id = Guid.CreateVersion7(),
       FirmId = scope.FirmId,
@@ -375,9 +379,29 @@ public static class AuditProgramService
       SourceWording = template.SourceWording,
       ApplicabilityStatus = AuditApplicabilityStatuses.Pending,
       CurrentResultRevision = 0,
+      CurrentDefinitionRevision = 1,
       Title = template.SourceWording,
       Status = AuditProcedureStatuses.Planned,
-      CreatedAt = DateTimeOffset.UtcNow
+      CreatedAt = adoptedAt
+    }).ToList();
+    db.AuditProcedures.AddRange(procedures);
+    db.AuditProcedureDefinitionRevisions.AddRange(procedures.Select(procedure => new AuditProcedureDefinitionRevision
+    {
+      Id = Guid.CreateVersion7(),
+      FirmId = procedure.FirmId,
+      ClientId = procedure.ClientId,
+      EngagementId = procedure.EngagementId,
+      AuditProcedureId = procedure.Id,
+      Revision = 1,
+      ProgramProcedureId = procedure.ProgramProcedureId,
+      EffectiveTitle = procedure.Title,
+      EffectiveWording = procedure.SourceWording!,
+      CommandId = Guid.CreateVersion7(),
+      RequestDigest = DefinitionRequestDigest(procedure.Title, procedure.SourceWording!, null),
+      ActorUserId = actor.UserId,
+      AuthoredAt = adoptedAt,
+      IsLegacySnapshot = false,
+      RecordedAt = adoptedAt
     }));
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -390,7 +414,7 @@ public static class AuditProgramService
   {
     var byTemplateId = templates.ToDictionary(x => x.Id);
     var baseline = procedures.Where(x => x.ProgramProcedureId.HasValue).ToList();
-    if (baseline.Count != AuditProgramCatalog.Items.Count ||
+    if (baseline.Count != AuditProgramCatalog.Items.Count || baseline.Any(x => x.CurrentDefinitionRevision < 1) ||
         baseline.Select(x => x.ProgramProcedureId).Distinct().Count() != AuditProgramCatalog.Items.Count)
       return false;
     foreach (var procedure in baseline)
@@ -492,56 +516,6 @@ public static class AuditProgramService
     return CommandResult.Ok();
   }
 
-  public static async Task<CommandResult> TailorProcedureAsync(
-    IAuditSphereDbContext db,
-    ActorContext actor,
-    TailorProcedureRequest request,
-    CancellationToken ct = default)
-  {
-    ArgumentNullException.ThrowIfNull(db);
-    ArgumentNullException.ThrowIfNull(request);
-
-    if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.CustomWording))
-      return CommandResult.Fail(InvalidCode, "Title and custom wording are required to tailor a procedure.");
-
-    var role = Authorization.RequireRole(actor, PlanningRoles);
-    if (!role.Succeeded)
-      return CommandResult.Fail(role.ErrorCode!, role.Message!);
-
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var snapshot = await db.AuditProcedures.AsNoTracking()
-      .SingleOrDefaultAsync(x => x.Id == request.AuditProcedureId && x.FirmId == actor.FirmId, ct);
-    if (snapshot is null)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
-    if (scope.Denied is not null)
-      return CommandResult.Fail(scope.Denied, scope.Message);
-
-    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
-      SELECT * FROM audit_procedures
-      WHERE id = {request.AuditProcedureId} AND firm_id = {actor.FirmId}
-      FOR UPDATE
-      """).SingleOrDefaultAsync(ct);
-    if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-
-    procedure.Title = request.Title.Trim();
-    procedure.SourceWording = request.CustomWording.Trim();
-    if (!string.IsNullOrWhiteSpace(request.Rationale))
-      procedure.ApplicabilityRationale = request.Rationale.Trim();
-
-    // If already reviewed or submitted, tailoring invalidates prior results and reopens the procedure for re-testing
-    if (procedure.Status is AuditProcedureStatuses.Reviewed or AuditProcedureStatuses.Submitted)
-    {
-      procedure.Status = AuditProcedureStatuses.InProgress;
-      procedure.CurrentResultRevision++;
-    }
-
-    await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
-    return CommandResult.Ok();
-  }
-
   public static async Task<CommandResult<Guid>> GetOrCreateWorkpaperAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
@@ -570,6 +544,19 @@ public static class AuditProgramService
     if (existing is not null)
       return CommandResult<Guid>.Ok(existing.Id);
 
+    var effectiveTitle = procedure.Title;
+    var effectiveWording = procedure.SourceWording ?? procedure.Title;
+    if (procedure.ProgramProcedureId is not null)
+    {
+      var definition = await db.AuditProcedureDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == scope.FirmId && x.ClientId == scope.ClientId && x.EngagementId == procedure.EngagementId &&
+        x.AuditProcedureId == procedure.Id && x.Revision == procedure.CurrentDefinitionRevision, ct);
+      if (definition is null || definition.ProgramProcedureId != procedure.ProgramProcedureId)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The current controlled procedure definition is unavailable.");
+      effectiveTitle = definition.EffectiveTitle;
+      effectiveWording = definition.EffectiveWording;
+    }
+
     var workpaper = new Workpaper
     {
       Id = Guid.CreateVersion7(),
@@ -579,10 +566,10 @@ public static class AuditProgramService
       ProcedureId = procedure.Id,
       ActorId = actor.UserId,
       Index = procedure.SourceProcedureId,
-      Title = procedure.Title,
-      Objective = $"Procedure {procedure.SourceProcedureId}: {procedure.Title}",
+      Title = effectiveTitle,
+      Objective = $"Procedure {procedure.SourceProcedureId}: {effectiveTitle}",
       TemplateVersion = procedure.SourceProcedureId,
-      Procedure = procedure.SourceWording ?? procedure.Title,
+      Procedure = effectiveWording,
       Revision = 1,
       Status = WorkpaperStatuses.Working,
       CreatedAt = DateTimeOffset.UtcNow
@@ -643,6 +630,16 @@ public static class AuditProgramService
     if (procedure.ApplicabilityStatus != AuditApplicabilityStatuses.Applicable)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
         "Only an explicitly applicable procedure can receive test results.");
+    AuditProcedureDefinitionRevision? effectiveDefinition = null;
+    if (procedure.ProgramProcedureId is not null)
+    {
+      effectiveDefinition = await db.AuditProcedureDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == scope.FirmId && x.ClientId == scope.ClientId && x.EngagementId == procedure.EngagementId &&
+        x.AuditProcedureId == procedure.Id && x.Revision == procedure.CurrentDefinitionRevision, ct);
+      if (effectiveDefinition is null || effectiveDefinition.ProgramProcedureId != procedure.ProgramProcedureId)
+        return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
+          "This controlled procedure has no verified current definition. Refresh or reconcile the retained source before submitting work.");
+    }
     // Every professional mutation of a frozen audit baseline is refused under the same transaction
     // boundary as the write (STE-REM-09).
     var frozen = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, procedure.EngagementId, "submit procedure result", ct);
@@ -672,6 +669,7 @@ public static class AuditProgramService
       .Where(x => x.FirmId == scope.FirmId && x.AuditProcedureId == procedure.Id)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
     if (latest is not null && latest.Status == AuditProcedureResultStatuses.Submitted && latest.InputGeneration == generation &&
+        latest.DefinitionRevisionId == effectiveDefinition?.Id &&
         ProcedureRiskBandEvaluator.CapturedBasisMatches(latest.StructuredResultJson, effectiveRisk.Value))
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ProtectedState,
         "The current result is awaiting review; create a new revision only after its recorded planning basis changes or it is returned.");
@@ -708,7 +706,7 @@ public static class AuditProgramService
       Title = procedure.Title,
       Objective = $"Execute {procedure.SourceProcedureId}",
       TemplateVersion = procedure.SourceProcedureId,
-      Procedure = procedure.SourceWording ?? procedure.Title,
+      Procedure = effectiveDefinition?.EffectiveWording ?? procedure.SourceWording ?? procedure.Title,
       WorkPerformed = request.WorkPerformed.Trim(),
       Conclusion = request.Conclusion.Trim(),
       Revision = 1,
@@ -728,6 +726,7 @@ public static class AuditProgramService
       WorkpaperId = workpaper.Id,
       Revision = revision,
       InputGeneration = generation,
+      DefinitionRevisionId = effectiveDefinition?.Id,
       WorkPerformed = request.WorkPerformed.Trim(),
       StructuredResultJson = structuredResult,
       EvidenceReferencesJson = JsonSerializer.Serialize(request.EvidenceReferences),
@@ -806,6 +805,15 @@ public static class AuditProgramService
       """).SingleOrDefaultAsync(ct);
     if (result is null || result.AuditProcedureId != procedure.Id || result.EngagementId != procedure.EngagementId || result.ClientId != scope.ClientId)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (procedure.ProgramProcedureId is not null)
+    {
+      var currentDefinition = await db.AuditProcedureDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == scope.FirmId && x.ClientId == scope.ClientId && x.EngagementId == procedure.EngagementId &&
+        x.AuditProcedureId == procedure.Id && x.Revision == procedure.CurrentDefinitionRevision, ct);
+      if (currentDefinition is null || result.DefinitionRevisionId != currentDefinition.Id)
+        return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GenerationStale,
+          "The procedure definition changed after this result was prepared; submit the current effective instructions before review.");
+    }
     if (result.PreparedByUserId == actor.UserId)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review the same result.");
     var frozen = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, result.EngagementId, "review procedure result", ct);

@@ -481,6 +481,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Audit.PopulationVersion> PopulationVersions => db.PopulationVersions;
     public DbSet<AuditSphereOps.Domain.Audit.AuditRisk> AuditRisks => db.AuditRisks;
     public DbSet<AuditSphereOps.Domain.Audit.AuditProcedure> AuditProcedures => db.AuditProcedures;
+    public DbSet<AuditSphereOps.Domain.Audit.AuditProcedureDefinitionRevision> AuditProcedureDefinitionRevisions => db.AuditProcedureDefinitionRevisions;
     public DbSet<AuditSphereOps.Domain.Audit.AuditProgramVersion> AuditProgramVersions => db.AuditProgramVersions;
     public DbSet<AuditSphereOps.Domain.Audit.AuditProgramProcedure> AuditProgramProcedures => db.AuditProgramProcedures;
     public DbSet<AuditSphereOps.Domain.Audit.EngagementAuditProgram> EngagementAuditPrograms => db.EngagementAuditPrograms;

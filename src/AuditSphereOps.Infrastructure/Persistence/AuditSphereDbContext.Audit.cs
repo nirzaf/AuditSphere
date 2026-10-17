@@ -232,9 +232,11 @@ public sealed partial class AuditSphereDbContext
     procedure.Property(x => x.SourceSectionTitle).HasMaxLength(200);
     procedure.Property(x => x.SourceWording).HasMaxLength(2000);
     procedure.Property(x => x.ApplicabilityStatus).HasMaxLength(30);
+    procedure.Property(x => x.CurrentDefinitionRevision).HasDefaultValue(0);
     procedure.ToTable("audit_procedures", t => t.HasCheckConstraint("ck_audit_procedure_values",
       "length(trim(title)) > 0 AND status IN ('PLANNED','IN_PROGRESS','SUBMITTED','IN_REVIEW','CHANGES_REQUIRED','REVIEWED')" +
-      " AND applicability_status IN ('PENDING','APPLICABLE','NA_PENDING_REVIEW','NA_APPROVED')"));
+      " AND applicability_status IN ('PENDING','APPLICABLE','NA_PENDING_REVIEW','NA_APPROVED')" +
+      " AND current_definition_revision >= 0"));
     procedure.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceProcedureId })
       .IsUnique().HasDatabaseName("ux_audit_procedure_scope_source");
     ScopeToEngagement(procedure, nameof(AuditProcedure.FirmId), nameof(AuditProcedure.ClientId),
@@ -255,6 +257,39 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ApplicabilityDecidedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var definition = b.Entity<AuditProcedureDefinitionRevision>();
+    definition.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.Id })
+      .HasName("AK_audit_procedure_definition_scope_id");
+    definition.Property(x => x.EffectiveTitle).HasColumnType("text");
+    definition.Property(x => x.EffectiveWording).HasMaxLength(2000);
+    definition.Property(x => x.Rationale).HasMaxLength(1000);
+    definition.Property(x => x.RequestDigest).HasMaxLength(64);
+    definition.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_audit_procedure_definition_revision");
+    definition.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.CommandId }).IsUnique()
+      .HasDatabaseName("ux_audit_procedure_definition_command");
+    definition.ToTable("audit_procedure_definition_revisions", t =>
+      t.HasCheckConstraint("ck_audit_procedure_definition_values",
+        "revision > 0 AND length(trim(effective_title)) > 0" +
+        " AND length(trim(effective_wording)) BETWEEN 1 AND 2000 AND length(request_digest) = 64" +
+        " AND ((is_legacy_snapshot AND actor_user_id IS NULL AND authored_at IS NULL)" +
+        " OR (NOT is_legacy_snapshot AND actor_user_id IS NOT NULL AND authored_at IS NOT NULL))"));
+    ScopeToEngagement(definition, nameof(AuditProcedureDefinitionRevision.FirmId),
+      nameof(AuditProcedureDefinitionRevision.ClientId), nameof(AuditProcedureDefinitionRevision.EngagementId));
+    definition.HasOne<AuditProcedure>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    definition.HasOne<AuditProgramProcedure>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ProgramProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    definition.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    definition.HasOne<AuditProcedureDefinitionRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.PreviousRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+
     var procedureResult = b.Entity<AuditProcedureResult>();
     procedureResult.HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_audit_procedure_results_firm_id_id");
@@ -263,6 +298,8 @@ public sealed partial class AuditSphereDbContext
     procedureResult.Property(x => x.EvidenceReferencesJson).HasMaxLength(20000);
     procedureResult.Property(x => x.Conclusion).HasMaxLength(20000);
     procedureResult.Property(x => x.Status).HasMaxLength(30);
+    procedureResult.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.DefinitionRevisionId })
+      .HasDatabaseName("ix_audit_procedure_result_definition");
     procedureResult.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.Revision }).IsUnique()
       .HasDatabaseName("ux_audit_procedure_result_revision");
     procedureResult.ToTable("audit_procedure_results", t => t.HasCheckConstraint("ck_audit_procedure_result_values",
@@ -275,6 +312,10 @@ public sealed partial class AuditSphereDbContext
     procedureResult.HasOne<AuditProcedure>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    procedureResult.HasOne<AuditProcedureDefinitionRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.DefinitionRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.Id })
       .OnDelete(DeleteBehavior.Restrict);
     procedureResult.HasOne<Workpaper>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.WorkpaperId })

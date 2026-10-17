@@ -119,6 +119,8 @@ public sealed class AuditProcedure
   public Guid? RiskId { get; set; }
   public Guid? EngagementProgramId { get; set; }
   public Guid? ProgramProcedureId { get; set; }
+  /// <summary>Current effective definition-history sequence; zero means no proven definition exists.</summary>
+  public int CurrentDefinitionRevision { get; set; }
   public string SourceProcedureId { get; set; } = string.Empty;
   public int? SourceSectionNumber { get; set; }
   public string? SourceSectionTitle { get; set; }
@@ -318,6 +320,8 @@ public sealed class AuditProcedureResult
   public Guid? WorkpaperId { get; set; }
   public long Revision { get; set; }
   public long InputGeneration { get; set; }
+  /// <summary>Exact effective instructions used for this submission; null marks an unbound legacy result.</summary>
+  public Guid? DefinitionRevisionId { get; set; }
   public string WorkPerformed { get; set; } = string.Empty;
   public string StructuredResultJson { get; set; } = string.Empty;
   public string EvidenceReferencesJson { get; set; } = "[]";

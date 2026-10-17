@@ -31,6 +31,10 @@ describe('Audit Fieldwork Contracts', () => {
           sourceSectionNumber: 1,
           sourceSectionTitle: 'Planning',
           title: 'Preliminary Analytical Review',
+          originalWording: 'Review the controlled source procedure.',
+          effectiveWording: 'Review the engagement-specific effective instructions.',
+          definitionRevision: 1,
+          definitionProvenance: 'AUTHORED_REVISION',
           applicabilityStatus: 'APPLICABLE',
           status: 'COMPLETED',
           riskId: null,
@@ -134,6 +138,9 @@ describe('Audit Fieldwork Contracts', () => {
     expect(decoded.program?.programCode).toBe('CORE-AUDIT');
     expect(decoded.procedures.length).toBe(1);
     expect(decoded.procedures[0].sourceProcedureId).toBe('AWP-01');
+    expect(decoded.procedures[0].originalWording).toContain('controlled source');
+    expect(decoded.procedures[0].effectiveWording).toContain('engagement-specific');
+    expect(decoded.procedures[0].definitionProvenance).toBe('AUTHORED_REVISION');
     expect(decoded.risks[0].effectiveBand).toBe('AMBER');
     expect(decoded.risks[0].balance).toBe('15000.00');
     expect(decoded.risks[0].materialityCalculationId).toBe(id2);

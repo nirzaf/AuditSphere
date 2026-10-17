@@ -15889,6 +15889,54 @@
         ]
       }
     },
+    "/api/ui/engagements/{id}/fieldwork/program-options": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/procedures/{id}/review": {
       "get": {
         "tags": [
@@ -16205,6 +16253,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptProgramInput"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "OK"
@@ -16221,6 +16279,16 @@
           },
           "429": {
             "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
             "content": {
               "application/json": {
                 "schema": {
@@ -31866,6 +31934,131 @@
         ]
       }
     },
+    "/api/ui/audit/library/versions/prepare": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareAuditProgramInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/audit/library/versions/{versionId}/publish": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishAuditProgramInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/audit/library/{versionId}/sections/{section}": {
       "get": {
         "tags": [
@@ -38263,6 +38456,34 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "AdoptProgramInput": {
+        "required": [
+          "programVersionId",
+          "sourceHash",
+          "contentDigest",
+          "expectedAdoptionId"
+        ],
+        "type": "object",
+        "properties": {
+          "programVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceHash": {
+            "type": "string"
+          },
+          "contentDigest": {
+            "type": "string"
+          },
+          "expectedAdoptionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -47797,6 +48018,21 @@
           }
         }
       },
+      "PrepareAuditProgramInput": {
+        "required": [
+          "version",
+          "sourceHash"
+        ],
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "sourceHash": {
+            "type": "string"
+          }
+        }
+      },
       "PricingPolicyDecisionInput": {
         "required": [
           "reason",
@@ -47982,6 +48218,21 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "PublishAuditProgramInput": {
+        "required": [
+          "expectedContentDigest",
+          "publicationReviewReference"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedContentDigest": {
+            "type": "string"
+          },
+          "publicationReviewReference": {
+            "type": "string"
           }
         }
       },
@@ -50632,7 +50883,9 @@
         "required": [
           "title",
           "customWording",
-          "rationale"
+          "rationale",
+          "expectedDefinitionRevision",
+          "commandId"
         ],
         "type": "object",
         "properties": {
@@ -50647,6 +50900,18 @@
               "null",
               "string"
             ]
+          },
+          "expectedDefinitionRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

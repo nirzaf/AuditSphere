@@ -10,7 +10,9 @@ namespace AuditSphereOps.Application.Audit;
 
 public sealed record FieldworkProgram(string ProgramCode, string Version, string SourceHash);
 public sealed record FieldworkProcedure(Guid Id, string SourceProcedureId, int? SourceSectionNumber, string? SourceSectionTitle,
-  string Title, string ApplicabilityStatus, string Status, Guid? RiskId, Guid? WorkpaperId = null, long CurrentResultRevision = 0, string? SourceWording = null);
+  string Title, string ApplicabilityStatus, string Status, Guid? RiskId, Guid? WorkpaperId = null,
+  long CurrentResultRevision = 0, string? OriginalWording = null, string? EffectiveWording = null,
+  int? DefinitionRevision = null, string DefinitionProvenance = "UNVERIFIED_LEGACY");
 public sealed record FieldworkRiskOption(Guid Id, string Area, string SignificanceDecision, string? Band,
   string? EffectiveBand, decimal? Balance, string? Currency, decimal? TolerableError, decimal? PlanningMateriality,
   Guid? RiskAssessmentId, Guid? MaterialityAssessmentId, Guid? MaterialityCalculationId, Guid? MappingVersionId,
@@ -95,10 +97,8 @@ public static class AuditFieldworkWorkspaceQuery
       var rows = await db.AuditProcedures.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement!.PracticeClientId && x.EngagementId == engagementId && x.EngagementProgramId == adoption.Id)
         .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId)
-        .Select(x => new { x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle, x.Title, x.ApplicabilityStatus, x.Status, x.RiskId, x.CurrentResultRevision, x.SourceWording })
         .ToListAsync(ct);
-      procedures = rows.Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle,
-        x.Title, x.ApplicabilityStatus, x.Status, x.RiskId, workpaperMap.GetValueOrDefault(x.Id), x.CurrentResultRevision, x.SourceWording)).ToList();
+      procedures = await BuildProcedureViewsAsync(db, actor.FirmId, engagement!.PracticeClientId, engagementId, rows, workpaperMap, ct);
     }
     else if (authorization.CanViewReviewNotes)
     {
@@ -107,10 +107,8 @@ public static class AuditFieldworkWorkspaceQuery
         .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId &&
           db.AuditProcedureResults.Any(r => r.FirmId == actor.FirmId && r.ClientId == engagement.PracticeClientId && r.EngagementId == engagementId && r.AuditProcedureId == x.Id))
         .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId)
-        .Select(x => new { x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle, x.Title, x.ApplicabilityStatus, x.Status, x.RiskId, x.CurrentResultRevision, x.SourceWording })
         .ToListAsync(ct);
-      procedures = rows.Select(x => new FieldworkProcedure(x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle,
-        x.Title, x.ApplicabilityStatus, x.Status, x.RiskId, workpaperMap.GetValueOrDefault(x.Id), x.CurrentResultRevision, x.SourceWording)).ToList();
+      procedures = await BuildProcedureViewsAsync(db, actor.FirmId, engagement.PracticeClientId, engagementId, rows, workpaperMap, ct);
     }
 
     IReadOnlyList<FieldworkRiskOption> risks = [];
@@ -184,6 +182,33 @@ public static class AuditFieldworkWorkspaceQuery
     if (string.IsNullOrWhiteSpace(json)) return [];
     try { return JsonSerializer.Deserialize<string[]>(json) ?? []; }
     catch (JsonException) { return []; }
+  }
+
+  private static async Task<List<FieldworkProcedure>> BuildProcedureViewsAsync(IAuditSphereDbContext db,
+    Guid firmId, Guid clientId, Guid engagementId, IReadOnlyCollection<AuditProcedure> rows,
+    IReadOnlyDictionary<Guid, Guid> workpaperMap, CancellationToken ct)
+  {
+    if (rows.Count == 0) return [];
+    var ids = rows.Select(x => x.Id).ToArray();
+    var definitions = await db.AuditProcedureDefinitionRevisions.AsNoTracking().Where(definition =>
+      definition.FirmId == firmId && definition.ClientId == clientId && definition.EngagementId == engagementId &&
+      ids.Contains(definition.AuditProcedureId) && db.AuditProcedures.Any(procedure =>
+        procedure.FirmId == firmId && procedure.ClientId == clientId && procedure.EngagementId == engagementId &&
+        procedure.Id == definition.AuditProcedureId && procedure.CurrentDefinitionRevision == definition.Revision))
+      .ToDictionaryAsync(x => x.AuditProcedureId, ct);
+    var sourceIds = rows.Where(x => x.ProgramProcedureId.HasValue).Select(x => x.ProgramProcedureId!.Value).Distinct().ToArray();
+    var source = sourceIds.Length == 0 ? [] : await db.AuditProgramProcedures.AsNoTracking()
+      .Where(x => x.FirmId == firmId && sourceIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+    return rows.Select(row =>
+    {
+      var definition = definitions.GetValueOrDefault(row.Id);
+      var original = row.ProgramProcedureId is { } sourceId ? source.GetValueOrDefault(sourceId)?.SourceWording : null;
+      var provenance = definition is null ? "UNVERIFIED_LEGACY" : definition.IsLegacySnapshot ? "LEGACY_EFFECTIVE_SNAPSHOT" : "AUTHORED_REVISION";
+      return new FieldworkProcedure(row.Id, row.SourceProcedureId, row.SourceSectionNumber, row.SourceSectionTitle,
+        definition?.EffectiveTitle ?? row.Title, row.ApplicabilityStatus, row.Status, row.RiskId,
+        workpaperMap.GetValueOrDefault(row.Id), row.CurrentResultRevision, original,
+        definition?.EffectiveWording ?? row.SourceWording, definition?.Revision, provenance);
+    }).ToList();
   }
 
   /// <summary>Current submitted result, its anchored review notes and linked client evidence for one procedure.</summary>

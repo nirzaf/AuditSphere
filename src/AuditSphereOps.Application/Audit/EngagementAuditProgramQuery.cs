@@ -76,7 +76,9 @@ public static class EngagementAuditProgramQuery
       string.Equals(currentProgram.SourceHash, AuditProgramCatalog.SourceHash, StringComparison.OrdinalIgnoreCase) &&
       string.Equals(currentProgram.ContentDigest, AuditProgramCatalog.ContentDigest, StringComparison.OrdinalIgnoreCase) &&
       AuditProgramService.MatchesControlledCatalog(currentTemplates) &&
-      AuditProgramService.HasCompleteAdoption(currentProcedures, currentTemplates);
+      AuditProgramService.HasCompleteAdoption(currentProcedures, currentTemplates) &&
+      await AuditProgramService.HasCurrentDefinitionHistoryAsync(db,
+        currentProcedures.Where(x => x.ProgramProcedureId.HasValue).ToList(), ct);
 
     var versions = await db.AuditProgramVersions.AsNoTracking().Where(x =>
         x.FirmId == actor.FirmId && x.ProgramCode == AuditProgramCatalog.ProgramCode && x.Status == AuditProgramStatuses.Published)

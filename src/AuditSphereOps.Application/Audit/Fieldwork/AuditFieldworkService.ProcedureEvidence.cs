@@ -43,6 +43,12 @@ public static partial class AuditFieldworkService
     var results = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == firmId && x.ClientId == clientId &&
       x.EngagementId == engagementId && ids.Contains(x.AuditProcedureId)).OrderByDescending(x => x.Revision).ToListAsync(ct);
     var latest = results.GroupBy(x => x.AuditProcedureId).ToDictionary(x => x.Key, x => x.First());
+    var currentDefinitions = await db.AuditProcedureDefinitionRevisions.AsNoTracking().Where(definition =>
+      definition.FirmId == firmId && definition.ClientId == clientId && definition.EngagementId == engagementId &&
+      ids.Contains(definition.AuditProcedureId) && db.AuditProcedures.Any(procedure =>
+        procedure.FirmId == firmId && procedure.ClientId == clientId && procedure.EngagementId == engagementId &&
+        procedure.Id == definition.AuditProcedureId && procedure.CurrentDefinitionRevision == definition.Revision))
+      .ToDictionaryAsync(x => x.AuditProcedureId, ct);
     var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == firmId && x.Id == clientId)
       .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
     var riskIds = scoped.Where(x => x.RiskId is not null && latest.ContainsKey(x.Id)).Select(x => x.RiskId!.Value).Distinct().ToArray();
@@ -79,6 +85,14 @@ public static partial class AuditFieldworkService
       if (procedure.CurrentResultRevision != result.Revision)
       {
         evaluated[procedure.Id] = new(false, "STALE_RESULT", "The latest submitted result is not the procedure's current result revision.", result.Revision, currentGeneration, result.Id);
+        continue;
+      }
+      if (procedure.ProgramProcedureId is not null &&
+          (!currentDefinitions.TryGetValue(procedure.Id, out var definition) || result.DefinitionRevisionId != definition.Id))
+      {
+        evaluated[procedure.Id] = new(false, "STALE_DEFINITION",
+          "The submitted result is not bound to the procedure's current effective instructions; resubmit after reviewing the retained source and definition.",
+          result.Revision, currentGeneration, result.Id);
         continue;
       }
       ProcedureRiskBandEvaluation? risk = null;

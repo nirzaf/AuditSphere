@@ -11,7 +11,8 @@ import { PlanningCommandReview } from './planning-command-review';
 import { SHARED } from '../../core/ui';
 
 const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text,
-  applicabilityStatus: text, status: text, riskId: nullable(guid), workpaperId: nullable(guid) });
+  applicabilityStatus: text, status: text, riskId: nullable(guid), workpaperId: nullable(guid), originalWording: nullable(text),
+  effectiveWording: nullable(text), definitionRevision: nullable(nat), definitionProvenance: text });
 const decodeManagerReview = obj({ engagementId: guid, completionReady: bool, partnerHandoffReady: bool,
   applicableProcedures: nat, proceduresNeedingReview: nat, itemTestsNeedingReview: nat, selectionsNeedingReview: nat,
   unresolvedReviewThreads: nat, openConfirmations: nat, bankReconciliationsNeedingApproval: nat, unevaluatedDifferences: nat,
@@ -390,9 +391,14 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
             <span>Showing {{ visible(w).length }} of {{ w.procedures.length }} authorized procedures</span>
           </div>
           <div class="table-scroll"><table>
-            <thead><tr><th scope="col">Source</th><th scope="col">Section</th><th scope="col">Procedure</th><th scope="col">Applicability</th><th scope="col">Linked risk</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
+            <thead><tr><th scope="col">Source</th><th scope="col">Section</th><th scope="col">Procedure</th><th scope="col">Instructions and provenance</th><th scope="col">Applicability</th><th scope="col">Linked risk</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
             <tbody>@for (p of visible(w); track p.id) {
-              <tr [id]="'procedure-' + p.id"><td><code>{{ p.sourceProcedureId }}</code></td><td>{{ p.sourceSectionTitle }}</td><td>{{ p.title }}</td><td>{{ p.applicabilityStatus }}</td>
+              <tr [id]="'procedure-' + p.id"><td><code>{{ p.sourceProcedureId }}</code></td><td>{{ p.sourceSectionTitle }}</td><td>{{ p.title }}</td>
+                <td><details><summary>View original and effective wording</summary>
+                  <p><strong>Original source:</strong> {{ p.originalWording ?? 'No controlled source text; see the retained ad-hoc wording history.' }}</p>
+                  <p><strong>Effective instructions:</strong> {{ p.effectiveWording ?? p.title }}</p>
+                  <p><strong>Definition provenance:</strong> {{ p.definitionProvenance }}{{ p.definitionRevision ? ' · revision ' + p.definitionRevision : '' }}</p>
+                </details></td><td>{{ p.applicabilityStatus }}</td>
                 <td>
                   @if (w.canManageFieldwork) {
                     <div class="inline-form">
