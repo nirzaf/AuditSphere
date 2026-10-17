@@ -60,6 +60,19 @@ public static partial class UiEndpoints
       .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
       .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
+    group.MapGet("/accounting/clients/{clientId:guid}/open-item-allocations/history", async (Guid clientId,
+      HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory, int page = 0, int pageSize = 25) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOpenItemAllocationHistoryQuery.GetAsync(db, actor, clientId, page, pageSize, http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
+    }).Produces<ClientOpenItemAllocationHistoryPage>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
+
     group.MapGet("/accounting/clients/{clientId:guid}/open-item-allocation-submissions", async (Guid clientId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

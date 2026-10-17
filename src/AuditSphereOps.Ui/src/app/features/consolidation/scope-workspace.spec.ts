@@ -10,6 +10,8 @@ import {
   decodeScopeWorkspace,
   decodeConsolidationJournal,
   decodeConsolidationComponent,
+  decodeIntercompanyExceptionsPage,
+  decodeIntercompanyMatchOptions,
   decodeScopeSummary,
   ScopeWorkspace,
 } from './scope-contracts';
@@ -21,9 +23,50 @@ const id3 = '33333333-3333-4333-8333-333333333333';
 const hash64 = 'a'.repeat(64);
 const scopeUrl = `/api/ui/consolidation/scopes/${id1}`;
 const actor = id1;
+const matchId1 = '44444444-4444-4444-8444-444444444444';
+const matchId2 = '55555555-5555-4555-8555-555555555555';
+const matchId3 = '66666666-6666-4666-8666-666666666666';
+
+function intercompanyOptionsPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    scopeVersionId: id1, groupId: id2, pinnedGroupRevision: 1, currentGroupRevision: 1, reportingCurrency: 'QAR',
+    periodStartDate: '2026-01-01', periodEndDate: '2026-12-31', membershipBlocker: null,
+    members: [
+      { clientId: id2, legalName: 'Synthetic Seller Ltd', hasApprovedComponent: true },
+      { clientId: id3, legalName: 'Synthetic Buyer Ltd', hasApprovedComponent: true },
+    ],
+    membersTruncated: false, taxonomyCodes: ['ASSETS.IC_AR', 'LIABILITIES.IC_AP'], taxonomyCodesTruncated: false,
+    ...overrides,
+  };
+}
+
+function intercompanyMatch(matchId: string, status: string, createdByUserId: string, reviewedByUserId: string | null = null) {
+  return {
+    matchId, sellerClientId: id2, buyerClientId: id3, accountNature: 'RECEIVABLE_PAYABLE', matchMode: 'ONE_TO_ONE',
+    periodCode: '2026-12', currency: 'QAR', transactionReference: `IC-${matchId.slice(0, 4)}`,
+    sellerAmount: '1200.123456', buyerAmount: '-1200.000000', matchedAmount: '1200.000000', difference: '0.123456',
+    unmatchedResidual: '0.123456',
+    differenceReason: 'Timing difference per signed confirmation.', status, outsidePerimeterReview: false,
+    evidenceReference: 'SIGNED-IC-STATEMENT-01', sellerTaxonomyCode: 'ASSETS.IC_AR',
+    buyerTaxonomyCode: 'LIABILITIES.IC_AP', matchGroupReference: '', createdByUserId,
+    createdAt: '2026-10-01T11:00:00Z', reviewedByUserId,
+    reviewedAt: reviewedByUserId ? '2026-10-01T11:30:00Z' : null,
+  };
+}
+
+function intercompanyPagePayload(
+  items: unknown[], currentGroupRevision = 1, page = 1, totalCount = items.length,
+  totalUnmatchedDifference = totalCount === 0 ? '0.000000' : '0.123456',
+  totalGrossUnmatchedExposure = totalCount === 0 ? '0.000000' : '0.123456',
+) {
+  return {
+    scopeVersionId: id1, groupId: id2, pinnedGroupRevision: 1, currentGroupRevision,
+    items, totalCount, page, pageSize: 50, totalUnmatchedDifference, totalGrossUnmatchedExposure,
+  };
+}
 
 function workspacePayload(overrides: Record<string, unknown> = {}) {
-  return {
+  const payload = {
     scope: {
       id: id1, groupId: id2, groupName: 'Synthetic Group', groupCode: 'SYN-GRP', version: 1,
       groupRevision: 1, periodId: id3, reportingCurrency: 'QAR', method: 'PROPORTIONATE',
@@ -40,6 +83,27 @@ function workspacePayload(overrides: Record<string, unknown> = {}) {
     componentReadiness: [],
     intercompanyExceptions: [],
     ...overrides,
+  };
+  const page = (value: unknown) => Array.isArray(value)
+    ? { items: value, totalCount: value.length, page: 1, pageSize: 100 }
+    : value;
+  const readResult = (value: unknown) => value && typeof value === 'object' && 'available' in value
+    ? value
+    : { available: true, value, errorCode: null, message: null };
+  const rawExceptions = payload.intercompanyExceptions;
+  const exceptionPage = Array.isArray(rawExceptions)
+    ? { scopeVersionId: id1, groupId: id2, pinnedGroupRevision: 1, currentGroupRevision: 1,
+      items: rawExceptions, totalCount: rawExceptions.length, page: 1, pageSize: 100,
+      totalUnmatchedDifference: '0.000000', totalGrossUnmatchedExposure: '0.000000' }
+    : rawExceptions;
+  return {
+    ...payload,
+    eligiblePackages: page(payload.eligiblePackages),
+    journals: page(payload.journals),
+    runs: page(payload.runs),
+    latestReport: readResult(payload.latestReport),
+    componentReadiness: readResult(payload.componentReadiness),
+    intercompanyExceptions: readResult(exceptionPage),
   };
 }
 
@@ -60,6 +124,17 @@ function run(id: string, status: string, createdByUserId: string) {
   };
 }
 
+function consolidationComponent(id: string, clientId: string) {
+  return {
+    id, clientId, clientLegalName: `Synthetic entity ${clientId.slice(0, 4)}`, sourceType: 'Package',
+    packageId: id, externalComponentPackId: null, packageHash: hash64,
+    periodBasis: '2026-01-01..2026-12-31', taxonomyVersion: 'IFRS-2026', mappingVersion: '1', currency: 'QAR',
+    ownershipPercent: '100.000000', controlMethod: 'CONTROLLED', status: 'APPROVED',
+    submittedByUserId: id2, submittedAt: '2026-10-01T10:00:00Z', approvedByUserId: id3,
+    approvedAt: '2026-10-01T10:30:00Z',
+  };
+}
+
 describe('Consolidation Scope Workspace Contracts', () => {
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let workspaceData: WritableSignal<ReturnType<typeof decodeScopeWorkspace> | null>;
@@ -70,14 +145,36 @@ describe('Consolidation Scope Workspace Contracts', () => {
     error: WritableSignal<string>;
     reload: ReturnType<typeof vi.fn>;
   };
+  let intercompanyOptionsData: WritableSignal<ReturnType<typeof decodeIntercompanyMatchOptions> | null>;
+  let intercompanyMatchesData: WritableSignal<ReturnType<typeof decodeIntercompanyExceptionsPage> | null>;
+  let intercompanyOptionsResource: {
+    data: WritableSignal<ReturnType<typeof decodeIntercompanyMatchOptions> | null>;
+    loading: WritableSignal<boolean>;
+    error: WritableSignal<string>;
+    reload: ReturnType<typeof vi.fn>;
+  };
+  let intercompanyMatchesResource: {
+    data: WritableSignal<ReturnType<typeof decodeIntercompanyExceptionsPage> | null>;
+    loading: WritableSignal<boolean>;
+    error: WritableSignal<string>;
+    reload: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     params = new BehaviorSubject(convertToParamMap({ id: id1 }));
     workspaceData = signal<ReturnType<typeof decodeScopeWorkspace> | null>(null);
     resource = { data: workspaceData, loading: signal(false), error: signal(''), reload: vi.fn() };
+    intercompanyOptionsData = signal(decodeIntercompanyMatchOptions(intercompanyOptionsPayload(), 'root'));
+    intercompanyMatchesData = signal(decodeIntercompanyExceptionsPage(intercompanyPagePayload([]), 'root'));
+    intercompanyOptionsResource = { data: intercompanyOptionsData, loading: signal(false), error: signal(''), reload: vi.fn() };
+    intercompanyMatchesResource = { data: intercompanyMatchesData, loading: signal(false), error: signal(''), reload: vi.fn() };
+    let resourceIndex = 0;
     api = {
-      resource: vi.fn((_url, decoder) => decoder === decodeScopeWorkspace ? resource : {
-        data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn(),
+      resource: vi.fn((_url, decoder) => {
+        resourceIndex++;
+        if (resourceIndex === 1 || decoder === decodeScopeWorkspace) return resource;
+        return resourceIndex === 2 ? intercompanyOptionsResource : resourceIndex === 3 ? intercompanyMatchesResource
+          : { data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn() };
       }),
       command: vi.fn().mockResolvedValue({ ok: true, value: true }),
     };
@@ -103,6 +200,40 @@ describe('Consolidation Scope Workspace Contracts', () => {
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance };
   }
+
+  it('opens external pack history only for the active scope and clears it on a route change', () => {
+    const { fixture, component } = open();
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('audit-consolidation-external-packs')).toBeNull();
+    const firstChildCall = api.resource.mock.calls.length;
+    api.resource.mockImplementation(() => ({
+      data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn(),
+    }));
+    const openButton = Array.from(page.querySelectorAll('button'))
+      .find(button => button.textContent?.trim() === 'Open external component packs')!;
+    openButton.click();
+    fixture.detectChanges();
+    expect(page.querySelector('audit-consolidation-external-packs')).not.toBeNull();
+    expect(openButton.getAttribute('aria-expanded')).toBe('true');
+    const urls = api.resource.mock.calls.slice(firstChildCall).map(([url]) => url());
+    expect(urls.some(url => url?.startsWith(`${scopeUrl}/external-packs?`))).toBe(true);
+
+    const oldWorkspace = component.ws.data()!;
+    component.intercompanyForm.sellerClientId = id2;
+    component.intercompanyForm.buyerClientId = id3;
+    component.intercompanyForm.sellerAmount = '1200.000000';
+    component.intercompanyForm.reviewed = true;
+    params.next(convertToParamMap({ id: id2 }));
+    fixture.detectChanges();
+    expect(component.intercompanyForm.sellerClientId).toBe('');
+    expect(component.intercompanyForm.buyerClientId).toBe('');
+    expect(component.intercompanyForm.sellerAmount).toBe('');
+    expect(component.intercompanyForm.reviewed).toBe(false);
+    expect(page.querySelector('audit-consolidation-external-packs')).toBeNull();
+    component.toggleExternalPacks(oldWorkspace);
+    fixture.detectChanges();
+    expect(page.querySelector('audit-consolidation-external-packs')).toBeNull();
+  });
 
   it('decodes a complete scope workspace structure', () => {
     const raw = {
@@ -145,8 +276,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
           approvedAt: '2026-10-01T10:30:00Z',
         },
       ],
-      eligiblePackages: [
-        {
+      eligiblePackages: {
+        items: [{
           packageId: id1,
           clientId: id3,
           clientLegalName: 'Acme Subsidiary QSTP-LLC',
@@ -156,10 +287,10 @@ describe('Consolidation Scope Workspace Contracts', () => {
           mappingVersion: '1',
           currency: 'QAR',
           calculationHash: hash64,
-        },
-      ],
-      journals: [
-        {
+        }], totalCount: 1, page: 1, pageSize: 100,
+      },
+      journals: {
+        items: [{
           id: id1,
           journalNumber: 'EJ-001',
           journalType: 'INTERCOMPANY_ELIMINATION',
@@ -191,10 +322,10 @@ describe('Consolidation Scope Workspace Contracts', () => {
               intercompanyMatchId: null,
             },
           ],
-        },
-      ],
-      runs: [
-        {
+        }], totalCount: 1, page: 1, pageSize: 100,
+      },
+      runs: {
+        items: [{
           id: id1,
           engineVersion: '1.0',
           runHash: hash64,
@@ -204,9 +335,9 @@ describe('Consolidation Scope Workspace Contracts', () => {
           createdAt: '2026-10-01T12:00:00Z',
           approvedByUserId: id1,
           approvedAt: '2026-10-01T12:30:00Z',
-        },
-      ],
-      latestReport: {
+        }], totalCount: 1, page: 1, pageSize: 100,
+      },
+      latestReport: { available: true, errorCode: null, message: null, value: {
         scopeVersionId: id1,
         runId: id1,
         state: 'CURRENT_APPROVED',
@@ -222,8 +353,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
             currency: 'QAR',
           },
         ],
-      },
-      componentReadiness: [
+      } },
+      componentReadiness: { available: true, errorCode: null, message: null, value: [
         {
           clientId: id3,
           memberName: 'Acme Subsidiary QSTP-LLC',
@@ -236,24 +367,28 @@ describe('Consolidation Scope Workspace Contracts', () => {
           currencyCompatible: true,
           mismatchReason: null,
         },
-      ],
-      intercompanyExceptions: [],
+      ] },
+      intercompanyExceptions: { available: true, errorCode: null, message: null, value: {
+        scopeVersionId: id1, groupId: id2, pinnedGroupRevision: 1, currentGroupRevision: 1,
+        items: [], totalCount: 0, page: 1, pageSize: 100,
+        totalUnmatchedDifference: '0.000000', totalGrossUnmatchedExposure: '0.000000',
+      } },
     };
 
     const decoded = decodeScopeWorkspace(raw, 'root');
     expect(decoded.scope.groupCode).toBe('ACME-GRP');
     expect(decoded.components.length).toBe(1);
     expect(decoded.components[0].clientLegalName).toBe('Acme Subsidiary QSTP-LLC');
-    expect(decoded.eligiblePackages.length).toBe(1);
-    expect(decoded.journals.length).toBe(1);
-    expect(decoded.journals[0].lines.length).toBe(2);
-    expect(decoded.journals[0].totalDebits).toBe('1500.00');
-    expect(decoded.runs.length).toBe(1);
-    expect(decoded.latestReport?.lines[0].consolidatedAmount).toBe('0.00');
+    expect(decoded.eligiblePackages.items.length).toBe(1);
+    expect(decoded.journals.items.length).toBe(1);
+    expect(decoded.journals.items[0].lines.length).toBe(2);
+    expect(decoded.journals.items[0].totalDebits).toBe('1500.00');
+    expect(decoded.runs.items.length).toBe(1);
+    expect(decoded.latestReport.value?.lines[0].consolidatedAmount).toBe('0.00');
     expect(() => decodeScopeWorkspace({ ...raw, scope: { ...raw.scope, status: 'Draft' } }, 'root')).toThrow();
-    expect(() => decodeScopeWorkspace({ ...raw, journals: [{ ...raw.journals[0], status: 'Submitted' }] }, 'root')).toThrow();
-    expect(() => decodeScopeWorkspace({ ...raw, runs: [{ ...raw.runs[0], status: 'VERIFIED' }] }, 'root')).toThrow();
-    expect(() => decodeScopeWorkspace({ ...raw, componentReadiness: [{ ...raw.componentReadiness[0], componentState: 'READY' }] }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, journals: { ...raw.journals, items: [{ ...raw.journals.items[0], status: 'Submitted' }] } }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, runs: { ...raw.runs, items: [{ ...raw.runs.items[0], status: 'VERIFIED' }] } }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, componentReadiness: { ...raw.componentReadiness, value: [{ ...raw.componentReadiness.value[0], componentState: 'READY' }] } }, 'root')).toThrow();
   });
 
   it('rejects invalid or missing identifiers and malformed decoders', () => {
@@ -411,5 +546,266 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(component.journalAmountsValid()).toBe(false);
     component.createJournal(id1);
     expect(api.command).not.toHaveBeenCalled();
+  });
+
+  it('retains approved match history and requires an independent current-revision review before approval', async () => {
+    intercompanyMatchesData.set(decodeIntercompanyExceptionsPage(intercompanyPagePayload([
+      intercompanyMatch(matchId1, 'APPROVED', id2, id3),
+      intercompanyMatch(matchId2, 'SUBMITTED', id2),
+      intercompanyMatch(matchId3, 'SUBMITTED', actor),
+    ]), 'root'));
+    const { fixture, component } = open();
+    expect(component.intercompanyUnresolvedOnly()).toBe(false);
+    const pageUrl = api.resource.mock.calls[2][0] as () => string | null;
+    expect(pageUrl()).toContain('unresolvedOnly=false');
+
+    const rows = [...fixture.nativeElement.querySelectorAll('#intercompany tbody tr')] as HTMLTableRowElement[];
+    expect(rows).toHaveLength(3);
+    expect(rows[0].textContent).toContain('approved');
+    expect(rows[0].textContent).toContain('1200.123456');
+    expect(rows[0].textContent).toContain(id3);
+    expect(rows[1].textContent).toContain('I reviewed the full retained match');
+    expect([...rows[1].querySelectorAll('button')].map((button) => button.textContent?.trim())).toContain('Approve match');
+    expect(rows[2].textContent).toContain('Maker/checker');
+    expect([...rows[2].querySelectorAll('button')].map((button) => button.textContent?.trim())).not.toContain('Approve match');
+
+    const review = rows[1].querySelector('input[type="checkbox"]') as HTMLInputElement;
+    review.checked = true;
+    review.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    (rows[1].querySelector('button') as HTMLButtonElement).click();
+    expect(api.command).toHaveBeenCalledWith(`/api/ui/consolidation/intercompany-matches/${matchId2}/approve`,
+      { expectedGroupRevision: 1, reviewed: true }, 'POST');
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+
+    component.showIntercompanyExceptions();
+    expect(component.intercompanyUnresolvedOnly()).toBe(true);
+    expect(pageUrl()).toContain('unresolvedOnly=true');
+  });
+
+  it('continues bounded histories and the 101st exception while surfacing refused subquery codes', async () => {
+    const secondJournalId = '88888888-8888-4888-8888-888888888888';
+    const thirdJournalId = '99999999-9999-4999-8999-999999999999';
+    const exception101Id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const initial = workspacePayload({
+      scope: { ...workspacePayload().scope, status: 'DRAFT' },
+      eligiblePackages: { items: [], totalCount: 501, page: 1, pageSize: 100 },
+      journals: { items: [], totalCount: 601, page: 1, pageSize: 100 },
+      runs: { items: [], totalCount: 701, page: 1, pageSize: 100 },
+      latestReport: { available: false, value: null, errorCode: 'report.read-denied', message: 'Report read was refused.' },
+      intercompanyExceptions: { available: false, value: null, errorCode: 'match.read-denied', message: 'Exception read was refused.' },
+    });
+    intercompanyMatchesData.set(decodeIntercompanyExceptionsPage(
+      intercompanyPagePayload([], 1, 1, 101), 'root'));
+    const { fixture, component } = open(initial);
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.textContent).toContain('report.read-denied');
+    expect(fixture.nativeElement.textContent).toContain('Report read was refused.');
+    expect(fixture.nativeElement.textContent).toContain('match.read-denied');
+    const workspaceUrl = api.resource.mock.calls[0][0] as () => string | null;
+    const pageUrl = api.resource.mock.calls[2][0] as () => string | null;
+    expect(workspaceUrl()).toContain('eligiblePackagesPage=1&journalsPage=1&runsPage=1');
+    expect(pageUrl()).toContain('page=1&pageSize=50');
+
+    const nextException = fixture.nativeElement.querySelector('[aria-label="Intercompany match pages"] button:last-child') as HTMLButtonElement;
+    nextException.click();
+    await fixture.whenStable();
+    expect(component.intercompanyPageNumber()).toBe(2);
+    expect(pageUrl()).toContain('page=2&pageSize=50');
+    intercompanyMatchesData.set(decodeIntercompanyExceptionsPage(
+      intercompanyPagePayload([], 1, 2, 101), 'root'));
+    await fixture.whenStable();
+    (fixture.nativeElement.querySelector('[aria-label="Intercompany match pages"] button:last-child') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(component.intercompanyPageNumber()).toBe(3);
+    expect(pageUrl()).toContain('page=3&pageSize=50');
+
+    intercompanyMatchesData.set(decodeIntercompanyExceptionsPage(
+      intercompanyPagePayload([intercompanyMatch(exception101Id, 'APPROVED', id2, id3)], 1, 3, 101), 'root'));
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('#intercompany')?.textContent).toContain(exception101Id);
+
+    const workspace = component.ws.data()!;
+    component.nextEligiblePackagesPage(workspace.eligiblePackages);
+    component.nextJournalsPage(workspace.journals);
+    component.nextRunsPage(workspace.runs);
+    await fixture.whenStable();
+    expect(workspaceUrl()).toContain('eligiblePackagesPage=2&journalsPage=2&runsPage=2');
+
+    workspaceData.set(decodeScopeWorkspace(workspacePayload({
+      scope: { ...workspace.scope, status: 'DRAFT' },
+      eligiblePackages: { items: [], totalCount: 501, page: 2, pageSize: 100 },
+      journals: { items: [journal(secondJournalId, 'EJ-PAGE-2', 'SUBMITTED', id2)], totalCount: 601, page: 2, pageSize: 100 },
+      runs: { items: [run(thirdJournalId, 'SUBMITTED', id2)], totalCount: 701, page: 2, pageSize: 100 },
+    }), 'root'));
+    await fixture.whenStable();
+    expect(fixture.nativeElement.textContent).toContain('EJ-PAGE-2');
+    expect(fixture.nativeElement.querySelectorAll('#runs tbody tr')).toHaveLength(1);
+    expect(component.eligiblePackagesPageNumber()).toBe(2);
+    expect(component.journalsPageNumber()).toBe(2);
+    expect(component.runsPageNumber()).toBe(2);
+
+    params.next(convertToParamMap({ id: id3 }));
+    await fixture.whenStable();
+    expect(component.eligiblePackagesPageNumber()).toBe(1);
+    expect(component.journalsPageNumber()).toBe(1);
+    expect(component.runsPageNumber()).toBe(1);
+    expect(component.intercompanyPageNumber()).toBe(1);
+    expect(workspaceUrl()).toContain(`/api/ui/consolidation/scopes/${id3}?eligiblePackagesPage=1&journalsPage=1&runsPage=1`);
+  });
+
+  it('submits signed intercompany amounts as exact decimal strings against the reviewed revision', async () => {
+    const { component } = open();
+    component.intercompanyForm = {
+      ...component.intercompanyForm,
+      sellerClientId: id2,
+      buyerClientId: id3,
+      accountNature: 'RECEIVABLE_PAYABLE',
+      periodCode: '2026-12',
+      transactionReference: 'IC-EXACT-01',
+      sellerAmount: '9007199254.740993',
+      buyerAmount: '-9007199254.740992',
+      matchedAmount: '9007199254.740992',
+      sellerTaxonomyCode: 'ASSETS.IC_AR',
+      buyerTaxonomyCode: 'LIABILITIES.IC_AP',
+      evidenceReference: 'SIGNED-IC-EXACT-01',
+      differenceReason: 'One micro-unit timing difference.',
+      reviewed: true,
+    };
+    const workspace = component.ws.data()!;
+    const options = component.intercompanyMatchOptions.data()!;
+    expect(component.canSubmitIntercompanyMatch(workspace, options)).toBe(true);
+    component.submitIntercompanyMatch(workspace, options);
+    expect(api.command).toHaveBeenCalledWith(`${scopeUrl}/intercompany-matches`, {
+      sellerClientId: id2,
+      buyerClientId: id3,
+      accountNature: 'RECEIVABLE_PAYABLE',
+      periodCode: '2026-12',
+      currency: 'QAR',
+      transactionReference: 'IC-EXACT-01',
+      sellerAmount: '9007199254.740993',
+      buyerAmount: '-9007199254.740992',
+      matchedAmount: '9007199254.740992',
+      evidenceReference: 'SIGNED-IC-EXACT-01',
+      sellerTaxonomyCode: 'ASSETS.IC_AR',
+      buyerTaxonomyCode: 'LIABILITIES.IC_AP',
+      differenceReason: 'One micro-unit timing difference.',
+      matchMode: 'ONE_TO_ONE',
+      matchGroupReference: '',
+      outsidePerimeterReview: false,
+      expectedGroupRevision: 1,
+      reviewed: true,
+    }, 'POST');
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+  });
+
+  it('shows stored signed net beside gross residual and requires a reason for partial matches', () => {
+    const partial = intercompanyMatch(matchId1, 'APPROVED', id2, id3);
+    Object.assign(partial, {
+      sellerAmount: '100.000000', buyerAmount: '-100.000000', matchedAmount: '50.000000', difference: '0.000000',
+      unmatchedResidual: '100.000000', differenceReason: '',
+    });
+    const positive = intercompanyMatch(matchId2, 'SUBMITTED', id2);
+    Object.assign(positive, {
+      sellerAmount: '100.000000', buyerAmount: '-90.000000', matchedAmount: '90.000000', difference: '10.000000',
+      unmatchedResidual: '10.000000',
+    });
+    const negative = intercompanyMatch(matchId3, 'SUBMITTED', id2);
+    Object.assign(negative, {
+      sellerAmount: '90.000000', buyerAmount: '-100.000000', matchedAmount: '90.000000', difference: '-10.000000',
+      unmatchedResidual: '10.000000',
+    });
+    intercompanyMatchesData.set(decodeIntercompanyExceptionsPage(
+      intercompanyPagePayload([partial, positive, negative], 1, 1, 3, '0.000000', '120.000000'), 'root'));
+    const { fixture, component } = open();
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.textContent).toContain('signed net difference (stored; rows may offset) 0.000000');
+    expect(page.textContent).toContain('gross unmatched exposure across 3 matches in this view');
+    expect(page.textContent).toContain('Gross unmatched residual on both sides');
+    expect(page.textContent).toContain('membership overlaps scope reporting period');
+    expect(page.textContent).toContain('2026-01-01');
+    expect(page.textContent).toContain('2026-12-31');
+    expect(page.textContent).toContain('100.000000');
+
+    component.intercompanyForm = {
+      ...component.intercompanyForm,
+      sellerClientId: id2, buyerClientId: id3, periodCode: 'FY2026', transactionReference: 'IC-PARTIAL',
+      sellerAmount: '100.000000', buyerAmount: '-100.000000', matchedAmount: '50.000000',
+      sellerTaxonomyCode: 'ASSETS.IC_AR', buyerTaxonomyCode: 'LIABILITIES.IC_AP',
+      evidenceReference: 'SIGNED-IC-PARTIAL', differenceReason: '', reviewed: true,
+    };
+    const workspace = component.ws.data()!;
+    const options = component.intercompanyMatchOptions.data()!;
+    expect(component.intercompanyDifferenceReasonRequired()).toBe(true);
+    expect(component.canSubmitIntercompanyMatch(workspace, options)).toBe(false);
+    component.intercompanyForm.differenceReason = 'The remaining balances are supported by the signed confirmation.';
+    expect(component.canSubmitIntercompanyMatch(workspace, options)).toBe(true);
+
+    const missingPeriodOptions = decodeIntercompanyMatchOptions(intercompanyOptionsPayload({
+      periodStartDate: null,
+      periodEndDate: null,
+      membershipBlocker: 'The scope reporting period date is missing or invalid; member eligibility cannot be confirmed.',
+      members: [],
+    }), 'root');
+    intercompanyOptionsData.set(missingPeriodOptions);
+    fixture.detectChanges();
+    expect(page.textContent).toContain('member eligibility cannot be confirmed');
+    expect(component.canSubmitIntercompanyMatch(workspace, missingPeriodOptions)).toBe(false);
+  });
+
+  it('blocks malformed exact amounts and changed group revisions before dispatch', () => {
+    const { component } = open();
+    component.intercompanyForm = {
+      ...component.intercompanyForm,
+      sellerClientId: id2, buyerClientId: id3, periodCode: '2026-12', transactionReference: 'IC-BAD',
+      sellerAmount: '1e3', buyerAmount: '-1000', matchedAmount: '1000', sellerTaxonomyCode: 'ASSETS.IC_AR',
+      buyerTaxonomyCode: 'LIABILITIES.IC_AP', evidenceReference: 'SIGNED-IC-BAD', reviewed: true,
+    };
+    expect(component.canSubmitIntercompanyMatch(component.ws.data()!, component.intercompanyMatchOptions.data()!)).toBe(false);
+    const staleOptions = decodeIntercompanyMatchOptions(intercompanyOptionsPayload({ currentGroupRevision: 2 }), 'root');
+    component.intercompanyForm.sellerAmount = '1000.000000';
+    component.intercompanyForm.buyerAmount = '-1000.000000';
+    component.intercompanyForm.matchedAmount = '1000.000000';
+    expect(component.canSubmitIntercompanyMatch(component.ws.data()!, staleOptions)).toBe(false);
+    component.submitIntercompanyMatch(component.ws.data()!, staleOptions);
+    expect(api.command).not.toHaveBeenCalled();
+  });
+
+  it('renders one selected component correction handoff from the current preparable scope and clears selection on scope change', async () => {
+    const firstComponent = consolidationComponent(matchId1, id2);
+    const secondComponent = consolidationComponent(matchId2, id3);
+    const { fixture, component } = open(workspacePayload({ components: [firstComponent, secondComponent] }));
+    const rows = [...fixture.nativeElement.querySelectorAll('#components tbody tr')] as HTMLTableRowElement[];
+    const selectButtons = rows.map((row) => row.querySelector('button') as HTMLButtonElement);
+    expect(selectButtons.map((button) => button.textContent?.trim())).toEqual(['Correct source', 'Correct source']);
+
+    selectButtons[0].click();
+    fixture.detectChanges();
+    let handoffs = fixture.nativeElement.querySelectorAll('audit-consolidation-component-correction');
+    expect(handoffs).toHaveLength(1);
+    expect(handoffs[0].textContent).toContain(firstComponent.id);
+    expect(handoffs[0].textContent).toContain('Exact original scope and component evidence');
+
+    selectButtons[1].click();
+    fixture.detectChanges();
+    handoffs = fixture.nativeElement.querySelectorAll('audit-consolidation-component-correction');
+    expect(handoffs).toHaveLength(1);
+    expect(handoffs[0].textContent).toContain(secondComponent.id);
+    expect(handoffs[0].textContent).not.toContain(firstComponent.id);
+
+    params.next(convertToParamMap({ id: id3 }));
+    fixture.detectChanges();
+    await vi.waitFor(() => expect(component.selectedComponentCorrection()).toBeNull());
+    expect(fixture.nativeElement.querySelectorAll('audit-consolidation-component-correction')).toHaveLength(0);
+  });
+
+  it('hides component correction selection for users without the current prepare grant', () => {
+    const payload = workspacePayload({ canPrepare: false, components: [consolidationComponent(matchId1, id2)] });
+    const { fixture, component } = open(payload);
+    expect(fixture.nativeElement.querySelectorAll('#components tbody button')).toHaveLength(0);
+    component.toggleComponentCorrection(component.ws.data()!, matchId1);
+    expect(component.selectedComponentCorrection()).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('audit-consolidation-component-correction')).toHaveLength(0);
   });
 });

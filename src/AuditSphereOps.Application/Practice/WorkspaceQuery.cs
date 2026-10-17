@@ -18,7 +18,7 @@ public sealed record ClientWorkspacePaging(int EngagementPage = 0, int Engagemen
   int ContactPage = 0, int ContactPageSize = 10);
 public sealed record WorkspaceContact(Guid Id, string Name, string Email, string Role, bool Primary);
 public sealed record WorkspaceHold(string Kind, string Reason, bool Released, DateTimeOffset CreatedAt, DateTimeOffset? ReleasedAt,
-  Guid Id = default);
+  Guid Id);
 public sealed record EngagementHoldMetrics(int Total, int Active, int Released);
 public sealed record EngagementWorkspacePaging(int HoldPage = 0, int HoldPageSize = 10);
 public sealed record EngagementWorkspace(Guid Id, Guid ClientId, string ClientName, string ServiceRoute,

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
@@ -47,39 +48,76 @@ public static partial class UiEndpoints
       return await FinancialStatementService.EnqueueFinancialPackageBuildAsync(db, actor, input,
         http.RequestServices.GetRequiredService<IOperationStore>(),
         http.RequestServices.GetRequiredService<FinancialPackageBuildHandler>(), ct);
-    })).Accepts<BuildFinancialPackageRequest>("application/json");
+    })).Accepts<BuildFinancialPackageRequest>("application/json")
+      .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
 
-    group.MapUiGet("/accounting/reviews", http => ReadAsync(http, (db, actor, ct) => FinancialPackageReviewService.GetStaffQueueAsync(db, actor, ct)));
-    group.MapGet("/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => FinancialPackageWorkspaceQuery.GetAsync(db, actor, id, ct)));
+    group.MapUiGet("/accounting/reviews", http => ReadAsync(http, (db, actor, ct) => FinancialPackageReviewService.GetStaffQueueAsync(db, actor, ct)))
+      .Produces<IReadOnlyList<FinancialPackageReviewQueueItem>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
+    group.MapGet("/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => FinancialPackageWorkspaceQuery.GetAsync(db, actor, id, ct)))
+      .Produces<FinancialPackageWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/render", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialStatementService.EnqueueFinancialPackageRenderAsync(db, actor, id,
         http.RequestServices.GetRequiredService<IOperationStore>(),
-        http.RequestServices.GetRequiredService<FinancialPackageRenderHandler>(), ct)));
+        http.RequestServices.GetRequiredService<FinancialPackageRenderHandler>(), ct)))
+      .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/reviews", (Guid id, PackageReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialPackageReviewService.RecordAsync(db, actor,
         new FinancialPackageReviewRequest(id, i.Stage, i.Decision, i.EvidenceMode, i.EvidenceReference ?? "", i.Comment ?? "",
           i.PresentationRevisionId, i.TargetArtifactVersion, i.PresentationCompositionId, i.CompositionManifestDigest,
-          i.RequestId, i.ExpectedLatestDecisionId), ct)));
+          i.RequestId, i.ExpectedLatestDecisionId), ct)))
+      .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     // Independent review of a draft presentation's note, disclosure and equity content. Approval is what lets that exact draft become a
     // signing candidate; it is not a formal statement approval.
     group.MapGet("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/content-review", (Guid id, Guid revisionId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetStatementContentReviewAsync(db, actor, id, revisionId, ct)));
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetStatementContentReviewAsync(db, actor, id, revisionId, ct)))
+      .Produces<StatementContentReviewState>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/content-review", (Guid id, Guid revisionId,
       StatementContentReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialStatementService.RecordStatementContentReviewAsync(db, actor, id, revisionId,
-        i.Decision, i.Reason, i.RequestId, i.ExpectedSnapshotSha256Hex, i.ExpectedPreviousReviewId, ct)));
+        i.Decision, i.Reason, i.RequestId, i.ExpectedSnapshotSha256Hex, i.ExpectedPreviousReviewId, ct)))
+      .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     // Build inputs: the approved mappings, finalized plans and reporting periods a preparer can choose from.
     group.MapGet("/engagements/{id:guid}/financial-package-inputs", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => FinancialPackageBuildInputsQuery.GetAsync(db, actor, id, ct)));
+      ReadAsync(http, (db, actor, ct) => FinancialPackageBuildInputsQuery.GetAsync(db, actor, id, ct)))
+      .Produces<FinancialPackageBuildInputs>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapUiGet("/engagements/{id:guid}/financial-package-builds/{operationId:guid}", http => ReadAsync(http,
       (db, actor, ct) => FinancialPackageBuildStatusQuery.GetAsync(db, actor,
         Guid.Parse(http.Request.RouteValues["id"]!.ToString()!),
-        Guid.Parse(http.Request.RouteValues["operationId"]!.ToString()!), ct)));
+        Guid.Parse(http.Request.RouteValues["operationId"]!.ToString()!), ct)))
+      .Produces<FinancialPackageBuildStatus>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapGet("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetCashFlowSourceReviewAsync(db, actor, id, ct)));
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetCashFlowSourceReviewAsync(db, actor, id, ct)))
+      .Produces<CashFlowSourceReviewState>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/cash-flow-source-review", (Guid id, CashFlowSourceReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FinancialStatementService.RecordCashFlowSourceReviewAsync(db, actor, id, i.Decision, i.Reason,
-        i.RequestId, i.ExpectedLinkDigest, i.ExpectedPreviousReviewId, ct)));
+        i.RequestId, i.ExpectedLinkDigest, i.ExpectedPreviousReviewId, ct)))
+      .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     // Artifact downloads are version-bound; downloading never releases or delivers the package.
     group.MapPost("/accounting/packages/{id:guid}/artifact", async (Guid id, PackageArtifactInput i, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -99,10 +137,22 @@ public static partial class UiEndpoints
       var office = await FinancialStatementService.RenderPackageOfficeArtifactAsync(db, actor, id, i.ArtifactVersion ?? "", http.RequestAborted);
       if (!office.Succeeded || office.Value is null || package is null) return Failure(office.ErrorCode, office.Message ?? "Export artifact generation was blocked.");
       return Results.File(office.Value.ArtifactBytes, office.Value.ContentType, $"auditsphere-financial-package-{id:D}-r{package.Revision}.{office.Value.FileExtension}");
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    })
+      .Produces<string>(StatusCodes.Status200OK, "text/plain")
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.PdfContentType)
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.WordContentType)
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.ExcelContentType)
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
     // Statement presentation (FSR-002/010/011 slice): a read-only typed view, and version-bound exports of the same view.
     group.MapGet("/accounting/packages/{id:guid}/presentation", (Guid id, Guid? layoutVersionId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => FinancialStatementService.BuildPresentationAsync(db, actor, id, layoutVersionId, ct)));
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.BuildPresentationAsync(db, actor, id, layoutVersionId, ct)))
+      .Produces<FinancialStatementPresentation>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/presentation/export", async (Guid id, StatementPresentationExportInput i, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -117,20 +167,47 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       http.Response.Headers["X-Statement-Presentation-SHA256"] = result.Value.ArtifactSha256Hex;
       return Results.File(result.Value.Bytes, result.Value.ContentType, result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    })
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.PdfContentType)
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.WordContentType)
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.ExcelContentType)
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
 
     // A pinned draft is immutable; its exact bytes use the package artifact and seal manifest, while its status stays UNAPPROVED_DRAFT.
     group.MapUiGet("/accounting/packages/{id:guid}/presentation/pins", http =>
       ReadAsync(http, (db, actor, ct) => FinancialStatementService.ListPresentationPinsAsync(db, actor,
-        Guid.Parse(http.Request.RouteValues["id"]!.ToString()!), ct)));
+        Guid.Parse(http.Request.RouteValues["id"]!.ToString()!), ct)))
+      .Produces<IReadOnlyList<FinancialStatementPresentationPin>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/presentation/pins", (Guid id, StatementPresentationPinInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FinancialStatementService.PinPresentationAsync(db, actor, id, i.LayoutVersionId, ct)));
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.PinPresentationAsync(db, actor, id, i.LayoutVersionId, ct)))
+      .Produces<UiValueResponse<FinancialStatementPresentationPin>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapGet("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}", (Guid id, Guid revisionId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetPinnedPresentationAsync(db, actor, id, revisionId, ct)));
+      ReadAsync(http, (db, actor, ct) => FinancialStatementService.GetPinnedPresentationAsync(db, actor, id, revisionId, ct)))
+      .Produces<FinancialStatementPresentation>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/candidate", (Guid id, Guid revisionId, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FinancialStatementService.PromotePresentationToCandidateAsync(db, actor, id, revisionId, ct)));
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.PromotePresentationToCandidateAsync(db, actor, id, revisionId, ct)))
+      .Produces<UiValueResponse<FinancialStatementPresentationPin>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/composition", (Guid id, Guid revisionId, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FinancialStatementService.SelectCompositionAsync(db, actor, id, revisionId, ct)));
+      CommandAsync(http, (db, actor, ct) => FinancialStatementService.SelectCompositionAsync(db, actor, id, revisionId, ct)))
+      .Produces<UiValueResponse<FinancialStatementComposition>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/accounting/packages/{id:guid}/presentation/pins/{revisionId:guid}/artifacts", async (
       Guid id, Guid revisionId, StatementPresentationPinnedArtifactInput i, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -151,6 +228,14 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Statement-Presentation-SHA256"] = result.Value.ArtifactSha256Hex;
       http.Response.Headers["X-Statement-Presentation-Revision"] = result.Value.RevisionId.ToString("D");
       return Results.File(result.Value.Bytes, result.Value.ContentType, result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    })
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.PdfContentType)
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.WordContentType)
+      .Produces<Stream>(StatusCodes.Status200OK, FinancialStatementPresentationRenderer.ExcelContentType)
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status404NotFound, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }
 }

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using AuditSphereOps.Application.Microsoft365;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Api.Ui;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Antiforgery;
@@ -10,6 +11,7 @@ namespace AuditSphereOps.Api;
 public static partial class ApiHost
 {
   public sealed record InstallationBootstrapInput(string Proof, bool Reviewed);
+  public sealed record InstallationBootstrapResponse(bool Completed, bool RequiresFreshSignIn);
 
   internal static Microsoft365InstallationOptions InstallationOptions(IConfiguration config) => new(
     Guid.TryParse(config["Setup:FirmId"] ?? config["Application:FirmId"], out var firmId) ? firmId : Guid.Empty,
@@ -47,7 +49,10 @@ public static partial class ApiHost
       http.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, new CookieOptions { HttpOnly = false, SameSite = SameSiteMode.Strict,
         Path = "/", Secure = http.Request.IsHttps || !(app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test")) });
       return UiEndpoints.UiResult(result.Value);
-    });
+    })
+      .Produces<InstallationBootstrapStatus>(StatusCodes.Status200OK)
+      .Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable);
     group.MapPost("/bootstrap", async (InstallationBootstrapInput input, HttpContext http, IConfiguration config,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -59,7 +64,11 @@ public static partial class ApiHost
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await Microsoft365InstallationService.BootstrapAsync(db, InstallationOptions(config), identity,
         input.Proof ?? string.Empty, input.Reviewed, DateTimeOffset.UtcNow, http.RequestAborted);
-      return result.Succeeded ? Results.Ok(new { completed = true, requiresFreshSignIn = true }) : UiEndpoints.Failure(result.ErrorCode, result.Message);
-    });
+      return result.Succeeded ? Results.Ok(new InstallationBootstrapResponse(true, true)) : UiEndpoints.Failure(result.ErrorCode, result.Message);
+    })
+      .Produces<InstallationBootstrapResponse>(StatusCodes.Status200OK)
+      .Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status400BadRequest)
+      .Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable);
   }
 }

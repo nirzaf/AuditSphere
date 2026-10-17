@@ -28,9 +28,9 @@ public static partial class ConsolidationService
         currency.Any(c => c is < 'A' or > 'Z') || string.IsNullOrWhiteSpace(request.PeriodBasis) ||
         string.IsNullOrWhiteSpace(request.TaxonomyVersion) || string.IsNullOrWhiteSpace(request.MappingVersion) ||
         string.IsNullOrWhiteSpace(request.SourceReference) || !IsSha256(rawHash) || !IsSha256(normalizedDigest) ||
-        request.Lines is null || request.Lines.Count == 0)
+        request.Lines is null || request.Lines.Count is < 1 or > ConsolidationExternalComponentPackQuery.MaximumPackLines)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
-        "An external component pack needs a bounded dated source, both source digests and at least one typed line.");
+        $"An external component pack needs a bounded dated source, both source digests and 1-{ConsolidationExternalComponentPackQuery.MaximumPackLines} typed lines.");
     if (request.Lines.Any(x => string.IsNullOrWhiteSpace(x.TaxonomyCode) || string.IsNullOrWhiteSpace(x.SourceLineReference) ||
         x.Currency.Trim().ToUpperInvariant() != currency || x.Amount != MoneyPolicy.Normalize(x.Amount)))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
@@ -40,20 +40,18 @@ public static partial class ConsolidationService
     if (declaredTotal != lineTotal)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
         "The external component declared total does not reconcile to its imported lines.");
+    if (!string.Equals(normalizedDigest, ComputeNormalizedSourceDigest(request.Lines), StringComparison.Ordinal))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "The normalized source digest does not match the exact imported lines.");
 
-    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.Id == request.ScopeVersionId && x.FirmId == actor.FirmId, ct);
-    if (scope is null)
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await GroupAuthAsync(db, actor, scope.GroupId, PreparerRoles, ct);
-    if (!auth.Succeeded)
-      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    if (scope.Status != AccountingWorkflowStates.Draft)
-      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The perimeter is no longer collecting component packs.");
-    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
-    if (!await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.ClientId == request.ClientId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct))
+    await using var ownedTransaction = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
+    var scopeResult = await LockExternalPackScopeAsync(
+      db, actor, request.ScopeVersionId, PreparerRoles, request.ExpectedGroupRevision, ct);
+    if (!scopeResult.Succeeded)
+      return CommandResult<Guid>.Fail(scopeResult.ErrorCode!, scopeResult.Message!);
+    var scope = scopeResult.Value!.Scope;
+    if (!await HasExternalPackMembershipAsync(db, actor.FirmId, scope, request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The external component entity is not in the approved perimeter.");
     if (!await db.Engagements.AsNoTracking().AnyAsync(x => x.Id == request.EngagementId && x.FirmId == actor.FirmId && x.PracticeClientId == request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The external component engagement is outside the requested scope.");
@@ -116,6 +114,8 @@ public static partial class ConsolidationService
       Currency = currency, SourceLineReference = line.SourceLineReference.Trim()
     }));
     await db.SaveChangesAsync(ct);
+    if (ownedTransaction is not null)
+      await ownedTransaction.CommitAsync(ct);
     return CommandResult<Guid>.Ok(pack.Id);
   }
 
@@ -123,77 +123,111 @@ public static partial class ConsolidationService
     IClientAccountingDbContext db, ActorContext actor, ExternalComponentReconciliationRequest request,
     CancellationToken ct = default)
   {
-    var pack = await db.ExternalComponentPacks.SingleOrDefaultAsync(x => x.Id == request.PackId && x.FirmId == actor.FirmId, ct);
-    if (pack is null)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await GroupAuthAsync(db, actor, pack.GroupId, ReviewerRoles, ct);
-    if (!auth.Succeeded)
-      return auth;
+    await using var ownedTransaction = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
+    var locked = await LockExternalComponentPackAsync(
+      db, actor, request.PackId, ReviewerRoles, request.ExpectedGroupRevision, ct);
+    if (!locked.Succeeded)
+      return CommandResult.Fail(locked.ErrorCode!, locked.Message!);
+    var pack = locked.Value!.Pack;
     if (pack.Status is not (ExternalComponentPackStates.Submitted or ExternalComponentPackStates.Resubmitted) ||
+        pack.ReconciliationStatus != ExternalComponentReconciliationStates.Pending ||
         pack.SubmittedByUserId == actor.UserId || string.IsNullOrWhiteSpace(request.EvidenceReference))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "A separate reviewer must reconcile a submitted external component pack with evidence.");
     var lines = await db.ExternalComponentPackLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-      x.GroupId == pack.GroupId && x.ScopeVersionId == pack.ScopeVersionId && x.ExternalComponentPackId == pack.Id).ToListAsync(ct);
+      x.GroupId == pack.GroupId && x.ScopeVersionId == pack.ScopeVersionId && x.ExternalComponentPackId == pack.Id)
+      .OrderBy(x => x.Id).ToListAsync(ct);
     if (!ExternalPackLinesMatch(pack, lines))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack no longer matches its imported line digest or declared total.");
-    pack.ReconciledSignedTotal = MoneyPolicy.Normalize(lines.Sum(x => x.Amount));
-    pack.ReconciliationStatus = ExternalComponentReconciliationStates.Reconciled;
-    pack.ReconciliationReference = request.EvidenceReference.Trim();
-    pack.ReconciledByUserId = actor.UserId;
-    pack.ReconciledAt = DateTimeOffset.UtcNow;
-    await db.SaveChangesAsync(ct);
+    var reconciledAt = DateTimeOffset.UtcNow;
+    var affected = await db.ExternalComponentPacks.Where(x => x.FirmId == actor.FirmId && x.GroupId == pack.GroupId &&
+        x.ScopeVersionId == pack.ScopeVersionId && x.Id == pack.Id &&
+        (x.Status == ExternalComponentPackStates.Submitted || x.Status == ExternalComponentPackStates.Resubmitted) &&
+        x.ReconciliationStatus == ExternalComponentReconciliationStates.Pending && x.SubmittedByUserId != actor.UserId)
+      .ExecuteUpdateAsync(setters => setters
+        .SetProperty(x => x.ReconciledSignedTotal, MoneyPolicy.Normalize(lines.Sum(line => line.Amount)))
+        .SetProperty(x => x.ReconciliationStatus, ExternalComponentReconciliationStates.Reconciled)
+        .SetProperty(x => x.ReconciliationReference, request.EvidenceReference.Trim())
+        .SetProperty(x => x.ReconciledByUserId, actor.UserId)
+        .SetProperty(x => x.ReconciledAt, (DateTimeOffset?)reconciledAt), ct);
+    if (affected != 1)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack changed while it was being reconciled.");
+    if (ownedTransaction is not null)
+      await ownedTransaction.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
   public static async Task<CommandResult> ReturnExternalComponentPackAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid packId, string reason,
-    CancellationToken ct = default)
+    CancellationToken ct = default, long expectedGroupRevision = 0)
   {
-    var pack = await db.ExternalComponentPacks.SingleOrDefaultAsync(x => x.Id == packId && x.FirmId == actor.FirmId, ct);
-    if (pack is null)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await GroupAuthAsync(db, actor, pack.GroupId, ReviewerRoles, ct);
-    if (!auth.Succeeded)
-      return auth;
+    await using var ownedTransaction = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
+    var locked = await LockExternalComponentPackAsync(
+      db, actor, packId, ReviewerRoles, expectedGroupRevision, ct);
+    if (!locked.Succeeded)
+      return CommandResult.Fail(locked.ErrorCode!, locked.Message!);
+    var pack = locked.Value!.Pack;
     if (pack.Status is not (ExternalComponentPackStates.Submitted or ExternalComponentPackStates.Resubmitted) ||
-        string.IsNullOrWhiteSpace(reason))
+        pack.SubmittedByUserId == actor.UserId || string.IsNullOrWhiteSpace(reason))
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only an active submitted pack can be returned with a reason.");
-    pack.Status = ExternalComponentPackStates.Returned;
-    pack.ReturnReason = reason.Trim();
-    pack.ReturnedByUserId = actor.UserId;
-    pack.ReturnedAt = DateTimeOffset.UtcNow;
-    await db.SaveChangesAsync(ct);
+    var returnedAt = DateTimeOffset.UtcNow;
+    var affected = await db.ExternalComponentPacks.Where(x => x.FirmId == actor.FirmId && x.GroupId == pack.GroupId &&
+        x.ScopeVersionId == pack.ScopeVersionId && x.Id == pack.Id &&
+        (x.Status == ExternalComponentPackStates.Submitted || x.Status == ExternalComponentPackStates.Resubmitted) &&
+        x.SubmittedByUserId != actor.UserId)
+      .ExecuteUpdateAsync(setters => setters
+        .SetProperty(x => x.Status, ExternalComponentPackStates.Returned)
+        .SetProperty(x => x.ReturnReason, reason.Trim())
+        .SetProperty(x => x.ReturnedByUserId, (Guid?)actor.UserId)
+        .SetProperty(x => x.ReturnedAt, (DateTimeOffset?)returnedAt), ct);
+    if (affected != 1)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack changed while it was being returned.");
+    if (ownedTransaction is not null)
+      await ownedTransaction.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
   public static async Task<CommandResult> ApproveExternalComponentPackAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid packId,
-    CancellationToken ct = default)
+    CancellationToken ct = default, long expectedGroupRevision = 0)
   {
-    var pack = await db.ExternalComponentPacks.SingleOrDefaultAsync(x => x.Id == packId && x.FirmId == actor.FirmId, ct);
-    if (pack is null)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await GroupAuthAsync(db, actor, pack.GroupId, ReviewerRoles, ct);
-    if (!auth.Succeeded)
-      return auth;
+    await using var ownedTransaction = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
+    var locked = await LockExternalComponentPackAsync(
+      db, actor, packId, ReviewerRoles, expectedGroupRevision, ct);
+    if (!locked.Succeeded)
+      return CommandResult.Fail(locked.ErrorCode!, locked.Message!);
+    var pack = locked.Value!.Pack;
     if (pack.Status is not (ExternalComponentPackStates.Submitted or ExternalComponentPackStates.Resubmitted) ||
         pack.ReconciliationStatus != ExternalComponentReconciliationStates.Reconciled || pack.SubmittedByUserId == actor.UserId ||
         (pack.CompatibilityBridgeStatus == ExternalComponentBridgeStates.Pending && string.IsNullOrWhiteSpace(pack.CompatibilityBridgeReference)))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "A separate reviewer can approve only a reconciled external component pack.");
     var lines = await db.ExternalComponentPackLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-      x.GroupId == pack.GroupId && x.ScopeVersionId == pack.ScopeVersionId && x.ExternalComponentPackId == pack.Id).ToListAsync(ct);
+      x.GroupId == pack.GroupId && x.ScopeVersionId == pack.ScopeVersionId && x.ExternalComponentPackId == pack.Id)
+      .OrderBy(x => x.Id).ToListAsync(ct);
     if (!ExternalPackLinesMatch(pack, lines))
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack changed after reconciliation.");
-    pack.Status = ExternalComponentPackStates.Approved;
-    if (pack.CompatibilityBridgeStatus == ExternalComponentBridgeStates.Pending)
+    var approvedAt = DateTimeOffset.UtcNow;
+    var approveBridge = pack.CompatibilityBridgeStatus == ExternalComponentBridgeStates.Pending;
+    var affected = await db.ExternalComponentPacks.Where(x => x.FirmId == actor.FirmId && x.GroupId == pack.GroupId &&
+        x.ScopeVersionId == pack.ScopeVersionId && x.Id == pack.Id &&
+        (x.Status == ExternalComponentPackStates.Submitted || x.Status == ExternalComponentPackStates.Resubmitted) &&
+        x.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled && x.SubmittedByUserId != actor.UserId)
+      .ExecuteUpdateAsync(setters =>
     {
-      pack.CompatibilityBridgeStatus = ExternalComponentBridgeStates.Approved;
-      pack.CompatibilityBridgeApprovedByUserId = actor.UserId;
-      pack.CompatibilityBridgeApprovedAt = DateTimeOffset.UtcNow;
-    }
-    pack.ApprovedByUserId = actor.UserId;
-    pack.ApprovedAt = DateTimeOffset.UtcNow;
-    await db.SaveChangesAsync(ct);
+      setters.SetProperty(x => x.Status, ExternalComponentPackStates.Approved)
+        .SetProperty(x => x.ApprovedByUserId, (Guid?)actor.UserId)
+        .SetProperty(x => x.ApprovedAt, (DateTimeOffset?)approvedAt);
+      if (approveBridge)
+        setters.SetProperty(x => x.CompatibilityBridgeStatus, ExternalComponentBridgeStates.Approved)
+          .SetProperty(x => x.CompatibilityBridgeApprovedByUserId, (Guid?)actor.UserId)
+          .SetProperty(x => x.CompatibilityBridgeApprovedAt, (DateTimeOffset?)approvedAt);
+    }, ct);
+    if (affected != 1)
+      return CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack changed while it was being approved.");
+    if (ownedTransaction is not null)
+      await ownedTransaction.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -201,26 +235,22 @@ public static partial class ConsolidationService
     IClientAccountingDbContext db, ActorContext actor, ExternalComponentRequest request,
     CancellationToken ct = default)
   {
-    var pack = await db.ExternalComponentPacks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.ExternalComponentPackId &&
-      x.FirmId == actor.FirmId && x.ScopeVersionId == request.ScopeVersionId, ct);
-    if (pack is null)
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.ScopeVersionId &&
-      x.FirmId == actor.FirmId && x.GroupId == pack.GroupId, ct);
-    if (scope is null)
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await GroupAuthAsync(db, actor, scope.GroupId, PreparerRoles, ct);
-    if (!auth.Succeeded)
-      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var ownedTransaction = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
+    var locked = await LockExternalComponentPackAsync(
+      db, actor, request.ExternalComponentPackId, PreparerRoles, request.ExpectedGroupRevision, ct);
+    if (!locked.Succeeded)
+      return CommandResult<Guid>.Fail(locked.ErrorCode!, locked.Message!);
+    var pack = locked.Value!.Pack;
+    var scope = locked.Value.ScopeLock.Scope;
+    if (scope.Id != request.ScopeVersionId)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The external component pack is unavailable in this scope.");
     if (scope.Status != AccountingWorkflowStates.Draft || pack.Status != ExternalComponentPackStates.Approved ||
         pack.ReconciliationStatus != ExternalComponentReconciliationStates.Reconciled)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only an approved and reconciled external pack can enter consolidation.");
-    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     if (request.OwnershipPercent != 100m || !request.ControlMethod.Equals("CONTROLLED", StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile requires a fully-owned controlled component.");
-    if (!await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.ClientId == pack.ClientId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct))
+    if (!await HasExternalPackMembershipAsync(db, actor.FirmId, scope, pack.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The component legal entity is not in the approved perimeter.");
     if (scope.Method == ConsolidationCalculator.RestrictedMethod && pack.ReportingCurrency != scope.ReportingCurrency)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile accepts only same-currency component packs.");
@@ -234,7 +264,8 @@ public static partial class ConsolidationService
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The component pack currency is outside the approved translation policy.");
     }
     var lines = await db.ExternalComponentPackLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-      x.GroupId == pack.GroupId && x.ScopeVersionId == pack.ScopeVersionId && x.ExternalComponentPackId == pack.Id).ToListAsync(ct);
+      x.GroupId == pack.GroupId && x.ScopeVersionId == pack.ScopeVersionId && x.ExternalComponentPackId == pack.Id)
+      .OrderBy(x => x.Id).ToListAsync(ct);
     if (!ExternalPackLinesMatch(pack, lines))
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The external component pack no longer matches its approved line digest.");
     if (await db.ConsolidationComponents.AnyAsync(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.ClientId == pack.ClientId, ct))
@@ -250,7 +281,96 @@ public static partial class ConsolidationService
     };
     db.ConsolidationComponents.Add(component);
     await db.SaveChangesAsync(ct);
+    if (ownedTransaction is not null)
+      await ownedTransaction.CommitAsync(ct);
     return CommandResult<Guid>.Ok(component.Id);
+  }
+
+  private sealed record ExternalPackScopeLock(ClientGroup Group, ConsolidationScopeVersion Scope);
+  private sealed record ExternalPackLock(ExternalPackScopeLock ScopeLock, ExternalComponentPack Pack);
+
+  private static Task<bool> HasExternalPackMembershipAsync(
+    IClientAccountingDbContext db, Guid firmId, ConsolidationScopeVersion scope, Guid clientId, CancellationToken ct) =>
+    ConsolidationExternalComponentPackQuery.EligibleMemberships(db, firmId, scope)
+      .AnyAsync(x => x.ClientId == clientId, ct);
+
+  private static async Task<CommandResult<ExternalPackScopeLock>> LockExternalPackScopeAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scopeVersionId,
+    IReadOnlyList<string> roles, long expectedGroupRevision, CancellationToken ct)
+  {
+    var scopeIdentity = await db.ConsolidationScopeVersions.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == scopeVersionId)
+      .Select(x => new { x.GroupId }).SingleOrDefaultAsync(ct);
+    if (scopeIdentity is null)
+      return CommandResult<ExternalPackScopeLock>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var auth = await GroupAuthAsync(db, actor, scopeIdentity.GroupId, roles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ExternalPackScopeLock>.Fail(auth.ErrorCode!, auth.Message!);
+
+    // Role revocation takes the firm row exclusively. Hold its shared fence before
+    // group -> scope -> pack locks, then reauthorize, so a committed revocation wins.
+    if (!await LockGroupAuthorityFenceAsync(db, actor.FirmId, ct))
+      return CommandResult<ExternalPackScopeLock>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
+
+    var group = await db.ClientGroups.FromSqlInterpolated($"""
+      SELECT * FROM client_groups WHERE id = {scopeIdentity.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    var scope = await db.ConsolidationScopeVersions.FromSqlInterpolated($"""
+      SELECT * FROM consolidation_scope_versions
+      WHERE id = {scopeVersionId} AND group_id = {scopeIdentity.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    if (group is null || scope is null)
+      return CommandResult<ExternalPackScopeLock>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    auth = await GroupAuthAsync(db, actor, group.Id, roles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ExternalPackScopeLock>.Fail(auth.ErrorCode!, auth.Message!);
+    if (group.Revision != scope.GroupRevision || expectedGroupRevision < 0 ||
+        expectedGroupRevision > 0 && expectedGroupRevision != group.Revision)
+      return CommandResult<ExternalPackScopeLock>.Fail(ErrorCodes.GenerationStale,
+        "The group perimeter changed; review the current group revision and create a new scope version.");
+    if (scope.Status != AccountingWorkflowStates.Draft)
+      return CommandResult<ExternalPackScopeLock>.Fail(ErrorCodes.ProtectedState,
+        "The consolidation scope is no longer a draft accepting external pack changes.");
+    return CommandResult<ExternalPackScopeLock>.Ok(new ExternalPackScopeLock(group, scope));
+  }
+
+  private static async Task<CommandResult<ExternalPackLock>> LockExternalComponentPackAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid packId,
+    IReadOnlyList<string> roles, long expectedGroupRevision, CancellationToken ct)
+  {
+    var identity = await db.ExternalComponentPacks.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == packId)
+      .Select(x => new { x.GroupId, x.ScopeVersionId }).SingleOrDefaultAsync(ct);
+    if (identity is null)
+      return CommandResult<ExternalPackLock>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var scopeResult = await LockExternalPackScopeAsync(
+      db, actor, identity.ScopeVersionId, roles, expectedGroupRevision, ct);
+    if (!scopeResult.Succeeded)
+      return CommandResult<ExternalPackLock>.Fail(scopeResult.ErrorCode!, scopeResult.Message!);
+    var scopeLock = scopeResult.Value!;
+    if (scopeLock.Group.Id != identity.GroupId)
+      return CommandResult<ExternalPackLock>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var freshPack = await db.ExternalComponentPacks.FromSqlInterpolated($"""
+      SELECT * FROM external_component_packs
+      WHERE id = {packId} AND firm_id = {actor.FirmId} AND group_id = {scopeLock.Group.Id}
+        AND scope_version_id = {scopeLock.Scope.Id} FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    if (freshPack is null)
+      return CommandResult<ExternalPackLock>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    // Recheck the current grant after all perimeter and pack locks are held.
+    var auth = await GroupAuthAsync(db, actor, scopeLock.Group.Id, roles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<ExternalPackLock>.Fail(auth.ErrorCode!, auth.Message!);
+    if (!await HasExternalPackMembershipAsync(db, actor.FirmId, scopeLock.Scope, freshPack.ClientId, ct))
+      return CommandResult<ExternalPackLock>.Fail(ErrorCodes.GateBlocked,
+        "The component legal entity is not in the approved reporting-period perimeter.");
+
+    return CommandResult<ExternalPackLock>.Ok(new ExternalPackLock(scopeLock, freshPack));
   }
 
   private static bool TryCanonicalObject(string json, out string canonical)
@@ -285,6 +405,23 @@ public static partial class ConsolidationService
         .Select(x => string.Join('|', x.TaxonomyCode.Trim(), MoneyPolicy.Normalize(x.Amount).ToString("0.000000", CultureInfo.InvariantCulture),
           x.Currency.Trim().ToUpperInvariant(), x.SourceLineReference.Trim()))));
 
+  private static string ComputeNormalizedSourceDigest(IEnumerable<ExternalComponentPackLineRequest> lines)
+  {
+    var canonicalLines = lines.Select(line => new
+      {
+        TaxonomyCode = line.TaxonomyCode.Trim(),
+        Amount = MoneyPolicy.Normalize(line.Amount).ToString("0.000000", CultureInfo.InvariantCulture),
+        Currency = line.Currency.Trim().ToUpperInvariant(),
+        SourceLineReference = line.SourceLineReference.Trim()
+      })
+      .OrderBy(line => line.SourceLineReference, StringComparer.Ordinal)
+      .ThenBy(line => line.TaxonomyCode, StringComparer.Ordinal)
+      .ThenBy(line => line.Currency, StringComparer.Ordinal)
+      .ThenBy(line => line.Amount, StringComparer.Ordinal);
+    return Hashing.Sha256Hex(string.Join('\n', canonicalLines.Select(line =>
+      string.Join('|', line.TaxonomyCode, line.Amount, line.Currency, line.SourceLineReference))));
+  }
+
   internal static bool ExternalPackLinesMatch(ExternalComponentPack pack, IReadOnlyCollection<ExternalComponentPackLine> lines)
   {
     if (lines.Count == 0 || lines.Any(x => x.Currency != pack.ReportingCurrency || x.Amount != MoneyPolicy.Normalize(x.Amount)))
@@ -297,6 +434,8 @@ public static partial class ConsolidationService
       pack.RawSourceHash, pack.NormalizedSourceDigest, pack.DeclaredSignedTotal,
       pack.CompatibilityBridgeReference,
       lines.Select(x => new ExternalComponentPackLineRequest(x.TaxonomyCode, x.Amount, x.Currency, x.SourceLineReference)));
-    return digest == pack.PackDigest;
+    var normalizedDigest = ComputeNormalizedSourceDigest(lines.Select(x =>
+      new ExternalComponentPackLineRequest(x.TaxonomyCode, x.Amount, x.Currency, x.SourceLineReference)));
+    return digest == pack.PackDigest && normalizedDigest == pack.NormalizedSourceDigest;
   }
 }

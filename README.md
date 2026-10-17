@@ -308,31 +308,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\db\stop.ps1     # Fa
 
 ## Build, Migrate, Test & Benchmark
 
+Development uses one focused verification cohort after a coherent change, as defined in `AGENTS.md` and [the testing strategy](docs/testing/auditsphere-testing-strategy-definition-of-done-current.md). Install dependencies only for a fresh environment or changed lockfiles. Build the affected project when compilation risk warrants; check EF model drift after model/migration changes and OpenAPI drift after contract changes. Do not run full suites locally.
+
 ```bash
-# 0. Build and test the separate Angular frontend
-npm --prefix src/AuditSphereOps.Ui ci
-npm --prefix src/AuditSphereOps.Ui run build
-npm --prefix src/AuditSphereOps.Ui run test:ci
-
-# 1. Build the entire solution in Release mode (restore first if needed)
-dotnet build AuditSphereOps.slnx --no-restore --configuration Release
-
-# 2. Run the complete PostgreSQL-backed solution test suite
-dotnet test AuditSphereOps.slnx --no-build --configuration Release
-
-# 3. Verify EF Core model changes against the applied migrations
-dotnet ef migrations has-pending-model-changes \
-  --project src/AuditSphereOps.Infrastructure \
-  --startup-project src/AuditSphereOps.Api \
-  --configuration Release
-
-# 4. Optional: run the representative accounting benchmark
-dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj \
-  --no-restore --configuration Release \
-  --filter 'FullyQualifiedName~AccountingBenchmarkTests'
+./scripts/agent-check --list
+./scripts/agent-check <capability>        # prerequisites only
+./scripts/agent-check <capability> --run  # selected cohort only
 ```
 
-The hosted GitHub Actions workflow checks the Angular build/unit tests, pinned SDK, locked restore, Release solution build, API model drift/publication and documentation health. It does not execute the PostgreSQL-backed Domain/API/browser suites. Those require the configured local database and browser runner; hosted build success does not establish their acceptance or live Microsoft readiness.
+The fast `ci.yml` gate runs Angular build/specs, Release compilation, database-free guards, EF/OpenAPI drift and documentation checks. Complete unfiltered Domain, API, PostgreSQL/browser and Angular regressions run in `release-verification.yml` on an immutable SHA. Require that current-SHA release evidence for a release; fast CI alone proves neither full regression acceptance nor live Microsoft readiness. Full-suite commands belong to that workflow, not the normal local edit loop.
 
 ### Database Test Isolation
 

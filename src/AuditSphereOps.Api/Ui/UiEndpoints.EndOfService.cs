@@ -7,21 +7,26 @@ public static partial class UiEndpoints
   public sealed record EndOfServiceTreatmentInput(string MeasurementTreatment, string AccountantName, string AccountantCredential,
     Guid ProvisionAccountId, Guid ExpenseAccountId, long ExpectedVersion, bool Reviewed);
   public sealed record EndOfServiceConfirmationInput(string Note, bool Reviewed);
+  public sealed record EndOfServiceAccrualForm(Guid PeriodId, Guid RequestId, string Amount,
+    DateOnly CalculationDate, string Method, string Inputs, string Reason, bool Reviewed, IFormFile? Evidence);
 
   /// <summary>End-of-service provision: recorded and confirmed treatment, then manual accruals through the journal maker and checker.</summary>
   private static void MapEndOfServiceEndpoints(RouteGroupBuilder group)
   {
-    group.MapUiGet("/finance/end-of-service", http => ReadAsync(http, (db, actor, ct) => EndOfServiceWorkspaceQuery.GetAsync(db, actor, ct)));
+    group.MapUiGet("/finance/end-of-service", http => ReadAsync(http, (db, actor, ct) => EndOfServiceWorkspaceQuery.GetAsync(db, actor, ct)))
+      .Produces<EndOfServiceWorkspace>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
     group.MapPost("/finance/end-of-service/treatment", (EndOfServiceTreatmentInput input, HttpContext http) =>
       !input.Reviewed
         ? Task.FromResult(Invalid("Confirm that you reviewed the treatment before recording it."))
         : CommandAsync(http, (db, actor, ct) => LedgerService.RecordEndOfServiceTreatmentAsync(db, actor,
             new RecordEndOfServiceTreatmentRequest(input.MeasurementTreatment ?? "", input.AccountantName ?? "", input.AccountantCredential ?? "",
-              input.ProvisionAccountId, input.ExpenseAccountId, input.ExpectedVersion), ct)));
+              input.ProvisionAccountId, input.ExpenseAccountId, input.ExpectedVersion), ct)))
+      .Produces<UiValueResponse<Guid>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapPost("/finance/end-of-service/treatment/{id:guid}/confirm", (Guid id, EndOfServiceConfirmationInput input, HttpContext http) =>
       !input.Reviewed
         ? Task.FromResult(Invalid("Confirm that you reviewed the treatment before confirming it."))
-        : CommandAsync(http, (db, actor, ct) => LedgerService.ConfirmEndOfServiceTreatmentAsync(db, actor, id, input.Note ?? "", ct)));
+        : CommandAsync(http, (db, actor, ct) => LedgerService.ConfirmEndOfServiceTreatmentAsync(db, actor, id, input.Note ?? "", ct)))
+      .Produces<UiValueResponse<bool>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapUiPost("/finance/end-of-service/accruals", async http =>
     {
       if (!http.Request.HasFormContentType) return Invalid("Send the accrual and any supporting document as a multipart form.");
@@ -37,6 +42,7 @@ public static partial class UiEndpoints
       return await CommandAsync(http, (db, actor, ct) => LedgerService.CreateEndOfServiceAccrualDraftAsync(db, actor,
         new CreateEndOfServiceAccrualRequest(periodId, amount, form["method"].ToString(), form["inputs"].ToString(), calculationDate,
           form["reason"].ToString(), requestId, evidence?.Name, evidence?.ContentType, evidence?.Content), ct));
-    });
+    }).Accepts<EndOfServiceAccrualForm>("multipart/form-data")
+      .Produces<UiValueResponse<Guid>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
   }
 }

@@ -12,15 +12,19 @@ public static partial class UiEndpoints
 
   private static void MapRateCardEndpoints(RouteGroupBuilder group)
   {
-    group.MapUiGet("/practice/rate-cards", http => ReadAsync(http, (db, actor, ct) => RateCardWorkspaceQuery.GetAsync(db, actor, ct)));
+    group.MapUiGet("/practice/rate-cards", http => ReadAsync(http, (db, actor, ct) => RateCardWorkspaceQuery.GetAsync(db, actor, ct)))
+      .WithT046Response<RateCardWorkspaceView>();
     group.MapPost("/practice/rate-cards", (RateCardInput input, HttpContext http) =>
       TryDecimal(input.RatePerHour, out var rate)
         ? CommandAsync(http, (db, actor, ct) => PracticeTimeService.ReviseRateCardAsync(db, actor,
             new RateCardDraftRequest(input.Role, input.Activity, input.Currency, rate, input.ExpectedVersion), ct))
-        : Task.FromResult(Invalid("Enter the hourly rate as a number.")));
+        : Task.FromResult(Invalid("Enter the hourly rate as a number.")))
+      .WithT046Response<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/practice/rate-cards/{id:guid}/approve", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => PracticeTimeService.ApproveRateCardAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => PracticeTimeService.ApproveRateCardAsync(db, actor, id, ct)))
+      .WithT046Response<UiValueResponse<bool>>();
     group.MapUiPost("/practice/rate-cards/ste-baseline", http =>
-      CommandAsync(http, (db, actor, ct) => SteChargeOutRateBaseline.InitializeDraftsAsync(db, actor, ct)));
+      CommandAsync(http, (db, actor, ct) => SteChargeOutRateBaseline.InitializeDraftsAsync(db, actor, ct)))
+      .WithT046Response<UiValueResponse<IReadOnlyList<Guid>>>();
   }
 }

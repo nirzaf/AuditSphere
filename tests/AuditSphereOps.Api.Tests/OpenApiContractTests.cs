@@ -140,6 +140,193 @@ public sealed class OpenApiContractTests
   }
 
   [Fact]
+  public async Task SessionSearchAndAuthenticationProtocolsDescribeTheirActualWireShapes()
+  {
+    using var factory = ContractFactory();
+    using var client = factory.CreateClient();
+    var contract = await FetchContractAsync(client);
+    var paths = contract.GetProperty("paths");
+    JsonElement SuccessSchema(string path)
+    {
+      var schema = paths.GetProperty(path).GetProperty("get").GetProperty("responses").GetProperty("200")
+        .GetProperty("content").GetProperty("application/json").GetProperty("schema");
+      return schema.TryGetProperty("$ref", out var reference)
+        ? contract.GetProperty("components").GetProperty("schemas").GetProperty(reference.GetString()!.Split('/').Last()) : schema;
+    }
+    var session = SuccessSchema("/api/ui/session").GetProperty("properties");
+    Assert.Equal("uuid", session.GetProperty("userId").GetProperty("format").GetString());
+    Assert.Equal("uuid", session.GetProperty("firmId").GetProperty("format").GetString());
+    Assert.Equal("string", session.GetProperty("generation").GetProperty("type").GetString());
+    Assert.Equal("boolean", session.GetProperty("staff").GetProperty("type").GetString());
+    var search = SuccessSchema("/api/ui/search").GetProperty("properties");
+    Assert.Equal("array", search.GetProperty("hits").GetProperty("type").GetString());
+    Assert.Equal("string", search.GetProperty("term").GetProperty("type").GetString());
+    Assert.Equal("boolean", search.GetProperty("truncated").GetProperty("type").GetString());
+    var signOut = paths.GetProperty("/api/ui/sign-out").GetProperty("post").GetProperty("responses");
+    Assert.True(signOut.TryGetProperty("204", out var noContent));
+    Assert.False(noContent.TryGetProperty("content", out _));
+    Assert.False(signOut.TryGetProperty("200", out _));
+    foreach (var path in new[] { "/", "/auth/sign-in", "/auth/landing", "/auth/sign-out",
+      "/auth/m365-consent/callback", "/auth/m365-consent/identity-callback" })
+    {
+      var responses = paths.GetProperty(path).GetProperty("get").GetProperty("responses");
+      Assert.True(responses.TryGetProperty("302", out var redirect), $"{path} must describe its redirect.");
+      Assert.False(redirect.TryGetProperty("content", out _));
+      Assert.False(responses.TryGetProperty("200", out _));
+    }
+    var denied = paths.GetProperty("/auth/access-not-assigned").GetProperty("get").GetProperty("responses").GetProperty("403");
+    Assert.True(denied.GetProperty("content").TryGetProperty("text/html", out _));
+    Assert.False(denied.GetProperty("content").TryGetProperty("application/json", out _));
+  }
+
+  [Fact]
+  public async Task TypedAccountingContractsKeepDirectReadsCommandValuesAndDownloadMediaDistinct()
+  {
+    using var factory = ContractFactory();
+    using var client = factory.CreateClient();
+    var contract = await FetchContractAsync(client);
+    var paths = contract.GetProperty("paths");
+    JsonElement Resolve(JsonElement schema)
+    {
+      if (schema.TryGetProperty("$ref", out var reference))
+        return Resolve(contract.GetProperty("components").GetProperty("schemas").GetProperty(reference.GetString()!.Split('/').Last()));
+      if (schema.TryGetProperty("oneOf", out var alternatives) || schema.TryGetProperty("anyOf", out alternatives))
+        return Resolve(Assert.Single(alternatives.EnumerateArray(), candidate =>
+          !candidate.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String || type.GetString() != "null"));
+      return schema;
+    }
+    JsonElement JsonSchema(string path, string method) => Resolve(paths.GetProperty(path).GetProperty(method)
+      .GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema"));
+    foreach (var (path, valueType, valueFormat) in new (string, string, string?)[]
+    {
+      ("/api/ui/gl-sources/{id}/acceptance", "string", "uuid"),
+      ("/api/ui/datasets/{id}/source/acceptance", "string", "uuid"),
+      ("/api/ui/datasets/{id}/adjustment-plans/preview", "object", null),
+      ("/api/ui/finance/end-of-service/treatment", "string", "uuid"),
+      ("/api/ui/finance/end-of-service/treatment/{id}/confirm", "boolean", null),
+      ("/api/ui/finance/books/expenses/{id}/submit", "boolean", null)
+    })
+    {
+      var value = Resolve(JsonSchema(path, "post").GetProperty("properties").GetProperty("value"));
+      Assert.Contains(valueType, SchemaTypes(value));
+      if (valueFormat is not null) Assert.Equal(valueFormat, value.GetProperty("format").GetString());
+      Assert.True(paths.GetProperty(path).GetProperty("post").GetProperty("responses").TryGetProperty("403", out _));
+    }
+    foreach (var path in new[] { "/api/ui/accounting/task-owners", "/api/ui/gl-sources/{id}/acceptance",
+      "/api/ui/accounting/adjustment-plans", "/api/ui/accounting/period-maintenance/clients/{clientId}/context", "/api/ui/finance/books" })
+      Assert.False(JsonSchema(path, "get").GetProperty("properties").TryGetProperty("value", out _));
+    foreach (var path in new[] { "/api/ui/datasets/{id}/source/export", "/api/ui/accounting/journals/{id}/instructions",
+      "/api/ui/finance/books/trial-balance/export" })
+    {
+      var content = paths.GetProperty(path).GetProperty("post").GetProperty("responses").GetProperty("200").GetProperty("content");
+      Assert.True(content.TryGetProperty("text/csv", out var csv));
+      Assert.Contains("string", SchemaTypes(Resolve(csv.GetProperty("schema"))));
+      Assert.False(content.TryGetProperty("application/json", out _));
+    }
+    foreach (var path in new[] { "/api/ui/finance/books/expenses", "/api/ui/finance/end-of-service/accruals" })
+    {
+      var content = paths.GetProperty(path).GetProperty("post").GetProperty("requestBody").GetProperty("content");
+      var fields = Resolve(content.GetProperty("multipart/form-data").GetProperty("schema")).GetProperty("properties");
+      Assert.Contains("string", SchemaTypes(fields.GetProperty("amount")));
+      Assert.True(fields.TryGetProperty("evidence", out _));
+      Assert.False(content.TryGetProperty("application/json", out _));
+    }
+    var nullableReceipt = paths.GetProperty("/api/ui/accounting/mappings/{id}/draft-receipts/{requestId}").GetProperty("get")
+      .GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema");
+    var alternatives = nullableReceipt.GetProperty("anyOf").EnumerateArray().ToArray();
+    Assert.Contains(alternatives, schema => schema.TryGetProperty("type", out var type) && type.GetString() == "null");
+    Assert.Contains(alternatives, schema => schema.TryGetProperty("$ref", out var reference) && reference.GetString()!.EndsWith("/MappingDraftReceipt", StringComparison.Ordinal));
+    var profile = contract.GetProperty("components").GetProperty("schemas").GetProperty("UiProfileResponse");
+    Assert.False(profile.TryGetProperty("discriminator", out _));
+    var profileVariants = profile.GetProperty("anyOf").EnumerateArray().Select(Resolve).ToArray();
+    Assert.Contains(profileVariants, variant => variant.GetProperty("properties").TryGetProperty("id", out _));
+    Assert.Contains(profileVariants, variant => variant.GetProperty("properties").TryGetProperty("revision", out _));
+    var download = paths.GetProperty("/api/ui/finance/journals/{id}/evidence").GetProperty("post")
+      .GetProperty("responses").GetProperty("200").GetProperty("content");
+    Assert.False(download.TryGetProperty("application/json", out _));
+    var binary = Resolve(download.GetProperty("application/octet-stream").GetProperty("schema"));
+    Assert.Equal("string", binary.GetProperty("type").GetString());
+    Assert.Equal("binary", binary.GetProperty("format").GetString());
+    var retainedDownload = paths.GetProperty("/api/pbc/uploads/{uploadId}/download").GetProperty("get")
+      .GetProperty("responses").GetProperty("200").GetProperty("content");
+    var retainedBinary = Resolve(retainedDownload.GetProperty("*/*").GetProperty("schema"));
+    Assert.Equal("string", retainedBinary.GetProperty("type").GetString());
+    Assert.Equal("binary", retainedBinary.GetProperty("format").GetString());
+    Assert.False(retainedDownload.TryGetProperty("application/json", out _));
+  }
+
+  [Fact]
+  public async Task PublishedUiSuccessResponsesHaveExplicitBodySchemasOrNoContent()
+  {
+    using var factory = ContractFactory();
+    using var client = factory.CreateClient();
+    var contract = await FetchContractAsync(client);
+    var missing = new List<string>();
+    static bool HasStructuralSchema(JsonElement schema) => schema.ValueKind == JsonValueKind.False ||
+      schema.ValueKind == JsonValueKind.Object && schema.EnumerateObject().Any(property => property.Name is
+        "$ref" or "type" or "properties" or "items" or "additionalProperties" or
+        "allOf" or "anyOf" or "oneOf" or "not" or "enum" or "const" or "pattern" or
+        "minimum" or "maximum" or "minLength" or "maxLength" or "minItems" or "maxItems" or "required");
+    foreach (var path in contract.GetProperty("paths").EnumerateObject()
+      .Where(x => x.Name.StartsWith("/api/ui/", StringComparison.Ordinal)))
+    foreach (var operation in path.Value.EnumerateObject().Where(x =>
+      x.Name is "get" or "post" or "put" or "patch" or "delete"))
+    foreach (var response in operation.Value.GetProperty("responses").EnumerateObject()
+      .Where(x => x.Name.StartsWith('2')))
+    {
+      // Empty success bodies must be explicit 204s. File/media responses need their own
+      // schemas too; inventing a JSON envelope does not satisfy this transport contract.
+      if (response.Name == "204")
+      {
+        Assert.False(response.Value.TryGetProperty("content", out _), $"{operation.Name} {path.Name} 204 has a body.");
+        continue;
+      }
+      if (!response.Value.TryGetProperty("content", out var content) ||
+          !content.EnumerateObject().Any() || content.EnumerateObject().Any(x =>
+            !x.Value.TryGetProperty("schema", out var schema) || !HasStructuralSchema(schema)))
+        missing.Add($"{operation.Name.ToUpperInvariant()} {path.Name} {response.Name}");
+    }
+    Assert.True(missing.Count == 0, "Missing success schemas: " + string.Join(", ", missing));
+  }
+
+  [Fact]
+  public async Task ManualProviderTransportParametersAndCookieRequirementsAreExplicit()
+  {
+    using var factory = ContractFactory();
+    using var client = factory.CreateClient();
+    var contract = await FetchContractAsync(client);
+    var paths = contract.GetProperty("paths");
+    var chunks = paths.GetProperty("/api/pbc/uploads/{uploadId}/chunks/{chunkIndex}").GetProperty("post");
+    var parameters = chunks.GetProperty("parameters").EnumerateArray().ToArray();
+    foreach (var name in new[] { "Origin", "X-Upload-Offset", "X-Content-SHA256", "X-Pbc-Upload-Capability" })
+    {
+      var header = Assert.Single(parameters, value => value.GetProperty("name").GetString() == name);
+      Assert.Equal("header", header.GetProperty("in").GetString());
+      Assert.True(header.GetProperty("required").GetBoolean());
+    }
+    var offset = Assert.Single(parameters, value => value.GetProperty("name").GetString() == "X-Upload-Offset");
+    Assert.Equal(0L, offset.GetProperty("schema").GetProperty("minimum").GetInt64());
+    foreach (var path in new[]
+      {
+        "/api/ui/proposals/{id}/client-conversion/receipts/{requestId}",
+        "/api/ui/engagements/{id}/specialist-preparation/state"
+      })
+      Assert.True(paths.GetProperty(path).GetProperty("get").GetProperty("responses").TryGetProperty("400", out _),
+        path + " must document required-query binding refusals.");
+    Assert.Contains("sessionCookie", chunks.GetProperty("security").EnumerateArray()
+      .SelectMany(value => value.EnumerateObject().Select(property => property.Name)));
+    var rawContent = chunks.GetProperty("requestBody").GetProperty("content");
+    Assert.True(rawContent.TryGetProperty("application/octet-stream", out _));
+    Assert.False(rawContent.TryGetProperty("application/json", out _));
+    var workspaces = paths.GetProperty("/api/ui/administration/microsoft365/workspaces").GetProperty("get");
+    var page = Assert.Single(workspaces.GetProperty("parameters").EnumerateArray(),
+      value => value.GetProperty("name").GetString() == "page");
+    Assert.Equal("query", page.GetProperty("in").GetString());
+    Assert.Equal("integer", page.GetProperty("schema").GetProperty("type").GetString());
+    Assert.False(page.TryGetProperty("required", out var required) && required.GetBoolean());
+  }
+
+  [Fact]
   public async Task SafeErrorSchemaIsDocumentedForBoundaryRefusals()
   {
     using var factory = ContractFactory();
@@ -163,6 +350,47 @@ public sealed class OpenApiContractTests
       .GetProperty("get").GetProperty("responses").GetProperty("429");
     var schema = throttled.GetProperty("content").EnumerateObject().First().Value.GetProperty("schema");
     Assert.EndsWith("/" + ApiContract.ApiErrorSchemaId, schema.GetProperty("$ref").GetString(), StringComparison.Ordinal);
+
+    JsonElement Resolve(JsonElement value) => value.TryGetProperty("$ref", out var reference)
+      ? schemas.GetProperty(reference.GetString()!.Split('/').Last()) : value;
+    var paths = contract.GetProperty("paths");
+    var unauthenticated = paths.GetProperty("/api/ui/practice/resources").GetProperty("get")
+      .GetProperty("responses").GetProperty("401");
+    Assert.Contains("empty body", unauthenticated.GetProperty("description").GetString(), StringComparison.Ordinal);
+    var sessionErrors = unauthenticated.GetProperty("content").GetProperty("application/json")
+      .GetProperty("schema").GetProperty("anyOf").EnumerateArray().Select(Resolve).ToArray();
+    Assert.Equal(2, sessionErrors.Length);
+    Assert.All(sessionErrors, variant =>
+    {
+      var properties = variant.GetProperty("properties");
+      Assert.True(properties.TryGetProperty("code", out _));
+      Assert.False(properties.TryGetProperty("correlationId", out _));
+    });
+    Assert.Contains(sessionErrors, variant => variant.GetProperty("properties").TryGetProperty("message", out _));
+    Assert.Contains(sessionErrors, variant => !variant.GetProperty("properties").TryGetProperty("message", out _));
+
+    var progress = paths.GetProperty("/api/ui/administration/project-progress").GetProperty("get")
+      .GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema");
+    var untracked = Resolve(progress).GetProperty("properties").GetProperty("untracked").GetProperty("items");
+    Assert.EndsWith("/ProjectUntrackedArea", untracked.GetProperty("$ref").GetString(), StringComparison.Ordinal);
+    var untrackedProperties = Resolve(untracked).GetProperty("properties");
+    Assert.Contains("string", SchemaTypes(untrackedProperties.GetProperty("name")));
+    Assert.Contains("string", SchemaTypes(untrackedProperties.GetProperty("route")));
+
+    foreach (var (path, method) in new[]
+      {
+        ("/api/ui/finance/end-of-service/treatment/{id}/confirm", "post"),
+        ("/api/ui/engagements/{id}/completion/clearance", "post"),
+        ("/api/ui/finance/books/expenses/receipts/{requestId}", "get"),
+        ("/api/ui/accounting/currency-configuration", "get"),
+        ("/api/ui/accounting/currency-configuration/sets/{id}", "get"),
+        ("/api/ui/accounting/currency-configuration/policies/{id}", "get")
+      })
+    {
+      var conflictSchema = paths.GetProperty(path).GetProperty(method).GetProperty("responses").GetProperty("409")
+        .GetProperty("content").GetProperty("application/json").GetProperty("schema");
+      Assert.EndsWith("/UiFailureResponse", conflictSchema.GetProperty("$ref").GetString(), StringComparison.Ordinal);
+    }
   }
 
   [Fact]
@@ -253,7 +481,9 @@ public sealed class OpenApiContractTests
     Assert.True(creditLookup.GetProperty("properties").TryGetProperty("code", out _));
     var purchaseDrafts = Body(Response(prefix + "/purchase-invoice-drafts", "get"));
     Assert.True(purchaseDrafts.GetProperty("properties").TryGetProperty("page", out _));
-    Assert.True(purchaseDrafts.GetProperty("properties").TryGetProperty("total", out _));
+    Assert.Equal("boolean", purchaseDrafts.GetProperty("properties").GetProperty("hasMore").GetProperty("type").GetString());
+    Assert.Equal("array", purchaseDrafts.GetProperty("properties").GetProperty("rows").GetProperty("type").GetString());
+    Assert.True(purchaseDrafts.GetProperty("properties").TryGetProperty("pageSize", out _));
   }
 
   [Fact]

@@ -24,6 +24,14 @@ public static partial class ConsolidationService
     IClientAccountingDbContext db, ActorContext actor, Guid groupId, IReadOnlyList<string> roles, CancellationToken ct)
     => await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, roles, ct);
 
+  // Called inside the mutation transaction before group/scope locks. Role changes
+  // take this row exclusively; current group authority is rechecked after the locks.
+  private static async Task<bool> LockGroupAuthorityFenceAsync(
+    IClientAccountingDbContext db, Guid firmId, CancellationToken ct) =>
+    await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
+
   private static Task<bool> HasMethodOwnerAcceptanceAsync(
     IClientAccountingDbContext db, Guid firmId, Guid groupId, string method, CancellationToken ct) =>
     (from profile in db.AccountingCapabilityProfiles.AsNoTracking()

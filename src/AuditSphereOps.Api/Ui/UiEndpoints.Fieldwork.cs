@@ -6,6 +6,9 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record SamplingRunCreatedResponse(int SelectedCount, int PopulationCount, decimal CoveragePercent,
+    Guid SelectionId, string PreviewDigest);
+
   public sealed record ApplicabilityInput(string Decision, string? Rationale, int ExpectedApplicabilityRevision,
     int ExpectedDefinitionRevision, Guid CommandId, Guid? ProposalDecisionId);
   public sealed record ProcedureRiskInput(Guid? RiskId);
@@ -42,51 +45,53 @@ public static partial class UiEndpoints
 
   private static void MapFieldworkEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/engagements/{id:guid}/manager-review", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => ManagerReviewSummaryQuery.GetAsync(db, actor, id, ct)));
-    group.MapGet("/engagements/{id:guid}/fieldwork", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.GetAsync(db, actor, id, ct)));
-    group.MapGet("/engagements/{id:guid}/fieldwork/program-options", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => EngagementAuditProgramQuery.GetOptionsAsync(db, actor, id, ct)));
-    group.MapGet("/procedures/{id:guid}/review", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.ProcedureAsync(db, actor, id, ct)));
-    group.MapPost("/procedures/{id:guid}/tailor", (Guid id, TailorProcedureInput i, HttpContext http) =>
+    UiEndpointContractMetadata.WithUiResponse<ManagerReviewSummary>(group.MapGet("/engagements/{id:guid}/manager-review", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ManagerReviewSummaryQuery.GetAsync(db, actor, id, ct))));
+    UiEndpointContractMetadata.WithUiResponse<AuditFieldworkWorkspace>(group.MapGet("/engagements/{id:guid}/fieldwork", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.GetAsync(db, actor, id, ct))));
+    UiEndpointContractMetadata.WithUiResponse<EngagementProgramOptionsView>(group.MapGet("/engagements/{id:guid}/fieldwork/program-options", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementAuditProgramQuery.GetOptionsAsync(db, actor, id, ct))));
+    UiEndpointContractMetadata.WithUiResponse<ProcedureReviewWorkspace>(group.MapGet("/procedures/{id:guid}/review", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.ProcedureAsync(db, actor, id, ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/procedures/{id:guid}/tailor", (Guid id, TailorProcedureInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditProgramService.TailorProcedureAsync(db, actor,
-        new TailorProcedureRequest(id, i.Title ?? "", i.CustomWording ?? "", i.Rationale, i.ExpectedDefinitionRevision, i.CommandId), ct)));
-    group.MapPost("/procedures/{id:guid}/workpaper", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditProgramService.GetOrCreateWorkpaperAsync(db, actor, id, ct)));
+        new TailorProcedureRequest(id, i.Title ?? "", i.CustomWording ?? "", i.Rationale, i.ExpectedDefinitionRevision, i.CommandId), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/procedures/{id:guid}/workpaper", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.GetOrCreateWorkpaperAsync(db, actor, id, ct))));
     // Legacy direct mutation routes fail closed. Every submission/review must use the exact
     // preview, assent and receipt path below so a lost response can recover its original outcome.
     group.MapPost("/procedures/{id:guid}/results", (Guid id, SubmitProcedureResultInput i, HttpContext http) =>
-      Task.FromResult(Invalid("Use the procedure command preview and actions routes; direct result writes are no longer accepted.")));
+      Task.FromResult(Invalid("Use the procedure command preview and actions routes; direct result writes are no longer accepted.")))
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest);
     group.MapPost("/procedure-results/{id:guid}/review", (Guid id, ReviewProcedureResultInput i, HttpContext http) =>
-      Task.FromResult(Invalid("Use the procedure command preview and actions routes; direct review writes are no longer accepted.")));
-    group.MapGet("/procedures/{id:guid}/commands/state", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.StateAsync(db, actor, id, ct)));
-    group.MapPost("/procedures/{id:guid}/commands/preview", (Guid id, ProcedureCommandInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.PreviewAsync(db, actor, id, ProcedureCommand(i), ct)));
-    group.MapPost("/procedures/{id:guid}/commands/actions", (Guid id, ProcedureCommandInput i, HttpContext http) =>
+      Task.FromResult(Invalid("Use the procedure command preview and actions routes; direct review writes are no longer accepted.")))
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest);
+    UiEndpointContractMetadata.WithUiResponse<ProcedureCommandState>(group.MapGet("/procedures/{id:guid}/commands/state", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.StateAsync(db, actor, id, ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ProcedureCommandPreview>>(group.MapPost("/procedures/{id:guid}/commands/preview", (Guid id, ProcedureCommandInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.PreviewAsync(db, actor, id, ProcedureCommand(i), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ProcedureCommandReceiptView>>(group.MapPost("/procedures/{id:guid}/commands/actions", (Guid id, ProcedureCommandInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.ExecuteAsync(db, actor, id, ProcedureCommand(i),
-        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"), ct)));
-    group.MapGet("/procedures/{id:guid}/commands/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)));
-    group.MapPost("/engagements/{id:guid}/fieldwork/program", (Guid id, AdoptProgramInput input, HttpContext http) =>
+        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<ProcedureCommandLookup>(group.MapGet("/procedures/{id:guid}/commands/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<EngagementAuditProgramResult>>(group.MapPost("/engagements/{id:guid}/fieldwork/program", (Guid id, AdoptProgramInput input, HttpContext http) =>
       string.IsNullOrWhiteSpace(input.SourceHash) || string.IsNullOrWhiteSpace(input.ContentDigest)
         ? Task.FromResult(Invalid("Refresh and submit the exact published programme source and content identities."))
         : CommandAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.AdoptPublishedAsync(db, actor,
-          new AdoptAuditProgramRequest(id, input.ProgramVersionId, input.SourceHash, input.ContentDigest, input.ExpectedAdoptionId), ct)));
-    group.MapPost("/procedures/{id:guid}/applicability", (Guid id, ApplicabilityInput i, HttpContext http) =>
+          new AdoptAuditProgramRequest(id, input.ProgramVersionId, input.SourceHash, input.ContentDigest, input.ExpectedAdoptionId), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ProcedureApplicabilityResult>>(group.MapPost("/procedures/{id:guid}/applicability", (Guid id, ApplicabilityInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditProgramService.DecideApplicabilityAsync(db, actor,
         new DecideProcedureApplicabilityRequest(id, i.Decision ?? "", i.Rationale, i.ExpectedApplicabilityRevision,
-          i.ExpectedDefinitionRevision, i.CommandId, i.ProposalDecisionId), ct)));
-    group.MapPost("/procedures/{id:guid}/risk", (Guid id, ProcedureRiskInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditProgramService.LinkRiskAsync(db, actor, id, i.RiskId, ct)));
-    group.MapPost("/engagements/{id:guid}/fieldwork/aggregate", (Guid id, AggregateConclusionInput i, HttpContext http) =>
+          i.ExpectedDefinitionRevision, i.CommandId, i.ProposalDecisionId), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/procedures/{id:guid}/risk", (Guid id, ProcedureRiskInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.LinkRiskAsync(db, actor, id, i.RiskId, ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<AreaAssessmentValue>>(group.MapPost("/engagements/{id:guid}/fieldwork/aggregate", (Guid id, AggregateConclusionInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.RecordAreaAssessmentAsync(db, actor, new RecordAreaAssessmentRequest(id, null, AuditAreaCodes.AuditDifferences,
-        AuditAreaAssessmentKinds.AggregateDifferences, "audit-differences-aggregate.v1", "{}", null, null, null, null, null, null, null, ["aggregate-difference-schedule"], i.Conclusion ?? ""), ct)));
-    group.MapPost("/area-assessments/{id:guid}/review", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ReviewAreaAssessmentAsync(db, actor, new ReviewAreaAssessmentRequest(id, AuditAreaAssessmentStatuses.Reviewed, null), ct)));
-    group.MapPost("/engagements/{id:guid}/fieldwork/sampling/preview", (Guid id, SamplingInput i, HttpContext http) =>
+        AuditAreaAssessmentKinds.AggregateDifferences, "audit-differences-aggregate.v1", "{}", null, null, null, null, null, null, null, ["aggregate-difference-schedule"], i.Conclusion ?? ""), ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/area-assessments/{id:guid}/review", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ReviewAreaAssessmentAsync(db, actor, new ReviewAreaAssessmentRequest(id, AuditAreaAssessmentStatuses.Reviewed, null), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<SamplingPreviewView>>(group.MapPost("/engagements/{id:guid}/fieldwork/sampling/preview", (Guid id, SamplingInput i, HttpContext http) =>
     {
       decimal? interval = TryDecimal(i.Interval, out var iv) ? iv : null, key = TryDecimal(i.KeyItemThreshold, out var k) ? k : null;
       if ((!string.IsNullOrWhiteSpace(i.Interval) && interval is null) || (!string.IsNullOrWhiteSpace(i.KeyItemThreshold) && key is null))
@@ -99,8 +104,8 @@ public static partial class UiEndpoints
           ? CommandResult<object>.Ok(r.Value!)
           : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
       });
-    });
-    group.MapPost("/engagements/{id:guid}/fieldwork/sampling", (Guid id, SamplingInput i, HttpContext http) =>
+    }));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<SamplingRunCreatedResponse>>(group.MapPost("/engagements/{id:guid}/fieldwork/sampling", (Guid id, SamplingInput i, HttpContext http) =>
     {
       decimal? interval = TryDecimal(i.Interval, out var iv) ? iv : null, key = TryDecimal(i.KeyItemThreshold, out var k) ? k : null;
       if ((!string.IsNullOrWhiteSpace(i.Interval) && interval is null) || (!string.IsNullOrWhiteSpace(i.KeyItemThreshold) && key is null))
@@ -114,13 +119,13 @@ public static partial class UiEndpoints
             selectionId = r.Value.Run.SelectionId, previewDigest = r.Value.Run.PreviewDigest })
           : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
       });
-    });
-    group.MapGet("/selections/{id:guid}/sample-set", (Guid id, int? page, int? pageSize, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AuditSamplingService.GetSampleSetAsync(db, actor, id, page ?? 1, pageSize ?? 100, ct)));
-    group.MapPost("/selections/{id:guid}/review", (Guid id, SelectionReviewInput i, HttpContext http) =>
+    }), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<SampleSetView>(group.MapGet("/selections/{id:guid}/sample-set", (Guid id, int? page, int? pageSize, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditSamplingService.GetSampleSetAsync(db, actor, id, page ?? 1, pageSize ?? 100, ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<SelectionValue>>(group.MapPost("/selections/{id:guid}/review", (Guid id, SelectionReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ReviewSelectionAsync(db, actor,
-        new ReviewSelectionRequest(id, i.Decision ?? "", i.Comment), ct)));
-    group.MapPost("/selection-items/{id:guid}/tests", (Guid id, SamplingItemTestInput i, HttpContext http) =>
+        new ReviewSelectionRequest(id, i.Decision ?? "", i.Comment), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ItemTestValue>>(group.MapPost("/selection-items/{id:guid}/tests", (Guid id, SamplingItemTestInput i, HttpContext http) =>
     {
       decimal? exceptionAmount = null;
       if (!string.IsNullOrWhiteSpace(i.ExceptionAmount))
@@ -131,29 +136,29 @@ public static partial class UiEndpoints
       return CommandAsync(http, (db, actor, ct) => AuditFieldworkService.RecordItemTestAsync(db, actor,
         new RecordItemTestRequest(id, i.WorkPerformed ?? "", i.EvidenceReferences ?? [], i.Result ?? "", exceptionAmount,
           i.ContradictoryEvidence, i.FollowUp), ct));
-    });
-    group.MapPost("/item-tests/{id:guid}/review", (Guid id, SamplingItemTestReviewInput i, HttpContext http) =>
+    }), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/item-tests/{id:guid}/review", (Guid id, SamplingItemTestReviewInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ReviewItemTestAsync(db, actor,
-        new ReviewItemTestRequest(id, i.Decision ?? "", i.Comment), ct)));
-    group.MapPost("/procedures/{id:guid}/evidence", (Guid id, EvidenceLinkInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.LinkClientEvidenceAsync(db, actor, id, i.UploadIntentId, i.Note, ct)));
-    group.MapPost("/engagements/{id:guid}/fieldwork/physical", (Guid id, PhysicalItemInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.RegisterPhysicalItemAsync(db, actor, id, i.FileIndex ?? "", i.BoxReference ?? "", i.Description ?? "", i.Location ?? "", ct)));
-    group.MapPost("/physical-items/{id:guid}/link", (Guid id, PhysicalLinkInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.LinkPhysicalItemAsync(db, actor, i.ProcedureId, id, ct)));
-    group.MapPost("/physical-items/{id:guid}/move", (Guid id, PhysicalMoveInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.MovePhysicalItemAsync(db, actor, id, i.ToLocation ?? "", "Moved from the fieldwork page", ct)));
-    group.MapPost("/engagements/{id:guid}/fieldwork/ad-hoc", (Guid id, AdHocInput i, HttpContext http) =>
+        new ReviewItemTestRequest(id, i.Decision ?? "", i.Comment), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/procedures/{id:guid}/evidence", (Guid id, EvidenceLinkInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.LinkClientEvidenceAsync(db, actor, id, i.UploadIntentId, i.Note, ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/engagements/{id:guid}/fieldwork/physical", (Guid id, PhysicalItemInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.RegisterPhysicalItemAsync(db, actor, id, i.FileIndex ?? "", i.BoxReference ?? "", i.Description ?? "", i.Location ?? "", ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/physical-items/{id:guid}/link", (Guid id, PhysicalLinkInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.LinkPhysicalItemAsync(db, actor, i.ProcedureId, id, ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/physical-items/{id:guid}/move", (Guid id, PhysicalMoveInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.MovePhysicalItemAsync(db, actor, id, i.ToLocation ?? "", "Moved from the fieldwork page", ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/engagements/{id:guid}/fieldwork/ad-hoc", (Guid id, AdHocInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.InsertAdHocProcedureAsync(db, actor, new InsertAdHocProcedureRequest(id, i.Title ?? "", i.Wording ?? "",
-        i.Reason ?? "", i.SectionTitle, null), ct)));
-    group.MapPost("/review-notes", (ReviewNoteInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => ReviewNotesService.AddNoteAsync(db, actor, new AddReviewNoteRequest(i.ResultId, i.Field, i.Excerpt, i.Body), ct)));
-    group.MapPost("/review-notes/{id:guid}/events", (Guid id, ReviewNoteEventInput i, HttpContext http) =>
+        i.Reason ?? "", i.SectionTitle, null), ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/review-notes", (ReviewNoteInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ReviewNotesService.AddNoteAsync(db, actor, new AddReviewNoteRequest(i.ResultId, i.Field, i.Excerpt, i.Body), ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/review-notes/{id:guid}/events", (Guid id, ReviewNoteEventInput i, HttpContext http) =>
       i.Kind switch
       {
         "RESOLVED" => CommandAsync(http, (db, actor, ct) => ReviewNotesService.ResolveAsync(db, actor, id, string.IsNullOrWhiteSpace(i.Body) ? "Resolved." : i.Body, ct)),
         "RESPONSE" => CommandAsync(http, (db, actor, ct) => ReviewNotesService.RespondAsync(db, actor, id, i.Body ?? "", ct)),
         _ => Task.FromResult(Invalid("Respond to or resolve the note.")),
-      });
+      }));
   }
 }

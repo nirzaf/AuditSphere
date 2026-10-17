@@ -2,14 +2,25 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Antiforgery;
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  /// <summary>Describes the two existing profile command response shapes.</summary>
+  [JsonDerivedType(typeof(UiProfileCreatedResponse))]
+  [JsonDerivedType(typeof(UiProfileRevisedResponse))]
+  public abstract record UiProfileResponse;
+  /// <summary>Profile creation returns its new identifier directly.</summary>
+  public sealed record UiProfileCreatedResponse(Guid Id) : UiProfileResponse;
+  /// <summary>Profile revision returns its new revision directly.</summary>
+  public sealed record UiProfileRevisedResponse(string Revision) : UiProfileResponse;
+
   public sealed record AccountingProfileInput(Guid? ProfileId, string Revision, string Jurisdiction, string Currency,
     int FiscalMonth, int FiscalDay, string SourceSystem, string SourceIdentifier, bool Reviewed,
     string SourceMode = ClientAccountingSourceModes.ExternalSource);
@@ -24,7 +35,11 @@ public static partial class UiEndpoints
   private static void MapAccountingEndpoints(RouteGroupBuilder group)
   {
     group.MapUiGet("/accounting/task-owners", http => ReadAsync(http,
-      (db, actor, ct) => AccountingTaskOwnerQuery.GetAsync(db, actor, ct)));
+      (db, actor, ct) => AccountingTaskOwnerQuery.GetAsync(db, actor, ct)))
+      .Produces<AccountingTaskOwnerSummary>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet("/accounting/clients/{id:guid}/periods/{periodId:guid}/sources", async (Guid id, Guid periodId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -36,7 +51,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<RollforwardSources>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/accounting/clients/{id:guid}/opening-bridges/{bridgeId:guid}/approve", async (Guid id, Guid bridgeId,
       AccountingOpeningApprovalInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -49,7 +67,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(db, actor, bridgeId, http.RequestAborted, id, input.SourceHash);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/accounting/clients/{id:guid}/rollforward", async (Guid id, AccountingRollforwardInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -71,7 +93,11 @@ public static partial class UiEndpoints
         new(id, input.PriorPeriodId, input.Code, start, end, input.Basis, input.Currency, input.SourceHash,
           closing, opening, input.Evidence, input.SourcePackageId, revision), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet("/accounting/clients/{id:guid}/periods/{periodId:guid}/readiness", async (Guid id, Guid periodId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -83,7 +109,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<PeriodCloseReadinessReport>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     foreach (var action in new[] { "close", "reopen" })
     {
       var decision = action;
@@ -103,7 +132,11 @@ public static partial class UiEndpoints
           ? await ClientAccountingService.ClosePeriodAsync(db, actor, periodId, input.Reason, http.RequestAborted, revision, id)
           : await ClientAccountingService.ReopenPeriodAsync(db, actor, periodId, input.Reason, http.RequestAborted, revision, id);
         return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-      });
+      })
+        .Produces(StatusCodes.Status204NoContent)
+        .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+        .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+        .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     }
     group.MapPost("/accounting/clients/{id:guid}/books", async (Guid id, AccountingBookInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -120,7 +153,11 @@ public static partial class UiEndpoints
       var result = await ClientAccountingService.CreateBookAsync(db, actor,
         new(id, input.PeriodId, input.Code, input.Basis, input.InclusionRule, input.Currency), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/accounting/clients/{id:guid}/periods", async (Guid id, AccountingPeriodInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -137,7 +174,11 @@ public static partial class UiEndpoints
       var result = await ClientAccountingService.CreatePeriodAsync(db, actor,
         new(id, input.Code, start, end, input.Basis, input.Currency, input.PriorPeriodId), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/accounting/clients/{id:guid}/profile", async (Guid id, AccountingProfileInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -161,7 +202,11 @@ public static partial class UiEndpoints
       }
       var created = await ClientAccountingService.CreateProfileAsync(db, actor, request, http.RequestAborted);
       return created.Succeeded ? Results.Ok(new { id = created.Value }) : Results.Json(new { code = created.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiProfileResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet("/accounting/clients", async (string? search, int? page, int? pageSize, HttpContext http,
       TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -173,7 +218,11 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<AccountingClientPage>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet("/accounting/clients/{id:guid}", async (Guid id, HttpContext http,
       TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -185,7 +234,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<AccountingClientWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
   }
   private static bool AccountingAmount(string? value, out decimal amount)
   {

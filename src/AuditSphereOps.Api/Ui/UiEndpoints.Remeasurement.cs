@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Api.Ui;
@@ -13,10 +14,21 @@ public static partial class UiEndpoints
 
   private static void MapRemeasurementEndpoints(RouteGroupBuilder group)
   {
-    group.MapUiGet("/accounting/remeasurement", http => ReadAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspaceQuery.GetAsync(db, actor, ct)));
+    group.MapUiGet("/accounting/remeasurement", http => ReadAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspaceQuery.GetAsync(db, actor, ct)))
+      .Produces<RemeasurementWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet("/accounting/remeasurement/choices", (Guid periodId, Guid engagementId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspaceQuery.ChoicesAsync(db, actor, periodId, engagementId, ct)));
-    group.MapGet("/accounting/remeasurement/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspace.DetailAsync(db, actor, id, ct)));
+      ReadAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspaceQuery.ChoicesAsync(db, actor, periodId, engagementId, ct)))
+      .Produces<RemeasurementChoices>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
+    group.MapGet("/accounting/remeasurement/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspace.DetailAsync(db, actor, id, ct)))
+      .Produces<RemeasurementReview>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/accounting/remeasurement", (RemeasurementInput i, HttpContext http) =>
     {
       if (!TryDate(i.AsOfDate, out var asOf) || i.Items is not { Count: > 0 and <= 500 }) return Task.FromResult(Invalid("Select a scoped period and at least one evidence line."));
@@ -30,8 +42,18 @@ public static partial class UiEndpoints
       }
       return CommandAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspace.PrepareAsync(db, actor,
         new CurrencyRemeasurementScheduleRequest(i.ClientId, i.EngagementId, i.PeriodId, i.RateSetId, i.PolicyId, asOf, items), i.ReviewToken, i.Reviewed, ct));
-    });
+    })
+      .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/accounting/remeasurement/{id:guid}/approve", (Guid id, RemeasurementApproval input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspace.ApproveAsync(db, actor, id, input.ReviewToken, input.Reviewed, ct)));
+      CommandAsync(http, (db, actor, ct) => CurrencyRemeasurementWorkspace.ApproveAsync(db, actor, id, input.ReviewToken, input.Reviewed, ct)))
+      .Produces<UiValueResponse<bool>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
   }
 }

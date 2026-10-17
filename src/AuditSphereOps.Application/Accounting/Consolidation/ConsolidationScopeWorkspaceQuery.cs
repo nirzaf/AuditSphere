@@ -93,12 +93,12 @@ public sealed record ConsolidationScopeWorkspaceDto(
   bool CanReview,
   Guid CurrentUserId,
   IReadOnlyList<ConsolidationComponentDto> Components,
-  IReadOnlyList<EligibleComponentPackageDto> EligiblePackages,
-  IReadOnlyList<ConsolidationJournalDto> Journals,
-  IReadOnlyList<ConsolidationRunSummaryDto> Runs,
-  ConsolidationReport? LatestReport,
-  IReadOnlyList<ComponentReadinessRow> ComponentReadiness,
-  IReadOnlyList<IntercompanyExceptionRow> IntercompanyExceptions);
+  ConsolidationPage<EligibleComponentPackageDto> EligiblePackages,
+  ConsolidationPage<ConsolidationJournalDto> Journals,
+  ConsolidationPage<ConsolidationRunSummaryDto> Runs,
+  ConsolidationReadResult<ConsolidationReport> LatestReport,
+  ConsolidationReadResult<IReadOnlyList<ComponentReadinessRow>> ComponentReadiness,
+  ConsolidationReadResult<IntercompanyExceptionsPage> IntercompanyExceptions);
 
 /// <summary>
 /// Authoritative detailed read model for a single consolidation perimeter version:
@@ -109,10 +109,20 @@ public static class ConsolidationScopeWorkspaceQuery
 {
   private static readonly string[] ReadRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
+  private const int HistoryPageSize = 100;
 
   public static async Task<CommandResult<ConsolidationScopeWorkspaceDto>> GetScopeWorkspaceAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid scopeId, CancellationToken ct = default)
+    => await GetScopeWorkspaceAsync(db, actor, scopeId, 1, 1, 1, ct);
+
+  public static async Task<CommandResult<ConsolidationScopeWorkspaceDto>> GetScopeWorkspaceAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scopeId,
+    int eligiblePackagesPage, int journalsPage, int runsPage, CancellationToken ct = default)
   {
+    if (!IsValidPage(eligiblePackagesPage) || !IsValidPage(journalsPage) || !IsValidPage(runsPage))
+      return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "Valid positive history page numbers are required.");
+
     var scope = await db.ConsolidationScopeVersions.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scopeId, ct);
     if (scope is null)
@@ -137,17 +147,10 @@ public static class ConsolidationScopeWorkspaceQuery
       .OrderBy(x => x.SubmittedAt)
       .ToListAsync(ct);
 
-    var clientIds = components.Select(x => x.ClientId).Distinct().ToList();
-    var memberClientIds = await db.ClientGroupMemberships.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null)
-      .Select(x => x.ClientId)
-      .ToListAsync(ct);
-    clientIds.AddRange(memberClientIds);
-    var distinctClientIds = clientIds.Distinct().ToArray();
+    var componentClientIds = components.Select(x => x.ClientId).Distinct().ToArray();
 
     var clientNames = await db.PracticeClients.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && distinctClientIds.Contains(x.Id))
+      .Where(x => x.FirmId == actor.FirmId && componentClientIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
 
     var componentDtos = components.Select(c => new ConsolidationComponentDto(
@@ -171,38 +174,46 @@ public static class ConsolidationScopeWorkspaceQuery
       c.ApprovedAt)).ToList();
 
     // Eligible packages for draft scope
-    var eligiblePackages = new List<EligibleComponentPackageDto>();
+    var eligiblePackages = new ConsolidationPage<EligibleComponentPackageDto>([], 0, eligiblePackagesPage, HistoryPageSize);
     if (scope.Status == AccountingWorkflowStates.Draft && canPrepare)
     {
-      var packages = await db.FinancialPackages.AsNoTracking()
-        .Where(x => x.FirmId == actor.FirmId && memberClientIds.Contains(x.ClientId) &&
-          x.Status == AccountingPackageStates.PackageValidated)
-        .OrderByDescending(x => x.CreatedAt)
+      var packagesQuery = db.FinancialPackages.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
+          db.ClientGroupMemberships.Any(m => m.FirmId == actor.FirmId && m.GroupId == scope.GroupId &&
+            m.ClientId == x.ClientId && m.Status == AccountingWorkflowStates.Approved && m.EffectiveTo == null));
+      var totalCount = await packagesQuery.CountAsync(ct);
+      var packages = await packagesQuery
+        .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+        .Skip(PageOffset(eligiblePackagesPage)).Take(HistoryPageSize)
         .ToListAsync(ct);
-
-      foreach (var pkg in packages)
-      {
-        eligiblePackages.Add(new EligibleComponentPackageDto(
+      var packageClientIds = packages.Select(x => x.ClientId).Distinct().ToArray();
+      var packageClientNames = await db.PracticeClients.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && packageClientIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
+      eligiblePackages = new ConsolidationPage<EligibleComponentPackageDto>(packages.Select(pkg =>
+        new EligibleComponentPackageDto(
           pkg.Id,
           pkg.ClientId,
-          clientNames.GetValueOrDefault(pkg.ClientId, "Unknown entity"),
+          packageClientNames.GetValueOrDefault(pkg.ClientId, "Unknown entity"),
           pkg.EngagementId,
           pkg.Basis ?? $"{pkg.PeriodStart}..{pkg.PeriodEnd}",
           pkg.TaxonomyVersion,
           pkg.MappingVersionId.ToString("D"),
           pkg.Currency,
-          pkg.CalculationHash));
-      }
+          pkg.CalculationHash)).ToArray(), totalCount, eligiblePackagesPage, HistoryPageSize);
     }
 
     // Elimination journals
-    var journals = await db.ConsolidationJournals.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id)
-      .OrderByDescending(x => x.CreatedAt)
+    var journalsQuery = db.ConsolidationJournals.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id);
+    var journalCount = await journalsQuery.CountAsync(ct);
+    var journals = await journalsQuery
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+      .Skip(PageOffset(journalsPage)).Take(HistoryPageSize)
       .ToListAsync(ct);
 
     var journalIds = journals.Select(x => x.Id).ToArray();
-    var lines = await db.ConsolidationJournalLines.AsNoTracking()
+    List<ConsolidationJournalLine> lines = journalIds.Length == 0 ? [] : await db.ConsolidationJournalLines.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && journalIds.Contains(x.ConsolidationJournalId))
       .OrderBy(x => x.Id)
       .ToListAsync(ct);
@@ -211,7 +222,7 @@ public static class ConsolidationScopeWorkspaceQuery
       .ToDictionary(g => g.Key, g => g.Select(l => new ConsolidationJournalLineDto(
         l.Id, l.TaxonomyCode, l.Debit, l.Credit, l.Description, l.IntercompanyMatchId)).ToList());
 
-    var journalDtos = journals.Select(j => new ConsolidationJournalDto(
+    var journalDtos = new ConsolidationPage<ConsolidationJournalDto>(journals.Select(j => new ConsolidationJournalDto(
       j.Id,
       j.JournalNumber,
       j.JournalType,
@@ -225,12 +236,15 @@ public static class ConsolidationScopeWorkspaceQuery
       j.CreatedAt,
       j.ApprovedByUserId,
       j.ApprovedAt,
-      linesByJournal.GetValueOrDefault(j.Id, []))).ToList();
+      linesByJournal.GetValueOrDefault(j.Id, []))).ToArray(), journalCount, journalsPage, HistoryPageSize);
 
     // Runs
-    var runs = await db.ConsolidationRuns.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id)
-      .OrderByDescending(x => x.CreatedAt)
+    var runsQuery = db.ConsolidationRuns.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id);
+    var runCount = await runsQuery.CountAsync(ct);
+    var runs = await runsQuery
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+      .Skip(PageOffset(runsPage)).Take(HistoryPageSize)
       .Select(r => new ConsolidationRunSummaryDto(
         r.Id,
         r.EngineVersion,
@@ -242,18 +256,25 @@ public static class ConsolidationScopeWorkspaceQuery
         r.ApprovedByUserId,
         r.ApprovedAt))
       .ToListAsync(ct);
+    var runPage = new ConsolidationPage<ConsolidationRunSummaryDto>(runs, runCount, runsPage, HistoryPageSize);
 
     // Latest Report
     var latestReportResult = await ConsolidationService.GetLatestReportAsync(db, actor, scope.Id, ct);
-    var latestReport = latestReportResult.Succeeded ? latestReportResult.Value : null;
+    var latestReport = ReadResult(latestReportResult);
 
     // Component Readiness
     var readinessResult = await ConsolidationQuery.GetComponentReadinessAsync(db, actor, scope.Id, ct);
-    var readiness = readinessResult.Succeeded ? readinessResult.Value!.Members : [];
+    var readiness = ReadResult(!readinessResult.Succeeded
+      ? CommandResult<IReadOnlyList<ComponentReadinessRow>>.Fail(readinessResult.ErrorCode!, readinessResult.Message!)
+      : readinessResult.Value!.Members.Count > 500
+        ? CommandResult<IReadOnlyList<ComponentReadinessRow>>.Fail(ErrorCodes.GateBlocked,
+          "Member readiness exceeds this workspace's 500-row display bound. Complete paged readiness support is required for this group; no readiness success is inferred from a partial list.")
+        : CommandResult<IReadOnlyList<ComponentReadinessRow>>.Ok(readinessResult.Value.Members));
 
     // Intercompany Exceptions
-    var intercompanyResult = await ConsolidationQuery.GetIntercompanyExceptionsAsync(db, actor, scope.Id, unresolvedOnly: false, ct: ct);
-    var exceptions = intercompanyResult.Succeeded ? intercompanyResult.Value!.Items : [];
+    var intercompanyResult = await ConsolidationQuery.GetIntercompanyExceptionsAsync(
+      db, actor, scope.Id, unresolvedOnly: false, page: 1, pageSize: HistoryPageSize, ct: ct);
+    var exceptions = ReadResult(intercompanyResult);
 
     var isAdvanced = AdvancedConsolidationMethods.All.Contains(scope.Method);
 
@@ -279,9 +300,17 @@ public static class ConsolidationScopeWorkspaceQuery
       componentDtos,
       eligiblePackages,
       journalDtos,
-      runs,
+      runPage,
       latestReport,
       readiness,
       exceptions));
   }
+
+  private static bool IsValidPage(int page) => page > 0 && (long)(page - 1) * HistoryPageSize <= int.MaxValue;
+
+  private static int PageOffset(int page) => checked((page - 1) * HistoryPageSize);
+
+  private static ConsolidationReadResult<T> ReadResult<T>(CommandResult<T> result) => result.Succeeded
+    ? new ConsolidationReadResult<T>(true, result.Value, null, null)
+    : new ConsolidationReadResult<T>(false, default, result.ErrorCode, result.Message);
 }

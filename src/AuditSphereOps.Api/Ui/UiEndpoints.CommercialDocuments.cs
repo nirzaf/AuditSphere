@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<CommercialDocumentWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     foreach (var kind in new[] { "quotation", "letter", "tender" })
     {
       group.MapPost("/proposals/{id:guid}/documents/" + kind, async (Guid id, CommercialDocumentInput input,
@@ -47,7 +51,11 @@ public static partial class UiEndpoints
             http.RequestAborted, input.QuotationId, version)
         };
         return result.Succeeded ? Results.Ok(new { id = result.Value!.Id }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-      });
+      })
+        .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+        .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+        .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+        .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     }
   }
 }

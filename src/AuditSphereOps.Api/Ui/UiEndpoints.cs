@@ -13,6 +13,7 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record SessionHttpResponse(Guid UserId, Guid FirmId, string Generation, bool Staff);
   public sealed record ContactInput(string Name, string Email, string Role, bool Primary, string SafetyGeneration);
   public sealed record StaffingInput(Guid UserId, string Level, bool ReviewedClientSiteAccess);
   public sealed record BudgetInput(string Currency, string ExpectedVersion, IReadOnlyList<BudgetLineRequest> Lines);
@@ -112,7 +113,11 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).WithSummary("Read the client acceptance workspace")
+      .WithDescription("Returns the authorized acceptance checklist, recorded evidence, decisions, and clearance state for the client.")
+      .Produces<AcceptanceWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/clients/{id:guid}/acceptance/answers/{code}", async (Guid id, string code, AcceptanceAnswerInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -127,7 +132,12 @@ public static partial class UiEndpoints
       var result = await AcceptanceChecklistService.RecordAnswerAsync(db, actor, id, code, input.Answer, input.Evidence,
         http.RequestAborted, generation, revision);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    }).WithSummary("Record a client acceptance answer")
+      .WithDescription("Records an answer and optional evidence against the supplied client acceptance question and generation/revision basis.")
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/clients/{id:guid}/engagements", async (Guid id, EngagementInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -139,7 +149,12 @@ public static partial class UiEndpoints
       var result = await EngagementLifecycleService.CreateDraftAsync(db, actor,
         new(id, input.ServiceRoute, input.PeriodStart, input.PeriodEnd, input.ServiceProfile), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    }).WithSummary("Create a client engagement")
+      .WithDescription("Creates a draft engagement for the client and returns its identifier.")
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/engagements/{id:guid}/activate", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -150,7 +165,12 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await EngagementLifecycleService.ActivateAsync(db, actor, id, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    }).WithSummary("Activate an engagement")
+      .WithDescription("Activates the specified engagement after the existing lifecycle checks succeed and returns its identifier.")
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/engagements/{id:guid}/budgets", async (Guid id, BudgetInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -165,7 +185,13 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeTimeService.ReviseBudgetAsync(db, actor, new(id, input.Currency, input.Lines, version), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    }).WithSummary("Prepare an engagement budget")
+      .WithDescription("Creates or revises the engagement budget from the supplied currency, version, and lines, then returns its identifier.")
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
     group.MapPost("/engagements/{id:guid}/budgets/{budgetId:guid}/approve", async (Guid id, Guid budgetId, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -176,7 +202,12 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await EngagementPlanningQuery.ApproveBudgetAsync(db, actor, id, budgetId, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    }).WithSummary("Approve an engagement budget")
+      .WithDescription("Approves the specified budget for the engagement when the existing approval checks succeed.")
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/engagements/{id:guid}/staffing", async (Guid id, StaffingInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -188,7 +219,13 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await StaffingService.AssignAsync(db, actor, new(id, input.UserId, input.Level), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    }).WithSummary("Assign staff to an engagement")
+      .WithDescription("Assigns the supplied staff member and level after client-site access review and returns the assignment identifier.")
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
     group.MapPost("/engagements/{id:guid}/staffing/{assignmentId:guid}/revoke", async (Guid id, Guid assignmentId,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -199,7 +236,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await EngagementPlanningQuery.RevokeAsync(db, actor, id, assignmentId, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 403);
-    });
+    }).WithSummary("Revoke an engagement staff assignment")
+      .WithDescription("Revokes the specified staff assignment from the engagement when the existing authorization checks succeed.")
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapGet("/engagements/{id:guid}/planning", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -211,7 +252,11 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).WithSummary("Read engagement planning")
+      .WithDescription("Returns the authorized engagement team, budget and planning state, plus available staffing and preparation actions.")
+      .Produces<EngagementPlanning>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapPost("/clients/{id:guid}/contacts", async (Guid id, ContactInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -235,7 +280,14 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode },
         statusCode: result.ErrorCode == "generation.stale" ? 409 : 400);
       return Results.Ok(new { id = result.Value });
-    });
+    }).WithSummary("Create a client contact")
+      .WithDescription("Creates a client contact after validating the supplied contact data and current safety generation, then returns its identifier.")
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status409Conflict, "application/json")
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
     group.MapGet("/search", async (string? term, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -249,7 +301,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Search));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Search))
+      .Produces<GlobalSearchResult>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
     group.MapGet("/engagements/{id:guid}", async (Guid id, int? holdPage, int? holdPageSize, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -262,7 +317,7 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).Produces<EngagementWorkspace>(StatusCodes.Status200OK, "application/json");
     group.MapGet("/engagements/{id:guid}/lifecycle", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -274,7 +329,7 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).Produces<EngagementLifecycleReport>(StatusCodes.Status200OK, "application/json");
     // Seven-phase workflow projection (WF-01). Read-only: it never accepts a stage, and the canonical 11-stage route above stays unchanged.
     group.MapGet("/engagements/{id:guid}/workflow", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -287,7 +342,7 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).Produces<EngagementWorkflowReport>(StatusCodes.Status200OK, "application/json");
     // Engagement communication timeline (PM-07): the outbound mail the platform already recorded for this engagement. Read-only.
     group.MapGet("/engagements/{id:guid}/communications", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -300,12 +355,13 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).Produces<EngagementCommunicationTimeline>(StatusCodes.Status200OK, "application/json");
     group.MapGet("/engagements/{id:guid}/activity",
       (Guid id, DateOnly? from, DateOnly? to, DateTimeOffset? snapshotAtUtc, DateTimeOffset? afterAtUtc,
         int? afterSource, Guid? afterId, int? pageSize, HttpContext http) =>
         ReadAsync(http, (db, actor, ct) => EngagementCommunicationTimelineQuery.GetActivityAsync(db, actor, id,
-          new EngagementActivityRequest(from, to, snapshotAtUtc, afterAtUtc, afterSource, afterId, pageSize ?? 50), ct)));
+          new EngagementActivityRequest(from, to, snapshotAtUtc, afterAtUtc, afterSource, afterId, pageSize ?? 50), ct)))
+      .Produces<EngagementActivityPage>(StatusCodes.Status200OK, "application/json");
     // Dual-Key onboarding readiness (WF-03): independent cards for client consent, Partner risk, letter and advance payment. Read-only.
     group.MapGet("/engagements/{id:guid}/onboarding-readiness", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -320,7 +376,7 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).Produces<OnboardingReadinessReport>(StatusCodes.Status200OK, "application/json");
     group.MapGet("/clients/{id:guid}", async (Guid id, int? engagementPage, int? engagementPageSize, int? contactPage, int? contactPageSize,
       HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -335,7 +391,7 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).Produces<ClientWorkspace>(StatusCodes.Status200OK, "application/json");
     group.AddEndpointFilter(async (context, next) =>
     {
       context.HttpContext.Response.Headers.CacheControl = "no-store";
@@ -364,7 +420,7 @@ public static partial class UiEndpoints
       return Results.Ok(new { userId = actor.UserId, firmId = actor.FirmId,
         generation = actor.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
         staff = isStaff && actor.Roles.Any() && !actor.Roles.Contains("ClientUser") });
-    });
+    }).Produces<SessionHttpResponse>();
     group.MapPost("/sign-out", async (HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf) =>
     {
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
@@ -375,7 +431,8 @@ public static partial class UiEndpoints
       await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
       http.Response.Cookies.Delete("XSRF-TOKEN", new CookieOptions { Path = "/" });
       return Results.NoContent();
-    });
+    }).Produces(StatusCodes.Status204NoContent)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
     group.MapGet("/portfolio", async (HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory, string? search, int? page, int? pageSize) =>
     {
@@ -388,6 +445,6 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    }).Produces<PortfolioPage>(StatusCodes.Status200OK, "application/json");
   }
 }

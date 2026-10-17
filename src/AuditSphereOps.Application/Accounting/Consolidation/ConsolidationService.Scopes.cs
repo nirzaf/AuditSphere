@@ -18,6 +18,8 @@ public static partial class ConsolidationService
     var currency = (string.IsNullOrWhiteSpace(request.ReportingCurrency) ? AccountingDefaults.DefaultCurrency : request.ReportingCurrency).Trim().ToUpperInvariant();
     var method = request.Method.Trim().ToUpperInvariant();
     var advancedMethod = AdvancedConsolidationMethods.All.Contains(method);
+    if (request.ExpectedGroupRevision < 0)
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The expected group revision must not be negative.");
     if (request.GroupId == Guid.Empty || request.PeriodId == Guid.Empty || currency.Length != 3 ||
         currency.Any(c => c is < 'A' or > 'Z') ||
         (method is not (ConsolidationCalculator.RestrictedMethod or ConsolidationCalculator.ForeignOperationMethod) && !advancedMethod) ||
@@ -26,9 +28,23 @@ public static partial class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, request.GroupId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var group = await db.ClientGroups.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == request.GroupId, ct);
+
+    // Grant changes serialize on the firm row; membership changes and scope-version
+    // allocation serialize on the group row. Hold both through scope publication.
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (firmGuard is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
+    var group = await db.ClientGroups.FromSqlInterpolated(
+      $"SELECT * FROM client_groups WHERE id = {request.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
     if (group is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await GroupAuthAsync(db, actor, request.GroupId, PreparerRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (request.ExpectedGroupRevision > 0 && group.Revision != request.ExpectedGroupRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
         "The accounting group perimeter changed after these options were loaded. Refresh and review the current group basis before creating a scope.");
@@ -36,6 +52,21 @@ public static partial class ConsolidationService
       x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).ToListAsync(ct);
     if (members.Count == 0)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved group membership is required before a perimeter can be created.");
+    if (request.ExpectedGroupRevision > 0)
+    {
+      // Option-bound API requests must select a period from the current authorized
+      // group options. Revision zero remains the compatibility path for older callers
+      // that historically supplied opaque period identifiers.
+      var memberIds = members.Select(x => x.ClientId).Distinct().ToArray();
+      var eligiblePeriod = await (from period in db.ClientReportingPeriods.AsNoTracking()
+        join client in db.PracticeClients.AsNoTracking()
+          on new { period.FirmId, ClientId = period.ClientId } equals new { client.FirmId, ClientId = client.Id }
+        where period.FirmId == actor.FirmId && period.Id == request.PeriodId && memberIds.Contains(period.ClientId)
+        select period.Id).AnyAsync(ct);
+      if (!eligiblePeriod)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+          "The selected reporting period is not eligible for the current group perimeter.");
+    }
     if (method is ConsolidationCalculator.ForeignOperationMethod or AdvancedConsolidationMethods.ForeignCurrencyReserve)
     {
       if (request.ExchangeRateSetVersionId is null || request.TranslationPolicyVersionId is null || request.TranslationRateDate is null ||
@@ -108,6 +139,7 @@ public static partial class ConsolidationService
     };
     db.ConsolidationScopeVersions.Add(scope);
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(scope.Id);
   }
 

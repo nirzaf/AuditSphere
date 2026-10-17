@@ -155,7 +155,9 @@ public static class TenantAdministrationComposition
       if (!result.Succeeded) return Results.Redirect(page + "?result=identity-blocked");
       await TenantCapabilityService.VerifyAsync(db, actor, verifier, settings.Options, now, ct);
       return Results.Redirect(page + "?result=verified");
-    });
+    }).Produces(StatusCodes.Status302Found)
+      .Produces(StatusCodes.Status403Forbidden)
+      .Produces(StatusCodes.Status404NotFound);
 
     if (!settings.Simulation) return;
 

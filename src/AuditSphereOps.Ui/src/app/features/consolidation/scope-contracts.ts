@@ -1,4 +1,27 @@
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
+import { arr, bool, date, dec, guid, instant, int, nat, nullable, obj, oneOf, text, type Decoder } from '../../core/decode';
+
+function pageOf<T>(item: Decoder<T>): Decoder<{ items: T[]; totalCount: number; page: number; pageSize: number }> {
+  const decode = obj({ items: arr(item, 100), totalCount: int, page: int, pageSize: int });
+  return (value, path) => {
+    const page = decode(value, path);
+    if (page.totalCount < 0 || page.page < 1 || page.pageSize < 1 || page.pageSize > 100 || page.items.length > page.pageSize)
+      throw new Error(`${path || 'response'}: invalid bounded history page`);
+    return page;
+  };
+}
+
+function readResultOf<T>(valueDecoder: Decoder<T>): Decoder<{
+  available: boolean; value: T | null; errorCode: string | null; message: string | null;
+}> {
+  const decode = obj({ available: bool, value: nullable(valueDecoder), errorCode: nullable(text), message: nullable(text) });
+  return (value, path) => {
+    const result = decode(value, path);
+    const validSuccess = result.available && result.value !== null && result.errorCode === null && result.message === null;
+    const validRefusal = !result.available && result.value === null && Boolean(result.errorCode) && Boolean(result.message);
+    if (!validSuccess && !validRefusal) throw new Error(`${path || 'response'}: invalid scoped read result`);
+    return result;
+  };
+}
 
 const scopeStatus = oneOf('DRAFT', 'APPROVED');
 const componentStatus = oneOf('SUBMITTED', 'APPROVED');
@@ -138,11 +161,65 @@ export const decodeIntercompanyException = obj({
   buyerAmount: dec,
   matchedAmount: dec,
   difference: dec,
+  unmatchedResidual: dec,
   differenceReason: text,
   status: intercompanyStatus,
   outsidePerimeterReview: bool,
   evidenceReference: text,
+  sellerTaxonomyCode: text,
+  buyerTaxonomyCode: text,
+  matchGroupReference: text,
+  createdByUserId: guid,
+  createdAt: instant,
+  reviewedByUserId: nullable(guid),
+  reviewedAt: nullable(instant),
 });
+
+const decodeIntercompanyExceptionsPageShape = obj({
+  scopeVersionId: guid,
+  groupId: guid,
+  pinnedGroupRevision: nat,
+  currentGroupRevision: nat,
+  items: arr(decodeIntercompanyException, 500),
+  totalCount: int,
+  page: int,
+  pageSize: int,
+  totalUnmatchedDifference: dec,
+  totalGrossUnmatchedExposure: dec,
+});
+
+export const decodeIntercompanyExceptionsPage = (value: unknown, path: string) => {
+  const page = decodeIntercompanyExceptionsPageShape(value, path);
+  if (page.totalCount < 0 || page.page < 1 || page.pageSize < 1 || page.pageSize > 500 || page.items.length > page.pageSize)
+    throw new Error(`${path || 'response'}: invalid intercompany exception page`);
+  return page;
+};
+
+const decodeIntercompanyMatchOptionsShape = obj({
+  scopeVersionId: guid,
+  groupId: guid,
+  pinnedGroupRevision: nat,
+  currentGroupRevision: nat,
+  reportingCurrency: text,
+  periodStartDate: nullable(date),
+  periodEndDate: nullable(date),
+  membershipBlocker: nullable(text),
+  members: arr(obj({ clientId: guid, legalName: text, hasApprovedComponent: bool }), 500),
+  membersTruncated: bool,
+  taxonomyCodes: arr(text, 500),
+  taxonomyCodesTruncated: bool,
+});
+
+export const decodeIntercompanyMatchOptions = (value: unknown, path: string) => {
+  const options = decodeIntercompanyMatchOptionsShape(value, path);
+  const periodMissing = options.periodStartDate === null && options.periodEndDate === null;
+  const periodValid = options.periodStartDate !== null && options.periodEndDate !== null &&
+    options.periodStartDate <= options.periodEndDate;
+  if ((options.membershipBlocker !== null && (!periodMissing || options.members.length !== 0)) ||
+      (options.membershipBlocker === null && !periodValid))
+    throw new Error(`${path || 'response'}: invalid period-bound membership options`);
+  return options;
+};
 
 export const decodeScopeWorkspace = obj({
   scope: decodeScopeSummary,
@@ -150,12 +227,12 @@ export const decodeScopeWorkspace = obj({
   canReview: bool,
   currentUserId: guid,
   components: arr(decodeConsolidationComponent, 500),
-  eligiblePackages: arr(decodeEligiblePackage, 500),
-  journals: arr(decodeConsolidationJournal, 500),
-  runs: arr(decodeConsolidationRun, 500),
-  latestReport: nullable(decodeConsolidationReport),
-  componentReadiness: arr(decodeComponentReadiness, 500),
-  intercompanyExceptions: arr(decodeIntercompanyException, 500),
+  eligiblePackages: pageOf(decodeEligiblePackage),
+  journals: pageOf(decodeConsolidationJournal),
+  runs: pageOf(decodeConsolidationRun),
+  latestReport: readResultOf(decodeConsolidationReport),
+  componentReadiness: readResultOf(arr(decodeComponentReadiness, 500)),
+  intercompanyExceptions: readResultOf(decodeIntercompanyExceptionsPage),
 });
 
 export type ScopeWorkspace = ReturnType<typeof decodeScopeWorkspace>;
@@ -167,3 +244,5 @@ export type ConsolidationRun = ReturnType<typeof decodeConsolidationRun>;
 export type ConsolidationReport = ReturnType<typeof decodeConsolidationReport>;
 export type ComponentReadiness = ReturnType<typeof decodeComponentReadiness>;
 export type IntercompanyException = ReturnType<typeof decodeIntercompanyException>;
+export type IntercompanyExceptionsPage = ReturnType<typeof decodeIntercompanyExceptionsPage>;
+export type IntercompanyMatchOptions = ReturnType<typeof decodeIntercompanyMatchOptions>;

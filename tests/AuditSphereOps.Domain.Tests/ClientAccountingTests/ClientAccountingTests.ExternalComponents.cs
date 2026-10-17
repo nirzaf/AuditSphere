@@ -23,6 +23,20 @@ namespace AuditSphereOps.Domain.Tests;
 
 public sealed partial class ClientAccountingTests
 {
+  private static async Task<Guid> CreateExternalPackFixturePeriodAsync(AuditSphereDbContext db, Scope scope)
+  {
+    var periodId = Guid.NewGuid();
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+    {
+      Id = periodId, FirmId = scope.FirmId, ClientId = scope.ClientA, PeriodCode = "FY2026",
+      StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+      Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+      CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    return periodId;
+  }
+
   [Fact]
   [Trait("Profile", "Database")]
   public async Task ExternalComponentPack_WorkflowRequiresReconciliationAndPreservesHistory()
@@ -58,13 +72,13 @@ public sealed partial class ClientAccountingTests
       db.RoleGrants.Add(Grant(scope.FirmId, scope.Preparer, "Partner"));
       await db.SaveChangesAsync();
       scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod,
+        new ConsolidationScopeRequest(groupId, await CreateExternalPackFixturePeriodAsync(db, scope), "QAR", ConsolidationCalculator.RestrictedMethod,
           "OPENING-2026"))).Value;
 
       returnedPackId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
         new ExternalComponentPackRequest(scopeId, scope.ClientA, scope.EngagementA, "2026-01-01", "2026-12-31", "IFRS",
           "QAR", "STATUTORY", "tax-external-v1", "mapping-external-v1", "client-upload-001",
-          Hashing.Sha256Hex("raw-external-1"), Hashing.Sha256Hex("normalized-external-1"), 0m, lines))).Value;
+          Hashing.Sha256Hex("raw-external-1"), Hashing.Sha256Hex("CASH|100.000000|QAR|external-line-1\nREVENUE|-100.000000|QAR|external-line-2"), 0m, lines))).Value;
       var unreconciled = await ConsolidationService.ApproveExternalComponentPackAsync(db, reviewer, returnedPackId);
       Assert.False(unreconciled.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, unreconciled.ErrorCode);
@@ -76,14 +90,14 @@ public sealed partial class ClientAccountingTests
       var missingBridge = await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
         new ExternalComponentPackRequest(scopeId, scope.ClientA, scope.EngagementA, "2026-01-01", "2026-12-31", "IFRS",
           "QAR", "MANAGEMENT", "tax-external-v1", "mapping-external-v2", "client-upload-002",
-          Hashing.Sha256Hex("raw-external-2"), Hashing.Sha256Hex("normalized-external-2"), 0m, lines, returnedPackId));
+          Hashing.Sha256Hex("raw-external-2"), Hashing.Sha256Hex("CASH|100.000000|QAR|external-line-1\nREVENUE|-100.000000|QAR|external-line-2"), 0m, lines, returnedPackId));
       Assert.False(missingBridge.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, missingBridge.ErrorCode);
 
       approvedPackId = (await ConsolidationService.SubmitExternalComponentPackAsync(db, preparer,
         new ExternalComponentPackRequest(scopeId, scope.ClientA, scope.EngagementA, "2026-01-01", "2026-12-31", "IFRS",
           "QAR", "MANAGEMENT", "tax-external-v1", "mapping-external-v2", "client-upload-002",
-          Hashing.Sha256Hex("raw-external-2"), Hashing.Sha256Hex("normalized-external-2"), 0m, lines, returnedPackId,
+          Hashing.Sha256Hex("raw-external-2"), Hashing.Sha256Hex("CASH|100.000000|QAR|external-line-1\nREVENUE|-100.000000|QAR|external-line-2"), 0m, lines, returnedPackId,
           "basis-bridge-reviewed-by-group-accounting"))).Value;
       Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(db, reviewer,
         new ExternalComponentReconciliationRequest(approvedPackId, "external-tb-reconciliation-2"))).Succeeded);

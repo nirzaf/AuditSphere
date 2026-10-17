@@ -18,6 +18,7 @@ public static partial class UiEndpoints
   public sealed record PortalDelegateInput(Guid UserId);
   public sealed record PortalUploadInput(string FileName, string ContentType, string ByteCount, string Sha256);
   public sealed record PortalUploadResumeInput(string FileName, string ByteCount, string Sha256);
+  public sealed record PortalSignedRepresentationForm(IFormFile File, string ExpectedHash, string Signatory);
 
   public sealed record PortalPackageDecisionInput(string Decision, string EvidenceReference, string Comment, string ExpectedHash, bool Reviewed,
     Guid? PresentationRevisionId = null, Guid? PresentationCompositionId = null, string? CompositionManifestDigest = null,
@@ -28,7 +29,8 @@ public static partial class UiEndpoints
   private static void MapPortalEndpoints(RouteGroupBuilder group)
   {
     group.MapUiGet("/portal/branding", http => ReadAsync(http,
-      (db, actor, ct) => ClientPortalBrandingQuery.GetAsync(db, actor, ct)));
+      (db, actor, ct) => ClientPortalBrandingQuery.GetAsync(db, actor, ct)))
+      .WithUiResponse<PortalBrandingView>(includeConflict: true);
     group.MapGet("/portal/branding/{profileId:guid}/logo", async (Guid profileId, HttpContext http,
       TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -44,23 +46,33 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       http.Response.Headers["X-Logo-SHA256"] = result.Value.Sha256Hex;
       return Results.File(result.Value.Bytes, "image/png");
-    });
+    }).Produces<Stream>(StatusCodes.Status200OK, "image/png")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest)
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden)
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict);
     group.MapGet("/portal", (int? page, int? pageSize, int? packagePage, int? packagePageSize, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.GetAsync(db, actor, page ?? 0, pageSize ?? 50,
-        packagePage ?? 0, packagePageSize ?? 10, ct)));
+        packagePage ?? 0, packagePageSize ?? 10, ct)))
+      .WithUiResponse<PortalWorkspace>();
     group.MapGet("/portal/requests/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => ClientPortalWorkspaceQuery.RequestAsync(db, actor, id, ct)));
+      (db, actor, ct) => ClientPortalWorkspaceQuery.RequestAsync(db, actor, id, ct)))
+      .WithUiResponse<PortalRequestWorkspace>();
     group.MapGet("/portal/requests/{id:guid}/history", (Guid id, int? uploadPage, int? conversationPage, int? pageSize, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.RequestHistoryAsync(db, actor, id,
-        uploadPage ?? 0, conversationPage ?? 0, pageSize ?? 25, ct)));
+        uploadPage ?? 0, conversationPage ?? 0, pageSize ?? 25, ct)))
+      .WithUiResponse<PortalRequestHistory>();
     group.MapUiGet("/portal/documents", (HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => ClientPortalReviewQuery.GetAsync(db, actor, ct)));
+      (db, actor, ct) => ClientPortalReviewQuery.GetAsync(db, actor, ct)))
+      .WithUiResponse<PortalReviewDocuments>();
     group.MapUiGet("/portal/finance", (HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => ClientPortalFinanceQuery.GetAsync(db, actor, ct)));
+      (db, actor, ct) => ClientPortalFinanceQuery.GetAsync(db, actor, ct)))
+      .WithUiResponse<PortalClientFinanceView>();
     group.MapGet("/portal/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => FinancialPackageReviewService.GetClientViewAsync(db, actor, id, ct)));
+      (db, actor, ct) => FinancialPackageReviewService.GetClientViewAsync(db, actor, id, ct)))
+      .WithUiResponse<ClientFinancialPackageView>();
     group.MapGet("/portal/accounting/packages/{id:guid}/decision-receipts/{requestId:guid}", (Guid id, Guid requestId, HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => FinancialPackageReviewService.GetClientDecisionReceiptAsync(db, actor, id, requestId, ct)));
+      (db, actor, ct) => FinancialPackageReviewService.GetClientDecisionReceiptAsync(db, actor, id, requestId, ct)))
+      .WithUiResponse<ClientFinancialPackageDecisionReceipt>();
     group.MapPost("/portal/accounting/packages/{id:guid}/decision", (Guid id, PortalPackageDecisionInput i, HttpContext http) => CommandAsync(http,
       async (db, actor, ct) =>
       {
@@ -79,7 +91,8 @@ public static partial class UiEndpoints
         return await FinancialPackageReviewService.RecordAsync(db, actor, new(id, "MANAGEMENT_APPROVAL", i.Decision, "SIGNED_IN",
           i.EvidenceReference ?? "", i.Comment ?? "", invited?.PresentationRevisionId, null, invited?.CompositionId,
           invited?.CompositionManifestDigest, i.RequestId, i.ExpectedLatestDecisionId), ct);
-      }));
+      }))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     // The exact sealed PDF of the composition awaiting approval. Downloading records nothing and approves nothing.
     group.MapPost("/portal/accounting/packages/{id:guid}/compositions/{compositionId:guid}/pdf", async (Guid id, Guid compositionId,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -95,16 +108,24 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       http.Response.Headers["X-Statement-Composition-PDF-SHA256"] = result.Value.ArtifactSha256Hex;
       return Results.File(result.Value.Bytes, "application/pdf", result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, "application/pdf")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest)
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden)
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict);
     group.MapPost("/portal/documents/{id:guid}/comment", (Guid id, PortalDocumentCommentInput i, HttpContext http) => CommandAsync(http,
-      (db, actor, ct) => ClientPortalReviewCommands.CommentAsync(db, actor, id, i.RequestId, i.Body ?? "", ct)));
+      (db, actor, ct) => ClientPortalReviewCommands.CommentAsync(db, actor, id, i.RequestId, i.Body ?? "", ct)))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapGet("/portal/documents/{id:guid}/comment-receipts/{requestId:guid}", (Guid id, Guid requestId, HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => ClientPortalReviewCommands.GetCommentReceiptAsync(db, actor, id, requestId, ct)));
+      (db, actor, ct) => ClientPortalReviewCommands.GetCommentReceiptAsync(db, actor, id, requestId, ct)))
+      .WithUiResponse<Guid>();
     group.MapPost("/portal/documents/{id:guid}/acknowledge", (Guid id, PortalAcknowledgementInput i, HttpContext http) => CommandAsync(http,
       (db, actor, ct) => i.Reviewed ? ClientPortalReviewCommands.AcknowledgeAsync(db, actor, id, i.Sha256 ?? "", ct) :
-        Task.FromResult(CommandResult.Fail("review.required", "Review the exact document before acknowledgement."))));
+        Task.FromResult(CommandResult.Fail("review.required", "Review the exact document before acknowledgement."))))
+      .WithUiResponse<UiValueResponse<bool>>(includeConflict: true);
     group.MapPost("/portal/bundles/{id:guid}/acknowledge", (Guid id, PortalBundleAcknowledgementInput i, HttpContext http) => CommandAsync(http,
-      (db, actor, ct) => ClientBundleAcknowledgementCommands.AcknowledgeAsync(db, actor, id, i.ContentSha256 ?? "", i.ManifestSha256 ?? "", i.Received, ct)));
+      (db, actor, ct) => ClientBundleAcknowledgementCommands.AcknowledgeAsync(db, actor, id, i.ContentSha256 ?? "", i.ManifestSha256 ?? "", i.Received, ct)))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/portal/documents/{id:guid}/signed-representation", (Guid id, HttpContext http) => CommandAsync(http,
       async (db, actor, ct) =>
       {
@@ -112,13 +133,18 @@ public static partial class UiEndpoints
         if (upload is null) return CommandResult<Guid>.Fail("request.invalid", "Upload a PDF of at most 10 MB.");
         var form = await http.Request.ReadFormAsync(ct);
         return await AuditDeliverableService.UploadSignedRepresentationAsync(db, actor, id, form["expectedHash"].ToString(), form["signatory"].ToString(), upload.Value.Content, ct);
-      }));
+      }))
+      .Accepts<PortalSignedRepresentationForm>("multipart/form-data")
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/portal/first-sign-in", (PortalFirstSignInInput i, HttpContext http) => CommandAsync(http,
-      (db, actor, ct) => ClientPortalService.CompleteFirstSignInAsync(db, actor, i.Acknowledged, ct)));
+      (db, actor, ct) => ClientPortalService.CompleteFirstSignInAsync(db, actor, i.Acknowledged, ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/portal/requests/{id:guid}/reply", (Guid id, PortalReplyInput i, HttpContext http) => CommandAsync(http,
-      (db, actor, ct) => PbcService.ReplyAsync(db, actor, id, i.Body ?? "", ct)));
+      (db, actor, ct) => PbcService.ReplyAsync(db, actor, id, i.Body ?? "", ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/portal/requests/{id:guid}/delegations", (Guid id, PortalDelegateInput i, HttpContext http) => CommandAsync(http,
-      (db, actor, ct) => ClientPortalService.DelegateRequestAsync(db, actor, id, i.UserId, ct)));
+      (db, actor, ct) => ClientPortalService.DelegateRequestAsync(db, actor, id, i.UserId, ct)))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/portal/requests/{id:guid}/delegations/{delegationId:guid}/revoke", (Guid id, Guid delegationId, HttpContext http) => CommandAsync(http,
       async (db, actor, ct) =>
       {
@@ -126,7 +152,8 @@ public static partial class UiEndpoints
         if (!current.Succeeded || !current.Value!.Delegations.Any(x => x.Id == delegationId))
           return CommandResult.Fail(ErrorCodes.ScopeDenied, "Delegation unavailable.");
         return await ClientPortalService.RevokeDelegationAsync(db, actor, delegationId, ct);
-      }));
+      }))
+      .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/portal/requests/{id:guid}/uploads", (Guid id, PortalUploadInput i, HttpContext http) => CommandAsync(http,
       async (db, actor, ct) =>
       {
@@ -135,11 +162,13 @@ public static partial class UiEndpoints
         if (!long.TryParse(i.ByteCount, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var count))
           return CommandResult<PbcUploadReceipt>.Fail("request.invalid", "File size is invalid.");
         return await PbcService.StartUploadAsync(db, actor, new(id, i.FileName ?? "", i.ContentType ?? "application/octet-stream", count, i.Sha256 ?? ""), ct);
-      }));
+      }))
+      .WithUiResponse<UiValueResponse<PbcUploadReceipt>>();
     group.MapPost("/portal/requests/{id:guid}/uploads/{uploadId:guid}/resume", (Guid id, Guid uploadId, PortalUploadResumeInput i, HttpContext http) => CommandAsync(http,
       (db, actor, ct) => long.TryParse(i.ByteCount, System.Globalization.NumberStyles.None,
         System.Globalization.CultureInfo.InvariantCulture, out var count)
         ? PbcService.ResumeUploadAsync(db, actor, new(id, uploadId, i.FileName ?? "", count, i.Sha256 ?? ""), ct)
-        : Task.FromResult(CommandResult<PbcUploadResumeReceipt>.Fail("pbc.upload.invalid", "File size is invalid."))));
+        : Task.FromResult(CommandResult<PbcUploadResumeReceipt>.Fail("pbc.upload.invalid", "File size is invalid."))))
+      .WithUiResponse<UiValueResponse<PbcUploadResumeReceipt>>();
   }
 }

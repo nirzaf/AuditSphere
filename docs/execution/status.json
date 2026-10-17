@@ -5,7 +5,7 @@
     "inspectedAtUtc": "2026-10-17T18:31:29Z",
     "branch": "codex/documentation-reconciliation",
     "report": "docs/execution/auditsphere-execution-report-documentation-reconciliation-current.md",
-    "scope": "Documentation and generated task-board instructions only; pre-existing uncommitted API/Angular integration preserved and excluded from this PR.",
+    "scope": "Documentation-only PR #46; API/Angular integration and its separate verification are included in PR #47. This record describes only the original documentation slice.",
     "result": "DOCS_RECONCILED",
     "checks": {
       "sourceIntegrity": "PASS: Word SHA-256, 20 ordered sections and 165 exact procedure paragraphs match the JSON manifest",
@@ -20,7 +20,7 @@
     "professionalApproval": "NONE; D1-DRAFT-01 is proposed only",
     "cardStatusesChanged": false,
     "externalGateStatusesChanged": false,
-    "merge": "NOT_AUTHORIZED: requires AUDITSPHERE-MERGE-APPROVED",
+    "merge": "AUTHORIZED: subsequent explicit owner instructions request merging PRs #46 and #47 and continuing on master; actual merge outcomes recorded separately.",
     "deployment": "NOT_RUN"
   },
   "specificationVersion": "5.0",
@@ -1795,7 +1795,7 @@
       },
       {
         "id": "T024",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1815,7 +1815,7 @@
       },
       {
         "id": "T028",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IN_PROGRESS",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1830,7 +1830,7 @@
       },
       {
         "id": "T031",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IN_PROGRESS",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1860,80 +1860,180 @@
       },
       {
         "id": "T037",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T038",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T039",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T040",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T041",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T042",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T043",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T044",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T045",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T046",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T047",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T048",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T049",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T050",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IN_PROGRESS",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T051",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       }
     ],
-    "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md"
+    "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
+    "workingTreeBase": "150c7671762ac93f87b2b539cb53f688fb90557e",
+    "localVerification": {
+      "sourceState": "FOCUSED_INCREMENTAL_VERIFICATION: checks cover the affected coherent slices; not a full current-SHA release pass",
+      "allocationDomain": {
+        "result": "PASS",
+        "passed": 1,
+        "filter": "ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice"
+      },
+      "allocationUi": {
+        "result": "PASS",
+        "passed": 7,
+        "spec": "open-item-allocations.spec.ts"
+      },
+      "correctionOverviewUi": {
+        "result": "PASS",
+        "passed": 9,
+        "spec": "consolidation/overview.spec.ts"
+      },
+      "apiIntegration": {
+        "result": "PASS",
+        "scope": "Focused API cohorts, incrementally rerun only where source changed",
+        "coreContractAndScopeOptions": {
+          "passed": 12,
+          "failed": 0,
+          "skipped": 0
+        },
+        "finalMetadata": {
+          "passed": 3,
+          "failed": 0,
+          "skipped": 0
+        },
+        "ownershipQuery": {
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0
+        },
+        "earlierBehaviorChecks": "Intercompany, external-pack review/revocation, cookie session and mapping batch passed after startup correction; later perimeter/negative-revision changes covered by focused Domain regressions."
+      },
+      "apiCorrections": "Host wildcard registration and Guid schema defaults corrected; pagination forwarded; successful optional reads retain JSON null; response schemas regenerated with binding, session and conflict metadata.",
+      "browser": {
+        "result": "PASS_READ_ONLY_SMOKE",
+        "environment": "Test on loopback port 5029; auditsphere_browser synthetic fixture; external effects disabled",
+        "observed": [
+          "Authorized group overview",
+          "Scope with independent paged history wrappers",
+          "External pack history and retained source lines",
+          "Approved scope intake stays blocked",
+          "Ownership panel recovered from provider query translation failure; HTTP 200 and visible empty history",
+          "No captured browser console errors"
+        ],
+        "notVerified": [
+          "Full submission/reconciliation/independent approval/pinning browser journey",
+          "Responsive acceptance",
+          "Live provider acceptance"
+        ],
+        "contractRenderer": "Large JSON accessibility snapshot timed out; server request was HTTP 200 and contract verified by served-artifact tests."
+      },
+      "currentCommitReleaseVerification": "NOT_RUN: full regressions remain CI/CD only",
+      "lastPushedFastCi": {
+        "runId": 39057271667,
+        "commit": "150c7671762ac93f87b2b539cb53f688fb90557e",
+        "result": "FAST_CI_PASS",
+        "angular": "PASS",
+        "docs": "PASS",
+        "dotnetRelease": "PASS"
+      },
+      "priorApiIntegration": {
+        "result": "FAIL",
+        "passed": 9,
+        "failed": 4,
+        "total": 13,
+        "scope": "OpenApiContractTests; intercompany API flow; cookie-session denial; mapping batch"
+      },
+      "testedCodeCommit": "37457ac4ead06b274be2ac8b99ac1b547677879a",
+      "consolidationDomain": {
+        "result": "PASS",
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Group workflow, readiness boundary, translation/intercompany queries, external components and advanced schedules/execution"
+      },
+      "negativeRevisionDomain": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Existing group workflow extended with negative approval revision denial"
+      },
+      "consolidationUi": {
+        "result": "PASS",
+        "scopeWorkspace": 15,
+        "overview": 9,
+        "externalPacks": 5,
+        "componentCorrection": 4,
+        "note": "Focused cohorts; external-pack spec alone rerun after correcting its shuffled-file row-identity assertion. No tests skipped or weakened."
+      },
+      "openApiDrift": "PASS: final emitter matches committed contract",
+      "angularBuild": "PASS: existing commercial/settings.scss size warning remains",
+      "remainingDisplayLimit": "Groups exceeding 500 readiness rows return an explicit unavailable subpanel rather than a truncated success; complete paged readiness remains open."
+    }
   }
 }

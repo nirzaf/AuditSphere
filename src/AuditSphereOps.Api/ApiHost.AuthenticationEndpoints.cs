@@ -46,7 +46,7 @@ public static partial class ApiHost
           RedirectUri = LocalDestination(returnUrl),
           Prompt = reauthenticate ? "login" : selectAccount ? "select_account" : null
         }, ["Entra"]);
-      });
+      }).Produces(StatusCodes.Status302Found);
     }
     else if (developmentIdentityEnabled)
     {
@@ -97,7 +97,8 @@ public static partial class ApiHost
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
           new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
         return Results.Redirect(LocalDestination(returnUrl));
-      });
+      }).Produces(StatusCodes.Status302Found)
+        .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
     }
     if (oidcConfigured || developmentIdentityEnabled)
     {
@@ -145,7 +146,9 @@ public static partial class ApiHost
           return Results.Redirect(consentPage + "?result=blocked");
         return Results.Redirect(verifier.BuildIdentityChallenge(challenge.Value!.TenantId,
           challenge.Value.State, challenge.Value.Nonce).ToString());
-      });
+      }).Produces(StatusCodes.Status302Found)
+        .Produces(StatusCodes.Status403Forbidden)
+        .Produces(StatusCodes.Status404NotFound);
       TenantAdministrationComposition.MapEndpoints(app, nativeUi: true);
       app.MapGet("/auth/landing", async (HttpContext http, TrustedActorResolver actorResolver,
         IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
@@ -168,18 +171,19 @@ public static partial class ApiHost
                actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase)
           ? Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/portal"))
           : Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app"));
-      });
+      }).Produces(StatusCodes.Status302Found);
       app.MapGet("/auth/sign-out", async (HttpContext http) =>
       {
         await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return Results.Redirect("/");
-      });
+      }).Produces(StatusCodes.Status302Found);
     }
 
     // The standalone Angular API owns the root redirect. A legacy Web host instead
     // maps `/` to its Razor home component, so registering both creates an ambiguous route.
     if (!legacyPresentation)
-      app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")));
+      app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")))
+        .Produces(StatusCodes.Status302Found);
     app.MapGet("/auth/access-not-assigned", (HttpContext http) =>
     {
       http.Response.Headers.CacheControl = "no-store";
@@ -196,9 +200,10 @@ main{max-width:34rem;padding:2rem;text-align:center}a.button{display:inline-bloc
 </html>
 """;
       return Results.Text(page, "text/html; charset=utf-8", statusCode: StatusCodes.Status403Forbidden);
-    });
+    }).Produces<string>(StatusCodes.Status403Forbidden, "text/html");
     if (!oidcConfigured && !developmentIdentityEnabled)
-      app.MapGet("/auth/sign-in", () => Results.Problem("Microsoft sign-in is not configured for this deployment.", statusCode: 503));
+      app.MapGet("/auth/sign-in", () => Results.Problem("Microsoft sign-in is not configured for this deployment.", statusCode: 503))
+        .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
     string LocalDestination(string? returnUrl) =>
       !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith('/') &&
       !returnUrl.StartsWith("//", StringComparison.Ordinal) && !returnUrl.Contains('\\') && !returnUrl.Any(char.IsControl)

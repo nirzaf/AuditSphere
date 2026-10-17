@@ -14,11 +14,11 @@ public static partial class UiEndpoints
     string Currency, string ConfirmationDate, UiConfirmationBatchItem[] Cases);
   private static void MapConfirmationEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/engagements/{id:guid}/confirmations",(Guid id,int? page,string? filter,HttpContext http)=>
-      ReadAsync(http,(db,a,ct)=>ConfirmationWorkspace.GetAsync(db,a,id,page??0,filter??"ALL",ct)));
-    group.MapGet("/engagements/{id:guid}/confirmations/{caseId:guid}",(Guid id,Guid caseId,HttpContext http)=>
-      ReadAsync(http,(db,a,ct)=>ConfirmationWorkspace.DetailAsync(db,a,id,caseId,ct)));
-    group.MapPost("/engagements/{id:guid}/confirmations/batch", (Guid id, UiConfirmationBatch i, HttpContext http) => CommandAsync(http, (db,a,ct) =>
+    UiEndpointContractMetadata.WithUiResponse<ConfirmationPage>(group.MapGet("/engagements/{id:guid}/confirmations",(Guid id,int? page,string? filter,HttpContext http)=>
+      ReadAsync(http,(db,a,ct)=>ConfirmationWorkspace.GetAsync(db,a,id,page??0,filter??"ALL",ct))));
+    UiEndpointContractMetadata.WithUiResponse<ConfirmationDetail>(group.MapGet("/engagements/{id:guid}/confirmations/{caseId:guid}",(Guid id,Guid caseId,HttpContext http)=>
+      ReadAsync(http,(db,a,ct)=>ConfirmationWorkspace.DetailAsync(db,a,id,caseId,ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ConfirmationBatchValue>>(group.MapPost("/engagements/{id:guid}/confirmations/batch", (Guid id, UiConfirmationBatch i, HttpContext http) => CommandAsync(http, (db,a,ct) =>
     {
       if (i.Cases is not {Length:>=1 and <=100} || !AuditConfirmationAreaCodes.IsSupported(i.AreaCode) || i.Currency is not {Length:3} ||
           !DateOnly.TryParseExact(i.ConfirmationDate,"yyyy-MM-dd",out var date) || i.ReviewToken is not {Length:64})
@@ -31,16 +31,16 @@ public static partial class UiEndpoints
         cases.Add(new(c.SourceRecordId,amount,c.Respondent,c.ContactValidationSource));
       }
       return ConfirmationWorkspace.CreateBatchAsync(db,a,new(id,i.ProcedureId,i.AreaCode,i.Currency,date,cases),i.ReviewToken,i.Reviewed,ct);
-    }));
-    group.MapPost("/engagements/{id:guid}/confirmations",(Guid id,UiConfirmationCreate i,HttpContext http)=>CommandAsync(http,(db,a,ct)=>
+    })), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ConfirmationValue>>(group.MapPost("/engagements/{id:guid}/confirmations",(Guid id,UiConfirmationCreate i,HttpContext http)=>CommandAsync(http,(db,a,ct)=>
     {
       if(!TryConfirmationAmount(i.BookedAmount,out var amount) || !DateOnly.TryParseExact(i.ConfirmationDate,"yyyy-MM-dd",out var date) ||
         !AuditConfirmationAreaCodes.IsSupported(i.AreaCode) || !Bound(i.SourceRecordId,200) || !Bound(i.Respondent,500) || !Bound(i.ContactValidationSource,2000) ||
         i.Currency is not {Length:3} || i.ReviewToken is not {Length:64})
         return Task.FromResult(CommandResult<ConfirmationValue>.Fail("request.invalid","Provide a reviewed identity, exact amount, date and bounded contact evidence."));
       return ConfirmationWorkspace.CreateAsync(db,a,new(id,i.ProcedureId,i.AreaCode,i.SourceRecordId,amount,i.Currency,date,i.Respondent,i.ContactValidationSource),i.ReviewToken,i.Reviewed,ct);
-    }));
-    group.MapPost("/engagements/{id:guid}/confirmations/{caseId:guid}/actions",(Guid id,Guid caseId,UiConfirmationAction i,HttpContext http)=>CommandAsync(http,(db,a,ct)=>
+    })), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/engagements/{id:guid}/confirmations/{caseId:guid}/actions",(Guid id,Guid caseId,UiConfirmationAction i,HttpContext http)=>CommandAsync(http,(db,a,ct)=>
     {
       decimal? amount=null;
       if(i.ConfirmedAmount!=null) { if(!TryConfirmationAmount(i.ConfirmedAmount,out var parsed))return Task.FromResult(CommandResult.Fail("request.invalid","Use an exact decimal amount.")); amount=parsed; }
@@ -51,7 +51,7 @@ public static partial class UiEndpoints
         return Task.FromResult(CommandResult.Fail("request.invalid","Use a supported reviewed action with bounded evidence."));
       return ConfirmationWorkspace.ActAsync(db,a,id,caseId,new(i.Action,i.ReviewToken,i.Reviewed,i.EvidenceId,i.Reference,i.Origin,i.Channel,amount,
         i.AuthenticityAssessment,i.Decision,i.Purpose,i.EvidenceReferences,i.Conclusion,i.Critical,i.Rationale),ct);
-    }));
+    })), includeConflict: true);
   }
   private static bool TryConfirmationAmount(string? value,out decimal amount)=>ValidConfirmationAmount(value,out amount);
   private static bool ValidConfirmationAmount(string? value,out decimal amount)

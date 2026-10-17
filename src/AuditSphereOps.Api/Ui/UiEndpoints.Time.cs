@@ -13,7 +13,8 @@ public static partial class UiEndpoints
 
   private static void MapTimeEndpoints(RouteGroupBuilder group)
   {
-    group.MapUiGet("/practice/time", http => ReadAsync(http, (db, actor, ct) => PracticeTimeWorkspaceQuery.GetAsync(db, actor, ct)));
+    group.MapUiGet("/practice/time", http => ReadAsync(http, (db, actor, ct) => PracticeTimeWorkspaceQuery.GetAsync(db, actor, ct)))
+      .WithT046Response<PracticeTimeWorkspace>();
     group.MapPost("/practice/time/tasks", (WorkTaskInput input, HttpContext http) =>
     {
       DateOnly? due = TryDate(input.DueDate, out var d) ? d : null;
@@ -45,16 +46,19 @@ public static partial class UiEndpoints
           MappingVersionId: engagement?.MappingVersionId is not null && input.MappingVersionId is not null ? input.MappingVersionId : null,
           FsliCode: input.MappingVersionId is not null ? input.FsliCode : null), ct);
       });
-    });
+    }).WithT046Response<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/practice/time/entries", (TimeDraftInput input, HttpContext http) =>
       TryDate(input.WorkDate, out var date)
         ? CommandAsync(http, (db, actor, ct) => PracticeTimeService.SaveTimeDraftAsync(db, actor, new SaveTimeDraftRequest(input.TaskId, date, input.StartMinute ?? 540, input.DurationMinutes,
             input.Role, input.Activity, input.Billable ? PracticeTimeStates.Billable : PracticeTimeStates.NonBillable, input.Narrative ?? "",
             PracticeTimeStates.NarrativeInternal, "QAR"), ct))
-        : Task.FromResult(Invalid("Enter the work date.")));
+        : Task.FromResult(Invalid("Enter the work date.")))
+      .WithT046Response<UiValueResponse<Guid>>();
     group.MapPost("/practice/time/entries/{id:guid}/submit", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => PracticeTimeService.SubmitTimeAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => PracticeTimeService.SubmitTimeAsync(db, actor, id, ct)))
+      .WithT046Response<UiValueResponse<bool>>();
     group.MapPost("/practice/time/entries/{id:guid}/approve", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => PracticeTimeService.ApproveTimeAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => PracticeTimeService.ApproveTimeAsync(db, actor, id, ct)))
+      .WithT046Response<UiValueResponse<bool>>();
   }
 }

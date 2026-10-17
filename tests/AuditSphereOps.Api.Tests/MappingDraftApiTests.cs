@@ -26,6 +26,10 @@ public sealed class MappingDraftApiTests
     Assert.Equal(2, editor.GetProperty("sourceAccountCount").GetInt32());
     Assert.Equal(25, editor.GetProperty("pageSize").GetInt32());
     Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync(url + "/editor?page=2")).StatusCode);
+    using var absentReceipt = await c.GetAsync(url + $"/draft-receipts/{Guid.CreateVersion7()}");
+    Assert.Equal(HttpStatusCode.OK, absentReceipt.StatusCode);
+    Assert.Equal("application/json", absentReceipt.Content.Headers.ContentType?.MediaType);
+    Assert.Equal("null", (await absentReceipt.Content.ReadAsStringAsync()).Trim());
     var intent = Intent(editor);
     Assert.Equal(HttpStatusCode.Forbidden, (await Post(c, "wrong", url + "/draft-preview", intent)).StatusCode);
     var preview = await Preview(c, csrf, url, intent);

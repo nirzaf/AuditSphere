@@ -29,10 +29,37 @@ public static partial class UiEndpoints
   public sealed record AllocationReversalInput(string Amount, string Reference, string Reason, long ExpectedRevision, bool Reviewed);
   public sealed record AllocationReversalReviewInput(bool Approve, string Reason, bool Reviewed);
   public sealed record ReceivablesAgingExportInput(string AsOfDate);
+  public sealed record FinanceWorkspaceResponse(
+    bool CanCreateSetup, bool CanClosePeriod, bool CanReviewJournals, bool CanPostJournals,
+    bool CanCreateJournals, bool CanReversePostings, bool CanReopenPeriod,
+    IReadOnlyList<FinanceWorkspacePeriod> Periods, IReadOnlyList<FinanceWorkspaceAccount> Accounts,
+    IReadOnlyList<FinanceWorkspacePosting> Postings, IReadOnlyList<FinanceWorkspaceJournal> Journals);
+  public sealed record FinanceWorkspacePeriod(Guid Id, string PeriodCode, string Status, long Revision, DateTimeOffset? ClosedAt);
+  public sealed record FinanceWorkspaceAccount(Guid Id, string Code, string Name, string AccountType, string NormalSide, bool PostingAllowed);
+  public sealed record FinanceWorkspacePosting(Guid Id, Guid PeriodId, Guid JournalId, DateTimeOffset PostedAt,
+    string Currency, Guid PostedByUserId, Guid? ReversalOfPostingId);
+  public sealed record FinanceWorkspaceJournal(Guid Id, Guid PeriodId, string PeriodCode, string JournalNumber,
+    string SourceKind, string SourceKey, long SourceRevision, string PostingPurpose, string Currency, string Status,
+    Guid CreatedByUserId, Guid? ApprovedByUserId, string? SupportingEvidenceFileName,
+    string? SupportingEvidenceSha256, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt,
+    DateTimeOffset? PostedAt, IReadOnlyList<FinanceWorkspaceJournalLine> Lines);
+  public sealed record FinanceWorkspaceJournalLine(Guid FirmAccountId, string AccountCode, string AccountName,
+    string Description, string Debit, string Credit);
+  public sealed record FinanceInvoiceWorkspaceResponse(
+    Guid Id, Guid BillingAccountId, string InvoiceNumber, string? Currency, decimal Subtotal, decimal Tax, decimal Total,
+    long Revision, string Status, DateTimeOffset CreatedAt, DateTimeOffset? PostedAt,
+    decimal Outstanding, decimal Credited, decimal Allocated, IReadOnlyList<FinanceInvoiceLine> Lines,
+    IReadOnlyList<BillingInvoiceAllocationSummary> Allocations, IReadOnlyList<BillingReceiptOption> Receipts,
+    bool ReceiptsHaveMore, IReadOnlyList<BillingCreditNoteSummary> CreditNotes, bool CreditNotesHaveMore,
+    IReadOnlyList<BillingPaymentTermsSummary> PaymentTerms, bool PaymentTermsHaveMore,
+    bool CanSubmitPaymentTerms, bool CanReviewPaymentTerms, bool CanIssueCreditNote,
+    bool CanApproveInvoice, bool CanPostInvoice, bool CanSendInvoice, bool CanAct);
+  public sealed record FinanceInvoiceLine(string Description, decimal Quantity, decimal UnitPrice, decimal LineTotal);
+  public sealed record FinanceJournalForm(string Journal, IFormFile? Evidence);
 
   private static void MapFinanceEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/finance/unbilled-time", (string? from, string? to, Guid? clientId,
+    UiEndpointContractMetadata.WithUiResponse<FirmUnbilledTimeReport>(group.MapGet("/finance/unbilled-time", (string? from, string? to, Guid? clientId,
       Guid? engagementId, int? page, int? pageSize, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) =>
       {
@@ -41,15 +68,16 @@ public static partial class UiEndpoints
             "Choose a valid work-date range of at most 366 days and a supported page."));
         return FirmUnbilledTimeQuery.GetAsync(db, actor,
           new FirmUnbilledTimeRequest(fromDate, toDate, clientId, engagementId, page ?? 0, pageSize ?? 50), ct);
-      }));
+      })));
 
-    group.MapUiGet("/finance/receivables-aging", http => ReadAsync(http, (db, actor, ct) =>
+    UiEndpointContractMetadata.WithUiResponse<FirmReceivablesAgingReport>(group.MapGet("/finance/receivables-aging", (string? asOf, HttpContext http) => ReadAsync(http, (db, actor, ct) =>
     {
-      var asOf = ParseAsOfDate(http.Request.Query["asOf"].FirstOrDefault());
-      return asOf is null
+      // Keep the endpoint's original first-value parsing while binding the nullable query for OpenAPI.
+      var parsedAsOf = ParseAsOfDate(http.Request.Query["asOf"].FirstOrDefault());
+      return parsedAsOf is null
         ? Task.FromResult(CommandResult<FirmReceivablesAgingReport>.Fail("finance.as-of-invalid", "Provide the report date in YYYY-MM-DD format."))
-        : FirmReceivablesAgingQuery.GetAsync(db, actor, asOf.Value, ct);
-    }));
+        : FirmReceivablesAgingQuery.GetAsync(db, actor, parsedAsOf.Value, ct);
+    })), includeConflict: false);
     group.MapPost("/finance/receivables-aging/export", async (ReceivablesAgingExportInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -67,9 +95,12 @@ public static partial class UiEndpoints
         return Failure("session.unavailable", "Sign in again.", 401);
       http.Response.Headers["X-Receivables-As-Of"] = asOf.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
       return Results.File(Encoding.UTF8.GetBytes(result.Value!.Csv), "text/csv; charset=utf-8", result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<string>(StatusCodes.Status200OK, "text/csv")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
 
-    group.MapUiGet("/finance", http => ReadAsync(http, async (db, actor, ct) =>
+    UiEndpointContractMetadata.WithUiResponse<FinanceWorkspaceResponse>(group.MapUiGet("/finance", http => ReadAsync(http, async (db, actor, ct) =>
     {
       var r = await FirmFinanceQuery.GetAsync(db, actor, ct);
       return r.Succeeded
@@ -100,14 +131,15 @@ public static partial class UiEndpoints
             })
           })
         : CommandResult<object>.Fail(r.ErrorCode!, r.Message!);
-    }));
-    group.MapPost("/finance/accounts", (FirmAccountInput input, HttpContext http) =>
+    })), includeBadRequest: false);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/accounts", (FirmAccountInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmAccountAsync(db, actor,
-        new CreateFirmAccountRequest(input.Code ?? "", input.Name ?? "", input.AccountType ?? "", input.NormalSide ?? "", input.PostingAllowed), ct)));
-    group.MapPost("/finance/periods", (FirmPeriodInput input, HttpContext http) =>
+        new CreateFirmAccountRequest(input.Code ?? "", input.Name ?? "", input.AccountType ?? "", input.NormalSide ?? "", input.PostingAllowed), ct))),
+      includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/periods", (FirmPeriodInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmPeriodAsync(db, actor,
-        new CreateFirmPeriodRequest(input.PeriodCode ?? ""), ct)));
-    group.MapUiPost("/finance/journals", async http =>
+        new CreateFirmPeriodRequest(input.PeriodCode ?? ""), ct))));
+    var journalCreate = group.MapUiPost("/finance/journals", async http =>
     {
       if (!http.Request.HasFormContentType) return Invalid("Send the journal details and supporting document as a multipart form.");
       var form = await http.Request.ReadFormAsync(http.RequestAborted);
@@ -133,6 +165,9 @@ public static partial class UiEndpoints
           input.SourceKey ?? "", 1, input.PostingPurpose ?? "", input.Currency ?? "", lines,
           evidence?.Name, evidence?.ContentType, evidence?.Content), ct));
     });
+    journalCreate.Accepts<FinanceJournalForm>("multipart/form-data");
+    journalCreate.Produces(StatusCodes.Status413PayloadTooLarge);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(journalCreate, includeConflict: true);
     group.MapPost("/finance/journals/{id:guid}/evidence", async (Guid id, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -148,25 +183,26 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Firm-Journal-Evidence-SHA256"] = result.Value.Sha256;
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value.Content, "application/octet-stream", result.Value.FileName);
-    });
-    group.MapPost("/finance/journals/{id:guid}/submit", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => LedgerService.SubmitFirmJournalAsync(db, actor, id, ct)));
-    group.MapPost("/finance/journals/{id:guid}/review", (Guid id, FirmJournalActionInput input, HttpContext http) =>
+    }).Produces<Stream>(StatusCodes.Status200OK, "application/octet-stream")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/finance/journals/{id:guid}/submit", (Guid id, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => LedgerService.SubmitFirmJournalAsync(db, actor, id, ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/finance/journals/{id:guid}/review", (Guid id, FirmJournalActionInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => input.Confirmed
         ? LedgerService.ApproveFirmJournalAsync(db, actor, id, ct)
-        : Task.FromResult(CommandResult.Fail("ledger.review-unconfirmed", "Confirm the journal review before approval."))));
-    group.MapPost("/finance/journals/{id:guid}/post", (Guid id, FirmJournalActionInput input, HttpContext http) =>
+        : Task.FromResult(CommandResult.Fail("ledger.review-unconfirmed", "Confirm the journal review before approval.")))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/journals/{id:guid}/post", (Guid id, FirmJournalActionInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => input.Confirmed
         ? LedgerService.PostFirmJournalAsync(db, actor, id, ct)
-        : Task.FromResult(CommandResult<Guid>.Fail("ledger.post-unconfirmed", "Confirm the journal posting before continuing."))));
-    group.MapPost("/finance/periods/{id:guid}/close", (Guid id, FiscalCloseInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => LedgerService.CloseFiscalPeriodAsync(db, actor, id, i.Reason ?? "", ct)));
-    group.MapPost("/finance/periods/{id:guid}/reopen", (Guid id, FiscalCloseInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => LedgerService.RequestPeriodReopenAsync(db, actor, id, i.Reason ?? "", ct)));
-    group.MapPost("/finance/postings/{id:guid}/reverse", (Guid id, ReversePostingInput input, HttpContext http) =>
+        : Task.FromResult(CommandResult<Guid>.Fail("ledger.post-unconfirmed", "Confirm the journal posting before continuing.")))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/finance/periods/{id:guid}/close", (Guid id, FiscalCloseInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => LedgerService.CloseFiscalPeriodAsync(db, actor, id, i.Reason ?? "", ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/finance/periods/{id:guid}/reopen", (Guid id, FiscalCloseInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => LedgerService.RequestPeriodReopenAsync(db, actor, id, i.Reason ?? "", ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/postings/{id:guid}/reverse", (Guid id, ReversePostingInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.ReverseFirmPostingAsync(db, actor,
-        new ReverseFirmPostingRequest(id, input.PeriodId, input.Reason ?? ""), ct)));
-    group.MapGet("/finance/invoices/{id:guid}", (
+        new ReverseFirmPostingRequest(id, input.PeriodId, input.Reason ?? ""), ct))));
+    UiEndpointContractMetadata.WithUiResponse<FinanceInvoiceWorkspaceResponse>(group.MapGet("/finance/invoices/{id:guid}", (
       Guid id, DateTimeOffset? receiptBefore, Guid? receiptBeforeId,
       DateTimeOffset? creditBefore, Guid? creditBeforeId, HttpContext http) => ReadAsync(http, async (db, actor, ct) =>
     {
@@ -195,26 +231,26 @@ public static partial class UiEndpoints
         CanSendInvoice = r.Value.CanSendInvoice,
         CanAct = true,
       });
-    }));
-    group.MapPost("/finance/invoices/{id:guid}/payment-terms", (Guid id, PaymentTermsInput input, HttpContext http) =>
+    })), includeConflict: false);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/invoices/{id:guid}/payment-terms", (Guid id, PaymentTermsInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => InvoicePaymentTermsService.SubmitAsync(db, actor, id,
         new SetInvoicePaymentTermsRequest(input.DueDate, input.Basis ?? "", input.TermsDescription ?? "",
-          input.EvidenceReference ?? "", input.ExpectedRevision, input.Reviewed), ct)));
-    group.MapPost("/finance/invoice-payment-terms/{id:guid}/review", (Guid id, PaymentTermsReviewInput input, HttpContext http) =>
+          input.EvidenceReference ?? "", input.ExpectedRevision, input.Reviewed), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/finance/invoice-payment-terms/{id:guid}/review", (Guid id, PaymentTermsReviewInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => InvoicePaymentTermsService.ReviewAsync(db, actor, id,
-        new ReviewInvoicePaymentTermsRequest(input.Approve, input.Reason ?? "", input.Reviewed), ct)));
-    group.MapPost("/finance/allocations/{id:guid}/reversals", (Guid id, AllocationReversalInput input, HttpContext http) =>
+        new ReviewInvoicePaymentTermsRequest(input.Approve, input.Reason ?? "", input.Reviewed), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/allocations/{id:guid}/reversals", (Guid id, AllocationReversalInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>
       {
         if (!TryDecimal(input.Amount, out var amount))
           return Task.FromResult(CommandResult<Guid>.Fail("billing.reversal-invalid", "Review a positive exact reversal amount."));
         return ReceiptAllocationReversalService.SubmitAsync(db, actor, id,
           new RequestReceiptAllocationReversal(amount, input.Reference ?? "", input.Reason ?? "", input.ExpectedRevision, input.Reviewed), ct);
-      }));
-    group.MapPost("/finance/allocation-reversals/{id:guid}/review", (Guid id, AllocationReversalReviewInput input, HttpContext http) =>
+      })), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/finance/allocation-reversals/{id:guid}/review", (Guid id, AllocationReversalReviewInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => ReceiptAllocationReversalService.ReviewAsync(db, actor, id,
-        new ReviewReceiptAllocationReversal(input.Approve, input.Reason ?? "", input.Reviewed), ct)));
-    group.MapPost("/finance/billing-accounts/{id:guid}/receipts", (Guid id, ReceiptInput input, HttpContext http) =>
+        new ReviewReceiptAllocationReversal(input.Approve, input.Reason ?? "", input.Reviewed), ct))), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/billing-accounts/{id:guid}/receipts", (Guid id, ReceiptInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>
       {
         if (input.RequestId == Guid.Empty)
@@ -222,8 +258,8 @@ public static partial class UiEndpoints
         if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference) || input.Reference.Trim().Length > 200)
           return Task.FromResult(CommandResult<Guid>.Fail("billing.invalid", "Review a positive receipt amount and a transaction reference of at most 200 characters."));
         return BillingService.RecordReceiptAsync(db, actor, new RecordReceiptRequest(id, amount, input.Reference.Trim(), RequestId: input.RequestId), ct);
-      }));
-    group.MapPost("/finance/receipts/{id:guid}/allocations", (Guid id, ReceiptAllocationInput input, HttpContext http) =>
+      })), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ReceiptAllocationCommandOutcome>>(group.MapPost("/finance/receipts/{id:guid}/allocations", (Guid id, ReceiptAllocationInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>
       {
         if (input.RequestId == Guid.Empty)
@@ -231,8 +267,8 @@ public static partial class UiEndpoints
         if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || input.InvoiceId == Guid.Empty)
           return Task.FromResult(CommandResult<ReceiptAllocationCommandOutcome>.Fail("billing.invalid", "Review a positive exact allocation amount for this invoice."));
         return BillingService.AllocateReceiptCommandAsync(db, actor, new AllocateReceiptRequest(id, input.InvoiceId, amount, input.RequestId), ct);
-      }));
-    group.MapPost("/finance/invoices/{id:guid}/credit-notes", (Guid id, CreditNoteInput input, HttpContext http) =>
+      })), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/invoices/{id:guid}/credit-notes", (Guid id, CreditNoteInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>
       {
         if (input.RequestId == Guid.Empty)
@@ -242,18 +278,19 @@ public static partial class UiEndpoints
           return Task.FromResult(CommandResult<Guid>.Fail("billing.invalid", "Review a positive credit amount, unique note number, and reason."));
         return BillingService.IssueCreditNoteAsync(db, actor, new IssueCreditNoteRequest(id,
           input.NoteNumber.Trim(), amount, input.Reason.Trim(), input.RequestId), ct);
-      }));
-    group.MapUiGet("/finance/commands/receipts/{requestId:guid}", http =>
+      })), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<BillingCommandReceiptView>(group.MapUiGet("/finance/commands/receipts/{requestId:guid}", http =>
       Guid.TryParse(http.Request.RouteValues["requestId"]?.ToString(), out var requestId)
         ? ReadAsync(http, (db, actor, ct) => BillingCommandWorkspace.GetAsync(db, actor, requestId, ct))
-        : Task.FromResult(Invalid("The billing request identity is invalid.")));
+        : Task.FromResult(Invalid("The billing request identity is invalid."))));
     foreach (var (action, command) in new (string, Func<Application.Operations.IAuditSphereDbContext, Application.Abstractions.ActorContext, Guid, CancellationToken, Task<CommandResult>>)[]
     {
       ("approve", (db, a, id, ct) => BillingService.ApproveInvoiceAsync(db, a, id, ct)),
       ("post", (db, a, id, ct) => BillingService.PostInvoiceAsync(db, a, id, ct)),
       ("send", (db, a, id, ct) => BillingService.SendInvoiceAsync(db, a, id, ct)),
     })
-      group.MapPost("/finance/invoices/{id:guid}/" + action, (Guid id, HttpContext http) => CommandAsync(http, (db, actor, ct) => command(db, actor, id, ct)));
+      UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/finance/invoices/{id:guid}/" + action,
+        (Guid id, HttpContext http) => CommandAsync(http, (db, actor, ct) => command(db, actor, id, ct))));
   }
 
   private static DateOnly? ParseAsOfDate(string? value) =>

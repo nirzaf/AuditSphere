@@ -7,6 +7,19 @@ using Microsoft.OpenApi;
 
 namespace AuditSphereOps.Api.Contracts;
 
+/// <summary>Marks an existing JSON read whose successful body may be null; CLR response metadata erases reference nullability.</summary>
+public sealed class NullableJsonSuccessBodyMetadata { }
+
+/// <summary>Documents a download whose retained media type is determined by the uploaded evidence.</summary>
+public sealed class RetainedBinaryContentTypeMetadata { }
+
+/// <summary>Documents scalar inputs read manually from HttpContext without changing binding or refusal order.</summary>
+public sealed record ManualParameterMetadata(string Name, ParameterLocation Location, bool Required,
+  JsonSchemaType Type, string? Format = null, string? Pattern = null, string? Description = null, decimal? Minimum = null);
+
+/// <summary>Transport-only session declaration for handlers that resolve the cookie actor themselves.</summary>
+public sealed class CookieSessionContractMetadata { }
+
 /// <summary>
 /// The canonical OpenAPI 3.1 contract, generated from the actual ASP.NET Core endpoints. The
 /// document describes transport behavior only: URLs, methods, authentication requirements and
@@ -60,7 +73,28 @@ public static class ApiContract
       });
       options.AddOperationTransformer(async (operation, context, ct) =>
       {
-        var authorized = context.Description.ActionDescriptor.EndpointMetadata.OfType<IAuthorizeData>().Any();
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        // Produces metadata rejects wildcard media types at host startup. OpenAPI allows
+        // them: uploaded evidence retains its original type rather than always being octet-stream.
+        if (metadata.OfType<RetainedBinaryContentTypeMetadata>().Any() &&
+            operation.Responses?.TryGetValue("200", out var binaryResponse) == true &&
+            binaryResponse.Content?.Remove("application/octet-stream", out var binaryContent) == true)
+          binaryResponse.Content["*/*"] = binaryContent;
+        foreach (var parameter in metadata.OfType<ManualParameterMetadata>())
+        {
+          operation.Parameters ??= [];
+          operation.Parameters.Add(new OpenApiParameter
+          {
+            Name = parameter.Name, In = parameter.Location, Required = parameter.Required,
+            Description = parameter.Description,
+            Schema = new OpenApiSchema
+            {
+              Type = parameter.Type, Format = parameter.Format, Pattern = parameter.Pattern,
+              Minimum = parameter.Minimum?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            }
+          });
+        }
+        var authorized = metadata.OfType<IAuthorizeData>().Any() || metadata.OfType<CookieSessionContractMetadata>().Any();
         if (!authorized) return;
         operation.Security ??= [];
         operation.Security.Add(new OpenApiSecurityRequirement
@@ -68,15 +102,43 @@ public static class ApiContract
           [new OpenApiSecuritySchemeReference(SessionCookieSchemeId, context.Document)] = new List<string>()
         });
         operation.Responses ??= new OpenApiResponses();
-        operation.Responses.TryAdd("401", BoundaryError("The request has no current AuditSphere session."));
+        if (!operation.Responses.ContainsKey("401") &&
+            context.Description.RelativePath?.StartsWith("api/ui/", StringComparison.OrdinalIgnoreCase) == true)
+        {
+          // UI handlers emit either {code,message} or {code}; neither is the
+          // correlation-bearing boundary error. Cookie challenges may have no body.
+          var failure = await context.GetOrCreateSchemaAsync(typeof(AuditSphereOps.Api.Ui.UiEndpoints.UiFailureResponse), null, ct);
+          var codeOnly = await context.GetOrCreateSchemaAsync(typeof(AuditSphereOps.Api.Ui.UiEndpoints.UiCodeErrorResponse), null, ct);
+          operation.Responses.Add("401", new OpenApiResponse
+          {
+            Description = "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            Content = new Dictionary<string, OpenApiMediaType>
+            {
+              ["application/json"] = new OpenApiMediaType
+              {
+                Schema = new OpenApiSchema { AnyOf = [failure, codeOnly] }
+              }
+            }
+          });
+        }
+        else
+          operation.Responses.TryAdd("401", BoundaryError("The request has no current AuditSphere session."));
         operation.Responses.TryAdd("429", BoundaryError("The boundary rate limit rejected the request."));
         if (HttpMethods.IsPost(context.Description.HttpMethod ?? "") && context.Description.AcceptsJsonBody())
           operation.Responses.TryAdd("413", BoundaryError("The JSON command body exceeded the accepted size."));
+        if (context.Description.ActionDescriptor.EndpointMetadata.OfType<NullableJsonSuccessBodyMetadata>().Any() &&
+            operation.Responses.TryGetValue("200", out var success) && success.Content is not null &&
+            success.Content.TryGetValue("application/json", out var json) && json.Schema is not null)
+          json.Schema = new OpenApiSchema { AnyOf = [json.Schema, new OpenApiSchema { Type = JsonSchemaType.Null }] };
       });
       options.AddSchemaTransformer((schema, context, _) =>
       {
         var clrType = context.JsonPropertyInfo?.PropertyType ?? context.JsonTypeInfo.Type;
         ApplyFinancialDecimalStringRule(schema, clrType);
+        // This metadata-only union describes existing anonymous {id}/{revision} replies.
+        // Neither reply carries a discriminator on the wire.
+        if (clrType == typeof(AuditSphereOps.Api.Ui.UiEndpoints.UiProfileResponse))
+          schema.Discriminator = null;
         return Task.CompletedTask;
       });
     });

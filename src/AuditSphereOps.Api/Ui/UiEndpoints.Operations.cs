@@ -10,6 +10,16 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record UiOperationSummary(Guid Id, string Kind, string Status, int AttemptCount,
+    DateTimeOffset? NextAttemptAt, string? ErrorCode, string? CancellationDisposition);
+  public sealed record UiDiscoveredOperationSummary(Guid Id, string Kind, string Status, int AttemptCount,
+    DateTimeOffset? NextAttemptAt, string? ErrorCode, string? CancellationDisposition, DateTimeOffset CreatedAt);
+  public sealed record UiOperationsResponse(string OperatingMode, IEnumerable<string> RetryableStates,
+    IReadOnlyList<UiOperationSummary> Operations);
+  public sealed record UiOperationDiscoveryResponse(string? State, Guid? OperationId,
+    IReadOnlyList<UiDiscoveredOperationSummary> Operations, string? NextCursor, string? FirstPageCursor);
+  public sealed record UiProjectProgressResponse(ProjectProgressSnapshot Snapshot, IReadOnlyList<ProjectUntrackedArea> Untracked);
+
   public sealed record OperationCancelInput(string Disposition);
 
   private static void MapOperationsEndpoints(RouteGroupBuilder group)
@@ -25,7 +35,7 @@ public static partial class UiEndpoints
         RetryableStates = OperationRecoveryService.RetryableStates.Select(x => x.ToString()),
         Operations = workspace.Value!.Operations.Select(o => new { o.Id, o.Kind, o.Status, o.AttemptCount, o.NextAttemptAt, o.ErrorCode, o.CancellationDisposition }),
       });
-    }));
+    })).WithUiResponse<UiOperationsResponse>();
     // Bounded discovery beyond the latest-50 overview; rows are redacted the same way and grant no recovery authority.
     group.MapGet("/operations/discovery", (string? state, Guid? operationId, string? cursor, int? pageSize, HttpContext http) =>
       ReadAsync(http, async (db, actor, ct) =>
@@ -41,14 +51,17 @@ public static partial class UiEndpoints
           page.Value.NextCursor,
           page.Value.FirstPageCursor,
         });
-      }));
+      })).WithUiResponse<UiOperationDiscoveryResponse>();
     // Keep the legacy URLs as aliases, but never let them bypass the preview, fresh assent and receipt.
     group.MapPost("/operations/{id:guid}/retry", (Guid id, OperationCommandRequest? input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.Retry, id, ct)));
+      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.Retry, id, ct)))
+      .WithUiResponse<UiValueResponse<OperationCommandReceiptView>>(includeConflict: true);
     group.MapPost("/operations/{id:guid}/cancel", (Guid id, OperationCommandRequest? input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.Cancel, id, ct)));
+      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.Cancel, id, ct)))
+      .WithUiResponse<UiValueResponse<OperationCommandReceiptView>>(includeConflict: true);
     group.MapPost("/operations/lift-quarantine", (OperationCommandRequest? input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.LiftQuarantine, null, ct)));
+      CommandAsync(http, (db, actor, ct) => ExecuteReviewedAliasAsync(db, actor, input, OperationCommandActions.LiftQuarantine, null, ct)))
+      .WithUiResponse<UiValueResponse<OperationCommandReceiptView>>(includeConflict: true);
 
     // The tracker is a published task-card snapshot shipped with the build; it reports card status, never product readiness.
     group.MapUiGet("/administration/project-progress", http => ReadAsync(http, async (db, actor, ct) =>
@@ -64,7 +77,7 @@ public static partial class UiEndpoints
       {
         return CommandResult<object>.Fail("progress.unavailable", "The published task-card snapshot could not be read or is invalid.");
       }
-    }));
+      })).WithUiResponse<UiProjectProgressResponse>();
   }
 
   private static async Task<CommandResult<OperationCommandReceiptView>> ExecuteReviewedAliasAsync(

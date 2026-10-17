@@ -16,6 +16,176 @@ namespace AuditSphereOps.Api.Tests;
 public sealed class ConsolidationWorkspaceApiTests
 {
   [Fact]
+  public async Task IntercompanyMatches_RequireIndependentCurrentGroupReviewAndHistory()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-INTERCOMPANY");
+    var fixture = await SeedOwnershipAsync(pg);
+    var wrongGroupReviewer = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, Email = "wrong-group-reviewer@auditsphere.test",
+      DisplayName = "Wrong Group Reviewer", TenantId = "tenant-001", Subject = "sub-wrong-group-intercompany-reviewer"
+    };
+    var otherGroupId = Guid.CreateVersion7();
+    var missingPeriodScopeId = Guid.CreateVersion7();
+    int operationalJournalCountBefore;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(wrongGroupReviewer);
+      foreach (var user in new[] { fixture.Seed.Staff, fixture.Seed.Reviewer })
+        db.GroupAccessGrants.Add(new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId, UserId = user.Id,
+          Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Seed.Staff.Id
+        });
+      db.ClientGroups.Add(new ClientGroup
+      {
+        Id = otherGroupId, FirmId = fixture.Seed.FirmId, Code = "OTHER-REVIEW-GROUP", Name = "Other Review Group",
+        Revision = 1, CreatedByUserId = fixture.Seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, GroupId = otherGroupId, UserId = wrongGroupReviewer.Id,
+        Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Seed.Staff.Id
+      });
+      db.ConsolidationScopeVersions.Add(new ConsolidationScopeVersion
+      {
+        Id = missingPeriodScopeId, FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId,
+        PeriodId = Guid.CreateVersion7(), Version = 1, GroupRevision = 1, ReportingCurrency = "QAR",
+        Method = ConsolidationCalculator.RestrictedMethod, OpeningBasis = "MISSING-PERIOD-TEST",
+        Status = AccountingWorkflowStates.Draft, CreatedByUserId = fixture.Seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      operationalJournalCountBefore = await db.ClientOperationalJournals.CountAsync();
+    }
+
+    using var preparerFactory = Factory(pg, fixture.Seed.Staff);
+    using var preparer = preparerFactory.CreateClient();
+    var preparerCsrf = await SignIn(preparer);
+    var scopeUrl = $"/api/ui/consolidation/scopes/{fixture.ScopeId}";
+    var matchesUrl = scopeUrl + "/intercompany-matches";
+    var options = await Read(preparer, scopeUrl + "/intercompany-match-options");
+    Assert.Equal(fixture.ScopeId, options.GetProperty("scopeVersionId").GetGuid());
+    Assert.Equal(fixture.GroupId, options.GetProperty("groupId").GetGuid());
+    Assert.Equal(1, options.GetProperty("pinnedGroupRevision").GetInt64());
+    Assert.Equal(1, options.GetProperty("currentGroupRevision").GetInt64());
+    Assert.DoesNotContain(options.GetProperty("members").EnumerateArray(),
+      x => x.GetProperty("clientId").GetGuid() == fixture.OutsideClientId);
+    Assert.DoesNotContain(options.GetProperty("members").EnumerateArray(),
+      x => x.GetProperty("clientId").GetGuid() == fixture.FutureClientId);
+
+    object Match(string transactionReference, long expectedGroupRevision = 1, Guid? buyerClientId = null,
+      bool outsidePerimeterReview = true, string sellerAmount = "1200.123456",
+      string buyerAmount = "-1200.000000", string matchedAmount = "1200.000000",
+      string? differenceReason = "Timing difference per signed confirmation.") => new
+    {
+      sellerClientId = fixture.Seed.ClientId,
+      buyerClientId = buyerClientId ?? fixture.OutsideClientId,
+      accountNature = "RECEIVABLE_PAYABLE",
+      periodCode = "FY2026",
+      currency = "QAR",
+      transactionReference,
+      sellerAmount,
+      buyerAmount,
+      matchedAmount,
+      evidenceReference = "SIGNED-IC-STATEMENT-01",
+      sellerTaxonomyCode = "ASSETS.IC_AR",
+      buyerTaxonomyCode = "LIABILITIES.IC_AP",
+      differenceReason,
+      matchMode = "ONE_TO_ONE",
+      matchGroupReference = "",
+      outsidePerimeterReview,
+      expectedGroupRevision,
+      reviewed = true
+    };
+
+    using var missingResidualReason = await Post(preparer, preparerCsrf, matchesUrl,
+      Match("IC-RESIDUAL-MISSING-REASON", sellerAmount: "100.000000", buyerAmount: "-100.000000",
+        matchedAmount: "90.000000", differenceReason: null));
+    Assert.Equal(HttpStatusCode.BadRequest, missingResidualReason.StatusCode);
+    Assert.Contains("difference reason", await missingResidualReason.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+    using var futureWithoutOutsideReview = await Post(preparer, preparerCsrf, matchesUrl,
+      Match("IC-FUTURE-WITHOUT-OUTSIDE-REVIEW", buyerClientId: fixture.FutureClientId, outsidePerimeterReview: false));
+    Assert.Equal(HttpStatusCode.BadRequest, futureWithoutOutsideReview.StatusCode);
+    Assert.Contains("explicitly reviewed as outside-perimeter", await futureWithoutOutsideReview.Content.ReadAsStringAsync(),
+      StringComparison.OrdinalIgnoreCase);
+
+    using var missingPeriod = await Post(preparer, preparerCsrf,
+      $"/api/ui/consolidation/scopes/{missingPeriodScopeId}/intercompany-matches", Match("IC-MISSING-PERIOD"));
+    Assert.Equal(HttpStatusCode.BadRequest, missingPeriod.StatusCode);
+    Assert.Contains("reporting period", await missingPeriod.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+    using var submitted = await Post(preparer, preparerCsrf, matchesUrl,
+      Match("IC-PAIR-001", buyerClientId: fixture.FutureClientId));
+    Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
+    var matchId = JsonDocument.Parse(await submitted.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+
+    using var selfApproval = await Post(preparer, preparerCsrf,
+      $"/api/ui/consolidation/intercompany-matches/{matchId}/approve",
+      new { expectedGroupRevision = 1, reviewed = true });
+    Assert.Equal(HttpStatusCode.BadRequest, selfApproval.StatusCode);
+    Assert.Contains("another user", await selfApproval.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+    using var reviewerFactory = Factory(pg, fixture.Seed.Reviewer);
+    using var reviewer = reviewerFactory.CreateClient();
+    var reviewerCsrf = await SignIn(reviewer);
+    using var approved = await Post(reviewer, reviewerCsrf,
+      $"/api/ui/consolidation/intercompany-matches/{matchId}/approve",
+      new { expectedGroupRevision = 1, reviewed = true });
+    Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+
+    var retained = await Read(preparer, matchesUrl + "?page=1&pageSize=50&unresolvedOnly=false");
+    Assert.Equal(1, retained.GetProperty("totalCount").GetInt32());
+    var row = retained.GetProperty("items")[0];
+    Assert.Equal(matchId, row.GetProperty("matchId").GetGuid());
+    Assert.Equal(fixture.FutureClientId, row.GetProperty("buyerClientId").GetGuid());
+    Assert.Equal("1200.123456", row.GetProperty("sellerAmount").GetString());
+    Assert.Equal("-1200.000000", row.GetProperty("buyerAmount").GetString());
+    Assert.Equal("1200.000000", row.GetProperty("matchedAmount").GetString());
+    Assert.Equal("0.123456", row.GetProperty("difference").GetString());
+    Assert.Equal("ASSETS.IC_AR", row.GetProperty("sellerTaxonomyCode").GetString());
+    Assert.Equal("LIABILITIES.IC_AP", row.GetProperty("buyerTaxonomyCode").GetString());
+    Assert.Equal("APPROVED", row.GetProperty("status").GetString());
+    Assert.Equal(fixture.Seed.Staff.Id, row.GetProperty("createdByUserId").GetGuid());
+    Assert.Equal(fixture.Seed.Reviewer.Id, row.GetProperty("reviewedByUserId").GetGuid());
+    Assert.NotEqual(JsonValueKind.Null, row.GetProperty("reviewedAt").ValueKind);
+    var unresolved = await Read(preparer, matchesUrl + "?page=1&pageSize=50&unresolvedOnly=true");
+    Assert.Equal(0, unresolved.GetProperty("totalCount").GetInt32());
+
+    using var secondSubmitted = await Post(preparer, preparerCsrf, matchesUrl, Match("IC-PAIR-002"));
+    Assert.Equal(HttpStatusCode.OK, secondSubmitted.StatusCode);
+    var secondMatchId = JsonDocument.Parse(await secondSubmitted.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    using var wrongGroupFactory = Factory(pg, wrongGroupReviewer);
+    using var wrongGroup = wrongGroupFactory.CreateClient();
+    var wrongGroupCsrf = await SignIn(wrongGroup);
+    using var deniedReview = await Post(wrongGroup, wrongGroupCsrf,
+      $"/api/ui/consolidation/intercompany-matches/{secondMatchId}/approve",
+      new { expectedGroupRevision = 1, reviewed = true });
+    Assert.Equal(HttpStatusCode.Forbidden, deniedReview.StatusCode);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var group = await db.ClientGroups.SingleAsync(x => x.FirmId == fixture.Seed.FirmId && x.Id == fixture.GroupId);
+      group.Revision = 2;
+      await db.SaveChangesAsync();
+    }
+    using var staleApproval = await Post(reviewer, reviewerCsrf,
+      $"/api/ui/consolidation/intercompany-matches/{secondMatchId}/approve",
+      new { expectedGroupRevision = 1, reviewed = true });
+    Assert.Equal(HttpStatusCode.Conflict, staleApproval.StatusCode);
+    using var staleSubmission = await Post(preparer, preparerCsrf, matchesUrl, Match("IC-PAIR-003", expectedGroupRevision: 2));
+    Assert.Equal(HttpStatusCode.Conflict, staleSubmission.StatusCode);
+    var changedRevision = await Read(preparer, scopeUrl + "/intercompany-match-options");
+    Assert.Equal(1, changedRevision.GetProperty("pinnedGroupRevision").GetInt64());
+    Assert.Equal(2, changedRevision.GetProperty("currentGroupRevision").GetInt64());
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(2, await proof.IntercompanyMatches.CountAsync(x => x.ScopeVersionId == fixture.ScopeId));
+    Assert.Empty(await proof.ConsolidationJournals.Where(x => x.ScopeVersionId == fixture.ScopeId).ToListAsync());
+    Assert.Equal(operationalJournalCountBefore, await proof.ClientOperationalJournals.CountAsync());
+  }
+
+  [Fact]
   public async Task OwnershipWorkspace_PinsExactPercentagePointsAndRefusesCycleStalenessAndUngrantableWrites()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-OWNERSHIP");
@@ -159,6 +329,7 @@ public sealed class ConsolidationWorkspaceApiTests
     var seed = await PbcSeed.SeedAsync(pg);
     var groupId = Guid.CreateVersion7();
     var scopeId = Guid.CreateVersion7();
+    var periodId = Guid.CreateVersion7();
     var childId = Guid.CreateVersion7();
     var outsideId = Guid.CreateVersion7();
     var futureId = Guid.CreateVersion7();
@@ -199,9 +370,16 @@ public sealed class ConsolidationWorkspaceApiTests
         OwnershipPercent = 100m, EconomicInterestPercent = 100m, ControlMethod = "CONTROLLED",
         EvidenceReference = "MEMBER-EVIDENCE", CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
       });
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+    {
+      Id = periodId, FirmId = seed.FirmId, ClientId = seed.ClientId, PeriodCode = "FY2026",
+      StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+      Basis = "ANNUAL", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+      CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
     db.ConsolidationScopeVersions.Add(new ConsolidationScopeVersion
     {
-      Id = scopeId, FirmId = seed.FirmId, GroupId = groupId, PeriodId = Guid.CreateVersion7(), Version = 1,
+      Id = scopeId, FirmId = seed.FirmId, GroupId = groupId, PeriodId = periodId, Version = 1,
       GroupRevision = 1, ReportingCurrency = "QAR", Method = ConsolidationCalculator.RestrictedMethod,
       OpeningBasis = "INITIAL_CONSOLIDATION", Status = AccountingWorkflowStates.Draft,
       CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
@@ -261,6 +439,11 @@ public sealed class ConsolidationWorkspaceApiTests
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-SCOPE-OPTIONS");
     var seed = await PbcSeed.SeedAsync(pg);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Staff, "Manager"));
+      await db.SaveChangesAsync();
+    }
     using var factory = Factory(pg, seed.Staff);
     using var client = factory.CreateClient();
     var csrf = await SignIn(client);
@@ -269,8 +452,14 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(HttpStatusCode.OK, createdGroup.StatusCode);
     var groupId = JsonDocument.Parse(await createdGroup.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
     var periodId = Guid.CreateVersion7();
+    var outsideClientId = Guid.CreateVersion7();
+    var outsidePeriodId = Guid.CreateVersion7();
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = outsideClientId, FirmId = seed.FirmId, LegalName = "Outside scope options client", CreatedAt = DateTimeOffset.UtcNow
+      });
       db.ClientGroupMemberships.Add(new ClientGroupMembership
       {
         Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, ClientId = seed.ClientId,
@@ -281,6 +470,13 @@ public sealed class ConsolidationWorkspaceApiTests
       db.ClientReportingPeriods.Add(new ClientReportingPeriod
       {
         Id = periodId, FirmId = seed.FirmId, ClientId = seed.ClientId, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "ANNUAL",
+        Currency = "QAR", Status = AccountingWorkflowStates.Closed, CreatedByUserId = seed.Staff.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = outsidePeriodId, FirmId = seed.FirmId, ClientId = outsideClientId, PeriodCode = "FY2026-OUTSIDE",
         StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "ANNUAL",
         Currency = "QAR", Status = AccountingWorkflowStates.Closed, CreatedByUserId = seed.Staff.Id,
         CreatedAt = DateTimeOffset.UtcNow
@@ -297,21 +493,47 @@ public sealed class ConsolidationWorkspaceApiTests
       x.GetProperty("code").GetString() == ConsolidationCalculator.RestrictedMethod && x.GetProperty("enabled").GetBoolean());
     Assert.Empty(options.GetProperty("approvedPriorScopes").EnumerateArray());
 
-    using var scopeResponse = await Post(client, csrf, "/api/ui/consolidation/scopes", new
+    Assert.DoesNotContain(options.GetProperty("periods").EnumerateArray(),
+      x => x.GetProperty("id").GetGuid() == outsidePeriodId);
+
+    object ScopeRequest(Guid selectedPeriodId, long expectedGroupRevision) => new
     {
-      groupId, periodId, reportingCurrency = "QAR", method = ConsolidationCalculator.RestrictedMethod,
+      groupId, periodId = selectedPeriodId, reportingCurrency = "QAR", method = ConsolidationCalculator.RestrictedMethod,
       openingBasis = "INITIAL_CONSOLIDATION", exchangeRateSetVersionId = (Guid?)null,
       translationPolicyVersionId = (Guid?)null, translationRateDate = (DateOnly?)null,
-      translationRateType = (string?)null, priorScopeVersionId = (Guid?)null, expectedGroupRevision = groupRevision
-    });
+      translationRateType = (string?)null, priorScopeVersionId = (Guid?)null, expectedGroupRevision
+    };
+
+    using var unpinned = await Post(client, csrf, "/api/ui/consolidation/scopes", ScopeRequest(periodId, 0));
+    Assert.Equal(HttpStatusCode.BadRequest, unpinned.StatusCode);
+    using var outOfGroupPeriod = await Post(client, csrf, "/api/ui/consolidation/scopes", ScopeRequest(outsidePeriodId, groupRevision));
+    Assert.Equal(HttpStatusCode.BadRequest, outOfGroupPeriod.StatusCode);
+
+    using var scopeResponse = await Post(client, csrf, "/api/ui/consolidation/scopes", ScopeRequest(periodId, groupRevision));
     Assert.Equal(HttpStatusCode.OK, scopeResponse.StatusCode);
     var scopeId = JsonDocument.Parse(await scopeResponse.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
     await using var proof = new AuditSphereDbContext(pg.Options);
     var saved = await proof.ConsolidationScopeVersions.SingleAsync(x => x.Id == scopeId);
+    Assert.Equal(1, saved.Version);
     Assert.Equal(groupRevision, saved.GroupRevision);
     Assert.Null(saved.ExchangeRateSetVersionId);
     Assert.Null(saved.TranslationPolicyVersionId);
     Assert.Null(saved.PriorScopeVersionId);
+
+    var pagedWorkspace = await Read(client,
+      $"/api/ui/consolidation/scopes/{scopeId}?eligiblePackagesPage=2&journalsPage=3&runsPage=4");
+    foreach (var (section, requestedPage) in new[] { ("eligiblePackages", 2), ("journals", 3), ("runs", 4) })
+    {
+      var history = pagedWorkspace.GetProperty(section);
+      Assert.Equal(requestedPage, history.GetProperty("page").GetInt32());
+      Assert.Equal(100, history.GetProperty("pageSize").GetInt32());
+      Assert.Empty(history.GetProperty("items").EnumerateArray());
+    }
+    foreach (var parameter in new[] { "eligiblePackagesPage", "journalsPage", "runsPage" })
+    {
+      using var invalidPage = await client.GetAsync($"/api/ui/consolidation/scopes/{scopeId}?{parameter}=0");
+      Assert.Equal(HttpStatusCode.BadRequest, invalidPage.StatusCode);
+    }
 
     using var stale = await Post(client, csrf, "/api/ui/consolidation/scopes", new
     {
@@ -321,6 +543,27 @@ public sealed class ConsolidationWorkspaceApiTests
       translationRateType = (string?)null, priorScopeVersionId = (Guid?)null, expectedGroupRevision = groupRevision + 1
     });
     Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+
+    var concurrentCreates = await Task.WhenAll(
+      Post(client, csrf, "/api/ui/consolidation/scopes", ScopeRequest(periodId, groupRevision)),
+      Post(client, csrf, "/api/ui/consolidation/scopes", ScopeRequest(periodId, groupRevision)));
+    try
+    {
+      Assert.All(concurrentCreates, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+      var createdScopeIds = new Guid[concurrentCreates.Length];
+      for (var i = 0; i < concurrentCreates.Length; i++)
+      {
+        using var createdJson = JsonDocument.Parse(await concurrentCreates[i].Content.ReadAsStringAsync());
+        createdScopeIds[i] = createdJson.RootElement.GetProperty("value").GetGuid();
+      }
+      var allocatedVersions = await proof.ConsolidationScopeVersions.AsNoTracking()
+        .Where(x => createdScopeIds.Contains(x.Id)).OrderBy(x => x.Version).Select(x => x.Version).ToArrayAsync();
+      Assert.Equal(new[] { 2, 3 }, allocatedVersions);
+    }
+    finally
+    {
+      foreach (var response in concurrentCreates) response.Dispose();
+    }
   }
 
   [Fact]
@@ -871,6 +1114,348 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(1, schedules.GetArrayLength());
     Assert.Equal(scheduleId, schedules[0].GetProperty("id").GetGuid());
     Assert.Equal("SUBMITTED", schedules[0].GetProperty("status").GetString());
+  }
+
+  [Fact]
+  public async Task ExternalComponentPacks_PageEveryLineAndSerializeConcurrentReviewWithRetainedLineage()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-EXTERNAL-PACKS");
+    var fixture = await SeedOwnershipAsync(pg);
+    var wrongGroupReviewer = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, Email = "pack-wrong-group@auditsphere.test",
+      DisplayName = "Wrong Group Pack Reviewer", TenantId = "tenant-001", Subject = "sub-wrong-group-pack-reviewer"
+    };
+    var otherGroupId = Guid.CreateVersion7();
+    var reviewerGrantId = Guid.CreateVersion7();
+    var futureEngagementId = Guid.CreateVersion7();
+    var childEngagementId = Guid.CreateVersion7();
+    int operationalJournalCountBefore;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(wrongGroupReviewer);
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = reviewerGrantId, FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId,
+        UserId = fixture.Seed.Reviewer.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = fixture.Seed.Staff.Id
+      });
+      foreach (var (engagementId, clientId) in new[]
+        {
+          (futureEngagementId, fixture.FutureClientId),
+          (childEngagementId, fixture.ChildClientId)
+        })
+        db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
+        {
+          Id = engagementId, FirmId = fixture.Seed.FirmId, PracticeClientId = clientId,
+          PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+        });
+      db.ClientGroups.Add(new ClientGroup
+      {
+        Id = otherGroupId, FirmId = fixture.Seed.FirmId, Code = "OTHER-PACK-REVIEW-GROUP",
+        Name = "Other Pack Review Group", Revision = 1, CreatedByUserId = fixture.Seed.Staff.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, GroupId = otherGroupId,
+        UserId = wrongGroupReviewer.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = fixture.Seed.Staff.Id
+      });
+      await db.SaveChangesAsync();
+      operationalJournalCountBefore = await db.ClientOperationalJournals.CountAsync();
+    }
+
+    using var preparerFactory = Factory(pg, fixture.Seed.Staff);
+    using var preparer = preparerFactory.CreateClient();
+    var preparerCsrf = await SignIn(preparer);
+    using var reviewerFactory = Factory(pg, fixture.Seed.Reviewer);
+    using var reviewer = reviewerFactory.CreateClient();
+    var reviewerCsrf = await SignIn(reviewer);
+    using var wrongGroupFactory = Factory(pg, wrongGroupReviewer);
+    using var wrongGroup = wrongGroupFactory.CreateClient();
+    var wrongGroupCsrf = await SignIn(wrongGroup);
+
+    var scopeUrl = $"/api/ui/consolidation/scopes/{fixture.ScopeId}";
+    var packsUrl = scopeUrl + "/external-packs";
+    var sourceLines = Enumerable.Range(1, 205).Select(index => (object)new
+    {
+      taxonomyCode = "TEST.PACK.LINE",
+      amount = "0.000001",
+      currency = "QAR",
+      sourceLineReference = $"SOURCE-{index:D3}"
+    }).ToArray();
+    var normalizedManifest = string.Join('\n', Enumerable.Range(1, 205)
+      .Select(index => $"TEST.PACK.LINE|0.000001|QAR|SOURCE-{index:D3}"));
+    var normalizedDigest = Hashing.Sha256Hex(normalizedManifest);
+    string RawSourceHash(string sourceVersion) => Hashing.Sha256Hex(JsonSerializer.Serialize(new
+    {
+      sourceVersion,
+      lines = sourceLines
+    }));
+    object PackInput(string sourceVersion, Guid? priorPackId, string? normalizedDigestOverride = null,
+      long expectedGroupRevision = 1, Guid? clientId = null, Guid? engagementId = null) => new
+    {
+      clientId = clientId ?? fixture.Seed.ClientId,
+      engagementId = engagementId ?? fixture.Seed.EngagementId,
+      periodStart = "2026-01-01",
+      periodEnd = "2026-12-31",
+      framework = "IFRS",
+      reportingCurrency = "QAR",
+      periodBasis = "STATUTORY",
+      taxonomyVersion = "taxonomy-v1",
+      mappingVersion = "mapping-v1",
+      sourceReference = $"source-evidence-{sourceVersion}",
+      rawSourceHash = RawSourceHash(sourceVersion),
+      normalizedSourceDigest = normalizedDigestOverride ?? normalizedDigest,
+      declaredSignedTotal = "0.000205",
+      lines = sourceLines,
+      priorPackId,
+      compatibilityBridgeReference = "",
+      expectedGroupRevision,
+      reviewed = true
+    };
+
+    var options = await Read(preparer,
+      packsUrl + $"?clientPage=1&clientPageSize=1&selectedClientId={fixture.Seed.ClientId}" +
+      $"&engagementPage=1&engagementPageSize=1&selectedEngagementId={fixture.Seed.EngagementId}");
+    Assert.True(options.GetProperty("canSubmitPack").GetBoolean());
+    Assert.Equal(1, options.GetProperty("eligibleClientPageSize").GetInt32());
+    Assert.Equal(2, options.GetProperty("eligibleClientTotalCount").GetInt32());
+    Assert.Equal(1, options.GetProperty("eligibleClients").GetArrayLength());
+    Assert.Equal(fixture.Seed.ClientId, options.GetProperty("resolvedClient").GetProperty("clientId").GetGuid());
+    Assert.Equal(fixture.Seed.EngagementId, options.GetProperty("resolvedEngagement").GetProperty("engagementId").GetGuid());
+    var firstEligibleClientId = options.GetProperty("eligibleClients")[0].GetProperty("clientId").GetGuid();
+    var secondOptionPage = await Read(preparer, packsUrl + "?clientPage=2&clientPageSize=1");
+    Assert.Equal(2, secondOptionPage.GetProperty("eligibleClientPage").GetInt32());
+    Assert.Equal(2, secondOptionPage.GetProperty("eligibleClientTotalCount").GetInt32());
+    Assert.NotEqual(firstEligibleClientId,
+      secondOptionPage.GetProperty("eligibleClients")[0].GetProperty("clientId").GetGuid());
+    Assert.NotEqual(fixture.FutureClientId, firstEligibleClientId);
+    Assert.NotEqual(fixture.FutureClientId,
+      secondOptionPage.GetProperty("eligibleClients")[0].GetProperty("clientId").GetGuid());
+
+    using var futureMembership = await Post(preparer, preparerCsrf, packsUrl,
+      PackInput("future-membership", null, clientId: fixture.FutureClientId, engagementId: futureEngagementId));
+    Assert.Equal(HttpStatusCode.BadRequest, futureMembership.StatusCode);
+    await using (var futureProof = new AuditSphereDbContext(pg.Options))
+      Assert.False(await futureProof.ExternalComponentPacks.AnyAsync(x =>
+        x.ScopeVersionId == fixture.ScopeId && x.ClientId == fixture.FutureClientId));
+
+    using var staleRevision = await Post(preparer, preparerCsrf, packsUrl, PackInput("stale-revision", null,
+      expectedGroupRevision: 2));
+    Assert.Equal(HttpStatusCode.Conflict, staleRevision.StatusCode);
+    using var mismatchedDigest = await Post(preparer, preparerCsrf, packsUrl, PackInput("invalid-digest", null, new string('0', 64)));
+    Assert.Equal(HttpStatusCode.BadRequest, mismatchedDigest.StatusCode);
+    using var submitted = await Post(preparer, preparerCsrf, packsUrl, PackInput("v1", null));
+    Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
+    var firstPackId = JsonDocument.Parse(await submitted.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    var history = await Read(preparer, packsUrl + "?page=1&pageSize=25");
+    Assert.Equal(1, history.GetProperty("totalCount").GetInt32());
+    Assert.Equal("0.000205", history.GetProperty("items")[0].GetProperty("declaredSignedTotal").GetString());
+    Assert.Equal(RawSourceHash("v1"), history.GetProperty("items")[0].GetProperty("rawSourceHash").GetString());
+
+    async Task<JsonElement> ReadLines(int linePage) => await Read(preparer,
+      $"{packsUrl}/{firstPackId}?linePage={linePage}&linePageSize=100");
+    var firstLines = await ReadLines(1);
+    Assert.Equal(205, firstLines.GetProperty("totalLineCount").GetInt32());
+    Assert.Equal(1, firstLines.GetProperty("linePage").GetInt32());
+    Assert.False(firstLines.GetProperty("hasPreviousLines").GetBoolean());
+    Assert.True(firstLines.GetProperty("hasNextLines").GetBoolean());
+    Assert.Equal(100, firstLines.GetProperty("lines").GetArrayLength());
+    Assert.Equal("0.000001", firstLines.GetProperty("lines")[0].GetProperty("amount").GetString());
+    var middleLines = await ReadLines(2);
+    Assert.True(middleLines.GetProperty("hasPreviousLines").GetBoolean());
+    Assert.True(middleLines.GetProperty("hasNextLines").GetBoolean());
+    Assert.Equal(100, middleLines.GetProperty("lines").GetArrayLength());
+    var finalLines = await ReadLines(3);
+    Assert.True(finalLines.GetProperty("hasPreviousLines").GetBoolean());
+    Assert.False(finalLines.GetProperty("hasNextLines").GetBoolean());
+    Assert.Equal(5, finalLines.GetProperty("lines").GetArrayLength());
+    Assert.Equal("SOURCE-205", finalLines.GetProperty("lines")[4].GetProperty("sourceLineReference").GetString());
+
+    using var selfReview = await Post(preparer, preparerCsrf, $"{packsUrl}/{firstPackId}/reconcile", new
+    {
+      expectedGroupRevision = 1, reviewed = true, evidenceReference = "SIGNED-SOURCE-RECONCILIATION"
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, selfReview.StatusCode);
+    using var wrongGroupReview = await Post(wrongGroup, wrongGroupCsrf,
+      $"{packsUrl}/{firstPackId}/reconcile", new
+      {
+        expectedGroupRevision = 1, reviewed = true, evidenceReference = "WRONG-GROUP-REVIEW"
+      });
+    Assert.Equal(HttpStatusCode.Forbidden, wrongGroupReview.StatusCode);
+
+    using var returned = await Post(reviewer, reviewerCsrf, $"{packsUrl}/{firstPackId}/return", new
+    {
+      expectedGroupRevision = 1, reviewed = true, reason = "Retain this version and resubmit corrected source evidence."
+    });
+    Assert.Equal(HttpStatusCode.OK, returned.StatusCode);
+    using var resubmitted = await Post(preparer, preparerCsrf, packsUrl, PackInput("v2", firstPackId));
+    Assert.Equal(HttpStatusCode.OK, resubmitted.StatusCode);
+    var secondPackId = JsonDocument.Parse(await resubmitted.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    var secondDetail = await Read(preparer, $"{packsUrl}/{secondPackId}?linePage=1&linePageSize=100");
+    Assert.Equal(firstPackId, secondDetail.GetProperty("pack").GetProperty("priorPackId").GetGuid());
+    Assert.Equal(2, secondDetail.GetProperty("pack").GetProperty("version").GetInt32());
+    using var reconciled = await Post(reviewer, reviewerCsrf, $"{packsUrl}/{secondPackId}/reconcile", new
+    {
+      expectedGroupRevision = 1, reviewed = true, evidenceReference = "SIGNED-SOURCE-RECONCILIATION-V2"
+    });
+    Assert.Equal(HttpStatusCode.OK, reconciled.StatusCode);
+    var reconciledDetail = await Read(preparer, $"{packsUrl}/{secondPackId}?linePage=1&linePageSize=100");
+    Assert.False(reconciledDetail.GetProperty("pack").GetProperty("canReconcile").GetBoolean());
+    Assert.False(reconciledDetail.GetProperty("pack").GetProperty("canApprove").GetBoolean());
+    var reviewerReconciledDetail = await Read(reviewer, $"{packsUrl}/{secondPackId}?linePage=1&linePageSize=100");
+    Assert.True(reviewerReconciledDetail.GetProperty("pack").GetProperty("canApprove").GetBoolean());
+
+    // Hold the group fence until both independent decisions are waiting on it.
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await using var fence = await blocker.Database.BeginTransactionAsync();
+    await blocker.ClientGroups.FromSqlInterpolated($"""
+      SELECT * FROM client_groups WHERE id = {fixture.GroupId} AND firm_id = {fixture.Seed.FirmId} FOR UPDATE
+      """).SingleAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    var concurrentReturn = Post(reviewer, reviewerCsrf, $"{packsUrl}/{secondPackId}/return", new
+    {
+      expectedGroupRevision = 1, reviewed = true, reason = "Independent return decision in race."
+    });
+    var concurrentApprove = Post(reviewer, reviewerCsrf, $"{packsUrl}/{secondPackId}/approve", new
+    {
+      expectedGroupRevision = 1, reviewed = true
+    });
+    try
+    {
+      await WaitForOwnershipGroupWaitersAsync(observer, 2, timeout.Token);
+      await fence.CommitAsync();
+    }
+    finally
+    {
+      if (blocker.Database.CurrentTransaction is not null)
+        await fence.RollbackAsync();
+    }
+    using var raceReturn = await concurrentReturn;
+    using var raceApprove = await concurrentApprove;
+    Assert.NotEqual(raceReturn.IsSuccessStatusCode, raceApprove.IsSuccessStatusCode);
+
+    var currentPackId = secondPackId;
+    if (raceReturn.IsSuccessStatusCode)
+    {
+      var returnedDetail = await Read(preparer, $"{packsUrl}/{secondPackId}?linePage=1&linePageSize=100");
+      Assert.Equal("RETURNED", returnedDetail.GetProperty("pack").GetProperty("status").GetString());
+      Assert.Equal("RECONCILED", returnedDetail.GetProperty("pack").GetProperty("reconciliationStatus").GetString());
+      Assert.Equal("SIGNED-SOURCE-RECONCILIATION-V2",
+        returnedDetail.GetProperty("pack").GetProperty("reconciliationReference").GetString());
+      using var nextVersion = await Post(preparer, preparerCsrf, packsUrl, PackInput("v3", secondPackId));
+      Assert.Equal(HttpStatusCode.OK, nextVersion.StatusCode);
+      currentPackId = JsonDocument.Parse(await nextVersion.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+      using var reconciledAgain = await Post(reviewer, reviewerCsrf, $"{packsUrl}/{currentPackId}/reconcile", new
+      {
+        expectedGroupRevision = 1, reviewed = true, evidenceReference = "SIGNED-SOURCE-RECONCILIATION-V3"
+      });
+      Assert.Equal(HttpStatusCode.OK, reconciledAgain.StatusCode);
+      using var approvedAgain = await Post(reviewer, reviewerCsrf, $"{packsUrl}/{currentPackId}/approve", new
+      {
+        expectedGroupRevision = 1, reviewed = true
+      });
+      Assert.Equal(HttpStatusCode.OK, approvedAgain.StatusCode);
+    }
+    else
+    {
+      Assert.Equal(HttpStatusCode.OK, raceApprove.StatusCode);
+      var approvedDetail = await Read(preparer, $"{packsUrl}/{secondPackId}?linePage=1&linePageSize=100");
+      Assert.Equal("APPROVED", approvedDetail.GetProperty("pack").GetProperty("status").GetString());
+      Assert.Equal(fixture.Seed.Reviewer.Id, approvedDetail.GetProperty("pack").GetProperty("approvedByUserId").GetGuid());
+    }
+
+    using var pinned = await Post(preparer, preparerCsrf, scopeUrl + "/external-components", new
+    {
+      externalComponentPackId = currentPackId,
+      ownershipPercent = "100.000000",
+      controlMethod = "CONTROLLED",
+      expectedGroupRevision = 1,
+      reviewed = true
+    });
+    Assert.Equal(HttpStatusCode.OK, pinned.StatusCode);
+    var componentId = JsonDocument.Parse(await pinned.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    using var componentApproved = await Post(reviewer, reviewerCsrf,
+      $"/api/ui/consolidation/components/{componentId}/approve", new { });
+    Assert.Equal(HttpStatusCode.OK, componentApproved.StatusCode);
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    var component = await proof.ConsolidationComponents.AsNoTracking().SingleAsync(x => x.Id == componentId);
+    Assert.Null(component.PackageId);
+    Assert.Equal(currentPackId, component.ExternalComponentPackId);
+    Assert.Equal(100m, component.OwnershipPercent);
+    Assert.Equal("CONTROLLED", component.ControlMethod);
+    Assert.Equal(operationalJournalCountBefore, await proof.ClientOperationalJournals.CountAsync());
+
+    using var authFencePack = await Post(preparer, preparerCsrf, packsUrl,
+      PackInput("auth-fence", null, clientId: fixture.ChildClientId, engagementId: childEngagementId));
+    Assert.Equal(HttpStatusCode.OK, authFencePack.StatusCode);
+    var authFencePackId = JsonDocument.Parse(await authFencePack.Content.ReadAsStringAsync())
+      .RootElement.GetProperty("value").GetGuid();
+    var reviewerEpochBefore = await proof.Users.AsNoTracking()
+      .Where(x => x.Id == fixture.Seed.Reviewer.Id).Select(x => x.SessionEpoch).SingleAsync();
+
+    async Task WaitForFirmWaiters(int expected, CancellationToken ct)
+    {
+      while (true)
+      {
+        var count = await observer.Database.SqlQueryRaw<int>(
+          "SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() " +
+          "AND wait_event_type='Lock' AND query LIKE '%firm_safety_states%'").SingleAsync(ct);
+        if (count >= expected) return;
+        await Task.Delay(25, ct);
+      }
+    }
+
+    await using var firmBlocker = new AuditSphereDbContext(pg.Options);
+    await using var firmFence = await firmBlocker.Database.BeginTransactionAsync();
+    await firmBlocker.FirmSafetyStates.FromSqlInterpolated($"""
+      SELECT * FROM firm_safety_states WHERE id = {fixture.Seed.FirmId} FOR UPDATE
+      """).AsNoTracking().SingleAsync();
+    await using var revoker = new AuditSphereDbContext(pg.Options);
+    using var authFenceTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    // Queue the real exclusive revocation first, then the pack command's shared fence.
+    // Revocation must persist the grant and epoch before releasing its firm lock.
+    var revocation = AuditSphereOps.Application.Security.RoleAssignmentService.RevokeGroupGrantAsync(
+      revoker, PbcSeed.Actor(fixture.Seed.Admin, "Administrator"), reviewerGrantId,
+      "Revoke external-pack review while its command is waiting on the firm fence.",
+      DateTimeOffset.UtcNow, authFenceTimeout.Token);
+    Task<HttpResponseMessage>? waitingReconciliation = null;
+    try
+    {
+      await WaitForFirmWaiters(1, authFenceTimeout.Token);
+      waitingReconciliation = Post(reviewer, reviewerCsrf, $"{packsUrl}/{authFencePackId}/reconcile", new
+      {
+        expectedGroupRevision = 1, reviewed = true, evidenceReference = "MUST-NOT-PERSIST-AFTER-REVOCATION"
+      });
+      await WaitForFirmWaiters(2, authFenceTimeout.Token);
+      await firmFence.CommitAsync();
+    }
+    finally
+    {
+      if (firmBlocker.Database.CurrentTransaction is not null)
+        await firmFence.RollbackAsync();
+    }
+    var revoked = await revocation;
+    Assert.True(revoked.Succeeded, revoked.Message);
+    using var refusedReconciliation = await waitingReconciliation!;
+    Assert.Equal(HttpStatusCode.Forbidden, refusedReconciliation.StatusCode);
+    var retainedAuthFencePack = await proof.ExternalComponentPacks.AsNoTracking()
+      .SingleAsync(x => x.Id == authFencePackId);
+    Assert.Equal(ExternalComponentPackStates.Submitted, retainedAuthFencePack.Status);
+    Assert.Equal(ExternalComponentReconciliationStates.Pending, retainedAuthFencePack.ReconciliationStatus);
+    Assert.Equal(string.Empty, retainedAuthFencePack.ReconciliationReference);
+    Assert.Equal(0m, retainedAuthFencePack.ReconciledSignedTotal);
+    Assert.Null(retainedAuthFencePack.ReconciledByUserId);
+    Assert.Null(retainedAuthFencePack.ReconciledAt);
+    Assert.NotNull((await proof.GroupAccessGrants.AsNoTracking().SingleAsync(x => x.Id == reviewerGrantId)).RevokedAt);
+    Assert.Equal(reviewerEpochBefore + 1, await proof.Users.AsNoTracking()
+      .Where(x => x.Id == fixture.Seed.Reviewer.Id).Select(x => x.SessionEpoch).SingleAsync());
+    Assert.Equal(operationalJournalCountBefore, await proof.ClientOperationalJournals.CountAsync());
   }
 
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg, AppUser u) => new(new Dictionary<string, string?>

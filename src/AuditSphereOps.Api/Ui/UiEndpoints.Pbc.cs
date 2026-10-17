@@ -16,17 +16,21 @@ public static partial class UiEndpoints
   private static void MapPbcEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/engagements/{id:guid}/pbc", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => PbcInboxWorkspaceQuery.GetAsync(db, actor, id, ct)));
+      ReadAsync(http, (db, actor, ct) => PbcInboxWorkspaceQuery.GetAsync(db, actor, id, ct)))
+      .WithUiResponse<PbcInboxWorkspace>();
     group.MapPost("/engagements/{id:guid}/pbc", (Guid id, PbcCreateInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => PbcInboxWorkspaceQuery.CreateAndSendAsync(db, actor, id,
         i.Description ?? "", i.ClientOwnerId, i.ReviewerId, i.DueDate ?? "", i.RequestedFormat,
         PublicBaseUrl(http), ct,
-        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"))));
+        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"))))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/pbc-requests/{id:guid}/more-files", (Guid id, PbcMoreInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => PbcService.RequestMoreFilesAsync(db, actor, new PbcMessageRequest(id, i.Body ?? "", PublicBaseUrl(http)), ct)));
+      CommandAsync(http, (db, actor, ct) => PbcService.RequestMoreFilesAsync(db, actor, new PbcMessageRequest(id, i.Body ?? "", PublicBaseUrl(http)), ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
     // The staff boundary verifies the staged bytes and binds a durable transfer; the declared hash is the only admissible identity.
     group.MapPost("/pbc-uploads/{id:guid}/complete", (Guid id, PbcCompleteInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => PbcService.CompleteUploadAsync(db, actor, new CompletePbcUploadRequest(id, i.DeclaredSha256 ?? ""),
-        http.RequestServices.GetRequiredService<IOperationStore>(), http.RequestServices.GetRequiredService<PbcDocumentTransferHandler>(), ct)));
+        http.RequestServices.GetRequiredService<IOperationStore>(), http.RequestServices.GetRequiredService<PbcDocumentTransferHandler>(), ct)))
+      .WithUiResponse<UiValueResponse<PbcUploadReceipt>>();
   }
 }

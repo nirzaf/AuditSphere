@@ -56,15 +56,22 @@ public static class ConsolidationOwnershipWorkspaceQuery
                       on new { edge.FirmId, ClientId = edge.ChildClientId }
                       equals new { child.FirmId, ClientId = child.Id }
                     where edge.FirmId == actor.FirmId && edge.GroupId == scope.GroupId && edge.ScopeVersionId == scope.Id
-                    select new ConsolidationOwnershipRow(edge.Id, edge.ParentClientId, parent.LegalName,
-                      edge.ChildClientId, child.LegalName, edge.EffectiveFrom, edge.EffectiveTo,
+                    select new
+                    {
+                      edge.Id, edge.ParentClientId, ParentLegalName = parent.LegalName,
+                      edge.ChildClientId, ChildLegalName = child.LegalName, edge.EffectiveFrom, edge.EffectiveTo,
                       edge.OwnershipPercent, edge.EconomicInterestPercent, edge.ControlAssessment,
-                      edge.Method, edge.EvidenceReference, edge.Status);
+                      edge.Method, edge.EvidenceReference, edge.Status
+                    };
     if (parentClientId is not null)
       interests = interests.Where(x => x.ParentClientId == parentClientId.Value && x.ChildClientId == childClientId!.Value);
     var total = await interests.CountAsync(ct);
     var rows = await interests.OrderByDescending(x => x.EffectiveFrom).ThenBy(x => x.Id)
-      .Skip((int)((long)page * pageSize)).Take(pageSize).ToListAsync(ct);
+      .Skip((int)((long)page * pageSize)).Take(pageSize)
+      .Select(x => new ConsolidationOwnershipRow(x.Id, x.ParentClientId, x.ParentLegalName,
+        x.ChildClientId, x.ChildLegalName, x.EffectiveFrom, x.EffectiveTo,
+        x.OwnershipPercent, x.EconomicInterestPercent, x.ControlAssessment,
+        x.Method, x.EvidenceReference, x.Status)).ToListAsync(ct);
     var members = await (from membership in db.ClientGroupMemberships.AsNoTracking()
                          join client in db.PracticeClients.AsNoTracking()
                            on new { membership.FirmId, membership.ClientId }
