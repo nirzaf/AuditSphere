@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
   "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason. On 2026-10-14, the superseded cp11CashFlowSourceAllocations evidence (commit 0b8f7b2d) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed cp11SourceReviewAndPresentation evidence (commit 2bf0e81b) was moved verbatim from status.json for the same reason. On 2026-10-15, the closed CP-11 targetedVerification records currentCashFlowPackageJourney and canonicalPackageRequiredPopulation were moved verbatim from status.json to keep the live ledger below its 100 KB limit; the cash-flow source fence that superseded them is recorded in productionReadinessStoryCp11. On 2026-10-15, closed targetedVerification records workflowTaskDependencyAmendments, workflowDomainEvidencePrerequisites, workflowClientWait, workflowTaskActivity were moved here to keep status.json within its size budget. On 2026-10-15, closed workflowReviewTurnaround and workflowCiRegressionGate records were moved verbatim to keys.targetedVerification to make room for current UX evidence. On 2026-10-15, the detailed AS-PAR-002 migration coverage narrative was moved verbatim from the active item to keys.angularMigrationAsPar002Details20261015; the current ledger retains the open acceptance summary. On 2026-10-17, the superseded detailed AS-PM8 currentFollowUp evidence was moved verbatim to keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017; the live status retains the PARTIAL result and latest commit-pinned release verification. On 2026-10-17, five detailed Angular migration follow-up evidence records (cross-firm isolation, administrator revocation fencing, not-assigned browser denial, administrator group-revocation fencing and administration review freshness) were moved verbatim from status.json to keys.targetedVerification to keep the live ledger below its 100 KB limit; the status file retains result and scope-status pointers.",
+  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason. On 2026-10-14, the superseded cp11CashFlowSourceAllocations evidence (commit 0b8f7b2d) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed cp11SourceReviewAndPresentation evidence (commit 2bf0e81b) was moved verbatim from status.json for the same reason. On 2026-10-15, the closed CP-11 targetedVerification records currentCashFlowPackageJourney and canonicalPackageRequiredPopulation were moved verbatim from status.json to keep the live ledger below its 100 KB limit; the cash-flow source fence that superseded them is recorded in productionReadinessStoryCp11. On 2026-10-15, closed targetedVerification records workflowTaskDependencyAmendments, workflowDomainEvidencePrerequisites, workflowClientWait, workflowTaskActivity were moved here to keep status.json within its size budget. On 2026-10-15, closed workflowReviewTurnaround and workflowCiRegressionGate records were moved verbatim to keys.targetedVerification to make room for current UX evidence. On 2026-10-15, the detailed AS-PAR-002 migration coverage narrative was moved verbatim from the active item to keys.angularMigrationAsPar002Details20261015; the current ledger retains the open acceptance summary. On 2026-10-17, the superseded detailed AS-PM8 currentFollowUp evidence was moved verbatim to keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017; the live status retains the PARTIAL result and latest commit-pinned release verification. On 2026-10-17, five detailed Angular migration follow-up evidence records (cross-firm isolation, administrator revocation fencing, not-assigned browser denial, administrator group-revocation fencing and administration review freshness) were moved verbatim from status.json to keys.targetedVerification to keep the live ledger below its 100 KB limit; the status file retains result and scope-status pointers. On 2026-10-17, the 2026-10-15 detailed production-readiness baseline was moved verbatim to keys.targetedVerification.productionReadinessStoryCp11Baseline20261015; the live status retains current open gates and follow-up evidence.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -17715,6 +17715,79 @@
         "persisted schedule source allocations/review",
         "indirect cash-flow roles and reviewed assessed-zero states",
         "live provider/deployment acceptance"
+      ]
+    },
+    "targetedVerification.productionReadinessStoryCp11Baseline20261015": {
+      "recordedAtUtc": "2026-10-15T00:16:57Z",
+      "source": "Audit_and_Gap_Closure.md (production-readiness story, F-01..F-12, CP-00..CP-25). Tracked in the repository since 66f5075d.",
+      "masterCommits": {
+        "sourceFence": "8ab0b751",
+        "buildScreenEditors": "2bf7c337",
+        "releaseVerification": "296b87d2",
+        "e2eBuildFix": "7e926eaf",
+        "reviewFixes": "4075d2b2",
+        "openCashFlowFindings": "f62cd9d6",
+        "releaseArtifactPin": "0eb44ece",
+        "candidatePromotion": "083db611 (other session, tested in 9777e450)",
+        "statementComposition": "459e9701",
+        "compositionReviewReleaseBundle": "7023a9f4"
+      },
+      "closedInCode": [
+        "F-01 projection: ledger sign kept as provenance; a cash movement's effect is derived from its cash event",
+        "F-01 cash events: every cash event in the accepted period ledger must be explained; an unexplained one fails lineage even when no movement draws on it, so an FX row cannot cover an omitted receipt",
+        "F-01 declared cash population: an account the approved mapping places in the cash line must be declared, or the build is refused",
+        "F-02 intent fence: request identity, link digest and previous decision checked under the package lock; replay is actor-bound; migration CashFlowSourceReviewIntent",
+        "F-02 ordering: latest decision by a database identity sequence (migration CashFlowSourceReviewSequence), not the application clock",
+        "F-02 locks and errors: share locks on the client safety row and the reviewer's grants before the authority re-check; only the request-identity uniqueness maps to a conflict",
+        "F-03 per-period accepted ledger for cash-flow lineage, approval and the GL picker",
+        "F-04 build screen: equity, numeric note and FX editors; entered schedules never sent as null; unsupplied schedules listed as blockers",
+        "F-09 Partner stage: Administrator removed; a Partner decision counts only when its recorder holds a current Partner grant on the engagement",
+        "F-08 part (CP-20.AC-04 release side): a financial-package release pins the reviewed PDF's identifier, version and digest; issuance is refused without it; the bundle resolves only the pinned artifact (migration ReleaseArtifactPin)",
+        "F-11 repo-buildable part: release-verification.yml runs the full unfiltered suite on one commit (not yet observed hosted)",
+        "F-12 release gate: exact-SHA CI plus retained full-regression evidence required before release; hosted evidence pending",
+        "Tests: concurrent approve and return commits exactly one decision; raw SQL refuses a duplicate request identity and a partial intent; scoped Partner tests (other engagement, revoked, multi-role)",
+        "F-08 CP-18 composition: selecting a candidate renders its PDF, Word and Excel and seals them as one record with per-format digests and a manifest digest; no partial set; append-only (migration FinancialStatementComposition)",
+        "F-08 exact composition handoff: candidate-bound management, accounting and Partner decisions bind the same candidate/composition ID/manifest digest; release pins that composition and PDF identity; bundle verifies and includes the selected PDF/DOCX/XLSX with IDs and hashes; legacy fallback is refused; client bundle receipt binds ZIP and manifest hashes and is per-user, append-only and retry-safe."
+      ],
+      "verified": {
+        "domainFocusedClasses": "245 passed at 0eb44ece (CashFlowContract, FinancialPackageGate, FinancialStatement, CompletionBundle, AccountingRecordsApproval, SourceAcceptanceAndComparatives, PackageSeal, FinancialPackage, ReleaseTests, ReleaseEvidence, AuditDeliverables, ClientAccountingTests)",
+        "solutionBuild": "PASS: dotnet build AuditSphereOps.slnx Release --no-restore; 0 warnings/0 errors",
+        "efModel": "has-pending-model-changes: no changes",
+        "openApi": "PASS: regenerated contracts/auditsphere-openapi.json and scripts/contracts/verify-openapi.sh is current",
+        "earlierSlices": "Angular specs 28 passed and tsc clean at 4075d2b2 (package and build screens); not rerun after 0eb44ece, which changed no Angular file",
+        "candidatePromotionTests": "3 passed at working tree (StatementCandidatePromotionTests: candidate successor, refusal/idempotency, same-candidate review binding); 60/60 re-verified in CashFlowContract, FinancialPackageGate, FinancialStatementPresentation, FinancialStatementTests",
+        "f01TransactionCoverage": "F-01 cash-event projection: 1/1, 60169c51.",
+        "statementComposition": "StatementCompositionTests (2) and StatementCandidatePromotionTests (3) pass; append-only trigger proven by a regression; Domain focused classes 264 passed at 459e9701",
+        "compositionReviewReleaseBundle": "PASS: 35/35 PostgreSQL-backed Domain tests across StatementCandidatePromotion, FinancialPackageGate, AuditDeliverables and ClientAccounting financial packages; exact composition approval, release pin and bundle integrity covered",
+        "angularFullSuite": "PASS: npm run test:ci; 127 files and 736 tests",
+        "angularBuild": "PASS: npm run build; existing commercial/settings.scss component-style budget warning (7.53 kB vs 4.00 kB)",
+        "migration": "20261015000622_FinancialStatementReviewCompositionBinding and 20261015113704_ClientBundleReceiptAcknowledgements generated; EF model drift clean; tests use disposable databases; no persistent local or VPS migration applied.",
+        "documentation": "PASS: markdown health, filename and narrative-metrics validators",
+        "clientBundleReceipt": "PASS: dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --no-restore --filter 'FullyQualifiedName~FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped|FullyQualifiedName~CurrentPartnerClearanceProjectsPartnerApprovalBeforeOpinionSelection' --maxcpucount:1 (Domain 2/2: exact hashes, concurrent retry, scope, append-only); npm --prefix src/AuditSphereOps.Ui run test:ci -- --include=src/app/features/portal/documents.spec.ts (2/2). Client-attested, not download/provider proof."
+      },
+      "notRun": [
+        "full unfiltered Domain suite",
+        "AuditSphereOps.Api.Tests",
+        "AuditSphereOps.E2E.Tests (browser journeys; AngularCashFlowPackageJourneyTests selectors changed earlier)",
+        "release-verification.yml and release.yml (no hosted run observed)",
+        "Interactive built-in-browser review/release flow: not run; the code is not deployed to the VPS and no local authenticated package fixture was started."
+      ],
+      "openBlockers": [
+        "F-02 minor: post-lock revocation waits; timing lacks a dedicated test.",
+        "F-09: assignment-aware Partner rule remains unmodelled; Administrator review rights need owner policy.",
+        "CP-12: third working-capital role requires approved professional methodology.",
+        "CP-18: cross-format parity, approved profiles, MIME/glyph/clipping and professional output acceptance remain unverified.",
+        "CP-19/20: signatory capacity, offline evidence, package-review revision, final report/signing/legal and live-provider gates remain open."
+      ],
+      "storyItemsNotStarted": [
+        "F-05 indirect cash-flow methodology (BLOCKED_PROFESSIONAL)",
+        "F-06 equity and note source approval (BLOCKED_PROFESSIONAL)",
+        "F-07 final profile membership (BLOCKED_PROFESSIONAL)",
+        "F-10 offer identity and routing (owner decision DEC-05)",
+        "CP-02, CP-03, CP-05, CP-22 owner decisions; CP-04, CP-06 to CP-08, CP-15, CP-16, CP-20 to CP-21, CP-23, CP-24 partially open",
+        "F-12 branch protection and required checks (external, owner)",
+        "CP-25 live identity, mail, selected-site, recovery and capacity gates (BLOCKED_EXTERNAL)",
+        "F-08 remains PARTIAL: CP-18 output-quality/profile acceptance, CP-19 management identity/evidence/recovery, and CP-20 audit-report/signing/legal/provider acceptance remain open"
       ]
     }
   }

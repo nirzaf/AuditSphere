@@ -39112,6 +39112,12 @@
             "items": {
               "$ref": "#/components/schemas/CashFlowScheduleSourceAllocationInput"
             }
+          },
+          "calculationRole": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
