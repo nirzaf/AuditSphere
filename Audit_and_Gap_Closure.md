@@ -124,15 +124,15 @@ A repeated approval request can therefore create another decision rather than re
 
 **Required tests:** lost reply and same-intent replay; same key/different decision; concurrent approve/return; changed accepted source between preview and commit; grant revocation while waiting for the lock; no duplicate review/hash change on recovery. Add appropriate source/actor/scope foreign-key or guarded-reference tests after checking all current configurations, not only the two new migrations.
 
-## F-03 — Current and comparative source reviews share an engagement-wide “latest GL” lookup
+## F-03 — Period-scoped GL acceptance is implemented; full comparative acceptance remains
 
-**P0 for two-period final reporting · STATIC_COUNTEREXAMPLE · CP-10/CP-11/CP-17.**
+**P0 for two-period final reporting · CORE FIX VERIFIED; broader acceptance open · CP-10/CP-11/CP-17.**
 
-The package builder requires a comparative in the same engagement. `CashFlowSourceApprovedAsync` finds the latest accepted GL using firm/client/engagement/source kind, without a period/book predicate, and requires a package's allocations to cite that batch. `CashFlowSourcesIndependentlyApprovedAsync` applies that check to both current and comparative packages. [R10] [R15] [R18]
+The baseline counterexample was corrected in commit `2e3d7220`: `CashFlowSourceApprovedAsync` first requires the package's `PeriodId`, then selects the latest accepted GL decision only among sealed batches for that same period. The presentation path invokes this check separately for the current and comparative packages, so a newer acceptance in another period does not stale this package's source review. [R10] [R15] [R18]
 
-For two valid periods in that engagement with distinct accepted GL batches, accepting the current year's batch makes the prior package's batch cease to be the engagement-wide latest. The prior approval cannot remain current under that helper even though it is the exact intended approved comparative basis. A separate prior engagement is currently blocked by package construction. This identifies a two-period contract conflict requiring a representative test; it is not proof that all single-period reporting fails.
+`CashFlowContractTests.TwoPeriods_RetainTheirOwnAcceptedCashSources` seeds two periods in one engagement and distinct accepted GL batches. It verifies that the current package resolves against its period even when the prior-period ledger was accepted last, and that replacing the current-period ledger stales the current review while the prior-period accepted batch remains selected. The test passed in the unfiltered Domain job for candidate `1ee3c0e7`; the test and implementation files are unchanged through master `df28d41a`. It does not construct and independently review both full packages, exercise a genuine restatement, or establish the narrow cross-engagement historical-snapshot policy.
 
-**Required correction:** resolve source acceptance within the exact reporting context, or consume a narrowly authorized, immutable as-issued prior reporting snapshot under the approved comparative policy. Do not globally remove client/engagement checks or disable stale-source protection. Normal current-year ingestion must not impersonate a restatement of the selected prior-year source.
+**Remaining work:** exercise two built packages with independent current/prior source reviews through presentation readiness, and preserve the selected prior basis through an authorized restatement flow. Implement a narrow cross-engagement immutable as-issued snapshot handoff only under the approved comparative policy. Do not globally remove client/engagement checks or disable stale-source protection. Normal current-year ingestion must not impersonate a restatement of the selected prior-year source.
 
 **Required tests:** two years with distinct GL batches and reviewed sources; current-year replacement; genuine prior-year restatement with explicit reselection; retained as-issued comparative; unauthorized prior engagement; no inheritance of prior audit/management approvals.
 
@@ -592,7 +592,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 ## CP-10 — Comparatives, opening continuity, period close and restatement
 
-**Priority:** P0. **Current disposition:** PARTIAL; F-03 requires correction for two-period final readiness.
+**Priority:** P0. **Current disposition:** PARTIAL; period-specific source acceptance and current-period staleness are implemented and regression-covered; dual-package comparative, restatement, opening-continuity and professional acceptance remain open.
 
 **Dependencies:** CP-09/CP-11; approved prior-snapshot authorization and restatement policy.
 
@@ -602,7 +602,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 ### Remaining implementation
 
-1. Add a regression for F-03 before changing comparative selection. Both current and comparative packages must retain the correct accepted source within their own period/book/basis; current-year ingestion cannot invalidate the prior merely through an engagement-wide latest lookup.
+1. Period-specific GL source selection is implemented and covered by `CashFlowContractTests.TwoPeriods_RetainTheirOwnAcceptedCashSources`. Extend the fixture to two separately built and reviewed packages to prove both package approvals remain current after a later acceptance in the other period; current-year ingestion must not invalidate the prior through an engagement-wide latest lookup.
 2. Reuse period/restatement facilities and exact package references. Implement the approved narrow cross-engagement reporting-snapshot handoff for the same entity; permission to consume a prior approved report is not permission to inspect its entire raw audit file.
 3. Pin as-issued/reclassified/restated-error/policy-transition/estimate-change treatment and qualified evidence. Preserve the selected original and require explicit successor selection rather than swapping to the newest prior record.
 4. Reconcile current opening balances to approved prior closing values and any authorized bridge. Normal opening continuity, professional annual acceptance and disclosure restatement are separate decisions.
