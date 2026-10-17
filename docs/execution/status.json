@@ -2018,7 +2018,8 @@
       "WF-06",
       "FIN-03",
       "FIN-06",
-      "FIN-07"
+      "FIN-07",
+      "RES-06"
     ],
     "lastTechnicalSlice": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
     "advanceCashGate": {
@@ -2033,12 +2034,7 @@
     },
     "queueSourceLineage": {
       "result": "FOCUSED_PASS",
-      "behavior": "All layouts retain source/template, FSLI/mapping, PBC link, review comment/context and activity entry point.",
-      "angular": "work-queue.spec.ts: 18 passed, 0 failed; build PASS, existing SCSS warning",
-      "domain": "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing: 1 passed, 0 failed, 0 skipped on isolated PostgreSQL test schema",
-      "build": "OpenApiEmitter/API Release: zero warnings/errors",
-      "browser": "Synthetic source in all layouts; board opens retained create/assign/dependency activity; calendar retains it. Console empty. Live review/PBC and responsive acceptance NOT_VERIFIED.",
-      "fullRegression": "NOT_RUN on this slice; CI required"
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.queueSourceLineage20261018"
     },
     "firmMonthlyBoundary": {
       "result": "FOCUSED_PASS",
@@ -2058,6 +2054,16 @@
       "builds": "Angular PASS (existing SCSS warning); Release API/test builds PASS; OpenAPI regenerated and drift PASS",
       "browser": "NOT_RUN for positive finance journey: synthetic browser identity has no finance role; no role grants changed.",
       "release": "Full current-SHA regression remains CI work."
+    },
+    "capacityRemainder": {
+      "codeCommit": "668b295eaa1a84b2528048d11c071cbb8571bdbd",
+      "result": "FOCUSED_PASS",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "cohort": "CapacityDeductsLeaveOnASundayButNotOnTheWeekend; Analytics_MissingCostRateKeepsChargeOutValueAndZeroCapacityDoesNotInventUtilization",
+      "scope": "Pure and isolated PostgreSQL: 2401 weekly minutes retained; Sunday leave leaves 1920 in grid/analytics; full leave removes all capacity; final supported date succeeds.",
+      "deferred": "Positive browser and full current-SHA CI acceptance NOT_VERIFIED."
     }
   }
 }

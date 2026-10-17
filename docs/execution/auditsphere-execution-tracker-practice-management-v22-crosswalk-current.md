@@ -233,7 +233,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `RES-03` | RES | NOT_REVERIFIED |
 | `RES-04` | RES | NOT_REVERIFIED |
 | `RES-05` | RES | NOT_REVERIFIED |
-| `RES-06` | RES | NOT_REVERIFIED |
+| `RES-06` | RES | PARTIAL: shared daily capacity passes focused verification; wider dashboard/audience acceptance remains |
 | `FIN-01` | FIN | NOT_REVERIFIED |
 | `FIN-02` | FIN | PARTIAL |
 | `FIN-03` | FIN | NOT_REVERIFIED |
@@ -356,3 +356,7 @@ The UI decoder accepts at most 1,200 monthly P&L rows. The backend now checks th
 ### FIN-06/07 retained expense discovery and recovery
 
 The firm-books workspace previously stopped at 200 expenses and recovery searched only that first page. It now exposes bounded live expense pages with deterministic date/creation/ID ordering and continuation metadata. An exact expense selector is scoped to the same firm-wide finance authorization and lets uncertain submit/review/post recovery resolve older identities without relying on page membership. Page validation refuses unsupported values; final authorization is rechecked before returning account/expense metadata. No evidence bytes are added to the response. Live list pages may shift when records are inserted; these are not sealed report snapshots. Focused database, API and Angular checks pass, including older exact-ID recovery; the initial Angular fixture lacked a session and was corrected. Positive browser finance acceptance remains pending because the synthetic identity lacks finance access. Full source-to-report and release gates remain open.
+
+### RES-06 weekly capacity reconciliation
+
+Analytics previously truncated weekly capacity divided by five while the resource grid retained the full weekly total. Both now use the existing resource calculator’s shared daily allocation: whole minutes divide across working days and remainder minutes go to the earliest working days (Sunday first). A 2,401-minute week is 481 + 480 + 480 + 480 + 480; a full 481-minute Sunday absence leaves 1,920 in both views. Full-week leave removes the entire configured capacity. Approved billable minutes remain the utilization numerator; non-billable actual effort stays separate. The bounded analytics day loop also avoids advancing beyond the last supported date. Both focused pure/PostgreSQL tests passed. Positive browser and full current-SHA CI acceptance remain unverified; no personnel audience or professional policy changes.

@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Resource capacity reconciliation
+
+Analytics and the weekly grid preserve all configured weekly minutes using one daily allocator, including leave deductions. Focused pure/PostgreSQL checks pass; positive browser and broader acceptance remain open. See execution ledger.
+
 ## Retained firm expense paging and recovery
 
 Firm books now exposes bounded expense pages and exact firm-scoped expense lookup for uncertain action recovery. Focused database, API and Angular checks pass; the positive browser finance journey remains pending because the synthetic browser identity has no finance assignment. No access grant changed. Exact source/results are in the execution ledger.
