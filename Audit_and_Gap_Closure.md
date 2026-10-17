@@ -591,7 +591,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 ## CP-10 — Comparatives, opening continuity, period close and restatement
 
-**Priority:** P0. **Current disposition:** PARTIAL; period-specific source acceptance and current-period staleness are implemented and regression-covered; dual-package comparative, restatement, opening-continuity and professional acceptance remain open.
+**Priority:** P0. **Current disposition:** PARTIAL; period-specific source acceptance and a dual-package comparative presentation pin are regression-covered, including current-source invalidation that leaves the prior-period review intact. Release/as-issued retention, restatement, opening continuity and professional acceptance remain open.
 
 **Dependencies:** CP-09/CP-11; approved prior-snapshot authorization and restatement policy.
 
@@ -601,7 +601,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 ### Remaining implementation
 
-1. Period-specific GL source selection is implemented and covered by `CashFlowContractTests.TwoPeriods_RetainTheirOwnAcceptedCashSources`. Extend the fixture to two separately built and reviewed packages to prove both package approvals remain current after a later acceptance in the other period; current-year ingestion must not invalidate the prior through an engagement-wide latest lookup.
+1. Period-specific GL source selection and a real comparative pin are covered by `CashFlowContractTests.TwoPeriods_RetainTheirOwnAcceptedCashSources`: two separately built packages have independently approved GL sources; the current presentation pin records the exact prior package ID and calculation hash; replacing current-period GL stales the current review and pending pin while preserving the prior review. Release/as-issued comparative retention, same-period TB replacement and restatement/reselection are not proven by this regression.
 2. Reuse period/restatement facilities and exact package references. Implement the approved narrow cross-engagement reporting-snapshot handoff for the same entity; permission to consume a prior approved report is not permission to inspect its entire raw audit file.
 3. Pin as-issued/reclassified/restated-error/policy-transition/estimate-change treatment and qualified evidence. Preserve the selected original and require explicit successor selection rather than swapping to the newest prior record.
 4. Reconcile current opening balances to approved prior closing values and any authorized bridge. Normal opening continuity, professional annual acceptance and disclosure restatement are separate decisions.

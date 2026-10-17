@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "7589b8e6a6b9e6b38be9dcf8c6a7b437033eb85f",
+  "headCommit": "e46a2f01dba0c9c20a31f25af28e26c4271d92df",
   "verifiedCommit": "12e51e6031605245c22df8331d7ca12f345dbf36",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1219,21 +1219,22 @@
       ]
     },
     "cp10PeriodScopedPackageFreshness": {
-      "recordedAtUtc": "2026-10-17T05:38:10Z",
-      "codeCommit": "7589b8e6a6b9e6b38be9dcf8c6a7b437033eb85f",
+      "recordedAtUtc": "2026-10-17T05:42:55Z",
+      "codeCommit": "e46a2f01dba0c9c20a31f25af28e26c4271d92df",
       "status": "PARTIAL",
       "verified": {
-        "focusedTests": "2/2 passed: two-period GL isolation and package release generation applicability.",
-        "periodBehavior": "Separate packages retain own source review; current-period replacement stales only its package. Prior presentation reaches layout guard; current presentation is refused.",
-        "commit": "7589b8e6a6b9e6b38be9dcf8c6a7b437033eb85f pushed to origin/master."
+        "focusedTests": "3/3 across package-freshness slices; comparative pin regression passed 1/1 on e46a2f01.",
+        "periodBehavior": "Separate current/prior packages keep period-specific GL reviews. Published-layout pin records exact prior package ID/hash; current GL replacement stales only current review and pending pin.",
+        "approvalReleaseBehavior": "Package approval/release remains applicable across unrelated client generation changes.",
+        "commit": "e46a2f01 pushed to origin/master."
       },
       "notRun": [
-        "Full Domain/API/Angular/E2E suites; hosted CI for this SHA was queued when recorded.",
-        "Successful comparative pin/release, live provider acceptance and professional restatement policy."
+        "Full suites are running in CI/CD; none run locally.",
+        "Comparative release/as-issued retention, same-period TB replacement, restatement/reselection, opening continuity, cross-engagement denial and professional/live acceptance."
       ],
       "open": [
-        "Full comparative presentation/release, same-period TB replacement, restatement/reselection and as-issued retention.",
-        "Cross-engagement history denial and no inheritance of prior audit/management approvals."
+        "Comparative release/as-issued retention; same-period TB replacement; restatement/reselection; opening continuity.",
+        "Cross-engagement denial, prior-approval noninheritance and professional annual acceptance."
       ]
     }
   },

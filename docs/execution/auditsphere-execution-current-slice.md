@@ -26,7 +26,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## CP-10 — period-scoped package freshness — 2026-10-17
 
-Commit `7589b8e6a6b9e6b38be9dcf8c6a7b437033eb85f` binds package approval/release freshness to the immutable package generation and checks cash-flow evidence per reporting period; client generation remains a command concurrency token. The focused regressions passed 2/2: distinct prior/current packages retain separate GL reviews after current-period replacement, and package approval/release survives unrelated generation advances. The prior presentation test reaches the published-layout guard but does not claim a completed comparative pin. CP-10 remains PARTIAL: full comparative presentation/release, TB replacement, restatement/reselection, as-issued retention and cross-engagement denial remain open. Evidence: `targetedVerification.cp10PeriodScopedPackageFreshness` in `status.json`.
+Commit `e46a2f01` adds a real comparative presentation pin to the period-scoped freshness regression. The focused tests passed 3/3 across the package-freshness changes: prior/current packages retain separate GL reviews after current-period replacement; a published-layout pin records the exact prior package ID and calculation hash; replacing current-period GL invalidates only the current review and pending pin while the prior review remains approved; package approval/release survives unrelated generation advances. CP-10 remains PARTIAL: release and as-issued retention, same-period TB replacement, restatement/reselection, opening continuity and cross-engagement denial remain open. Evidence: `targetedVerification.cp10PeriodScopedPackageFreshness` in `status.json`.
 
 ## CP-13 — signed equity component transfers — 2026-10-17
 
