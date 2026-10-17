@@ -186,6 +186,9 @@ jobs:
           set -euo pipefail
           python3 scripts/docs/validate-markdown-documentation.py
 
+      - name: Verify audit programme source manifest against Word source
+        run: python3 scripts/docs/verify-audit-program-source.py
+
       - name: Validate capability packets and runner safety guards
         run: |
           set -euo pipefail
