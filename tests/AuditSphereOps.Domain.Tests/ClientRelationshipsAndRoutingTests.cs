@@ -191,11 +191,62 @@ public sealed class ClientRelationshipsAndRoutingTests
 
     // 5. Revocation of relationship with reason
     var revoke = await PracticeCrmService.RevokeClientRelationshipAsync(db, partner, new RevokeClientRelationshipRequest(
-      rAff.Value, "Joint venture dissolved by mutual consent."));
+      holdingId, rAff.Value, "Joint venture dissolved by mutual consent."));
     Assert.True(revoke.Succeeded);
 
     var treeAfterRevoke = await PracticeCrmService.GetClientHierarchyAsync(db, partner, holdingId);
     Assert.Empty(treeAfterRevoke.Value!.Affiliates);
+  }
+
+  [Fact]
+  public async Task RelationshipAndRoutingRevocation_RequireTheRouteClientToMatchTheStoredRecord()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var partner = PbcSeed.Actor(seed.Admin, "Partner");
+    var otherClientId = Guid.NewGuid();
+    var wrongRouteClientId = Guid.NewGuid();
+    var contactId = Guid.NewGuid();
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = otherClientId, FirmId = seed.FirmId, LegalName = "Other Client", Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.ClientContacts.Add(new ClientContact
+    {
+      Id = contactId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, FullName = "Finance Contact",
+      Email = "finance@client.test", Role = "Finance", IsActive = true
+    });
+    await db.SaveChangesAsync();
+
+    var relationship = await PracticeCrmService.CreateClientRelationshipAsync(db, partner,
+      new CreateClientRelationshipRequest(seed.ClientId, otherClientId, ClientRelationshipKinds.Affiliate));
+    Assert.True(relationship.Succeeded, relationship.Message);
+    var routing = await PracticeCrmService.AssignContactRoutingAsync(db, partner,
+      new AssignContactRoutingRequest(seed.ClientId, contactId, CorrespondencePurposes.Finance));
+    Assert.True(routing.Succeeded, routing.Message);
+
+    var wrongRelationshipRoute = await PracticeCrmService.RevokeClientRelationshipAsync(db, partner,
+      new RevokeClientRelationshipRequest(wrongRouteClientId, relationship.Value, "Wrong client route"));
+    var wrongRoutingRoute = await PracticeCrmService.RevokeContactRoutingAsync(db, partner,
+      new RevokeContactRoutingRequest(wrongRouteClientId, routing.Value, "Wrong client route"));
+    Assert.Equal(ErrorCodes.ScopeDenied, wrongRelationshipRoute.ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, wrongRoutingRoute.ErrorCode);
+    Assert.Null(await db.ClientRelationships.AsNoTracking().Where(x => x.Id == relationship.Value).Select(x => x.RevokedAt).SingleAsync());
+    Assert.Null(await db.ClientContactRoutings.AsNoTracking().Where(x => x.Id == routing.Value).Select(x => x.RevokedAt).SingleAsync());
+
+    var revokeRelationship = await PracticeCrmService.RevokeClientRelationshipAsync(db, partner,
+      new RevokeClientRelationshipRequest(seed.ClientId, relationship.Value, "Relationship ended."));
+    var revokeRouting = await PracticeCrmService.RevokeContactRoutingAsync(db, partner,
+      new RevokeContactRoutingRequest(seed.ClientId, routing.Value, "Recipient designation changed."));
+    Assert.True(revokeRelationship.Succeeded, revokeRelationship.Message);
+    Assert.True(revokeRouting.Succeeded, revokeRouting.Message);
+    Assert.Equal("Relationship ended.", await db.ClientRelationships.AsNoTracking()
+      .Where(x => x.Id == relationship.Value).Select(x => x.RevocationReason).SingleAsync());
+    Assert.Equal("Recipient designation changed.", await db.ClientContactRoutings.AsNoTracking()
+      .Where(x => x.Id == routing.Value).Select(x => x.RevocationReason).SingleAsync());
   }
 
   [Fact]
@@ -428,6 +479,11 @@ public sealed class ClientRelationshipsAndRoutingTests
       PbcSeed.Grant(seed.FirmId, scoped, "Manager", clientId: visibleSubId));
     await db.SaveChangesAsync();
     var scopedActor = PbcSeed.Actor(scoped, "Manager");
+
+    var relationshipCandidates = await PracticeCrmService.GetClientRelationshipCandidatesAsync(
+      db, scopedActor, seed.ClientId, search: null, page: 0, pageSize: 50);
+    Assert.True(relationshipCandidates.Succeeded, relationshipCandidates.Message);
+    Assert.Equal(visibleSubId, Assert.Single(relationshipCandidates.Value!.Items).Id);
 
     var tree = await PracticeCrmService.GetClientHierarchyAsync(db, scopedActor, seed.ClientId);
     Assert.True(tree.Succeeded, tree.Message);

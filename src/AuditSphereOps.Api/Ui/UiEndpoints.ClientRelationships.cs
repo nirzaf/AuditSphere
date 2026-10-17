@@ -33,6 +33,24 @@ public static partial class UiEndpoints
   private static void MapClientRelationshipEndpoints(RouteGroupBuilder group)
   {
     // Hierarchy
+    group.MapGet("/clients/{id:guid}/relationship-candidates", async (Guid id, string? search, int? page, int? pageSize,
+      HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await PracticeCrmService.GetClientRelationshipCandidatesAsync(db, actor, id, search,
+        page ?? 0, pageSize ?? 25, http.RequestAborted);
+      if (!result.Succeeded)
+      {
+        var status = result.ErrorCode == "request.invalid" ? 400 : 403;
+        return Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: status);
+      }
+
+      return Results.Ok(result.Value);
+    });
+
     group.MapGet("/clients/{id:guid}/hierarchy", async (Guid id, HttpContext http,
       TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -101,7 +119,7 @@ public static partial class UiEndpoints
 
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.RevokeClientRelationshipAsync(db, actor,
-        new RevokeClientRelationshipRequest(relationshipId, input.Reason), http.RequestAborted);
+        new RevokeClientRelationshipRequest(id, relationshipId, input.Reason), http.RequestAborted);
 
       return result.Succeeded
         ? Results.Ok(new { success = true })
@@ -177,7 +195,7 @@ public static partial class UiEndpoints
 
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.RevokeContactRoutingAsync(db, actor,
-        new RevokeContactRoutingRequest(routingId, input.Reason), http.RequestAborted);
+        new RevokeContactRoutingRequest(id, routingId, input.Reason), http.RequestAborted);
 
       return result.Succeeded
         ? Results.Ok(new { success = true })

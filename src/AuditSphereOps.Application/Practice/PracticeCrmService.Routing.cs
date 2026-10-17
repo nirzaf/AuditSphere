@@ -16,6 +16,7 @@ public sealed record AssignContactRoutingRequest(
   bool IsPrimaryForPurpose = true);
 
 public sealed record RevokeContactRoutingRequest(
+  Guid PracticeClientId,
   Guid RoutingId,
   string Reason);
 
@@ -188,7 +189,8 @@ public static partial class PracticeCrmService
     if (string.IsNullOrWhiteSpace(request.Reason))
       return CommandResult.Fail("crm.invalid", "A revocation reason is required.");
 
-    var routing = await db.ClientContactRoutings.SingleOrDefaultAsync(x => x.Id == request.RoutingId && x.FirmId == actor.FirmId, ct);
+    var routing = await db.ClientContactRoutings.SingleOrDefaultAsync(x => x.Id == request.RoutingId && x.FirmId == actor.FirmId &&
+      x.PracticeClientId == request.PracticeClientId, ct);
     if (routing is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Routing assignment not found.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,

@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
@@ -47,7 +47,7 @@ const mockHierarchy = {
       relatedClientId: subId,
       relatedClientName: 'Apex Logistics W.L.L.',
       relationshipKind: 'PARENT',
-      ownershipPercentage: 100,
+      ownershipPercentage: '100.00',
       effectiveFrom: '2025-01-01',
       effectiveTo: null,
       notes: 'Wholly owned subsidiary',
@@ -76,6 +76,36 @@ const mockRoutings = [
     isActive: true,
   },
 ];
+
+const mockClientWorkspace = {
+  id: clientId, name: 'Apex Holding Group Q.P.S.C.', status: 'Active',
+  commercialName: null, registrationNumber: null, jurisdiction: null,
+  createdAt: '2026-01-01T00:00:00Z', safetyGeneration: '1', canManageContacts: true, canCreateEngagement: false,
+  metrics: { engagements: 0, workBlocked: 0, contacts: 1 },
+  paging: { engagementPage: 0, engagementPageSize: 10, contactPage: 0, contactPageSize: 50 },
+  engagements: [],
+  contacts: [{ id: contactId, name: 'Nasser Al-Thani', email: 'nasser@apex.qa', role: 'Chief Financial Officer', primary: true }],
+  portalIntent: null,
+};
+const mockCandidates = {
+  items: [{ id: parentId, name: 'Global Supreme Corp' }, { id: subId, name: 'Apex Logistics W.L.L.' }],
+  total: 2, page: 0, pageSize: 50,
+};
+const mockResolution = {
+  status: 'Resolved', clientContactId: contactId, fullName: 'Nasser Al-Thani',
+  email: 'nasser@apex.qa', purpose: 'COMMERCIAL', message: 'Recipient resolved successfully.',
+};
+
+function flushWorkspace(httpMock: HttpTestingController, fixture: ComponentFixture<ClientRelationships>, routings: Record<string, unknown>[] = mockRoutings,
+  resolutionPurpose = 'COMMERCIAL'): void {
+  httpMock.expectOne(`/api/ui/clients/${clientId}/hierarchy`).flush(mockHierarchy);
+  httpMock.expectOne(`/api/ui/clients/${clientId}/routings`).flush(routings);
+  httpMock.expectOne(`/api/ui/clients/${clientId}?contactPage=0&contactPageSize=50`).flush(mockClientWorkspace);
+  httpMock.expectOne(`/api/ui/clients/${clientId}/relationship-candidates?page=0&pageSize=50`).flush(mockCandidates);
+  httpMock.expectOne(request => request.urlWithParams.startsWith(
+    `/api/ui/clients/${clientId}/routings/resolve?purpose=${resolutionPurpose}&asOfDate=`)).flush(mockResolution);
+  fixture.detectChanges();
+}
 
 describe('Client Relationships Contracts', () => {
   it('decodes valid hierarchy and routing payloads correctly', () => {
@@ -129,20 +159,12 @@ describe('ClientRelationships Component', () => {
     TestBed.resetTestingModule();
   });
 
-  it('loads and displays hierarchy and routings successfully', () => {
+  it('loads and displays hierarchy, routings and authorized action choices', () => {
     const fixture = TestBed.createComponent(ClientRelationships);
     fixture.componentRef.setInput('clientId', clientId);
     fixture.detectChanges();
 
-    const hierarchyReq = httpMock.expectOne(`/api/ui/clients/${clientId}/hierarchy`);
-    const routingsReq = httpMock.expectOne(`/api/ui/clients/${clientId}/routings`);
-
-    expect(hierarchyReq.request.method).toBe('GET');
-    expect(routingsReq.request.method).toBe('GET');
-
-    hierarchyReq.flush(mockHierarchy);
-    routingsReq.flush(mockRoutings);
-    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture);
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Apex Holding Group Q.P.S.C.');
@@ -151,6 +173,140 @@ describe('ClientRelationships Component', () => {
     expect(text).toContain('Apex Logistics W.L.L.');
     expect(text).toContain('Nasser Al-Thani');
     expect(text).toContain('FINANCE');
+    expect(text).toContain('Assign contact routing');
+    expect(text).toContain('Add a client relationship');
+    expect(text).toContain('Current recipient resolution');
+  });
+
+  it('keeps an unrevoked routing assignment revocable after its contact is deactivated', () => {
+    const fixture = TestBed.createComponent(ClientRelationships);
+    fixture.componentRef.setInput('clientId', clientId);
+    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture, mockRoutings.map(routing => ({ ...routing, isActive: false })));
+
+    const text = fixture.nativeElement.textContent.toLowerCase();
+    expect(text).toContain('contact deactivated');
+    expect(text).toContain('review revocation');
+  });
+
+  it('requires fresh confirmation after either reviewed draft changes', async () => {
+    const fixture = TestBed.createComponent(ClientRelationships);
+    fixture.componentRef.setInput('clientId', clientId);
+    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture);
+
+    const component = fixture.componentInstance;
+    Object.assign(component.routingDraft, { clientContactId: contactId, purpose: 'FINANCE' });
+    component.reviewRoutingAssignment();
+    component.routingConfirmation = true;
+    component.routingDraft.purpose = 'COMPLETION';
+    component.reviewRoutingAssignment();
+    expect(component.routingConfirmation).toBe(false);
+    await component.confirmRoutingAssignment();
+    httpMock.expectNone(`/api/ui/clients/${clientId}/routings`);
+
+    Object.assign(component.relationshipDraft, { relatedClientId: subId, relationshipKind: 'AFFILIATE' });
+    component.reviewRelationshipCreation();
+    component.relationshipConfirmation = true;
+    component.relationshipDraft.notes = 'Updated after review.';
+    component.reviewRelationshipCreation();
+    expect(component.relationshipConfirmation).toBe(false);
+    await component.confirmRelationshipCreation();
+    httpMock.expectNone(`/api/ui/clients/${clientId}/relationships`);
+  });
+
+  it('sends reviewed routing assignment and reasoned route-bound revocation payloads', async () => {
+    const fixture = TestBed.createComponent(ClientRelationships);
+    fixture.componentRef.setInput('clientId', clientId);
+    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture);
+
+    const component = fixture.componentInstance;
+    Object.assign(component.routingDraft, {
+      clientContactId: contactId, purpose: 'FINANCE', effectiveFrom: '2026-02-01', effectiveTo: '2026-12-31', isPrimaryForPurpose: true,
+    });
+    component.reviewRoutingAssignment();
+    expect(component.routingReview()?.contactEmail).toBe('nasser@apex.qa');
+    component.routingConfirmation = true;
+    component.routingDraft.effectiveTo = '2027-01-31';
+    component.reviewRoutingAssignment();
+    expect(component.routingConfirmation).toBe(false);
+    expect(component.routingReview()?.effectiveTo).toBe('2027-01-31');
+    await component.confirmRoutingAssignment();
+    httpMock.expectNone(`/api/ui/clients/${clientId}/routings`);
+    component.routingConfirmation = true;
+    const assignment = component.confirmRoutingAssignment();
+    const assignRequest = httpMock.expectOne(`/api/ui/clients/${clientId}/routings`);
+    expect(assignRequest.request.method).toBe('POST');
+    expect(assignRequest.request.body).toEqual({
+      clientContactId: contactId, purpose: 'FINANCE', effectiveFrom: '2026-02-01', effectiveTo: '2027-01-31', isPrimaryForPurpose: true,
+    });
+    assignRequest.flush({ id: routeId });
+    await assignment;
+    flushWorkspace(httpMock, fixture, mockRoutings, 'FINANCE');
+
+    component.routingReasons[routeId] = 'Finance contact changed by client.';
+    component.routingConfirmation = true;
+    component.reviewRoutingRevocation(mockRoutings[0]);
+    expect(component.routingRevokeReview()?.reason).toBe('Finance contact changed by client.');
+    expect(component.routingConfirmation).toBe(false);
+    component.routingConfirmation = true;
+    const revocation = component.confirmRoutingRevocation();
+    const revokeRequest = httpMock.expectOne(`/api/ui/clients/${clientId}/routings/${routeId}`);
+    expect(revokeRequest.request.method).toBe('DELETE');
+    expect(revokeRequest.request.body).toEqual({ reason: 'Finance contact changed by client.' });
+    revokeRequest.flush({ success: true });
+    await revocation;
+    flushWorkspace(httpMock, fixture, mockRoutings, 'FINANCE');
+    expect(component.routingCommand.message()).toContain('Routing was revoked');
+  });
+
+  it('sends reviewed relationship create/revoke payloads and presents domain cycle refusals', async () => {
+    const fixture = TestBed.createComponent(ClientRelationships);
+    fixture.componentRef.setInput('clientId', clientId);
+    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture);
+
+    const component = fixture.componentInstance;
+    Object.assign(component.relationshipDraft, {
+      relatedClientId: subId, relationshipKind: 'AFFILIATE', ownershipPercentage: '51.25',
+      effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', notes: 'Reviewed association.',
+    });
+    component.reviewRelationshipCreation();
+    expect(component.relationshipReview()?.ownershipPercentage).toBe('51.25');
+    component.relationshipConfirmation = true;
+    const refused = component.confirmRelationshipCreation();
+    const refusedRequest = httpMock.expectOne(`/api/ui/clients/${clientId}/relationships`);
+    expect(refusedRequest.request.method).toBe('POST');
+    expect(refusedRequest.request.body).toEqual({
+      relatedClientId: subId, relationshipKind: 'AFFILIATE', ownershipPercentage: 51.25,
+      effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', notes: 'Reviewed association.',
+    });
+    refusedRequest.flush({ code: 'crm.relationship-cycle', message: 'Adding this relationship creates an ownership-tree cycle.' },
+      { status: 400, statusText: 'Bad Request' });
+    await refused;
+    expect(component.relationshipCommand.message()).toContain('ownership-tree cycle');
+
+    const created = component.confirmRelationshipCreation();
+    const createRequest = httpMock.expectOne(`/api/ui/clients/${clientId}/relationships`);
+    createRequest.flush({ id: relId1 });
+    await created;
+    flushWorkspace(httpMock, fixture);
+
+    component.relationshipReasons[relId2] = 'Ownership structure changed.';
+    component.relationshipConfirmation = true;
+    component.reviewRelationshipRevocation(mockHierarchy.subsidiaries[0]);
+    expect(component.relationshipRevokeReview()?.relatedClientName).toBe('Apex Logistics W.L.L.');
+    expect(component.relationshipConfirmation).toBe(false);
+    component.relationshipConfirmation = true;
+    const revoked = component.confirmRelationshipRevocation();
+    const revokeRequest = httpMock.expectOne(`/api/ui/clients/${clientId}/relationships/${relId2}`);
+    expect(revokeRequest.request.method).toBe('DELETE');
+    expect(revokeRequest.request.body).toEqual({ reason: 'Ownership structure changed.' });
+    revokeRequest.flush({ success: true });
+    await revoked;
+    flushWorkspace(httpMock, fixture);
+    expect(component.relationshipCommand.message()).toContain('relationship was revoked');
   });
 
   it('handles error states cleanly when requests fail', () => {
@@ -160,6 +316,7 @@ describe('ClientRelationships Component', () => {
 
     const hierarchyReq = httpMock.expectOne(`/api/ui/clients/${clientId}/hierarchy`);
     const routingsReq = httpMock.expectOne(`/api/ui/clients/${clientId}/routings`);
+    httpMock.expectOne(`/api/ui/clients/${clientId}?contactPage=0&contactPageSize=50`);
 
     routingsReq.flush(mockRoutings);
     hierarchyReq.flush({ message: 'Scope denied' }, { status: 403, statusText: 'Forbidden' });

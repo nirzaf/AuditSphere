@@ -28,7 +28,6 @@
       </dl>
     </div>
 
-    <!-- Parents / Ultimate Holding -->
     <div class="relationship-group">
       <h3>Parent companies ({{ h.parents.length }})</h3>
       @if (!h.parents.length) {
@@ -38,22 +37,24 @@
           <table>
             <caption>Parent corporate entities</caption>
             <thead>
-              <tr>
-                <th>Parent Entity</th>
-                <th>Ownership %</th>
-                <th>Effective Period</th>
-                <th>Status</th>
-                <th>Inspect</th>
-              </tr>
+              <tr><th>Parent Entity</th><th>Ownership %</th><th>Effective Period</th><th>Status</th><th>Inspect</th><th>Actions</th></tr>
             </thead>
             <tbody>
               @for (rel of h.parents; track rel.id) {
                 <tr>
                   <td><strong>{{ rel.primaryClientName }}</strong></td>
-                  <td>{{ rel.ownershipPercentage ? rel.ownershipPercentage + '%' : '—' }}</td>
-                  <td>{{ rel.effectiveFrom ?? 'Inception' }} to {{ rel.effectiveTo ?? 'Present' }}</td>
+                  <td>{{ rel.ownershipPercentage !== null ? rel.ownershipPercentage + '%' : '—' }}</td>
+                  <td>{{ dateRange(rel.effectiveFrom, rel.effectiveTo) }}</td>
                   <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
                   <td><a [routerLink]="['/app/clients', rel.primaryClientId]">View parent client</a></td>
+                  <td>
+                    @if (clientWorkspace()?.canManageContacts && rel.isActive) {
+                      <label>Revocation reason
+                        <input [name]="'relationship-reason-' + rel.id" [(ngModel)]="relationshipReasons[rel.id]" maxlength="1000" />
+                      </label>
+                      <button matButton type="button" (click)="reviewRelationshipRevocation(rel)">Review revocation</button>
+                    }
+                  </td>
                 </tr>
               }
             </tbody>
@@ -62,7 +63,6 @@
       }
     </div>
 
-    <!-- Subsidiaries -->
     <div class="relationship-group">
       <h3>Subsidiaries ({{ h.subsidiaries.length }})</h3>
       @if (!h.subsidiaries.length) {
@@ -72,22 +72,24 @@
           <table>
             <caption>Controlled corporate subsidiaries</caption>
             <thead>
-              <tr>
-                <th>Subsidiary Entity</th>
-                <th>Ownership %</th>
-                <th>Effective Period</th>
-                <th>Status</th>
-                <th>Inspect</th>
-              </tr>
+              <tr><th>Subsidiary Entity</th><th>Ownership %</th><th>Effective Period</th><th>Status</th><th>Inspect</th><th>Actions</th></tr>
             </thead>
             <tbody>
               @for (rel of h.subsidiaries; track rel.id) {
                 <tr>
                   <td><strong>{{ rel.relatedClientName }}</strong></td>
-                  <td>{{ rel.ownershipPercentage ? rel.ownershipPercentage + '%' : '—' }}</td>
-                  <td>{{ rel.effectiveFrom ?? 'Inception' }} to {{ rel.effectiveTo ?? 'Present' }}</td>
+                  <td>{{ rel.ownershipPercentage !== null ? rel.ownershipPercentage + '%' : '—' }}</td>
+                  <td>{{ dateRange(rel.effectiveFrom, rel.effectiveTo) }}</td>
                   <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
                   <td><a [routerLink]="['/app/clients', rel.relatedClientId]">View subsidiary</a></td>
+                  <td>
+                    @if (clientWorkspace()?.canManageContacts && rel.isActive) {
+                      <label>Revocation reason
+                        <input [name]="'relationship-reason-' + rel.id" [(ngModel)]="relationshipReasons[rel.id]" maxlength="1000" />
+                      </label>
+                      <button matButton type="button" (click)="reviewRelationshipRevocation(rel)">Review revocation</button>
+                    }
+                  </td>
                 </tr>
               }
             </tbody>
@@ -96,7 +98,6 @@
       }
     </div>
 
-    <!-- Affiliates / Joint Ventures -->
     <div class="relationship-group">
       <h3>Affiliates & associates ({{ h.affiliates.length }})</h3>
       @if (!h.affiliates.length) {
@@ -106,22 +107,25 @@
           <table>
             <caption>Affiliated entities</caption>
             <thead>
-              <tr>
-                <th>Affiliated Entity</th>
-                <th>Ownership %</th>
-                <th>Notes</th>
-                <th>Status</th>
-                <th>Inspect</th>
-              </tr>
+              <tr><th>Affiliated Entity</th><th>Ownership %</th><th>Notes</th><th>Effective Period</th><th>Status</th><th>Inspect</th><th>Actions</th></tr>
             </thead>
             <tbody>
               @for (rel of h.affiliates; track rel.id) {
                 <tr>
                   <td><strong>{{ rel.relatedClientName }}</strong></td>
-                  <td>{{ rel.ownershipPercentage ? rel.ownershipPercentage + '%' : '—' }}</td>
+                  <td>{{ rel.ownershipPercentage !== null ? rel.ownershipPercentage + '%' : '—' }}</td>
                   <td>{{ rel.notes ?? '—' }}</td>
+                  <td>{{ dateRange(rel.effectiveFrom, rel.effectiveTo) }}</td>
                   <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
                   <td><a [routerLink]="['/app/clients', rel.relatedClientId]">View affiliate</a></td>
+                  <td>
+                    @if (clientWorkspace()?.canManageContacts && rel.isActive) {
+                      <label>Revocation reason
+                        <input [name]="'relationship-reason-' + rel.id" [(ngModel)]="relationshipReasons[rel.id]" maxlength="1000" />
+                      </label>
+                      <button matButton type="button" (click)="reviewRelationshipRevocation(rel)">Review revocation</button>
+                    }
+                  </td>
                 </tr>
               }
             </tbody>
@@ -129,10 +133,93 @@
         </div>
       }
     </div>
+
+    @if (clientWorkspace()?.canManageContacts) {
+      <section aria-label="Create client relationship">
+        <h3>Add a client relationship</h3>
+        <p>Choices are limited to clients in your current commercial authorization scope. Relationship creation does not create an accounting consolidation membership.</p>
+        <label>Search authorized clients
+          <input name="relationshipSearch" [ngModel]="relationshipSearch()" (ngModelChange)="relationshipSearch.set($event)" maxlength="100" />
+        </label>
+        <button matButton type="button" [disabled]="relationshipCandidateLoading()" (click)="searchRelationshipCandidates()">Search clients</button>
+        @if (relationshipCandidateLoading()) { <p role="status">Loading authorized client choices…</p> }
+        @if (relationshipCandidateError()) { <p role="alert">{{ relationshipCandidateError() }}</p> }
+        @if (relationshipCandidates().length) {
+          <p>Page {{ relationshipCandidatePage() + 1 }} of {{ relationshipCandidatePageCount() }} · {{ relationshipCandidateTotal() }} authorized choices</p>
+          <button matButton type="button" [disabled]="relationshipCandidatePage() === 0" (click)="changeRelationshipCandidatePage(relationshipCandidatePage() - 1)">Previous clients</button>
+          <button matButton type="button" [disabled]="(relationshipCandidatePage() + 1) * 50 >= relationshipCandidateTotal()" (click)="changeRelationshipCandidatePage(relationshipCandidatePage() + 1)">Next clients</button>
+        }
+
+        <form (ngSubmit)="reviewRelationshipCreation()">
+          <label>Related client
+            <select name="relatedClientId" required [(ngModel)]="relationshipDraft.relatedClientId">
+              <option value="">Choose an authorized client</option>
+              @for (candidate of relationshipCandidates(); track candidate.id) {
+                <option [value]="candidate.id">{{ candidate.name }}</option>
+              }
+            </select>
+          </label>
+          <label>Relationship
+            <select name="relationshipKind" required [(ngModel)]="relationshipDraft.relationshipKind">
+              @for (kind of relationshipKinds; track kind.value) { <option [value]="kind.value">{{ kind.label }}</option> }
+            </select>
+          </label>
+          <label>Ownership percentage (optional)
+            <input name="ownershipPercentage" inputmode="decimal" autocomplete="off" [(ngModel)]="relationshipDraft.ownershipPercentage" aria-describedby="ownership-help" />
+          </label>
+          <span id="ownership-help">Enter a percentage from 0 to 100; leave blank when not applicable.</span>
+          <label>Effective from
+            <input name="relationshipEffectiveFrom" type="date" [(ngModel)]="relationshipDraft.effectiveFrom" />
+          </label>
+          <label>Effective to
+            <input name="relationshipEffectiveTo" type="date" [(ngModel)]="relationshipDraft.effectiveTo" />
+          </label>
+          <label>Notes
+            <textarea name="relationshipNotes" [(ngModel)]="relationshipDraft.notes" maxlength="2000"></textarea>
+          </label>
+          <button matButton type="submit" [disabled]="relationshipCandidateLoading() || relationshipCommand.busy() || relationshipCommand.uncertain()">Review relationship</button>
+        </form>
+        @if (relationshipFormError()) { <p role="alert">{{ relationshipFormError() }}</p> }
+        @if (relationshipReview(); as review) {
+          <section aria-label="Review relationship creation" role="group">
+            <h4>Review before creating</h4>
+            <dl>
+              <dt>Current client</dt><dd>{{ h.legalName }}</dd>
+              <dt>Related client</dt><dd>{{ review.relatedClientName }}</dd>
+              <dt>Relationship</dt><dd>{{ relationshipKindLabel(review.relationshipKind) }}</dd>
+              <dt>Ownership</dt><dd>{{ review.ownershipPercentage === null ? 'Not specified' : review.ownershipPercentage + '%' }}</dd>
+              <dt>Effective period</dt><dd>{{ dateRange(review.effectiveFrom || null, review.effectiveTo || null) }}</dd>
+              <dt>Notes</dt><dd>{{ review.notes || 'None' }}</dd>
+            </dl>
+            <label><input type="checkbox" name="relationshipConfirmation" [(ngModel)]="relationshipConfirmation" /> I reviewed both client entities, the relationship, dates, percentage units and notes.</label>
+            <button matButton type="button" (click)="confirmRelationshipCreation()" [disabled]="!relationshipConfirmation || relationshipCommand.busy() || relationshipCommand.uncertain()">Confirm relationship</button>
+            <button matButton type="button" (click)="cancelRelationshipReview()">Edit</button>
+          </section>
+        }
+      </section>
+    }
+
+    @if (relationshipRevokeReview(); as review) {
+      <section aria-label="Review relationship revocation" role="group">
+        <h3>Review relationship revocation</h3>
+        <dl>
+          <dt>Primary entity</dt><dd>{{ review.primaryClientName }}</dd>
+          <dt>Related entity</dt><dd>{{ review.relatedClientName }}</dd>
+          <dt>Relationship</dt><dd>{{ relationshipKindLabel(review.relationshipKind) }}</dd>
+          <dt>Ownership</dt><dd>{{ review.ownershipPercentage !== null ? review.ownershipPercentage + '%' : 'Not specified' }}</dd>
+          <dt>Effective period</dt><dd>{{ dateRange(review.effectiveFrom, review.effectiveTo) }}</dd>
+          <dt>Revocation reason</dt><dd>{{ review.reason }}</dd>
+        </dl>
+        <label><input type="checkbox" name="relationshipRevokeConfirmation" [(ngModel)]="relationshipConfirmation" /> I reviewed the exact relationship and revocation reason.</label>
+        <button matButton type="button" (click)="confirmRelationshipRevocation()" [disabled]="!relationshipConfirmation || relationshipCommand.busy() || relationshipCommand.uncertain()">Confirm revocation</button>
+        <button matButton type="button" (click)="cancelRelationshipReview()">Cancel</button>
+      </section>
+    }
+    <p role="status" aria-live="polite">{{ relationshipCommand.message() }}</p>
   </section>
 }
 
-@if (routings(); as rList) {
+@if (clientWorkspace()?.canManageContacts && routings(); as rList) {
   <section class="routing-section" aria-label="Correspondence routing">
     <div class="routing-header">
       <h2>Correspondence routing & signatory directory</h2>
@@ -141,9 +228,8 @@
 
     <p class="section-explanation">
       Automated and formal correspondence requires purpose-specific routing (Commercial, Finance, Audit Fieldwork, Completion).
-      Dispatch fail-closed enforcement requires an unambiguous, active recipient; deactivated contacts are rejected.
+      Dispatch fails closed unless the effective recipient is unambiguous and active.
     </p>
-
     @if (!rList.length) {
       <p class="alert-empty">No purpose-specific routing configured. Correspondence dispatch will require explicit manual assignment.</p>
     } @else {
@@ -151,15 +237,7 @@
         <table>
           <caption>Designated correspondence routing</caption>
           <thead>
-            <tr>
-              <th>Purpose</th>
-              <th>Designated Contact</th>
-              <th>Email</th>
-              <th>Role / Title</th>
-              <th>Signatory Authority</th>
-              <th>Primary</th>
-              <th>Status</th>
-            </tr>
+            <tr><th>Purpose</th><th>Designated Contact</th><th>Email</th><th>Role / Title</th><th>Signatory Authority</th><th>Effective Period</th><th>Primary</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody>
             @for (rt of rList; track rt.id) {
@@ -169,13 +247,104 @@
                 <td>{{ rt.contactEmail }}</td>
                 <td>{{ rt.contactRole ?? '—' }} {{ rt.contactTitle ? '(' + rt.contactTitle + ')' : '' }}</td>
                 <td>{{ rt.signatoryAuthority ?? 'None' }}</td>
+                <td>{{ dateRange(rt.effectiveFrom, rt.effectiveTo) }}</td>
                 <td>{{ rt.isPrimaryForPurpose ? 'Primary' : 'Alternate' }}</td>
-                <td><audit-status [value]="rt.isActive ? 'ACTIVE' : 'DEACTIVATED'" /></td>
+                <td><audit-status [value]="rt.isActive ? 'CONTACT ACTIVE' : 'CONTACT DEACTIVATED'" /></td>
+                <td>
+                  <label>Revocation reason
+                    <input [name]="'routing-reason-' + rt.id" [(ngModel)]="routingReasons[rt.id]" maxlength="1000" />
+                  </label>
+                  <button matButton type="button" (click)="reviewRoutingRevocation(rt)">Review revocation</button>
+                </td>
               </tr>
             }
           </tbody>
         </table>
       </div>
     }
+
+    <section aria-label="Assign correspondence routing">
+      <h3>Assign contact routing</h3>
+      <p>Only contacts belonging to this client can be selected. A deactivated contact is refused by the server.</p>
+      @if (clientWorkspace(); as client) {
+        <p>Contact page {{ contactPage() + 1 }} · {{ client.metrics.contacts }} client contacts</p>
+        <button matButton type="button" [disabled]="contactPage() === 0 || loading()" (click)="contactPage.set(contactPage() - 1); load()">Previous contacts</button>
+        <button matButton type="button" [disabled]="(contactPage() + 1) * 50 >= client.metrics.contacts || loading()" (click)="contactPage.set(contactPage() + 1); load()">Next contacts</button>
+        @if (!client.contacts.length) { <p>No contacts are available on this page. Add an active client contact before assigning routing.</p> }
+      }
+      <form (ngSubmit)="reviewRoutingAssignment()">
+        <label>Contact
+          <select name="routingContactId" required [(ngModel)]="routingDraft.clientContactId">
+            <option value="">Choose a client contact</option>
+            @for (contact of clientWorkspace()?.contacts ?? []; track contact.id) {
+              <option [value]="contact.id">{{ contact.name }} · {{ contact.email }} · {{ contact.role }}</option>
+            }
+          </select>
+        </label>
+        <label>Correspondence purpose
+          <select name="routingPurpose" required [(ngModel)]="routingDraft.purpose">
+            @for (purpose of purposes; track purpose.value) { <option [value]="purpose.value">{{ purpose.label }}</option> }
+          </select>
+        </label>
+        <label>Effective from
+          <input name="routingEffectiveFrom" type="date" [(ngModel)]="routingDraft.effectiveFrom" />
+        </label>
+        <label>Effective to
+          <input name="routingEffectiveTo" type="date" [(ngModel)]="routingDraft.effectiveTo" />
+        </label>
+        <label><input type="checkbox" name="routingPrimary" [(ngModel)]="routingDraft.isPrimaryForPurpose" /> Primary recipient for this purpose</label>
+        <button matButton type="submit" [disabled]="loading() || routingCommand.busy() || routingCommand.uncertain()">Review routing</button>
+      </form>
+      @if (routingFormError()) { <p role="alert">{{ routingFormError() }}</p> }
+    </section>
+
+    @if (routingReview(); as review) {
+      <section aria-label="Review routing assignment" role="group">
+        <h3>Review before assigning</h3>
+        <dl>
+          <dt>Client</dt><dd>{{ hierarchy()?.legalName }}</dd>
+          <dt>Contact</dt><dd>{{ review.contactName }} · {{ review.contactEmail }}</dd>
+          <dt>Purpose</dt><dd>{{ review.purpose }}</dd>
+          <dt>Effective period</dt><dd>{{ dateRange(review.effectiveFrom || null, review.effectiveTo || null) }}</dd>
+          <dt>Resolution role</dt><dd>{{ review.isPrimaryForPurpose ? 'Primary recipient' : 'Alternate candidate' }}</dd>
+        </dl>
+        <label><input type="checkbox" name="routingConfirmation" [(ngModel)]="routingConfirmation" /> I reviewed this exact contact, purpose, date range and primary-recipient setting.</label>
+        <button matButton type="button" (click)="confirmRoutingAssignment()" [disabled]="!routingConfirmation || routingCommand.busy() || routingCommand.uncertain()">Confirm assignment</button>
+        <button matButton type="button" (click)="cancelRoutingReview()">Edit</button>
+      </section>
+    }
+
+    @if (routingRevokeReview(); as review) {
+      <section aria-label="Review routing revocation" role="group">
+        <h3>Review routing revocation</h3>
+        <dl>
+          <dt>Client</dt><dd>{{ hierarchy()?.legalName }}</dd>
+          <dt>Contact</dt><dd>{{ review.contactName }} · {{ review.contactEmail }}</dd>
+          <dt>Purpose</dt><dd>{{ review.purpose }}</dd>
+          <dt>Effective period</dt><dd>{{ dateRange(review.effectiveFrom, review.effectiveTo) }}</dd>
+          <dt>Revocation reason</dt><dd>{{ review.reason }}</dd>
+        </dl>
+        <label><input type="checkbox" name="routingRevokeConfirmation" [(ngModel)]="routingConfirmation" /> I reviewed the exact routing record and reason.</label>
+        <button matButton type="button" (click)="confirmRoutingRevocation()" [disabled]="!routingConfirmation || routingCommand.busy() || routingCommand.uncertain()">Confirm revocation</button>
+        <button matButton type="button" (click)="cancelRoutingReview()">Cancel</button>
+      </section>
+    }
+
+    <section aria-label="Recipient resolution">
+      <h3>Current recipient resolution</h3>
+      <label>Purpose
+        <select name="resolutionPurpose" [ngModel]="resolutionPurpose()" (ngModelChange)="resolveRoutingPurpose($event)">
+          @for (purpose of purposes; track purpose.value) { <option [value]="purpose.value">{{ purpose.label }}</option> }
+        </select>
+      </label>
+      @if (routingResolution(); as resolution) {
+        <p role="status"><strong>{{ resolution.purpose }}: {{ resolution.status }}</strong> — {{ resolution.message }}</p>
+        @if (resolution.fullName) { <p>{{ resolution.fullName }} · {{ resolution.email }}</p> }
+      }
+      @if (routingResolutionError()) { <p role="alert">{{ routingResolutionError() }}</p> }
+      <button matButton type="button" (click)="resolveRoutingPurpose(resolutionPurpose())">Refresh resolution</button>
+    </section>
+
+    <p role="status" aria-live="polite">{{ routingCommand.message() }}</p>
   </section>
 }

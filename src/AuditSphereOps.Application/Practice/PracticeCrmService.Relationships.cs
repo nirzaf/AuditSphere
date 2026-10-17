@@ -42,8 +42,16 @@ public sealed record CreateClientRelationshipRequest(
   string? Notes = null);
 
 public sealed record RevokeClientRelationshipRequest(
+  Guid ClientId,
   Guid RelationshipId,
   string Reason);
+
+public sealed record ClientRelationshipCandidate(Guid Id, string Name);
+public sealed record ClientRelationshipCandidates(
+  IReadOnlyList<ClientRelationshipCandidate> Items,
+  int Total,
+  int Page,
+  int PageSize);
 
 public sealed record ClientRelationshipDto(
   Guid Id,
@@ -227,7 +235,8 @@ public static partial class PracticeCrmService
     if (string.IsNullOrWhiteSpace(request.Reason))
       return CommandResult.Fail("crm.invalid", "A revocation reason is required.");
 
-    var rel = await db.ClientRelationships.SingleOrDefaultAsync(x => x.Id == request.RelationshipId && x.FirmId == actor.FirmId, ct);
+    var rel = await db.ClientRelationships.SingleOrDefaultAsync(x => x.Id == request.RelationshipId && x.FirmId == actor.FirmId &&
+      (x.PrimaryClientId == request.ClientId || x.RelatedClientId == request.ClientId), ct);
     if (rel is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Relationship not found.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -242,6 +251,71 @@ public static partial class PracticeCrmService
 
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult<ClientRelationshipCandidates>> GetClientRelationshipCandidatesAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, string? search, int page, int pageSize,
+    CancellationToken ct = default)
+  {
+    if (page is < 0 or > 10000 || pageSize is not (10 or 25 or 50) || search?.Length > 100)
+      return CommandResult<ClientRelationshipCandidates>.Fail("request.invalid", "Invalid relationship-candidate search or page.");
+
+    var sourceAuthorization = new AuthorizationRequest(actor.FirmId, ClientId: clientId,
+      RequiredRoles: CommercialRoles, InternalOnly: true);
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, sourceAuthorization, ct)).Succeeded)
+      return CommandResult<ClientRelationshipCandidates>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
+
+    var firmWideRequest = new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles,
+      InternalOnly: true, RequireFirmWide: true);
+    var firmWide = await AuthorizationDecision.AuthorizeAsync(db, actor, firmWideRequest, ct);
+    Guid[] authorizedClientIds = [];
+    if (!firmWide.Succeeded)
+    {
+      var scopedClientIds = await db.RoleGrants.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null &&
+          (x.ExpiresAt == null || x.ExpiresAt > DateTimeOffset.UtcNow) && x.ClientId != null && x.EngagementId == null &&
+          CommercialRoles.Contains(x.Role))
+        .Select(x => x.ClientId!.Value).Distinct().ToListAsync(ct);
+      var authorized = new List<Guid>(scopedClientIds.Count);
+      foreach (var candidateId in scopedClientIds)
+      {
+        var candidateAuthorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new AuthorizationRequest(actor.FirmId, ClientId: candidateId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+        if (candidateAuthorization.Succeeded) authorized.Add(candidateId);
+      }
+      authorizedClientIds = [.. authorized];
+    }
+
+    var query = db.PracticeClients.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id != clientId &&
+      (firmWide.Succeeded || authorizedClientIds.Contains(x.Id)));
+    if (!string.IsNullOrWhiteSpace(search))
+    {
+      var term = search.Trim().ToLowerInvariant();
+      query = query.Where(x => x.LegalName.ToLower().Contains(term) ||
+        (x.CommercialName != null && x.CommercialName.ToLower().Contains(term)));
+    }
+
+    var total = await query.CountAsync(ct);
+    var items = await query.OrderBy(x => x.LegalName).ThenBy(x => x.Id)
+      .Skip(page * pageSize).Take(pageSize)
+      .Select(x => new ClientRelationshipCandidate(x.Id, x.LegalName)).ToListAsync(ct);
+
+    // Recheck the exact grants used for the returned names to avoid returning a stale choice after revocation.
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, sourceAuthorization, ct)).Succeeded ||
+        (firmWide.Succeeded && !(await AuthorizationDecision.AuthorizeAsync(db, actor, firmWideRequest, ct)).Succeeded))
+      return CommandResult<ClientRelationshipCandidates>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
+    if (!firmWide.Succeeded)
+    {
+      foreach (var item in items)
+      {
+        var current = await AuthorizationDecision.AuthorizeAsync(db, actor,
+          new AuthorizationRequest(actor.FirmId, ClientId: item.Id, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+        if (!current.Succeeded)
+          return CommandResult<ClientRelationshipCandidates>.Fail(ErrorCodes.ScopeDenied, "Relationship choices changed. Refresh and try again.");
+      }
+    }
+
+    return CommandResult<ClientRelationshipCandidates>.Ok(new(items, total, page, pageSize));
   }
 
   public static async Task<CommandResult<ClientOrganizationHierarchyDto>> GetClientHierarchyAsync(
