@@ -1,9 +1,12 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom, timeout } from 'rxjs';
 import { Api } from '../../core/api';
 import { exactDecimal } from '../../core/contracts';
 import { arr, bool, dec, decode, guid, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { SessionService } from '../../core/session';
 import { StatementContentReview } from './content-review';
 
 /** Read-only statement presentation (unapproved draft). Every amount is a display string produced by the server. */
@@ -49,6 +52,8 @@ export const decodePresentationPin = obj({
 });
 
 export const decodePresentationPins = arr(decodePresentationPin, 50);
+type StatementPresentationView = ReturnType<typeof decodePresentation>;
+type PinnedSelection = { packageId: string; revisionId: string; actorKey: string };
 type PresentationFormat = 'pdf' | 'docx' | 'xlsx';
 
 /** Long calendar date in UTC, matching the server's presentation text (for example "31 December 2025"). */
@@ -174,6 +179,9 @@ export function presentationAmount(value: string | null | undefined, decimals = 
           <p><small>Period <code>{{ pin.periodId ?? 'not linked' }}</code> · book <code>{{ pin.bookId ?? 'not linked' }}</code> · comparative basis {{ pin.comparativeBasis ?? 'none' }}</small></p>
           <p><small>Revision <code>{{ pin.revisionId }}</code> · layout <code>{{ pin.layoutVersionId }}</code> · layout hash <code>{{ pin.layoutHash.slice(0, 12) }}</code></small></p>
           <p><small>Package hash <code>{{ pin.packageCalculationHash.slice(0, 12) }}</code> · note source <code>{{ pin.noteSourceManifestHash.slice(0, 12) }}</code> · snapshot hash <code>{{ pin.snapshotSha256Hex.slice(0, 12) }}</code> · {{ pin.displayPolicy }}</small></p>
+          <button matButton="outlined" (click)="viewPinned(pin.revisionId)">
+            {{ selectedPin()?.revisionId === pin.revisionId ? 'Selected saved snapshot' : 'View saved snapshot' }}
+          </button>
           <p class="actions" aria-label="Saved draft formats">
             @for (format of formats; track format[0]) {
               <button matButton="outlined" (click)="downloadPinned(format[0], pin.revisionId)" [disabled]="busy() || (!pin.sourceIsCurrent && !pin.artifactFormats.includes(format[0]))">
@@ -197,11 +205,54 @@ export function presentationAmount(value: string | null | undefined, decimals = 
           }
         </article>
       }
+      @if (selectedPin(); as selected) {
+        <section class="panel" aria-labelledby="saved-snapshot-heading">
+          <h3 id="saved-snapshot-heading">Saved snapshot body · immutable revision</h3>
+          <p>Package <code>{{ selected.packageId }}</code> · revision <code>{{ selected.revisionId }}</code>. This view uses the saved presentation snapshot; it is separate from the current live presentation above.</p>
+          @if (savedSnapshotLoading()) { <p role="status">Loading the exact saved snapshot…</p> }
+          @if (savedSnapshotError()) { <p role="alert">{{ savedSnapshotError() }}</p> }
+          @if (savedSnapshot(); as snapshot) {
+            <p role="status">{{ snapshot.status }} · saved snapshot hash <code>{{ selectedSnapshotHash() }}</code> · {{ snapshot.header.entity }} · {{ snapshot.header.currency }}</p>
+            @for (statement of snapshot.statements; track statement.code) {
+              <h4>{{ statement.title }}</h4>
+              <div class="table-scroll">
+                <table>
+                  <caption>{{ statement.title }} · saved revision {{ selected.revisionId }}</caption>
+                  <thead><tr><th scope="col">Line</th><th scope="col">Note</th><th scope="col" class="number">{{ currentHeading(snapshot, statement.code) }}</th><th scope="col" class="number">{{ priorHeading(snapshot, statement.code) }}</th></tr></thead>
+                  <tbody>
+                    @for (row of statement.rows; track row.code) {
+                      <tr [class.subtotal]="row.kind === 'SUBTOTAL'" [class.total]="row.kind === 'TOTAL'" [class.heading]="row.kind === 'HEADING'">
+                        <th scope="row" [style.padding-left.rem]="row.depth * 1.25">{{ row.label }}</th>
+                        <td>{{ row.noteReference ?? '' }}</td>
+                        <td class="number">{{ row.kind === 'HEADING' ? '' : amount(row.current, snapshot.displayDecimals) }}</td>
+                        <td class="number">{{ row.kind === 'HEADING' ? '' : amount(row.prior, snapshot.displayDecimals) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+            <h4>Saved notes and disclosures</h4>
+            @for (note of snapshot.notes; track note.code) {
+              <article aria-label="Saved statement note"><h5>Note {{ note.number }} · {{ note.code }}</h5>
+                <p>Current · {{ note.current.state }}</p>
+                @if (note.current.text) { <p>{{ note.current.text }}</p> }
+                @if (note.current.rationale) { <p>Preparer rationale: {{ note.current.rationale }}</p> }
+                <p>Comparative · {{ note.comparative.state }}</p>
+                @if (note.comparative.text) { <p>{{ note.comparative.text }}</p> }
+                @if (note.comparative.rationale) { <p>Preparer rationale: {{ note.comparative.rationale }}</p> }
+              </article>
+            }
+          }
+        </section>
+      }
     </section>
   `,
 })
 export class StatementPresentation {
   private readonly api = inject(Api);
+  private readonly http = inject(HttpClient);
+  private readonly session = inject(SessionService);
   readonly packageId = input.required<string>();
   readonly compositionSelected = output<{ revisionId: string; compositionId: string; manifestDigest: string }>();
   readonly presentation = this.api.resource(() => (this.packageId() ? `/api/ui/accounting/packages/${this.packageId()}/presentation` : null),
@@ -210,6 +261,19 @@ export class StatementPresentation {
     decodePresentationPins, 'Saved statement drafts are unavailable in your current scope.');
   readonly busy = signal(false);
   readonly status = signal('');
+  readonly selectedPin = signal<PinnedSelection | null>(null);
+  readonly savedSnapshot = signal<StatementPresentationView | null>(null);
+  readonly savedSnapshotLoading = signal(false);
+  readonly savedSnapshotError = signal('');
+  readonly selectedSnapshotHash = signal('');
+  private snapshotRequest = 0;
+  private readonly clearChangedSelection = effect(() => {
+    const packageId = this.packageId();
+    const selection = this.selectedPin();
+    const session = this.session.current();
+    const actorKey = this.actorKey(session);
+    if (selection && (selection.packageId !== packageId || selection.actorKey !== actorKey)) this.clearPinnedSelection();
+  });
   readonly formats: [PresentationFormat, string][] = [['pdf', 'Download PDF draft'], ['docx', 'Download Word draft'], ['xlsx', 'Download Excel draft']];
 
   amount(value: string | null, decimals: number): string {
@@ -218,6 +282,73 @@ export class StatementPresentation {
 
   failedCount(checks: { passed: boolean }[]): number {
     return checks.filter((check) => !check.passed).length;
+  }
+
+  async viewPinned(revisionId: string): Promise<void> {
+    const session = this.session.current();
+    const packageId = this.packageId();
+    const actorKey = this.actorKey(session);
+    const request = ++this.snapshotRequest;
+    this.savedSnapshot.set(null);
+    this.selectedSnapshotHash.set('');
+    this.savedSnapshotError.set('');
+    this.selectedPin.set({ packageId, revisionId, actorKey });
+    if (!session?.staff || !packageId) {
+      this.clearPinnedSelection();
+      this.savedSnapshotError.set('Sign in with an authorized staff account to view a saved snapshot.');
+      return;
+    }
+    const invalidation = this.session.invalidation();
+    this.savedSnapshotLoading.set(true);
+    try {
+      const body = await firstValueFrom(this.http.get<unknown>(
+        `/api/ui/accounting/packages/${packageId}/presentation/pins/${revisionId}`).pipe(timeout(20000)));
+      if (!this.isCurrentSnapshotRequest(request, packageId, revisionId, actorKey, invalidation)) return;
+      const decoded = decode(decodePresentation, body);
+      if (decoded.manifest.packageId !== packageId) throw new Error('The saved response belongs to a different package.');
+      this.savedSnapshot.set(decoded);
+      const pin = (this.pins.data() ?? []).find((item) => item.revisionId === revisionId && item.packageId === packageId);
+      this.selectedSnapshotHash.set(pin?.snapshotSha256Hex ?? 'verified saved revision');
+    } catch (error) {
+      if (!this.isCurrentSnapshotRequest(request, packageId, revisionId, actorKey, invalidation)) return;
+      const status = error instanceof HttpErrorResponse ? error.status : 0;
+      if (status === 401) {
+        this.clearPinnedSelection();
+        this.savedSnapshotError.set('Your session ended. Sign in again before viewing this saved snapshot.');
+        this.session.refresh();
+      } else if (status === 403 || status === 404) {
+        this.clearPinnedSelection();
+        this.savedSnapshotError.set('Access to this saved revision was denied. The selection was cleared.');
+      } else {
+        const message = error instanceof HttpErrorResponse && typeof error.error?.message === 'string'
+          ? error.error.message
+          : error instanceof Error && error.message !== 'The saved response belongs to a different package.'
+            ? error.message
+            : 'The saved response did not match the selected package. No snapshot body is shown.';
+        this.savedSnapshotError.set(message);
+      }
+    } finally {
+      if (request === this.snapshotRequest) this.savedSnapshotLoading.set(false);
+    }
+  }
+
+  private actorKey(session: ReturnType<SessionService['current']>): string {
+    return session ? `${session.userId}:${session.firmId}:${session.generation}:${this.session.invalidation()}` : '';
+  }
+
+  private isCurrentSnapshotRequest(request: number, packageId: string, revisionId: string, actorKey: string, invalidation: number): boolean {
+    const selected = this.selectedPin();
+    return request === this.snapshotRequest && selected?.packageId === packageId && selected.revisionId === revisionId &&
+      selected.actorKey === actorKey && this.packageId() === packageId && this.actorKey(this.session.current()) === actorKey &&
+      this.session.invalidation() === invalidation;
+  }
+
+  private clearPinnedSelection(): void {
+    this.snapshotRequest++;
+    this.selectedPin.set(null);
+    this.savedSnapshot.set(null);
+    this.savedSnapshotLoading.set(false);
+    this.selectedSnapshotHash.set('');
   }
 
   currentHeading(p: { header: { currentPeriodEnd: string } }, statementCode: string): string {

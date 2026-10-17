@@ -38,6 +38,39 @@ const payload = {
   warnings: [{ code: 'CASH_FLOW_LINEAGE_PENDING', detail: 'Cash-flow evidence is not source-verified.' }],
 };
 
+const savedPin = (revisionId: string) => ({
+  revisionId, packageId: id, packageCalculationHash: hash64, periodId: null, bookId: null, basis: null,
+  framework: 'IFRS', taxonomyVersion: 'TAX-v1', templateVersion: 'statements.v1', calculationEngineVersion: 'package.v1',
+  currency: 'QAR', periodStart: '2025-01-01', periodEnd: '2025-12-31', layoutVersionId: id, layoutHash: hash64,
+  comparativePackageId: null, comparativeCalculationHash: null, comparativeBasis: null, comparativeEvidenceReference: null,
+  noteSourceManifestHash: hash64, builderVersion: 'builder.v1', rendererVersion: 'renderer.v1', displayPolicy: 'whole units',
+  status: 'UNAPPROVED_DRAFT', revisionHash: hash64, snapshotSha256Hex: hash64, createdAt: '2026-10-12T00:00:00Z',
+  sourceIsCurrent: false, artifactFormats: ['pdf', 'docx', 'xlsx'], predecessorRevisionId: null, compositionId: null,
+  compositionManifestDigest: null,
+});
+
+async function presentationScreen(pins: unknown[]) {
+  TestBed.configureTestingModule({ imports: [StatementPresentation], providers: [provideHttpClient(), provideHttpClientTesting()] });
+  TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '1', staff: true });
+  const http = TestBed.inject(HttpTestingController);
+  const fixture = TestBed.createComponent(StatementPresentation);
+  fixture.componentRef.setInput('packageId', id);
+  fixture.detectChanges();
+  http.expectOne(`/api/ui/accounting/packages/${id}/presentation`).flush(payload);
+  http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins`).flush(pins);
+  fixture.detectChanges();
+  return { fixture, http };
+}
+
+function savedBody(entity: string, amount: string) {
+  return {
+    ...payload,
+    header: { ...payload.header, entity },
+    statements: [{ code: 'FINANCIAL_POSITION', title: 'Saved statement', rows: [row({ label: `Saved cash ${entity}`, current: amount })] }],
+    notes: [], checks: [], warnings: [],
+  };
+}
+
 describe('Statement presentation contract', () => {
   it('keeps exact amounts as strings and the draft status', () => {
     const decoded = decodePresentation(payload, 'presentation');
@@ -135,6 +168,64 @@ describe('Statement presentation screen', () => {
     } });
     await download;
     (await vi.waitFor(() => http.expectOne(pinsUrl))).flush([{ ...pin, artifactFormats: ['xlsx'] }]);
+    fixture.destroy();
+  });
+
+  it('renders the exact body for either of two selected saved revisions', async () => {
+    const revA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const revB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const { fixture, http } = await presentationScreen([savedPin(revA), savedPin(revB)]);
+    const buttons = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')];
+    buttons().find((button) => button.textContent?.includes('View saved snapshot'))!.click();
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins/${revA}`).flush(savedBody('Revision A', '101'));
+    await vi.waitFor(() => expect(fixture.componentInstance.savedSnapshot()?.header.entity).toBe('Revision A'));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Saved cash Revision A');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Revision A');
+
+    buttons().find((button) => button.textContent?.includes('View saved snapshot'))!.click();
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins/${revB}`).flush(savedBody('Revision B', '202'));
+    await vi.waitFor(() => expect(fixture.componentInstance.savedSnapshot()?.header.entity).toBe('Revision B'));
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Saved cash Revision B');
+    expect(text).not.toContain('Saved cash Revision A');
+    expect(text).toContain(`revision ${revB}`);
+    fixture.destroy();
+  });
+
+  it('ignores an out-of-order response and clears a denied saved-revision selection', async () => {
+    const revA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const revB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const deniedRevision = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const { fixture, http } = await presentationScreen([savedPin(revA), savedPin(revB), savedPin(deniedRevision)]);
+    const viewButton = (revision: string) => [...(fixture.nativeElement as HTMLElement).querySelectorAll('article[aria-label="Saved statement presentation draft"]')]
+      .find((article) => article.textContent?.includes(revision))?.querySelector('button');
+    viewButton(revA)!.click();
+    fixture.detectChanges();
+    const requestA = http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins/${revA}`);
+    viewButton(revB)!.click();
+    fixture.detectChanges();
+    const requestB = http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins/${revB}`);
+    requestB.flush(savedBody('Newer revision', '202'));
+    await vi.waitFor(() => expect(fixture.componentInstance.savedSnapshot()?.header.entity).toBe('Newer revision'));
+    requestA.flush(savedBody('Late old revision', '101'));
+    await vi.waitFor(() => expect(fixture.componentInstance.savedSnapshot()?.header.entity).toBe('Newer revision'));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Saved cash Newer revision');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Saved cash Late old revision');
+
+    viewButton(deniedRevision)!.click();
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/accounting/packages/${id}/presentation/pins/${deniedRevision}`)
+      .flush({ message: 'Access denied.' }, { status: 403, statusText: 'Forbidden' });
+    await vi.waitFor(() => expect(fixture.componentInstance.selectedPin()).toBeNull());
+    fixture.detectChanges();
+    expect(fixture.componentInstance.savedSnapshot()).toBeNull();
+    expect(fixture.componentInstance.savedSnapshotError()).toContain('selection was cleared');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Saved snapshot body · immutable revision');
     fixture.destroy();
   });
 });
