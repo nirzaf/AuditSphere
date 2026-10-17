@@ -1153,49 +1153,6 @@
         "Authenticated browser journey, persistent database migration, deployment and live-provider acceptance."
       ]
     },
-    "atomicAuditWorkingProcessTask01": {
-      "result": "PARTIAL",
-      "baseCommit": "5b84888d064403ddbcf4d1d2b92f935dc8c465e4",
-      "source": "Owner-authorized implementation of Atomic Task 01 from the supplied audit working-process specification.",
-      "migration": "20261017122550_AuditProgramPublicationEvidence",
-      "migrationAppliedToPersistentDatabase": false,
-      "checks": {
-        "apiReleaseBuild": "PASS: 0 warnings, 0 errors",
-        "domain": {
-          "passed": 2,
-          "failed": 0,
-          "filter": "ControlledPublication_PreparesBindsAndPublishesOnlyAfterIndependentReview | AuditProgramCatalogSourceTests"
-        },
-        "domainScopeIsolationRegression": {
-          "passed": 1,
-          "failed": 0,
-          "filter": "EngagementProgramQuery_ReportsTailoredCoverage",
-          "note": "Reran after correcting the synthetic helper to avoid widening a scoped actor."
-        },
-        "api": {
-          "passed": 1,
-          "failed": 0,
-          "filter": "AuditProgramCommandsApiTests"
-        },
-        "angular": {
-          "passed": 17,
-          "failed": 0,
-          "spec": "src/app/features/audit/library.spec.ts"
-        },
-        "e2eProjectCompilation": "PASS: 0 warnings, 0 errors; journeys not executed",
-        "efModelDrift": "PASS: no pending model changes",
-        "documentation": "PASS: documentation links/health, filenames and protected narrative metrics",
-        "gitDiffCheck": "PASS",
-        "openApiContract": "PASS: contract generation and drift verification"
-      },
-      "builtInBrowser": "NOT RUN: no authenticated local synthetic programme fixture was available; no deployment was performed.",
-      "notDone": [
-        "Atomic Tasks 02-11",
-        "Professional methodology-owner and independent acceptance",
-        "Full Domain/API/Angular/Playwright CI verification",
-        "Live-provider and production acceptance"
-      ]
-    },
     "atomicAuditWorkingProcessTask02": {
       "result": "PARTIAL",
       "implementationCommit": "8b0c3303b35f23f9a51360821db20c2eea449c0a",
@@ -1220,22 +1177,70 @@
           "spec": "src/app/features/audit/fieldwork.spec.ts"
         },
         "e2eProjectCompilation": "PASS: 0 warnings, 0 errors; journeys not executed",
-        "openApiContract": "PASS: contract current",
+        "openApiContract": "FAIL on commit 8b0c3303: the generated contract was stale; regeneration on Task 03 includes the adoption endpoint and corrected contracts. CI independently confirmed this drift on follow-up fa60da52.",
         "gitDiffCheck": "PASS"
       },
       "ci": {
         "runId": 39033648749,
         "headSha": "8b0c3303b35f23f9a51360821db20c2eea449c0a",
-        "observed": "Docs · Health failed on generated Angular source inventory drift; regenerated inventory is included in the follow-up commit. Other CI jobs were still running when recorded."
+        "observed": "CI for 8b0c3303 was superseded/cancelled. Follow-up fa60da52 passed Docs · Health and Angular, but failed .NET Release at OpenAPI contract drift; Task 03 regenerates the contract from the freshly built API."
       },
       "builtInBrowser": "NOT RUN: no authenticated local synthetic engagement fixture was available; no deployment was performed.",
       "notDone": [
-        "Atomic Tasks 03-11",
+        "Atomic Tasks 04-11",
         "Authenticated browser journey",
         "Full Domain/API/Angular/Playwright CI verification",
         "Professional methodology-owner and independent acceptance",
         "Live-provider and production acceptance"
       ]
+    },
+    "atomicAuditWorkingProcessTask03": {
+      "result": "PARTIAL",
+      "implementationCommit": "3ae06950f8c7775bbfdcebb9831e097c7cb3b8c6",
+      "source": "Owner-authorized implementation of Atomic Task 03 from the supplied audit working-process specification.",
+      "migration": "20261017125840_AuditProcedureDefinitionHistory",
+      "migrationAppliedToPersistentDatabase": false,
+      "checks": {
+        "domain": {
+          "passed": 1,
+          "failed": 0,
+          "filter": "ProcedureTailoringAndWorkpaperGeneration_EnforcesLifecycleAndInvalidation",
+          "duration": "43 seconds"
+        },
+        "api": {
+          "passed": 1,
+          "failed": 0,
+          "filter": "AuditProgramCommandsApiTests.PublicationRequiresAntiforgeryAndAnIndependentFirmWideReviewer",
+          "duration": "44 seconds"
+        },
+        "angular": {
+          "passed": 12,
+          "failed": 0,
+          "spec": "src/app/features/audit/fieldwork.spec.ts"
+        },
+        "efModelDrift": "PASS: no pending model changes",
+        "openApiContract": "PASS: regenerated from freshly built API and verified",
+        "documentation": "PASS: documentation health, filenames, narrative metrics and UI source inventory",
+        "gitDiffCheck": "PASS"
+      },
+      "builtInBrowser": "NOT RUN: no authenticated local synthetic engagement fixture was available; no deployment was performed.",
+      "ci": {
+        "runId": 39035083051,
+        "headSha": "3ae06950f8c7775bbfdcebb9831e097c7cb3b8c6",
+        "observed": "Queued at the time of this record; full CI not yet verified."
+      },
+      "notDone": [
+        "Atomic Tasks 04-11",
+        "Authenticated browser journey",
+        "Full Domain/API/Angular/Playwright CI verification",
+        "Professional methodology-owner and independent acceptance",
+        "Live-provider and production acceptance"
+      ]
+    },
+    "atomicAuditWorkingProcessTask01": {
+      "result": "PARTIAL",
+      "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask01",
+      "note": "Implementation evidence is archived; professional methodology acceptance and full-suite/external gates remain open."
     }
   },
   "externalGates": [
