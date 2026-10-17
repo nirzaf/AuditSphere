@@ -223,6 +223,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<global::AuditSphereOps.Domain.Practice.EngagementStaffAssignment> EngagementStaffAssignments { get; }
   DbSet<global::AuditSphereOps.Domain.Practice.StaffProfile> StaffProfiles { get; }
   DbSet<global::AuditSphereOps.Domain.Practice.StaffCertification> StaffCertifications { get; }
+  DbSet<global::AuditSphereOps.Domain.Practice.StaffCertificationReview> StaffCertificationReviews { get; }
   DbSet<global::AuditSphereOps.Domain.Practice.StaffAvailability> StaffAvailabilities { get; }
   DbSet<global::AuditSphereOps.Domain.Practice.StaffAllocation> StaffAllocations { get; }
   DbSet<global::AuditSphereOps.Domain.Audit.MaterialityCalculation> MaterialityCalculations { get; }

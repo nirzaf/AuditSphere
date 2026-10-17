@@ -99,6 +99,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<global::AuditSphereOps.Domain.Practice.EngagementStaffAssignment> EngagementStaffAssignments => Set<global::AuditSphereOps.Domain.Practice.EngagementStaffAssignment>();
   public DbSet<global::AuditSphereOps.Domain.Practice.StaffProfile> StaffProfiles => Set<global::AuditSphereOps.Domain.Practice.StaffProfile>();
   public DbSet<global::AuditSphereOps.Domain.Practice.StaffCertification> StaffCertifications => Set<global::AuditSphereOps.Domain.Practice.StaffCertification>();
+  public DbSet<global::AuditSphereOps.Domain.Practice.StaffCertificationReview> StaffCertificationReviews => Set<global::AuditSphereOps.Domain.Practice.StaffCertificationReview>();
   public DbSet<global::AuditSphereOps.Domain.Practice.StaffAvailability> StaffAvailabilities => Set<global::AuditSphereOps.Domain.Practice.StaffAvailability>();
   public DbSet<global::AuditSphereOps.Domain.Practice.StaffAllocation> StaffAllocations => Set<global::AuditSphereOps.Domain.Practice.StaffAllocation>();
   public DbSet<global::AuditSphereOps.Domain.Audit.MaterialityCalculation> MaterialityCalculations => Set<global::AuditSphereOps.Domain.Audit.MaterialityCalculation>();

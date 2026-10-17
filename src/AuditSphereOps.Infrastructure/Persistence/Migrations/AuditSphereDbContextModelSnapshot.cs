@@ -26409,6 +26409,111 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffCertificationReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CertificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("certification_id");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("decision");
+
+                    b.Property<string>("EvidenceReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("evidence_reference");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_digest");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<DateTimeOffset>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("SourceDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_digest");
+
+                    b.Property<DateOnly?>("SourceExpiresOn")
+                        .HasColumnType("date")
+                        .HasColumnName("source_expires_on");
+
+                    b.Property<string>("SourceIssuer")
+                        .HasColumnType("text")
+                        .HasColumnName("source_issuer");
+
+                    b.Property<string>("SourceName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source_name");
+
+                    b.Property<DateTimeOffset>("SourceRecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("source_recorded_at");
+
+                    b.Property<Guid>("SourceRecordedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_recorded_by_user_id");
+
+                    b.Property<Guid>("SubjectUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subject_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
+                    b.HasIndex("FirmId", "SourceRecordedByUserId");
+
+                    b.HasIndex("FirmId", "SubjectUserId");
+
+                    b.HasIndex("FirmId", "CertificationId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("staff_certification_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_staff_certification_review_values", "revision >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_digest ~ '^[0-9a-f]{64}$' AND source_digest ~ '^[0-9a-f]{64}$' AND decision IN ('VERIFIED','REJECTED','REVOKED') AND length(trim(source_name)) > 0 AND length(trim(reason)) > 0 AND (decision <> 'VERIFIED' OR length(trim(evidence_reference)) > 0) AND reviewed_at >= source_recorded_at AND reviewed_by_user_id <> subject_user_id AND reviewed_by_user_id <> source_recorded_by_user_id");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffCostRate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -35316,6 +35421,37 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.StaffCertificationReview", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.StaffCertification", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CertificationId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "SourceRecordedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "SubjectUserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

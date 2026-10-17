@@ -222,12 +222,12 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `WF-06` | WF | PARTIAL: prerequisite blocking/clearing verified; broader queue acceptance remains |
 | `WF-07` | WF | NOT_REVERIFIED |
 | `WF-08` | WF | NOT_REVERIFIED |
-| `CLIENT-01` | CLIENT | NOT_REVERIFIED |
-| `CLIENT-02` | CLIENT | NOT_REVERIFIED |
-| `CLIENT-03` | CLIENT | NOT_REVERIFIED |
-| `CLIENT-04` | CLIENT | NOT_REVERIFIED |
-| `CLIENT-05` | CLIENT | NOT_REVERIFIED |
-| `CLIENT-06` | CLIENT | NOT_REVERIFIED |
+| `CLIENT-01` | CLIENT | SOURCE_INSPECTED: local identity/scope/first-sign-in paths present; current live acceptance pending |
+| `CLIENT-02` | CLIENT | PARTIAL: exact immutable accepted upload-version-set decision needs confirmation/implementation |
+| `CLIENT-03` | CLIENT | SOURCE_INSPECTED: scoped byte/version checks present; current dynamic/live proof pending |
+| `CLIENT-04` | CLIENT | PARTIAL: combined internal timeline present; retained correspondence actor is omitted |
+| `CLIENT-05` | CLIENT | PARTIAL: client-facing provider/delivery/withdrawal/supersession lifecycle incomplete |
+| `CLIENT-06` | CLIENT | IN_PROGRESS: shared client write-precondition correction assigned |
 | `RES-01` | RES | PARTIAL: supported range and refusal/recovery verified; broader staffing/capacity acceptance remains |
 | `RES-02` | RES | PARTIAL: expiry and recording are explicit; administrative verification workflow missing |
 | `RES-03` | RES | NOT_REVERIFIED |
@@ -383,3 +383,11 @@ Source inspection found an inseparable eligibility dependency: `StaffingService`
 This packet is implementation preparation, not a completed verification workflow or permission to manufacture qualifications. RES-02 remains PARTIAL; its eligibility gap is now explicitly identified rather than hidden behind expiry status.
 
 RES-02 implementation started: the Domain source fingerprint and exact-source verification applicability rules are implemented in `StaffCertificationEvidence.cs`, with passing focused pure checks. They cover identity, independent reviewer, retained reference/reason, source changes, effective date and expiry. This foundation is not connected to staffing eligibility yet; persistence, append-only review publication, API/Angular review actions and all staffing readers remain part of the same unfinished work package. No legacy certification is auto-verified and no eligibility gate is changed by this foundation.
+
+### Client-collaboration source audit
+
+Independent read-only inspection used source base `0c023535`; it did not run tests or change providers. Identity/session/first-sign-in and selected-source byte isolation implementations are present, but source inspection does not close current-commit or live acceptance. The highest-priority correction is CLIENT-06: align request write projections, replies and comments with first-sign-in and Active engagement checks, retaining staff and released-bundle acknowledgement semantics. A disjoint implementation worker is assigned; its output still requires review.
+
+Remaining concrete findings: CLIENT-02 needs an immutable human acceptance decision binding the exact submitted upload-intent/hash/provider-version set; confirm existing acceptance paths before adding a record. CLIENT-04 drops retained correspondence `DispatchedByUserId` from timeline projection; notification actors require tracing their actual retained source rather than guessing. CLIENT-05 lacks a unified client-facing document lifecycle for provider acceptance, proven delivery, withdrawal and supersession. Existing portal acknowledgement is not delivery proof. Live Entra, selected-site read-back and professional/profile closure gates remain separate.
+
+RES-02 persistence implementation adds a new, initially empty review history with exact retained source snapshots, firm/user foreign keys, independent identity constraints, unique request/revision fences and append-only/source/head guards. Existing qualifications are not backfilled as verified. Focused verification passes: two Domain evidence checks and one PostgreSQL persistence check (3 passed, 0 failed), including append-only/source/head refusals, duplicate request refusal and disposable-schema down/up rehearsal. The API Release build has zero warnings/errors and EF reports no pending model changes. No development, browser or hosted database was migrated. Review publication, API/Angular review actions and staffing integration remain unfinished; these checks do not prove administrative authorization or live acceptance.

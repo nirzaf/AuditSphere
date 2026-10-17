@@ -32,9 +32,29 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<StaffCertification>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id });
       e.HasIndex(x => new { x.FirmId, x.UserId });
       e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("staff_certifications", t => t.HasCheckConstraint("ck_staff_certification_values", "length(name) > 0"));
+    });
+    b.Entity<StaffCertificationReview>(e =>
+    {
+      e.HasIndex(x => new { x.FirmId, x.CertificationId, x.Revision }).IsUnique();
+      e.HasIndex(x => new { x.FirmId, x.RequestId }).IsUnique();
+      e.HasOne<StaffCertification>().WithMany().HasForeignKey(x => new { x.FirmId, x.CertificationId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.SubjectUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.SourceRecordedByUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.Property(x => x.SourceDigest).HasMaxLength(64);
+      e.Property(x => x.RequestDigest).HasMaxLength(64);
+      e.Property(x => x.EvidenceReference).HasMaxLength(1000);
+      e.Property(x => x.Reason).HasMaxLength(4000);
+      e.ToTable("staff_certification_reviews", t => t.HasCheckConstraint("ck_staff_certification_review_values",
+        "revision >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_digest ~ '^[0-9a-f]{64}$' AND source_digest ~ '^[0-9a-f]{64}$' AND decision IN ('VERIFIED','REJECTED','REVOKED') AND length(trim(source_name)) > 0 AND length(trim(reason)) > 0 AND (decision <> 'VERIFIED' OR length(trim(evidence_reference)) > 0) AND reviewed_at >= source_recorded_at AND reviewed_by_user_id <> subject_user_id AND reviewed_by_user_id <> source_recorded_by_user_id"));
     });
     b.Entity<StaffAvailability>(e =>
     {

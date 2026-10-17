@@ -609,6 +609,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<global::AuditSphereOps.Domain.Practice.EngagementStaffAssignment> EngagementStaffAssignments => db.EngagementStaffAssignments;
     public DbSet<global::AuditSphereOps.Domain.Practice.StaffProfile> StaffProfiles => db.StaffProfiles;
     public DbSet<global::AuditSphereOps.Domain.Practice.StaffCertification> StaffCertifications => db.StaffCertifications;
+    public DbSet<global::AuditSphereOps.Domain.Practice.StaffCertificationReview> StaffCertificationReviews => db.StaffCertificationReviews;
     public DbSet<global::AuditSphereOps.Domain.Practice.StaffAvailability> StaffAvailabilities => db.StaffAvailabilities;
     public DbSet<global::AuditSphereOps.Domain.Practice.StaffAllocation> StaffAllocations => db.StaffAllocations;
     public DbSet<global::AuditSphereOps.Domain.Audit.MaterialityCalculation> MaterialityCalculations => db.MaterialityCalculations;
