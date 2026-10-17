@@ -640,7 +640,8 @@ public sealed class AuditProgramWorkflowTests
     Assert.True(replay.Succeeded, replay.Message);
     Assert.Equal(approval.Value.DecisionId, replay.Value!.DecisionId);
     var changedIntent = await AuditProgramService.DecideApplicabilityAsync(db, partner,
-      approvalRequest with { Decision = AuditApplicabilityActions.ReturnNotApplicable });
+      approvalRequest with { Decision = AuditApplicabilityActions.ReturnNotApplicable,
+        Rationale = "Different intent on an already-used command identity." });
     Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
     Assert.Equal(4, await db.AuditProcedureApplicabilityDecisions.CountAsync(x => x.AuditProcedureId == procedure.Id));
 
@@ -652,7 +653,7 @@ public sealed class AuditProgramWorkflowTests
       scope.EngagementId, current.Values.ToArray(), CancellationToken.None);
     Assert.Equal(AuditApplicabilityStatuses.NotApplicableUnverified,
       AuditProgramService.EffectiveApplicabilityStatus(refreshedProcedure, current[procedure.Id],
-        proposalRows[proposal.Value.DecisionId!.Value], 2));
+        proposalRows[reproposal.Value.DecisionId!.Value], 2));
     var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db,
       scope.FirmId, scope.ClientId, scope.EngagementId, CancellationToken.None);
     Assert.Contains(completion.Value!.Blockers, x => x == $"applicability:{procedure.SourceProcedureId}");

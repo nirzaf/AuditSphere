@@ -275,6 +275,13 @@ public sealed class EngagementLifecycleQueryTests
       };
       db.AuditProcedureApplicabilityDecisions.Add(applicabilityProposal);
       await db.SaveChangesAsync();
+      approvedNotApplicable.ApplicabilityStatus = AuditApplicabilityStatuses.NotApplicablePendingReview;
+      approvedNotApplicable.CurrentApplicabilityRevision = applicabilityProposal.Revision;
+      approvedNotApplicable.CurrentApplicabilityDecisionId = applicabilityProposal.Id;
+      approvedNotApplicable.ApplicabilityDecidedByUserId = applicabilityProposal.ActorUserId;
+      approvedNotApplicable.ApplicabilityDecidedAt = applicabilityProposal.OccurredAt;
+      await db.SaveChangesAsync();
+
       var applicabilityApproval = new AuditProcedureApplicabilityDecision
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = engagementId,
@@ -283,11 +290,13 @@ public sealed class EngagementLifecycleQueryTests
         PreviousDecisionId = applicabilityProposal.Id, CommandId = Guid.NewGuid(), RequestDigest = new string('b', 64),
         ActorUserId = seed.Admin.Id, ActorEpoch = seed.Admin.SessionEpoch, OccurredAt = now.AddSeconds(1)
       };
+      db.AuditProcedureApplicabilityDecisions.Add(applicabilityApproval);
+      approvedNotApplicable.ApplicabilityStatus = AuditApplicabilityStatuses.NotApplicableApproved;
       approvedNotApplicable.CurrentApplicabilityRevision = applicabilityApproval.Revision;
       approvedNotApplicable.CurrentApplicabilityDecisionId = applicabilityApproval.Id;
-      approvedNotApplicable.ApplicabilityDecidedByUserId = seed.Admin.Id;
+      approvedNotApplicable.ApplicabilityDecidedByUserId = applicabilityApproval.ActorUserId;
       approvedNotApplicable.ApplicabilityDecidedAt = applicabilityApproval.OccurredAt;
-      db.AuditProcedureApplicabilityDecisions.Add(applicabilityApproval);
+      approvedNotApplicable.ApplicabilityRationale = applicabilityProposal.Rationale;
       await db.SaveChangesAsync();
 
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
