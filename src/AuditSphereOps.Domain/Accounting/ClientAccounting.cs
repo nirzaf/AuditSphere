@@ -636,7 +636,7 @@ public sealed class AccountingReconciliationProof
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid ReconciliationId { get; set; }
-  public string FormulaVersion { get; set; } = "reconciliation-proof.v1";
+  public string FormulaVersion { get; set; } = "reconciliation-proof.v2";
   public decimal SourceTotal { get; set; }
   public decimal GlTotal { get; set; }
   public decimal ItemsSignedTotal { get; set; }
@@ -667,6 +667,9 @@ public sealed class AccountingReconciliationItem
   public bool IsCredit { get; set; }
   public DateOnly? SettlementDate { get; set; }
   public string SettlementReference { get; set; } = string.Empty;
+  /// <summary>The exact linked adjustment journal; linking a correction is not settlement.</summary>
+  public Guid? LinkedJournalId { get; set; }
+  public long? LinkedJournalRevision { get; set; }
   public string Reason { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
   public string Disposition { get; set; } = string.Empty;

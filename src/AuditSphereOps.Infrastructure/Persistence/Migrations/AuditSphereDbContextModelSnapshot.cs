@@ -1129,6 +1129,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("item_date");
 
+                    b.Property<Guid?>("LinkedJournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("linked_journal_id");
+
+                    b.Property<long?>("LinkedJournalRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("linked_journal_revision");
+
                     b.Property<string>("Reason")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -1165,9 +1173,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_accounting_reconciliation_item");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ReconciliationId");
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "LinkedJournalId");
 
-                    b.ToTable("accounting_reconciliation_items");
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "ReconciliationId")
+                        .HasDatabaseName("IX_accounting_reconciliation_items_firm_id_client_id_engageme~1");
+
+                    b.ToTable("accounting_reconciliation_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_accounting_reconciliation_item_journal_link", "(linked_journal_id IS NULL AND linked_journal_revision IS NULL) OR (linked_journal_id IS NOT NULL AND linked_journal_revision > 0)");
+                        });
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AccountingReconciliationPreparation", b =>
@@ -29365,6 +29379,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.AdjustmentJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "LinkedJournalId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AuditSphereOps.Domain.Accounting.AccountingReconciliation", null)
                         .WithMany()

@@ -256,6 +256,7 @@ public sealed class ProfilesChartsAndConsolidationTests
     var reconciliationId = Guid.CreateVersion7();
     var itemId = Guid.CreateVersion7();
     var journalId = Guid.CreateVersion7();
+    var unrelatedJournalId = Guid.CreateVersion7();
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -337,6 +338,9 @@ public sealed class ProfilesChartsAndConsolidationTests
         EngagementId = scope.EngagementId,
         BaseDatasetId = datasetId,
         JournalNumber = "CORR-01",
+        PeriodId = periodId,
+        Basis = "STATUTORY",
+        Currency = "QAR",
         Purpose = AdjustmentJournalPurposes.ReportingAdjustment,
         Origin = AdjustmentJournalOrigins.AuditProposed,
         Reason = "Bank correction",
@@ -346,6 +350,28 @@ public sealed class ProfilesChartsAndConsolidationTests
         CreatedByUserId = scope.Preparer.Id,
         CreatedAt = DateTimeOffset.UtcNow
       });
+      db.AdjustmentJournals.Add(new AdjustmentJournal
+      {
+        Id = unrelatedJournalId,
+        FirmId = scope.FirmId,
+        ClientId = scope.ClientId,
+        EngagementId = scope.EngagementId,
+        BaseDatasetId = datasetId,
+        JournalNumber = "CORR-02",
+        PeriodId = periodId,
+        Basis = "STATUTORY",
+        Currency = "QAR",
+        Purpose = AdjustmentJournalPurposes.ReportingAdjustment,
+        Status = "Draft",
+        Revision = 1,
+        CreatedByUserId = scope.Preparer.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.AdjustmentLines.AddRange(
+        new AdjustmentLine { Id = Guid.CreateVersion7(), JournalId = journalId, AccountCode = "1000", Debit = 200m },
+        new AdjustmentLine { Id = Guid.CreateVersion7(), JournalId = journalId, AccountCode = "2000", Credit = 200m },
+        new AdjustmentLine { Id = Guid.CreateVersion7(), JournalId = unrelatedJournalId, AccountCode = "2000", Debit = 200m },
+        new AdjustmentLine { Id = Guid.CreateVersion7(), JournalId = unrelatedJournalId, AccountCode = "3000", Credit = 200m });
 
       await db.SaveChangesAsync();
     }
@@ -364,16 +390,31 @@ public sealed class ProfilesChartsAndConsolidationTests
       Assert.Equal("RECONCILED", proof.Status);
 
       // Link correction journal
+      var unrelatedLink = await AccountingAnalysisService.LinkReconciliationCorrectionAsync(
+        db, preparer, reconciliationId, itemId, unrelatedJournalId);
+      Assert.False(unrelatedLink.Succeeded);
       var linkResult = await AccountingAnalysisService.LinkReconciliationCorrectionAsync(db, preparer, reconciliationId, itemId, journalId);
       Assert.True(linkResult.Succeeded);
+      var retry = await AccountingAnalysisService.LinkReconciliationCorrectionAsync(db, preparer, reconciliationId, itemId, journalId);
+      Assert.True(retry.Succeeded);
+      var linkedProof = await AccountingAnalysisService.CalculateReconciliationProofAsync(db, preparer, reconciliationId);
+      Assert.True(linkedProof.Succeeded);
+      var journal = await db.AdjustmentJournals.SingleAsync(x => x.Id == journalId);
+      journal.Revision++;
+      await db.SaveChangesAsync();
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var item = await db.AccountingReconciliationItems.SingleAsync(x => x.Id == itemId);
-      Assert.Equal("JOURNAL:CORR-01", item.SettlementReference);
-      Assert.Equal("LINKED_JOURNAL", item.Disposition);
-      Assert.NotNull(item.SettlementDate);
+      Assert.Equal(journalId, item.LinkedJournalId);
+      Assert.Equal(1, item.LinkedJournalRevision);
+      Assert.Equal(string.Empty, item.SettlementReference);
+      Assert.Equal("PENDING_JOURNAL", item.Disposition);
+      Assert.Null(item.SettlementDate);
+      var workspace = await ReconciliationWorkspaceQuery.GetAsync(db, preparer, reconciliationId);
+      Assert.True(workspace.Succeeded);
+      Assert.False(workspace.Value!.LatestProof!.MatchesCurrentInputs);
     }
   }
 
