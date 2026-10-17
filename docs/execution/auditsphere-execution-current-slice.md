@@ -99,7 +99,7 @@ Detailed dated evidence moved verbatim to [`auditsphere-execution-tracker-curren
 
 The receivables aging fixture now supplies the exact rendered quotation, dispatch identity and immutable client-response evidence required by the fee-agreement command. Its original as-of-date receipt, credit and allocation assertions remain intact and the focused test passed. The build completed after concurrent-output copy retries. Exact source, command, report and caveats are in `status.json` under `targetedVerification.angularBlazorPackageGateFixtureFollowUp.receivablesFollowUp`.
 
-The full Domain suite has not been rerun after this repair. Consolidation/foreign-operation fixtures still need composition-bound approvals, and source-action, browser, operational and external retirement criteria remain open. Web remains present; retirement is `NOT_READY`.
+The full Domain suite has not been rerun after this repair. Consolidation/foreign-operation fixtures still need composition-bound approvals, and source-action, browser, operational and external retirement criteria remain open. This checkpoint predates the 2026-10-17 retirement; see the reading note.
 
 ## Angular/Blazor parity — package close/release fixtures and consolidated regression
 
@@ -111,13 +111,13 @@ Remaining failures concern receivables exact-offer response evidence and consoli
 
 The restatement regression fixture now uses a presentable source-backed original package, renders and selects its three-format composition, records management/accounting/Partner decisions, and closes the period through the Application command before preparing the correction. It explicitly checks that an unreviewed close is denied and retains the change-type, affected-period and independent approval assertions. The accounting-record approval class passed; exact source, command and report are in `status-archive-2026-10.json` under `keys.targetedVerification.angularBlazorTenantConsentFixtureFollowUp.restatementFollowUp`.
 
-This repairs a local regression fixture without changing production gates. Other full-regression failures and source-action, browser, operational and external retirement criteria remain open. Web remains present; retirement is `NOT_READY`.
+This repairs a local regression fixture without changing production gates. Other full-regression failures and source-action, browser, operational and external retirement criteria remain open. This checkpoint predates the 2026-10-17 retirement; see the reading note.
 
 ## Angular/Blazor parity — directory-binding regression fixture
 
 The tenant-consent test fixture now supplies the firm safety row required by role administration's transaction lock and authority recheck. This repairs the exact directory-binding and stale-observation regression cases without changing production authorization or Microsoft capability behavior. The complete tenant-consent class passed; source attribution, command and report are in `status-archive-2026-10.json` under `keys.targetedVerification.angularBlazorTenantConsentFixtureFollowUp`.
 
-A current baseline also reproduced the restatement failure at period close. That fixture records legacy package decisions without selecting a reviewed composition. Its reporting setup needs repair while preserving both the close gate and the positive restatement assertions. Other regression failures and per-action migration evidence remain open. Web remains present and retirement is `NOT_READY`; no real tenant acceptance is claimed from these synthetic tests.
+A current baseline also reproduced the restatement failure at period close. That fixture records legacy package decisions without selecting a reviewed composition. Its reporting setup needs repair while preserving both the close gate and the positive restatement assertions. Other regression failures and per-action migration evidence remain open. This checkpoint predates the 2026-10-17 retirement; no real tenant acceptance is claimed from these synthetic tests.
 
 ## Angular/Blazor parity — consolidation approval and review reconciliation
 
@@ -125,7 +125,7 @@ The consolidation component approval command again requires current management, 
 
 The consolidation source review also contained two stale gaps. The current Angular overview already labels approval times in UTC, including offset normalization. Advanced consolidation already fences unknown outcomes until a persisted workspace re-read and explicit acknowledgement. Existing focused Angular specs passed for these behaviors. The review and source-action manifest now retain the remaining scope, mutation, browser, performance and human acceptance gaps.
 
-Retirement remains `NOT_READY`. The earlier full local regression reported failures and is not current repaired-tree acceptance. Web remains present; no deployment, persistent database migration or external acceptance was performed for this increment.
+This checkpoint predates the 2026-10-17 retirement. The earlier full local regression reported failures and is not current repaired-tree acceptance. No deployment, persistent database migration or external acceptance was performed for this increment.
 
 ## Blazor parity — focused security and denial boundaries — 2026-10-15
 
