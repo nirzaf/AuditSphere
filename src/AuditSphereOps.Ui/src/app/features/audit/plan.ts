@@ -4,7 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { SessionService } from '../../core/session';
-import { arr, bool, dec, decode, decimalInput, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, date, dec, decode, decimalInput, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
 import { PlanningCommandState } from './planning-command-state';
 import { PlanningCommandReview } from './planning-command-review';
 import { SHARED } from '../../core/ui';
@@ -32,6 +32,10 @@ const milestonePlan = obj({
   fieldworkStartDate: text, draftReportDate: text, finalReportDate: text, archiveDeadlineDate: text,
   adjustmentReason: nullable(text), warningOverrideReason: nullable(text), warnings: arr(text, 50),
   revision: nat, scheduledByUserId: guid, scheduledAt: instant, canConfigure: bool
+});
+const calculatedMilestones = obj({
+  periodEnd: date, statutoryFilingCutoff: date, fieldworkStartDate: date, draftReportDate: date,
+  finalReportDate: date, archiveDeadlineDate: date, hasAdjustments: bool, warnings: arr(text, 50), warningOverrideRequired: bool
 });
 const workpaperProcedure = obj({ id: guid, sourceProcedureId: text, title: text, applicabilityStatus: text, status: text, workpaperId: nullable(guid) });
 const workpaperFieldwork = obj({ engagementId: guid, canManageFieldwork: bool, procedures: arr(workpaperProcedure, 5000) });
@@ -95,12 +99,42 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
           <details>
             <summary>{{ p.milestonePlan ? 'Update statutory milestones & schedule' : 'Configure statutory milestones' }}</summary>
             <form (ngSubmit)="saveMilestones()">
-              <label>Statutory filing cutoff (YYYY-MM-DD) <input name="mc" type="date" [(ngModel)]="milestone.cutoff" required /></label>
-              <label>Fieldwork commencement date (optional override) <input name="mf" type="date" [(ngModel)]="milestone.fieldwork" /></label>
-              <label>Draft report delivery date (optional override) <input name="md" type="date" [(ngModel)]="milestone.draft" /></label>
-              <label>Final signed report date (optional override) <input name="mr" type="date" [(ngModel)]="milestone.finalReport" /></label>
-              <label>Adjustment reason (required if modifying defaults) <textarea name="ma" [(ngModel)]="milestone.adjustment" rows="2"></textarea></label>
-              <label>Warning override reason (required if warnings triggered) <textarea name="mo" [(ngModel)]="milestone.override" rows="2"></textarea></label>
+              <label>Statutory filing cutoff (YYYY-MM-DD) <input name="mc" type="date" [(ngModel)]="milestone.cutoff" (ngModelChange)="invalidateMilestonePreview()" required /></label>
+              <label>Fieldwork commencement date (optional override) <input name="mf" type="date" [(ngModel)]="milestone.fieldwork" (ngModelChange)="invalidateMilestonePreview()" /></label>
+              <label>Draft report delivery date (optional override) <input name="md" type="date" [(ngModel)]="milestone.draft" (ngModelChange)="invalidateMilestonePreview()" /></label>
+              <label>Final signed report date (optional override) <input name="mr" type="date" [(ngModel)]="milestone.finalReport" (ngModelChange)="invalidateMilestonePreview()" /></label>
+              <label>Adjustment reason (required if modifying defaults) <textarea name="ma" [(ngModel)]="milestone.adjustment" (ngModelChange)="invalidateMilestonePreview()" rows="2"></textarea></label>
+              <label>Warning override reason (required if warnings triggered) <textarea name="mo" [(ngModel)]="milestone.override" (ngModelChange)="invalidateMilestonePreview()" rows="2"></textarea></label>
+              @if (milestonePreview(); as preview) {
+                <section aria-label="Calculated statutory milestone preview" aria-live="polite">
+                  <h3>Calculated schedule preview</h3>
+                  <dl class="facts">
+                    <div><dt>Period end</dt><dd>{{ preview.periodEnd }}</dd></div>
+                    <div><dt>Statutory filing cutoff</dt><dd>{{ preview.statutoryFilingCutoff }}</dd></div>
+                    <div><dt>Fieldwork start</dt><dd>{{ preview.fieldworkStartDate }}</dd></div>
+                    <div><dt>Draft report delivery</dt><dd>{{ preview.draftReportDate }}</dd></div>
+                    <div><dt>Final signed report</dt><dd>{{ preview.finalReportDate }}</dd></div>
+                    <div><dt>60-day archive freeze</dt><dd>{{ preview.archiveDeadlineDate }}</dd></div>
+                  </dl>
+                  @if (preview.warnings.length > 0) {
+                    <div role="alert">
+                      <strong>Scheduling warnings — review before saving:</strong>
+                      <ul>@for (warning of preview.warnings; track warning) { <li>{{ warning }}</li> }</ul>
+                      @if (preview.warningOverrideRequired) {
+                        <p>A documented manager or partner override reason is required. Enter it above; save will independently revalidate the schedule.</p>
+                      } @else if (milestone.override.trim()) {
+                        <p>Override reason entered: {{ milestone.override.trim() }}</p>
+                      }
+                    </div>
+                  } @else {
+                    <p role="status">No scheduling warnings were returned for these inputs.</p>
+                  }
+                  @if (preview.hasAdjustments) { <p>The schedule differs from calculated defaults; an adjustment reason is required.</p> }
+                </section>
+              }
+              @if (milestonePreviewBusy()) { <p role="status">Calculating milestone schedule…</p> }
+              @if (milestonePreviewMessage()) { <p role="alert">{{ milestonePreviewMessage() }}</p> }
+              <button matButton="outlined" type="button" (click)="previewMilestones()" [disabled]="cmd.busy() || milestonePreviewBusy() || !milestone.cutoff.trim()">Preview calculated schedule</button>
               <button matButton="filled" type="submit" [disabled]="cmd.busy()">Save milestone schedule</button>
             </form>
           </details>
@@ -360,6 +394,10 @@ export class AuditPlan {
   pop = { purpose: '', assertion: '', receipt: '', extraction: '', rows: 0, total: '', currency: '' };
   finding = { type: '', impact: '', amount: '' };
   milestone = { cutoff: '', fieldwork: '', draft: '', finalReport: '', adjustment: '', override: '' };
+  readonly milestonePreview = signal<ReturnType<typeof calculatedMilestones> | null>(null);
+  readonly milestonePreviewBusy = signal(false);
+  readonly milestonePreviewMessage = signal('');
+  private milestonePreviewGeneration = 0;
 
   constructor() {
     effect(() => {
@@ -375,6 +413,7 @@ export class AuditPlan {
     effect(() => {
       this.id(); this.session.current(); this.session.invalidation();
       untracked(() => {
+        this.invalidateMilestonePreview();
         this.inputs.clear(); this.inputHeads.clear(); this.roundPrefilledFor = '';
         this.calc = this.planning.protect({ option: '', rate: '1', performance: '75', trivial: '5', rationale: '' });
         this.round = this.planning.protect({ pm: '', te: '', sad: '', rationale: '' });
@@ -385,6 +424,7 @@ export class AuditPlan {
   }
 
   saveMilestones(): void {
+    this.invalidateMilestonePreview();
     const cutoff = this.milestone.cutoff.trim();
     if (!cutoff) return this.invalid('Enter the statutory filing cutoff date in YYYY-MM-DD format.');
     this.send(`/api/ui/engagements/${this.id()}/milestones`, {
@@ -395,6 +435,52 @@ export class AuditPlan {
       adjustmentReason: this.milestone.adjustment.trim() || null,
       warningOverrideReason: this.milestone.override.trim() || null,
     }, 'Statutory milestones and archive deadline recorded.');
+  }
+
+  invalidateMilestonePreview(): void {
+    this.milestonePreviewGeneration++;
+    this.milestonePreview.set(null);
+    this.milestonePreviewBusy.set(false);
+    this.milestonePreviewMessage.set('');
+  }
+
+  async previewMilestones(): Promise<void> {
+    const engagementId = this.id();
+    const cutoff = this.milestone.cutoff.trim();
+    if (!engagementId || !cutoff) {
+      this.invalidateMilestonePreview();
+      this.milestonePreviewMessage.set('Enter the statutory filing cutoff date before previewing.');
+      return;
+    }
+
+    const generation = ++this.milestonePreviewGeneration;
+    const sessionGeneration = this.session.invalidation();
+    const request = {
+      statutoryFilingCutoff: cutoff,
+      fieldworkStartDate: this.milestone.fieldwork.trim() || null,
+      draftReportDate: this.milestone.draft.trim() || null,
+      finalReportDate: this.milestone.finalReport.trim() || null,
+      adjustmentReason: this.milestone.adjustment.trim() || null,
+      warningOverrideReason: this.milestone.override.trim() || null,
+    };
+    this.milestonePreview.set(null);
+    this.milestonePreviewMessage.set('');
+    this.milestonePreviewBusy.set(true);
+    try {
+      const result = await this.api.command<unknown>(`/api/ui/engagements/${engagementId}/milestones/calculate`, request);
+      if (generation !== this.milestonePreviewGeneration || engagementId !== this.id() || sessionGeneration !== this.session.invalidation()) return;
+      if (!result.ok) {
+        this.milestonePreviewMessage.set(result.message);
+        return;
+      }
+      const preview = decode(calculatedMilestones, result.value);
+      this.milestonePreview.set(preview);
+    } catch {
+      if (generation === this.milestonePreviewGeneration && engagementId === this.id() && sessionGeneration === this.session.invalidation())
+        this.milestonePreviewMessage.set('The server returned an unsupported milestone preview. Refresh and try again.');
+    } finally {
+      if (generation === this.milestonePreviewGeneration) this.milestonePreviewBusy.set(false);
+    }
   }
 
   paperState(workpaperId: string | null, plan: Plan): string {

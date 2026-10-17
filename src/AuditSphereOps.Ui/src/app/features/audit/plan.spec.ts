@@ -428,4 +428,61 @@ describe('Practical rounding form (STE 3.2)', () => {
     await page.approveMateriality(id1); await page.assess(id1); expect(prepared).not.toHaveBeenCalled();
   });
 
+  it('previews calculated dates and displays warnings plus the required override before save', async () => {
+    const f = render(planPayload);
+    const page = f.componentInstance;
+    page.milestone = { cutoff: '2027-04-30', fieldwork: '2027-01-07', draft: '2027-04-26', finalReport: '2027-04-28', adjustment: 'Compressed to meet statutory cutoff', override: '' };
+    const preparing = page.previewMilestones();
+    const request = TestBed.inject(HttpTestingController).expectOne({
+      method: 'POST', url: `/api/ui/engagements/${id1}/milestones/calculate`,
+    });
+    expect(request.request.body).toEqual({
+      statutoryFilingCutoff: '2027-04-30', fieldworkStartDate: '2027-01-07', draftReportDate: '2027-04-26', finalReportDate: '2027-04-28',
+      adjustmentReason: 'Compressed to meet statutory cutoff', warningOverrideReason: null,
+    });
+    request.flush({ value: {
+      periodEnd: '2026-12-31', statutoryFilingCutoff: '2027-04-30', fieldworkStartDate: '2027-01-07',
+      draftReportDate: '2027-04-26', finalReportDate: '2027-04-28', archiveDeadlineDate: '2027-06-27',
+      hasAdjustments: true,
+      warnings: ['Compressed review window: 2 days between draft report and final report (recommended minimum 7 days).'],
+      warningOverrideRequired: true,
+    } });
+    await preparing;
+    f.detectChanges();
+
+    const host = f.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Calculated schedule preview');
+    expect(host.textContent).toContain('2027-06-27');
+    expect(host.textContent).toContain('Compressed review window: 2 days');
+    expect(host.textContent).toContain('A documented manager or partner override reason is required');
+    expect(host.textContent).toContain('an adjustment reason is required');
+    expect(host.textContent).toContain('Warning override reason (required if warnings triggered)');
+    expect(host.textContent).toContain('Save milestone schedule');
+  });
+
+  it('invalidates the preview when a schedule input changes', async () => {
+    const f = render(planPayload);
+    const page = f.componentInstance;
+    page.milestone = { cutoff: '2027-04-30', fieldwork: '', draft: '', finalReport: '', adjustment: '', override: '' };
+    const preparing = page.previewMilestones();
+    TestBed.inject(HttpTestingController).expectOne({ method: 'POST', url: `/api/ui/engagements/${id1}/milestones/calculate` })
+      .flush({ value: {
+        periodEnd: '2026-12-31', statutoryFilingCutoff: '2027-04-30', fieldworkStartDate: '2027-01-07',
+        draftReportDate: '2027-03-13', finalReportDate: '2027-04-15', archiveDeadlineDate: '2027-06-14',
+        hasAdjustments: false, warnings: [], warningOverrideRequired: false,
+      } });
+    await preparing;
+    f.detectChanges();
+    expect(page.milestonePreview()).not.toBeNull();
+
+    const cutoff = (f.nativeElement as HTMLElement).querySelector('input[name="mc"]') as HTMLInputElement;
+    cutoff.value = '2027-05-01';
+    cutoff.dispatchEvent(new Event('input'));
+    f.detectChanges();
+
+    expect(page.milestone.cutoff).toBe('2027-05-01');
+    expect(page.milestonePreview()).toBeNull();
+    expect((f.nativeElement as HTMLElement).textContent).not.toContain('Calculated schedule preview');
+  });
+
 });
