@@ -53,9 +53,21 @@ public sealed partial class ClientAccountingTests
     db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
     db.ClientSafetyStates.AddRange(new ClientSafetyState { Id = clientA, FirmId = firmId }, new ClientSafetyState { Id = clientB, FirmId = firmId });
     db.Users.AddRange(preparer, reviewer, partner);
+    var partnerGrant = new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, UserId = partner.Id, Role = "Partner", ClientId = clientA,
+      EngagementId = engagementA, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.Id,
+      Reason = "Engagement staffing: Engagement Partner"
+    };
     db.RoleGrants.AddRange(
       Grant(firmId, preparer, "AccountingPreparer"), Grant(firmId, reviewer, "AccountingReviewer"),
-      Grant(firmId, reviewer, "Partner"), Grant(firmId, partner, "Partner"));
+      Grant(firmId, reviewer, "Partner"), partnerGrant);
+    db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientA, EngagementId = engagementA, UserId = partner.Id,
+      StaffingLevel = StaffingLevels.EngagementPartner, RoleGrantId = partnerGrant.Id,
+      AssignedByUserId = reviewer.Id, AssignedAt = DateTimeOffset.UtcNow
+    });
     await db.SaveChangesAsync();
     return new Scope(firmId, clientA, clientB, engagementA, engagementB, preparer, reviewer, partner);
   }

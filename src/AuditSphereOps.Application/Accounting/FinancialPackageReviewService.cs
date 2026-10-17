@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -216,6 +217,11 @@ public static partial class FinancialPackageReviewService
           "The same person cannot record approved decisions at two different stages of one package version.");
     }
 
+    if (stage == FinancialPackageReviewStages.PartnerApproval &&
+        !await PartnerDecisionHeldByPartnerAsync(db, package, actor.UserId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied,
+        "Only the currently assigned Engagement Partner can record this Partner decision.");
+
     // The decision chain is every decision on this exact package version and composition identity (none, for the legacy package path).
     Guid? selectedPresentationId = candidate?.Id;
     Guid? selectedCompositionId = composition?.Id;
@@ -413,7 +419,6 @@ public static partial class FinancialPackageReviewService
     var validations = await db.FinancialPackageValidations.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.FinancialPackageId) &&
         FinancialPackageValidationReadiness.RequiredCodes.Contains(x.Code)).ToListAsync(ct);
-    var canPartnerReview = actor.Roles.Contains("Partner", StringComparer.Ordinal);
     var queue = new List<FinancialPackageReviewQueueItem>();
 
     foreach (var package in packages)
@@ -452,7 +457,8 @@ public static partial class FinancialPackageReviewService
           : partner != FinancialPackageReviewDecisions.Approved
             ? FinancialPackageReviewStages.PartnerApproval
             : "COMPLETE";
-      if (next == FinancialPackageReviewStages.PartnerApproval && !canPartnerReview)
+      if (next == FinancialPackageReviewStages.PartnerApproval &&
+          !await IsCurrentAssignedEngagementPartnerAsync(db, package, actor.UserId, ct))
         next = "PARTNER_APPROVAL_REQUIRED";
       if (next != "COMPLETE")
         queue.Add(new FinancialPackageReviewQueueItem(package.Id, package.Framework, package.PeriodStart,
@@ -525,14 +531,13 @@ public static partial class FinancialPackageReviewService
         return CommandResult.Fail(ErrorCodes.GateBlocked,
           $"The current {stage} decision predates a later decision at an earlier stage and must be recorded again before release.");
     }
-    // Rows recorded before Administrator left the Partner stage remain in the table. A Partner decision counts only when its recorder
-    // still holds a current Partner grant covering this engagement.
+    // A Partner decision remains current only while its recorder remains the assigned Engagement Partner with the exact staffing grant.
     if (requirePartner)
     {
       var partner = effective![FinancialPackageReviewStages.PartnerApproval]!;
       if (!await PartnerDecisionHeldByPartnerAsync(db, package, partner.DecidedByUserId, ct))
         return CommandResult.Fail(ErrorCodes.GateBlocked,
-          "The current PartnerApproval decision was not recorded by a current Partner for this engagement.");
+          "The current PartnerApproval decision was not recorded by the current assigned Engagement Partner for this engagement.");
     }
     if (requirePartner && (expectedPresentationRevisionId is null || expectedCompositionId is null ||
         string.IsNullOrWhiteSpace(expectedCompositionDigest)))
@@ -603,11 +608,22 @@ public static partial class FinancialPackageReviewService
     Guid? decidedByUserId, CancellationToken ct)
   {
     if (decidedByUserId is not Guid decider) return false;
+    return await IsCurrentAssignedEngagementPartnerAsync(db, package, decider, ct);
+  }
+
+  internal static async Task<bool> IsCurrentAssignedEngagementPartnerAsync(IClientAccountingDbContext db,
+    FinancialPackage package, Guid userId, CancellationToken ct)
+  {
     var now = DateTimeOffset.UtcNow;
-    return await db.RoleGrants.AsNoTracking().AnyAsync(g => g.FirmId == package.FirmId && g.UserId == decider && g.Role == "Partner" &&
-      g.RevokedAt == null && (g.ExpiresAt == null || g.ExpiresAt > now) &&
-      ((g.ClientId == null && g.EngagementId == null) ||
-       (g.ClientId == package.ClientId && (g.EngagementId == null || g.EngagementId == package.EngagementId))), ct);
+    return await (from assignment in db.EngagementStaffAssignments.AsNoTracking()
+      join grant in db.RoleGrants.AsNoTracking() on new { assignment.FirmId, Id = assignment.RoleGrantId }
+        equals new { grant.FirmId, grant.Id }
+      where assignment.FirmId == package.FirmId && assignment.ClientId == package.ClientId &&
+        assignment.EngagementId == package.EngagementId && assignment.UserId == userId &&
+        assignment.StaffingLevel == StaffingLevels.EngagementPartner && assignment.RevokedAt == null &&
+        grant.UserId == userId && grant.Role == "Partner" && grant.ClientId == package.ClientId &&
+        grant.EngagementId == package.EngagementId && grant.RevokedAt == null && (grant.ExpiresAt == null || grant.ExpiresAt > now)
+      select assignment.Id).AnyAsync(ct);
   }
 
   private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');

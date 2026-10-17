@@ -364,9 +364,20 @@ public sealed class AccountingRecordsApprovalTests
     db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
     db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
     db.Users.AddRange(preparer, reviewer, partner);
+    var partnerGrant = new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, UserId = partner.Id, Role = "Partner", ClientId = clientId,
+      EngagementId = engagementId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.Id,
+      Reason = "Engagement staffing: Engagement Partner"
+    };
     db.RoleGrants.AddRange(
-      Grant(firmId, preparer, "AccountingPreparer"), Grant(firmId, reviewer, "AccountingReviewer"),
-      Grant(firmId, partner, "Partner"));
+      Grant(firmId, preparer, "AccountingPreparer"), Grant(firmId, reviewer, "AccountingReviewer"), partnerGrant);
+    db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, UserId = partner.Id,
+      StaffingLevel = StaffingLevels.EngagementPartner, RoleGrantId = partnerGrant.Id,
+      AssignedByUserId = reviewer.Id, AssignedAt = DateTimeOffset.UtcNow
+    });
     db.TrialBalanceDatasets.Add(new TrialBalanceDataset
     {
       Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,

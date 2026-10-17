@@ -172,13 +172,13 @@ This closes the F-08 composition-to-review/release/bundle wiring. F-08 remains *
 
 **Remaining correction:** complete professional and output-profile approval, validate that the required formats contain matching approved content and references, and exercise malformed/clipped/missing-output refusals. Resolve the selected composition through final signing/delivery without substituting the legacy PDF. Preserve canonical text in the evidence chain and retain its historical approval meaning. A changed banner, note, layout or report date creates new bytes and requires the appropriate successor/review before issue.
 
-## F-09 — Administrator cannot substitute for Partner authority; assignment and signatory gaps remain
+## F-09 — Partner authority now requires current assignment; signatory gaps remain
 
-**Administrator-elevation counterexample RESOLVED in current source · CP-01/CP-19; broader acceptance remains PARTIAL.**
+**Administrator-elevation and unassigned-Partner counterexamples RESOLVED in current source · CP-01/CP-19; broader acceptance remains PARTIAL.**
 
-The earlier statement that `Administrator` was included in `PartnerRoles` is incorrect for the current tree. `FinancialPackageReviewService` keeps `AccountingRoles` separate from `PartnerRoles = ["Partner"]` and selects the Partner-only allowlist for `PartnerApproval`. `AuthorizationDecision` checks the grant against the exact engagement. `FinancialPackageGateTests.PackageDecisions_RequireStageOrderAndDistinctPersons` rejects an administrator-only Partner decision and a person switching roles across stages; `PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement` rejects a Partner grant on another engagement and a revoked grant, while accepting an administrator who also has a current Partner grant on this exact engagement; `LegacyPartnerRowRecordedByAdministrator_DoesNotSatisfyReleaseGate` rejects an unsupported historical Partner row. These are existing PostgreSQL-backed tests; no new test execution is claimed here. [R18] [R02] [U01]
+The earlier statement that `Administrator` was included in `PartnerRoles` is incorrect for the current tree. `FinancialPackageReviewService` keeps `AccountingRoles` separate from `PartnerRoles = ["Partner"]` and selects the Partner-only allowlist for `PartnerApproval`. In addition, both new Partner decisions and the release-currentness check now require the decision maker to hold the active `ENGAGEMENT_PARTNER` assignment and its exact, current engagement-scoped Partner grant. The assignment is rechecked after the package/client locks; a staffing revocation therefore prevents the decision or makes a prior decision ineligible for release. [R18] [R02] [U01]
 
-This proves the specific role-elevation and engagement-scope controls, not that the deciding Partner is the person formally assigned to the engagement under a separate staffing record. CP-19's assignment-aware authority/independence acceptance remains open. Offline management approval also remains incomplete until actual signatory capacity and verified capture identities are evidenced; a mode field alone is insufficient.
+`FinancialPackageGateTests.PackageDecisions_RequireStageOrderAndDistinctPersons` and `PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement` each passed 1/1 against the loopback PostgreSQL test database after this change. They cover administrator-only denial, same-person stage separation, a Partner grant scoped to another engagement, revoked grants, an unassigned Partner, an assigned Partner with an Administrator role, and invalidation after assignment revocation. `LegacyPartnerRowRecordedByAdministrator_DoesNotSatisfyReleaseGate` remains existing regression coverage but was not rerun in this focused check. These focused tests do not establish the remaining management-signatory requirements. Offline management approval remains incomplete until actual signatory capacity and verified capture identities are evidenced; a mode field alone is insufficient.
 
 ## F-10 — Commercial identity, routing and broader practice completion still need closure
 
@@ -857,7 +857,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 ## CP-19 — Exact-report management, accounting and Partner decisions
 
-**Priority:** P0. **Current disposition:** PARTIAL — formal decisions bind the same candidate composition ID/digest and its PDF; management identity, offline evidence and review recovery semantics remain open.
+**Priority:** P0. **Current disposition:** PARTIAL — formal decisions bind the same candidate composition ID/digest and its PDF, and Partner authority is assignment-aware; management signatory/capacity, offline evidence and broader review recovery semantics remain open.
 
 **Dependencies:** CP-18; approved current formal order and management evidence policy.
 
@@ -869,7 +869,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 1. FinancialPackageReviewDecision/service now records candidate revision, composition ID and manifest digest; downstream release validates the PDF/Word/Excel set. Complete decision evidence for the selected signatory and required management capacity. Keep canonical text as source evidence, not as a substitute for examining the formatted report.
 2. Management -> accounting -> Partner formal package order is preserved and enforced for the same composition. Earlier internal preparation review remains a distinct action.
-3. Resolve F-09 using assignment-aware Partner authority and actual person-based independence. Test administrator-only and multi-role actors. Align UI capabilities with the exact command policy rather than roles listed on the session.
+3. **Assignment-aware Partner authority implemented:** recording a Partner decision, checking its continued release eligibility, and projecting Partner-stage availability in the queue/workspace require the current Engagement Partner assignment linked to its exact active engagement-scoped Partner grant. Assignment revocation invalidates the prior Partner decision for release. Focused PostgreSQL tests `PackageDecisions_RequireStageOrderAndDistinctPersons` and `PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement` passed 1/1 each; they include administrator-only denial, multi-role assigned Partner acceptance, self-review, unassigned Partner, sibling engagement and revoked assignment. Full CP-19 independence/whole-workflow acceptance remains open.
 4. Capture real client signatory/capacity and permitted signed-in/offline evidence, named staff recorder and required independent verification. Selecting OFFLINE cannot impersonate client management or omit the identity of the person whose acceptance was recorded.
 5. Use expected candidate/review revisions and original receipts with post-lock source/authority checks. Return/reject/revoke requires reason, a substantive successor does not inherit old approvals and uncertain responses recover the same result.
 6. Preserve legacy canonical-text decisions as their original evidence class. Never backfill them into newly proven approval of rendered artifacts, missing signatories or an unexamined note revision.

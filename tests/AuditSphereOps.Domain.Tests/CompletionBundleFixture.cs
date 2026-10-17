@@ -52,6 +52,30 @@ public static class CompletionBundleFixture
             GrantedAt = now, GrantedByUserId = w.U["partner"].Id
           });
       }
+      if (!await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x => x.FirmId == w.FirmId &&
+            x.EngagementId == w.EngagementId && x.UserId == w.U["partner"].Id &&
+            x.StaffingLevel == StaffingLevels.EngagementPartner && x.RevokedAt == null))
+      {
+        var partnerGrant = await db.RoleGrants.SingleOrDefaultAsync(x => x.FirmId == w.FirmId &&
+          x.UserId == w.U["partner"].Id && x.Role == "Partner" && x.ClientId == w.ClientId &&
+          x.EngagementId == w.EngagementId && x.RevokedAt == null);
+        if (partnerGrant is null)
+        {
+          partnerGrant = new RoleGrant
+          {
+            Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = w.U["partner"].Id, Role = "Partner",
+            ClientId = w.ClientId, EngagementId = w.EngagementId, GrantedAt = now,
+            GrantedByUserId = w.U["partner"].Id, Reason = "Engagement staffing: Engagement Partner"
+          };
+          db.RoleGrants.Add(partnerGrant);
+        }
+        db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+        {
+          Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+          UserId = w.U["partner"].Id, StaffingLevel = StaffingLevels.EngagementPartner,
+          RoleGrantId = partnerGrant.Id, AssignedByUserId = w.U["partner"].Id, AssignedAt = now
+        });
+      }
       await CompletionTestFixtures.SeedTaxonomyAsync(db, w.FirmId, w.U["partner"].Id);
       await CompletionTestFixtures.SeedCompleteStatementTaxonomyAsync(db, w.FirmId);
       db.ClientReportingPeriods.Add(new ClientReportingPeriod { Id = periodId, FirmId = w.FirmId, ClientId = w.ClientId, PeriodCode = "BUNDLE-" + periodId.ToString("N")[..8], StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),

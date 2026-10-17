@@ -325,6 +325,24 @@ public sealed class FinancialPackageGateTests
     }
     var elsewhere = await AddUserWithGrantAsync(pg, fixture.FirmId, "partner-elsewhere", PartnerGrant(otherEngagementId));
     var revoked = await AddUserWithGrantAsync(pg, fixture.FirmId, "partner-revoked", PartnerGrant(fixture.EngagementId, now.AddDays(-1)));
+    var unassigned = await AddUserWithGrantAsync(pg, fixture.FirmId, "partner-unassigned", PartnerGrant(fixture.EngagementId));
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var unassignedActor = Actor(unassigned, "Partner");
+      var queue = await FinancialPackageReviewService.GetStaffQueueAsync(db, unassignedActor);
+      Assert.True(queue.Succeeded, queue.Message);
+      Assert.Equal("PARTNER_APPROVAL_REQUIRED", Assert.Single(queue.Value!, x => x.PackageId == packageId).NextAction);
+      var workspace = await FinancialPackageWorkspaceQuery.GetAsync(db, unassignedActor, packageId);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      Assert.DoesNotContain(FinancialPackageReviewStages.PartnerApproval, workspace.Value!.ReviewStages);
+
+      var assignedActor = Actor(fixture.Partner, "Partner");
+      var assignedQueue = await FinancialPackageReviewService.GetStaffQueueAsync(db, assignedActor);
+      Assert.Equal(FinancialPackageReviewStages.PartnerApproval,
+        Assert.Single(assignedQueue.Value!, x => x.PackageId == packageId).NextAction);
+      var assignedWorkspace = await FinancialPackageWorkspaceQuery.GetAsync(db, assignedActor, packageId);
+      Assert.Contains(FinancialPackageReviewStages.PartnerApproval, assignedWorkspace.Value!.ReviewStages);
+    }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.Equal(ErrorCodes.ScopeDenied, (await FinancialPackageReviewService.RecordAsync(db, Actor(elsewhere, "Partner"),
@@ -333,17 +351,16 @@ public sealed class FinancialPackageGateTests
       Assert.Equal(ErrorCodes.ScopeDenied, (await FinancialPackageReviewService.RecordAsync(db, Actor(revoked, "Partner"),
         new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
           FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "partner-revoked", "Revoked grant."))).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await FinancialPackageReviewService.RecordAsync(db, Actor(unassigned, "Partner"),
+        new FinancialPackageReviewRequest(packageId, FinancialPackageReviewStages.PartnerApproval,
+          FinancialPackageReviewDecisions.Approved, FinancialPackageReviewEvidenceModes.SignedIn, "partner-unassigned", "Not staffed as the Engagement Partner."))).ErrorCode);
     }
 
-    // An administrator who also holds a current Partner grant on this engagement is a Partner for this decision, and the gate accepts it.
-    var both = await AddUserWithGrantAsync(pg, fixture.FirmId, "administrator-partner",
-      new RoleGrant { Id = Guid.NewGuid(), Role = "Administrator", GrantedAt = now, GrantedByUserId = fixture.Partner.Id });
+    // An administrator who is also the assigned Engagement Partner has the exact staffing grant and may decide as Partner.
+    var both = fixture.Partner;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var partnerForBoth = PartnerGrant(fixture.EngagementId);
-      partnerForBoth.UserId = both.Id;
-      partnerForBoth.FirmId = fixture.FirmId;
-      db.RoleGrants.Add(partnerForBoth);
+      db.RoleGrants.Add(Grant(fixture.FirmId, both, "Administrator"));
       await db.SaveChangesAsync();
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -356,6 +373,21 @@ public sealed class FinancialPackageGateTests
       Assert.False(current.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, current.ErrorCode);
       Assert.Contains("three-format composition", current.Message!, StringComparison.Ordinal);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var assignment = await db.EngagementStaffAssignments.SingleAsync(x => x.FirmId == fixture.FirmId &&
+        x.EngagementId == fixture.EngagementId && x.UserId == both.Id && x.RevokedAt == null);
+      assignment.RevokedAt = DateTimeOffset.UtcNow;
+      assignment.RevokedByUserId = fixture.Reviewer.Id;
+      await db.SaveChangesAsync();
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var noLongerCurrent = await FinancialPackageReviewService.RequireCurrentAsync(db, Actor(both, "Partner"), packageId, requirePartner: true);
+      Assert.False(noLongerCurrent.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, noLongerCurrent.ErrorCode);
+      Assert.Contains("current assigned Engagement Partner", noLongerCurrent.Message!, StringComparison.Ordinal);
     }
   }
 
@@ -423,11 +455,23 @@ public sealed class FinancialPackageGateTests
     db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
     db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
     db.Users.AddRange(preparer, reviewer, partner);
+    var partnerGrant = new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, UserId = partner.Id, Role = "Partner", ClientId = clientId,
+      EngagementId = engagementId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.Id,
+      Reason = "Engagement staffing: Engagement Partner"
+    };
     db.RoleGrants.AddRange(
       Grant(firmId, preparer, "AccountingPreparer"),
       Grant(firmId, reviewer, "AccountingReviewer"),
       Grant(firmId, reviewer, "Partner"),
-      Grant(firmId, partner, "Partner"));
+      partnerGrant);
+    db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, UserId = partner.Id,
+      StaffingLevel = StaffingLevels.EngagementPartner, RoleGrantId = partnerGrant.Id,
+      AssignedByUserId = reviewer.Id, AssignedAt = DateTimeOffset.UtcNow
+    });
     db.ClientReportingPeriods.Add(new ClientReportingPeriod
     {
       Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "FY2026",

@@ -22,6 +22,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## CP-19 Partner authority and capability projection — 2026-10-17
+
+Partner decisions and release eligibility require the current assigned Engagement Partner and its linked exact engagement-scoped Partner grant. The review queue and financial-package workspace now use the same check before projecting Partner approval as available. The focused PostgreSQL regression passed, including assigned/unassigned positive and negative projections; broader CP-19 signatory, offline-evidence and recovery requirements remain open. Full suites are deferred to CI/CD.
+
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
 ## CP-10 — period-scoped package freshness — 2026-10-17
@@ -316,16 +320,3 @@ When `WorkflowExperience:Enabled` is true, an authorized `ChangesRequired` revie
 The two focused PostgreSQL regression tests passed 2/2, including the returned-work blocker, stable redaction, linked task, prior-preparer assignment and duplicate-review refusal. The API Release build, Angular production build, EF model-drift check and OpenAPI contract drift check passed; the .NET build emitted two `NU1900` vulnerability-feed warnings because NuGet was unreachable. The built-in browser could not load the local fieldwork route because the local Angular server was no longer listening; the existing local tab reached only the staff sign-in guard. No authenticated browser journey or full suite was run. Exact commands and results are in `status.json` under `targetedVerification.workflowManagerReviewPrF`.
 
 This is a partial workflow increment. The canonical lifecycle stage does not regress to Fieldwork on rework; the summary flag does not change lifecycle gates; procedure-level assignment/resubmission restrictions and task notifications remain open. Queue filters for rework and waiting-for-client, evidence dependency evaluators, Kanban/calendar views, and task-plan authoring remain open. The workflow feature stays default-off; no live or professional acceptance is claimed.
-
-## v2.2 workflow experience, PRs D–F — earlier evidence
-
-The original increment is preserved verbatim in the [current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Later workflow sections above and `status.json` retain current implementation and pending acceptance.
-
-## Exact pinned financial statement drafts — earlier evidence
-
-The earlier pinning increment is preserved in the [current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Later reporting sections and `status.json` retain current implementation and open acceptance requirements.
-
-
-## Dedicated client SharePoint sites rollout — historical detail
-
-Detailed 2026-10-12 implementation and verification notes are preserved in the [current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Current provisioning status and the outstanding live tenant prerequisites are tracked in `status.json` under `targetedVerification.clientSitesDefaultRollout`.
