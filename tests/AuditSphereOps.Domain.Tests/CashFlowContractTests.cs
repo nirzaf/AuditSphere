@@ -682,9 +682,10 @@ public sealed class CashFlowContractTests
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
     // The current period still resolves and approves against its own ledger, although the prior period was accepted last.
-    var packageId = await BuildCompletePackageAsync(pg, planId, mappingId, preparer, source, "two-periods-v1");
     var priorPackageId = await BuildCompletePackageAsync(pg, priorPlanId, priorMappingId, preparer, prior, "two-periods-prior-v1",
       "2025-01-01", "2025-12-31", new DateOnly(2025, 6, 30));
+    var packageId = await BuildCompletePackageAsync(pg, planId, mappingId, preparer, source, "two-periods-v1",
+      comparative: new FinancialComparativeInput(priorPackageId, "STATUTORY", "approved-prior-package"));
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.True((await CashFlowSourceReviewCall.RecordAsync(db, reviewer, packageId, "APPROVED", null)).Succeeded);
@@ -698,7 +699,47 @@ public sealed class CashFlowContractTests
       Assert.Equal(prior.BatchId, priorApproved.CurrentSourceImportBatchId);
     }
 
-    // Replacing the current period's ledger stales only the current period. The prior period keeps its own accepted ledger.
+    Guid comparativePinId;
+    Guid layoutId;
+    string comparativeHash;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var priorSelected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, reviewer,
+        fixture.ClientId, fixture.EngagementId, priorPeriodId);
+      Assert.Equal(prior.BatchId, priorSelected.Value!.ImportBatchId);
+
+      // Pin a genuine two-period presentation while both period-specific source reviews are current.
+      var currentLines = await db.FinancialPackageLines.AsNoTracking()
+        .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.StatementSection).ThenBy(x => x.DestinationCode).ToListAsync();
+      var layout = await StatementLayoutService.SaveLayoutDraftAsync(db, preparer,
+        new StatementLayoutDraftRequest(fixture.ClientId, "IFRS", "Two-period package freshness",
+          currentLines.Select((line, index) => new StatementLineDefinition(
+            "L" + index, line.DestinationCode, StatementLayoutLineKinds.MappedTaxonomyBalance,
+            line.StatementSection is "INCOME" or "EXPENSE" or "REVENUE" or "PROFIT_LOSS"
+              ? StatementLayoutSections.ProfitOrLoss : StatementLayoutSections.FinancialPosition,
+            index + 1, DisplaySign: line.StatementSection is "INCOME" or "EXPENSE" or "REVENUE" or "PROFIT_LOSS"
+              ? StatementLayoutDisplaySigns.Inverted : StatementLayoutDisplaySigns.Signed,
+            TaxonomyNodeCode: line.DestinationCode)).ToArray()));
+      Assert.True(layout.Succeeded, layout.Message);
+      var validLayout = await StatementLayoutService.ValidateLayoutAsync(db, preparer, layout.Value!.LayoutVersionId);
+      Assert.True(validLayout.Value!.IsValid, string.Join("; ", validLayout.Value.Errors.Select(x => x.Message)));
+      Assert.True((await StatementLayoutService.PublishLayoutAsync(db, reviewer, layout.Value.LayoutVersionId,
+        "Reviewed two-period package freshness layout")).Succeeded);
+      layoutId = layout.Value.LayoutVersionId;
+
+      var currentPin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layoutId);
+      Assert.True(currentPin.Succeeded, currentPin.Message);
+      Assert.Equal(priorPackageId, currentPin.Value!.ComparativePackageId);
+      Assert.False(string.IsNullOrWhiteSpace(currentPin.Value.ComparativeCalculationHash));
+      comparativePinId = currentPin.Value.RevisionId;
+      comparativeHash = currentPin.Value.ComparativeCalculationHash!;
+      var exactPinned = await FinancialStatementService.GetPinnedPresentationAsync(db, reviewer, packageId, comparativePinId);
+      Assert.True(exactPinned.Succeeded, exactPinned.Message);
+      Assert.Equal(priorPackageId, exactPinned.Value!.Manifest.ComparativePackageId);
+      Assert.Equal(comparativeHash, exactPinned.Value.Manifest.ComparativeCalculationHash);
+    }
+
+    // Replacing the current period's ledger stales only that period and invalidates its pending comparative pin.
     var replacement = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -708,20 +749,16 @@ public sealed class CashFlowContractTests
       var priorReview = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, priorPackageId)).Value!;
       Assert.True(priorReview.Approved);
       Assert.Equal(prior.BatchId, priorReview.CurrentSourceImportBatchId);
-      var priorSelected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, reviewer,
-        fixture.ClientId, fixture.EngagementId, priorPeriodId);
-      Assert.Equal(prior.BatchId, priorSelected.Value!.ImportBatchId);
-
-      // Period-bound source review remains current; an unrelated current-period acceptance must not
-      // trip the client-wide generation fence for the prior-period presentation.
-      var priorPin = await FinancialStatementService.PinPresentationAsync(db, preparer, priorPackageId, Guid.NewGuid());
-      Assert.False(priorPin.Succeeded);
-      Assert.Equal(ErrorCodes.Accounting.MappingIncomplete, priorPin.ErrorCode); // reached the published-layout guard
 
       // The same-period package is still refused because its own accepted GL no longer matches the review.
-      var currentPin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, Guid.NewGuid());
-      Assert.False(currentPin.Succeeded);
-      Assert.Equal(ErrorCodes.StaleRevision, currentPin.ErrorCode);
+      var staleCurrentPin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layoutId);
+      Assert.False(staleCurrentPin.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, staleCurrentPin.ErrorCode);
+
+      // A changed current-period source prevents the saved draft from being treated as current.
+      var staleDraft = await FinancialStatementService.GetPinnedPresentationAsync(db, reviewer, packageId, comparativePinId);
+      Assert.False(staleDraft.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, staleDraft.ErrorCode);
     }
   }
 
@@ -946,7 +983,7 @@ public sealed class CashFlowContractTests
 
   private static async Task<Guid> BuildCompletePackageAsync(PgTestSchema pg, Guid planId, Guid mappingId, ActorContext preparer,
     CashFlowSourceSeed.Source source, string template, string periodStart = "2026-01-01", string periodEnd = "2026-12-31",
-    DateOnly? movementDate = null)
+    DateOnly? movementDate = null, FinancialComparativeInput? comparative = null)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
     var date = movementDate ?? new DateOnly(2026, 6, 30);
@@ -964,7 +1001,7 @@ public sealed class CashFlowContractTests
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"],
+        Comparative: comparative, CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"],
         ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
     };
     var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
