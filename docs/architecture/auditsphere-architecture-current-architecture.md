@@ -85,6 +85,67 @@ this document wins and the source text remains a historical requirement record.
   contracts, `<tfoot>`/`colspan` tables) are recorded in
   the retired MudBlazor conventions document (Git history only; current guidance is `docs/architecture/auditsphere-angular-conventions-current.md`).
 
+## Runtime and execution flows
+
+The diagrams below are explanatory. The .NET projects, the API host, the Angular build and the
+PostgreSQL schema remain the executable truth.
+
+### Runtime containers and boundaries
+
+```mermaid
+flowchart LR
+  B["Browser<br/>Angular /ui/app · /ui/portal"] -->|same-origin| A["ASP.NET Core API<br/>minimal APIs + SPA fallback"]
+  A -->|static Angular build| B
+  A --> DB["PostgreSQL 18.6<br/>EF Core 10, append-only triggers"]
+  W["Worker<br/>durable outbox"] --> DB
+  A -->|enqueue durable operation| DB
+  W -->|claim FOR UPDATE SKIP LOCKED| DB
+  A -.->|fail-closed live boundary| X["Microsoft Graph / SharePoint<br/>BLOCKED_EXTERNAL until configured"]
+  W -.-> X
+```
+
+### Durable outbox lifecycle
+
+```mermaid
+sequenceDiagram
+  participant C as Command
+  participant DB as PostgreSQL
+  participant W as Worker
+  C->>DB: insert operation + payload in the same transaction
+  W->>DB: claim eligible operation FOR UPDATE SKIP LOCKED
+  DB-->>W: operation, attempt token and lease
+  W->>W: execute provider or local effect
+  alt known success
+    W->>DB: retain exact receipt and complete
+  else unknown outcome
+    W->>DB: record unknown outcome and reconcile
+    Note over W,DB: no blind retry; expired leases are reclaimed
+  end
+```
+
+### Trial-balance and general-ledger intake
+
+```mermaid
+flowchart TD
+  U["Excel/CSV upload"] --> V["Validate headers, currency and control totals"]
+  V --> S["Seal exact source revision<br/>SHA-256 and totals"]
+  S --> M["Map lines to FSLI<br/>approved mapping version"]
+  M --> J["Adjustment journals<br/>balanced and independently approved"]
+  S --> G["GL completeness<br/>source-bound totals"]
+  G --> R["Financial statements<br/>current approved context"]
+  J --> R
+```
+
+### Consolidation perimeter
+
+```mermaid
+flowchart LR
+  F["Firm books<br/>Practice/FirmLedger"] ---|never posts into| C["Client component books<br/>Accounting/"]
+  C -->|read-only perimeter| P["Consolidation<br/>scope, rates and eliminations"]
+  P --> G["Group statements"]
+  P -.->|no write-back| C
+```
+
 ## Angular presentation migration
 
 The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend. API owns the authorized contracts, authentication/consent and protected file transports. On 2026-10-17 the owner authorized retirement of the Blazor rollback/reference host despite the readiness gate; the removal was merged to `master` as `e7ebe27c`, so the host is absent from the current tree. The retired project is not referenced by API composition or the current API-only test projects, and the removed source remains available at commit `c3905e07`. Operators use the API host with Angular. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries remain separate. Production canary, operational rollback, assistive-technology, locale, and live Microsoft acceptance gates remain open.

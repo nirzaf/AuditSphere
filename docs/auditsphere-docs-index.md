@@ -12,6 +12,22 @@
 
 The repository ships Angular as the canonical staff/client presentation. The legacy Blazor Web host was retired by owner decision and merged to `master` as `e7ebe27c`; its source remains available at the pre-removal commit and is historical evidence, not current UI guidance. The supplied 20-section/165-procedure audit working process is implemented through Atomic Tasks 01–09; Task 10 remains blocked on the methodology owner's D1 policy and Task 11 is technically prepared only. Current evidence is in [status.json](execution/status.json) and the [current-slice handoff](execution/auditsphere-execution-current-slice.md).
 
+## 0. Quick map
+
+| Need | Start here |
+|---|---|
+| Runtime architecture, boundaries and flows | [Current architecture](architecture/auditsphere-architecture-current-architecture.md) · [Code map](architecture/auditsphere-architecture-code-map.md) |
+| Data, schema and HTTP contracts | [Data model](architecture/auditsphere-architecture-contract-data-model-current.md) · [HTTP boundary](architecture/auditsphere-architecture-http-boundary-and-contract-current.md) · [OpenAPI artifact](../contracts/auditsphere-openapi.json) |
+| Approved decisions and deviations | [ADR register](architecture/adr/auditsphere-architecture-index-adr-register-current.md) |
+| Product requirements | [STE v2.2 requirements](requirements/auditsphere-accounting-module-requirements-current.md) |
+| Audit programme execution | [Atomic specification](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md) · [Extracted 165-procedure source](task_breakdown/source/auditsphere-audit-working-process-procedures-source.md) |
+| Current state and evidence | [status.json](execution/status.json) · [Current-slice handoff](execution/auditsphere-execution-current-slice.md) · [Pending work](execution/auditsphere-execution-pending-tasks.md) |
+| Testing and Definition of Done | [Testing strategy](testing/auditsphere-testing-strategy-definition-of-done-current.md) |
+| Migration history and retirement evidence | [Removal gate](migration/auditsphere-migration-blazor-removal-readiness.md) · [Angular migration](architecture/auditsphere-angular-migration-current.md) |
+| Operations and recovery | [Restore drill](operations/auditsphere-operations-runbook-restore-drill.md) |
+| R2R task breakdown | [R2R index](task_breakdown/auditsphere-r2r-index-task-breakdown.md) |
+| Proposed gap-remediation plan | [43-task gap specification](task_breakdown/source/auditsphere-implementation-spec-atomic-gap-remediation-proposed.md) |
+
 ## 1. Start Here
 
 When starting work in this repository, follow this deterministic reading sequence:
@@ -138,6 +154,7 @@ These documents describe planned features, prototype gap closures, or onboarding
 | [`docs/execution/auditsphere-execution-tracker-technical-spikes-proposed.md`](execution/auditsphere-execution-tracker-technical-spikes-proposed.md) | Time-boxed technical spikes SPK-01 to SPK-04. | `PROPOSED` |
 | [`docs/execution/auditsphere-execution-report-spk-01-archive-immutability-proposed.md`](execution/auditsphere-execution-report-spk-01-archive-immutability-proposed.md) | SPK-01 finding: four ways to protect the ISA 230 archive, compared, with a recommendation. | `PROPOSED` |
 | [`docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md`](execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md) | SPK-03 methodology note on normalized profit before tax, with a worked example, for the owner's decision (STE-NXT-010). | `PROPOSED` |
+| [`docs/task_breakdown/source/auditsphere-implementation-spec-atomic-gap-remediation-proposed.md`](task_breakdown/source/auditsphere-implementation-spec-atomic-gap-remediation-proposed.md) | 43-task atomic gap-remediation specification over the supplied gap report. Several tasks require owner decisions or live acceptance; the plan is not implementation or acceptance authority. | `PROPOSED` |
 
 ---
 
@@ -177,7 +194,7 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 
 ### Supplied 20-section/165-procedure audit working process
 
-- **Supplied source:** [`auditsphere-audit-source-working-process.docx`](task_breakdown/source/auditsphere-audit-source-working-process.docx), preserved by SHA-256 in the specification and an independent procedure fixture.
+- **Supplied source:** [`auditsphere-audit-source-working-process.docx`](task_breakdown/source/auditsphere-audit-source-working-process.docx), preserved by SHA-256 in the specification and an independent procedure fixture; extracted text is in [`auditsphere-audit-working-process-procedures-source.md`](task_breakdown/source/auditsphere-audit-working-process-procedures-source.md).
 - **Implementation specification:** [`auditsphere-audit-specification-working-process-atomic-proposed.md`](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md), eleven dependency-ordered tasks covering the 20-section, 165-procedure supplied working process. Tasks 01–09 are implemented; Task 10 is `BLOCKED_DECISION` on D1; Task 11 has focused technical evidence only.
 - **Native workspace and contracts:** `/app/engagements/:id/audit-fieldwork`; exact `/api/ui/procedures/{id}/commands/{state,preview,actions,receipts}`; append-only command receipts; server-resolved submitted evidence snapshots. See the [code map](architecture/auditsphere-architecture-code-map.md), [contract map](architecture/auditsphere-architecture-contract-data-model-current.md), [current-slice handoff](execution/auditsphere-execution-current-slice.md) and [status.json](execution/status.json).
 - **Reference excerpts:** 10 contract reference papers under `docs/task_breakdown/reference/` (`HISTORICAL_REFERENCE`).
