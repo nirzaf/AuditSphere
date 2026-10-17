@@ -21,7 +21,7 @@ public sealed class AuditAreaSummaryTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var program = await AuditProgramService.PublishAsync(db, scope.Actor,
+      var program = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
         new PublishAuditProgramRequest("2026.5", AuditProgramCatalog.SourceHash));
       Assert.True((await AuditProgramService.AdoptAsync(db, scope.Actor,
         new AdoptAuditProgramRequest(scope.EngagementId, program.Value!.ProgramVersionId))).Succeeded);

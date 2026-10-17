@@ -1,0 +1,951 @@
+{
+  "sourceFile": "Audit working process - Audit Tool New (1).docx",
+  "sourceSha256": "034d3b5023f5b498f0953ef6fea2af8439d72cc107075bd3336e53405091d987",
+  "sections": [
+    {
+      "sectionNumber": 1,
+      "sectionTitle": "Planning & Risk Assessment",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-01-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain company registration documents and basic company information."
+        },
+        {
+          "sourceProcedureId": "AWP-01-02",
+          "ordinal": 2,
+          "sourceWording": "Obtain prior-year audited financial statements and audit report."
+        },
+        {
+          "sourceProcedureId": "AWP-01-03",
+          "ordinal": 3,
+          "sourceWording": "Obtain current-year Trial Balance and draft financial statements."
+        },
+        {
+          "sourceProcedureId": "AWP-01-04",
+          "ordinal": 4,
+          "sourceWording": "Agree opening balances with prior-year audited balances."
+        },
+        {
+          "sourceProcedureId": "AWP-01-05",
+          "ordinal": 5,
+          "sourceWording": "Understand the nature of business, major revenue streams and accounting system."
+        },
+        {
+          "sourceProcedureId": "AWP-01-06",
+          "ordinal": 6,
+          "sourceWording": "Identify significant account balances and transaction classes."
+        },
+        {
+          "sourceProcedureId": "AWP-01-07",
+          "ordinal": 7,
+          "sourceWording": "Identify significant audit risks, fraud risks and areas involving management judgement."
+        },
+        {
+          "sourceProcedureId": "AWP-01-08",
+          "ordinal": 8,
+          "sourceWording": "Determine materiality and performance materiality."
+        },
+        {
+          "sourceProcedureId": "AWP-01-09",
+          "ordinal": 9,
+          "sourceWording": "Prepare the audit strategy and audit program."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 2,
+      "sectionTitle": "Cash & Bank",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-02-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain bank reconciliation for all bank accounts at year-end."
+        },
+        {
+          "sourceProcedureId": "AWP-02-02",
+          "ordinal": 2,
+          "sourceWording": "Agree bank ledger balances with the Trial Balance."
+        },
+        {
+          "sourceProcedureId": "AWP-02-03",
+          "ordinal": 3,
+          "sourceWording": "Agree bank reconciliation balances with year-end bank statements."
+        },
+        {
+          "sourceProcedureId": "AWP-02-04",
+          "ordinal": 4,
+          "sourceWording": "Obtain direct bank confirmations and reconcile confirmed balances."
+        },
+        {
+          "sourceProcedureId": "AWP-02-05",
+          "ordinal": 5,
+          "sourceWording": "Check outstanding cheques, deposits and other reconciling items."
+        },
+        {
+          "sourceProcedureId": "AWP-02-06",
+          "ordinal": 6,
+          "sourceWording": "Investigate old or unusual outstanding items."
+        },
+        {
+          "sourceProcedureId": "AWP-02-07",
+          "ordinal": 7,
+          "sourceWording": "Test selected bank transactions to supporting documents."
+        },
+        {
+          "sourceProcedureId": "AWP-02-08",
+          "ordinal": 8,
+          "sourceWording": "Review subsequent bank statements for unusual transactions."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 3,
+      "sectionTitle": "Trade Receivables",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-03-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain the year-end receivable ageing report."
+        },
+        {
+          "sourceProcedureId": "AWP-03-02",
+          "ordinal": 2,
+          "sourceWording": "Agree total receivables and ageing to the GL/TB."
+        },
+        {
+          "sourceProcedureId": "AWP-03-03",
+          "ordinal": 3,
+          "sourceWording": "Review significant and overdue customer balances."
+        },
+        {
+          "sourceProcedureId": "AWP-03-04",
+          "ordinal": 4,
+          "sourceWording": "Send customer balance confirmations and investigate differences."
+        },
+        {
+          "sourceProcedureId": "AWP-03-05",
+          "ordinal": 5,
+          "sourceWording": "Perform alternative procedures for non-confirmed balances."
+        },
+        {
+          "sourceProcedureId": "AWP-03-06",
+          "ordinal": 6,
+          "sourceWording": "Test selected sales invoices to delivery documents and ledger."
+        },
+        {
+          "sourceProcedureId": "AWP-03-07",
+          "ordinal": 7,
+          "sourceWording": "Check subsequent customer collections through bank statements."
+        },
+        {
+          "sourceProcedureId": "AWP-03-08",
+          "ordinal": 8,
+          "sourceWording": "Perform/recalculate ECL and assess adequacy of provision."
+        },
+        {
+          "sourceProcedureId": "AWP-03-09",
+          "ordinal": 9,
+          "sourceWording": "Test sales and receivable cut-off around year-end."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 4,
+      "sectionTitle": "Inventory",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-04-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain the year-end inventory listing and agree it to the GL."
+        },
+        {
+          "sourceProcedureId": "AWP-04-02",
+          "ordinal": 2,
+          "sourceWording": "Attend/observe physical inventory count where applicable."
+        },
+        {
+          "sourceProcedureId": "AWP-04-03",
+          "ordinal": 3,
+          "sourceWording": "Perform auditor test counts and reconcile differences."
+        },
+        {
+          "sourceProcedureId": "AWP-04-04",
+          "ordinal": 4,
+          "sourceWording": "Check inventory quantities against count sheets/final listing."
+        },
+        {
+          "sourceProcedureId": "AWP-04-05",
+          "ordinal": 5,
+          "sourceWording": "Test inventory costs to purchase invoices or supporting records."
+        },
+        {
+          "sourceProcedureId": "AWP-04-06",
+          "ordinal": 6,
+          "sourceWording": "Review slow-moving, damaged and obsolete inventory."
+        },
+        {
+          "sourceProcedureId": "AWP-04-07",
+          "ordinal": 7,
+          "sourceWording": "Compare cost with NRV where applicable."
+        },
+        {
+          "sourceProcedureId": "AWP-04-08",
+          "ordinal": 8,
+          "sourceWording": "Test purchases and goods received around year-end for cut-off."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 5,
+      "sectionTitle": "Revenue / Sales",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-05-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain sales listing and reconcile total revenue to GL/TB."
+        },
+        {
+          "sourceProcedureId": "AWP-05-02",
+          "ordinal": 2,
+          "sourceWording": "Perform analytical review of monthly and annual sales."
+        },
+        {
+          "sourceProcedureId": "AWP-05-03",
+          "ordinal": 3,
+          "sourceWording": "Select sales samples based on value and risk."
+        },
+        {
+          "sourceProcedureId": "AWP-05-04",
+          "ordinal": 4,
+          "sourceWording": "Check invoices to customer orders/delivery documents."
+        },
+        {
+          "sourceProcedureId": "AWP-05-05",
+          "ordinal": 5,
+          "sourceWording": "Verify quantity, price, calculation and accounting entry."
+        },
+        {
+          "sourceProcedureId": "AWP-05-06",
+          "ordinal": 6,
+          "sourceWording": "Check selected subsequent receipts where relevant."
+        },
+        {
+          "sourceProcedureId": "AWP-05-07",
+          "ordinal": 7,
+          "sourceWording": "Review significant credit notes after year-end."
+        },
+        {
+          "sourceProcedureId": "AWP-05-08",
+          "ordinal": 8,
+          "sourceWording": "Perform revenue cut-off testing before and after year-end."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 6,
+      "sectionTitle": "Purchases & Trade Payables",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-06-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain supplier ageing and reconcile it to the GL/TB."
+        },
+        {
+          "sourceProcedureId": "AWP-06-02",
+          "ordinal": 2,
+          "sourceWording": "Review significant, old and unusual supplier balances."
+        },
+        {
+          "sourceProcedureId": "AWP-06-03",
+          "ordinal": 3,
+          "sourceWording": "Obtain supplier confirmations and investigate differences."
+        },
+        {
+          "sourceProcedureId": "AWP-06-04",
+          "ordinal": 4,
+          "sourceWording": "Compare supplier statements with the company's payable ledger."
+        },
+        {
+          "sourceProcedureId": "AWP-06-05",
+          "ordinal": 5,
+          "sourceWording": "Test selected purchases to invoices, GRNs and purchase orders."
+        },
+        {
+          "sourceProcedureId": "AWP-06-06",
+          "ordinal": 6,
+          "sourceWording": "Check subsequent payments to identify outstanding liabilities."
+        },
+        {
+          "sourceProcedureId": "AWP-06-07",
+          "ordinal": 7,
+          "sourceWording": "Perform search for unrecorded liabilities."
+        },
+        {
+          "sourceProcedureId": "AWP-06-08",
+          "ordinal": 8,
+          "sourceWording": "Test purchase and payable cut-off around year-end."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 7,
+      "sectionTitle": "Fixed Assets",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-07-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain the fixed asset register and reconcile it to the GL."
+        },
+        {
+          "sourceProcedureId": "AWP-07-02",
+          "ordinal": 2,
+          "sourceWording": "Agree opening balances with prior-year audited balances."
+        },
+        {
+          "sourceProcedureId": "AWP-07-03",
+          "ordinal": 3,
+          "sourceWording": "Test additions to invoices, payment records and approvals."
+        },
+        {
+          "sourceProcedureId": "AWP-07-04",
+          "ordinal": 4,
+          "sourceWording": "Determine whether expenditure is correctly capitalized."
+        },
+        {
+          "sourceProcedureId": "AWP-07-05",
+          "ordinal": 5,
+          "sourceWording": "Physically verify significant additions/assets where appropriate."
+        },
+        {
+          "sourceProcedureId": "AWP-07-06",
+          "ordinal": 6,
+          "sourceWording": "Test disposals to disposal documents and sale proceeds."
+        },
+        {
+          "sourceProcedureId": "AWP-07-07",
+          "ordinal": 7,
+          "sourceWording": "Recalculate depreciation for selected assets."
+        },
+        {
+          "sourceProcedureId": "AWP-07-08",
+          "ordinal": 8,
+          "sourceWording": "Check useful lives and depreciation method."
+        },
+        {
+          "sourceProcedureId": "AWP-07-09",
+          "ordinal": 9,
+          "sourceWording": "Review assets for impairment, damage or obsolescence."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 8,
+      "sectionTitle": "Expenses",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-08-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain detailed expense listing and reconcile to GL/TB."
+        },
+        {
+          "sourceProcedureId": "AWP-08-02",
+          "ordinal": 2,
+          "sourceWording": "Perform analytical review against prior year and budget where available."
+        },
+        {
+          "sourceProcedureId": "AWP-08-03",
+          "ordinal": 3,
+          "sourceWording": "Identify significant and unusual expense movements."
+        },
+        {
+          "sourceProcedureId": "AWP-08-04",
+          "ordinal": 4,
+          "sourceWording": "Select samples based on value and risk."
+        },
+        {
+          "sourceProcedureId": "AWP-08-05",
+          "ordinal": 5,
+          "sourceWording": "Check invoices and supporting documentation."
+        },
+        {
+          "sourceProcedureId": "AWP-08-06",
+          "ordinal": 6,
+          "sourceWording": "Check management approval and payment evidence."
+        },
+        {
+          "sourceProcedureId": "AWP-08-07",
+          "ordinal": 7,
+          "sourceWording": "Verify correct accounting classification."
+        },
+        {
+          "sourceProcedureId": "AWP-08-08",
+          "ordinal": 8,
+          "sourceWording": "Check whether any capital expenditure has been incorrectly expensed."
+        },
+        {
+          "sourceProcedureId": "AWP-08-09",
+          "ordinal": 9,
+          "sourceWording": "Perform expense cut-off testing."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 9,
+      "sectionTitle": "Payroll",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-09-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain annual/monthly payroll summary and reconcile to GL."
+        },
+        {
+          "sourceProcedureId": "AWP-09-02",
+          "ordinal": 2,
+          "sourceWording": "Select employees for detailed testing."
+        },
+        {
+          "sourceProcedureId": "AWP-09-03",
+          "ordinal": 3,
+          "sourceWording": "Check employment contracts and salary details."
+        },
+        {
+          "sourceProcedureId": "AWP-09-04",
+          "ordinal": 4,
+          "sourceWording": "Recalculate gross salary, allowances and deductions."
+        },
+        {
+          "sourceProcedureId": "AWP-09-05",
+          "ordinal": 5,
+          "sourceWording": "Agree selected salary payments to bank statements."
+        },
+        {
+          "sourceProcedureId": "AWP-09-06",
+          "ordinal": 6,
+          "sourceWording": "Test new employees and supporting employment documents."
+        },
+        {
+          "sourceProcedureId": "AWP-09-07",
+          "ordinal": 7,
+          "sourceWording": "Check terminated employees and final payments."
+        },
+        {
+          "sourceProcedureId": "AWP-09-08",
+          "ordinal": 8,
+          "sourceWording": "Review unusual changes in payroll or employee numbers."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 10,
+      "sectionTitle": "Loans & Borrowings",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-10-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain loan/borrowing schedule and agree it to GL."
+        },
+        {
+          "sourceProcedureId": "AWP-10-02",
+          "ordinal": 2,
+          "sourceWording": "Agree opening balances to prior-year financial statements."
+        },
+        {
+          "sourceProcedureId": "AWP-10-03",
+          "ordinal": 3,
+          "sourceWording": "Obtain bank/financier confirmation."
+        },
+        {
+          "sourceProcedureId": "AWP-10-04",
+          "ordinal": 4,
+          "sourceWording": "Check new loans against agreements and bank receipts."
+        },
+        {
+          "sourceProcedureId": "AWP-10-05",
+          "ordinal": 5,
+          "sourceWording": "Check repayments against bank statements."
+        },
+        {
+          "sourceProcedureId": "AWP-10-06",
+          "ordinal": 6,
+          "sourceWording": "Recalculate interest expense and accrued interest."
+        },
+        {
+          "sourceProcedureId": "AWP-10-07",
+          "ordinal": 7,
+          "sourceWording": "Check current and non-current classification."
+        },
+        {
+          "sourceProcedureId": "AWP-10-08",
+          "ordinal": 8,
+          "sourceWording": "Review loan terms, security and covenant requirements where applicable."
+        },
+        {
+          "sourceProcedureId": "AWP-10-09",
+          "ordinal": 9,
+          "sourceWording": "Check subsequent repayments."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 11,
+      "sectionTitle": "Equity / Share Capital",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-11-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain share capital and equity movement schedule."
+        },
+        {
+          "sourceProcedureId": "AWP-11-02",
+          "ordinal": 2,
+          "sourceWording": "Agree opening balances with prior-year audited FS."
+        },
+        {
+          "sourceProcedureId": "AWP-11-03",
+          "ordinal": 3,
+          "sourceWording": "Agree share capital to company/CR records."
+        },
+        {
+          "sourceProcedureId": "AWP-11-04",
+          "ordinal": 4,
+          "sourceWording": "Check additions, transfers or changes in shareholding."
+        },
+        {
+          "sourceProcedureId": "AWP-11-05",
+          "ordinal": 5,
+          "sourceWording": "Check dividend declarations and payments."
+        },
+        {
+          "sourceProcedureId": "AWP-11-06",
+          "ordinal": 6,
+          "sourceWording": "Reconcile retained earnings movement with profit/loss."
+        },
+        {
+          "sourceProcedureId": "AWP-11-07",
+          "ordinal": 7,
+          "sourceWording": "Agree closing equity balances to financial statements."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 12,
+      "sectionTitle": "Related Parties",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-12-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain management's related-party listing."
+        },
+        {
+          "sourceProcedureId": "AWP-12-02",
+          "ordinal": 2,
+          "sourceWording": "Check directors, shareholders and key management records."
+        },
+        {
+          "sourceProcedureId": "AWP-12-03",
+          "ordinal": 3,
+          "sourceWording": "Review related-party transactions during the year."
+        },
+        {
+          "sourceProcedureId": "AWP-12-04",
+          "ordinal": 4,
+          "sourceWording": "Review significant related-party balances."
+        },
+        {
+          "sourceProcedureId": "AWP-12-05",
+          "ordinal": 5,
+          "sourceWording": "Confirm significant balances where appropriate."
+        },
+        {
+          "sourceProcedureId": "AWP-12-06",
+          "ordinal": 6,
+          "sourceWording": "Check whether transactions are properly recorded."
+        },
+        {
+          "sourceProcedureId": "AWP-12-07",
+          "ordinal": 7,
+          "sourceWording": "Verify required related-party disclosures in the financial statements."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 13,
+      "sectionTitle": "Tax & Statutory Liabilities",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-13-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain tax returns and tax computations."
+        },
+        {
+          "sourceProcedureId": "AWP-13-02",
+          "ordinal": 2,
+          "sourceWording": "Reconcile tax balances with the GL/TB."
+        },
+        {
+          "sourceProcedureId": "AWP-13-03",
+          "ordinal": 3,
+          "sourceWording": "Check tax payments against bank statements."
+        },
+        {
+          "sourceProcedureId": "AWP-13-04",
+          "ordinal": 4,
+          "sourceWording": "Review outstanding tax liabilities and penalties."
+        },
+        {
+          "sourceProcedureId": "AWP-13-05",
+          "ordinal": 5,
+          "sourceWording": "Review correspondence with tax authorities."
+        },
+        {
+          "sourceProcedureId": "AWP-13-06",
+          "ordinal": 6,
+          "sourceWording": "Check tax provisions and current-year tax expense."
+        },
+        {
+          "sourceProcedureId": "AWP-13-07",
+          "ordinal": 7,
+          "sourceWording": "Check relevant tax disclosures in the financial statements."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 14,
+      "sectionTitle": "Journal Entries & Fraud",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-14-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain journal entry listing for the audit period."
+        },
+        {
+          "sourceProcedureId": "AWP-14-02",
+          "ordinal": 2,
+          "sourceWording": "Identify unusual, manual and high-value journal entries."
+        },
+        {
+          "sourceProcedureId": "AWP-14-03",
+          "ordinal": 3,
+          "sourceWording": "Focus on journals posted close to year-end."
+        },
+        {
+          "sourceProcedureId": "AWP-14-04",
+          "ordinal": 4,
+          "sourceWording": "Select samples based on risk."
+        },
+        {
+          "sourceProcedureId": "AWP-14-05",
+          "ordinal": 5,
+          "sourceWording": "Check supporting documents and authorization."
+        },
+        {
+          "sourceProcedureId": "AWP-14-06",
+          "ordinal": 6,
+          "sourceWording": "Review unusual journals affecting revenue, expenses or reserves."
+        },
+        {
+          "sourceProcedureId": "AWP-14-07",
+          "ordinal": 7,
+          "sourceWording": "Check reversed or unusual post-year-end journals."
+        },
+        {
+          "sourceProcedureId": "AWP-14-08",
+          "ordinal": 8,
+          "sourceWording": "Document any fraud indicators or management override concerns."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 15,
+      "sectionTitle": "Analytical Review",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-15-01",
+          "ordinal": 1,
+          "sourceWording": "Compare current-year results with prior year."
+        },
+        {
+          "sourceProcedureId": "AWP-15-02",
+          "ordinal": 2,
+          "sourceWording": "Analyse monthly revenue and expense trends."
+        },
+        {
+          "sourceProcedureId": "AWP-15-03",
+          "ordinal": 3,
+          "sourceWording": "Compare gross profit and net profit margins."
+        },
+        {
+          "sourceProcedureId": "AWP-15-04",
+          "ordinal": 4,
+          "sourceWording": "Analyse significant movements in major accounts."
+        },
+        {
+          "sourceProcedureId": "AWP-15-05",
+          "ordinal": 5,
+          "sourceWording": "Calculate relevant ratios and key performance indicators."
+        },
+        {
+          "sourceProcedureId": "AWP-15-06",
+          "ordinal": 6,
+          "sourceWording": "Review receivable, payable and inventory days where applicable."
+        },
+        {
+          "sourceProcedureId": "AWP-15-07",
+          "ordinal": 7,
+          "sourceWording": "Investigate significant or unexpected fluctuations."
+        },
+        {
+          "sourceProcedureId": "AWP-15-08",
+          "ordinal": 8,
+          "sourceWording": "Obtain management explanations and supporting evidence."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 16,
+      "sectionTitle": "Going Concern",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-16-01",
+          "ordinal": 1,
+          "sourceWording": "Obtain management's going-concern assessment."
+        },
+        {
+          "sourceProcedureId": "AWP-16-02",
+          "ordinal": 2,
+          "sourceWording": "Review current financial position and working capital."
+        },
+        {
+          "sourceProcedureId": "AWP-16-03",
+          "ordinal": 3,
+          "sourceWording": "Review cash flow forecasts."
+        },
+        {
+          "sourceProcedureId": "AWP-16-04",
+          "ordinal": 4,
+          "sourceWording": "Check expected cash inflows and major payments."
+        },
+        {
+          "sourceProcedureId": "AWP-16-05",
+          "ordinal": 5,
+          "sourceWording": "Review loan repayments and financing facilities."
+        },
+        {
+          "sourceProcedureId": "AWP-16-06",
+          "ordinal": 6,
+          "sourceWording": "Review losses, negative cash flows and overdue liabilities."
+        },
+        {
+          "sourceProcedureId": "AWP-16-07",
+          "ordinal": 7,
+          "sourceWording": "Assess significant assumptions used in forecasts."
+        },
+        {
+          "sourceProcedureId": "AWP-16-08",
+          "ordinal": 8,
+          "sourceWording": "Consider subsequent trading performance."
+        },
+        {
+          "sourceProcedureId": "AWP-16-09",
+          "ordinal": 9,
+          "sourceWording": "Document the auditor's conclusion."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 17,
+      "sectionTitle": "Subsequent Events",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-17-01",
+          "ordinal": 1,
+          "sourceWording": "Review post-year-end bank statements and transactions."
+        },
+        {
+          "sourceProcedureId": "AWP-17-02",
+          "ordinal": 2,
+          "sourceWording": "Review significant sales, purchases and payments after year-end."
+        },
+        {
+          "sourceProcedureId": "AWP-17-03",
+          "ordinal": 3,
+          "sourceWording": "Review board/management meeting minutes."
+        },
+        {
+          "sourceProcedureId": "AWP-17-04",
+          "ordinal": 4,
+          "sourceWording": "Check new loans, investments or major asset purchases."
+        },
+        {
+          "sourceProcedureId": "AWP-17-05",
+          "ordinal": 5,
+          "sourceWording": "Review litigation and significant legal developments."
+        },
+        {
+          "sourceProcedureId": "AWP-17-06",
+          "ordinal": 6,
+          "sourceWording": "Discuss significant events with management."
+        },
+        {
+          "sourceProcedureId": "AWP-17-07",
+          "ordinal": 7,
+          "sourceWording": "Determine whether events require adjustment or disclosure."
+        },
+        {
+          "sourceProcedureId": "AWP-17-08",
+          "ordinal": 8,
+          "sourceWording": "Ensure relevant events are reflected in the financial statements."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 18,
+      "sectionTitle": "Financial Statements & Disclosures",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-18-01",
+          "ordinal": 1,
+          "sourceWording": "Agree final financial statements to the audited Trial Balance."
+        },
+        {
+          "sourceProcedureId": "AWP-18-02",
+          "ordinal": 2,
+          "sourceWording": "Check statement of financial position and profit/loss."
+        },
+        {
+          "sourceProcedureId": "AWP-18-03",
+          "ordinal": 3,
+          "sourceWording": "Check cash flow statement and statement of changes in equity."
+        },
+        {
+          "sourceProcedureId": "AWP-18-04",
+          "ordinal": 4,
+          "sourceWording": "Review accounting policies and significant estimates."
+        },
+        {
+          "sourceProcedureId": "AWP-18-05",
+          "ordinal": 5,
+          "sourceWording": "Check comparative figures with prior-year audited FS."
+        },
+        {
+          "sourceProcedureId": "AWP-18-06",
+          "ordinal": 6,
+          "sourceWording": "Check note disclosures and supporting schedules."
+        },
+        {
+          "sourceProcedureId": "AWP-18-07",
+          "ordinal": 7,
+          "sourceWording": "Check related-party, tax and going-concern disclosures."
+        },
+        {
+          "sourceProcedureId": "AWP-18-08",
+          "ordinal": 8,
+          "sourceWording": "Check subsequent-event disclosures."
+        },
+        {
+          "sourceProcedureId": "AWP-18-09",
+          "ordinal": 9,
+          "sourceWording": "Perform final financial statement consistency and mathematical review."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 19,
+      "sectionTitle": "Audit Differences & Adjustments",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-19-01",
+          "ordinal": 1,
+          "sourceWording": "Record all identified audit differences."
+        },
+        {
+          "sourceProcedureId": "AWP-19-02",
+          "ordinal": 2,
+          "sourceWording": "Obtain management's response to proposed adjustments."
+        },
+        {
+          "sourceProcedureId": "AWP-19-03",
+          "ordinal": 3,
+          "sourceWording": "Recalculate the financial statement impact of each difference."
+        },
+        {
+          "sourceProcedureId": "AWP-19-04",
+          "ordinal": 4,
+          "sourceWording": "Update the adjusted and unadjusted misstatement schedule."
+        },
+        {
+          "sourceProcedureId": "AWP-19-05",
+          "ordinal": 5,
+          "sourceWording": "Compare total unadjusted differences with materiality."
+        },
+        {
+          "sourceProcedureId": "AWP-19-06",
+          "ordinal": 6,
+          "sourceWording": "Assess whether remaining differences affect the audit conclusion."
+        },
+        {
+          "sourceProcedureId": "AWP-19-07",
+          "ordinal": 7,
+          "sourceWording": "Ensure all agreed adjustments are posted and reflected in the final TB."
+        }
+      ]
+    },
+    {
+      "sectionNumber": 20,
+      "sectionTitle": "Final Completion & Audit Report",
+      "procedures": [
+        {
+          "sourceProcedureId": "AWP-20-01",
+          "ordinal": 1,
+          "sourceWording": "Ensure all audit sections are completed and cross-referenced."
+        },
+        {
+          "sourceProcedureId": "AWP-20-02",
+          "ordinal": 2,
+          "sourceWording": "Ensure all review points have been cleared."
+        },
+        {
+          "sourceProcedureId": "AWP-20-03",
+          "ordinal": 3,
+          "sourceWording": "Confirm all significant risks have been addressed."
+        },
+        {
+          "sourceProcedureId": "AWP-20-04",
+          "ordinal": 4,
+          "sourceWording": "Review audit differences and final materiality assessment."
+        },
+        {
+          "sourceProcedureId": "AWP-20-05",
+          "ordinal": 5,
+          "sourceWording": "Complete going-concern and subsequent-event procedures."
+        },
+        {
+          "sourceProcedureId": "AWP-20-06",
+          "ordinal": 6,
+          "sourceWording": "Complete financial statement disclosure checklist."
+        },
+        {
+          "sourceProcedureId": "AWP-20-07",
+          "ordinal": 7,
+          "sourceWording": "Obtain signed management representation letter."
+        },
+        {
+          "sourceProcedureId": "AWP-20-08",
+          "ordinal": 8,
+          "sourceWording": "Perform final analytical review."
+        },
+        {
+          "sourceProcedureId": "AWP-20-09",
+          "ordinal": 9,
+          "sourceWording": "Complete senior/manager/partner review."
+        },
+        {
+          "sourceProcedureId": "AWP-20-10",
+          "ordinal": 10,
+          "sourceWording": "Finalize the auditor's report and signed financial statements."
+        }
+      ]
+    }
+  ]
+}

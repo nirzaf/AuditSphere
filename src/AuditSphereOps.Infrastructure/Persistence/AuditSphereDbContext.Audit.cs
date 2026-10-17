@@ -83,13 +83,18 @@ public sealed partial class AuditSphereDbContext
     programVersion.Property(x => x.ProgramCode).HasMaxLength(100);
     programVersion.Property(x => x.Version).HasMaxLength(100);
     programVersion.Property(x => x.SourceHash).HasMaxLength(64).IsFixedLength();
+    programVersion.Property(x => x.ContentDigest).HasMaxLength(64).IsFixedLength();
+    programVersion.Property(x => x.PublicationReviewReference).HasMaxLength(200);
     programVersion.Property(x => x.Status).HasMaxLength(20);
     programVersion.HasIndex(x => new { x.FirmId, x.ProgramCode, x.Version }).IsUnique()
       .HasDatabaseName("ux_audit_program_version_code_version");
     programVersion.ToTable("audit_program_versions", t => t.HasCheckConstraint("ck_audit_program_version_values",
       "length(trim(program_code)) > 0 AND length(trim(version)) > 0 AND length(source_hash) = 64" +
+      " AND (content_digest IS NULL OR length(content_digest) = 64)" +
+      " AND (publication_review_reference IS NULL OR length(trim(publication_review_reference)) BETWEEN 1 AND 200)" +
       " AND status IN ('DRAFT','PUBLISHED','RETIRED')" +
-      " AND ((status = 'PUBLISHED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL) OR status <> 'PUBLISHED')"));
+      " AND ((status = 'PUBLISHED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL) OR status <> 'PUBLISHED')" +
+      " AND (status <> 'PUBLISHED' OR content_digest IS NULL OR publication_review_reference IS NOT NULL)"));
     programVersion.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);

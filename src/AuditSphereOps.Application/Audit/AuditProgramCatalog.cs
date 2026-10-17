@@ -1,5 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Buffers.Binary;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace AuditSphereOps.Application.Audit;
 
@@ -11,6 +14,34 @@ public static class AuditProgramCatalog
 {
   public const string ProgramCode = "AUDIT-WORKING-PROCESS";
   public const string SourceHash = "034d3b5023f5b498f0953ef6fea2af8439d72cc107075bd3336e53405091d987";
+
+  private static string ComputeContentDigest()
+  {
+    using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+    foreach (var item in Items)
+    {
+      AppendString(hash, item.SourceProcedureId);
+      AppendInteger(hash, item.SectionNumber);
+      AppendString(hash, item.SectionTitle);
+      AppendInteger(hash, item.Ordinal);
+      AppendString(hash, item.SourceWording);
+    }
+    return Convert.ToHexStringLower(hash.GetHashAndReset());
+  }
+
+  private static void AppendString(IncrementalHash hash, string value)
+  {
+    var bytes = Encoding.UTF8.GetBytes(value);
+    AppendInteger(hash, bytes.Length);
+    hash.AppendData(bytes);
+  }
+
+  private static void AppendInteger(IncrementalHash hash, int value)
+  {
+    Span<byte> bytes = stackalloc byte[sizeof(int)];
+    BinaryPrimitives.WriteInt32BigEndian(bytes, value);
+    hash.AppendData(bytes);
+  }
 
   public static IReadOnlyList<AuditProgramCatalogItem> Items { get; } =
   [
@@ -180,6 +211,9 @@ public static class AuditProgramCatalog
     new("AWP-20-09", 20, "Final Completion & Audit Report", 9, "Complete senior/manager/partner review."),
     new("AWP-20-10", 20, "Final Completion & Audit Report", 10, "Finalize the auditor's report and signed financial statements."),
   ];
+
+  /// <summary>Stable digest for the ordered program identity and exact controlled wording.</summary>
+  public static string ContentDigest { get; } = ComputeContentDigest();
 
   public static bool IsComplete => Items.Count == 165 &&
     Items.Select(x => x.SourceProcedureId).Distinct(StringComparer.Ordinal).Count() == 165 &&

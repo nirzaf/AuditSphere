@@ -21,7 +21,7 @@ public sealed class AuditProgramLibraryScopeJourneyTests
       grantId = grant.Id;
       db.RoleGrants.Add(grant);
       await db.SaveChangesAsync();
-      var published = await AuditProgramService.PublishAsync(db,
+      var published = await AuditProgramTestHelpers.PublishAsync(db,
         PbcSeed.Actor(host.Fixture.Staff, "Partner"),
         new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(published.Succeeded, published.Message);

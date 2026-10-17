@@ -179,6 +179,12 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 
   - [`auditsphere-r2r-tracker-status-history.md`](task_breakdown/tracking/auditsphere-r2r-tracker-status-history.md): Append-only log of task lifecycle transitions.
 
+## 7. Audit working process implementation
+
+- **Supplied source:** [`auditsphere-audit-source-working-process.docx`](task_breakdown/source/auditsphere-audit-source-working-process.docx), preserved by SHA-256 in the specification and an independent procedure fixture.
+- **Implementation specification:** [`auditsphere-audit-specification-working-process-atomic-proposed.md`](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md), eleven dependency-ordered tasks covering the 20-section, 165-procedure supplied audit working process. It is a work plan, not professional approval or acceptance.
+- **Current implementation/evidence:** [`auditsphere-execution-current-slice.md`](execution/auditsphere-execution-current-slice.md) and [`status.json`](execution/status.json).
+
 - **Reference Excerpts:** 10 contract reference papers under `docs/task_breakdown/reference/` (`HISTORICAL_REFERENCE`).
 
 ---

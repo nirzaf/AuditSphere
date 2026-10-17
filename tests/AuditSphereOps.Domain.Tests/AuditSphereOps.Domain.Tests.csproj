@@ -25,6 +25,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Fixtures/audit-working-process-source.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Each database test owns a freshly migrated schema, so the runner is throttled to keep the
          PostgreSQL shared lock table within its default budget instead of failing unrelated tests
          with 53200. Coverage is unchanged; nothing is skipped. -->

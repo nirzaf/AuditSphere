@@ -7848,12 +7848,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "SpecialistScheduleId");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "CashFlowLineId")
-                        .HasDatabaseName("IX_financial_package_cash_flow_schedule_allocations_firm_id_c~1");
-
                     b.HasIndex("FirmId", "FinancialPackageId", "SpecialistScheduleId", "ComponentCode")
                         .IsUnique()
                         .HasDatabaseName("ux_financial_package_cash_schedule_allocation_source");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "CashFlowLineId")
+                        .HasDatabaseName("IX_financial_package_cash_flow_schedule_allocations_firm_id_c~1");
 
                     b.ToTable("financial_package_cash_flow_schedule_allocations", null, t =>
                         {
@@ -14313,6 +14313,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("approved_by_user_id");
 
+                    b.Property<string>("ContentDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("content_digest")
+                        .IsFixedLength();
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -14330,6 +14336,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("program_code");
+
+                    b.Property<string>("PublicationReviewReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("publication_review_reference");
 
                     b.Property<string>("SourceHash")
                         .IsRequired()
@@ -14365,7 +14376,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("audit_program_versions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_audit_program_version_values", "length(trim(program_code)) > 0 AND length(trim(version)) > 0 AND length(source_hash) = 64 AND status IN ('DRAFT','PUBLISHED','RETIRED') AND ((status = 'PUBLISHED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL) OR status <> 'PUBLISHED')");
+                            t.HasCheckConstraint("ck_audit_program_version_values", "length(trim(program_code)) > 0 AND length(trim(version)) > 0 AND length(source_hash) = 64 AND (content_digest IS NULL OR length(content_digest) = 64) AND (publication_review_reference IS NULL OR length(trim(publication_review_reference)) BETWEEN 1 AND 200) AND status IN ('DRAFT','PUBLISHED','RETIRED') AND ((status = 'PUBLISHED' AND approved_by_user_id IS NOT NULL AND approved_at IS NOT NULL) OR status <> 'PUBLISHED') AND (status <> 'PUBLISHED' OR content_digest IS NULL OR publication_review_reference IS NOT NULL)");
                         });
                 });
 
@@ -17610,11 +17621,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ReviewId");
 
-                    b.HasIndex("FirmId", "ReviewId", "CreatedAt");
-
                     b.HasIndex("FirmId", "AuthorUserId", "RequestId")
                         .IsUnique()
                         .HasFilter("request_id IS NOT NULL");
+
+                    b.HasIndex("FirmId", "ReviewId", "CreatedAt");
 
                     b.ToTable("client_deliverable_comments", null, t =>
                         {
@@ -22211,6 +22222,72 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("billing_accounts", null, t =>
                         {
                             t.HasCheckConstraint("ck_billing_account_currency", "currency ~ '^[A-Z]{3}$'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.BillingCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("OutcomeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("outcome_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<Guid>("ResultId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_billing_command_receipts_actor_request");
+
+                    b.HasIndex("FirmId", "ClientId", "CreatedAt");
+
+                    b.ToTable("billing_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_billing_command_receipt_values", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND action IN ('RECORD_RECEIPT','ALLOCATE_RECEIPT','ISSUE_CREDIT_NOTE') AND request_hash ~ '^[0-9a-f]{64}$' AND result_id <> '00000000-0000-0000-0000-000000000000'::uuid AND length(outcome_json) BETWEEN 1 AND 2000 AND jsonb_typeof(outcome_json::jsonb) = 'object' AND outcome_json::jsonb ->> 'Action' = action AND outcome_json::jsonb ->> 'ResultId' = result_id::text");
                         });
                 });
 
@@ -33996,6 +34073,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.BillingCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.BillingSourceAllocation", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Practice.InvoiceLine", null)
@@ -35549,39 +35643,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Practice.BillingCommandReceipt", b =>
-                {
-                    b.Property<Guid>("Id").HasColumnType("uuid").HasColumnName("id");
-                    b.Property<Guid>("FirmId").HasColumnType("uuid").HasColumnName("firm_id");
-                    b.Property<Guid>("ClientId").HasColumnType("uuid").HasColumnName("client_id");
-                    b.Property<Guid>("ActorId").HasColumnType("uuid").HasColumnName("actor_id");
-                    b.Property<long>("ActorEpoch").HasColumnType("bigint").HasColumnName("actor_epoch");
-                    b.Property<Guid>("RequestId").HasColumnType("uuid").HasColumnName("request_id");
-                    b.Property<string>("Action").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)").HasColumnName("action");
-                    b.Property<string>("RequestHash").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)").HasColumnName("request_hash");
-                    b.Property<Guid>("ResultId").HasColumnType("uuid").HasColumnName("result_id");
-                    b.Property<string>("OutcomeJson").IsRequired().HasColumnType("text").HasColumnName("outcome_json");
-                    b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone").HasColumnName("created_at");
-                    b.HasKey("Id");
-                    b.HasIndex("FirmId", "ClientId", "CreatedAt");
-                    b.HasIndex("FirmId", "ActorId", "RequestId").IsUnique().HasDatabaseName("ux_billing_command_receipts_actor_request");
-                    b.ToTable("billing_command_receipts", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_billing_command_receipt_values",
-                                "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND action IN ('RECORD_RECEIPT','ALLOCATE_RECEIPT','ISSUE_CREDIT_NOTE') AND request_hash ~ '^[0-9a-f]{64}$' AND result_id <> '00000000-0000-0000-0000-000000000000'::uuid AND length(outcome_json) BETWEEN 1 AND 2000 AND jsonb_typeof(outcome_json::jsonb) = 'object' AND outcome_json::jsonb ->> 'Action' = action AND outcome_json::jsonb ->> 'ResultId' = result_id::text");
-                        });
-                });
-
-            modelBuilder.Entity("AuditSphereOps.Domain.Practice.BillingCommandReceipt", b =>
-                {
-                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
-                        .WithMany().HasForeignKey("FirmId", "ActorId").HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
-                        .WithMany().HasForeignKey("FirmId", "ClientId").HasPrincipalKey("FirmId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
                 });
 #pragma warning restore 612, 618
         }

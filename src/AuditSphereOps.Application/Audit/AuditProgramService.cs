@@ -11,13 +11,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Audit;
 
-public sealed record PublishAuditProgramRequest(string Version, string SourceHash);
+public sealed record PrepareAuditProgramRequest(string Version, string SourceHash);
+public sealed record ReviewAuditProgramPublicationRequest(Guid ProgramVersionId, string ExpectedContentDigest,
+  string PublicationReviewReference);
 
 public sealed record AuditProgramResult(
   Guid ProgramVersionId,
   string Version,
   string Status,
-  int ProcedureCount);
+  string SourceHash,
+  string? ContentDigest,
+  int ProcedureCount,
+  Guid CreatedByUserId,
+  Guid? ApprovedByUserId,
+  string? PublicationReviewReference,
+  DateTimeOffset CreatedAt,
+  DateTimeOffset? ApprovedAt);
 
 public sealed record AdoptAuditProgramRequest(Guid EngagementId, Guid ProgramVersionId);
 
@@ -83,18 +92,14 @@ public static class AuditProgramService
   private static readonly string[] ReviewRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
   private const string InvalidCode = ErrorCodes.AuditPlanning.Invalid;
 
-  public static async Task<CommandResult<AuditProgramResult>> PublishAsync(
+  public static async Task<CommandResult<AuditProgramResult>> PrepareControlledAuditProgramAsync(
     IAuditSphereDbContext db,
     ActorContext actor,
-    PublishAuditProgramRequest request,
+    PrepareAuditProgramRequest request,
     CancellationToken ct = default)
   {
     ArgumentNullException.ThrowIfNull(db);
     ArgumentNullException.ThrowIfNull(request);
-
-    var role = Authorization.RequireRole(actor, ProgramOwnerRoles);
-    if (!role.Succeeded)
-      return CommandResult<AuditProgramResult>.Fail(role.ErrorCode!, role.Message!);
     if (!AuditProgramCatalog.IsComplete)
       return CommandResult<AuditProgramResult>.Fail(InvalidCode, "The controlled audit source catalog is incomplete.");
     if (string.IsNullOrWhiteSpace(request.Version) ||
@@ -102,20 +107,38 @@ public static class AuditProgramService
       return CommandResult<AuditProgramResult>.Fail(InvalidCode, "The program version or controlled source hash is invalid.");
 
     var version = request.Version.Trim();
-    var existing = await db.AuditProgramVersions.AsNoTracking()
+    if (version.Length > 100)
+      return CommandResult<AuditProgramResult>.Fail(InvalidCode, "The program version is invalid.");
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await LockProgramBoundaryAsync(db, actor.FirmId, version, ct);
+    await LockActorGrantsAsync(db, actor, ct);
+    var authorization = await AuthorizeProgramOwnerAsync(db, actor, ct);
+    if (!authorization.Succeeded)
+      return CommandResult<AuditProgramResult>.Fail(authorization.ErrorCode!, authorization.Message!);
+
+    var existing = await db.AuditProgramVersions
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
         x.ProgramCode == AuditProgramCatalog.ProgramCode && x.Version == version, ct);
     if (existing is not null)
     {
-      return string.Equals(existing.SourceHash, request.SourceHash, StringComparison.OrdinalIgnoreCase) &&
-             existing.Status == AuditProgramStatuses.Published
-        ? CommandResult<AuditProgramResult>.Ok(new(existing.Id, existing.Version, existing.Status,
-            await db.AuditProgramProcedures.CountAsync(x => x.FirmId == actor.FirmId && x.ProgramVersionId == existing.Id, ct)))
-        : CommandResult<AuditProgramResult>.Fail(ErrorCodes.IdempotencyConflict,
-          "That program version already exists with different or unapproved content.");
+      var matches = string.Equals(existing.SourceHash, request.SourceHash, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(existing.ContentDigest, AuditProgramCatalog.ContentDigest, StringComparison.OrdinalIgnoreCase) &&
+        existing.Status is AuditProgramStatuses.Draft or AuditProgramStatuses.Published;
+      if (!matches)
+        return CommandResult<AuditProgramResult>.Fail(ErrorCodes.IdempotencyConflict,
+          "That program version already exists with different or legacy-unverified content.");
+      var retained = await db.AuditProgramProcedures.AsNoTracking().Where(x =>
+          x.FirmId == actor.FirmId && x.ProgramVersionId == existing.Id)
+        .OrderBy(x => x.SectionNumber).ThenBy(x => x.Ordinal).ToListAsync(ct);
+      if (!MatchesControlledCatalog(retained))
+        return CommandResult<AuditProgramResult>.Fail(ErrorCodes.IdempotencyConflict,
+          "The retained program version differs from the controlled source and requires controlled reconciliation.");
+      await tx.CommitAsync(ct);
+      return CommandResult<AuditProgramResult>.Ok(ToProgramResult(existing, retained.Count));
     }
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var now = DateTimeOffset.UtcNow;
     var program = new AuditProgramVersion
     {
       Id = Guid.CreateVersion7(),
@@ -123,11 +146,10 @@ public static class AuditProgramService
       ProgramCode = AuditProgramCatalog.ProgramCode,
       Version = version,
       SourceHash = request.SourceHash.ToLowerInvariant(),
-      Status = AuditProgramStatuses.Published,
+      ContentDigest = AuditProgramCatalog.ContentDigest,
+      Status = AuditProgramStatuses.Draft,
       CreatedByUserId = actor.UserId,
-      ApprovedByUserId = actor.UserId,
-      CreatedAt = DateTimeOffset.UtcNow,
-      ApprovedAt = DateTimeOffset.UtcNow
+      CreatedAt = now
     };
     db.AuditProgramVersions.Add(program);
     db.AuditProgramProcedures.AddRange(AuditProgramCatalog.Items.Select(item => new AuditProgramProcedure
@@ -140,12 +162,111 @@ public static class AuditProgramService
       SectionTitle = item.SectionTitle,
       Ordinal = item.Ordinal,
       SourceWording = item.SourceWording,
-      CreatedAt = DateTimeOffset.UtcNow
+      CreatedAt = now
     }));
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
-    return CommandResult<AuditProgramResult>.Ok(new(program.Id, program.Version, program.Status, AuditProgramCatalog.Items.Count));
+    return CommandResult<AuditProgramResult>.Ok(ToProgramResult(program, AuditProgramCatalog.Items.Count));
   }
+
+  public static async Task<CommandResult<AuditProgramResult>> ReviewControlledAuditProgramPublicationAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    ReviewAuditProgramPublicationRequest request,
+    CancellationToken ct = default)
+  {
+    ArgumentNullException.ThrowIfNull(db);
+    ArgumentNullException.ThrowIfNull(request);
+    if (request.ProgramVersionId == Guid.Empty || string.IsNullOrWhiteSpace(request.ExpectedContentDigest) ||
+        string.IsNullOrWhiteSpace(request.PublicationReviewReference) || request.PublicationReviewReference.Trim().Length > 200)
+      return CommandResult<AuditProgramResult>.Fail(InvalidCode, "The publication review reference or content binding is invalid.");
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await LockProgramVersionAsync(db, actor.FirmId, request.ProgramVersionId, ct);
+    await LockActorGrantsAsync(db, actor, ct);
+    var authorization = await AuthorizeProgramOwnerAsync(db, actor, ct);
+    if (!authorization.Succeeded)
+      return CommandResult<AuditProgramResult>.Fail(authorization.ErrorCode!, authorization.Message!);
+
+    var program = await db.AuditProgramVersions.SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == request.ProgramVersionId && x.ProgramCode == AuditProgramCatalog.ProgramCode, ct);
+    if (program is null)
+      return CommandResult<AuditProgramResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var expectedDigest = request.ExpectedContentDigest.Trim().ToLowerInvariant();
+    var reviewReference = request.PublicationReviewReference.Trim();
+    if (!string.Equals(program.ContentDigest, expectedDigest, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(program.SourceHash, AuditProgramCatalog.SourceHash, StringComparison.OrdinalIgnoreCase))
+      return CommandResult<AuditProgramResult>.Fail(ErrorCodes.GenerationStale,
+        "The prepared source changed; refresh and review the current version before publication.");
+
+    if (program.Status == AuditProgramStatuses.Published)
+    {
+      if (program.ApprovedByUserId == actor.UserId &&
+          string.Equals(program.PublicationReviewReference, reviewReference, StringComparison.Ordinal))
+      {
+        await tx.CommitAsync(ct);
+        return CommandResult<AuditProgramResult>.Ok(ToProgramResult(program,
+          await db.AuditProgramProcedures.CountAsync(x => x.FirmId == actor.FirmId && x.ProgramVersionId == program.Id, ct)));
+      }
+      return CommandResult<AuditProgramResult>.Fail(ErrorCodes.IdempotencyConflict,
+        "That program version has already been published under a different independent review.");
+    }
+    if (program.Status != AuditProgramStatuses.Draft || program.CreatedByUserId == actor.UserId)
+      return CommandResult<AuditProgramResult>.Fail(ErrorCodes.ScopeDenied,
+        "Publication requires a different firm-wide authorized reviewer than the preparer.");
+
+    var procedures = await db.AuditProgramProcedures.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && x.ProgramVersionId == program.Id)
+      .OrderBy(x => x.SectionNumber).ThenBy(x => x.Ordinal).ToListAsync(ct);
+    if (!MatchesControlledCatalog(procedures))
+      return CommandResult<AuditProgramResult>.Fail(ErrorCodes.IdempotencyConflict,
+        "The prepared programme does not match the complete controlled source; publication was refused.");
+
+    var now = DateTimeOffset.UtcNow;
+    program.Status = AuditProgramStatuses.Published;
+    program.ApprovedByUserId = actor.UserId;
+    program.ApprovedAt = now;
+    program.PublicationReviewReference = reviewReference;
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<AuditProgramResult>.Ok(ToProgramResult(program, procedures.Count));
+  }
+
+  private static async Task<CommandResult> AuthorizeProgramOwnerAsync(
+    IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ProgramOwnerRoles, InternalOnly: true, RequireFirmWide: true), ct);
+
+  private static async Task LockProgramBoundaryAsync(IAuditSphereDbContext db, Guid firmId, string version,
+    CancellationToken ct)
+  {
+    var key = $"audit-program:{firmId:N}:{AuditProgramCatalog.ProgramCode}:{version}";
+    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
+  }
+
+  private static async Task LockProgramVersionAsync(IAuditSphereDbContext db, Guid firmId, Guid versionId,
+    CancellationToken ct)
+  {
+    await db.AuditProgramVersions.FromSqlInterpolated($"SELECT * FROM audit_program_versions WHERE firm_id={firmId} AND id={versionId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+  }
+
+  private static async Task LockActorGrantsAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
+  {
+    await db.RoleGrants.FromSqlInterpolated($"SELECT * FROM role_grants WHERE firm_id={actor.FirmId} AND user_id={actor.UserId} AND revoked_at IS NULL FOR SHARE")
+      .AsNoTracking().ToListAsync(ct);
+  }
+
+  private static bool MatchesControlledCatalog(IReadOnlyList<AuditProgramProcedure> persisted) =>
+    persisted.Count == AuditProgramCatalog.Items.Count && persisted.Zip(AuditProgramCatalog.Items).All(pair =>
+      pair.First.SourceProcedureId == pair.Second.SourceProcedureId &&
+      pair.First.SectionNumber == pair.Second.SectionNumber && pair.First.SectionTitle == pair.Second.SectionTitle &&
+      pair.First.Ordinal == pair.Second.Ordinal && pair.First.SourceWording == pair.Second.SourceWording);
+
+  private static AuditProgramResult ToProgramResult(AuditProgramVersion program, int count) => new(
+    program.Id, program.Version, program.Status, program.SourceHash, program.ContentDigest, count,
+    program.CreatedByUserId, program.ApprovedByUserId, program.PublicationReviewReference, program.CreatedAt, program.ApprovedAt);
 
   public static async Task<CommandResult<EngagementAuditProgramResult>> AdoptAsync(
     IAuditSphereDbContext db,

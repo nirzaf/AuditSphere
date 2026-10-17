@@ -16,6 +16,14 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## R2R-07 and CP-11 — 2026-10-17
 
+## AS-AWP-EXEC Atomic Task 01 — controlled audit-program publication — 2026-10-17
+
+Implemented the first dependency-ready task from the owner-authorized audit working-process specification. The fixed 20-section/165-procedure catalogue retains its supplied source wording and SHA-256. Preparation now requires current firm-wide Partner/Administrator authority and creates an immutable DRAFT with a deterministic digest over the ordered procedure identities, section metadata, ordinals and exact wording. Publication is a separate action requiring a distinct currently authorized firm-wide reviewer, the exact digest and a bounded review reference; same-intent replays return the retained version, and changed/legacy content fails closed. Engagement adoption now only adopts an already-published version and cannot publish implicitly. Legacy publication records remain intact and are not assigned fabricated independent approval evidence. Professional methodology approval is still a separate gate.
+
+The Angular library displays provenance and supports explicit prepare/review-publish actions. An additive migration stores content digest and review reference, and its downgrade refuses to erase retained review evidence. The original Word input and independent JSON source manifest are preserved for source-to-catalogue comparison.
+
+Verification on the implementation tree: API Release build passed (0 warnings/errors); focused API publication endpoint test 1/1; focused Domain source-manifest/publication tests 2/2; the touched Domain scope-isolation regression passed 1/1 after correcting a test helper that had widened its synthetic actor; Angular library spec 17/17; E2E test project compilation passed (0 warnings/errors); EF reports no pending model changes; `git diff --check` passed. The initial Domain slice exposed the helper scope issue and that specific failing case was rerun after correction. The migration is generated and not applied to any persistent database. No full suite, authenticated built-in-browser journey, hosted CI, live tenant, or deployment was run. Tasks 02–11 and professional/external acceptance remain open. Exact run data is recorded in `status.json` under `targetedVerification.atomicAuditWorkingProcessTask01`.
+
 `2873144a` adds scoped correction-journal revision links; its PostgreSQL test passed 1/1, with build, Angular 5/5, EF and OpenAPI checks passing. Migration is generated, not applied. `ffa9bd99` makes cash-flow review availability use current scoped authorization; `SourceReviewCanReview_RequiresCurrentScopedReviewGrant` passed 1/1. T025/T026 remain BLOCKED/PARTIAL on T024/T025. Indirect-method policy and source-provenance work remain open; full suites run in CI/CD.
 
 ## CP-12 indirect cash-flow calculation roles — 2026-10-17
@@ -251,59 +259,9 @@ Annual receipts now open the exact new engagement in the existing client assessm
 
 Annual preparation suggests active client contacts valid at the next-period start and approved mappings from the exact prior engagement and period. Accounting metadata requires source-engagement accounting read authority; RelationshipManagers receive a restricted state. References are bounded and never copy allocations, routing, access, consent or approvals. Evidence is under `targetedVerification.workflowAnnualReferenceMetadata` in [status.json](status.json). Fresh-checklist orchestration and broader acceptance remain open.
 
-## Agent capability tooling and bounded analytics — 2026-10-12
+## Workflow analytics and agent capability tooling — 2026-10-12
 
-The [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) connects three task packets to owning files, invariants, fixtures and focused checks. Socket denial is distinct from database outage; default preflight changes no configuration. Comparative productivity measurements remain pending.
-
-Engagement economics now pages before loading financial evidence, with Angular and legacy navigation. Period-wide task and utilization denominators stay unchanged. The owned synthetic API/browser fixture verified forward/reset navigation; focused PostgreSQL assertions also cover queue assignment narrowing. Evidence and limitations are in `targetedVerification.workflowAnalyticsPaging` and `agentCapabilityRunner` in [status.json](status.json). Overall workflow and release acceptance remain partial.
-
-## v2.2 unlinked procedure review inbox — 2026-10-12
-
-The staff work queue now has a separate, read-only inbox for current submitted procedure results that have no operational task linked anywhere to that procedure. The query enforces current reviewer role grants, exact client/engagement scope, session freshness, reviewer independence and staffing hierarchy. Results already represented by a linked rework task stay in the task views instead, including after resubmission. The inbox links to the existing fieldwork workspace; that workspace and the review command remain authoritative for planning generation, risk basis, holds and final review eligibility. No task, review decision or migration is created by this query. `WorkflowExperience:Enabled` remains default-off.
-
-The focused PostgreSQL regression passed 1/1 and covers an unlinked result, preparer denial, an existing task link and a linked resubmission. API and OpenAPI emitter Release builds passed with offline NuGet vulnerability-feed warnings; fresh OpenAPI generation and drift verification passed. Angular's direct compiler/template check passed. The Angular production build aborts with exit 134 immediately after “Building…” and no diagnostic; authenticated browser rendering was not verified. No full suite, persistent database migration, live provider or professional acceptance is claimed. Evidence is in `status.json` under `targetedVerification.workflowReviewInbox`.
-
-## Annual workflow — period-bound commercial acceptance — 2026-10-12
-
-The engagement lifecycle and Dual-Key readiness now resolve a proposal only when both its opportunity and proposal match the engagement's exact service route and financial period. An engagement-linked fee agreement remains authoritative, but its proposal must also match those exact facts. A prior-year accepted offer therefore cannot make a new-period engagement appear ready for advance billing. No schema change or migration was needed. The existing Partner risk-clearance model remains client-level and generation-bound; annual engagement creation and fresh year-specific continuance remain open work.
-
-The focused PostgreSQL regression passed 1/1 for a new-period engagement facing a fully accepted prior-period offer; it remains in Proposal Generation. The test build completed with offline NuGet vulnerability-feed warnings. The regression is included in the focused CI filter, and commits are pushed to `master`; the GitHub run-list API was unreachable, so the CI outcome is unobserved. No UI was changed, no persistent database was migrated, and no full suite or live/professional acceptance is claimed.
-
-## Under Review queue and regression CI coverage — 2026-10-12
-
-WF-07 now derives the **Under review** queue state from a linked changes-required procedure result followed by the exact next submitted revision. An independent review decision clears the operational task from this view; completing the task does not alter audit-review authority. The focused PostgreSQL regression covers the full transition. The existing PostgreSQL CI filter now includes that regression. Commits are pushed to `master`; the GitHub run-list API could not be reached, so CI outcome is unobserved. `WorkflowExperience:Enabled` remains false by default, and no additional migration was introduced.
-
-## v2.2 workflow analytics — client wait — 2026-10-12
-
-Practice Analytics measures PBC wait from provider-accepted email to recorded client message, acknowledgement/resubmission or upload. Queued, failed, uncertain and reminder mail do not start/reset; provider acceptance is not inbox delivery. The period filters starts, responses are observed through query time, and terminal requests without response evidence are excluded.
-
-Caps are 5,000 sends, 2,000 requests and 20,000 events; exceeding them yields unavailable, never partial totals. Acknowledgement/resubmission appends `CLIENT_ACTION`; migration remains unapplied.
-
-Focused PostgreSQL 3/3 and Angular 5/5 passed; API/UI builds, EF and OpenAPI passed. Browser reached sign-in guard (local API unavailable). No full suite or live acceptance; WF-14 remains PARTIAL.
-
-## v2.2 workflow activity — task event trace — 2026-10-12
-
-Append-only operational-task activity records creation, assignment changes and completion in the task transaction. The grant-scoped timeline is bounded and paged. Current evidence, exact checks and the known partial source coverage are recorded under `targetedVerification.workflowTaskActivity` in [status.json](status.json); broader unified activity coverage remains open.
-
-## v2.2 workflow analytics — phase task rollups — 2026-10-12
-
-Practice Analytics now groups non-cancelled tasks due in the selected period by their current workflow-phase binding, with a separate unassigned-phase row. It reports due, completed, open, overdue and completion percentage for all seven phases. Completion requires both the completed task status and its persisted completion timestamp. The UI and metric definition state that these operational counts do not establish phase or audit-gate readiness. No migration was needed.
-
-Verification on the working tree based on `5de433ff`: the Release solution build passed with 0 errors and six offline `NU1900` vulnerability-feed warnings; the focused PostgreSQL analytics regression passed 1/1, including bound and unbound task counts; the Angular analytics contract spec passed 4/4; EF model drift reported no pending changes; OpenAPI drift passed unchanged; and the Angular development server compiled. The built-in browser reached the staff sign-in guard because the local API/session was unavailable, so authenticated data rendering was not observed. The full test suite and production Angular build were not run. No persistent database migration, live-provider or professional acceptance was performed. Exact evidence is in `status.json` under `targetedVerification.workflowPhaseRollup`.
-
-WF-14 remains partial: client wait, additional append-only activity sources, analytics pagination/performance acceptance and the remaining workflow stories are open. No persistent database was migrated.
-
-## v2.2 workflow analytics — task completion and workload — 2026-10-12
-
-The existing bounded Practice Analytics view now reports completed applicable tasks and a separate completion percentage beside on-time, late and overdue counts. The denominator is non-cancelled tasks whose due dates fall within the selected date range; completion requires both `COMPLETED` status and a persisted completion timestamp. Tasks without due dates are excluded, and an empty denominator reports `n/a`. This is operational progress only; it does not satisfy an audit gate, change lifecycle state or produce accounting values.
-
-Verification on the working tree based on `dee458d3`: Release solution build passed with 0 errors and six offline `NU1900` warnings; the targeted Angular analytics contract spec passed 2/2; the focused PostgreSQL analytics regression passed 1/1; OpenAPI drift passed with no contract change. No full suite or Angular production build was run for this slice. The run summary is in `status.json` under `targetedVerification.workflowExperiencePrH`.
-
-The same firm-wide analytics query now groups non-cancelled tasks due in the selected period by staff assignee and shows due, completed, open and overdue counts. Unassigned tasks and assignments that do not resolve to a staff user have separate buckets. Staff names are returned only to the endpoint's existing firm-wide Partner, Administrator and FinanceManager audience. This measure is a task count, not capacity or effort; it does not change task state or audit readiness.
-
-Verification of the workload slice based on `0afdaf9a`: the focused PostgreSQL analytics regression passed 1/1 after an initial sandbox socket denial and elevated rerun; the Angular analytics contract spec passed 3/3; the OpenAPI-emitter Release build passed with 0 errors and two offline `NU1900` warnings; its generated contract matched the committed file. The built-in browser opened the local preview but reached the staff sign-in guard, so the analytics page was not authenticated or visually verified. No full suite or production Angular build was run for this slice.
-
-Per-phase task rollups, client wait, append-only workflow event coverage and broader analytics pagination/performance evidence remain open. Overall WF-14 and v2.2 acceptance remain PARTIAL.
+The bounded capability runner, task/event queues, workflow analytics (including client wait, phase rollups and staff workload) and annual workflow handoffs were implemented in the 2026-10-12 slices. Historical verification, limitations and still-open WF-14/annual acceptance items are retained under `targetedVerification.agentCapabilityRunner`, `workflowAnalyticsPaging`, `workflowReviewInbox`, `workflowAnnualChecklistHandoff`, `workflowAnnualReferenceMetadata`, `workflowAnnualTemplateReference`, `workflowTaskActivity`, `workflowPhaseRollup` and `workflowExperiencePrH` in [status.json](status.json). These operational measures do not satisfy professional audit gates; the full workflows remain PARTIAL.
 
 ## Explicit FX cash-effect assessment — 2026-10-17
 

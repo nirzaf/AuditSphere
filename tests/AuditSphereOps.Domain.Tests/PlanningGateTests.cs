@@ -28,7 +28,7 @@ public sealed class PlanningGateTests
     await using var db = new AuditSphereDbContext(pg.Options);
     var approver = await NewScopedPartnerAsync(db, scope);
 
-    var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+    var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
       new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
     Assert.True(published.Succeeded, published.Message);
     var adopted = await AuditProgramService.AdoptAsync(db, scope.Actor,
@@ -70,7 +70,7 @@ public sealed class PlanningGateTests
     await using var db = new AuditSphereDbContext(pg.Options);
     var (approver, reviewer) = (await NewScopedPartnerAsync(db, scope), await NewScopedPartnerAsync(db, scope));
 
-    var published = await AuditProgramService.PublishAsync(db, preparer,
+    var published = await AuditProgramTestHelpers.PublishAsync(db, preparer,
       new PublishAuditProgramRequest("2026.2", AuditProgramCatalog.SourceHash));
     Assert.True(published.Succeeded, published.Message);
     var adopted = await AuditProgramService.AdoptAsync(db, preparer,

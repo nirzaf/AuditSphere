@@ -21,7 +21,7 @@ public sealed class AuditProcedureSubmissionConcurrencyTests
     Guid[] procedures;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+      var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
         new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(published.Succeeded, published.Message);
       Assert.True((await AuditProgramService.AdoptAsync(db, scope.Actor,

@@ -11,13 +11,16 @@ namespace AuditSphereOps.Application.Audit;
 // (program templates are firm-owned, not engagement-scoped) and read-only.
 public sealed record AuditProgramVersionSummary(
   Guid ProgramVersionId, string ProgramCode, string Version, string Status,
-  string SourceHash, int ProcedureCount, int SectionCount,
-  Guid? ApprovedByUserId, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt);
+  string SourceHash, string? ContentDigest, int ProcedureCount, int SectionCount,
+  Guid CreatedByUserId, Guid? ApprovedByUserId, string? PublicationReviewReference,
+  DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt);
 
 public sealed record AuditProgramSectionSummary(
   int SectionNumber, string SectionTitle, int ProcedureCount, IReadOnlyList<string> Assertions);
 
 public sealed record AuditProgramLibraryView(
+  bool CanPrepare,
+  bool CanPublish,
   IReadOnlyList<AuditProgramVersionSummary> Versions,
   AuditProgramVersionSummary? SelectedVersion,
   IReadOnlyList<AuditProgramSectionSummary> Sections);
@@ -54,8 +57,9 @@ public static class AuditProgramLibraryQuery
     {
       var current = await AuthorizationDecision.AuthorizeAsync(db, actor,
         new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
+      var emptyLibraryOwner = await AuthorizeProgramOwnerAsync(db, actor, ct);
       return current.Succeeded
-        ? CommandResult<AuditProgramLibraryView>.Ok(new AuditProgramLibraryView([], null, []))
+        ? CommandResult<AuditProgramLibraryView>.Ok(new AuditProgramLibraryView(emptyLibraryOwner.Succeeded, emptyLibraryOwner.Succeeded, [], null, []))
         : CommandResult<AuditProgramLibraryView>.Fail(current.ErrorCode!, current.Message!);
     }
 
@@ -84,20 +88,28 @@ public static class AuditProgramLibraryQuery
       .Select(g => new { ProgramVersionId = g.Key, Count = g.Count() })
       .ToDictionaryAsync(x => x.ProgramVersionId, x => x.Count, ct);
     var versionSummaries = versions.Select(x => new AuditProgramVersionSummary(
-      x.Id, x.ProgramCode, x.Version, x.Status, x.SourceHash,
+      x.Id, x.ProgramCode, x.Version, x.Status, x.SourceHash, x.ContentDigest,
       countsByVersion.GetValueOrDefault(x.Id),
       x.Id == selected.Id ? sections.Count : 0,
-      x.ApprovedByUserId, x.CreatedAt, x.ApprovedAt)).ToList();
+      x.CreatedByUserId, x.ApprovedByUserId, x.PublicationReviewReference, x.CreatedAt, x.ApprovedAt)).ToList();
 
     var recheck = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
     if (!recheck.Succeeded)
       return CommandResult<AuditProgramLibraryView>.Fail(recheck.ErrorCode!, recheck.Message!);
+    var publicationOwner = await AuthorizeProgramOwnerAsync(db, actor, ct);
     return CommandResult<AuditProgramLibraryView>.Ok(new AuditProgramLibraryView(
+      publicationOwner.Succeeded,
+      publicationOwner.Succeeded,
       versionSummaries,
       versionSummaries.First(x => x.ProgramVersionId == selected.Id),
       sections));
   }
+
+  private static Task<CommandResult> AuthorizeProgramOwnerAsync(IAuditSphereDbContext db, ActorContext actor,
+    CancellationToken ct) => AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Partner", "Administrator"],
+        InternalOnly: true, RequireFirmWide: true), ct);
 
   /// <summary>Paged procedures for one section of a library version, optionally filtered
   /// by a free-text term over the source identifier and exact wording.</summary>

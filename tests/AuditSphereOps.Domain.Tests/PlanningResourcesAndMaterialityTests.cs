@@ -557,7 +557,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Guid procedureId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var pub = await AuditProgramService.PublishAsync(db, partner, new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+      var pub = await AuditProgramTestHelpers.PublishAsync(db, partner, new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(pub.Succeeded);
       var adopt = await AuditProgramService.AdoptAsync(db, partner, new AdoptAuditProgramRequest(w.EngagementId, pub.Value!.ProgramVersionId));
       Assert.True(adopt.Succeeded);
@@ -643,7 +643,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Guid cashProcedure, receivablesProcedure;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var published = await AuditProgramService.PublishAsync(db, partner, new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+      var published = await AuditProgramTestHelpers.PublishAsync(db, partner, new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(published.Succeeded, published.Message);
       Assert.True((await AuditProgramService.AdoptAsync(db, partner, new AdoptAuditProgramRequest(w.EngagementId, published.Value!.ProgramVersionId))).Succeeded);
       // Section 2 is Cash & Bank and section 3 is Receivables in the adopted program.

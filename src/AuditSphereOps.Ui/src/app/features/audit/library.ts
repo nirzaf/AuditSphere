@@ -4,11 +4,13 @@ import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Rout
 import { MatButtonModule } from '@angular/material/button';
 import { SessionService } from '../../core/session';
 import { Api } from '../../core/api';
-import { Decoder, arr, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { Decoder, arr, bool, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
-const versionSummary = obj({ programVersionId: guid, programCode: text, version: text, status: text, sourceHash: text, procedureCount: nat, sectionCount: nat, approvedAt: nullable(instant) });
-const libraryShape = obj({ versions: arr(versionSummary, 500), selectedVersion: nullable(versionSummary),
+const versionSummary = obj({ programVersionId: guid, programCode: text, version: text, status: text, sourceHash: text,
+  contentDigest: nullable(text), procedureCount: nat, sectionCount: nat, createdByUserId: guid, approvedByUserId: nullable(guid),
+  publicationReviewReference: nullable(text), createdAt: instant, approvedAt: nullable(instant) });
+const libraryShape = obj({ canPrepare: bool, canPublish: bool, versions: arr(versionSummary, 500), selectedVersion: nullable(versionSummary),
   sections: arr(obj({ sectionNumber: int, sectionTitle: text, procedureCount: nat, assertions: arr(text, 100) }), 200) });
 const sectionShape = obj({ sectionNumber: int, sectionTitle: text, totalCount: nat, page: nat, pageSize: nat,
   items: arr(obj({ procedureId: guid, sourceProcedureId: text, sectionNumber: int, sectionTitle: text, ordinal: int, sourceWording: text,
@@ -39,12 +41,24 @@ export const decodeSectionPage: Decoder<ReturnType<typeof sectionShape>> = (raw,
     <a routerLink="/app">← Back to portfolio</a>
     <audit-page-header title="Audit program library" eyebrow="Audit methodology" description="The controlled versioned program template library. Published versions are immutable; changes require a new version." />
     <button matButton="outlined" (click)="refresh()">Refresh library</button>
+    @if (library()?.canPrepare) {
+      <section class="panel" aria-labelledby="prepare-heading">
+        <h2 id="prepare-heading">Prepare controlled source version</h2>
+        <p>The source wording is fixed to the verified upload. Preparation creates an immutable draft; it does not publish or establish professional acceptance.</p>
+        <form class="inline-form" (submit)="$event.preventDefault(); prepareVersionDraft()">
+          <label>Version identifier <input name="prepare-version" [ngModel]="prepareVersion" (ngModelChange)="prepareVersion = $event" maxlength="100" required /></label>
+          <button matButton="filled" type="submit" [disabled]="commandBusy() || !prepareVersion.trim()">Prepare source draft</button>
+        </form>
+        <p>Verified source SHA-256: <code>{{ sourceHash }}</code></p>
+        @if (commandError()) { <p role="alert">{{ commandError() }}</p> }
+      </section>
+    }
     <audit-state [loading]="lib.loading()" [error]="lib.error()" label="the audit program library" />
     <audit-state [loading]="busy()" [error]="sectionError()" label="section procedures" />
     @if (blocked()) { <p role="note">The previous library content has been cleared. Refresh the library to check current access and try again.</p> }
     @if (library(); as l) {
       @if (!l.versions.length) {
-        <section class="panel" role="status"><h2>No published library version</h2><p>No audit program library version exists for this firm yet. Publishing is performed from an engagement's fieldwork workspace, which adopts the exact published version.</p></section>
+        <section class="panel" role="status"><h2>No library version</h2><p>No controlled audit program version exists for this firm yet.</p></section>
       } @else {
         <p role="status">{{ l.versions.length }} library versions · {{ l.selectedVersion?.procedureCount ?? 0 }} procedures and {{ l.selectedVersion?.sectionCount ?? 0 }} sections in the selected version</p>
         <section class="panel" aria-labelledby="version-heading">
@@ -52,8 +66,20 @@ export const decodeSectionPage: Decoder<ReturnType<typeof sectionShape>> = (raw,
           <label>Version <select name="version" [ngModel]="l.selectedVersion?.programVersionId" (ngModelChange)="selectVersion($event)">
             @for (v of l.versions; track v.programVersionId) { <option [value]="v.programVersionId">{{ v.programCode }} v{{ v.version }} · {{ v.status }} · {{ v.procedureCount }} procedures</option> }</select></label>
           @if (l.selectedVersion; as s) {
-            <dl class="facts"><dt>Status</dt><dd><audit-status [value]="s.status" /></dd><dt>Source hash</dt><dd><code>{{ s.sourceHash }}</code></dd><dt>Procedures</dt><dd>{{ s.procedureCount }}</dd>
-              <dt>Sections</dt><dd>{{ s.sectionCount }}</dd><dt>Published</dt><dd>{{ s.approvedAt ? s.approvedAt.slice(0, 16).replace('T', ' ') : 'Not published' }}</dd></dl>
+            <dl class="facts"><dt>Status</dt><dd><audit-status [value]="s.status" /></dd><dt>Source SHA-256</dt><dd><code>{{ s.sourceHash }}</code></dd>
+              <dt>Content digest</dt><dd><code>{{ s.contentDigest ?? 'Legacy publication evidence not recorded' }}</code></dd><dt>Prepared by</dt><dd>{{ s.createdByUserId }}</dd>
+              <dt>Procedures</dt><dd>{{ s.procedureCount }}</dd><dt>Sections</dt><dd>{{ s.sectionCount }}</dd>
+              <dt>Published</dt><dd>{{ s.approvedAt ? s.approvedAt.slice(0, 16).replace('T', ' ') : 'Not published' }}</dd>
+              <dt>Approved by</dt><dd>{{ s.approvedByUserId ?? 'Not published' }}</dd>
+              <dt>Review reference</dt><dd>{{ s.publicationReviewReference ?? 'Not recorded' }}</dd></dl>
+            @if (s.status === 'DRAFT' && s.contentDigest && l.canPublish) {
+              <form class="inline-form" (submit)="$event.preventDefault(); publishSelected(s.programVersionId, s.contentDigest!)">
+                <label>Publication review reference <input name="publication-review-reference" [ngModel]="publicationReviewReference" (ngModelChange)="publicationReviewReference = $event" maxlength="200" required /></label>
+                <button matButton="filled" type="submit" [disabled]="commandBusy() || !publicationReviewReference.trim()">Publish reviewed version</button>
+              </form>
+              <p>Publication requires a different currently authorized firm-wide Partner or Administrator. The reference records the review trail; it does not certify professional qualification or methodology acceptance.</p>
+            }
+            @if (commandError()) { <p role="alert">{{ commandError() }}</p> }
           }
         </section>
         <section class="panel" aria-labelledby="sections-heading">
@@ -87,6 +113,7 @@ export const decodeSectionPage: Decoder<ReturnType<typeof sectionShape>> = (raw,
   `,
 })
 export class AuditProgramLibrary {
+  readonly sourceHash = '034d3b5023f5b498f0953ef6fea2af8439d72cc107075bd3336e53405091d987';
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
   private readonly requested = signal<{ id: string; version: string } | null>(null);
@@ -112,6 +139,10 @@ export class AuditProgramLibrary {
   readonly sectionError = signal('');
   readonly busy = signal(false);
   readonly appliedSearch = signal('');
+  readonly commandBusy = signal(false);
+  readonly commandError = signal('');
+  prepareVersion = '2026.1';
+  publicationReviewReference = '';
   private readonly searchValue = signal('');
   private request = 0;
   private destroyed = false;
@@ -149,6 +180,26 @@ export class AuditProgramLibrary {
   refresh(): void {
     if (this.destroyed) return;
     this.invalidateRead(); this.refreshing.set(true); this.requested.set(null); this.refreshGeneration.update(n => n + 1);
+  }
+  async prepareVersionDraft(): Promise<void> {
+    if (!this.library()?.canPrepare || this.commandBusy() || !this.prepareVersion.trim()) return;
+    this.commandBusy.set(true); this.commandError.set('');
+    try {
+      const result = await this.api.command('/api/ui/audit/library/versions/prepare',
+        { version: this.prepareVersion.trim(), sourceHash: this.sourceHash });
+      if (!result.ok) { this.commandError.set(result.message); return; }
+      this.refresh();
+    } finally { this.commandBusy.set(false); }
+  }
+  async publishSelected(versionId: string, contentDigest: string): Promise<void> {
+    if (!this.library()?.canPublish || this.commandBusy() || !this.publicationReviewReference.trim()) return;
+    this.commandBusy.set(true); this.commandError.set('');
+    try {
+      const result = await this.api.command(`/api/ui/audit/library/versions/${versionId}/publish`,
+        { expectedContentDigest: contentDigest, publicationReviewReference: this.publicationReviewReference.trim() });
+      if (!result.ok) { this.commandError.set(result.message); return; }
+      this.publicationReviewReference = ''; this.refresh();
+    } finally { this.commandBusy.set(false); }
   }
   selectVersion(id: string): void {
     const chosen = this.library()?.versions.find(v => v.programVersionId === id);

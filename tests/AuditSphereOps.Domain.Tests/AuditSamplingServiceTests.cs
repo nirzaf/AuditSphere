@@ -40,7 +40,7 @@ public sealed class AuditSamplingServiceTests
       await db.SaveChangesAsync();
       reviewer = new ActorContext(reviewerId, scope.FirmId, 1, ["Reviewer", "Partner"]);
 
-      var program = await AuditProgramService.PublishAsync(db, scope.Actor,
+      var program = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
         new PublishAuditProgramRequest("2026.3", AuditProgramCatalog.SourceHash));
       Assert.True((await AuditProgramService.AdoptAsync(db, scope.Actor,
         new AdoptAuditProgramRequest(scope.EngagementId, program.Value!.ProgramVersionId))).Succeeded);
@@ -193,7 +193,7 @@ public sealed class AuditConfirmationBatchTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var program = await AuditProgramService.PublishAsync(db, scope.Actor,
+      var program = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
         new PublishAuditProgramRequest("2026.4", AuditProgramCatalog.SourceHash));
       Assert.True((await AuditProgramService.AdoptAsync(db, scope.Actor,
         new AdoptAuditProgramRequest(scope.EngagementId, program.Value!.ProgramVersionId))).Succeeded);

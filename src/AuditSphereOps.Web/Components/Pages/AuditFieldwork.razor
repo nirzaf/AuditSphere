@@ -56,7 +56,7 @@ else
             @if (_programVersion is null)
             {
                 <p class="empty-state">No published program has been adopted for this engagement.</p>
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="PublishAndAdoptAsync" Disabled="@_busy">Publish and adopt @(_version)</MudButton>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" Class="btn-small" OnClick="PublishAndAdoptAsync" Disabled="@_busy">Adopt published @(_version)</MudButton>
             }
             else
             {
@@ -278,15 +278,17 @@ else
         if (_actor is null || _engagement is null) return;
         _busy = true;
         await using var db = await DbFactory.CreateDbContextAsync();
-        var published = await AuditProgramService.PublishAsync(db, _actor, new PublishAuditProgramRequest(_version, AuditProgramCatalog.SourceHash));
-        if (published.Succeeded)
+        var published = await db.AuditProgramVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.FirmId == _actor.FirmId && x.ProgramCode == AuditProgramCatalog.ProgramCode &&
+            x.Version == _version && x.Status == AuditProgramStatuses.Published);
+        if (published is not null)
         {
-            var adopted = await AuditProgramService.AdoptAsync(db, _actor, new AdoptAuditProgramRequest(EngagementId, published.Value!.ProgramVersionId));
+            var adopted = await AuditProgramService.AdoptAsync(db, _actor, new AdoptAuditProgramRequest(EngagementId, published.Id));
             _result = adopted.Succeeded ? CommandResult.Ok() : CommandResult.Fail(adopted.ErrorCode!, adopted.Message!);
         }
         else
         {
-            _result = CommandResult.Fail(published.ErrorCode!, published.Message!);
+            _result = CommandResult.Fail(AuditSphereOps.Domain.Shared.ErrorCodes.GateBlocked, "A firm-wide owner must prepare and independently publish this version in the audit library before adoption.");
         }
         _busy = false;
         await LoadAsync();

@@ -25,7 +25,7 @@ public sealed class AuditProgramLibraryReadTests
     await using var pg = await PgTestSchema.CreateAsync();
     var f = await PbcSeed.SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
-    var publication = await AuditProgramService.PublishAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), new("SYNTHETIC-READ", AuditProgramCatalog.SourceHash));
+    var publication = await AuditProgramTestHelpers.PublishAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), new("SYNTHETIC-READ", AuditProgramCatalog.SourceHash));
     Assert.True(publication.Succeeded, publication.Message);
     var reader = PbcSeed.User(f.FirmId, "Staff");
     db.Users.Add(reader);
@@ -61,7 +61,7 @@ public sealed class AuditProgramLibraryReadTests
     await using var pg = await PgTestSchema.CreateAsync();
     var f = await PbcSeed.SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
-    var publication = await AuditProgramService.PublishAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), new("SYNTHETIC-READ", AuditProgramCatalog.SourceHash));
+    var publication = await AuditProgramTestHelpers.PublishAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), new("SYNTHETIC-READ", AuditProgramCatalog.SourceHash));
     Assert.True(publication.Succeeded, publication.Message);
     var user = PbcSeed.User(f.FirmId, mode == "client" ? "Client" : "Staff");
     user.Disabled = mode == "disabled";
@@ -83,7 +83,7 @@ public sealed class AuditProgramLibraryReadTests
     await using var pg = await PgTestSchema.CreateAsync();
     var f = await PbcSeed.SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
-    var publication = await AuditProgramService.PublishAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), new("SYNTHETIC-READ", AuditProgramCatalog.SourceHash));
+    var publication = await AuditProgramTestHelpers.PublishAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), new("SYNTHETIC-READ", AuditProgramCatalog.SourceHash));
     Assert.True(publication.Succeeded, publication.Message);
     var foreign = await PbcSeed.SeedAsync(pg);
     var foreignListing = await AuditProgramLibraryQuery.GetLibraryAsync(db, PbcSeed.Actor(foreign.Admin, "Administrator"));
@@ -111,7 +111,7 @@ public sealed class AuditProgramLibraryReadTests
     Guid version;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var publication = await AuditProgramService.PublishAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), new("SYNTHETIC-READ", AuditProgramCatalog.SourceHash));
+      var publication = await AuditProgramTestHelpers.PublishAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), new("SYNTHETIC-READ", AuditProgramCatalog.SourceHash));
       Assert.True(publication.Succeeded, publication.Message); version = publication.Value!.ProgramVersionId;
       db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Auditor")); await db.SaveChangesAsync();
     }

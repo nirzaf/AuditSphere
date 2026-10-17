@@ -50,7 +50,7 @@ public sealed class RiskRankItemTestsTests
     var managerAssigned = await StaffingService.AssignAsync(db, scope.Actor, new(scope.EngagementId, reviewManagerId, StaffingLevels.AuditManager));
     Assert.True(managerAssigned.Succeeded, $"manager: {managerAssigned.Message}");
 
-    var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+    var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
       new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
     Assert.True(published.Succeeded, published.Message);
     Assert.True((await AuditProgramService.AdoptAsync(db, scope.Actor, new(scope.EngagementId, published.Value!.ProgramVersionId))).Succeeded);

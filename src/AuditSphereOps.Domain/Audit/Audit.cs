@@ -254,6 +254,10 @@ public sealed class AuditProgramVersion
   public string ProgramCode { get; set; } = "AUDIT";
   public string Version { get; set; } = string.Empty;
   public string SourceHash { get; set; } = string.Empty;
+  /// <summary>Digest of the exact ordered procedure identities and source wording.</summary>
+  public string? ContentDigest { get; set; }
+  /// <summary>Bounded reference to the independent publication review record.</summary>
+  public string? PublicationReviewReference { get; set; }
   public string Status { get; set; } = AuditProgramStatuses.Draft;
   public Guid CreatedByUserId { get; set; }
   public Guid? ApprovedByUserId { get; set; }

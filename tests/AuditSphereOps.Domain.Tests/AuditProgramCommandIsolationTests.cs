@@ -53,7 +53,7 @@ public sealed class AuditProgramCommandIsolationTests
       });
       await db.SaveChangesAsync();
 
-      var published = await AuditProgramService.PublishAsync(db, clientA.Actor,
+      var published = await AuditProgramTestHelpers.PublishAsync(db, clientA.Actor,
         new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(published.Succeeded, published.Message);
       programVersionId = published.Value!.ProgramVersionId;

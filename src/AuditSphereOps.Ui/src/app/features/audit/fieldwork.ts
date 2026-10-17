@@ -329,7 +329,7 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
           <p class="actions"><a [routerLink]="['/app/engagements', w.engagementId, 'audit-plan']">Open planning</a><a routerLink="/app/audit/library">Program library</a><a [routerLink]="['/app/engagements', w.engagementId, 'completion']">Open completion</a></p>
         } @else {
           <p>No published program has been adopted for this engagement.</p>
-          <button matButton="filled" (click)="send('/api/ui/engagements/' + w.engagementId + '/fieldwork/program', {}, 'Program published and adopted.')" [disabled]="cmd.busy()">Publish and adopt {{ w.catalogVersion }}</button>
+          <button matButton="filled" (click)="send('/api/ui/engagements/' + w.engagementId + '/fieldwork/program', {}, 'Published programme adopted.')" [disabled]="cmd.busy()">Adopt published programme {{ w.catalogVersion }}</button>
         }
       </section>
 

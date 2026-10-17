@@ -35,6 +35,9 @@ public sealed class AngularAuditPlanningCommandJourneyTests
     if (action == "LINK_PROCEDURE_RISK")
     {
       await using var setup = host.CreateDbContext();
+      var published = await AuditProgramTestHelpers.PublishAsync(setup, PbcSeed.Actor(f.Admin, "Partner"),
+        new("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(published.Succeeded, published.Message);
       var adopted = await AuditFieldworkWorkspaceQuery.PublishAndAdoptAsync(setup,
         PbcSeed.Actor(f.Admin, "Partner"), f.EngagementId, "2026.1");
       Assert.True(adopted.Succeeded, adopted.Message);

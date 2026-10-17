@@ -77,7 +77,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.SeniorAuditor))).Succeeded);
     Assert.True((await StaffingService.AssignAsync(db, manager,
       new(w.EngagementId, w.Users["associate"].Id, StaffingLevels.StaffAssociate))).Succeeded);
-    var published = await AuditProgramService.PublishAsync(db, partner,
+    var published = await AuditProgramTestHelpers.PublishAsync(db, partner,
       new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
     Assert.True(published.Succeeded, published.Message);
     var adopted = await AuditProgramService.AdoptAsync(db, partner,

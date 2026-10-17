@@ -338,6 +338,9 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId));
+      var publication = await AuditProgramTestHelpers.PublishAsync(db, PbcSeed.Actor(f.Staff, "Partner"),
+        new("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(publication.Succeeded, publication.Message);
       db.Engagements.Add(new Engagement
       {
         Id = siblingEngagementId, FirmId = f.FirmId,
@@ -393,8 +396,8 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
     Assert.Equal(token, await page.EvaluateAsync<string>("() => window.__auditRouteParityToken"));
 
     var fieldworkPath = $"/app/engagements/{f.EngagementId:D}/audit-fieldwork";
-    await NavigateAsync(page, fieldworkPath, "Publish and adopt 2026.1");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Publish and adopt 2026.1", Exact = true }).ClickAsync();
+    await NavigateAsync(page, fieldworkPath, "Adopt published programme 2026.1");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Adopt published programme 2026.1", Exact = true }).ClickAsync();
     var program = page.GetByRole(AriaRole.Region, new() { Name = "Versioned audit program", Exact = true });
     await Assertions.Expect(program).ToContainTextAsync("AUDIT-WORKING-PROCESS v2026.1");
     await Assertions.Expect(program.GetByText("165", new() { Exact = true })).ToBeVisibleAsync();

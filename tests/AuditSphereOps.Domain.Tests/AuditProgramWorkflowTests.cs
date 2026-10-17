@@ -11,6 +11,66 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class AuditProgramWorkflowTests
 {
+  [Fact(DisplayName = "Controlled programme publication requires current firm-wide authority and an independent reviewer")]
+  public async Task ControlledPublication_PreparesBindsAndPublishesOnlyAfterIndependentReview()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var preparer = fixture.Primary.Actor;
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var firmGrant = new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = preparer.FirmId, UserId = preparer.UserId, Role = "Partner",
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = preparer.UserId
+    };
+    db.RoleGrants.Add(firmGrant);
+    await db.SaveChangesAsync();
+
+    var request = new PrepareAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash);
+    var draft = await AuditProgramService.PrepareControlledAuditProgramAsync(db, preparer, request);
+    Assert.True(draft.Succeeded, draft.Message);
+    Assert.Equal("DRAFT", draft.Value!.Status);
+    Assert.Equal(165, draft.Value.ProcedureCount);
+    Assert.Equal(AuditProgramCatalog.ContentDigest, draft.Value.ContentDigest);
+    Assert.Null(draft.Value.ApprovedByUserId);
+    Assert.Equal(165, await db.AuditProgramProcedures.CountAsync());
+
+    var selfReview = await AuditProgramService.ReviewControlledAuditProgramPublicationAsync(db, preparer,
+      new ReviewAuditProgramPublicationRequest(draft.Value.ProgramVersionId, draft.Value.ContentDigest!, "review-001"));
+    Assert.False(selfReview.Succeeded);
+    Assert.Equal("DRAFT", (await db.AuditProgramVersions.SingleAsync()).Status);
+
+    var repeatedPrepare = await AuditProgramService.PrepareControlledAuditProgramAsync(db, preparer, request);
+    Assert.True(repeatedPrepare.Succeeded, repeatedPrepare.Message);
+    Assert.Equal(draft.Value.ProgramVersionId, repeatedPrepare.Value!.ProgramVersionId);
+
+    var reviewer = await AuditProgramTestHelpers.CreateReviewerAsync(db, preparer.FirmId, preparer.UserId);
+    var publication = new ReviewAuditProgramPublicationRequest(draft.Value.ProgramVersionId,
+      draft.Value.ContentDigest!, "methodology-review-record-2026-1");
+    var published = await AuditProgramService.ReviewControlledAuditProgramPublicationAsync(db, reviewer, publication);
+    Assert.True(published.Succeeded, published.Message);
+    Assert.Equal("PUBLISHED", published.Value!.Status);
+    Assert.Equal(reviewer.UserId, published.Value.ApprovedByUserId);
+    Assert.NotEqual(published.Value.CreatedByUserId, published.Value.ApprovedByUserId);
+    Assert.Equal(publication.PublicationReviewReference, published.Value.PublicationReviewReference);
+
+    var replay = await AuditProgramService.ReviewControlledAuditProgramPublicationAsync(db, reviewer, publication);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(published.Value.ProgramVersionId, replay.Value!.ProgramVersionId);
+    Assert.Equal(1, await db.AuditProgramVersions.CountAsync());
+
+    var changedReview = await AuditProgramService.ReviewControlledAuditProgramPublicationAsync(db, reviewer,
+      publication with { ExpectedContentDigest = new string('0', 64) });
+    Assert.False(changedReview.Succeeded);
+
+    firmGrant.RevokedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    var revokedOwner = await AuditProgramService.PrepareControlledAuditProgramAsync(db, preparer,
+      new PrepareAuditProgramRequest("2026.2", AuditProgramCatalog.SourceHash));
+    Assert.False(revokedOwner.Succeeded);
+    Assert.Equal(1, await db.AuditProgramVersions.CountAsync());
+  }
+
   [Fact(DisplayName = "Audit program publishes, adopts, executes and independently reviews the controlled catalog")]
   public async Task ControlledCatalog_UsesScopedAppendOnlyWorkflow()
   {
@@ -19,7 +79,7 @@ public sealed class AuditProgramWorkflowTests
     var scope = fixture.Primary;
 
     await using var db = new AuditSphereDbContext(pg.Options);
-    var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+    var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
       new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
 
     Assert.True(published.Succeeded);
@@ -27,7 +87,7 @@ public sealed class AuditProgramWorkflowTests
     Assert.True(AuditProgramCatalog.IsComplete);
     Assert.Equal(165, await db.AuditProgramProcedures.CountAsync());
 
-    var idempotent = await AuditProgramService.PublishAsync(db, scope.Actor,
+    var idempotent = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
       new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
     Assert.True(idempotent.Succeeded);
     Assert.Equal(published.Value.ProgramVersionId, idempotent.Value!.ProgramVersionId);
@@ -124,7 +184,7 @@ public sealed class AuditProgramWorkflowTests
     Guid versionId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+      var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
         new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(published.Succeeded, published.Message);
       versionId = published.Value!.ProgramVersionId;
@@ -189,7 +249,7 @@ public sealed class AuditProgramWorkflowTests
       Assert.Empty(empty.Value!.Versions);
       Assert.Null(empty.Value.SelectedVersion);
 
-      var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+      var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
         new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(published.Succeeded, published.Message);
 
@@ -220,7 +280,7 @@ public sealed class AuditProgramWorkflowTests
     Guid programVersionId, procedureId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+      var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
         new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
       Assert.True(published.Succeeded, published.Message);
       programVersionId = published.Value!.ProgramVersionId;
@@ -281,7 +341,7 @@ public sealed class AuditProgramWorkflowTests
     var scope = fixture.Primary;
 
     await using var db = new AuditSphereDbContext(pg.Options);
-    var published = await AuditProgramService.PublishAsync(db, scope.Actor,
+    var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
       new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
     Assert.True(published.Succeeded);
 

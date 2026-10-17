@@ -20,8 +20,13 @@ describe('Audit Program Library Contracts', () => {
           version: '2026.1',
           status: 'PUBLISHED',
           sourceHash: hash64,
+          contentDigest: hash64,
           procedureCount: 150,
           sectionCount: 12,
+          createdByUserId: id1,
+          approvedByUserId: id2,
+          publicationReviewReference: 'review-2026-01',
+          createdAt: '2026-09-15T08:00:00Z',
           approvedAt: '2026-09-15T09:00:00Z',
         },
       ],
@@ -31,10 +36,17 @@ describe('Audit Program Library Contracts', () => {
         version: '2026.1',
         status: 'PUBLISHED',
         sourceHash: hash64,
+        contentDigest: hash64,
         procedureCount: 150,
         sectionCount: 12,
+        createdByUserId: id1,
+        approvedByUserId: id2,
+        publicationReviewReference: 'review-2026-01',
+        createdAt: '2026-09-15T08:00:00Z',
         approvedAt: '2026-09-15T09:00:00Z',
       },
+      canPrepare: false,
+      canPublish: false,
       sections: [
         {
           sectionNumber: 1,
@@ -90,8 +102,9 @@ describe('Audit Program Library Contracts', () => {
 
 
 const summary = (id = id1, version = '2026.1') => ({ programVersionId: id, programCode: 'CORE-AUDIT', version, status: 'PUBLISHED', sourceHash: hash64,
-  procedureCount: 2, sectionCount: 2, approvedAt: '2026-09-15T09:00:00Z' });
-const library = (id = id1) => ({ versions: [summary(), summary(id2, '2026.2')], selectedVersion: id === id1 ? summary() : summary(id2, '2026.2'),
+  contentDigest: hash64, procedureCount: 2, sectionCount: 2, createdByUserId: id2, approvedByUserId: id1,
+  publicationReviewReference: 'review-2026-01', createdAt: '2026-09-15T08:00:00Z', approvedAt: '2026-09-15T09:00:00Z' });
+const library = (id = id1) => ({ canPrepare: false, canPublish: false, versions: [summary(), summary(id2, '2026.2')], selectedVersion: id === id1 ? summary() : summary(id2, '2026.2'),
   sections: [{ sectionNumber: 1, sectionTitle: 'Planning', procedureCount: 1, assertions: [] }, { sectionNumber: 2, sectionTitle: 'Evidence', procedureCount: 1, assertions: [] }] });
 const procedurePage = (sectionNumber = 1, wording = 'Exact source procedure', count = 1) => ({ sectionNumber, sectionTitle: sectionNumber === 1 ? 'Planning' : 'Evidence',
   totalCount: count, page: 1, pageSize: 100, items: count ? [{ procedureId: id2, sourceProcedureId: 'AWP-01-01', sectionNumber,
@@ -134,8 +147,8 @@ describe('Audit library read lifecycle', () => {
     await read; expect(page.appliedSearch()).toBe(term.trim());
   });
   it('shows empty library and empty selected-version sections honestly', async () => {
-    page.refresh(); TestBed.tick(); http.expectOne('/api/ui/audit/library').flush({ versions: [], selectedVersion: null, sections: [] }); await fixture.whenStable();
-    expect(fixture.nativeElement.textContent).toContain('No published library version');
+    page.refresh(); TestBed.tick(); http.expectOne('/api/ui/audit/library').flush({ canPrepare: false, canPublish: false, versions: [], selectedVersion: null, sections: [] }); await fixture.whenStable();
+    expect(fixture.nativeElement.textContent).toContain('No library version');
     page.refresh(); TestBed.tick(); http.expectOne('/api/ui/audit/library').flush({ ...library(), sections: [] }); await fixture.whenStable();
     expect(fixture.nativeElement.textContent).toContain('No sections in the selected version');
   });

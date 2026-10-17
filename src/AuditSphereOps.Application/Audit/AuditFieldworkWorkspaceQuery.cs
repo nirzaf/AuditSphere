@@ -202,9 +202,13 @@ public static class AuditFieldworkWorkspaceQuery
 
   public static async Task<CommandResult<Guid>> PublishAndAdoptAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string version, CancellationToken ct = default)
   {
-    var published = await AuditProgramService.PublishAsync(db, actor, new PublishAuditProgramRequest(version, AuditProgramCatalog.SourceHash), ct);
-    if (!published.Succeeded) return CommandResult<Guid>.Fail(published.ErrorCode!, published.Message!);
-    var adopted = await AuditProgramService.AdoptAsync(db, actor, new AdoptAuditProgramRequest(engagementId, published.Value!.ProgramVersionId), ct);
+    var published = await db.AuditProgramVersions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ProgramCode == AuditProgramCatalog.ProgramCode &&
+      x.Version == version && x.Status == AuditProgramStatuses.Published, ct);
+    if (published is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "No published version matches this programme. A firm-wide owner must prepare and independently publish it in the audit library first.");
+    var adopted = await AuditProgramService.AdoptAsync(db, actor, new AdoptAuditProgramRequest(engagementId, published.Id), ct);
     return adopted.Succeeded ? CommandResult<Guid>.Ok(adopted.Value!.EngagementProgramId) : CommandResult<Guid>.Fail(adopted.ErrorCode!, adopted.Message!);
   }
 }

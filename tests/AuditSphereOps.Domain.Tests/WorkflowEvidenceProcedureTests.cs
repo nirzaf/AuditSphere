@@ -21,7 +21,7 @@ public sealed class WorkflowEvidenceProcedureTests
     db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, f.Staff, "Manager", f.ClientId, f.EngagementId),
       PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner", f.ClientId, f.EngagementId)); await db.SaveChangesAsync();
     await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId, manager, partner);
-    var published = await AuditProgramService.PublishAsync(db, admin, new("workflow-evidence-v1", AuditProgramCatalog.SourceHash));
+    var published = await AuditProgramTestHelpers.PublishAsync(db, admin, new("workflow-evidence-v1", AuditProgramCatalog.SourceHash));
     Assert.True(published.Succeeded, published.Message);
     Assert.True((await AuditProgramService.AdoptAsync(db, manager, new(f.EngagementId, published.Value!.ProgramVersionId))).Succeeded);
     var procedures = await db.AuditProcedures.Where(x => x.EngagementId == f.EngagementId).OrderBy(x => x.SourceProcedureId).Take(2).ToListAsync();

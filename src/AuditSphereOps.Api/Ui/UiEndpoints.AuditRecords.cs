@@ -16,6 +16,8 @@ public static partial class UiEndpoints
     string WorkPerformed, string Conclusion);
   public sealed record WorkpaperSubmitInput(long ExpectedRevision, string WorkPerformed, string Conclusion, long ExpectedDraftRevision, Guid DraftSaveId);
   public sealed record WorkpaperDiscardInput(long ExpectedDraftRevision);
+  public sealed record PrepareAuditProgramInput(string Version, string SourceHash);
+  public sealed record PublishAuditProgramInput(string ExpectedContentDigest, string PublicationReviewReference);
 
   private static void MapAuditRecordEndpoints(RouteGroupBuilder group)
   {
@@ -41,6 +43,12 @@ public static partial class UiEndpoints
 
     group.MapUiGet("/audit/library", http => ReadAsync(http, (db, actor, ct) =>
       AuditProgramLibraryQuery.GetLibraryAsync(db, actor, http.Request.Query["version"].FirstOrDefault() is { Length: > 0 } v ? v : null, ct)));
+    group.MapPost("/audit/library/versions/prepare", (PrepareAuditProgramInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.PrepareControlledAuditProgramAsync(db, actor,
+        new PrepareAuditProgramRequest(input.Version, input.SourceHash), ct)));
+    group.MapPost("/audit/library/versions/{versionId:guid}/publish", (Guid versionId, PublishAuditProgramInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.ReviewControlledAuditProgramPublicationAsync(db, actor,
+        new ReviewAuditProgramPublicationRequest(versionId, input.ExpectedContentDigest, input.PublicationReviewReference), ct)));
     group.MapGet("/audit/library/{versionId:guid}/sections/{section:int}", (Guid versionId, int section, string? search, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => AuditProgramLibraryQuery.GetSectionAsync(db, actor, versionId, section, string.IsNullOrWhiteSpace(search) ? null : search, ct: ct)));
     group.MapGet("/audit/populations/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AuditRecordQueries.PopulationAsync(db, actor, id, ct)));

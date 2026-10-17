@@ -27,10 +27,10 @@ public sealed class AngularAuditProgramLibraryJourneyTests
       if (published)
       {
         var actor = PbcSeed.Actor(host.Fixture.Staff, "Partner");
-        var first = await AuditProgramService.PublishAsync(db, actor, new("2026.1", AuditProgramCatalog.SourceHash));
+        var first = await AuditProgramTestHelpers.PublishAsync(db, actor, new("2026.1", AuditProgramCatalog.SourceHash));
         Assert.True(first.Succeeded, first.Message);
         firstVersionId = first.Value!.ProgramVersionId;
-        var second = await AuditProgramService.PublishAsync(db, actor, new("2026.2", AuditProgramCatalog.SourceHash));
+        var second = await AuditProgramTestHelpers.PublishAsync(db, actor, new("2026.2", AuditProgramCatalog.SourceHash));
         Assert.True(second.Succeeded, second.Message);
       }
     }
@@ -48,9 +48,9 @@ public sealed class AngularAuditProgramLibraryJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Audit program library", Exact = true })).ToBeVisibleAsync();
     if (!published)
     {
-      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "No published library version", Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "No library version", Exact = true })).ToBeVisibleAsync();
       await page.GetByRole(AriaRole.Button, new() { Name = "Refresh library", Exact = true }).ClickAsync();
-      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "No published library version", Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "No library version", Exact = true })).ToBeVisibleAsync();
     }
     else
     {
@@ -62,7 +62,7 @@ public sealed class AngularAuditProgramLibraryJourneyTests
       await Assertions.Expect(version.Locator("option:checked")).ToHaveTextAsync(
         $"{AuditProgramCatalog.ProgramCode} v2026.1 · PUBLISHED · {AuditProgramCatalog.Items.Count} procedures");
       var metadata = page.Locator("section[aria-labelledby='version-heading']");
-      await Assertions.Expect(metadata.Locator("dt", new() { HasText = "Source hash" }).Locator("+ dd")).ToHaveTextAsync(AuditProgramCatalog.SourceHash);
+      await Assertions.Expect(metadata.Locator("dt", new() { HasText = "Source SHA-256" }).Locator("+ dd")).ToHaveTextAsync(AuditProgramCatalog.SourceHash);
       await Assertions.Expect(metadata.Locator("dt", new() { HasText = "Procedures" }).Locator("+ dd")).ToHaveTextAsync(AuditProgramCatalog.Items.Count.ToString());
       await Assertions.Expect(metadata.Locator("dt", new() { HasText = "Sections" }).Locator("+ dd")).ToHaveTextAsync(AuditProgramCatalog.Items.Select(x => x.SectionNumber).Distinct().Count().ToString());
       await Assertions.Expect(page.GetByText(
