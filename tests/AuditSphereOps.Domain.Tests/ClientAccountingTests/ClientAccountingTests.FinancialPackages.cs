@@ -32,7 +32,7 @@ public sealed partial class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var scopedPreparer = User(scope.FirmId, "comparative-preparer");
     var priorEngagementId = Guid.CreateVersion7();
-    Guid priorPackageId;
+    Guid priorPackageId, currentPackageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       db.Users.Add(scopedPreparer);
@@ -46,6 +46,8 @@ public sealed partial class ClientAccountingTests
       var prior = db.FinancialPackages.Local.Single(x => x.Id == priorPackageId);
       prior.PeriodStart = "2025-01-01";
       prior.PeriodEnd = "2025-12-31";
+      currentPackageId = await AddPackageAsync(db, scope, scope.ClientA, scope.EngagementA, 120m, "CASH", "current-engagement");
+      db.FinancialPackages.Local.Single(x => x.Id == currentPackageId).ComparativePackageId = priorPackageId;
       await db.SaveChangesAsync();
     }
 
@@ -67,6 +69,27 @@ public sealed partial class ClientAccountingTests
     Assert.True(authorized.Succeeded, authorized.Message);
     var option = Assert.Single(authorized.Value!.Comparatives, x => x.Id == priorPackageId);
     Assert.Equal(priorEngagementId, option.EngagementId);
+
+    await using (var packageDb = new AuditSphereDbContext(pg.Options))
+    {
+      var package = await packageDb.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == currentPackageId);
+      Assert.True((await FinancialStatementService.AuthorizeComparativeAccessAsync(packageDb, actor, package, default)).Succeeded);
+    }
+
+    await using (var revokeDb = new AuditSphereDbContext(pg.Options))
+    {
+      var priorGrant = await revokeDb.RoleGrants.SingleAsync(x => x.FirmId == scope.FirmId &&
+        x.UserId == scopedPreparer.Id && x.Role == "Staff" && x.EngagementId == priorEngagementId);
+      priorGrant.RevokedAt = DateTimeOffset.UtcNow;
+      await revokeDb.SaveChangesAsync();
+    }
+    await using (var revokedDb = new AuditSphereDbContext(pg.Options))
+    {
+      var package = await revokedDb.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == currentPackageId);
+      var revoked = await FinancialStatementService.AuthorizeComparativeAccessAsync(revokedDb, actor, package, default);
+      Assert.False(revoked.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, revoked.ErrorCode);
+    }
   }
 
   [Fact]

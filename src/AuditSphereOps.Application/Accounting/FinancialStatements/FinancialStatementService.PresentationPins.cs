@@ -234,6 +234,9 @@ public static partial class FinancialStatementService
       if (comparative is null)
         return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
           "The comparative package is no longer available.");
+      var comparativeAccess = await AuthorizeComparativeAccessAsync(db, actor, package, ct);
+      if (!comparativeAccess.Succeeded)
+        return CommandResult<FinancialStatementPresentationPin>.Fail(comparativeAccess.ErrorCode!, comparativeAccess.Message!);
       if (!await CashFlowSourceApprovedAsync(db, comparative, ct))
         return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
           "Comparative cash-flow source links need independent approval before promoting to candidate.");
@@ -450,6 +453,9 @@ public static partial class FinancialStatementService
     var auth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId, PackageReadRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<FinancialStatementPresentation>.Fail(auth.ErrorCode!, auth.Message!);
+    var comparativeAccess = await AuthorizeComparativeAccessAsync(db, actor, package, ct);
+    if (!comparativeAccess.Succeeded)
+      return CommandResult<FinancialStatementPresentation>.Fail(comparativeAccess.ErrorCode!, comparativeAccess.Message!);
 
     if (package.Revision != revision.PackageRevision || package.Generation != revision.PackageGeneration ||
         package.PeriodId != revision.PeriodId || package.BookId != revision.BookId || package.Basis != revision.Basis ||
@@ -676,9 +682,28 @@ public static partial class FinancialStatementService
     if (package is null || package.ClientId != revision.ClientId || package.EngagementId != revision.EngagementId)
       return CommandResult<FinancialPackage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId, PackageReadRoles, ct);
-    return auth.Succeeded
+    if (!auth.Succeeded)
+      return CommandResult<FinancialPackage>.Fail(auth.ErrorCode!, auth.Message!);
+    var comparativeAccess = await AuthorizeComparativeAccessAsync(db, actor, package, ct);
+    return comparativeAccess.Succeeded
       ? CommandResult<FinancialPackage>.Ok(package)
-      : CommandResult<FinancialPackage>.Fail(auth.ErrorCode!, auth.Message!);
+      : CommandResult<FinancialPackage>.Fail(comparativeAccess.ErrorCode!, comparativeAccess.Message!);
+  }
+
+  internal static async Task<CommandResult> AuthorizeComparativeAccessAsync(
+    IClientAccountingDbContext db, ActorContext actor, FinancialPackage package, CancellationToken ct)
+  {
+    if (package.ComparativePackageId is not Guid comparativeId)
+      return CommandResult.Ok();
+    var comparative = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == comparativeId && x.FirmId == package.FirmId && x.ClientId == package.ClientId, ct);
+    if (comparative is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (comparative.EngagementId == package.EngagementId)
+      return CommandResult.Ok();
+    var auth = await AuthorizeAsync(db, actor, comparative.FirmId, comparative.ClientId,
+      comparative.EngagementId, PackageReadRoles, ct);
+    return auth.Succeeded ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
   }
 
   internal static async Task<bool> PresentationSourceIsCurrentAsync(

@@ -163,6 +163,9 @@ public static partial class FinancialPackageReviewService
       if (!await FinancialStatementService.PresentationSourceIsCurrentAsync(db, candidate, ct))
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
           "The candidate presentation source is no longer current; generate a new signing candidate before deciding.");
+      var comparativeAccess = await FinancialStatementService.AuthorizeComparativeAccessAsync(db, actor, package, ct);
+      if (!comparativeAccess.Succeeded)
+        return CommandResult<Guid>.Fail(comparativeAccess.ErrorCode!, comparativeAccess.Message!);
       if (!FinancialStatementService.PresentationChecksAllPass(candidate))
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "This signing candidate carries unresolved presentation checks. Complete the content review and create a new candidate before deciding.");
@@ -480,6 +483,9 @@ public static partial class FinancialPackageReviewService
       new AuthorizationRequest(package.FirmId, package.ClientId, package.EngagementId, AccountingRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return auth;
+    var comparativeAccess = await FinancialStatementService.AuthorizeComparativeAccessAsync(db, actor, package, ct);
+    if (!comparativeAccess.Succeeded)
+      return comparativeAccess;
     if (package.Status != AccountingPackageStates.PackageValidated)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "The financial package is not currently reviewable.");
     var readiness = await FinancialPackageValidationReadiness.GetAsync(db, package.FirmId, package.Id, ct);
