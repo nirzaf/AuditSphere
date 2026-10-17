@@ -95,7 +95,7 @@ describe('client document comments', () => {
     get.flush({ succeeded: true, value: receiptId });
     await recovery; fixture.detectChanges();
     expect(editor.uncertain()).toBe(false);
-    expect(editor.review.controls.body.value).toBe('Please confirm this exact disclosure.');
+    expect(editor.review.controls.body.value).toBe('');
     http.expectOne('/api/ui/portal/documents').flush(documents(null, [{ ...sharedDocument,
       comments: [{ body: 'Please confirm this exact disclosure.', fromClient: true, resolution: null }] }]));
     await fixture.whenStable(); TestBed.tick(); fixture.destroy();
