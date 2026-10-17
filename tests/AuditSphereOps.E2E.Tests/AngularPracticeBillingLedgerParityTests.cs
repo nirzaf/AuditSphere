@@ -142,11 +142,11 @@ public sealed class AngularPracticeBillingLedgerParityTests
       Assert.True((await BillingService.PostInvoiceAsync(db, manager, invoiceId)).Succeeded);
       Assert.True((await BillingService.SendInvoiceAsync(db, manager, invoiceId)).Succeeded);
       Assert.True((await BillingService.IssueCreditNoteAsync(db, manager,
-        new IssueCreditNoteRequest(invoiceId, "SYN-PAR-002-CN-001", 20m, "Synthetic adjustment"))).Succeeded);
+        new IssueCreditNoteRequest(invoiceId, "SYN-PAR-002-CN-001", 20m, "Synthetic adjustment", Guid.NewGuid()))).Succeeded);
       receiptId = (await BillingService.RecordReceiptAsync(db, manager,
-        new RecordReceiptRequest(accountId, 80m, "SYN-PAR-002-RECEIPT-001"))).Value;
+        new RecordReceiptRequest(accountId, 80m, "SYN-PAR-002-RECEIPT-001", RequestId: Guid.NewGuid()))).Value;
       Assert.True((await BillingService.AllocateReceiptAsync(db, manager,
-        new AllocateReceiptRequest(receiptId, invoiceId, 80m))).Succeeded);
+        new AllocateReceiptRequest(receiptId, invoiceId, 80m, Guid.NewGuid()))).Succeeded);
       var balance = await BillingService.GetInvoiceBalanceAsync(db, manager, invoiceId);
       Assert.True(balance.Succeeded, balance.Message);
       Assert.Equal(new InvoiceBalance(invoiceId, "QAR", 100m, 20m, 80m, 0m), balance.Value);

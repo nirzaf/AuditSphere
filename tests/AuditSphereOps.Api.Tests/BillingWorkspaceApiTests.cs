@@ -7,6 +7,8 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AuditSphereOps.Api.Tests;
 
@@ -58,22 +60,48 @@ public sealed class BillingWorkspaceApiTests
     Assert.Empty(initial.GetProperty("receipts").EnumerateArray());
     Assert.Empty(initial.GetProperty("creditNotes").EnumerateArray());
 
-    var receiptBody = new { amount = "40.125", reference = "SYN-BANK-001", reviewed = true };
+    var receiptRequestId = Guid.NewGuid();
+    var receiptBody = new { requestId = receiptRequestId, amount = "40.125", reference = "SYN-BANK-001", reviewed = true };
     Assert.Equal(HttpStatusCode.Forbidden,
       (await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts", JsonContent.Create(receiptBody), null)).StatusCode);
     using var recorded = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts", JsonContent.Create(receiptBody), proof);
     Assert.Equal(HttpStatusCode.OK, recorded.StatusCode);
     var receiptId = (await recorded.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid();
+    using var receiptReplay = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts", JsonContent.Create(receiptBody), proof);
+    Assert.Equal(HttpStatusCode.OK, receiptReplay.StatusCode);
+    Assert.Equal(receiptId, (await receiptReplay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid());
+    var retainedReceipt = await client.GetFromJsonAsync<JsonElement>($"/api/ui/finance/commands/receipts/{receiptRequestId:D}");
+    Assert.Equal(receiptId, retainedReceipt.GetProperty("outcome").GetProperty("resultId").GetGuid());
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync("TRUNCATE TABLE billing_command_receipts"));
+    using var receiptConflict = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts",
+      JsonContent.Create(new { requestId = receiptRequestId, amount = "40.13", reference = "SYN-BANK-001", reviewed = true }), proof);
+    Assert.Equal(HttpStatusCode.Conflict, receiptConflict.StatusCode);
 
-    var allocationBody = new { invoiceId, amount = "25.125", reviewed = true };
+    var allocationBody = new { requestId = Guid.NewGuid(), invoiceId, amount = "25.125", reviewed = true };
     Assert.Equal(HttpStatusCode.Forbidden,
       (await PostAsync(client, $"/api/ui/finance/receipts/{receiptId:D}/allocations", JsonContent.Create(allocationBody), null)).StatusCode);
+    using var missingRequestId = await PostAsync(client, $"/api/ui/finance/receipts/{receiptId:D}/allocations",
+      JsonContent.Create(new { requestId = Guid.Empty, invoiceId, amount = "1", reviewed = true }), proof);
+    Assert.Equal(HttpStatusCode.BadRequest, missingRequestId.StatusCode);
+    Assert.Equal("billing.command-invalid", (await missingRequestId.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
     using var allocated = await PostAsync(client, $"/api/ui/finance/receipts/{receiptId:D}/allocations", JsonContent.Create(allocationBody), proof);
     Assert.Equal(HttpStatusCode.OK, allocated.StatusCode);
+    var allocationId = (await allocated.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetProperty("allocationId").GetGuid();
+    using var allocationReplay = await PostAsync(client, $"/api/ui/finance/receipts/{receiptId:D}/allocations", JsonContent.Create(allocationBody), proof);
+    Assert.Equal(HttpStatusCode.OK, allocationReplay.StatusCode);
+    Assert.Equal(allocationId, (await allocationReplay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetProperty("allocationId").GetGuid());
+    using var allocationConflict = await PostAsync(client, $"/api/ui/finance/receipts/{receiptId:D}/allocations",
+      JsonContent.Create(new { requestId = allocationBody.requestId, invoiceId, amount = "24.125", reviewed = true }), proof);
+    Assert.Equal(HttpStatusCode.Conflict, allocationConflict.StatusCode);
 
-    var creditBody = new { noteNumber = "SYN-CN-001", amount = "10.5", reason = "Synthetic reviewed fee adjustment", reviewed = true };
+    var creditBody = new { requestId = Guid.NewGuid(), noteNumber = "SYN-CN-001", amount = "10.5", reason = "Synthetic reviewed fee adjustment", reviewed = true };
     using var credited = await PostAsync(client, $"/api/ui/finance/invoices/{invoiceId:D}/credit-notes", JsonContent.Create(creditBody), proof);
     Assert.Equal(HttpStatusCode.OK, credited.StatusCode);
+    var creditId = (await credited.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid();
+    using var creditReplay = await PostAsync(client, $"/api/ui/finance/invoices/{invoiceId:D}/credit-notes", JsonContent.Create(creditBody), proof);
+    Assert.Equal(HttpStatusCode.OK, creditReplay.StatusCode);
+    Assert.Equal(creditId, (await creditReplay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid());
     var final = await client.GetFromJsonAsync<JsonElement>(path);
     Assert.Equal(64.375m, Decimal(final.GetProperty("outstanding")));
     Assert.Equal(10.5m, Decimal(final.GetProperty("credited")));
@@ -83,6 +111,7 @@ public sealed class BillingWorkspaceApiTests
     Assert.Equal(25.125m, Decimal(receipt.GetProperty("allocated")));
     Assert.Equal(15m, Decimal(receipt.GetProperty("remaining")));
     Assert.Equal("SYN-CN-001", Assert.Single(final.GetProperty("creditNotes").EnumerateArray()).GetProperty("noteNumber").GetString());
+    Assert.Single(final.GetProperty("allocations").EnumerateArray());
 
     using var staffFactory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
     {
@@ -94,6 +123,8 @@ public sealed class BillingWorkspaceApiTests
     using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
     await SignInAsync(staff);
     Assert.Equal(HttpStatusCode.Forbidden, (await staff.GetAsync(path)).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden,
+      (await staff.GetAsync($"/api/ui/finance/commands/receipts/{receiptRequestId:D}")).StatusCode);
   }
 
   [Fact]

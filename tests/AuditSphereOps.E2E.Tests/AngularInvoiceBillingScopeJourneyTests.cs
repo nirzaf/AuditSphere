@@ -72,7 +72,7 @@ public sealed class AngularInvoiceBillingScopeJourneyTests
       Assert.True((await BillingService.ApproveInvoiceAsync(db, siblingReviewerActor, siblingInvoiceId)).Succeeded);
       Assert.True((await BillingService.PostInvoiceAsync(db, siblingManagerActor, siblingInvoiceId)).Succeeded);
       var siblingReceipt = await BillingService.RecordReceiptAsync(db, siblingManagerActor,
-        new RecordReceiptRequest(siblingAccountId, 50m, "SYN-SIBLING-RECEIPT"));
+        new RecordReceiptRequest(siblingAccountId, 50m, "SYN-SIBLING-RECEIPT", RequestId: Guid.NewGuid()));
       Assert.True(siblingReceipt.Succeeded, siblingReceipt.Message);
       siblingReceiptId = siblingReceipt.Value;
     }
@@ -127,13 +127,13 @@ public sealed class AngularInvoiceBillingScopeJourneyTests
         })).status;
         return JSON.stringify([
           await post(`/api/ui/finance/billing-accounts/${ids.siblingAccountId}/receipts`,
-            { amount: '1', reference: 'SYN-UNAUTHORIZED-RECEIPT', reviewed: true }),
+            { requestId: crypto.randomUUID(), amount: '1', reference: 'SYN-UNAUTHORIZED-RECEIPT', reviewed: true }),
           await post(`/api/ui/finance/receipts/${ids.siblingReceiptId}/allocations`,
-            { invoiceId: ids.siblingInvoiceId, amount: '1', reviewed: true }),
+            { requestId: crypto.randomUUID(), invoiceId: ids.siblingInvoiceId, amount: '1', reviewed: true }),
           await post(`/api/ui/finance/receipts/${ids.ownReceiptId}/allocations`,
-            { invoiceId: ids.siblingInvoiceId, amount: '1', reviewed: true }),
+            { requestId: crypto.randomUUID(), invoiceId: ids.siblingInvoiceId, amount: '1', reviewed: true }),
           await post(`/api/ui/finance/invoices/${ids.siblingInvoiceId}/credit-notes`,
-            { noteNumber: 'SYN-UNAUTHORIZED-CREDIT', amount: '1', reason: 'Must not persist', reviewed: true })
+            { requestId: crypto.randomUUID(), noteNumber: 'SYN-UNAUTHORIZED-CREDIT', amount: '1', reason: 'Must not persist', reviewed: true })
         ]);
       }
       """, new

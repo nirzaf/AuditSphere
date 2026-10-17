@@ -155,11 +155,11 @@ public sealed class FirmReceivablesAgingApiTests
     Assert.Equal(HttpStatusCode.OK, decision.StatusCode);
 
     using var recorded = await PostAsync(managerClient, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts",
-      JsonContent.Create(new { amount = "20", reference = "SYN-AGING-RECEIPT-API", reviewed = true }), proof);
+      JsonContent.Create(new { requestId = Guid.NewGuid(), amount = "20", reference = "SYN-AGING-RECEIPT-API", reviewed = true }), proof);
     Assert.Equal(HttpStatusCode.OK, recorded.StatusCode);
     var receiptId = (await recorded.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid();
     using var allocated = await PostAsync(managerClient, $"/api/ui/finance/receipts/{receiptId:D}/allocations",
-      JsonContent.Create(new { invoiceId, amount = "20", reviewed = true }), proof);
+      JsonContent.Create(new { requestId = Guid.NewGuid(), invoiceId, amount = "20", reviewed = true }), proof);
     Assert.Equal(HttpStatusCode.OK, allocated.StatusCode);
     var invoiceDetail = await managerClient.GetFromJsonAsync<JsonElement>($"/api/ui/finance/invoices/{invoiceId:D}");
     var allocationId = Assert.Single(invoiceDetail.GetProperty("allocations").EnumerateArray()).GetProperty("id").GetGuid();

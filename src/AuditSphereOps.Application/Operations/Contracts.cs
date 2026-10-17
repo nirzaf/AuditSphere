@@ -175,6 +175,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<EngagementBudget> EngagementBudgets { get; }
   DbSet<BudgetLine> BudgetLines { get; }
   DbSet<BillingAccount> BillingAccounts { get; }
+  DbSet<BillingCommandReceipt> BillingCommandReceipts { get; }
   DbSet<FirmFinanceProfile> FirmFinanceProfiles { get; }
   DbSet<Invoice> Invoices { get; }
   DbSet<InvoicePaymentTermsRevision> InvoicePaymentTermsRevisions { get; }

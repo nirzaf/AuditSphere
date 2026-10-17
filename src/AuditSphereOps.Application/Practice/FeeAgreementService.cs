@@ -237,7 +237,10 @@ public static partial class FeeAgreementService
       var outstandingBefore = await OutstandingAsync(db, actor.FirmId, invoice, ct);
       if (amount > outstandingBefore)
         return CommandResult<AdvancePaymentOutcome>.Fail("fee.over-payment", $"The amount exceeds the outstanding {kind.ToLowerInvariant()} ({outstandingBefore.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}).");
-      var recorded = await BillingService.RecordReceiptAsync(db, actor, new(invoice.BillingAccountId, amount, storedReference, receivedAt), ct);
+      var receiptRequestId = BillingCommandWorkspace.DeriveRequestId(
+        $"fee-milestone:receipt:{agreement.Id:N}:{kind}:{storedReference}");
+      var recorded = await BillingService.RecordReceiptAsync(db, actor,
+        new(invoice.BillingAccountId, amount, storedReference, receivedAt, receiptRequestId), ct);
       if (!recorded.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(recorded.ErrorCode!, recorded.Message!);
       receipt = await db.Receipts.AsNoTracking().SingleAsync(x => x.Id == recorded.Value && x.FirmId == actor.FirmId, ct);
     }
@@ -252,7 +255,10 @@ public static partial class FeeAgreementService
     allocatedToInvoice = MoneyPolicy.Normalize(Math.Max(0m, allocatedToInvoice - reversedFromInvoice));
     if (allocatedToInvoice < receipt.Amount)
     {
-      var allocation = await BillingService.AllocateReceiptAsync(db, actor, new(receipt.Id, invoice.Id, receipt.Amount - allocatedToInvoice), ct);
+      var allocationRequestId = BillingCommandWorkspace.DeriveRequestId(
+        $"fee-milestone:allocation:{agreement.Id:N}:{kind}:{storedReference}:{receipt.Id:N}:{invoice.Id:N}:reversed:{BillingCommandWorkspace.Decimal(reversedFromInvoice)}");
+      var allocation = await BillingService.AllocateReceiptAsync(db, actor,
+        new(receipt.Id, invoice.Id, receipt.Amount - allocatedToInvoice, allocationRequestId), ct);
       if (!allocation.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(allocation.ErrorCode!, allocation.Message!);
     }
 
