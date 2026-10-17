@@ -25,7 +25,8 @@ public static partial class ResourcePlanningService
   public static async Task<CommandResult<StaffCertificationReviewWorkspace>> GetCertificationReviewAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid certificationId, CancellationToken ct = default)
   {
-    var auth = await AuthorizeAsync(db, actor, ct);
+    var readAuthority = new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true);
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, readAuthority, ct);
     if (!auth.Succeeded) return CommandResult<StaffCertificationReviewWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
     var source = await db.StaffCertifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == certificationId, ct);
     if (source is null) return CommandResult<StaffCertificationReviewWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -34,7 +35,7 @@ public static partial class ResourcePlanningService
     var admin = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true), ct);
     var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
-    auth = await AuthorizeAsync(db, actor, ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor, readAuthority, ct);
     if (!auth.Succeeded) return CommandResult<StaffCertificationReviewWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<StaffCertificationReviewWorkspace>.Ok(new(source.Id, source.UserId, source.Name, source.Issuer,
       source.ExpiresOn, source.RecordedByUserId, source.RecordedAt, StaffCertificationEvidence.SourceDigest(source),
@@ -75,7 +76,7 @@ public static partial class ResourcePlanningService
     var prior = await db.StaffCertificationReviews.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.RequestId == request.RequestId, ct);
     if (prior is not null)
       return prior.RequestDigest == digest ? CommandResult<Guid>.Ok(prior.Id)
-        : CommandResult<Guid>.Fail("resource.review-conflict", "This request identity belongs to a different decision.");
+        : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This request identity belongs to a different decision.");
     var source = await db.StaffCertifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == request.CertificationId, ct);
     if (source is null || source.UserId == actor.UserId || source.RecordedByUserId == actor.UserId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "An independent authorized reviewer is required.");
@@ -87,7 +88,7 @@ public static partial class ResourcePlanningService
       .Select(x => (long?)x.Revision).MaxAsync(ct) ?? 0;
     if (revision != request.ExpectedRevision || StaffCertificationEvidence.SourceDigest(source) != request.SourceDigest ||
         decision == "REVOKED" && revision == 0)
-      return CommandResult<Guid>.Fail("resource.review-stale", "Reload the certification source and current review before deciding.");
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Reload the certification source and current review before deciding.");
     var now = DateTimeOffset.UtcNow;
     if (source.RecordedAt > now || source.RecordedAt == default || decision == "VERIFIED" && source.ExpiresOn < DateOnly.FromDateTime(now.UtcDateTime))
       return CommandResult<Guid>.Fail("resource.review-invalid", "Future, missing or expired source evidence cannot be verified.");

@@ -24643,6 +24643,185 @@
         ]
       }
     },
+    "/api/ui/practice/resources/certifications/{certificationId}/review": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "certificationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffCertificationReviewWorkspace"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
+    "/api/ui/practice/resources/certifications/reviews": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificationReviewInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfGuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/practice/resources/availability": {
       "post": {
         "tags": [
@@ -90293,6 +90472,47 @@
           }
         }
       },
+      "CertificationReviewInput": {
+        "required": [
+          "certificationId",
+          "requestId",
+          "sourceDigest",
+          "expectedRevision",
+          "decision",
+          "evidenceReference",
+          "reason",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "certificationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceDigest": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
       "ChangeGroupMembershipRequest": {
         "required": [
           "idempotencyKey",
@@ -131124,6 +131344,135 @@
             ]
           },
           "certified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StaffCertificationReviewView": {
+        "required": [
+          "id",
+          "revision",
+          "decision",
+          "reviewerUserId",
+          "reviewedAt",
+          "evidenceReference",
+          "reason",
+          "sourceDigest"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reviewerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reviewedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sourceDigest": {
+            "type": "string"
+          }
+        }
+      },
+      "StaffCertificationReviewWorkspace": {
+        "required": [
+          "certificationId",
+          "subjectUserId",
+          "name",
+          "issuer",
+          "expiresOn",
+          "recordedByUserId",
+          "recordedAt",
+          "sourceDigest",
+          "revision",
+          "latestReview",
+          "verifiedForCurrentSource",
+          "expired",
+          "canReview"
+        ],
+        "type": "object",
+        "properties": {
+          "certificationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expiresOn": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "recordedByUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourceDigest": {
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "latestReview": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StaffCertificationReviewView"
+              }
+            ]
+          },
+          "verifiedForCurrentSource": {
+            "type": "boolean"
+          },
+          "expired": {
+            "type": "boolean"
+          },
+          "canReview": {
             "type": "boolean"
           }
         }

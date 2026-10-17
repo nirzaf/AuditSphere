@@ -11,6 +11,10 @@ public static partial class UiEndpoints
   public sealed record AvailabilityInput(Guid UserId, string StartDate, string EndDate, string Kind, int MinutesPerDay);
   public sealed record AllocationInput(Guid EngagementId, Guid UserId, string WeekStart, int PlannedMinutes);
 
+  /// <summary>Independent administrative decision against an exact certification source and review revision.</summary>
+  public sealed record CertificationReviewInput(Guid CertificationId, Guid RequestId, string SourceDigest,
+    string ExpectedRevision, string Decision, string EvidenceReference, string Reason, bool Reviewed);
+
   private static void MapResourceEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/practice/resources", (string? start, int? weeks, HttpContext http) =>
@@ -39,6 +43,22 @@ public static partial class UiEndpoints
     })
       .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
+    group.MapGet("/practice/resources/certifications/{certificationId:guid}/review", (Guid certificationId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ResourcePlanningService.GetCertificationReviewAsync(db, actor, certificationId, ct)))
+      .Produces<StaffCertificationReviewWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
+    group.MapPost("/practice/resources/certifications/reviews", (CertificationReviewInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => input.Reviewed && long.TryParse(input.ExpectedRevision,
+        System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var revision)
+        ? ResourcePlanningService.ReviewCertificationAsync(db, actor, new(input.CertificationId, input.RequestId,
+          input.SourceDigest, revision, input.Decision, input.EvidenceReference, input.Reason), ct)
+        : Task.FromResult(CommandResult<Guid>.Fail("resource.review-invalid", "Review the exact source and decision before publishing."))))
+      .Produces<UiValueResponse<Guid>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status401Unauthorized, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/practice/resources/availability", (AvailabilityInput input, HttpContext http) =>
