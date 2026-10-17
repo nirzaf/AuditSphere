@@ -632,7 +632,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_accounting_capability_acceptance_stage");
 
-                    b.ToTable("accounting_capability_acceptances");
+                    b.ToTable("accounting_capability_acceptances", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AccountingCapabilityProfile", b =>
@@ -1167,7 +1167,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "ReconciliationId");
 
-                    b.ToTable("accounting_reconciliation_items");
+                    b.ToTable("accounting_reconciliation_items", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AccountingReconciliationPreparation", b =>
@@ -1795,7 +1795,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("JournalId");
 
-                    b.ToTable("adjustment_lines");
+                    b.ToTable("adjustment_lines", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustmentPlan", b =>
@@ -7623,15 +7623,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CashFlowLineId");
+                    b.HasIndex("FirmId", "CreatedByUserId");
 
                     b.HasIndex("FirmId", "GeneralLedgerLineId");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
 
                     b.HasIndex("FirmId", "FinancialPackageId", "CashFlowLineId", "GeneralLedgerLineId")
                         .IsUnique()
                         .HasDatabaseName("ux_financial_package_cash_allocation_movement_source");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "CashFlowLineId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SourceImportBatchId", "GeneralLedgerTransactionId", "GeneralLedgerLineId")
+                        .HasDatabaseName("IX_financial_package_cash_flow_allocations_firm_id_client_id_~1");
 
                     b.ToTable("financial_package_cash_flow_allocations", null, t =>
                         {
@@ -7715,7 +7718,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "Id")
+                        .HasName("ak_financial_package_cash_flow_lines_package_scope_id");
 
                     b.HasIndex("FirmId", "FinancialPackageId", "Section", "Description")
                         .IsUnique()
@@ -7725,6 +7729,34 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_financial_package_cash_flow_values", "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' AND ((movement_date IS NULL AND activity_code IS NULL AND classification_rationale IS NULL AND cardinality(source_references) = 0) OR (movement_date IS NOT NULL AND length(trim(activity_code)) > 0 AND cardinality(source_references) > 0 AND length(trim(classification_rationale)) > 0))");
                         });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowMembershipSeal", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FinancialPackageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_package_id");
+
+                    b.Property<DateTimeOffset>("SealedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sealed_at");
+
+                    b.HasKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
+                        .HasName("pk_financial_package_cash_flow_membership_seals");
+
+                    b.ToTable("financial_package_cash_flow_membership_seals", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", b =>
@@ -7803,6 +7835,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "Id")
+                        .HasName("ak_financial_package_cash_source_reviews_package_scope_id");
+
+                    b.HasIndex("FirmId", "ReviewedByUserId");
+
                     b.HasIndex("FirmId", "FinancialPackageId", "RequestId")
                         .IsUnique()
                         .HasDatabaseName("ux_financial_package_cash_source_review_request")
@@ -7810,7 +7847,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "FinancialPackageId", "ReviewedAt");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SourceImportBatchId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "PreviousReviewId")
+                        .HasDatabaseName("IX_financial_package_cash_flow_source_reviews_firm_id_client_~1");
 
                     b.ToTable("financial_package_cash_flow_source_reviews", null, t =>
                         {
@@ -9418,6 +9458,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
                         .HasName("ak_gl_lines_scope_id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "ImportBatchId", "TransactionId", "Id")
+                        .HasName("ak_gl_lines_source_identity");
+
                     b.HasIndex("FirmId", "ImportBatchId", "StableLineId")
                         .IsUnique()
                         .HasDatabaseName("ux_gl_line_stable_line");
@@ -9523,7 +9566,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "ImportBatchId");
 
-                    b.ToTable("general_ledger_transactions");
+                    b.ToTable("general_ledger_transactions", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.GroupAccessGrant", b =>
@@ -9571,7 +9614,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_group_access_grant");
 
-                    b.ToTable("group_access_grants");
+                    b.ToTable("group_access_grants", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.IntercompanyMatch", b =>
@@ -10643,7 +10686,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "TaxonomyVersionId", "ParentNodeId");
 
-                    b.ToTable("reporting_taxonomy_nodes");
+                    b.ToTable("reporting_taxonomy_nodes", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ReportingTaxonomyVersion", b =>
@@ -10870,7 +10913,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_source_account_alias");
 
-                    b.ToTable("source_account_aliases");
+                    b.ToTable("source_account_aliases", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.SourceImportBatch", b =>
@@ -12127,7 +12170,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "DatasetId", "Severity")
                         .HasDatabaseName("ix_tb_validation_issues");
 
-                    b.ToTable("trial_balance_validation_issues");
+                    b.ToTable("trial_balance_validation_issues", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ValuationPreparation", b =>
@@ -17922,7 +17965,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("OperationId", "Token")
                         .IsUnique();
 
-                    b.ToTable("operation_attempts");
+                    b.ToTable("operation_attempts", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperationEvent", b =>
@@ -17958,7 +18001,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperationId", "OccurredAt");
 
-                    b.ToTable("operation_events");
+                    b.ToTable("operation_events", (string)null);
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperatorCommandEvent", b =>
@@ -30723,11 +30766,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowAllocation", b =>
                 {
-                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowLine", null)
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
-                        .HasForeignKey("CashFlowLineId")
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_alloc_creator");
 
                     b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
                         .WithMany()
@@ -30735,6 +30780,22 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowLine", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "CashFlowLineId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_alloc_movement_scoped");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.GeneralLedgerLine", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SourceImportBatchId", "GeneralLedgerTransactionId", "GeneralLedgerLineId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "ImportBatchId", "TransactionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_alloc_gl_source");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowLine", b =>
@@ -30747,7 +30808,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", b =>
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowMembershipSeal", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
                         .WithMany()
@@ -30755,6 +30816,39 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_review_reviewer");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.SourceImportBatch", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SourceImportBatchId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_review_source_batch");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "PreviousReviewId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_cash_review_previous");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageDisclosure", b =>

@@ -433,6 +433,12 @@ public static partial class FinancialStatementService
     try
     {
       await db.SaveChangesAsync(ct);
+      db.FinancialPackageCashFlowMembershipSeals.Add(new FinancialPackageCashFlowMembershipSeal
+      {
+        FirmId = package.FirmId, ClientId = package.ClientId, EngagementId = package.EngagementId,
+        FinancialPackageId = package.Id, SealedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync(ct);
       if (ownsTransaction)
         await tx!.CommitAsync(ct);
       return CommandResult<FinancialPackageBuildResult>.Ok(new FinancialPackageBuildResult(

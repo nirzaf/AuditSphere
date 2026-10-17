@@ -325,6 +325,8 @@ public sealed partial class AuditSphereDbContext
       .HasDatabaseName("ux_gl_line_stable_line");
     glLine.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("ak_gl_lines_scope_id");
+    glLine.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ImportBatchId, x.TransactionId, x.Id })
+      .HasName("ak_gl_lines_source_identity");
     glLine.ToTable("general_ledger_lines", t => t.HasCheckConstraint("ck_gl_line_values",
       "length(trim(account_code)) > 0 AND debit >= 0 AND credit >= 0 AND NOT (debit > 0 AND credit > 0) AND original_currency ~ '^[A-Z]{3}$'"));
     ScopeToEngagement(glLine, nameof(GeneralLedgerLine.FirmId), nameof(GeneralLedgerLine.ClientId), nameof(GeneralLedgerLine.EngagementId));

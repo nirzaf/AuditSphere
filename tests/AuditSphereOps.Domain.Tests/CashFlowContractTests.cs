@@ -433,6 +433,120 @@ public sealed class CashFlowContractTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task CashFlowAllocations_RejectCrossPackageMovementsAndUnrelatedLedgerLinesAtDatabaseBoundary()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+    var firstRequest = SourceRequest(planId, mappingId, "source-scope-first-v1", 0m, 100m,
+      CashMovement("OPERATING", "Cash receipts", 100m, false, "CASH_RECEIPTS",
+        new CashFlowSourceAllocationInput(source.Receivable, -100m)));
+    var secondRequest = firstRequest with { TemplateVersion = "source-scope-second-v1" };
+
+    Guid firstPackageId;
+    Guid secondPackageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var first = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, firstRequest);
+      Assert.True(first.Succeeded, first.Message);
+      firstPackageId = first.Value!.PackageId;
+      var second = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, secondRequest);
+      Assert.True(second.Succeeded, second.Message);
+      secondPackageId = second.Value!.PackageId;
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var original = await verify.FinancialPackageCashFlowAllocations.AsNoTracking()
+      .SingleAsync(x => x.FinancialPackageId == firstPackageId);
+    var sourcePackage = await verify.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == firstPackageId);
+    var openPackageId = Guid.NewGuid();
+    var openPackage = new FinancialPackage();
+    verify.Entry(openPackage).CurrentValues.SetValues(sourcePackage);
+    openPackage.Id = openPackageId;
+    openPackage.TemplateVersion = "source-scope-open-probe-v1";
+    verify.FinancialPackages.Add(openPackage);
+    var sourceMovement = await verify.FinancialPackageCashFlowLines.AsNoTracking()
+      .SingleAsync(x => x.FinancialPackageId == firstPackageId);
+    var openMovement = new FinancialPackageCashFlowLine
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+      FinancialPackageId = openPackageId, Section = sourceMovement.Section, Description = "Unsealed probe movement",
+      Amount = sourceMovement.Amount, IsNonCash = sourceMovement.IsNonCash, MovementDate = sourceMovement.MovementDate,
+      ActivityCode = sourceMovement.ActivityCode, SourceReferences = sourceMovement.SourceReferences,
+      ClassificationRationale = sourceMovement.ClassificationRationale, Currency = sourceMovement.Currency,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    verify.FinancialPackageCashFlowLines.Add(openMovement);
+    await verify.SaveChangesAsync();
+
+    var lateAllocation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+      INSERT INTO financial_package_cash_flow_allocations
+        (id, firm_id, client_id, engagement_id, financial_package_id, cash_flow_line_id,
+         general_ledger_line_id, general_ledger_transaction_id, source_import_batch_id, created_by_user_id,
+         source_line_hash, signed_amount, currency, created_at)
+      VALUES ({Guid.NewGuid()}, {fixture.FirmId}, {fixture.ClientId}, {fixture.EngagementId}, {firstPackageId},
+        {original.CashFlowLineId}, {original.GeneralLedgerLineId}, {original.GeneralLedgerTransactionId},
+        {original.SourceImportBatchId}, {fixture.Preparer.Id}, {original.SourceLineHash}, {original.SignedAmount},
+        {original.Currency}, {DateTimeOffset.UtcNow})"));
+    Assert.Equal("23514", lateAllocation.SqlState);
+
+    // The build lock normally seals this package at commit. Keeping this persisted probe package unsealed
+    // emulates the in-transaction build window so the composite package/movement constraint is exercised.
+    var crossPackageMovement = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+      INSERT INTO financial_package_cash_flow_allocations
+        (id, firm_id, client_id, engagement_id, financial_package_id, cash_flow_line_id,
+         general_ledger_line_id, general_ledger_transaction_id, source_import_batch_id, created_by_user_id,
+         source_line_hash, signed_amount, currency, created_at)
+      VALUES ({Guid.NewGuid()}, {fixture.FirmId}, {fixture.ClientId}, {fixture.EngagementId}, {openPackageId},
+        {original.CashFlowLineId}, {original.GeneralLedgerLineId}, {original.GeneralLedgerTransactionId},
+        {original.SourceImportBatchId}, {fixture.Preparer.Id}, {original.SourceLineHash}, {original.SignedAmount},
+        {original.Currency}, {DateTimeOffset.UtcNow})"));
+    Assert.Equal("23503", crossPackageMovement.SqlState);
+
+    // A same-package movement cannot claim an unrelated GL row while retaining the accepted batch/transaction IDs.
+    var unrelatedGlLine = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+      INSERT INTO financial_package_cash_flow_allocations
+        (id, firm_id, client_id, engagement_id, financial_package_id, cash_flow_line_id,
+         general_ledger_line_id, general_ledger_transaction_id, source_import_batch_id, created_by_user_id,
+         source_line_hash, signed_amount, currency, created_at)
+      VALUES ({Guid.NewGuid()}, {fixture.FirmId}, {fixture.ClientId}, {fixture.EngagementId}, {openPackageId},
+        {openMovement.Id}, {Guid.NewGuid()}, {original.GeneralLedgerTransactionId},
+        {original.SourceImportBatchId}, {fixture.Preparer.Id}, {original.SourceLineHash}, {original.SignedAmount},
+        {original.Currency}, {DateTimeOffset.UtcNow})"));
+    Assert.Equal("23503", unrelatedGlLine.SqlState);
+
+    var unrelatedCreator = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+      INSERT INTO financial_package_cash_flow_allocations
+        (id, firm_id, client_id, engagement_id, financial_package_id, cash_flow_line_id,
+         general_ledger_line_id, general_ledger_transaction_id, source_import_batch_id, created_by_user_id,
+         source_line_hash, signed_amount, currency, created_at)
+      VALUES ({Guid.NewGuid()}, {fixture.FirmId}, {fixture.ClientId}, {fixture.EngagementId}, {openPackageId},
+        {openMovement.Id}, {original.GeneralLedgerLineId}, {original.GeneralLedgerTransactionId},
+        {original.SourceImportBatchId}, {Guid.NewGuid()}, {original.SourceLineHash}, {original.SignedAmount},
+        {original.Currency}, {DateTimeOffset.UtcNow})"));
+    Assert.Equal("23503", unrelatedCreator.SqlState);
+
+    var firstReview = await CashFlowSourceReviewCall.RecordAsync(verify, reviewer, firstPackageId, "APPROVED", null);
+    Assert.True(firstReview.Succeeded, firstReview.Message);
+    var previousReviewId = firstReview.Value;
+    var crossPackagePredecessor = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+      INSERT INTO financial_package_cash_flow_source_reviews
+        (id, firm_id, client_id, engagement_id, financial_package_id, decision, reason,
+         source_import_batch_id, reviewed_by_user_id, reviewed_at, previous_review_id)
+      VALUES ({Guid.NewGuid()}, {fixture.FirmId}, {fixture.ClientId}, {fixture.EngagementId}, {secondPackageId},
+        'APPROVED', '', {original.SourceImportBatchId}, {fixture.Reviewer.Id}, {DateTimeOffset.UtcNow}, {previousReviewId})"));
+    Assert.Equal("23503", crossPackagePredecessor.SqlState);
+
+    Assert.Equal(2, await verify.FinancialPackageCashFlowAllocations.CountAsync());
+    Assert.Equal(1, await verify.FinancialPackageCashFlowSourceReviews.CountAsync());
+    Assert.True(await verify.FinancialPackages.AnyAsync(x => x.Id == secondPackageId));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task CustomerCollection_UsesCashEventNotCounterpartSignAsReceiptSign()
   {
     await using var pg = await PgTestSchema.CreateAsync();

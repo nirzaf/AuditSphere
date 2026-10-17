@@ -591,6 +591,16 @@ public sealed class FinancialPackageCashFlowAllocation
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Append-only marker closing source-allocation membership after the package build transaction.</summary>
+public sealed class FinancialPackageCashFlowMembershipSeal
+{
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public DateTimeOffset SealedAt { get; set; }
+}
+
 /// <summary>
 /// An independent decision on the source-resolved cash-flow movements of one package. Append-only; the newest decision governs,
 /// and an approval is valid only while the accepted general ledger it cites is still the current one.
