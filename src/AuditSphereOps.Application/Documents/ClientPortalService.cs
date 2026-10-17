@@ -137,19 +137,23 @@ public static class ClientPortalService
     return CommandResult.Ok();
   }
 
-  /// <summary>Upload gate for client identities. Staff uploads are governed by their own authorization.</summary>
+  /// <summary>Requires completion of the client portal's first-sign-in gate before a client mutation.</summary>
   public static async Task<CommandResult> RequireFirstSignInAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     await db.ClientPortalFirstSignIns.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId, ct)
       ? CommandResult.Ok()
-      : CommandResult.Fail("portal.first-sign-in.required", "Complete your first portal sign-in before uploading files.");
+      : CommandResult.Fail("portal.first-sign-in.required", "Complete your first portal sign-in before making client portal changes.");
 
-  /// <summary>Client transfer privileges close at authoritative final client deliverable bundle release or final file freeze (§4.4, AS-COMP-09).</summary>
+  /// <summary>Shared client write gate: current access, first sign-in, active engagement, and the existing final-release/freeze window.</summary>
   public static async Task<CommandResult> RequireUploadWindowAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
     if (engagement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, engagement.PracticeClientId, engagementId, ["ClientUser"]), ct);
     if (!auth.Succeeded) return auth;
+    var firstSignIn = await RequireFirstSignInAsync(db, actor, ct);
+    if (!firstSignIn.Succeeded) return firstSignIn;
+    if (!string.Equals(engagement.Status, "Active", StringComparison.OrdinalIgnoreCase))
+      return CommandResult.Fail("pbc.engagement-inactive", "Client portal changes are available only for active engagements.");
     var released = await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == "FROZEN", ct) ||
       await db.CommercialDeliverableBundles.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
     return released ? CommandResult.Fail(ErrorCodes.ProtectedState, "Client uploads are frozen after final release. You can still download your released documents.") : CommandResult.Ok();

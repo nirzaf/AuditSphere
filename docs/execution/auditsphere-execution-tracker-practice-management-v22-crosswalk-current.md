@@ -227,7 +227,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `CLIENT-03` | CLIENT | SOURCE_INSPECTED: scoped byte/version checks present; current dynamic/live proof pending |
 | `CLIENT-04` | CLIENT | PARTIAL: combined internal timeline present; retained correspondence actor is omitted |
 | `CLIENT-05` | CLIENT | PARTIAL: client-facing provider/delivery/withdrawal/supersession lifecycle incomplete |
-| `CLIENT-06` | CLIENT | IN_PROGRESS: shared client write-precondition correction assigned |
+| `CLIENT-06` | CLIENT | PARTIAL: shared write gate implemented and focused checks pass; browser/live acceptance pending |
 | `RES-01` | RES | PARTIAL: supported range and refusal/recovery verified; broader staffing/capacity acceptance remains |
 | `RES-02` | RES | PARTIAL: expiry and recording are explicit; administrative verification workflow missing |
 | `RES-03` | RES | NOT_REVERIFIED |
@@ -397,3 +397,5 @@ RES-02 review publication is now implemented in the Application service: current
 RES-02 bounded review workspace now exposes the exact source, latest retained decision, revision, independent review permission and applicability separately from expiry. The focused publication/workspace test passes (1 passed, 0 failed), covering verified then withdrawn projection and client-identity denial. Application build passes; API/Angular adapters and staffing integration are still required.
 
 RES-02 API review/read adapters now use existing authentication and CSRF boundaries, explicit response schemas and standard conflict codes. Review detail reads require firm-wide planning authority; publication requires an independent firm-wide Administrator. One focused API test passes for unauthenticated/forged-CSRF denial, exact retry, changed-intent/stale-head conflicts and verified readback. The API/emitter build passes and OpenAPI was regenerated. The new scoped-manager Domain denial assertion is not yet executed; review UI, staffing integration and concurrency acceptance remain pending.
+
+CLIENT-06 shared write preconditions now cover current client authority, first sign-in, Active engagement and existing release/freeze restrictions. Request projections, replies/comments, upload/resume and request acknowledgment/resubmission reuse that gate; staff upload authorization and released-bundle receipt behavior remain separate. The initial ClientPortalOnboardingTests run had six passes and one stale-revision fixture failure; after correcting the fixture, the new write-gate test passed alone. No all-green combined rerun or released-bundle acknowledgement cohort was executed. Browser/live and full release acceptance remain pending.

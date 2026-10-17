@@ -66,7 +66,7 @@ public static class ClientPortalWorkspaceQuery
         : null;
       var truncated = clarification is { Length: > 2000 };
       if (truncated) clarification = clarification![..2000];
-      var canWrite = firstSignIn.Completed && uploadWindows.GetValueOrDefault(row.EngagementId) &&
+      var canWrite = uploadWindows.GetValueOrDefault(row.EngagementId) &&
         row.Item.State is (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.PartiallyReceived or PbcStates.ClarificationRequired);
       return row.Item with { ClarificationReason = clarification, ClarificationReasonTruncated = truncated, CanWrite = canWrite };
     }).ToArray();
@@ -76,13 +76,12 @@ public static class ClientPortalWorkspaceQuery
     var writableRequests = requestPage.Where((_, index) => requestItems[index].CanWrite).ToArray();
     if (writableRequests.Length > 0)
     {
-      var currentFirstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct);
       var currentUploadWindows = new Dictionary<Guid, bool>();
       foreach (var engagementId in writableRequests.Select(x => x.EngagementId).Distinct())
         currentUploadWindows[engagementId] = (await ClientPortalService.RequireUploadWindowAsync(db, actor, engagementId, ct)).Succeeded;
       requestItems = requestItems.Select((item, index) => item with
       {
-        CanWrite = item.CanWrite && currentFirstSignIn.Completed && currentUploadWindows.GetValueOrDefault(requestPage[index].EngagementId)
+        CanWrite = item.CanWrite && currentUploadWindows.GetValueOrDefault(requestPage[index].EngagementId)
       }).ToArray();
     }
     // Re-evaluate participation and grants after the prerequisite reads and before releasing the snapshot; cookie epoch

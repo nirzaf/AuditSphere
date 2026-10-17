@@ -419,6 +419,19 @@ public static class PbcService
       return CommandResult.Fail("pbc.clarification-required", "A specific clarification reason is required.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (clientAction)
+    {
+      // Keep client request acknowledgements/resubmissions inside the same release window as replies and uploads.
+      _ = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      _ = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {current.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      auth = await AuthorizeClientAsync(db, actor, current, ct);
+      if (!auth.Succeeded)
+        return auth;
+      var writeWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
+      if (!writeWindow.Succeeded)
+        return writeWindow;
+    }
     var request = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
@@ -539,9 +552,7 @@ public static class PbcService
     var auth = await AuthorizeClientAsync(db, actor, current, ct);
     if (!auth.Succeeded)
       return CommandResult<PbcUploadResumeReceipt>.Fail(auth.ErrorCode!, "Upload unavailable.");
-    var uploadWindow = await ClientPortalService.RequireFirstSignInAsync(db, actor, ct);
-    if (uploadWindow.Succeeded)
-      uploadWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
+    var uploadWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
     if (!uploadWindow.Succeeded)
       return CommandResult<PbcUploadResumeReceipt>.Fail(uploadWindow.ErrorCode!, "Upload unavailable.");
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, current.EngagementId,
@@ -555,9 +566,7 @@ public static class PbcService
     auth = await AuthorizeClientAsync(db, actor, current, ct);
     if (!auth.Succeeded)
       return CommandResult<PbcUploadResumeReceipt>.Fail(auth.ErrorCode!, "Upload unavailable.");
-    uploadWindow = await ClientPortalService.RequireFirstSignInAsync(db, actor, ct);
-    if (uploadWindow.Succeeded)
-      uploadWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
+    uploadWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
     if (!uploadWindow.Succeeded)
       return CommandResult<PbcUploadResumeReceipt>.Fail(uploadWindow.ErrorCode!, "Upload unavailable.");
 
@@ -858,8 +867,7 @@ public static class PbcService
       return await AuthorizeStaffAsync(db, actor, request.ClientId, request.EngagementId, ct);
     var auth = await AuthorizeClientAsync(db, actor, request, ct);
     if (!auth.Succeeded) return auth;
-    var firstSignIn = await ClientPortalService.RequireFirstSignInAsync(db, actor, ct);
-    return firstSignIn.Succeeded ? await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct) : firstSignIn;
+    return await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
   }
 
   private static bool AllowedTransition(string current, string next) =>

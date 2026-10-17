@@ -1,6 +1,8 @@
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Documents;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
@@ -51,6 +53,24 @@ public sealed class ClientPortalOnboardingTests
     return user;
   }
 
+  private static async Task<Guid> SharedReviewAsync(PgTestSchema pg, PbcSeed.Fixture f)
+  {
+    var deliverableId = Guid.NewGuid();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var content = new byte[] { 1 };
+    db.AuditDeliverables.Add(new AuditDeliverable
+    {
+      Id = deliverableId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      Kind = "INDEPENDENT_AUDITORS_REPORT", InputDigest = new string('a', 64), Content = content,
+      ContentSha256 = Hashing.Sha256Hex(content), TemplateVersion = "SYNTHETIC", FileName = "synthetic.pdf",
+      ContentType = "application/pdf", CreatedByUserId = f.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var shared = await AuditDeliverableService.ShareWithClientAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), deliverableId);
+    Assert.True(shared.Succeeded, shared.Message);
+    return shared.Value;
+  }
+
   [Fact]
   public async Task Uploads_AreWithheld_UntilTheFirstSignInRequirementForEachIdentityPathIsMet()
   {
@@ -99,6 +119,57 @@ public sealed class ClientPortalOnboardingTests
     // Staff are not client identities and cannot record a portal sign-in; the record itself is immutable.
     Assert.Equal(ErrorCodes.ScopeDenied, (await ClientPortalService.CompleteFirstSignInAsync(db, PbcSeed.Actor(f.Staff, "Staff"), true)).ErrorCode);
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM client_portal_first_sign_ins WHERE id = {memberRecord.Id}"));
+  }
+
+  [Fact]
+  public async Task ClientPortalWrites_RequireFirstSignInAndActiveEngagement_WhileStaffUploadsRemainAvailable()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var clientUser = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId);
+    var requestId = await SentRequestAsync(pg, f, clientUser.Id);
+    var staffUploadRequestId = await SentRequestAsync(pg, f, clientUser.Id);
+    var reviewId = await SharedReviewAsync(pg, f);
+    var client = PbcSeed.Actor(clientUser, "ClientUser");
+    var staff = PbcSeed.Actor(f.Staff, "Staff");
+    var commentRequestId = Guid.NewGuid();
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var pending = await ClientPortalWorkspaceQuery.RequestAsync(db, client, requestId);
+    Assert.True(pending.Succeeded, pending.Message);
+    Assert.False(pending.Value!.CanWrite);
+    Assert.Equal("portal.first-sign-in.required", (await PbcService.ReplyAsync(db, client, requestId, "Before sign-in")).ErrorCode);
+    Assert.Equal("portal.first-sign-in.required",
+      (await ClientPortalReviewCommands.CommentAsync(db, client, reviewId, commentRequestId, "Before sign-in")).ErrorCode);
+    Assert.Equal("portal.first-sign-in.required",
+      (await PbcService.ChangeStateAsync(db, client, new PbcStateChangeRequest(requestId, PbcStates.Acknowledged, 1))).ErrorCode);
+    Assert.False(await db.PbcCommunications.AnyAsync(x => x.PbcRequestId == requestId && x.Body == "Before sign-in"));
+    Assert.False(await db.ClientDeliverableComments.AnyAsync(x => x.RequestId == commentRequestId));
+
+    // Staff upload authorization remains independent of the client's first-sign-in gate.
+    var staffUpload = await PbcService.StartUploadAsync(db, staff, Upload(staffUploadRequestId));
+    Assert.True(staffUpload.Succeeded, staffUpload.Message);
+
+    Assert.True((await ClientPortalService.CompleteFirstSignInAsync(db, client, true)).Succeeded);
+    var eligible = await ClientPortalWorkspaceQuery.RequestAsync(db, client, requestId);
+    Assert.True(eligible.Succeeded, eligible.Message);
+    Assert.True(eligible.Value!.CanWrite);
+    Assert.True((await PbcService.ChangeStateAsync(db, client, new PbcStateChangeRequest(requestId, PbcStates.Acknowledged, 2))).Succeeded);
+    Assert.True((await PbcService.ReplyAsync(db, client, requestId, "After sign-in")).Succeeded);
+    Assert.True((await ClientPortalReviewCommands.CommentAsync(db, client, reviewId, commentRequestId, "After sign-in")).Succeeded);
+    Assert.True((await PbcService.StartUploadAsync(db, client, Upload(requestId))).Succeeded);
+
+    await db.Engagements.Where(x => x.FirmId == f.FirmId && x.Id == f.EngagementId)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.Status, "Completed"));
+    var completed = await ClientPortalWorkspaceQuery.RequestAsync(db, client, requestId);
+    Assert.True(completed.Succeeded, completed.Message);
+    Assert.False(completed.Value!.CanWrite);
+    Assert.Equal("pbc.engagement-inactive", (await PbcService.ReplyAsync(db, client, requestId, "After completion")).ErrorCode);
+    Assert.Equal("pbc.engagement-inactive",
+      (await ClientPortalReviewCommands.CommentAsync(db, client, reviewId, Guid.NewGuid(), "After completion")).ErrorCode);
+    Assert.Equal("pbc.engagement-inactive",
+      (await PbcService.ChangeStateAsync(db, client, new PbcStateChangeRequest(requestId, PbcStates.Resubmitted, 4))).ErrorCode);
+    Assert.Equal("pbc.engagement-inactive", (await PbcService.StartUploadAsync(db, client, Upload(requestId))).ErrorCode);
   }
 
   [Fact]
