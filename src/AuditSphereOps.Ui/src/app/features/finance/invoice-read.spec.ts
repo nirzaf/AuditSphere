@@ -28,9 +28,10 @@ describe('Invoice exact read and allocation pagination', () => {
     TestBed.configureTestingModule({ imports: [InvoiceDetail], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
       { provide: ActivatedRoute, useValue: { paramMap: params } }] });
     http = TestBed.inject(HttpTestingController);
+    sessionStorage.clear();
     TestBed.inject(SessionService).current.set({ userId: id(90), firmId: id(91), generation: '1', staff: true });
   });
-  afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); vi.restoreAllMocks(); });
+  afterEach(() => { sessionStorage.clear(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); vi.restoreAllMocks(); });
   function open(payload: object = invoice()) {
     const fixture = TestBed.createComponent(InvoiceDetail); fixture.detectChanges(); TestBed.tick();
     http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush(payload); TestBed.tick(); return fixture;
@@ -135,14 +136,23 @@ describe('Invoice exact read and allocation pagination', () => {
     http.expectNone(r => r.method !== 'GET'); http.expectNone(r => r.method === 'GET');
   });
 
-  it('retries only the retained billing request after an unknown outcome', async () => {
-    const f = open(); const c = f.componentInstance;
-    c.receiptForm.patchValue({ amount: '12.00', reference: 'SYN-RETRY-001', reviewed: true });
-    const firstAttempt = c.recordReceipt(c.invoice.data()!);
+  it('restores after reload and retries only the retained billing request after an unknown outcome', async () => {
+    const f = open(); const original = f.componentInstance;
+    original.receiptForm.patchValue({ amount: '12.00', reference: 'SYN-RETRY-001', reviewed: true });
+    const firstAttempt = original.recordReceipt(original.invoice.data()!);
     const first = http.expectOne(r => r.method === 'POST' && r.url === `/api/ui/finance/billing-accounts/${id(50)}/receipts`);
     const originalBody = first.request.body as { requestId: string; amount: string; reference: string; reviewed: boolean };
     first.error(new ProgressEvent('error'));
     await firstAttempt; TestBed.tick();
+    expect(original.uncertain()).toBe(true);
+    expect(original.pendingBillingCommand()?.requestId).toBe(originalBody.requestId);
+    f.destroy();
+
+    const restoredFixture = TestBed.createComponent(InvoiceDetail);
+    restoredFixture.detectChanges(); TestBed.tick();
+    const c = restoredFixture.componentInstance;
+    expect(c.pendingBillingCommand()).toBeNull();
+    http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush(invoice()); TestBed.tick();
     expect(c.uncertain()).toBe(true);
     expect(c.pendingBillingCommand()?.requestId).toBe(originalBody.requestId);
 

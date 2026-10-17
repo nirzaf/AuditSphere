@@ -256,7 +256,7 @@ public static partial class FeeAgreementService
     if (allocatedToInvoice < receipt.Amount)
     {
       var allocationRequestId = BillingCommandWorkspace.DeriveRequestId(
-        $"fee-milestone:allocation:{agreement.Id:N}:{kind}:{storedReference}:{receipt.Id:N}:{invoice.Id:N}");
+        $"fee-milestone:allocation:{agreement.Id:N}:{kind}:{storedReference}:{receipt.Id:N}:{invoice.Id:N}:reversed:{BillingCommandWorkspace.Decimal(reversedFromInvoice)}");
       var allocation = await BillingService.AllocateReceiptAsync(db, actor,
         new(receipt.Id, invoice.Id, receipt.Amount - allocatedToInvoice, allocationRequestId), ct);
       if (!allocation.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(allocation.ErrorCode!, allocation.Message!);

@@ -27,7 +27,7 @@ public static class BillingCommandWorkspace
   public static Guid DeriveRequestId(string stableIdentity)
   {
     var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(stableIdentity));
-    bytes[6] = (byte)((bytes[6] & 0x0f) | 0x50);
+    bytes[7] = (byte)((bytes[7] & 0x0f) | 0x50);
     bytes[8] = (byte)((bytes[8] & 0x3f) | 0x80);
     return new Guid(bytes.AsSpan(0, 16));
   }
@@ -84,7 +84,7 @@ public static class BillingCommandWorkspace
   {
     Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, ActorId = actor.UserId,
     ActorEpoch = actor.SessionEpoch, RequestId = requestId, Action = action, RequestHash = hash,
-    OutcomeJson = JsonSerializer.Serialize(outcome), CreatedAt = outcome.CreatedAt
+    ResultId = outcome.ResultId, OutcomeJson = JsonSerializer.Serialize(outcome), CreatedAt = outcome.CreatedAt
   };
 
   internal static string Decimal(decimal value) => value.ToString("G29", CultureInfo.InvariantCulture);

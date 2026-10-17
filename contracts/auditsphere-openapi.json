@@ -30953,6 +30953,43 @@
         ]
       }
     },
+    "/api/ui/finance/commands/receipts/{requestId}": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/finance/invoices/{id}/approve": {
       "post": {
         "tags": [
@@ -44943,6 +44980,7 @@
       },
       "CreditNoteInput": {
         "required": [
+          "requestId",
           "noteNumber",
           "amount",
           "reason",
@@ -44950,6 +44988,10 @@
         ],
         "type": "object",
         "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "noteNumber": {
             "type": "string"
           },
@@ -48427,12 +48469,17 @@
       },
       "ReceiptAllocationInput": {
         "required": [
+          "requestId",
           "invoiceId",
           "amount",
           "reviewed"
         ],
         "type": "object",
         "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "invoiceId": {
             "type": "string",
             "format": "uuid"
@@ -48447,12 +48494,17 @@
       },
       "ReceiptInput": {
         "required": [
+          "requestId",
           "amount",
           "reference",
           "reviewed"
         ],
         "type": "object",
         "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "amount": {
             "type": "string"
           },

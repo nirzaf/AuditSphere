@@ -217,21 +217,27 @@ public static partial class UiEndpoints
     group.MapPost("/finance/billing-accounts/{id:guid}/receipts", (Guid id, ReceiptInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>
       {
-        if (!input.Reviewed || input.RequestId == Guid.Empty || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference) || input.Reference.Trim().Length > 200)
+        if (input.RequestId == Guid.Empty)
+          return Task.FromResult(CommandResult<Guid>.Fail("billing.command-invalid", "A valid billing request identity is required."));
+        if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference) || input.Reference.Trim().Length > 200)
           return Task.FromResult(CommandResult<Guid>.Fail("billing.invalid", "Review a positive receipt amount and a transaction reference of at most 200 characters."));
         return BillingService.RecordReceiptAsync(db, actor, new RecordReceiptRequest(id, amount, input.Reference.Trim(), RequestId: input.RequestId), ct);
       }));
     group.MapPost("/finance/receipts/{id:guid}/allocations", (Guid id, ReceiptAllocationInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>
       {
-        if (!input.Reviewed || input.RequestId == Guid.Empty || !TryDecimal(input.Amount, out var amount) || input.InvoiceId == Guid.Empty)
+        if (input.RequestId == Guid.Empty)
+          return Task.FromResult(CommandResult<ReceiptAllocationCommandOutcome>.Fail("billing.command-invalid", "A valid billing request identity is required."));
+        if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || input.InvoiceId == Guid.Empty)
           return Task.FromResult(CommandResult<ReceiptAllocationCommandOutcome>.Fail("billing.invalid", "Review a positive exact allocation amount for this invoice."));
         return BillingService.AllocateReceiptCommandAsync(db, actor, new AllocateReceiptRequest(id, input.InvoiceId, amount, input.RequestId), ct);
       }));
     group.MapPost("/finance/invoices/{id:guid}/credit-notes", (Guid id, CreditNoteInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>
       {
-        if (!input.Reviewed || input.RequestId == Guid.Empty || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.NoteNumber) ||
+        if (input.RequestId == Guid.Empty)
+          return Task.FromResult(CommandResult<Guid>.Fail("billing.command-invalid", "A valid billing request identity is required."));
+        if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.NoteNumber) ||
             input.NoteNumber.Trim().Length > 64 || string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Trim().Length > 1000)
           return Task.FromResult(CommandResult<Guid>.Fail("billing.invalid", "Review a positive credit amount, unique note number, and reason."));
         return BillingService.IssueCreditNoteAsync(db, actor, new IssueCreditNoteRequest(id,

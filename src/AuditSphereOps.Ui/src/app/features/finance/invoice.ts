@@ -39,6 +39,7 @@ const decodeBillingCommandReceipt = obj({
   requestId: guid, action: text, requestHash: text, createdAt: instant,
   outcome: obj({ action: text, resultId: guid, receiptId: nullable(guid), invoiceId: nullable(guid), amount: nullable(text), createdAt: instant }),
 });
+type PendingBillingCommand = { requestId: string; url: string; body: Record<string, unknown>; success: string; afterSuccess?: () => void };
 
 @Component({
   selector: 'audit-invoice',
@@ -290,7 +291,7 @@ export class InvoiceDetail {
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly reconciliationLoaded = signal(false);
-  readonly pendingBillingCommand = signal<{ requestId: string; url: string; body: Record<string, unknown>; success: string; afterSuccess?: () => void } | null>(null);
+  readonly pendingBillingCommand = signal<PendingBillingCommand | null>(null);
   readonly message = signal('');
   readonly failed = signal(false);
   readonly receiptForm = this.fb.group({ amount: ['', [Validators.required, positiveAmount]], reference: ['', [Validators.required, Validators.maxLength(200)]], reviewed: [false, Validators.requiredTrue] });
@@ -326,6 +327,7 @@ export class InvoiceDetail {
       this.visitToken++;
       untracked(() => {
         this.resetVisitDrafts();
+        this.pendingBillingCommand.set(null);
         this.uncertain.set(false);
         this.reconciliationLoaded.set(false);
         this.message.set('');
@@ -355,6 +357,73 @@ export class InvoiceDetail {
         this.selectedAllocation.set(null);
       });
     });
+    effect(() => {
+      const current = this.invoice.data();
+      const session = this.session.current();
+      this.session.invalidation();
+      const routeId = this.id();
+      if (!current || !session || current.id !== routeId) return;
+      untracked(() => this.restorePendingBillingCommand(current, session));
+    });
+  }
+
+  private pendingBillingStorageKey(session: { firmId: string; userId: string }, invoiceId: string): string {
+    return `auditsphere:billing-command:v1:${session.firmId}:${session.userId}:${invoiceId}`;
+  }
+
+  private savePendingBillingCommand(pending: PendingBillingCommand): void {
+    const session = this.session.current(); const invoice = this.invoice.data();
+    if (!session || !invoice || invoice.id !== this.id()) return;
+    try {
+      sessionStorage.setItem(this.pendingBillingStorageKey(session, invoice.id), JSON.stringify({
+        version: 1, firmId: session.firmId, userId: session.userId, sessionGeneration: session.generation,
+        invoiceId: invoice.id, requestId: pending.requestId, url: pending.url, body: pending.body,
+      }));
+    } catch { /* Browser storage may be unavailable; in-memory recovery remains available for this view. */ }
+  }
+
+  private clearSavedPendingBillingCommand(): void {
+    const session = this.session.current(); const invoiceId = this.id();
+    if (!session || !invoiceId) return;
+    try { sessionStorage.removeItem(this.pendingBillingStorageKey(session, invoiceId)); }
+    catch { /* Storage cleanup is best effort; the stored record is session scoped and cannot be replayed cross-actor. */ }
+  }
+
+  private restorePendingBillingCommand(invoice: ReturnType<typeof decodeInvoice>, session: { firmId: string; userId: string; generation: string }): void {
+    if (this.pendingBillingCommand()) return;
+    const key = this.pendingBillingStorageKey(session, invoice.id);
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return;
+      const stored = JSON.parse(raw) as Record<string, unknown>;
+      const body = stored['body'];
+      const requestId = stored['requestId'];
+      const url = stored['url'];
+      if (stored['version'] !== 1 || stored['firmId'] !== session.firmId || stored['userId'] !== session.userId ||
+          stored['sessionGeneration'] !== session.generation || stored['invoiceId'] !== invoice.id ||
+          typeof requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId) ||
+          typeof url !== 'string' || !body || typeof body !== 'object' || Array.isArray(body)) {
+        sessionStorage.removeItem(key); return;
+      }
+      const command = body as Record<string, unknown>;
+      const receipt = url === `/api/ui/finance/billing-accounts/${invoice.billingAccountId}/receipts`;
+      const allocation = /^\/api\/ui\/finance\/receipts\/[0-9a-f-]{36}\/allocations$/i.test(url) && command['invoiceId'] === invoice.id;
+      const credit = url === `/api/ui/finance/invoices/${invoice.id}/credit-notes`;
+      const validInput = command['requestId'] === requestId && command['reviewed'] === true &&
+        typeof command['amount'] === 'string' && /^\d+(?:\.\d{1,6})?$/.test(command['amount']);
+      if (!validInput || ![receipt, allocation, credit].some(Boolean) || (receipt && typeof command['reference'] !== 'string') ||
+          (allocation && typeof command['invoiceId'] !== 'string') || (credit && typeof command['noteNumber'] !== 'string')) {
+        sessionStorage.removeItem(key); return;
+      }
+      const pending: PendingBillingCommand = { requestId, url, body: command,
+        success: receipt ? 'Receipt recorded. Refresh or allocate it to a posted invoice when ready.' :
+          allocation ? 'Receipt allocation recorded against this invoice.' : 'Credit note issued.' };
+      this.pendingBillingCommand.set(pending);
+      this.uncertain.set(true);
+      this.message.set('A reviewed billing command from this tab is unresolved. Refresh its saved receipt or retry the exact request.');
+    } catch {
+      try { sessionStorage.removeItem(key); } catch { /* Ignore unavailable storage. */ }
+    }
   }
 
   allocationPage(rows: ReturnType<typeof decodeInvoice>['allocations']) {
@@ -525,6 +594,7 @@ export class InvoiceDetail {
         const receipt = await this.api.get(`/api/ui/finance/commands/receipts/${pending.requestId}`, decodeBillingCommandReceipt);
         if (receipt.requestId !== pending.requestId) throw new Error('Billing command receipt identity mismatch');
         if (this.destroyed || visit !== this.visitToken || generation !== this.session.invalidation() || id !== this.id()) return;
+        this.clearSavedPendingBillingCommand();
         this.pendingBillingCommand.set(null);
         this.uncertain.set(false);
         this.reconciliationLoaded.set(false);
@@ -622,8 +692,11 @@ export class InvoiceDetail {
       if (!result.ok) {
         this.failed.set(true); this.message.set(result.message);
         if (result.unknown) {
-          if (typeof (body as { requestId?: unknown })?.requestId === 'string')
-            this.pendingBillingCommand.set(retry ?? { requestId: (body as { requestId: string }).requestId, url, body: body as Record<string, unknown>, success, afterSuccess });
+          if (typeof (body as { requestId?: unknown })?.requestId === 'string') {
+            const pending = retry ?? { requestId: (body as { requestId: string }).requestId, url, body: body as Record<string, unknown>, success, afterSuccess };
+            this.pendingBillingCommand.set(pending);
+            this.savePendingBillingCommand(pending);
+          }
           this.uncertain.set(true); this.reconciliationLoaded.set(false);
         }
         else if (['scope.denied', 'generation.stale'].includes(result.code) || [401, 403, 404].includes(result.status)) {
@@ -638,6 +711,7 @@ export class InvoiceDetail {
         }
         return;
       }
+      this.clearSavedPendingBillingCommand();
       this.pendingBillingCommand.set(null);
       this.uncertain.set(false);
       afterSuccess?.();

@@ -35556,16 +35556,16 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RequestId").HasColumnType("uuid").HasColumnName("request_id");
                     b.Property<string>("Action").IsRequired().HasMaxLength(30).HasColumnType("character varying(30)").HasColumnName("action");
                     b.Property<string>("RequestHash").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)").HasColumnName("request_hash");
+                    b.Property<Guid>("ResultId").HasColumnType("uuid").HasColumnName("result_id");
                     b.Property<string>("OutcomeJson").IsRequired().HasColumnType("text").HasColumnName("outcome_json");
                     b.Property<DateTimeOffset>("CreatedAt").HasColumnType("timestamp with time zone").HasColumnName("created_at");
                     b.HasKey("Id");
-                    b.HasAlternateKey("FirmId", "ClientId", "Id").HasName("ak_billing_command_receipts_scope_id");
                     b.HasIndex("FirmId", "ClientId", "CreatedAt");
                     b.HasIndex("FirmId", "ActorId", "RequestId").IsUnique().HasDatabaseName("ux_billing_command_receipts_actor_request");
                     b.ToTable("billing_command_receipts", null, t =>
                         {
                             t.HasCheckConstraint("ck_billing_command_receipt_values",
-                                "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND action IN ('RECORD_RECEIPT','ALLOCATE_RECEIPT','ISSUE_CREDIT_NOTE') AND request_hash ~ '^[0-9a-f]{64}$' AND length(outcome_json) BETWEEN 1 AND 2000 AND jsonb_typeof(outcome_json::jsonb) = 'object'");
+                                "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND action IN ('RECORD_RECEIPT','ALLOCATE_RECEIPT','ISSUE_CREDIT_NOTE') AND request_hash ~ '^[0-9a-f]{64}$' AND result_id <> '00000000-0000-0000-0000-000000000000'::uuid AND length(outcome_json) BETWEEN 1 AND 2000 AND jsonb_typeof(outcome_json::jsonb) = 'object' AND outcome_json::jsonb ->> 'Action' = action AND outcome_json::jsonb ->> 'ResultId' = result_id::text");
                         });
                 });
 
