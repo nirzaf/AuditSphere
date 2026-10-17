@@ -260,9 +260,17 @@ public sealed class AccountingRecordsApprovalTests
     Guid groupId, scopeId, journalId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var partnerActor = Actor(fixture.Partner, "Partner");
-      groupId = (await ConsolidationService.CreateGroupAsync(db, partnerActor,
-        new ClientGroupRequest("GROUP-RETURN", "Group journal return regression"))).Value;
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = fixture.Partner.Id, Role = "Partner",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id,
+        Reason = "Synthetic firm-wide group creator fixture"
+      });
+      await db.SaveChangesAsync();
+      var groupCreator = await ConsolidationService.CreateGroupAsync(db, Actor(fixture.Partner, "Partner"),
+        new ClientGroupRequest("GROUP-RETURN", "Group journal return regression"));
+      Assert.True(groupCreator.Succeeded, groupCreator.Message);
+      groupId = groupCreator.Value;
       // Explicit group access for the preparer and reviewer actors.
       db.GroupAccessGrants.AddRange(
         new GroupAccessGrant

@@ -88,6 +88,8 @@ public sealed partial class ClientAccountingTests
       periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
         new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
       Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Initial close")).Succeeded);
+      db.RoleGrants.Add(ClientPartnerGrant(scope));
+      await db.SaveChangesAsync();
       Assert.True((await ClientAccountingService.ReopenPeriodAsync(db, partner, periodId, "Correct the approved opening bridge")).Succeeded);
 
       var period = await db.ClientReportingPeriods.SingleAsync(x => x.Id == periodId);

@@ -306,5 +306,12 @@ public sealed partial class ClientAccountingTests
     GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
   };
 
+  private static RoleGrant ClientPartnerGrant(Scope scope) => new()
+  {
+    Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = scope.Partner.Id, Role = "Partner",
+    ClientId = scope.ClientA, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id,
+    Reason = "Synthetic client-level Partner authorization fixture"
+  };
+
   private static ActorContext Actor(AppUser user, string role) => new(user.Id, user.FirmId, user.SessionEpoch, [role]);
 }

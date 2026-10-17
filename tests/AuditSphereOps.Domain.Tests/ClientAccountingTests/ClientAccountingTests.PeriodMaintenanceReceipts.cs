@@ -82,6 +82,8 @@ public sealed partial class ClientAccountingTests
     var a = await PeriodMaintenanceWorkspace.ExecuteAsync(db, reviewer, scope.ClientA, approve);
     Assert.True(a.Succeeded, a.Message);
     Assert.Equal("APPROVED", a.Value!.Result.Status);
+    db.RoleGrants.Add(ClientPartnerGrant(scope));
+    await db.SaveChangesAsync();
     Assert.True((await ClientAccountingService.ReopenPeriodAsync(db, Actor(scope.Partner, "Partner"), period, "SYNTHETIC later amendment")).Succeeded);
     foreach (var (actor, request, receipt) in new[] { (preparer, forward, f.Value!), (preparer, create, c.Value!), (reviewer, approve, a.Value!) })
     {
@@ -173,7 +175,11 @@ public sealed partial class ClientAccountingTests
     var r = await ReviewedMaintenanceAsync(db, actor, scope.ClientA, PeriodMaintenanceActions.RollForward,
       new(scope.ClientA, period, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR", new('a', 64), 1m, 1m, "SYNTHETIC opening", ExpectedPriorRevision: 2));
     await using (var other = new AuditSphereDbContext(pg.Options))
+    {
+      other.RoleGrants.Add(ClientPartnerGrant(scope));
+      await other.SaveChangesAsync();
       Assert.True((await ClientAccountingService.ReopenPeriodAsync(other, Actor(scope.Partner, "Partner"), period, "SYNTHETIC amendment")).Succeeded);
+    }
     Assert.Equal(ErrorCodes.StaleRevision, (await PeriodMaintenanceWorkspace.ExecuteAsync(db, actor, scope.ClientA, r)).ErrorCode);
     Assert.Empty(await db.PeriodMaintenanceReceipts.ToListAsync()); Assert.Single(await db.ClientReportingPeriods.ToListAsync());
   }
@@ -301,6 +307,8 @@ public sealed partial class ClientAccountingTests
       var overview = await PeriodMaintenanceQuery.OverviewAsync(db, preparer); Assert.False(overview.Value!.Restatements.Single(x => x.Id == id).CanReview);
       await db.RoleGrants.Where(x => x.UserId == reviewer.UserId && x.Role != "AccountingReviewer").ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
       first = await ReviewedMaintenanceAsync(db, reviewer, scope.ClientA, PeriodMaintenanceActions.ApproveRestatement, id: id);
+      db.RoleGrants.Add(ClientPartnerGrant(scope));
+      await db.SaveChangesAsync();
       second = await ReviewedMaintenanceAsync(db, Actor(scope.Partner, "Partner"), scope.ClientA, PeriodMaintenanceActions.ApproveRestatement, id: id);
     }
     await using var a = new AuditSphereDbContext(pg.Options); await using var b = new AuditSphereDbContext(pg.Options);
