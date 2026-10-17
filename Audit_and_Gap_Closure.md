@@ -126,15 +126,15 @@ The regression `CashFlowContractTests.TwoPeriods_RetainTheirOwnAcceptedCashSourc
 **Remaining work:** exercise two packages in one actual comparative presentation and full final-readiness/issuance flow; test same-period TB as well as GL replacement; perform genuine prior-year restatement with explicit reselection; retain the as-issued comparative; prove unauthorized prior-engagement access is refused; and ensure no prior audit/management approvals are inherited. Do not globally remove client/engagement checks or disable stale-source protection. Normal current-year ingestion must not impersonate a restatement of the selected prior-year source.
 
 **Required tests:** two years with distinct GL batches and reviewed sources through presentation and release; current-year source replacement; genuine prior-year restatement with explicit reselection; retained as-issued comparative; unauthorized prior engagement; no inheritance of prior audit/management approvals.
-## F-04 — The new build screen cannot submit a complete financial-statement set
+## F-04 — Build-screen schedule serialization gap closed; full acceptance remains
 
-**P1 · SOURCE_CONFIRMED · CP-11–CP-14/CP-18/CP-25.**
+**P1 · IMPLEMENTATION_CLOSED / ACCEPTANCE_OPEN · CP-10–CP-14/CP-18/CP-25.**
 
-`toBuildRequest` in `financial-package-build.ts` sends `equityLines: null`, `noteLines: null` and `fxCashEffects: null`. It offers cash movements, descriptive disclosures and source allocations, but cannot supply all of the schedules required by the parent story. A build-completed receipt proves the worker completed its operation; it does not prove a complete reviewable financial report. [R20]
+The earlier finding that `toBuildRequest` sent `equityLines`, `noteLines` and `fxCashEffects` as null is stale. The current form serializes entered equity rollforwards and transfers, numeric note lines with optional accepted-GL source allocations, comparative selection, and explicit FX assessment/effects. `financial-package-build.spec.ts` verifies non-empty values are preserved as arrays and absent schedules remain null. The server continues to validate each schedule; queue/build completion is not proof of an independently reviewed or final-ready report. [R20]
 
-The browser test exercises that cash-source subpath and asserts stored allocation/source review and lineage. It does not assert completion of all financial-statement validations, the complete ABC fixture, final composition or audited issuance. Its supporting fixture seeds a single debit revenue GL line described as cash collections rather than importing a balanced receipt journal. Keep it as a narrowly labeled control fixture; do not treat it as complete economic or source-intake acceptance. [R21] [R22]
+The existing browser journey exercises the cash-source subpath and asserts stored allocation/source review and lineage. It does not establish the complete ABC fixture, every financial-statement validation, final composition or audited issuance. Its support fixture uses a single debit revenue GL line described as cash collections rather than importing a balanced receipt journal. Keep it as a narrowly labeled control fixture; do not treat it as complete economic or source-intake acceptance. [R21] [R22]
 
-**Required correction:** add or compose the existing equity, numeric note, comparative and assessed-zero/FX editors, independently reviewed schedule selection and complete final readiness. Preserve the useful GL picker and exact-decimal request. Run a full journey using actual balanced input and declare every seeded prerequisite.
+**Remaining acceptance:** run the full journey using actual balanced input and declare every seeded prerequisite; verify the serialized schedules through the API-hosted Angular flow, independent review, final readiness, composition and issuance. CP-11 source-kind completeness and schedule rework, CP-12 approved indirect classification, and CP-13/14 professional source/applicability decisions remain separately open.
 
 ## F-05 — Indirect cash-flow methodology and explicit zero states remain incomplete
 
