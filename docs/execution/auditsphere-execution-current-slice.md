@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## API and Angular parity: complete member discovery
+
+Matching counterparties can now be discovered through bounded pages and search. Exact seller/buyer resolution retains selections across pages, and the outside-party path rejects an eligible member even when off page. The shared API exception envelope is documented once at the UI group boundary. Focused checks and synthetic browser search passed; see `status.json` under `apiAngularParity.localVerification.matchingOptionsSlice`. Full acceptance remains pending the original task crosswalk and current-source CI/CD evidence.
+
 ## API and Angular parity: bounded scope continuation
 
 Components and readiness now have independent bounded pages and complete counts. Exact component correction remains available when the selected component is outside the displayed page. The focused browser check loaded the current contract and retained evidence using the synthetic local database with external effects disabled. This does not establish multi-page browser or full workflow acceptance. Current verification evidence and remaining gates are in `status.json` under `apiAngularParity.localVerification.pagingSlice`. Continue the original parity specification; do not equate this slice with completion of all tasks.

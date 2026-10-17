@@ -354,6 +354,15 @@ public sealed class OpenApiContractTests
     JsonElement Resolve(JsonElement value) => value.TryGetProperty("$ref", out var reference)
       ? schemas.GetProperty(reference.GetString()!.Split('/').Last()) : value;
     var paths = contract.GetProperty("paths");
+    // The shared UI endpoint filter converts unhandled read failures to this safe envelope.
+    foreach (var path in paths.EnumerateObject().Where(path => path.Name.StartsWith("/api/ui/", StringComparison.Ordinal)))
+    foreach (var operation in path.Value.EnumerateObject().Where(operation =>
+      operation.Name is "get" or "post" or "put" or "patch" or "delete"))
+    {
+      var unavailable = operation.Value.GetProperty("responses").GetProperty("503")
+        .GetProperty("content").GetProperty("application/json").GetProperty("schema");
+      Assert.EndsWith("/" + ApiContract.ApiErrorSchemaId, unavailable.GetProperty("$ref").GetString(), StringComparison.Ordinal);
+    }
     var unauthenticated = paths.GetProperty("/api/ui/practice/resources").GetProperty("get")
       .GetProperty("responses").GetProperty("401");
     Assert.Contains("empty body", unauthenticated.GetProperty("description").GetString(), StringComparison.Ordinal);

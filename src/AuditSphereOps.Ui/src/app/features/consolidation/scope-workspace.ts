@@ -593,8 +593,19 @@ export function formatOwnershipPercent(value: string): string {
           @if (!isCurrentIntercompanyRevision(w, options)) {
             <p class="error-text" role="alert">The group perimeter changed after this scope was approved. Refresh and review a current scope before recording or approving matches.</p>
           }
-          @if (options.membersTruncated || options.taxonomyCodesTruncated) {
-            <p role="status">Options are capped at 500 entries. Refine the approved group evidence before matching if a needed member or taxonomy code is not shown.</p>
+          <label>Find a group member
+            <input name="intercompanyMemberSearch" [ngModel]="intercompanyMemberSearch()" (ngModelChange)="searchIntercompanyMembers($event)" maxlength="100" />
+          </label>
+          @if (!options.membershipBlocker) {
+          @let paging = options.memberPaging;
+            <div class="actions" aria-label="Intercompany member pages">
+              <button matButton="outlined" type="button" (click)="previousIntercompanyMembersPage()" [disabled]="paging.page <= 1 || intercompanyMatchOptions.loading()">Previous</button>
+              <span>{{ paging.totalCount }} members · Page {{ paging.page }} of {{ Math.max(1, Math.ceil(paging.totalCount / paging.pageSize)) }}</span>
+              <button matButton="outlined" type="button" (click)="nextIntercompanyMembersPage(paging)" [disabled]="paging.page * paging.pageSize >= paging.totalCount || intercompanyMatchOptions.loading()">Next</button>
+            </div>
+          }
+          @if (options.taxonomyCodesTruncated) {
+            <p role="status">Taxonomy suggestions are bounded. Enter the exact approved taxonomy code if it is not shown.</p>
           }
 
           @if (w.canPrepare) {
@@ -630,32 +641,32 @@ export function formatOwnershipPercent(value: string): string {
               </div>
 
               <label style="display: block; margin: .75rem 0;">
-                <input type="checkbox" name="outsidePerimeterReview" [(ngModel)]="intercompanyForm.outsidePerimeterReview" (ngModelChange)="invalidateIntercompanyReview()">
+                <input type="checkbox" name="outsidePerimeterReview" [ngModel]="intercompanyForm.outsidePerimeterReview" (ngModelChange)="changeIntercompanyOutside('enabled', $event)">
                 Related party is outside the approved group perimeter (review only; no automatic elimination)
               </label>
               @if (intercompanyForm.outsidePerimeterReview) {
                 <div class="inline-form">
                   <label>Outside party side
-                    <select name="outsidePartySide" [(ngModel)]="intercompanyForm.outsidePartySide" (ngModelChange)="invalidateIntercompanyReview()">
+                    <select name="outsidePartySide" [ngModel]="intercompanyForm.outsidePartySide" (ngModelChange)="changeIntercompanyOutside('side', $event)">
                       <option value="SELLER">Seller</option>
                       <option value="BUYER">Buyer</option>
                     </select>
                   </label>
                   <label>Outside client ID
-                    <input name="outsideClientId" [(ngModel)]="intercompanyForm.outsideClientId" (ngModelChange)="invalidateIntercompanyReview()" maxlength="36" required>
+                    <input name="outsideClientId" [ngModel]="intercompanyForm.outsideClientId" (ngModelChange)="changeIntercompanyOutside('clientId', $event)" maxlength="36" required>
                   </label>
                 </div>
               }
 
               <div class="inline-form">
                 <label>Seller group member
-                  <select name="sellerMember" [(ngModel)]="intercompanyForm.sellerClientId" (ngModelChange)="invalidateIntercompanyReview()" [disabled]="intercompanyForm.outsidePerimeterReview && intercompanyForm.outsidePartySide === 'SELLER'" required>
+                  <select name="sellerMember" [ngModel]="intercompanyForm.sellerClientId" (ngModelChange)="selectIntercompanyMember('SELLER', $event)" [disabled]="intercompanyForm.outsidePerimeterReview && intercompanyForm.outsidePartySide === 'SELLER'" required>
                     <option value="">Select a member</option>
                     @for (member of intercompanyMemberOptions(options); track member.clientId) { <option [value]="member.clientId">{{ member.legalName }}{{ member.hasApprovedComponent ? '' : ' · no approved component' }}</option> }
                   </select>
                 </label>
                 <label>Buyer group member
-                  <select name="buyerMember" [(ngModel)]="intercompanyForm.buyerClientId" (ngModelChange)="invalidateIntercompanyReview()" [disabled]="intercompanyForm.outsidePerimeterReview && intercompanyForm.outsidePartySide === 'BUYER'" required>
+                  <select name="buyerMember" [ngModel]="intercompanyForm.buyerClientId" (ngModelChange)="selectIntercompanyMember('BUYER', $event)" [disabled]="intercompanyForm.outsidePerimeterReview && intercompanyForm.outsidePartySide === 'BUYER'" required>
                     <option value="">Select a member</option>
                     @for (member of intercompanyMemberOptions(options); track member.clientId) { <option [value]="member.clientId">{{ member.legalName }}{{ member.hasApprovedComponent ? '' : ' · no approved component' }}</option> }
                   </select>
@@ -808,11 +819,30 @@ export class ConsolidationScopeWorkspace {
     },
     'The requested consolidation scope is not available in the current firm and group grant.',
   );
+  readonly intercompanyMembersPageNumber = signal(1);
+  readonly intercompanyMemberSearch = signal('');
+  private readonly selectedIntercompanyMembers = signal<{ scopeId: string; seller: string; buyer: string } | null>(null);
+  private readonly resolvedMemberRequests = new WeakMap<IntercompanyMatchOptions, { seller: string; buyer: string }>();
   readonly intercompanyMatchOptions = this.api.resource(
-    () => (this.id() ? `/api/ui/consolidation/scopes/${this.id()}/intercompany-match-options` : null),
+    () => {
+      const scopeId = this.id();
+      if (!scopeId) return null;
+      const selected = this.selectedIntercompanyMembers();
+      const selection = selected?.scopeId === scopeId.toLowerCase() ? selected : null;
+      return `/api/ui/consolidation/scopes/${scopeId}/intercompany-match-options?membersPage=${this.intercompanyMembersPageNumber()}&membersPageSize=25&memberSearch=${encodeURIComponent(this.intercompanyMemberSearch())}` +
+        (selection?.seller ? `&selectedSellerClientId=${selection.seller}` : '') +
+        (selection?.buyer ? `&selectedBuyerClientId=${selection.buyer}` : '');
+    },
     (value, path) => {
       const options = decodeIntercompanyMatchOptions(value, path);
-      if (options.scopeVersionId !== this.id()) throw new Error('Intercompany options belong to a different scope.');
+      const selected = this.selectedIntercompanyMembers();
+      if (options.scopeVersionId !== this.id() ||
+          options.memberPaging.page !== this.intercompanyMembersPageNumber() || options.memberPaging.pageSize !== 25 ||
+          options.memberSearch !== this.intercompanyMemberSearch().trim() ||
+          options.resolvedSeller !== null && (selected?.scopeId !== this.id()?.toLowerCase() || options.resolvedSeller.clientId !== selected?.seller) ||
+          options.resolvedBuyer !== null && (selected?.scopeId !== this.id()?.toLowerCase() || options.resolvedBuyer.clientId !== selected?.buyer))
+        throw new Error('Intercompany options belong to a different scope, page or selected member.');
+      this.resolvedMemberRequests.set(options, { seller: selected?.seller ?? '', buyer: selected?.buyer ?? '' });
       return options;
     },
     'Intercompany match options are unavailable in this group scope.',
@@ -928,6 +958,9 @@ export class ConsolidationScopeWorkspace {
       this.runsPageNumber.set(1);
       this.intercompanyPageNumber.set(1);
       this.intercompanyUnresolvedOnly.set(false);
+      this.intercompanyMembersPageNumber.set(1);
+      this.intercompanyMemberSearch.set('');
+      this.selectedIntercompanyMembers.set(null);
       this.intercompanyForm = this.newIntercompanyForm();
       this.intercompanyApprovalChecks = {};
       this.selectedPackageId = '';
@@ -1010,8 +1043,60 @@ export class ConsolidationScopeWorkspace {
     this.externalPacksScopeId.set(this.isExternalPacksOpen(w) ? null : w.scope.id.toLowerCase());
   }
 
+  selectIntercompanyMember(side: 'SELLER' | 'BUYER', clientId: string): void {
+    if (side === 'SELLER') this.intercompanyForm.sellerClientId = clientId;
+    else this.intercompanyForm.buyerClientId = clientId;
+    this.refreshIntercompanyMemberSelection();
+  }
+
+  changeIntercompanyOutside(field: 'enabled' | 'side' | 'clientId', value: string | boolean): void {
+    if (field === 'enabled') this.intercompanyForm.outsidePerimeterReview = value === true;
+    else if (field === 'side') {
+      if (value !== 'SELLER' && value !== 'BUYER') return;
+      this.intercompanyForm.outsidePartySide = value;
+    } else this.intercompanyForm.outsideClientId = String(value);
+    this.refreshIntercompanyMemberSelection();
+  }
+
+  private refreshIntercompanyMemberSelection(): void {
+    this.invalidateIntercompanyReview();
+    const scopeId = this.id();
+    const seller = this.intercompanyClientId('SELLER');
+    const buyer = this.intercompanyClientId('BUYER');
+    this.selectedIntercompanyMembers.set(scopeId ? {
+      scopeId: scopeId.toLowerCase(),
+      seller: this.isGuid(seller) ? seller : '',
+      buyer: this.isGuid(buyer) ? buyer : '',
+    } : null);
+  }
+
+  searchIntercompanyMembers(search: string): void {
+    this.intercompanyMemberSearch.set(search.slice(0, 100));
+    this.intercompanyMembersPageNumber.set(1);
+    this.invalidateIntercompanyReview();
+  }
+
+  previousIntercompanyMembersPage(): void {
+    this.intercompanyMembersPageNumber.update(page => Math.max(1, page - 1));
+    this.invalidateIntercompanyReview();
+  }
+
+  nextIntercompanyMembersPage(page: NonNullable<IntercompanyMatchOptions['memberPaging']>): void {
+    if (page.page * page.pageSize < page.totalCount) {
+      this.intercompanyMembersPageNumber.set(page.page + 1);
+      this.invalidateIntercompanyReview();
+    }
+  }
+
   intercompanyMemberOptions(options: IntercompanyMatchOptions): IntercompanyMatchOptions['members'] {
-    return options.members.filter((member) => this.intercompanyForm.outsidePerimeterReview || member.hasApprovedComponent);
+    const members = [...options.members];
+    for (const [resolved, selectedId] of [
+      [options.resolvedSeller, this.intercompanyForm.sellerClientId],
+      [options.resolvedBuyer, this.intercompanyForm.buyerClientId],
+    ] as const) {
+      if (resolved && resolved.clientId === selectedId && !members.some(member => member.clientId === resolved.clientId)) members.push(resolved);
+    }
+    return members.filter(member => this.intercompanyForm.outsidePerimeterReview || member.hasApprovedComponent);
   }
 
   isCurrentIntercompanyRevision(w: ScopeWorkspace, options: IntercompanyMatchOptions): boolean {
@@ -1042,11 +1127,18 @@ export class ConsolidationScopeWorkspace {
     const sellerId = this.intercompanyClientId('SELLER');
     const buyerId = this.intercompanyClientId('BUYER');
     if (!this.isGuid(sellerId) || !this.isGuid(buyerId) || sellerId === buyerId) return false;
-    const sellerMember = options.members.find((member) => member.clientId === sellerId);
-    const buyerMember = options.members.find((member) => member.clientId === buyerId);
+    const sellerMember = this.intercompanyMemberOptions(options).find((member) => member.clientId === sellerId);
+    const buyerMember = this.intercompanyMemberOptions(options).find((member) => member.clientId === buyerId);
     if (form.outsidePerimeterReview) {
       const internalMember = form.outsidePartySide === 'SELLER' ? buyerMember : sellerMember;
-      if (!internalMember || !this.isGuid(form.outsideClientId) || options.members.some((member) => member.clientId === form.outsideClientId)) return false;
+      const request = this.resolvedMemberRequests.get(options);
+      const outsideMember = form.outsidePartySide === 'SELLER' ? options.resolvedSeller : options.resolvedBuyer;
+      if (!internalMember || !['SELLER', 'BUYER'].includes(form.outsidePartySide) ||
+          this.intercompanyMatchOptions.loading() || this.intercompanyMatchOptions.error() ||
+          !request || request.seller !== sellerId || request.buyer !== buyerId ||
+          options.memberPaging.page !== this.intercompanyMembersPageNumber() ||
+          options.memberSearch !== this.intercompanyMemberSearch().trim() ||
+          outsideMember !== null || options.members.some(member => member.clientId === form.outsideClientId.trim().toLowerCase())) return false;
     } else if (!sellerMember?.hasApprovedComponent || !buyerMember?.hasApprovedComponent) {
       return false;
     }
@@ -1100,6 +1192,7 @@ export class ConsolidationScopeWorkspace {
     ).then((success) => {
       if (!success) return;
       this.intercompanyForm = this.newIntercompanyForm();
+      this.selectedIntercompanyMembers.set(null);
       this.intercompanyPageNumber.set(1);
       this.ws.reload();
       this.intercompanyMatchOptions.reload();

@@ -1810,7 +1810,7 @@
       },
       {
         "id": "T027",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1925,7 +1925,7 @@
       },
       {
         "id": "T050",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1953,27 +1953,6 @@
         "passed": 9,
         "spec": "consolidation/overview.spec.ts"
       },
-      "apiIntegration": {
-        "result": "PASS",
-        "scope": "Focused API cohorts, incrementally rerun only where source changed",
-        "coreContractAndScopeOptions": {
-          "passed": 12,
-          "failed": 0,
-          "skipped": 0
-        },
-        "finalMetadata": {
-          "passed": 3,
-          "failed": 0,
-          "skipped": 0
-        },
-        "ownershipQuery": {
-          "passed": 1,
-          "failed": 0,
-          "skipped": 0
-        },
-        "earlierBehaviorChecks": "Intercompany, external-pack review/revocation, cookie session and mapping batch passed after startup correction; later perimeter/negative-revision changes covered by focused Domain regressions."
-      },
-      "apiCorrections": "Host wildcard registration and Guid schema defaults corrected; pagination forwarded; successful optional reads retain JSON null; response schemas regenerated with binding, session and conflict metadata.",
       "browser": {
         "result": "PASS_READ_ONLY_SMOKE",
         "environment": "Test on loopback port 5029; auditsphere_browser synthetic fixture; external effects disabled",
@@ -1992,30 +1971,18 @@
         ],
         "contractRenderer": "Large JSON accessibility snapshot timed out; server request was HTTP 200 and contract verified by served-artifact tests."
       },
-      "currentCommitReleaseVerification": "NOT_RUN: full regressions remain CI/CD only",
-      "lastPushedFastCi": {
-        "runId": 39057271667,
-        "commit": "150c7671762ac93f87b2b539cb53f688fb90557e",
-        "result": "FAST_CI_PASS",
-        "angular": "PASS",
-        "docs": "PASS",
-        "dotnetRelease": "PASS"
-      },
-      "priorApiIntegration": {
-        "result": "FAIL",
-        "passed": 9,
-        "failed": 4,
-        "total": 13,
-        "scope": "OpenApiContractTests; intercompany API flow; cookie-session denial; mapping batch"
+      "currentCommitReleaseVerification": {
+        "runId": 39061831892,
+        "commit": "270c9c9184f942e5b3677dd376018600a1aa64e1",
+        "result": "IN_PROGRESS",
+        "observed": "Requested immutable full SHA resolved successfully; full regression jobs queued",
+        "discardedDispatch": {
+          "runId": 39061767898,
+          "result": "FAIL",
+          "reason": "Short-SHA checkout failed before tests; replaced by full immutable SHA dispatch"
+        }
       },
       "testedCodeCommit": "37457ac4ead06b274be2ac8b99ac1b547677879a",
-      "consolidationDomain": {
-        "result": "PASS",
-        "passed": 10,
-        "failed": 0,
-        "skipped": 0,
-        "scope": "Group workflow, readiness boundary, translation/intercompany queries, external components and advanced schedules/execution"
-      },
       "negativeRevisionDomain": {
         "result": "PASS",
         "passed": 1,
@@ -2023,20 +1990,12 @@
         "skipped": 0,
         "scope": "Existing group workflow extended with negative approval revision denial"
       },
-      "consolidationUi": {
-        "result": "PASS",
-        "scopeWorkspace": 15,
-        "overview": 9,
-        "externalPacks": 5,
-        "componentCorrection": 4,
-        "note": "Focused cohorts; external-pack spec alone rerun after correcting its shuffled-file row-identity assertion. No tests skipped or weakened."
-      },
       "openApiDrift": "PASS: final emitter matches committed contract",
       "angularBuild": "PASS: existing commercial/settings.scss size warning remains",
       "remainingDisplayLimit": "RESOLVED in T031 working-tree slice: components and readiness use bounded 100-row pages; exact selected-component lookup is independent of current page.",
       "pagingSlice": {
         "sourceBase": "8758a8f9a2b8269633079cc861f95052f4fd3ee0",
-        "sourceState": "WORKING_TREE",
+        "sourceState": "COMMITTED",
         "domain": {
           "result": "PASS",
           "passed": 4,
@@ -2079,8 +2038,46 @@
             "Responsive acceptance",
             "Live provider acceptance"
           ]
-        }
-      }
+        },
+        "testedCodeCommit": "270c9c9184f942e5b3677dd376018600a1aa64e1"
+      },
+      "matchingOptionsSlice": {
+        "sourceBase": "270c9c9184f942e5b3677dd376018600a1aa64e1",
+        "sourceState": "WORKING_TREE",
+        "domain": {
+          "result": "PASS",
+          "passed": 2,
+          "scope": "existing readiness 501-record boundary and translation/exceptions; bounded search, exact resolution, period eligibility"
+        },
+        "angular": {
+          "result": "PASS",
+          "passed": 16,
+          "scope": "scope workspace; off-page selections, outside-side eligibility and stale response refusal"
+        },
+        "api": {
+          "result": "PASS",
+          "passed": 2,
+          "scope": "intercompany workflow, exact selection/invalid paging/wrong group denials and all shared UI503 schemas"
+        },
+        "angularBuild": "PASS; existing commercial settings stylesheet budget warning",
+        "openApiDrift": "PASS",
+        "browser": {
+          "result": "FOCUSED_SMOKE_PASS",
+          "environment": "localhost:5029; synthetic auditsphere_browser; external effects disabled",
+          "observed": [
+            "Search no-such-member produced zero members",
+            "Search Doha recovered the authorized member",
+            "No captured console warnings/errors"
+          ],
+          "notVerified": [
+            "501-member browser fixture",
+            "Full independent approval browser journey",
+            "Live provider acceptance"
+          ]
+        },
+        "independentReview": "Backend and Angular reviewed by separate agents; reported off-page outside-side error corrected before final UI test"
+      },
+      "historicalVerification": "status-archive-2026-10.json: apiAngularParity.localVerification.supersededBeforeMatchingOptions20261017"
     }
   }
 }

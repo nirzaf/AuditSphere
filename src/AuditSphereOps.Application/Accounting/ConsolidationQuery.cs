@@ -44,7 +44,9 @@ public sealed record IntercompanyMatchOptions(
   Guid ScopeVersionId, Guid GroupId, long PinnedGroupRevision, long CurrentGroupRevision,
   string ReportingCurrency, DateOnly? PeriodStartDate, DateOnly? PeriodEndDate, string? MembershipBlocker,
   IReadOnlyList<IntercompanyMatchMemberOption> Members, bool MembersTruncated,
-  IReadOnlyList<string> TaxonomyCodes, bool TaxonomyCodesTruncated);
+  IReadOnlyList<string> TaxonomyCodes, bool TaxonomyCodesTruncated,
+  ConsolidationPageInfo MemberPaging, string MemberSearch,
+  IntercompanyMatchMemberOption? ResolvedSeller, IntercompanyMatchMemberOption? ResolvedBuyer);
 
 public sealed record ComponentReadinessRow(
   Guid ClientId, string MemberName, string ComponentState, Guid? ComponentId,
@@ -160,7 +162,20 @@ public static class ConsolidationQuery
   public static async Task<CommandResult<IntercompanyMatchOptions>> GetIntercompanyMatchOptionsAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid scopeVersionId,
     CancellationToken ct = default)
+    => await GetIntercompanyMatchOptionsAsync(db, actor, scopeVersionId, 1, 25, null, null, null, ct);
+
+  public static async Task<CommandResult<IntercompanyMatchOptions>> GetIntercompanyMatchOptionsAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scopeVersionId,
+    int membersPage, int membersPageSize, string? memberSearch,
+    Guid? selectedSellerClientId, Guid? selectedBuyerClientId, CancellationToken ct = default)
   {
+    var offset = ((long)membersPage - 1) * membersPageSize;
+    if (membersPage < 1 || membersPageSize is < 1 or > 100 || offset > int.MaxValue ||
+        memberSearch is { Length: > 100 } || memberSearch?.Any(char.IsControl) == true ||
+        selectedSellerClientId == Guid.Empty || selectedBuyerClientId == Guid.Empty)
+      return CommandResult<IntercompanyMatchOptions>.Fail(ErrorCodes.Accounting.MappingInvalid,
+        "Use a positive member page, page size 1-100, bounded search and valid selected client identities.");
+    var normalizedSearch = (memberSearch ?? string.Empty).Trim();
     var scope = await db.ConsolidationScopeVersions.AsNoTracking()
       .SingleOrDefaultAsync(x => x.Id == scopeVersionId && x.FirmId == actor.FirmId, ct);
     if (scope is null)
@@ -187,26 +202,43 @@ public static class ConsolidationQuery
     var membershipBlocker = !hasValidPeriod
       ? "The scope reporting period date is missing or invalid; member eligibility cannot be confirmed."
       : null;
-    List<Guid> memberIds = hasValidPeriod
-      ? await db.ClientGroupMemberships.AsNoTracking()
-        .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-          x.Status == AccountingWorkflowStates.Approved && x.EffectiveFrom <= periodEnd &&
-          (x.EffectiveTo == null || x.EffectiveTo >= periodStart))
-        .OrderBy(x => x.ClientId).Select(x => x.ClientId).Take(501).ToListAsync(ct)
-      : [];
-    var memberIdsShown = memberIds.Take(500).ToArray();
+    // Search only narrows discovery. Exact selections resolve against the full same-scope
+    // reporting-period membership predicate, never against a truncated or searched page.
+    var eligibleMembers = db.PracticeClients.AsNoTracking()
+      .Where(client => client.FirmId == actor.FirmId && hasValidPeriod &&
+        db.ClientGroupMemberships.Any(m => m.FirmId == actor.FirmId && m.GroupId == scope.GroupId &&
+          m.ClientId == client.Id && m.Status == AccountingWorkflowStates.Approved &&
+          m.EffectiveFrom <= periodEnd && (m.EffectiveTo == null || m.EffectiveTo >= periodStart)))
+      .Select(client => new
+      {
+        ClientId = client.Id, client.LegalName,
+        HasApprovedComponent = db.ConsolidationComponents.Any(c => c.FirmId == actor.FirmId &&
+          c.GroupId == scope.GroupId && c.ScopeVersionId == scope.Id && c.ClientId == client.Id &&
+          c.Status == AccountingWorkflowStates.Approved)
+      });
+    var filteredMembers = eligibleMembers;
+    if (normalizedSearch.Length > 0)
+    {
+      var foldedSearch = normalizedSearch.ToLowerInvariant();
+      filteredMembers = filteredMembers.Where(x => x.LegalName.ToLower().Contains(foldedSearch));
+    }
+    var memberCount = await filteredMembers.CountAsync(ct);
+    var members = await filteredMembers.OrderBy(x => x.ClientId).Skip((int)offset).Take(membersPageSize)
+      .Select(x => new IntercompanyMatchMemberOption(x.ClientId, x.LegalName, x.HasApprovedComponent)).ToArrayAsync(ct);
+    var resolvedSeller = selectedSellerClientId.HasValue
+      ? await eligibleMembers.Where(x => x.ClientId == selectedSellerClientId.Value)
+        .Select(x => new IntercompanyMatchMemberOption(x.ClientId, x.LegalName, x.HasApprovedComponent)).SingleOrDefaultAsync(ct)
+      : null;
+    var resolvedBuyer = selectedBuyerClientId.HasValue
+      ? await eligibleMembers.Where(x => x.ClientId == selectedBuyerClientId.Value)
+        .Select(x => new IntercompanyMatchMemberOption(x.ClientId, x.LegalName, x.HasApprovedComponent)).SingleOrDefaultAsync(ct)
+      : null;
     var components = await db.ConsolidationComponents.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id &&
         x.Status == AccountingWorkflowStates.Approved)
       .OrderBy(x => x.ClientId)
       .Select(x => new { x.ClientId, x.PackageId, x.ExternalComponentPackId })
       .Take(501).ToListAsync(ct);
-    // Membership options must not infer a missing component from a separately
-    // bounded taxonomy sample. Read exact existence for the displayed members.
-    var approvedComponentClientIds = await db.ConsolidationComponents.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id &&
-        x.Status == AccountingWorkflowStates.Approved && memberIdsShown.Contains(x.ClientId))
-      .Select(x => x.ClientId).ToHashSetAsync(ct);
     var packageIds = components.Where(x => x.PackageId.HasValue).Select(x => x.PackageId!.Value).Distinct().ToArray();
     var externalPackIds = components.Where(x => x.ExternalComponentPackId.HasValue)
       .Select(x => x.ExternalComponentPackId!.Value).Distinct().ToArray();
@@ -220,17 +252,30 @@ public static class ConsolidationQuery
       .Select(x => x.TaxonomyCode).Distinct().OrderBy(x => x).Take(501).ToListAsync(ct);
     var allTaxonomyCodes = packageTaxonomyCodes.Concat(externalTaxonomyCodes)
       .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).Take(501).ToList();
-    var legalNames = await db.PracticeClients.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && memberIdsShown.Contains(x.Id))
-      .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
-    var members = memberIdsShown.Select(clientId => new IntercompanyMatchMemberOption(
-      clientId, legalNames.GetValueOrDefault(clientId, "Unknown entity"), approvedComponentClientIds.Contains(clientId))).ToArray();
+    auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
+    if (!auth.Succeeded)
+      return CommandResult<IntercompanyMatchOptions>.Fail(auth.ErrorCode!, auth.Message!);
+    var finalScope = await db.ConsolidationScopeVersions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scope.Id, ct);
+    var finalGroupRevision = await db.ClientGroups.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId)
+      .Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
+    var finalPeriod = await db.ClientReportingPeriods.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == scope.PeriodId)
+      .Select(x => new { x.StartDate, x.EndDate }).SingleOrDefaultAsync(ct);
+    if (finalScope is null || finalScope.GroupId != scope.GroupId || finalScope.GroupRevision != scope.GroupRevision ||
+        finalScope.PeriodId != scope.PeriodId || finalScope.Status != scope.Status ||
+        finalScope.ReportingCurrency != scope.ReportingCurrency || finalGroupRevision != currentGroupRevision ||
+        !Equals(finalPeriod, period))
+      return CommandResult<IntercompanyMatchOptions>.Fail(ErrorCodes.GenerationStale,
+        "The scope, group or reporting period changed while matching options were read. Reload and review the current options.");
 
     return CommandResult<IntercompanyMatchOptions>.Ok(new IntercompanyMatchOptions(
       scope.Id, scope.GroupId, scope.GroupRevision, currentGroupRevision.Value, scope.ReportingCurrency,
-      periodStartDate, periodEndDate, membershipBlocker, members, memberIds.Count > 500,
-      allTaxonomyCodes.Take(500).ToArray(), memberIds.Count > 500 || components.Count > 500 ||
-        packageTaxonomyCodes.Count > 500 || externalTaxonomyCodes.Count > 500 || allTaxonomyCodes.Count > 500));
+      periodStartDate, periodEndDate, membershipBlocker, members, false,
+      allTaxonomyCodes.Take(500).ToArray(), components.Count > 500 ||
+        packageTaxonomyCodes.Count > 500 || externalTaxonomyCodes.Count > 500 || allTaxonomyCodes.Count > 500,
+      new ConsolidationPageInfo(memberCount, membersPage, membersPageSize), normalizedSearch, resolvedSeller, resolvedBuyer));
   }
 
   /// <summary>Returns one bounded readiness page with the complete authorized member count.</summary>

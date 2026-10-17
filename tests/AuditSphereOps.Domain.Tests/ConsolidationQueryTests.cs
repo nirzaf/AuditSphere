@@ -192,6 +192,14 @@ public sealed class ConsolidationQueryTests
       Assert.Null(optionsWithoutPeriod.Value.PeriodEndDate);
       Assert.NotNull(optionsWithoutPeriod.Value.MembershipBlocker);
       Assert.Empty(optionsWithoutPeriod.Value.Members);
+      var missingPeriodSelection = await ConsolidationQuery.GetIntercompanyMatchOptionsAsync(
+        db, manager, fixture.ScopeId, 1, 25, null, fixture.ClientA, fixture.ClientB);
+      Assert.True(missingPeriodSelection.Succeeded, missingPeriodSelection.Message);
+      Assert.NotNull(missingPeriodSelection.Value!.MembershipBlocker);
+      Assert.Equal(0, missingPeriodSelection.Value.MemberPaging.TotalCount);
+      Assert.Null(missingPeriodSelection.Value.ResolvedSeller);
+      Assert.Null(missingPeriodSelection.Value.ResolvedBuyer);
+
 
       var all = await ConsolidationQuery.GetIntercompanyExceptionsAsync(
         db, manager, fixture.ScopeId, unresolvedOnly: false, pageSize: 500);
@@ -234,6 +242,14 @@ public sealed class ConsolidationQueryTests
       Assert.Equal(new DateOnly(2026, 12, 31), options.Value.PeriodEndDate);
       Assert.Null(options.Value.MembershipBlocker);
       Assert.Collection(options.Value.Members, member => Assert.Equal(fixture.ClientA, member.ClientId));
+      var resolved = await ConsolidationQuery.GetIntercompanyMatchOptionsAsync(
+        db, manager, fixture.ScopeId, 2, 1, "no-such-member", fixture.ClientA, fixture.ClientB);
+      Assert.True(resolved.Succeeded, resolved.Message);
+      Assert.Empty(resolved.Value!.Members);
+      Assert.Equal(new ConsolidationPageInfo(0, 2, 1), resolved.Value.MemberPaging);
+      Assert.Equal(fixture.ClientA, resolved.Value.ResolvedSeller!.ClientId);
+      Assert.Null(resolved.Value.ResolvedBuyer); // Future membership is not eligible for FY2026.
+
     }
   }
 
@@ -374,6 +390,36 @@ public sealed class ConsolidationQueryTests
       Assert.Empty(absentSelection.Value.ComponentReadiness.Value!);
       Assert.Equal(501, absentSelection.Value.ComponentPaging.TotalCount);
       Assert.Equal(501, absentSelection.Value.ReadinessPaging!.TotalCount);
+
+      var reportingPeriodId = await db.ConsolidationScopeVersions.AsNoTracking()
+        .Where(x => x.Id == fixture.ScopeId).Select(x => x.PeriodId).SingleAsync();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = reportingPeriodId, FirmId = fixture.FirmId, ClientId = fixture.ClientA, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY",
+        Currency = "QAR", Status = AccountingWorkflowStates.Approved,
+        CreatedByUserId = fixture.Manager.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var memberPage = await ConsolidationQuery.GetIntercompanyMatchOptionsAsync(
+        db, manager, fixture.ScopeId, 6, 100, null, fixture.ClientA, fixture.ClientB);
+      Assert.True(memberPage.Succeeded, memberPage.Message);
+      Assert.Equal(new ConsolidationPageInfo(501, 6, 100), memberPage.Value!.MemberPaging);
+      Assert.Single(memberPage.Value.Members);
+      Assert.False(memberPage.Value.MembersTruncated);
+      Assert.True(memberPage.Value.ResolvedSeller!.HasApprovedComponent);
+      Assert.True(memberPage.Value.ResolvedBuyer!.HasApprovedComponent);
+      Assert.Equal(fixture.ClientA, memberPage.Value.ResolvedSeller.ClientId);
+      Assert.Equal(fixture.ClientB, memberPage.Value.ResolvedBuyer.ClientId);
+      var searched = await ConsolidationQuery.GetIntercompanyMatchOptionsAsync(
+        db, manager, fixture.ScopeId, 1, 25, "  READINESS BOUNDARY ENTITY 498  ", fixture.ClientA, fixture.ClientB);
+      Assert.True(searched.Succeeded, searched.Message);
+      Assert.Equal(new ConsolidationPageInfo(1, 1, 25), searched.Value!.MemberPaging);
+      Assert.Equal("READINESS BOUNDARY ENTITY 498", searched.Value.MemberSearch);
+      Assert.Single(searched.Value.Members);
+      Assert.DoesNotContain(searched.Value.Members, x => x.ClientId == fixture.ClientA || x.ClientId == fixture.ClientB);
+      Assert.Equal(fixture.ClientA, searched.Value.ResolvedSeller!.ClientId);
+      Assert.Equal(fixture.ClientB, searched.Value.ResolvedBuyer!.ClientId);
     }
   }
 

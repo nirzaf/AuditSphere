@@ -73,6 +73,31 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.DoesNotContain(options.GetProperty("members").EnumerateArray(),
       x => x.GetProperty("clientId").GetGuid() == fixture.FutureClientId);
 
+    var selectedOptions = await Read(preparer, scopeUrl + "/intercompany-match-options" +
+      $"?membersPage=2&membersPageSize=1&memberSearch=no-such-member&selectedSellerClientId={fixture.Seed.ClientId}&selectedBuyerClientId={fixture.FutureClientId}");
+    Assert.Equal(2, selectedOptions.GetProperty("memberPaging").GetProperty("page").GetInt32());
+    Assert.Equal(1, selectedOptions.GetProperty("memberPaging").GetProperty("pageSize").GetInt32());
+    Assert.Equal(0, selectedOptions.GetProperty("memberPaging").GetProperty("totalCount").GetInt32());
+    Assert.Equal("no-such-member", selectedOptions.GetProperty("memberSearch").GetString());
+    Assert.Empty(selectedOptions.GetProperty("members").EnumerateArray());
+    Assert.False(selectedOptions.GetProperty("membersTruncated").GetBoolean());
+    Assert.Equal(fixture.Seed.ClientId, selectedOptions.GetProperty("resolvedSeller").GetProperty("clientId").GetGuid());
+    Assert.Equal(JsonValueKind.Null, selectedOptions.GetProperty("resolvedBuyer").ValueKind);
+    var selectedBuyer = await Read(preparer, scopeUrl + "/intercompany-match-options" +
+      $"?memberSearch=no-such-member&selectedBuyerClientId={fixture.ChildClientId}&selectedSellerClientId={fixture.OutsideClientId}");
+    Assert.Equal(fixture.ChildClientId, selectedBuyer.GetProperty("resolvedBuyer").GetProperty("clientId").GetGuid());
+    Assert.Equal(JsonValueKind.Null, selectedBuyer.GetProperty("resolvedSeller").ValueKind);
+    foreach (var invalidQuery in new[]
+      {
+        "membersPage=0", "membersPage=-1", $"membersPage={int.MaxValue}",
+        "membersPageSize=0", "membersPageSize=101", "selectedSellerClientId=00000000-0000-0000-0000-000000000000",
+        "memberSearch=" + new string('x', 101)
+      })
+    {
+      using var invalid = await preparer.GetAsync(scopeUrl + "/intercompany-match-options?" + invalidQuery);
+      Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
     object Match(string transactionReference, long expectedGroupRevision = 1, Guid? buyerClientId = null,
       bool outsidePerimeterReview = true, string sellerAmount = "1200.123456",
       string buyerAmount = "-1200.000000", string matchedAmount = "1200.000000",
@@ -158,6 +183,9 @@ public sealed class ConsolidationWorkspaceApiTests
     using var wrongGroupFactory = Factory(pg, wrongGroupReviewer);
     using var wrongGroup = wrongGroupFactory.CreateClient();
     var wrongGroupCsrf = await SignIn(wrongGroup);
+    using var deniedOptions = await wrongGroup.GetAsync(scopeUrl + "/intercompany-match-options" +
+      $"?selectedSellerClientId={fixture.Seed.ClientId}&selectedBuyerClientId={fixture.ChildClientId}");
+    Assert.Equal(HttpStatusCode.Forbidden, deniedOptions.StatusCode);
     using var deniedReview = await Post(wrongGroup, wrongGroupCsrf,
       $"/api/ui/consolidation/intercompany-matches/{secondMatchId}/approve",
       new { expectedGroupRevision = 1, reviewed = true });

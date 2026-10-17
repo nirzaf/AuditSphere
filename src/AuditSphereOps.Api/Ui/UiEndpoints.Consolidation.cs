@@ -198,10 +198,16 @@ public static partial class UiEndpoints
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
-    group.MapGet("/consolidation/scopes/{scopeId:guid}/intercompany-match-options", (Guid scopeId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => ConsolidationQuery.GetIntercompanyMatchOptionsAsync(db, actor, scopeId, ct)))
+    group.MapGet("/consolidation/scopes/{scopeId:guid}/intercompany-match-options",
+      (Guid scopeId, HttpContext http, int membersPage = 1, int membersPageSize = 25, string? memberSearch = null,
+        Guid? selectedSellerClientId = null, Guid? selectedBuyerClientId = null) =>
+        ReadAsync(http, (db, actor, ct) => ConsolidationQuery.GetIntercompanyMatchOptionsAsync(
+          db, actor, scopeId, membersPage, membersPageSize, memberSearch, selectedSellerClientId, selectedBuyerClientId, ct)))
+      .WithDescription("Returns reporting-period-eligible members ordered by client ID, with complete filtered MemberPaging counts. membersPage defaults to 1; membersPageSize defaults to 25 (maximum 100). memberSearch is a case-insensitive literal legal-name search of at most 100 characters. Selected seller/buyer IDs resolve independently of paging/search against the same authorized scope membership. Ineligible, unknown or other-firm selections return null. MembersTruncated is false because discovery is pageable; source-taxonomy truncation remains separately explicit. Missing or invalid reporting-period dates return a membership blocker, an empty member page and null resolutions.")
       .Produces<IntercompanyMatchOptions>(StatusCodes.Status200OK, "application/json")
-      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapGet("/consolidation/scopes/{scopeId:guid}/intercompany-matches",
       (Guid scopeId, HttpContext http, int page = 1, int pageSize = 100, bool unresolvedOnly = false) =>
         ReadAsync(http, (db, actor, ct) => ConsolidationQuery.GetIntercompanyExceptionsAsync(

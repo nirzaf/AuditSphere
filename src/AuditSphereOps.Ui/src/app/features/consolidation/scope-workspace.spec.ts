@@ -35,6 +35,8 @@ function intercompanyOptionsPayload(overrides: Record<string, unknown> = {}) {
       { clientId: id2, legalName: 'Synthetic Seller Ltd', hasApprovedComponent: true },
       { clientId: id3, legalName: 'Synthetic Buyer Ltd', hasApprovedComponent: true },
     ],
+    memberPaging: { totalCount: Array.isArray(overrides['members']) ? overrides['members'].length : 2, page: 1, pageSize: 25 },
+    memberSearch: '', resolvedSeller: null, resolvedBuyer: null,
     membersTruncated: false, taxonomyCodes: ['ASSETS.IC_AR', 'LIABILITIES.IC_AP'], taxonomyCodesTruncated: false,
     ...overrides,
   };
@@ -784,6 +786,72 @@ describe('Consolidation Scope Workspace Contracts', () => {
     fixture.detectChanges();
     expect(page.textContent).toContain('member eligibility cannot be confirmed');
     expect(component.canSubmitIntercompanyMatch(workspace, missingPeriodOptions)).toBe(false);
+  });
+
+  it('continues member options beyond 500, retains exact selections and rejects mismatched or stale responses', async () => {
+    const { fixture, component } = open();
+    const url = api.resource.mock.calls[1][0] as () => string;
+    const decodeResponse = api.resource.mock.calls[1][1] as typeof decodeIntercompanyMatchOptions;
+    component.selectIntercompanyMember('SELLER', id2);
+    component.intercompanyMembersPageNumber.set(21);
+    const lastPage = intercompanyOptionsPayload({
+      members: [{ clientId: id3, legalName: 'Member 501', hasApprovedComponent: true }],
+      memberPaging: { totalCount: 501, page: 21, pageSize: 25 },
+      resolvedSeller: { clientId: id2, legalName: 'Selected seller', hasApprovedComponent: true },
+    });
+    intercompanyOptionsData.set(decodeResponse(lastPage, 'root'));
+    await fixture.whenStable();
+    expect(url()).toContain('membersPage=21&membersPageSize=25');
+    expect(url()).toContain(`selectedSellerClientId=${id2}`);
+    expect(fixture.nativeElement.querySelector('[aria-label="Intercompany member pages"]')?.textContent).toContain('501 members');
+    expect(component.intercompanyMemberOptions(component.intercompanyMatchOptions.data()!).map(x => x.clientId)).toEqual([id3, id2]);
+    component.selectIntercompanyMember('BUYER', id3);
+    component.intercompanyForm = { ...component.intercompanyForm, periodCode: '2026-12', transactionReference: 'IC-501',
+      sellerAmount: '1.000000', buyerAmount: '-1.000000', matchedAmount: '1.000000',
+      sellerTaxonomyCode: 'ASSETS.IC_AR', buyerTaxonomyCode: 'LIABILITIES.IC_AP', evidenceReference: 'SIGNED-501', reviewed: true };
+    expect(component.canSubmitIntercompanyMatch(component.ws.data()!, component.intercompanyMatchOptions.data()!)).toBe(true);
+    expect(() => decodeResponse({ ...lastPage, resolvedSeller: { clientId: id1, legalName: 'Wrong identity', hasApprovedComponent: true } }, 'root')).toThrow();
+    component.changeIntercompanyOutside('enabled', true);
+    component.changeIntercompanyOutside('side', 'BUYER');
+    component.changeIntercompanyOutside('clientId', matchId3);
+    component.intercompanyForm.reviewed = true;
+    expect(url()).toContain(`selectedBuyerClientId=${matchId3}`);
+    expect(component.canSubmitIntercompanyMatch(component.ws.data()!, component.intercompanyMatchOptions.data()!)).toBe(false);
+    const offPageMember = decodeResponse({ ...lastPage,
+      resolvedBuyer: { clientId: matchId3, legalName: 'Off-page approved member', hasApprovedComponent: true },
+    }, 'root');
+    expect(component.canSubmitIntercompanyMatch(component.ws.data()!, offPageMember)).toBe(false);
+    const confirmedOutside = decodeResponse({ ...lastPage, resolvedBuyer: null }, 'root');
+    expect(component.canSubmitIntercompanyMatch(component.ws.data()!, confirmedOutside)).toBe(true);
+    component.changeIntercompanyOutside('clientId', matchId2);
+    component.intercompanyForm.reviewed = true;
+    expect(component.canSubmitIntercompanyMatch(component.ws.data()!, confirmedOutside)).toBe(false);
+    component.changeIntercompanyOutside('side', 'SELLER');
+    component.selectIntercompanyMember('BUYER', id3);
+    component.intercompanyForm.reviewed = true;
+    expect(url()).toContain(`selectedSellerClientId=${matchId2}`);
+    const sellerOutside = decodeResponse({ ...lastPage, resolvedSeller: null,
+      resolvedBuyer: { clientId: id3, legalName: 'Internal buyer', hasApprovedComponent: true },
+    }, 'root');
+    expect(component.canSubmitIntercompanyMatch(component.ws.data()!, sellerOutside)).toBe(true);
+    component.changeIntercompanyOutside('enabled', false);
+    expect(url()).toContain(`selectedSellerClientId=${id2}`);
+    component.previousIntercompanyMembersPage();
+    expect(component.intercompanyForm.reviewed).toBe(false);
+    expect(() => decodeResponse(lastPage, 'root')).toThrow();
+    component.nextIntercompanyMembersPage({ totalCount: 501, page: 20, pageSize: 25 });
+    expect(component.intercompanyMembersPageNumber()).toBe(21);
+    component.searchIntercompanyMembers('Member 501');
+    expect(component.intercompanyMembersPageNumber()).toBe(1);
+    expect(url()).toContain('memberSearch=Member%20501');
+    expect(url()).toContain(`selectedBuyerClientId=${id3}`);
+    params.next(convertToParamMap({ id: id3 }));
+    await fixture.whenStable();
+    expect(component.intercompanyMemberSearch()).toBe('');
+    expect(component.intercompanyMembersPageNumber()).toBe(1);
+    expect(url()).not.toContain('selectedSellerClientId');
+    expect(() => decodeResponse(lastPage, 'root')).toThrow();
+    expect(() => decodeIntercompanyMatchOptions({ ...lastPage, memberPaging: { totalCount: 501, page: 1, pageSize: 25 } }, 'root')).toThrow();
   });
 
   it('blocks malformed exact amounts and changed group revisions before dispatch', () => {

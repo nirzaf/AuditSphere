@@ -70,6 +70,8 @@ public static partial class UiEndpoints
     // single boundary rate-limit policy resolves per-request cost classes for these endpoints.
     var group = app.MapGroup("/api/ui")
       .RequireAuthorization(HttpPolicies.AuthenticatedSession());
+    group.WithMetadata(new ProducesResponseTypeMetadata(
+      StatusCodes.Status503ServiceUnavailable, typeof(ApiError), ["application/json"]));
     MapAcceptanceCommands(group);
     MapCommercialEndpoints(group);
     MapPortfolioEndpoints(group);

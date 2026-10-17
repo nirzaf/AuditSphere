@@ -195,6 +195,9 @@ export const decodeIntercompanyExceptionsPage = (value: unknown, path: string) =
   return page;
 };
 
+const decodeMatchMember = obj({ clientId: guid, legalName: text, hasApprovedComponent: bool });
+const decodeMemberPaging = obj({ totalCount: nat, page: int, pageSize: int });
+
 const decodeIntercompanyMatchOptionsShape = obj({
   scopeVersionId: guid,
   groupId: guid,
@@ -204,7 +207,11 @@ const decodeIntercompanyMatchOptionsShape = obj({
   periodStartDate: nullable(date),
   periodEndDate: nullable(date),
   membershipBlocker: nullable(text),
-  members: arr(obj({ clientId: guid, legalName: text, hasApprovedComponent: bool }), 500),
+  members: arr(decodeMatchMember, 100),
+  memberPaging: decodeMemberPaging,
+  memberSearch: text,
+  resolvedSeller: nullable(decodeMatchMember),
+  resolvedBuyer: nullable(decodeMatchMember),
   membersTruncated: bool,
   taxonomyCodes: arr(text, 500),
   taxonomyCodesTruncated: bool,
@@ -218,6 +225,16 @@ export const decodeIntercompanyMatchOptions = (value: unknown, path: string) => 
   if ((options.membershipBlocker !== null && (!periodMissing || options.members.length !== 0)) ||
       (options.membershipBlocker === null && !periodValid))
     throw new Error(`${path || 'response'}: invalid period-bound membership options`);
+  const paging = options.memberPaging;
+  if (options.membershipBlocker !== null) {
+    if (paging.totalCount !== 0 || options.resolvedSeller !== null || options.resolvedBuyer !== null)
+      throw new Error(`${path || 'response'}: refused membership cannot resolve options`);
+  }
+  if (paging.page < 1 || paging.pageSize < 1 || paging.pageSize > 100 || options.memberSearch.length > 100 ||
+      options.members.length !== Math.min(paging.pageSize, Math.max(0, paging.totalCount - (paging.page - 1) * paging.pageSize)) ||
+      new Set(options.members.map(member => member.clientId)).size !== options.members.length) {
+    throw new Error(`${path || 'response'}: inconsistent bounded member page`);
+  }
   return options;
 };
 

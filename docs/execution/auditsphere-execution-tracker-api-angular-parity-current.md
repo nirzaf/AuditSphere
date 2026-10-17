@@ -34,7 +34,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | T024 | Expose controlled unallocation from approved allocation history | IMPLEMENTED_VERIFICATION_PENDING | [ClientOpenItemAllocationHistoryQuery.cs](../../src/AuditSphereOps.Application/Accounting/ClientOpenItemAllocationHistoryQuery.cs) |
 | T025 | Resolve component replacement retention before exposing correction | IN_PROGRESS | [overview.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/overview.ts) · [component-correction.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/component-correction.ts) |
 | T026 | Surface draft-scope ownership relationships | IMPLEMENTED_VERIFICATION_PENDING | [ownership.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/ownership.ts) |
-| T027 | Add intercompany matching and independent approval | IN_PROGRESS | [ConsolidationService.Intercompany.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Intercompany.cs) |
+| T027 | Add intercompany matching and independent approval | IMPLEMENTED_VERIFICATION_PENDING | [ConsolidationService.Intercompany.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Intercompany.cs) |
 | T028 | Complete external component-pack intake, review and pinning | IN_PROGRESS | [ConsolidationExternalComponentPackQuery.cs](../../src/AuditSphereOps.Application/Accounting/ConsolidationExternalComponentPackQuery.cs) |
 | T029 | Preserve portal request drafts during a same-context refresh | IMPLEMENTED_VERIFICATION_PENDING | [request.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.ts) |
 | T030 | Let slow package-build status reads finish | IMPLEMENTED_VERIFICATION_PENDING | [financial-package-build.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts) |
@@ -57,7 +57,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | T047 | Document audit planning, procedure, fieldwork and confirmation contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Fieldwork.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs) |
 | T048 | Document audit completion, records and deliverable contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Completion.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs) |
 | T049 | Document client portal, PBC and portal journal-management contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Portal.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs) |
-| T050 | Document administration, setup, Microsoft services and durable-operation contracts | IN_PROGRESS | [UiEndpoints.Administration.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Administration.cs) |
+| T050 | Document administration, setup, Microsoft services and durable-operation contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Administration.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Administration.cs) |
 | T051 | Document session, search and browser authentication protocol contracts | IMPLEMENTED_VERIFICATION_PENDING | [ApiHost.AuthenticationEndpoints.cs](../../src/AuditSphereOps.Api/ApiHost.AuthenticationEndpoints.cs) |
 
 ## Retention and acceptance decisions
@@ -67,3 +67,7 @@ Component corrections use a new scope version, retaining original scope, compone
 ## Bounded component and readiness continuation
 
 The scope workspace now pages components and readiness independently, alongside the existing package, journal, run and exception histories. Component correction resolves the exact authorized component independently of the displayed page. Readiness refusal retains its error state and has no successful page metadata. Scope/group revision checks fence the paged reads. The former large-readiness unavailable fallback is replaced by accessible bounded pages. Focused checks and their limits are recorded under `apiAngularParity.localVerification.pagingSlice` in [status.json](status.json); full acceptance remains unverified.
+
+## Intercompany member discovery and safe read failures
+
+Matching options now support bounded member search and paging, with exact seller/buyer resolution independently of the current discovery page. Selections remain tied to the current scope and reporting-period eligibility. Outside-party review refuses a resolved in-perimeter member, including one off the displayed page. Shared UI exception handling is documented as a sanitized JSON service-unavailable response through common endpoint metadata. Focused evidence and remaining acceptance limits are recorded in `status.json`; full functional and release acceptance remains pending.
