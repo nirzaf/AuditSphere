@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, effect, inject, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,6 +12,10 @@ import { decodeOperationState } from './operations-command-contracts';
 
 export const decodeOperations = obj({ operatingMode: text, retryableStates: arr(text, 50),
   operations: arr(obj({ id: guid, kind: text, status: text, attemptCount: int, nextAttemptAt: nullable(instant), errorCode: nullable(text), cancellationDisposition: nullable(text) }), 500) });
+const decodeOperationDiscovery = obj({ state: nullable(text), operationId: nullable(guid),
+  operations: arr(obj({ id: guid, kind: text, status: text, attemptCount: int, nextAttemptAt: nullable(instant), errorCode: nullable(text),
+    cancellationDisposition: nullable(text), createdAt: instant }), 50), nextCursor: nullable(text), firstPageCursor: nullable(text) });
+type DiscoveryQuery = { state: string | null; operationId: string | null; cursor: string | null };
 const QUEUED = ['PENDING', 'RETRY_WAIT'], PROCESSING = ['CLAIMED', 'REMOTE_STARTED', 'VERIFYING', 'CANCEL_REQUESTED'],
   ATTENTION = ['AUTHORIZATION_BLOCKED', 'PROVIDER_BLOCKED', 'RESULT_UNCERTAIN', 'DEAD_LETTER'];
 const ADMIN_ACCESS_UNAVAILABLE = 'Operations is limited to firm-wide AuditSphere Administrators. Your current account does not have that access; switch to an authorized administrator account or ask a firm administrator to review your access.';
@@ -60,6 +64,36 @@ const ADMIN_ACCESS_UNAVAILABLE = 'Operations is limited to firm-wide AuditSphere
       }
       <p role="status">{{ count(o, queued) }} queued · {{ count(o, processing) }} processing · {{ count(o, attention) }} need attention · {{ count(o, ['COMPLETED']) }} completed · {{ count(o, ['CANCELLED_WITH_DISPOSITION']) }} cancelled</p>
       <p><small>Counts summarize only the latest {{ o.operations.length }} firm operations shown below; they are not a backlog total or worker-health verdict.</small></p>
+      <section class="panel" aria-labelledby="operation-discovery-heading">
+        <h2 id="operation-discovery-heading">Find older unresolved operations</h2>
+        <p>Search is firm scoped. Results show only this page and filter; each recovery action still requires a fresh preview and explicit review.</p>
+        <form (ngSubmit)="searchOlderOperations()">
+          <label for="operation-state-filter">Unresolved state
+            <select id="operation-state-filter" name="operationState" [value]="discoveryState" (change)="setDiscoveryState($any($event.target).value)">
+              <option value="">All unresolved states</option>
+              <option value="PROVIDER_BLOCKED">Provider blocked</option><option value="DEAD_LETTER">Dead letter</option>
+              <option value="AUTHORIZATION_BLOCKED">Authorization blocked</option><option value="RESULT_UNCERTAIN">Result uncertain</option>
+            </select>
+          </label>
+          <label for="operation-exact-id">Exact operation ID <input id="operation-exact-id" name="operationId" [value]="discoveryOperationId" (input)="setDiscoveryOperationId($any($event.target).value)" autocomplete="off" /></label>
+          <button type="submit" matButton="outlined" [disabled]="cmd.busy() || ops.loading() || discovery.loading()">Search unresolved work</button>
+        </form>
+        @if (discoveryInputError) { <p role="alert">{{ discoveryInputError }}</p> }
+        @if (discovery.data(); as page) {
+          <p role="status">{{ page.operations.length }} result(s) on this page. This is not a total count.</p>
+          <div class="table-scroll"><table><caption>Older unresolved operation search results</caption><thead><tr><th scope="col">Operation</th><th scope="col">Status</th><th scope="col">Created (UTC)</th><th scope="col">Attempts</th><th scope="col">Code</th><th scope="col">Action</th></tr></thead>
+            <tbody>@for (x of page.operations; track x.id) {
+              <tr><td>{{ x.kind }}<small>ID {{ x.id }}</small></td><td><audit-status [value]="x.status" /></td>
+                <td><time [attr.datetime]="x.createdAt">{{ x.createdAt | date:'medium':'UTC' }} UTC</time></td><td>{{ x.attemptCount }}</td><td>{{ x.errorCode ?? '—' }}</td>
+                <td>@if (retryableStates().includes(x.status)) { <button matButton="filled" (click)="retry(x.id, x.status)" [attr.aria-label]="'Re-arm for retry for ' + x.kind + ', operation ' + x.id" [disabled]="!cmd.canPrepare('RETRY', x.id)">Re-arm for retry</button> }</td></tr>
+            } @empty { <tr><td colspan="6">No unresolved operations match this search.</td></tr> }</tbody></table></div>
+          <nav aria-label="Older unresolved operation pages" class="actions">
+            <button type="button" matButton="outlined" (click)="previousDiscoveryPage()" [disabled]="!canPreviousDiscovery()">Previous results</button>
+            <button type="button" matButton="outlined" (click)="nextDiscoveryPage()" [disabled]="!page.nextCursor">More results</button>
+          </nav>
+        }
+        <audit-state [loading]="discovery.loading()" [error]="discovery.error()" label="older unresolved operations" />
+      </section>
       <section class="panel" aria-labelledby="operations-heading"><h2 id="operations-heading">Latest 50 durable operations</h2>
         <label for="operation-disposition">Cancellation disposition <input id="operation-disposition" name="disposition" [ngModel]="disposition" (ngModelChange)="setDisposition($event)" maxlength="2000" placeholder="Why is the queued operation being cancelled?" /></label>
         <div class="table-scroll"><table><caption>Latest 50 durable operations</caption><thead><tr><th scope="col">Operation</th><th scope="col">Status</th><th scope="col">Attempts</th><th scope="col">Next attempt (UTC)</th><th scope="col">Code</th><th scope="col">Disposition</th><th scope="col">Action</th></tr></thead>
@@ -92,6 +126,17 @@ export class Operations {
     ADMIN_ACCESS_UNAVAILABLE);
   readonly accessDenied = computed(() => this.ops.error() === ADMIN_ACCESS_UNAVAILABLE);
   readonly recovery = this.api.resource(() => this.ops.data() ? operationStateUrl() : null, decodeOperationState);
+  private readonly discoveryQuery = signal<DiscoveryQuery | null>(null);
+  readonly discovery = this.api.resource(() => {
+    const query = this.discoveryQuery();
+    if (!query) return null;
+    const params = new URLSearchParams();
+    if (query.operationId) params.set('operationId', query.operationId);
+    else if (query.state) params.set('state', query.state);
+    if (query.cursor) params.set('cursor', query.cursor);
+    params.set('pageSize', '25');
+    return '/api/ui/operations/discovery?' + params.toString();
+  }, decodeOperationDiscovery);
   private readonly evidence = computed(() => {
     const operations = this.ops.data(), recovery = this.recovery.data();
     return operations && recovery ? { operations, recovery } : null;
@@ -105,13 +150,60 @@ export class Operations {
   set findings(value: string) { if (value !== this.findingsValue) this.cmd.inputChanged(); this.findingsValue = value; }
   readonly pageSizes = [10, 25, 50] as const;
   pageSize = 10; pageIndex = 0;
+  private discoveryStateValue = '';
+  private discoveryOperationIdValue = '';
+  private discoveryCursorHistory: (string | null)[] = [];
+  get discoveryState(): string { return this.discoveryStateValue; }
+  set discoveryState(value: string) { this.discoveryStateValue = value; }
+  get discoveryOperationId(): string { return this.discoveryOperationIdValue; }
+  set discoveryOperationId(value: string) { this.discoveryOperationIdValue = value; }
+  readonly retryableStates = computed(() => this.ops.data()?.retryableStates ?? []);
+  discoveryInputError = '';
   constructor() {
     effect(() => {
       const data = this.ops.data();
       untracked(() => { this.pageIndex = 0; if (!data) { this.disposition = ''; this.findings = ''; } });
     });
   }
-  refresh(): void { this.cmd.invalidate(true); this.ops.reload(); }
+  refresh(): void {
+    this.cmd.invalidate(true); this.ops.reload();
+    if (this.discoveryQuery()) {
+      this.discoveryCursorHistory = [];
+      const query = this.discoveryQuery();
+      if (query?.cursor) this.discoveryQuery.set({ ...query, cursor: null });
+      else this.discovery.reload();
+    }
+  }
+  setDiscoveryState(value: string): void {
+    if (value !== this.discoveryState) this.cmd.inputChanged();
+    this.discoveryState = value;
+  }
+  setDiscoveryOperationId(value: string): void {
+    if (value !== this.discoveryOperationId) this.cmd.inputChanged();
+    this.discoveryOperationId = value;
+  }
+  searchOlderOperations(): void {
+    const operationId = this.discoveryOperationId.trim();
+    this.discoveryInputError = '';
+    if (operationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(operationId)) {
+      this.discoveryInputError = 'Enter a complete operation ID or clear the field to search by unresolved state.';
+      return;
+    }
+    this.cmd.invalidate(true); this.discoveryCursorHistory = [];
+    this.discoveryQuery.set({ state: operationId ? null : this.discoveryState || null, operationId: operationId || null, cursor: null });
+  }
+  nextDiscoveryPage(): void {
+    const page = this.discovery.data(), query = this.discoveryQuery();
+    if (!page?.nextCursor || !query) return;
+    this.cmd.invalidate(true); this.discoveryCursorHistory.push(query.cursor);
+    this.discoveryQuery.set({ ...query, cursor: page.nextCursor });
+  }
+  previousDiscoveryPage(): void {
+    const query = this.discoveryQuery();
+    if (!query || !this.discoveryCursorHistory.length) return;
+    this.cmd.invalidate(true); this.discoveryQuery.set({ ...query, cursor: this.discoveryCursorHistory.pop() ?? null });
+  }
+  canPreviousDiscovery(): boolean { return this.discoveryCursorHistory.length > 0; }
   setDisposition(value: string): void { this.disposition = value; }
   setFindings(value: string): void { this.findings = value; }
   count(o: ReturnType<typeof decodeOperations>, states: string[]): number { return o.operations.filter((x) => states.includes(x.status)).length; }
@@ -125,9 +217,10 @@ export class Operations {
     const size = Number((event.target as HTMLSelectElement).value);
     if ((this.pageSizes as readonly number[]).includes(size)) { this.pageSize = size; this.pageIndex = 0; }
   }
-  async retry(id: string): Promise<void> {
+  async retry(id: string, status?: string): Promise<void> {
     const data = this.ops.data(), row = data?.operations.find(x => x.id === id);
-    if (!row || !data?.retryableStates.includes(row.status)) return;
+    const effective = status ?? row?.status ?? '';
+    if (!this.retryableStates().includes(effective)) return;
     await this.cmd.prepare(() => ({ action: 'RETRY', operationId: id }));
   }
   async cancel(id: string): Promise<void> {

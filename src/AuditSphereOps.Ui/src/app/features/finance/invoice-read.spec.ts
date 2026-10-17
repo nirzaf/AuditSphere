@@ -154,4 +154,24 @@ describe('Invoice exact read and allocation pagination', () => {
     expect(c.invoice.data()).toBeNull(); expect(f.nativeElement.textContent).not.toContain('BANK-0');
     http.expectNone(r => r.method !== 'GET');
   });
+
+  it('resets drafts across A to B to A visits and ignores a delayed command from the old visit', async () => {
+    const f = open(); const c = f.componentInstance;
+    c.receiptForm.patchValue({ amount: '12', reference: 'PRIVATE invoice A', reviewed: true });
+    const oldCommand = c.act(id(1), 'post', 'Old invoice A command completed.');
+    const command = http.expectOne(`/api/ui/finance/invoices/${id(1)}/post`);
+
+    params.next(convertToParamMap({ id: id(2) })); TestBed.tick();
+    http.expectOne(`/api/ui/finance/invoices/${id(2)}`).flush(invoice(1, 2)); TestBed.tick();
+    expect(c.receiptForm.controls.reference.value).toBe('');
+    expect(c.receiptForm.controls.reviewed.value).toBe(false);
+    command.flush({ ok: true, value: {} }); await oldCommand; TestBed.tick();
+    expect(c.invoice.data()?.id).toBe(id(2));
+    expect(c.message()).not.toBe('Old invoice A command completed.');
+
+    params.next(convertToParamMap({ id: id(1) })); TestBed.tick();
+    http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush(invoice()); TestBed.tick();
+    expect(c.receiptForm.controls.reference.value).toBe('');
+    expect(c.receiptForm.controls.reviewed.value).toBe(false);
+  });
 });

@@ -10,12 +10,44 @@ namespace AuditSphereOps.Application.Documents;
 /// <summary>Client review writes share final-release locks; the underlying deliverable service owns its evidence and version checks.</summary>
 public static class ClientPortalReviewCommands
 {
-  public static async Task<CommandResult<Guid>> CommentAsync(IAuditSphereDbContext db, ActorContext actor, Guid reviewId, string body, CancellationToken ct = default)
+  public static async Task<CommandResult<Guid>> GetCommentReceiptAsync(IAuditSphereDbContext db, ActorContext actor, Guid reviewId, Guid requestId, CancellationToken ct = default)
   {
+    if (requestId == Guid.Empty) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Comment unavailable.");
+    var review = await db.ClientDeliverableReviews.AsNoTracking().SingleOrDefaultAsync(x => x.Id == reviewId && x.FirmId == actor.FirmId, ct);
+    if (review is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Comment unavailable.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, review.ClientId, review.EngagementId, ["ClientUser"]), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Comment unavailable.");
+    var comment = await db.ClientDeliverableComments.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.ReviewId == reviewId && x.AuthorUserId == actor.UserId && x.RequestId == requestId, ct);
+    return comment is null
+      ? CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Comment unavailable.")
+      : CommandResult<Guid>.Ok(comment.Id);
+  }
+  public static async Task<CommandResult<Guid>> CommentAsync(IAuditSphereDbContext db, ActorContext actor, Guid reviewId, Guid requestId, string body, CancellationToken ct = default)
+  {
+    if (requestId == Guid.Empty || string.IsNullOrWhiteSpace(body) || body.Length > 4000)
+      return CommandResult<Guid>.Fail("request.invalid", "A comment and request identity are required.");
+    // Authenticate current client scope before recovering an old outcome. A successful comment remains recoverable
+    // after the review window closes, but never after the actor loses access to this client/document.
+    if (!await db.Users.AsNoTracking().AnyAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.UserKind == "Client" && !x.Disabled, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Review unavailable.");
+    var review = await db.ClientDeliverableReviews.AsNoTracking().SingleOrDefaultAsync(x => x.Id == reviewId && x.FirmId == actor.FirmId, ct);
+    if (review is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Review unavailable.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, review.ClientId, review.EngagementId, ["ClientUser"]), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Review unavailable.");
+    var prior = await db.ClientDeliverableComments.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.AuthorUserId == actor.UserId && x.RequestId == requestId, ct);
+    if (prior is not null)
+    {
+      var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(body.Trim()))).ToLowerInvariant();
+      return prior.ReviewId == reviewId && prior.RequestSha256 == hash
+        ? CommandResult<Guid>.Ok(prior.Id)
+        : CommandResult<Guid>.Fail("idempotency.conflict", "This request identity was already used for different comment content or target.");
+    }
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var gate = await RequireWritableReviewAsync(db, actor, reviewId, ct);
     if (!gate.Succeeded) return CommandResult<Guid>.Fail(gate.ErrorCode!, gate.Message!);
-    var result = await AuditDeliverableService.CommentAsync(db, actor, reviewId, body, ct);
+    var result = await AuditDeliverableService.CommentAsync(db, actor, reviewId, requestId, body, ct);
     if (result.Succeeded) await tx.CommitAsync(ct);
     return result;
   }

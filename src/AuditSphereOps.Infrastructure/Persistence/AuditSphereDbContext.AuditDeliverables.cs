@@ -143,9 +143,11 @@ public sealed partial class AuditSphereDbContext
     b.Entity<ClientDeliverableComment>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.ReviewId, x.CreatedAt });
+      e.HasIndex(x => new { x.FirmId, x.AuthorUserId, x.RequestId }).IsUnique().HasFilter("request_id IS NOT NULL");
       e.HasOne<ClientDeliverableReview>().WithMany().HasForeignKey(x => x.ReviewId).OnDelete(DeleteBehavior.Restrict);
       e.ToTable("client_deliverable_comments", t => t.HasCheckConstraint("ck_client_deliverable_comment_values",
-        "length(body) > 0 AND ((resolved_at IS NULL) = (resolution IS NULL))"));
+        "length(body) > 0 AND ((resolved_at IS NULL) = (resolution IS NULL)) AND ((request_id IS NULL) = (request_sha256 IS NULL))"));
+      e.Property(x => x.RequestSha256).HasMaxLength(64);
     });
     b.Entity<ConfirmationCriticality>(e =>
     {

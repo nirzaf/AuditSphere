@@ -18,6 +18,8 @@ const templateStep = obj({
   id: guid, stableKey: str(80), phase: str(40), title: str(200), instructions: str(4000),
   suggestedStaffingLevel: nullable(str(32)), estimatedEffortMinutes: nullable(int), dueDateOffsetDays: nullable(int),
   pbcRequestReference: nullable(str(120)), requiredTask: bool, sortOrder: int, dependsOnStepKeys: arr(str(80), 100),
+  pbcDefinition: nullable(obj({ objective: str(2000), entityScope: str(500), area: str(200), requestedFormat: str(200),
+    controlTotals: nullable(str(2000)), confidentiality: str(100), acceptanceCriteria: str(4000) })),
 });
 export const decodeTemplateRevision = obj({
   templateId: guid, revisionId: guid, version: int, name: str(160), serviceRoute: str(50),
@@ -31,6 +33,8 @@ type TemplateStepDraft = {
   stableKey: string; phase: string; title: string; instructions: string; suggestedStaffingLevel: string;
   estimatedEffortMinutes: number | null; dueDateOffsetDays: number | null; pbcRequestReference: string;
   requiredTask: boolean; sortOrder: number; dependsOnText: string;
+  pbcDefinition: { objective: string; entityScope: string; area: string; requestedFormat: string;
+    controlTotals: string; confidentiality: string; acceptanceCriteria: string } | null;
 };
 type TemplateDraft = {
   templateId: string | null; revisionId: string | null; expectedRevision: number | null;
@@ -51,7 +55,7 @@ const STAFFING_LEVELS = [
 function emptyStep(sortOrder = 1): TemplateStepDraft {
   return { stableKey: `step-${sortOrder}`, phase: 'AUDIT_FIELDWORK', title: '', instructions: '',
     suggestedStaffingLevel: '', estimatedEffortMinutes: null, dueDateOffsetDays: null,
-    pbcRequestReference: '', requiredTask: true, sortOrder, dependsOnText: '' };
+    pbcRequestReference: '', requiredTask: true, sortOrder, dependsOnText: '', pbcDefinition: null };
 }
 function emptyDraft(templateId: string | null = null): TemplateDraft {
   return { templateId, revisionId: null, expectedRevision: null, name: '', serviceRoute: '', industryKey: '', steps: [emptyStep()] };
@@ -114,6 +118,19 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
                   <label>Sort order <input type="number" min="1" max="100000" [name]="'step-order-' + i" [(ngModel)]="step.sortOrder" required /></label>
                   <label>Prerequisite step keys (comma separated) <input [name]="'step-dependencies-' + i" [(ngModel)]="step.dependsOnText" maxlength="8100" /></label>
                   <label>PBC request reference (optional) <input [name]="'step-pbc-' + i" [(ngModel)]="step.pbcRequestReference" maxlength="120" /></label>
+                  @if (!step.pbcDefinition) { <button matButton type="button" (click)="step.pbcDefinition = emptyPbcDefinition()">Add typed PBC instruction</button> }
+                  @if (step.pbcDefinition; as pbc) {
+                    <fieldset class="wide"><legend>Typed PBC instruction (creates no request by itself)</legend>
+                      <label>Objective <textarea [name]="'pbc-objective-' + i" [(ngModel)]="pbc.objective" maxlength="2000" required></textarea></label>
+                      <label>Entity scope <input [name]="'pbc-entity-' + i" [(ngModel)]="pbc.entityScope" maxlength="500" required /></label>
+                      <label>Area <input [name]="'pbc-area-' + i" [(ngModel)]="pbc.area" maxlength="200" required /></label>
+                      <label>Requested format <input [name]="'pbc-format-' + i" [(ngModel)]="pbc.requestedFormat" maxlength="200" required /></label>
+                      <label>Control totals (optional) <textarea [name]="'pbc-totals-' + i" [(ngModel)]="pbc.controlTotals" maxlength="2000"></textarea></label>
+                      <label>Confidentiality <input [name]="'pbc-confidentiality-' + i" [(ngModel)]="pbc.confidentiality" maxlength="100" required /></label>
+                      <label>Acceptance criteria <textarea [name]="'pbc-acceptance-' + i" [(ngModel)]="pbc.acceptanceCriteria" maxlength="4000" required></textarea></label>
+                      <button matButton type="button" (click)="step.pbcDefinition = null">Remove typed PBC instruction</button>
+                    </fieldset>
+                  }
                   <label><span>Required task</span><input type="checkbox" [name]="'step-required-' + i" [(ngModel)]="step.requiredTask" /></label>
                 </div>
                 <button matButton type="button" (click)="removeStep(i)" [disabled]="draft.steps.length <= 1">Remove step</button>
@@ -147,6 +164,9 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
               <small>Key {{ step.stableKey }} · {{ step.suggestedStaffingLevel ?? 'No suggested owner' }} · {{ step.estimatedEffortMinutes ?? 'No effort estimate' }} min · {{ step.dueDateOffsetDays ?? 'No due-date offset' }} days</small>
               @if (step.dependsOnStepKeys.length) { <small>Prerequisites: {{ step.dependsOnStepKeys.join(', ') }}</small> }
               @if (step.pbcRequestReference) { <small>PBC reference: {{ step.pbcRequestReference }}</small> }
+              @if (step.pbcDefinition; as pbc) { <div class="muted"><strong>Typed PBC instruction</strong><p>{{ pbc.objective }}</p>
+                <small>{{ pbc.area }} · {{ pbc.entityScope }} · {{ pbc.requestedFormat }} · {{ pbc.confidentiality }}</small>
+                <p>{{ pbc.acceptanceCriteria }}</p></div> }
             </li>
           }</ol>
         } @else if (revision.loading()) {
@@ -229,6 +249,10 @@ export class WorkflowTemplates {
     this.draft.steps = [...this.draft.steps, emptyStep(order)];
   }
 
+  emptyPbcDefinition() {
+    return { objective: '', entityScope: '', area: '', requestedFormat: '', controlTotals: '', confidentiality: '', acceptanceCriteria: '' };
+  }
+
   removeStep(index: number): void {
     if (this.draft.steps.length <= 1) return;
     this.draft.steps = this.draft.steps.filter((_, i) => i !== index);
@@ -254,6 +278,8 @@ export class WorkflowTemplates {
         estimatedEffortMinutes: step.estimatedEffortMinutes, dueDateOffsetDays: step.dueDateOffsetDays,
         pbcRequestReference: step.pbcRequestReference.trim() || null, requiredTask: step.requiredTask,
         sortOrder: step.sortOrder, dependsOnStepKeys: step.dependsOnText.split(',').map(x => x.trim()).filter(Boolean),
+        pbcDefinition: step.pbcDefinition ? { ...step.pbcDefinition,
+          controlTotals: step.pbcDefinition.controlTotals.trim() || null } : null,
       })),
     };
     const url = mode === 'edit'
@@ -349,6 +375,7 @@ export class WorkflowTemplates {
         suggestedStaffingLevel: step.suggestedStaffingLevel ?? '', estimatedEffortMinutes: step.estimatedEffortMinutes,
         dueDateOffsetDays: step.dueDateOffsetDays, pbcRequestReference: step.pbcRequestReference ?? '',
         requiredTask: step.requiredTask, sortOrder: step.sortOrder, dependsOnText: step.dependsOnStepKeys.join(', '),
+        pbcDefinition: step.pbcDefinition ? { ...step.pbcDefinition, controlTotals: step.pbcDefinition.controlTotals ?? '' } : null,
       })),
     };
   }

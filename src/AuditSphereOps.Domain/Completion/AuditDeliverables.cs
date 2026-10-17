@@ -213,4 +213,7 @@ public sealed class ClientDeliverableComment
   public Guid? ResolvedByUserId { get; set; }
   public DateTimeOffset? ResolvedAt { get; set; }
   public string? Resolution { get; set; }
+  // Nullable for legacy comments created before exact request recovery was available.
+  public Guid? RequestId { get; set; }
+  public string? RequestSha256 { get; set; }
 }

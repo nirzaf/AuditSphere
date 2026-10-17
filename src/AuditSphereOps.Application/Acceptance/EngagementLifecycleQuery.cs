@@ -166,9 +166,8 @@ public static class EngagementLifecycleQuery
     var partnerClearance = await AuditDeliverableService.CurrentClearanceAsync(db, actor, engagementId, ct);
     var opinion = await AuditDeliverableService.CurrentOpinionAsync(db, actor, engagementId, ct);
 
-    // Managerial Review gate (STE lifecycle 7 -> 8): Partner Approval is reachable only when the completion gate is clear
-    // before signing: zero open review notes, current materiality and SRM, critical confirmations evaluated and required
-    // reviews complete. A later report-generation blocker is not a substitute for this transition condition.
+    // Manager handover (STE lifecycle 7 -> 8): Partner Approval begins once current manager-reviewed evidence,
+    // a current SRM and the completion prerequisites are clear. Partner clearance remains a separate outstanding action.
     var openReviewNotes = await (from note in db.ProcedureReviewNotes.AsNoTracking()
       where note.FirmId == actor.FirmId && note.EngagementId == engagementId
       let latestEvent = db.ProcedureReviewNoteEvents.AsNoTracking()
@@ -195,19 +194,19 @@ public static class EngagementLifecycleQuery
     var allSubmittedForReview = procedures.Count > 0 && procedureProgress.All(x => x.IsSubmitted);
 
     var handoverBlockers = new List<string>();
-    if (partnerClearance is not null)
-    {
-      if (openReviewNotes > 0) handoverBlockers.Add($"{openReviewNotes} open review note(s) require resolution");
-      var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, actor.FirmId, client.Id, engagementId, ct);
-      handoverBlockers.AddRange(completion.Succeeded
-        ? completion.Value!.Blockers.Select(b => $"Completion gate: {b}")
-        : ["Completion gate could not be evaluated for your role."]);
-    }
+    if (openReviewNotes > 0) handoverBlockers.Add($"{openReviewNotes} open review note(s) require resolution");
+    var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, actor.FirmId, client.Id, engagementId, ct);
+    handoverBlockers.AddRange(completion.Succeeded
+      ? completion.Value!.Blockers.Select(b => $"Completion gate: {b}")
+      : ["Completion gate could not be evaluated for your role."]);
+    if (await AuditDeliverableService.CurrentSummaryReviewMemorandumAsync(db, actor, engagementId, ct) is null)
+      handoverBlockers.Add("A current Summary Review Memorandum is required for Partner handover.");
 
-    if (PartnerApprovalReady(partnerClearance is not null, handoverBlockers.Count))
+    if (PartnerHandoverReady(handoverBlockers.Count))
     {
       var partnerBlocked = new List<string>();
       if (holds.Count > 0) partnerBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
+      if (partnerClearance is null) partnerBlocked.Add("Partner clearance of the current Summary Review Memorandum is pending.");
       if (opinion is null) partnerBlocked.Add("Partner audit opinion decision pending");
       else partnerBlocked.Add("Partner signature of the current Independent Auditor's Report pending");
       return Project(new EngagementLifecycleSummary(
@@ -215,14 +214,11 @@ public static class EngagementLifecycleQuery
         "EngagementPartner", $"/app/engagements/{engagementId}/completion", null, false, false));
     }
 
-    if (allSubmittedForReview || handoverBlockers.Count > 0)
+    if (allSubmittedForReview || partnerClearance is not null)
     {
       var mgrBlocked = new List<string>();
       if (holds.Count > 0) mgrBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      if (openReviewNotes > 0 && !handoverBlockers.Any(x => x.StartsWith($"{openReviewNotes} open review note", StringComparison.Ordinal)))
-        mgrBlocked.Add($"{openReviewNotes} open review note(s) require resolution");
       mgrBlocked.AddRange(handoverBlockers);
-      if (partnerClearance is null) mgrBlocked.Add("Partner clearance of a current Summary Review Memorandum is pending.");
       return Project(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ManagerialReview, "Managerial Review", 7, mgrBlocked,
         "AuditManager", $"/app/engagements/{engagementId}/audit-fieldwork", null, false, false));
@@ -344,8 +340,7 @@ public static class EngagementLifecycleQuery
       ? CanonicalEngagementStages.ComplianceCountdown
       : CanonicalEngagementStages.DeliverableRelease;
 
-  internal static bool PartnerApprovalReady(bool currentClearance, int completionBlockerCount) =>
-    currentClearance && completionBlockerCount == 0;
+  internal static bool PartnerHandoverReady(int completionBlockerCount) => completionBlockerCount == 0;
 
   /// <summary>
   /// A manually entered (pre-engine) materiality counts as approved only when its status is Approved and a separate Partner

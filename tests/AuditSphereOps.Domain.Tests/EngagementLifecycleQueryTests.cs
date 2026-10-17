@@ -53,9 +53,8 @@ public sealed class EngagementLifecycleQueryTests
     Assert.Equal(CanonicalEngagementStages.DeliverableRelease, EngagementLifecycleQuery.PostSignatureStage(true, false));
     Assert.Equal(CanonicalEngagementStages.DeliverableRelease, EngagementLifecycleQuery.PostSignatureStage(false, true));
     Assert.Equal(CanonicalEngagementStages.ComplianceCountdown, EngagementLifecycleQuery.PostSignatureStage(true, true));
-    Assert.True(EngagementLifecycleQuery.PartnerApprovalReady(currentClearance: true, completionBlockerCount: 0));
-    Assert.False(EngagementLifecycleQuery.PartnerApprovalReady(currentClearance: true, completionBlockerCount: 1));
-    Assert.False(EngagementLifecycleQuery.PartnerApprovalReady(currentClearance: false, completionBlockerCount: 0));
+    Assert.True(EngagementLifecycleQuery.PartnerHandoverReady(completionBlockerCount: 0));
+    Assert.False(EngagementLifecycleQuery.PartnerHandoverReady(completionBlockerCount: 1));
   }
 
   [Fact]
@@ -360,7 +359,7 @@ public sealed class EngagementLifecycleQueryTests
       Assert.Equal(CanonicalEngagementStages.ManagerialReview, report.Value!.Summary.CanonicalStage);
       Assert.Equal(7, report.Value.Summary.StageIndex);
       Assert.Contains(report.Value.Summary.BlockedReasons,
-        x => x.StartsWith("Partner clearance of a current Summary Review Memorandum is pending.", StringComparison.Ordinal));
+        x => x.StartsWith("A current Summary Review Memorandum is required for Partner handover.", StringComparison.Ordinal));
 
       // 8. Sign report deliverable -> DeliverableRelease
       var signedReport = new AuditDeliverable

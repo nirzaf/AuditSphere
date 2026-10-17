@@ -626,7 +626,7 @@
         "F-09 Partner stage: Administrator removed; a Partner decision counts only when its recorder holds a current Partner grant on the engagement",
         "F-08 part (CP-20.AC-04 release side): a financial-package release pins the reviewed PDF's identifier, version and digest; issuance is refused without it; the bundle resolves only the pinned artifact (migration ReleaseArtifactPin)",
         "F-11 repo-buildable part: release-verification.yml runs the full unfiltered suite on one commit (not yet observed hosted)",
-        "F-12 release precondition subset: release.yml refuses release without a successful ci.yml run for the exact SHA (not yet observed hosted)",
+        "F-12 release gate: exact-SHA CI plus retained full-regression evidence required before release; hosted evidence pending",
         "Tests: concurrent approve and return commits exactly one decision; raw SQL refuses a duplicate request identity and a partial intent; scoped Partner tests (other engagement, revoked, multi-role)",
         "F-08 CP-18 composition: selecting a candidate renders its PDF, Word and Excel and seals them as one record with per-format digests and a manifest digest; no partial set; append-only (migration FinancialStatementComposition)",
         "F-08 exact composition handoff: candidate-bound management, accounting and Partner decisions bind the same candidate/composition ID/manifest digest; release pins that composition and PDF identity; bundle verifies and includes the selected PDF/DOCX/XLSX with IDs and hashes; legacy fallback is refused; client bundle receipt binds ZIP and manifest hashes and is per-user, append-only and retry-safe."

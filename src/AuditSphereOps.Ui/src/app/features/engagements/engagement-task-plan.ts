@@ -16,24 +16,33 @@ const templateItem = obj({
 });
 const templateCatalog = arr(templateItem, 100);
 const ownerCandidate = obj({ userId: guid, displayName: str(200), staffingLevel: str(80) });
+const pbcCandidate = obj({ userId: guid, displayName: str(200) });
+const pbcDefinition = obj({ objective: str(500), entityScope: str(500), area: str(120), requestedFormat: str(120),
+  controlTotals: nullable(str(1000)), confidentiality: str(80), acceptanceCriteria: str(2000) });
+const pbcPreview = obj({ state: str(40), reference: nullable(str(200)), definition: nullable(pbcDefinition),
+  periodStart: date, periodEnd: date, dueDate: nullable(date), clientOwnerUserId: nullable(guid), firmOwnerUserId: nullable(guid),
+  reviewerUserId: nullable(guid), pbcRequestId: nullable(guid), pbcRequestState: nullable(str(40)) });
 const planStep = obj({
   stepKey: str(80), templateStepId: guid, title: str(200), instructions: str(4000), phase: str(40),
   sortOrder: int, dueDate: nullable(date), plannedEffortMinutes: nullable(int),
   suggestedStaffingLevel: nullable(str(80)), selectedAssigneeUserId: nullable(guid),
   eligibleOwners: arr(ownerCandidate, 100), dependsOnStepKeys: arr(str(80), 100),
-  missingEligibleAssignee: bool, existingTaskId: nullable(guid),
+  missingEligibleAssignee: bool, existingTaskId: nullable(guid), pbc: nullable(pbcPreview),
 });
 const planPreview = obj({
   engagementId: guid, engagementGeneration: int, templateId: guid, templateRevisionId: guid,
   templateVersion: int, templateName: str(160), templateContentDigest: str(64),
   milestonePlanId: nullable(guid), milestonePlanRevision: nullable(int), scheduleBasisDate: nullable(date),
   previewDigest: str(64), alreadyInstantiated: bool, existingTaskCount: int,
-  templateUpdateNotice: nullable(str(300)), steps: arr(planStep, 100), canExecute: bool,
+  templateUpdateNotice: nullable(str(300)), steps: arr(planStep, 100), engagementStatus: str(32),
+  pbcClientOwners: arr(pbcCandidate, 100), pbcFirmOwners: arr(pbcCandidate, 100), pbcReviewers: arr(pbcCandidate, 100),
+  canExecute: bool, canCreatePbcDrafts: bool,
 });
 const planReceipt = obj({
   receiptId: guid, engagementId: guid, templateId: guid, templateRevisionId: guid,
   templateVersion: int, requestDigest: str(64), taskCount: int, replayed: bool,
   createdAt: instant, taskIds: arr(guid, 100),
+  pbcDrafts: arr(obj({ stepKey: str(80), templateStepId: guid, taskId: guid, pbcRequestId: guid }), 100),
 });
 
 type TemplateItem = ReturnType<typeof templateItem>;
@@ -134,6 +143,25 @@ function isPendingPlan(value: unknown): value is PendingPlan {
                   <p>No eligible engagement staff is currently assigned; the task will remain unassigned.</p>
                 }
                 @if (step.existingTaskId) { <p>Existing task <code>{{ step.existingTaskId }}</code></p> }
+                @if (step.pbc; as pbc) {
+                  <section class="pbc-plan" aria-label="PBC request plan">
+                    <h5>Evidence request · {{ pbc.state }}</h5>
+                    @if (pbc.definition; as definition) {
+                      <p>{{ definition.objective }} · {{ definition.entityScope }} · {{ definition.area }}</p>
+                      <p>{{ definition.requestedFormat }} · {{ pbc.periodStart }} to {{ pbc.periodEnd }} · due {{ pbc.dueDate ?? 'No due date' }}</p>
+                      <p>Confidentiality: {{ definition.confidentiality }} · Acceptance: {{ definition.acceptanceCriteria }}</p>
+                      @if (pbc.state === 'OWNERS_REQUIRED' || pbc.state === 'READY_DRAFT') {
+                        <div class="pbc-owners">
+                          <label>Client owner<select [value]="pbcOwnerValue(step.stepKey, 'clientOwnerUserId', pbc.clientOwnerUserId)" (change)="selectPbcOwner(step.stepKey, 'clientOwnerUserId', $any($event.target).value)"><option value="">Choose client owner</option>@for (owner of preview.pbcClientOwners; track owner.userId) { <option [value]="owner.userId">{{ owner.displayName }}</option> }</select></label>
+                          <label>Firm owner<select [value]="pbcOwnerValue(step.stepKey, 'firmOwnerUserId', pbc.firmOwnerUserId)" (change)="selectPbcOwner(step.stepKey, 'firmOwnerUserId', $any($event.target).value)"><option value="">Choose firm owner</option>@for (owner of preview.pbcFirmOwners; track owner.userId) { <option [value]="owner.userId">{{ owner.displayName }}</option> }</select></label>
+                          <label>Independent reviewer<select [value]="pbcOwnerValue(step.stepKey, 'reviewerUserId', pbc.reviewerUserId)" (change)="selectPbcOwner(step.stepKey, 'reviewerUserId', $any($event.target).value)"><option value="">Choose reviewer</option>@for (owner of preview.pbcReviewers; track owner.userId) { <option [value]="owner.userId">{{ owner.displayName }}</option> }</select></label>
+                        </div>
+                      }
+                      @if (pbc.pbcRequestId) { <p>Linked request <code>{{ pbc.pbcRequestId }}</code> · {{ pbc.pbcRequestState }}</p> }
+                      @if (pbc.state === 'BLOCKED_ACTIVATION') { <p role="status">PBC draft creation is deferred until the engagement is active.</p> }
+                    } @else { <p role="status">Legacy reference {{ pbc.reference }} is descriptive only and will not create a request.</p> }
+                  </section>
+                }
               </li>
             }
           </ol>
@@ -144,6 +172,10 @@ function isPendingPlan(value: unknown): value is PendingPlan {
             <label class="review-check"><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" /> I reviewed this exact plan, staffing, dates, and template revision.</label>
             <button matButton="filled" (click)="executePlan()" [disabled]="!canExecute()">Create operational tasks</button>
           }
+          @if (preview.canCreatePbcDrafts && preview.alreadyInstantiated) {
+            <label class="review-check"><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" /> I reviewed these exact PBC definitions, owners, period, and due dates.</label>
+            <button matButton="filled" (click)="createPbcDrafts()" [disabled]="!reviewed() || busy()">Create unsent PBC drafts</button>
+          }
         </section>
       }
 
@@ -153,6 +185,7 @@ function isPendingPlan(value: unknown): value is PendingPlan {
           <p>{{ completed.taskCount }} operational task(s) created from template v{{ completed.templateVersion }} · {{ completed.createdAt }}</p>
           <p>Receipt <code>{{ completed.receiptId }}</code>@if (completed.replayed) { · recovered from the original request }</p>
           <ul>@for (taskId of completed.taskIds; track taskId) { <li><code>{{ taskId }}</code></li> }</ul>
+          @if (completed.pbcDrafts.length) { <h4>Unsent PBC drafts</h4><ul>@for (draft of completed.pbcDrafts; track draft.pbcRequestId) { <li>{{ draft.stepKey }} · task <code>{{ draft.taskId }}</code> · request <code>{{ draft.pbcRequestId }}</code></li> }</ul> }
           <p>These tasks do not change professional approval, engagement lifecycle, or report-release decisions.</p>
         </section>
       }
@@ -180,6 +213,7 @@ export class EngagementTaskPlan {
   readonly pending = signal<PendingPlan | null>(null);
   readonly corruptPending = signal(false);
   readonly ownerSelections = signal<Record<string, string>>({});
+  readonly pbcOwnerSelections = signal<Record<string, { clientOwnerUserId: string; firmOwnerUserId: string; reviewerUserId: string }>>({});
   readonly reviewed = signal(false);
   readonly busy = signal(false);
   readonly uncertain = signal(false);
@@ -205,6 +239,7 @@ export class EngagementTaskPlan {
         this.plan.set(null);
         this.receipt.set(null);
         this.ownerSelections.set({});
+        this.pbcOwnerSelections.set({});
         this.reviewed.set(false);
         this.uncertain.set(false);
         this.message.set('');
@@ -228,6 +263,7 @@ export class EngagementTaskPlan {
     this.plan.set(null);
     this.receipt.set(null);
     this.ownerSelections.set({});
+    this.pbcOwnerSelections.set({});
     this.reviewed.set(false);
     this.message.set('');
   }
@@ -242,6 +278,21 @@ export class EngagementTaskPlan {
     this.message.set('Owner selection changed. Preview the plan again to review the updated digest.');
   }
 
+  selectPbcOwner(stepKey: string, role: 'clientOwnerUserId' | 'firmOwnerUserId' | 'reviewerUserId', userId: string): void {
+    const current = { ...this.pbcOwnerSelections() };
+    const selection = { ...(current[stepKey] ?? { clientOwnerUserId: '', firmOwnerUserId: '', reviewerUserId: '' }), [role]: userId };
+    if (!selection.clientOwnerUserId && !selection.firmOwnerUserId && !selection.reviewerUserId) delete current[stepKey];
+    else current[stepKey] = selection;
+    this.pbcOwnerSelections.set(current);
+    this.plan.set(null);
+    this.reviewed.set(false);
+    this.message.set('PBC owners changed. Preview again to review the updated digest.');
+  }
+
+  pbcOwnerValue(stepKey: string, role: 'clientOwnerUserId' | 'firmOwnerUserId' | 'reviewerUserId', fallback: string | null): string {
+    return this.pbcOwnerSelections()[stepKey]?.[role] ?? fallback ?? '';
+  }
+
   async previewPlan(): Promise<void> {
     if (!this.canPreview()) return;
     this.plan.set(null);
@@ -251,7 +302,7 @@ export class EngagementTaskPlan {
     this.message.set('');
     try {
       const result = await this.api.command<unknown>(this.planUrl('preview'), {
-        templateRevisionId: this.selectedRevisionId(), owners: this.ownerPayload(),
+        templateRevisionId: this.selectedRevisionId(), owners: this.ownerPayload(), pbcOwners: this.pbcOwnerPayload(),
       });
       if (!result.ok) {
         this.failed.set(true);
@@ -297,7 +348,7 @@ export class EngagementTaskPlan {
         templateRevisionId: pendingPlan.templateRevisionId,
         expectedPreviewDigest: pendingPlan.previewDigest,
         idempotencyKey: pendingPlan.idempotencyKey,
-        owners: this.ownerPayload(),
+        owners: this.ownerPayload(), pbcOwners: this.pbcOwnerPayload(),
       });
       if (!result.ok) {
         this.failed.set(true);
@@ -372,6 +423,33 @@ export class EngagementTaskPlan {
 
   private ownerPayload(): Array<{ stepKey: string; assigneeUserId: string }> {
     return Object.entries(this.ownerSelections()).map(([stepKey, assigneeUserId]) => ({ stepKey, assigneeUserId }));
+  }
+
+  private pbcOwnerPayload(): Array<{ stepKey: string; clientOwnerUserId: string; firmOwnerUserId: string; reviewerUserId: string }> {
+    return Object.entries(this.pbcOwnerSelections()).filter(([, owners]) => owners.clientOwnerUserId && owners.firmOwnerUserId && owners.reviewerUserId)
+      .map(([stepKey, owners]) => ({ stepKey, ...owners }));
+  }
+
+  async createPbcDrafts(): Promise<void> {
+    const preview = this.plan();
+    if (!preview?.canCreatePbcDrafts || !preview.alreadyInstantiated || !this.reviewed() || this.busy()) return;
+    this.busy.set(true); this.failed.set(false); this.message.set('');
+    try {
+      const result = await this.api.command<unknown>(this.planUrl('pbc-drafts'), {
+        templateRevisionId: preview.templateRevisionId, expectedPreviewDigest: preview.previewDigest,
+        pbcOwners: this.pbcOwnerPayload(),
+      });
+      if (!result.ok) { this.failed.set(true); this.message.set(result.unknown ? 'The draft outcome was not confirmed. Refresh and recover the retained plan receipt before retrying.' : result.message); return; }
+      const receipt = decode(planReceipt, result.value);
+      if (receipt.engagementId !== this.engagementId() || receipt.templateRevisionId !== preview.templateRevisionId ||
+          receipt.pbcDrafts.length === 0 || receipt.pbcDrafts.some(link => !preview.steps.some(step =>
+            step.templateStepId === link.templateStepId && step.stepKey === link.stepKey))) {
+        this.failed.set(true); this.message.set('The PBC draft response could not be matched to the reviewed plan. Refresh and recover the retained receipt.'); return;
+      }
+      this.receipt.set(receipt); this.plan.set(null);
+      this.message.set(`${receipt.pbcDrafts.length} unsent PBC draft(s) are linked to the retained task plan.`);
+    } catch { this.failed.set(true); this.message.set('The PBC draft outcome could not be verified. Refresh the engagement and recover its retained plan receipt.'); }
+    finally { this.busy.set(false); }
   }
 
   private planUrl(action: string): string {

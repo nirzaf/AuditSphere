@@ -90,6 +90,42 @@ public static class ReviewNotesService
     return ids.Count(id => IsOpen(events.Where(e => e.NoteId == id).ToList()));
   }
 
+  /// <summary>Open review threads grouped by procedure for bounded completion evaluation.</summary>
+  internal static async Task<IReadOnlySet<Guid>> OpenProcedureIdsAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, IReadOnlyCollection<Guid> procedureIds, CancellationToken ct)
+  {
+    var notes = await db.ProcedureReviewNotes.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.EngagementId == engagementId && procedureIds.Contains(x.ProcedureId))
+      .Select(x => new { x.Id, x.ProcedureId }).ToListAsync(ct);
+    if (notes.Count == 0) return new HashSet<Guid>();
+    var noteIds = notes.Select(x => x.Id).ToArray();
+    var events = await db.ProcedureReviewNoteEvents.AsNoTracking()
+      .Where(x => noteIds.Contains(x.NoteId)).OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(ct);
+    var eventsByNote = events.GroupBy(x => x.NoteId).ToDictionary(x => x.Key, x => (IReadOnlyList<ProcedureReviewNoteEvent>)x.ToList());
+    return notes.Where(note => IsOpen(eventsByNote.GetValueOrDefault(note.Id, [])))
+      .Select(note => note.ProcedureId).ToHashSet();
+  }
+
+  internal static async Task<IReadOnlyList<Guid>> OpenNoteIdsForScopeAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, IReadOnlyCollection<Guid> procedureIds, CancellationToken ct)
+  {
+    var open = new List<Guid>();
+    foreach (var chunk in procedureIds.Distinct().Chunk(1000))
+    {
+      var notes = await db.ProcedureReviewNotes.AsNoTracking()
+        .Where(x => x.FirmId == firmId && x.EngagementId == engagementId && chunk.Contains(x.ProcedureId))
+        .Select(x => new { x.Id, x.ProcedureId }).ToListAsync(ct);
+      if (notes.Count == 0) continue;
+      var noteIds = notes.Select(x => x.Id).ToArray();
+      var events = await db.ProcedureReviewNoteEvents.AsNoTracking().Where(x => noteIds.Contains(x.NoteId))
+        .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(ct);
+      var eventsByNote = events.GroupBy(x => x.NoteId).ToDictionary(x => x.Key,
+        x => (IReadOnlyList<ProcedureReviewNoteEvent>)x.ToList());
+      open.AddRange(notes.Where(note => IsOpen(eventsByNote.GetValueOrDefault(note.Id, []))).Select(note => note.Id));
+    }
+    return open;
+  }
+
   /// <summary>
   /// Every unresolved thread on this engagement, across all result revisions and including reopened
   /// threads (STE-REM-06). A thread stays unresolved until a reviewer resolves it; regenerating a

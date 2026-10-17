@@ -24,7 +24,8 @@ const preview = {
   templateVersion: 1, templateName: 'Annual audit tasks', templateContentDigest: digest,
   milestonePlanId: null, milestonePlanRevision: null, scheduleBasisDate: null,
   previewDigest: digest, alreadyInstantiated: false, existingTaskCount: 0,
-  templateUpdateNotice: null, canExecute: true,
+  templateUpdateNotice: null, engagementStatus: 'Draft', pbcClientOwners: [], pbcFirmOwners: [], pbcReviewers: [],
+  canExecute: true, canCreatePbcDrafts: false,
   steps: [{ stepKey: 'planning', templateStepId: revisionId, title: 'Planning', instructions: 'Prepare planning.',
     phase: 'AUDIT_PLANNING', sortOrder: 1, dueDate: null, plannedEffortMinutes: 60,
     suggestedStaffingLevel: null, selectedAssigneeUserId: null, eligibleOwners: [],
@@ -95,7 +96,7 @@ describe('Engagement task plan preview and receipt recovery', () => {
     }).flush({
       receiptId: templateId, engagementId, templateId, templateRevisionId: revisionId,
       templateVersion: 1, requestDigest: digest, taskCount: 1, replayed: true,
-      createdAt: '2026-10-12T09:15:00Z', taskIds: [templateId],
+      createdAt: '2026-10-12T09:15:00Z', taskIds: [templateId], pbcDrafts: [],
     });
     await recovery;
     expect(component.receipt()?.taskCount).toBe(1);

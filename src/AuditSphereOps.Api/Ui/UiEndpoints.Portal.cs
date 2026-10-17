@@ -14,6 +14,7 @@ public static partial class UiEndpoints
 {
   public sealed record PortalFirstSignInInput(bool Acknowledged);
   public sealed record PortalReplyInput(string Body);
+  public sealed record PortalDocumentCommentInput(Guid RequestId, string Body);
   public sealed record PortalDelegateInput(Guid UserId);
   public sealed record PortalUploadInput(string FileName, string ContentType, string ByteCount, string Sha256);
   public sealed record PortalUploadResumeInput(string FileName, string ByteCount, string Sha256);
@@ -91,8 +92,10 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Statement-Composition-PDF-SHA256"] = result.Value.ArtifactSha256Hex;
       return Results.File(result.Value.Bytes, "application/pdf", result.Value.FileName);
     }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
-    group.MapPost("/portal/documents/{id:guid}/comment", (Guid id, PortalReplyInput i, HttpContext http) => CommandAsync(http,
-      (db, actor, ct) => ClientPortalReviewCommands.CommentAsync(db, actor, id, i.Body ?? "", ct)));
+    group.MapPost("/portal/documents/{id:guid}/comment", (Guid id, PortalDocumentCommentInput i, HttpContext http) => CommandAsync(http,
+      (db, actor, ct) => ClientPortalReviewCommands.CommentAsync(db, actor, id, i.RequestId, i.Body ?? "", ct)));
+    group.MapGet("/portal/documents/{id:guid}/comment-receipts/{requestId:guid}", (Guid id, Guid requestId, HttpContext http) => ReadAsync(http,
+      (db, actor, ct) => ClientPortalReviewCommands.GetCommentReceiptAsync(db, actor, id, requestId, ct)));
     group.MapPost("/portal/documents/{id:guid}/acknowledge", (Guid id, PortalAcknowledgementInput i, HttpContext http) => CommandAsync(http,
       (db, actor, ct) => i.Reviewed ? ClientPortalReviewCommands.AcknowledgeAsync(db, actor, id, i.Sha256 ?? "", ct) :
         Task.FromResult(CommandResult.Fail("review.required", "Review the exact document before acknowledgement."))));
