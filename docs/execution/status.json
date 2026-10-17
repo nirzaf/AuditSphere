@@ -2063,19 +2063,19 @@
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.resourceRange20261018"
     },
     "certificationDisclosure": {
-      "codeCommit": "826ad96cb2d12a72936852631dcb22be3e4acd46",
-      "angular": "resources.spec.ts: 14 PASS; build PASS, existing SCSS warning",
-      "browser": "Disclosure verified; no certification records created.",
-      "remaining": "Administrative verification workflow missing; RES-02 PARTIAL."
+      "archive": "status-archive-2026-10.json#keys.certificationDisclosure20261018",
+      "codeCommit": "826ad96cb2d12a72936852631dcb22be3e4acd46"
     },
     "certificationRules": {
-      "codeCommit": "079642f89bb709fd0bc85ddd72b6c4bac1af1861",
-      "test": "StaffCertificationEvidenceTests",
-      "passed": 2,
-      "failed": 0,
-      "skipped": 0,
-      "scope": "Pure source digest and independent/current exact-source applicability only.",
-      "remaining": "Persistence, review UI/API and staffing integration NOT_IMPLEMENTED."
+      "archive": "status-archive-2026-10.json#keys.certificationRules20261018",
+      "codeCommit": "079642f89bb709fd0bc85ddd72b6c4bac1af1861"
+    },
+    "certificationReview": {
+      "publicationCommit": "6a81a4f7",
+      "persistenceCommit": "96bcd99a",
+      "result": "PARTIAL",
+      "verification": "Persistence/publication checks passed; workspace cohort 1 PASS, 0 FAIL; Application build and docs PASS.",
+      "remaining": "API/Angular actions, staffing integration, race and browser acceptance."
     }
   }
 }

@@ -24,6 +24,10 @@ public sealed class StaffCertificationReviewPersistenceTests
     var actor = PbcSeed.Actor(seed.Admin, "Administrator");
     var first = await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db, actor, intent);
     Assert.True(first.Succeeded, first.Message);
+    var workspace = await AuditSphereOps.Application.Practice.ResourcePlanningService.GetCertificationReviewAsync(db, actor, source.Id);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    Assert.True(workspace.Value!.VerifiedForCurrentSource); Assert.True(workspace.Value.CanReview);
+    Assert.Equal(1, workspace.Value.Revision); Assert.Equal(intent.SourceDigest, workspace.Value.SourceDigest);
     var retry = await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db, actor, intent);
     Assert.True(retry.Succeeded, retry.Message); Assert.Equal(first.Value, retry.Value);
     Assert.False((await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db, actor,
@@ -37,6 +41,12 @@ public sealed class StaffCertificationReviewPersistenceTests
     Assert.True(withdrawn.Succeeded, withdrawn.Message);
     var rows = await db.StaffCertificationReviews.AsNoTracking().OrderBy(x => x.Revision).ToListAsync();
     Assert.Equal(2, rows.Count); Assert.Equal("VERIFIED", rows[0].Decision); Assert.Equal("REVOKED", rows[1].Decision);
+    workspace = await AuditSphereOps.Application.Practice.ResourcePlanningService.GetCertificationReviewAsync(db, actor, source.Id);
+    Assert.True(workspace.Succeeded, workspace.Message); Assert.False(workspace.Value!.VerifiedForCurrentSource);
+    Assert.Equal("REVOKED", workspace.Value.LatestReview!.Decision);
+    Assert.False((await AuditSphereOps.Application.Practice.ResourcePlanningService.GetCertificationReviewAsync(db,
+      PbcSeed.Actor(seed.Client, "ClientUser"), source.Id)).Succeeded);
+
   }
 
   [Fact]

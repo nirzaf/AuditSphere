@@ -12,8 +12,37 @@ namespace AuditSphereOps.Application.Practice;
 public sealed record ReviewStaffCertificationRequest(Guid CertificationId, Guid RequestId, string SourceDigest,
   long ExpectedRevision, string Decision, string EvidenceReference, string Reason);
 
+/// <summary>Retained review identity and source applicability, separate from qualification expiry.</summary>
+public sealed record StaffCertificationReviewView(Guid Id, long Revision, string Decision, Guid ReviewerUserId,
+  DateTimeOffset ReviewedAt, string EvidenceReference, string Reason, string SourceDigest);
+/// <summary>Exact current source and latest administrative decision for a bounded review workspace.</summary>
+public sealed record StaffCertificationReviewWorkspace(Guid CertificationId, Guid SubjectUserId, string Name,
+  string? Issuer, DateOnly? ExpiresOn, Guid RecordedByUserId, DateTimeOffset RecordedAt, string SourceDigest,
+  long Revision, StaffCertificationReviewView? LatestReview, bool VerifiedForCurrentSource, bool Expired, bool CanReview);
+
 public static partial class ResourcePlanningService
 {
+  public static async Task<CommandResult<StaffCertificationReviewWorkspace>> GetCertificationReviewAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid certificationId, CancellationToken ct = default)
+  {
+    var auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<StaffCertificationReviewWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
+    var source = await db.StaffCertifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == certificationId, ct);
+    if (source is null) return CommandResult<StaffCertificationReviewWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var latest = await db.StaffCertificationReviews.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.CertificationId == source.Id)
+      .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
+    var admin = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true), ct);
+    var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime);
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<StaffCertificationReviewWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
+    return CommandResult<StaffCertificationReviewWorkspace>.Ok(new(source.Id, source.UserId, source.Name, source.Issuer,
+      source.ExpiresOn, source.RecordedByUserId, source.RecordedAt, StaffCertificationEvidence.SourceDigest(source),
+      latest?.Revision ?? 0, latest is null ? null : new(latest.Id, latest.Revision, latest.Decision, latest.ReviewedByUserId,
+        latest.ReviewedAt, latest.EvidenceReference, latest.Reason, latest.SourceDigest),
+      StaffCertificationEvidence.IsApplicable(source, latest?.Evidence(), today), source.ExpiresOn < today,
+      admin.Succeeded && actor.UserId != source.UserId && actor.UserId != source.RecordedByUserId));
+  }
   /// <summary>Publishes an independent administrative decision; never assigns a role or rewrites past staffing.</summary>
   public static async Task<CommandResult<Guid>> ReviewCertificationAsync(IAuditSphereDbContext db, ActorContext actor,
     ReviewStaffCertificationRequest request, CancellationToken ct = default)

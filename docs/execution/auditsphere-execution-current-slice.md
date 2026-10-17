@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Certification administrative review integration
+
+Exact-source applicability rules, append-only review persistence and independent administrator publication are implemented. Current evidence and commit identities are in `status.json` under `completePracticeManagement.certificationReview`. The read workspace is being verified. API/Angular review actions and staffing eligibility readers remain unfinished; existing assignment history is preserved and legacy qualifications are not automatically verified. No live or development database migration was performed. Client portal write-gate corrections are a separate active worker slice.
+
 ## Resource range safety
 
 Grid/allocation commands refuse unsupported dates and week counts before arithmetic. Focused Domain/API and contract checks pass; browser refusal and valid-range recovery pass. Certification entries explicitly remain unverified. Pure exact-source applicability checks pass; persistence, review actions and staffing integration remain unimplemented. Broader staffing acceptance remains open. See execution ledger.
@@ -330,9 +334,3 @@ Assembly rechecks signing policy and matching certificate on new creation/replay
 WF-08 now supports manager-reviewed required/withdrawn task edges as append-only amendments over the original pinned template graph. Both task revisions, exact engagement scope and a reason are bound to the actor-owned idempotency receipt. The complete effective graph is serialized and checked for cycles, including opposite-edge races; PostgreSQL also rejects raw cyclic inserts and history mutation. Queue readiness and both completion routes use the same effective graph. No professional approval or pinned template row changes.
 
 The Angular ordering panel provides exact review and assent, receipt-only recovery for lost replies, explicit dropdown labels and session/scope clearing. The focused Domain/API/Angular/browser batch passed after correcting analyzer assertions and a label lookup issue. Built-in-browser inspection confirmed a reviewed withdrawal appends history and restores only the operational action. Exact counts, source hash, artifacts and limitations are under `targetedVerification.workflowTaskDependencyAmendments` in [status.json](status.json). No persistent database was migrated. Template-declared domain rules, other workflow gaps and full release/external/professional acceptance remain open.
-
-## Live domain evidence prerequisites — 2026-10-13
-
-WF-08 task prerequisites now reference current independently approved materiality, an exact accepted/closed PBC request or a current independently reviewed procedure. Satisfaction is evaluated live; no editable satisfaction flag exists. Scoped managers review revision-fenced changes with reasons and recover uncertain replies by reading their actor-owned receipt. Append-only policy history and exact source foreign keys are database-enforced; both workflow and legacy task completion honor required evidence. PBC waits feed the client-wait queue; stale procedure generations and open review notes remain blockers. Expired role grants no longer elevate task completion.
-
-The focused .NET, Angular and owned browser batch passed after correcting synthetic fixture/assertion issues. Built-in-browser inspection also confirmed a reviewed withdrawal changes only operational policy and retains the unsatisfied professional source. Exact counts, source digest, artifacts and migration evidence are in `targetedVerification.workflowDomainEvidencePrerequisites` in [status.json](status.json). No persistent database was migrated. WF-08 remains partial: template-declared domain rules and safe manual task-edge amendments are next; broader workflow, release and external/professional acceptance remain open.
