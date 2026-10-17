@@ -2031,6 +2031,19 @@
       "evidenceBoundary": "Only the failed test was rerun after its fixture correction. Exact-SHA full regression and browser financial journey remain CI/acceptance work.",
       "preserved": "Immutable paid milestone, original receipt/paid date and issued receipt bytes; no migration or provider action",
       "behavior": "Current posted same-client/currency invoice and net cash are required; approved reversals affect current gates; credits cannot satisfy cash advance; settlement publication rechecks under the existing firm fence."
+    },
+    "queuePrerequisiteDisplay": {
+      "codeCommit": "1865b20c",
+      "result": "FOCUSED_PASS_BROWSER_BLOCKED_FIXTURE",
+      "angularSpec": {
+        "path": "src/app/features/practice/work-queue.spec.ts",
+        "passed": 18,
+        "failed": 0
+      },
+      "builds": "Angular PASS (existing SCSS budget warning); API Release PASS, zero warnings/errors",
+      "browser": "Isolated browser DB: canonical engagement/manual task form reached. Creation refused: Client safety state is unavailable. Dependency journey and responsive acceptance NOT_VERIFIED. No safety bypass.",
+      "scope": "Separate BLOCKED prerequisite label in list/board/calendar; no persisted status, permission or queue-membership change.",
+      "fullRegression": "NOT_RUN on this source; full suites delegated to CI"
     }
   }
 }
