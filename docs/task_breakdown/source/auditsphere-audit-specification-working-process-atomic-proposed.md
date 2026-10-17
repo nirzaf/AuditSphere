@@ -17,33 +17,33 @@
 
 > This is an implementation specification, not a professional audit opinion, a certification of standards compliance, or evidence that the software passed tests. No source, database, infrastructure or Git changes were made. No application builds, tests, installs, generators, services, provider operations, CI dispatches, pushes, merges or deployments were executed. Every future verification command in this document is **NOT RUN — SPEC_ONLY**.
 
-> **Implementation tracking (2026-10-17):** The owner subsequently authorized implementation. Atomic Task 01 is implemented in the repository; its focused verification and commit are recorded in `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md`. This note supersedes the quoted no-changes statement for the current checkout only. Tasks 02–11 remain open unless a later dated handoff records evidence. Professional methodology acceptance and live/production acceptance remain separate gates.
+> **Implementation tracking (2026-10-17):** The owner subsequently authorized implementation. Atomic Tasks 01–09 are implemented on `master`; their focused verification and commits are recorded in `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md`. Task 10 remains **BLOCKED_DECISION** on D1 (the methodology owner's acyclic terminal-prerequisite policy). Task 11 is technically prepared but current-source hosted CI and professional/live acceptance remain open. This note supersedes the quoted no-changes statement for the current checkout only; professional methodology acceptance and live/production acceptance remain separate gates.
 
 ## Completion checklist
 
-**Snapshot:** 2026-10-17 · `master` at `fa60da52`.
+**Snapshot:** 2026-10-17 · `master` at `e30bb6e7` plus the evidence commit that carries this checklist.
 
-**Legend:** `[x]` implemented on `master` **and** focused verification observed · `[~]` implemented on `master`, focused verification not recorded · `[ ]` open.
+**Legend:** `[x]` implemented on `master` **and** focused verification observed · `[~]` implemented, focused checks pass but a required external/CI gate is open · `[ ]` open or blocked.
 
-**Basis:** the repository's own records — `docs/execution/auditsphere-execution-current-slice.md` and `docs/execution/status.json` (`targetedVerification.atomicAuditWorkingProcessTask01` and `…Task02`) — plus commit history. No check was run for this snapshot. Hosted CI is listed separately and does not change the legend.
+**Basis:** the repository's own records — `docs/execution/auditsphere-execution-current-slice.md` and `docs/execution/status.json` — plus commit history and the focused checks recorded below. Hosted CI is listed separately and does not change the legend.
 
-**Warning:** hosted CI on `efc358da` failed (`Docs · Health`, `Build · .NET Release`); on `8b0c3303` it was cancelled; on head `fa60da52` it fails at `Build · .NET Release` (OpenAPI contract drift). Tasks 01 and 02 are not CI-green.
+**Warning:** hosted CI on `efc358da` failed (`Docs · Health`, `Build · .NET Release`); on `8b0c3303` it was cancelled; on `fa60da52` it failed at `Build · .NET Release` (OpenAPI contract drift). No hosted CI result is recorded for Tasks 05–09; their evidence is focused local verification only.
 
-**Totals:** 2 completed · 0 implemented, not verified · 9 open.
+**Totals:** 9 completed · 1 partial (Task 11 technical only) · 1 blocked (Task 10, D1).
 
 **File history:** renamed from `AuditSphere_Atomic_Implementation_Spec (2).md` in Downloads. The input document is tracked as `docs/task_breakdown/source/auditsphere-audit-source-working-process.docx` (SHA-256 `034d3b50…`).
 
 - [x] **01** Register and publish the controlled source under current firm authority — `efc358da`. Recorded focused checks: API publication endpoint 1/1; Domain publication tests 2/2; scope-isolation regression 1/1; Angular library spec 17/17; EF reports no pending model changes.
 - [x] **02** Adopt one exact complete programme without hidden publication — `8b0c3303`, docs `fa60da52`. Recorded focused checks: Domain adoption regression 1/1; API adoption and options regression 1/1; Angular fieldwork spec 12/12. Browser journey not run.
-- [ ] **03** Preserve original wording and version every tailored definition — open.
-- [ ] **04** Complete independent N/A proposal and Partner disposition — open.
-- [ ] **05** Make procedure submission and review exact, atomic and recoverable — open.
-- [ ] **06** Freeze the evidence actually considered for each submitted result — open.
-- [ ] **07** Provide the reusable native procedure execution and review workspace — open.
-- [ ] **08** Unify complete-programme and current-evidence progress — open.
-- [ ] **09** Connect all 20 sections to existing tools and explicit manual work — open.
-- [ ] **10** Complete terminal audit procedures without circular signing gates — open.
-- [ ] **11** Accept the exact programme through focused checks and current-source CI — open.
+- [x] **03** Preserve original wording and version every tailored definition — `3ae06950`. Focused Domain regression 1/1; API projection regression 1/1; Angular fieldwork spec 12/12; EF/OpenAPI checks passed.
+- [x] **04** Complete independent N/A proposal and Partner disposition — `20324427`, regression repairs `3894bad3`/`c3905e07`. Focused Domain 108/108 cohort; Angular fieldwork spec 12/12; EF/OpenAPI checks passed.
+- [x] **05** Make procedure submission and review exact, atomic and recoverable — `bf47469f`. Focused Domain workflow class 8/8; new receipt/replay/lookup regression 1/1; EF/OpenAPI checks passed.
+- [x] **06** Freeze the evidence actually considered for each submitted result — `ee597d29`. Domain workflow class 8/8 after adding physical/manual evidence and immutable-snapshot assertions; affected cohort 71/71; EF/OpenAPI checks passed.
+- [x] **07** Provide the reusable native procedure execution and review workspace — `ee69821d`. Angular fieldwork spec 15/15; production Angular build passed with the existing settings.scss budget warning; physical-evidence projection Domain test 1/1.
+- [x] **08** Unify complete-programme and current-evidence progress — `f5fd4d06`. Programme/area tests 9/9 including submitted/reviewed/stale cross-view consistency; Angular fieldwork spec 15/15.
+- [x] **09** Connect all 20 sections to existing tools and explicit manual work — `e30bb6e7`. Support-map coverage test 1/1 across 165 IDs and 20 sections; Angular fieldwork spec 15/15.
+- [ ] **10** Complete terminal audit procedures without circular signing gates — **BLOCKED_DECISION** on D1. No terminal prerequisite/attestation ordering was guessed or implemented; the methodology owner must approve the versioned acyclic policy first.
+- [~] **11** Accept the exact programme through focused checks and current-source CI — focused technical checks passed; current-source hosted CI, full regression and professional/live acceptance remain open.
 
 ---
 

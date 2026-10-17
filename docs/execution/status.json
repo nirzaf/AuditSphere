@@ -275,6 +275,7 @@
         "Production rollback/canary and external acceptance"
       ]
     },
+    "atomicAuditWorkingProcessTasks05to09": {"result":"PARTIAL","commits":["bf47469f","ee597d29","ee69821d","f5fd4d06","e30bb6e7"],"checks":"Focused Domain/Angular/build/OpenAPI/docs checks pass.","notDone":"Hosted CI; Task 10 D1; professional/live acceptance."},
     "sourceCommit": "61d6630895235789ff4c6622eb09c250f5791aa2",
     "recordedAtUtc": "2026-10-17T06:50:25Z",
     "runs": [
