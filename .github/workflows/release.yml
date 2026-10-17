@@ -14,13 +14,13 @@
 #
 # Deployment order per the architecture contract:
 #   verify the commit passed CI (read-only, before any environment approval)
-#     -> build immutable SHA-tagged artifacts
+#     -> build SHA-tagged artifacts, then deploy the captured registry digests
 #     -> run the migration job (failure blocks the release)
 #     -> deploy API + worker revisions
 #     -> canary: split 10% of API traffic to the new revision
 #     -> smoke checks (liveness, readiness, read-only route)
 #     -> promote to 100% or roll traffic back to the previous revision
-# Workers do not serve traffic; their rollback is redeploying the previous image tag.
+# Workers do not serve traffic; their rollback is redeploying the previous image digest.
 
 name: AuditSphere release
 on:
@@ -198,7 +198,7 @@ jobs:
           tenant-id: ${{ inputs.azure_tenant_id }}
           subscription-id: ${{ inputs.azure_subscription_id }}
 
-      - name: Build immutable artifacts tagged with the commit SHA
+      - name: Build and publish images for the verified commit
         id: build
         run: |
           set -euo pipefail
@@ -210,9 +210,32 @@ jobs:
           docker build -f src/AuditSphereOps.Worker/Dockerfile -t "$registry/auditsphere-worker:$sha" .
           docker build -f infra/docker/migrations.Dockerfile -t "$registry/auditsphere-migrations:$sha" .
           az acr login --name "${{ inputs.acr_name }}"
-          docker push "$registry/auditsphere-api:$sha"
-          docker push "$registry/auditsphere-worker:$sha"
-          docker push "$registry/auditsphere-migrations:$sha"
+
+          push_and_pin() {
+            local output_name="$1"
+            local image="$2"
+            local push_log="$RUNNER_TEMP/${output_name}-push.log"
+            docker push "$image" 2>&1 | tee "$push_log"
+            local digest
+            digest="$(awk '$2 == "digest:" && $3 ~ /^sha256:[0-9a-f]+$/ { value=$3 } END { print value }' "$push_log")"
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Registry did not return a valid digest for ${image}; refusing release." >&2
+              exit 1
+            fi
+            echo "${output_name}=${image%%:*}@${digest}" >> "$GITHUB_OUTPUT"
+          }
+
+          push_and_pin api_image "$registry/auditsphere-api:$sha"
+          push_and_pin worker_image "$registry/auditsphere-worker:$sha"
+          push_and_pin migration_image "$registry/auditsphere-migrations:$sha"
+          {
+            echo "## Published image identities"
+            echo
+            echo "- Source commit: \`$sha\`"
+            echo "- API: \`$(sed -n 's/^api_image=//p' "$GITHUB_OUTPUT" | tail -n 1)\`"
+            echo "- Worker: \`$(sed -n 's/^worker_image=//p' "$GITHUB_OUTPUT" | tail -n 1)\`"
+            echo "- Migration: \`$(sed -n 's/^migration_image=//p' "$GITHUB_OUTPUT" | tail -n 1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run the migration job (blocking)
         run: |
@@ -242,9 +265,9 @@ jobs:
             --resource-group "${{ inputs.azure_resource_group }}" \
             --template-file infra/environments/${{ inputs.environment }}/main.bicep \
             --parameters deploymentEpoch="${{ github.run_number }}" \
-              apiImage="$registry/auditsphere-api:$sha" \
-              workerImage="$registry/auditsphere-worker:$sha" \
-              migrationImage="$registry/auditsphere-migrations:$sha" \
+              apiImage="${{ steps.build.outputs.api_image }}" \
+              workerImage="${{ steps.build.outputs.worker_image }}" \
+              migrationImage="${{ steps.build.outputs.migration_image }}" \
               registryServer="${{ inputs.acr_name }}.azurecr.io" \
               registryId="/subscriptions/${{ inputs.azure_subscription_id }}/resourceGroups/${{ inputs.azure_resource_group }}/providers/Microsoft.ContainerRegistry/registries/${{ inputs.acr_name }}"
 
