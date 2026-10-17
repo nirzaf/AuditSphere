@@ -147,8 +147,13 @@ export class WorkpaperEditor {
   readonly conflict = this.flow.conflict;
   readonly uncertain = this.flow.uncertain;
   readonly retryReady = this.flow.absent;
-  readonly retryReadyForSave = computed(() => this.flow.absent() && this.flow.pending().length === 1 &&
-    this.flow.pending()[0]?.action === 'SAVE_DRAFT' && this.flow.pending()[0]?.workpaperId === this.id());
+  readonly retryReadyForSave = computed(() => {
+    const pending = this.flow.pending();
+    // Only a reloaded tab needs editable fields to reconstruct the retained intent; while the original
+    // intent is still in memory, keep fields locked so the user cannot mistake later edits for the retry.
+    return this.flow.absent() && pending.length === 1 && pending[0]?.action === 'SAVE_DRAFT' &&
+      pending[0]?.workpaperId === this.id() && !pending[0].fields?.save;
+  });
   readonly status = signal('Unsaved changes');
   readonly message = signal('');
   readonly failed = signal(false);

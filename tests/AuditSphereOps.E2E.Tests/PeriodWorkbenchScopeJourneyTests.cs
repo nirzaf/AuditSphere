@@ -67,7 +67,7 @@ public sealed class PeriodWorkbenchScopeJourneyTests
       await Assertions.Expect(engagementPage.GetByRole(AriaRole.Heading,
         new() { Name = heading, Exact = true })).ToBeVisibleAsync();
       await Assertions.Expect(engagementPage.GetByRole(AriaRole.Alert))
-        .ToContainTextAsync("Sign in with an authorized accounting identity");
+        .ToContainTextAsync("This information is unavailable in your current scope.");
       var deniedBody = await engagementPage.Locator("main").InnerTextAsync();
       Assert.DoesNotContain(privatePeriodCode, deniedBody, StringComparison.Ordinal);
       Assert.DoesNotContain(privateClientName, deniedBody, StringComparison.Ordinal);
@@ -239,9 +239,13 @@ public sealed class PeriodWorkbenchScopeJourneyTests
     await page.GetByLabel("Current opening amount", new() { Exact = true }).FillAsync("100.00");
     await page.GetByLabel("Source SHA-256", new() { Exact = true }).FillAsync(new string('0', 64));
     await page.GetByLabel("Evidence reference", new() { Exact = true }).FillAsync("synthetic-source-conflict");
-    await page.GetByLabel("I reviewed the closed prior period, opening amounts and exact source evidence.", new() { Exact = true }).CheckAsync();
-    await page.GetByRole(AriaRole.Button, new() { Name = "Create draft period", Exact = true }).ClickAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("The request was not accepted.");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Preview roll-forward", Exact = true }).ClickAsync();
+    var preview = page.GetByRole(AriaRole.Region, new() { Name = "Exact maintenance preview", Exact = true });
+    await Assertions.Expect(preview).ToContainTextAsync("The source package does not match the closed period and hash.");
+    await Assertions.Expect(page.GetByLabel("I reviewed this exact preview, source evidence and effect.", new() { Exact = true }))
+      .ToBeDisabledAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Create draft period", Exact = true }))
+      .ToBeDisabledAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Period roll-forward", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToHaveCountAsync(0);
     await using var verify = host.CreateDbContext();
