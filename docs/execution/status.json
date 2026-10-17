@@ -21,7 +21,7 @@
     "packageId": "ASP.NET Core API and Angular 22 presentation migration",
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
-    "scope": "Angular is canonical; Web remains rollback-only. Source-action parity is partial; supporting-file reviews are partial. Retirement is NOT_READY and production acceptance is not claimed. Exact counts and local evidence are in targetedVerification and the migration register.",
+    "scope": "Angular is canonical; the Blazor Web host was retired and merged to master (absent from the tree). Source-action parity is partial; supporting-file reviews are partial. The removal gate remains NOT_READY and production acceptance is not claimed. Exact counts and local evidence are in targetedVerification and the migration register.",
     "nextAction": "Obtain a qualified methodology owner and independent reviewer for T003 accounting framework, FX/consolidation policy, resource bounds and golden fixtures; complete and review T007/T013 before starting T014. Keep STE-GAP-004 and STE-GAP-007 blocked until live tenant/provider evidence exists. Legal confirmation taxonomy, FSLI-pinned time attribution, and the locally executable STE browser journeys are implemented and current-tree verified; see the STE tracker and testSuites.",
     "branch": "master"
   },
