@@ -15,6 +15,7 @@ const secondTargetId = '77777777-7777-4777-8777-777777777777';
 const submissionId = '88888888-8888-4888-8888-888888888888';
 const reviewerId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const nextReviewerId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const originalAllocationLineId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
 function openItem(kind: string, id: string, documentId: string, original: string, open: string) {
   return { kind, openItemId: id, sourceDocumentId: documentId, counterpartyId: partyId, counterpartyName: 'Synthetic customer',
@@ -28,6 +29,71 @@ function retainedPreview() {
       { lineNumber: 2, targetKind: 'SALES_INVOICE', targetOpenItemId: secondTargetId, amount: '35.000000', reversesAllocationLineId: null }
     ], targetAvailableAmounts: ['80.000000', '90.000000'] };
 }
+
+describe('approved allocation unallocation', () => {
+  let http: HttpTestingController;
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.configureTestingModule({ imports: [OpenItemAllocations], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    http = TestBed.inject(HttpTestingController);
+    TestBed.inject(SessionService).current.set({ userId: reviewerId, firmId: client, generation: '1', staff: true });
+  });
+  afterEach(() => { try { http.verify({ ignoreCancelled: true }); } finally { TestBed.resetTestingModule(); sessionStorage.clear(); } });
+  async function openHistory() {
+    const fixture = TestBed.createComponent(OpenItemAllocations);
+    fixture.componentRef.setInput('clientId', client); fixture.detectChanges();
+    http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([]);
+    http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
+    http.expectOne(request => request.url.endsWith('/open-item-allocation-submissions')).flush([]);
+    await fixture.whenStable();
+    const c = fixture.componentInstance; c.loadAllocationHistory();
+    http.expectOne(`/api/ui/accounting/clients/${client}/open-item-allocations/history?page=0&pageSize=25`).flush({
+      clientId: client, page: 0, pageSize: 25, total: 1, bookkeepingActive: true, lines: [{
+        allocationLineId: originalAllocationLineId, submissionId, sourceKind: 'SALES_RECEIPT', sourceItemId: sourceId,
+        targetKind: 'SALES_INVOICE', targetOpenItemId: targetId, counterpartyId: partyId, counterpartyName: 'Synthetic customer', currency: 'QAR',
+        originalAmount: '20.000000', reversedAmount: '7.000000', reversibleAmount: '13.000000', reference: 'ORIGINAL-ALLOC', reason: 'Original reviewed allocation',
+        manifestHash: 'a'.repeat(64), createdByUserId: reviewerId, approvedByUserId: nextReviewerId, approvedAt: '2026-01-10T12:00:00Z'
+      }] });
+    c.selectUnallocation(c.allocationHistory()!.lines[0]);
+    return { fixture, c };
+  }
+  it.each(['5.000000', '13.000000'])('pins the exact original line for a %s partial or full remaining reversal and reuses recovery', async amount => {
+    const { fixture, c } = await openHistory();
+    expect(c.amount).toBe('13.000000');
+    c.amount = amount; c.reference = 'UNALLOC-REVIEW'; c.reason = 'Correct the approved allocation'; c.allocationChanged(); c.previewAllocation();
+    const preview = http.expectOne(`/api/ui/accounting/clients/${client}/open-item-allocations/preview`);
+    expect(preview.request.body).toMatchObject({ disposition: 'UNALLOCATE', sourceKind: 'SALES_RECEIPT', sourceItemId: sourceId,
+      lines: [{ lineNumber: 1, targetKind: 'SALES_INVOICE', targetOpenItemId: targetId, amount, reversesAllocationLineId: originalAllocationLineId }] });
+    preview.flush({ ...retainedPreview(), submissionId: '00000000-0000-0000-0000-000000000000', disposition: 'UNALLOCATE',
+      lines: [{ lineNumber: 1, targetKind: 'SALES_INVOICE', targetOpenItemId: targetId, amount, reversesAllocationLineId: originalAllocationLineId }],
+      targetAvailableAmounts: ['80.000000'] });
+    c.setMakerAssent(true); expect(c.canSubmitAllocation()).toBe(true);
+    await c.submitAllocation();
+    const submission = http.expectOne(`/api/ui/accounting/clients/${client}/open-item-allocations/submit`);
+    expect(submission.request.body.disposition).toBe('UNALLOCATE');
+    expect(submission.request.body.lines[0].reversesAllocationLineId).toBe(originalAllocationLineId);
+    submission.error(new ProgressEvent('lost response'));
+    expect(c.hasUnresolvedSubmission()).toBe(true);
+    const reference = JSON.parse(sessionStorage.getItem('auditsphere:open-item-allocation-recovery:v1')!)[0];
+    expect(reference.commandId).toBe(submission.request.body.commandId); expect(reference.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(reference.body).toBeUndefined(); expect(reference.lines).toBeUndefined(); expect(reference.reason).toBeUndefined();
+    fixture.destroy();
+  });
+  it('rejects over-reversal and a mismatched original line, and discards stale preview assent', async () => {
+    const { fixture, c } = await openHistory();
+    c.amount = '14'; c.reference = 'UNALLOC-STALE'; c.reason = 'Correct the approved allocation'; c.previewAllocation();
+    http.expectNone(`/api/ui/accounting/clients/${client}/open-item-allocations/preview`);
+    c.amount = '5'; c.previewAllocation();
+    const mismatched = http.expectOne(`/api/ui/accounting/clients/${client}/open-item-allocations/preview`);
+    mismatched.flush({ ...retainedPreview(), submissionId: '00000000-0000-0000-0000-000000000000', disposition: 'UNALLOCATE',
+      lines: [{ lineNumber: 1, targetKind: 'SALES_INVOICE', targetOpenItemId: targetId, amount: '5.000000', reversesAllocationLineId: nextReviewerId }], targetAvailableAmounts: ['80.000000'] });
+    expect(c.preview()).toBeNull(); expect(c.canSubmitAllocation()).toBe(false);
+    c.previewAllocation();
+    http.expectOne(`/api/ui/accounting/clients/${client}/open-item-allocations/preview`).flush({ code: 'stale' }, { status: 400, statusText: 'Bad Request' });
+    c.setMakerAssent(true); expect(c.preview()).toBeNull(); expect(c.canSubmitAllocation()).toBe(false);
+    fixture.destroy();
+  });
+});
 
 describe('client open-item control reconciliation', () => {
   it('offers same-party, same-currency opening invoices as reviewed allocation targets', () => {

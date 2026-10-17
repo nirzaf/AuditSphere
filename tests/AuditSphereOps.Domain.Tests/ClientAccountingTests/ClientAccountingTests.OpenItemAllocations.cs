@@ -144,6 +144,37 @@ public sealed partial class ClientAccountingTests
       Assert.Equal("125.000000", beforeReceipt.Value.Accounts.Single(x => x.Role == "AR").LedgerBalance);
       Assert.Equal("105.000000", beforeReceipt.Value.Accounts.Single(x => x.Role == "AR").OpenItemBalance);
       Assert.Equal("20.000000", beforeReceipt.Value.Accounts.Single(x => x.Role == "AR").Difference);
+      var history = await ClientOpenItemAllocationHistoryQuery.GetAsync(db, maker, scope.ClientA);
+      Assert.True(history.Succeeded, history.Message);
+      var original = Assert.Single(history.Value!.Lines);
+      Assert.Equal(receipt.OpenItemId, original.SourceItemId);
+      Assert.Equal(invoiceItemId, original.TargetOpenItemId);
+      Assert.Equal("20.000000", original.ReversibleAmount);
+      Assert.Equal(allocation.Reference, original.Reference);
+      Assert.Equal(maker.UserId, original.CreatedByUserId);
+      Assert.Equal(reviewer.UserId, original.ApprovedByUserId);
+      Assert.False((await ClientOpenItemAllocationHistoryQuery.GetAsync(db,
+        maker with { ClientId = scope.ClientB }, scope.ClientA)).Succeeded);
+      var reversal = new ClientOpenItemAllocationRequest(Guid.CreateVersion7(), "SALES_RECEIPT", receipt.OpenItemId,
+        "UNALLOCATE", "BANK-REF-001-U", "Correct part of the approved allocation",
+        [new(1, "SALES_INVOICE", invoiceItemId, 7m, original.AllocationLineId)], "");
+      var reversalPreview = await ClientOpenItemAllocationWorkflow.PreviewAsync(db, maker, scope.ClientA, reversal);
+      Assert.True(reversalPreview.Succeeded, reversalPreview.Message);
+      var reversalSubmission = await ClientOpenItemAllocationWorkflow.SubmitAsync(db, maker, scope.ClientA,
+        reversal with { PreviewDigest = reversalPreview.Value!.Digest });
+      Assert.True(reversalSubmission.Succeeded, reversalSubmission.Message);
+      Assert.True((await ClientOpenItemAllocationWorkflow.ReviewAsync(db, reviewer, scope.ClientA,
+        reversalSubmission.Value!.SubmissionId, Guid.CreateVersion7(), "APPROVE", "Reviewed exact original line and partial amount",
+        reversalPreview.Value.Digest)).Succeeded);
+      var afterReversal = await ClientOpenItemAllocationHistoryQuery.GetAsync(db, maker, scope.ClientA);
+      Assert.True(afterReversal.Succeeded, afterReversal.Message);
+      var retainedOriginal = Assert.Single(afterReversal.Value!.Lines);
+      Assert.Equal(original.AllocationLineId, retainedOriginal.AllocationLineId);
+      Assert.Equal("20.000000", retainedOriginal.OriginalAmount);
+      Assert.Equal("7.000000", retainedOriginal.ReversedAmount);
+      Assert.Equal("13.000000", retainedOriginal.ReversibleAmount);
+      Assert.False((await ClientOpenItemAllocationWorkflow.PreviewAsync(db, maker, scope.ClientA,
+        reversal with { CommandId = Guid.CreateVersion7(), Lines = [new(1, "SALES_INVOICE", invoiceItemId, 14m, original.AllocationLineId)] })).Succeeded);
     }
   }
 

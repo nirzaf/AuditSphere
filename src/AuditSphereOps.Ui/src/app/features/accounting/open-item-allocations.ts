@@ -16,7 +16,12 @@ interface Preview { submissionId: string; digest: string; disposition: 'ALLOCATE
   sourceItemId: string; counterpartyId: string; currency: string; sourceOriginalAmount: string; sourceAvailableAmount: string;
   lines: TargetLine[]; targetAvailableAmounts: string[] }
 interface AllocationIntent { commandId: string; context: string; sourceKind: Preview['sourceKind']; sourceItemId: string; counterpartyId: string; currency: string;
-  disposition: 'ALLOCATE'; targetKind: TargetLine['targetKind']; targetOpenItemId: string; amount: string; reference: string; reason: string }
+  disposition: 'ALLOCATE' | 'UNALLOCATE'; targetKind: TargetLine['targetKind']; targetOpenItemId: string; amount: string; reference: string; reason: string; reversesAllocationLineId: string | null }
+interface AllocationHistoryLine { allocationLineId: string; submissionId: string; sourceKind: Preview['sourceKind']; sourceItemId: string;
+  targetKind: TargetLine['targetKind']; targetOpenItemId: string; counterpartyId: string; counterpartyName: string; currency: string;
+  originalAmount: string; reversedAmount: string; reversibleAmount: string; reference: string; reason: string; manifestHash: string;
+  createdByUserId: string; approvedByUserId: string; approvedAt: string }
+interface AllocationHistoryPage { clientId: string; page: number; pageSize: number; total: number; bookkeepingActive: boolean; lines: AllocationHistoryLine[] }
 type PendingPreview = Preview;
 type AllocationRecoveryKind = 'SUBMIT' | 'REVIEW';
 interface AllocationRecoveryRef { kind: AllocationRecoveryKind; commandId: string; clientId: string; actorUserId: string; submissionId: string | null; previewDigest: string; fingerprint: string }
@@ -94,6 +99,27 @@ function allocationTotal(lines: TargetLine[]): string {
   const total = lines.reduce((sum, line) => sum + BigInt(micros(line.amount)), 0n);
   const digits = total.toString().padStart(7, '0');
   return `${digits.slice(0, -6)}.${digits.slice(-6)}`;
+}
+function decodeAllocationHistory(value: unknown, client: string, page: number): AllocationHistoryPage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid allocation history');
+  const result = value as AllocationHistoryPage;
+  if (result.clientId !== client || result.page !== page || result.pageSize !== 25 || !Number.isSafeInteger(result.total) || result.total < 0 ||
+    typeof result.bookkeepingActive !== 'boolean' || !Array.isArray(result.lines) || result.lines.length > 25 || result.lines.length > result.total)
+    throw new Error('Invalid scoped allocation history');
+  const seen = new Set<string>();
+  for (const line of result.lines) {
+    if (!line || typeof line !== 'object' || ![line.allocationLineId, line.submissionId, line.sourceItemId, line.targetOpenItemId,
+      line.counterpartyId, line.createdByUserId, line.approvedByUserId].every(id => typeof id === 'string' && guidPattern.test(id)) ||
+      seen.has(line.allocationLineId) || line.createdByUserId === line.approvedByUserId || !allocationSources.includes(line.sourceKind) ||
+      !allocationTargets.includes(line.targetKind) || typeof line.currency !== 'string' || !/^[A-Z]{3}$/.test(line.currency) ||
+      ![line.originalAmount, line.reversedAmount, line.reversibleAmount].every(amount => typeof amount === 'string' && decimal.test(amount)) ||
+      BigInt(micros(line.originalAmount)) <= 0n || BigInt(micros(line.originalAmount)) !== BigInt(micros(line.reversedAmount)) + BigInt(micros(line.reversibleAmount)) ||
+      ![line.counterpartyName, line.reference, line.reason].every(text => typeof text === 'string' && !!text.trim()) ||
+      typeof line.manifestHash !== 'string' || !allocationDigest.test(line.manifestHash) || typeof line.approvedAt !== 'string' || !Number.isFinite(Date.parse(line.approvedAt)))
+      throw new Error('Invalid approved allocation line');
+    seen.add(line.allocationLineId);
+  }
+  return result;
 }
 const allocationRecoveryStorageKey = 'auditsphere:open-item-allocation-recovery:v1';
 const settlementRecoveryStorageKey = 'auditsphere:manual-settlement-recovery:v1';
@@ -212,15 +238,40 @@ function decodeAllocationCommandLookup(value: unknown): AllocationCommandLookup 
       @if (settlementReceipt()) { <p role="status">Operational journal draft {{ settlementReceipt() }} was acknowledged. It is not posted and no bank payment was initiated. Continue in Client operational journals for independent review and posting.</p> }
       </fieldset>
     </section>
+    <section aria-label="Approved allocation history"><h4>Approved allocation history</h4>
+      <p>Reverse an exact approved allocation line through a separate request and independent approval. The original evidence remains retained.</p>
+      <button matButton type="button" [disabled]="busy() || historyBusy() || hasUnresolvedSubmission()" (click)="loadAllocationHistory(0)">Load approved allocations</button>
+      @if (historyBusy()) { <p role="status">Loading approved allocation history…</p> }
+      @if (historyError()) { <p role="alert">{{ historyError() }}</p> }
+      @if (allocationHistory(); as h) {
+        <p>{{ h.total }} approved original line(s) · page {{ h.page + 1 }}. Reversible amounts include current approved reversals.</p>
+        @if (!h.bookkeepingActive) { <p role="status">Bookkeeping service is inactive. History remains available; new unallocation requests are blocked.</p> }
+        @for (line of h.lines; track line.allocationLineId) { <article>
+          <p>{{ line.counterpartyName }} · {{ line.sourceKind }} <code>{{ line.sourceItemId }}</code> → {{ line.targetKind }} <code>{{ line.targetOpenItemId }}</code></p>
+          <p>Original {{ line.originalAmount }} · reversed {{ line.reversedAmount }} · reversible {{ line.reversibleAmount }} {{ line.currency }}.</p>
+          <p>Original reference {{ line.reference }} · {{ line.reason }} · approved {{ line.approvedAt }}. Retained line <code>{{ line.allocationLineId }}</code> · evidence hash <code>{{ line.manifestHash }}</code>.</p>
+          <button matButton type="button" [disabled]="busy() || historyBusy() || hasUnresolvedSubmission() || !h.bookkeepingActive || !lineReversible(line)" (click)="selectUnallocation(line)">Prepare unallocation of this line</button>
+        } @empty { <p>No approved original allocations on this page.</p> }
+        <nav aria-label="Approved allocation pages"><button matButton type="button" [disabled]="busy() || historyBusy() || hasUnresolvedSubmission() || h.page === 0" (click)="loadAllocationHistory(h.page - 1)">Previous approved allocations</button>
+          <button matButton type="button" [disabled]="busy() || historyBusy() || hasUnresolvedSubmission() || (h.page + 1) * h.pageSize >= h.total" (click)="loadAllocationHistory(h.page + 1)">Next approved allocations</button></nav>
+      }
+    </section>
     <form #allocation="ngForm" (ngSubmit)="allocation.valid && previewAllocation()">
-      <fieldset [disabled]="busy()">
+      <fieldset [disabled]="busy() || historyBusy() || hasUnresolvedSubmission()">
+        @if (selectedReversal(); as original) {
+          <h4>Unallocate an approved line</h4>
+          <p>{{ original.counterpartyName }} · {{ original.currency }} · {{ original.sourceKind }} <code>{{ original.sourceItemId }}</code> → {{ original.targetKind }} <code>{{ original.targetOpenItemId }}</code>.</p>
+          <p>Original line <code>{{ original.allocationLineId }}</code> · reversible {{ original.reversibleAmount }} {{ original.currency }}. Enter a positive partial amount or the full remaining amount.</p>
+          <button matButton type="button" (click)="startSeparateAllocation()">Prepare a separate allocation</button>
+        } @else {
         <h4>Apply a credit or imported settlement</h4>
         <label>Settlement source <select name="source" [(ngModel)]="sourceId" (ngModelChange)="allocationChanged()" required><option value="">Choose an approved credit or sealed imported receipt/payment</option>@for (row of credits(); track row.openItemId) { <option [value]="row.openItemId">{{ row.kind.replaceAll('_', ' ') }} · {{ row.counterpartyName }} · {{ row.openAmount }} {{ row.currency }}</option> }</select></label>
         <label>Target invoice <select name="target" [(ngModel)]="targetId" (ngModelChange)="allocationChanged()" required><option value="">Choose a matching invoice</option>@for (row of targets(); track row.openItemId) { <option [value]="row.openItemId">{{ row.kind.replaceAll('_', ' ') }} · {{ row.counterpartyName }} · {{ row.openAmount }} {{ row.currency }}</option> }</select></label>
+        }
         <label>Amount <input name="amount" [(ngModel)]="amount" (ngModelChange)="allocationChanged()" required inputmode="decimal" pattern="(?:0|[1-9][0-9]{0,12})(?:\.[0-9]{1,6})?" /></label>
         <label>Reference <input name="reference" [(ngModel)]="reference" (ngModelChange)="allocationChanged()" required maxlength="200" /></label>
         <label>Reason <input name="reason" [(ngModel)]="reason" (ngModelChange)="allocationChanged()" required maxlength="2000" /></label>
-        <button matButton type="submit" [disabled]="allocation.invalid || busy() || hasUnresolvedSubmission()">Preview allocation</button>
+        <button matButton type="submit" [disabled]="allocation.invalid || busy() || historyBusy() || hasUnresolvedSubmission()">{{ selectedReversal() ? 'Preview exact unallocation' : 'Preview allocation' }}</button>
       </fieldset>
     </form>
     @if (hasUnresolvedSubmission()) { <p role="status">A previous allocation submission for this client is unconfirmed. Recover and acknowledge its exact retained receipt before starting another allocation.</p> }
@@ -250,6 +301,8 @@ export class OpenItemAllocations {
   readonly periods = input<{ id: string; code: string; startDate: string; endDate: string; currency: string }[]>([]);
   readonly balances = signal<OpenItem[]>([]); readonly pending = signal<PendingPreview[]>([]); readonly preview = signal<Preview | null>(null);
   readonly pendingLoadedFor = signal('');
+  readonly allocationHistory = signal<AllocationHistoryPage | null>(null); readonly historyBusy = signal(false); readonly historyError = signal('');
+  readonly selectedReversal = signal<AllocationHistoryLine | null>(null);
   readonly reconciliation = signal<Reconciliation | null>(null);
   readonly busy = signal(false); readonly error = signal(''); readonly receipt = signal('');
   readonly settlementOptions = signal<SettlementOptions | null>(null); readonly settlementPreview = signal<SettlementPreview | null>(null); readonly settlementReceipt = signal('');
@@ -271,14 +324,14 @@ export class OpenItemAllocations {
   readonly recoveryNotFound = signal<Record<string, boolean>>({});
   readonly recoveryStorageUnavailable = signal(false);
   private readonly http = inject(HttpClient); private readonly destroyRef = inject(DestroyRef); private readonly session = inject(SessionService); private operation?: Subscription;
-  private balanceRequest = 0; private pendingRequest = 0; private allocationRequest = 0; private reviewRequest = 0;
+  private balanceRequest = 0; private pendingRequest = 0; private allocationRequest = 0; private reviewRequest = 0; private historyRequest = 0; private historyOperation?: Subscription; private historyScope = '';
   private previewContext = ''; private makerAssentKey = '';
   private settlementPreviewRequest = '';
   private readonly inMemorySubmitBodies = new Map<string, Record<string, unknown>>();
   constructor() {
     effect(() => { const client = this.clientId(); this.session.current(); this.session.invalidation();
       if (client) untracked(() => { this.resetAllocationScope(); this.loadRecoveryReferences(); this.loadSettlementRecoveryReferences(); this.balances.set([]); this.reconciliation.set(null); this.load(); this.loadSettlementOptions(); }); });
-    this.destroyRef.onDestroy(() => this.operation?.unsubscribe());
+    this.destroyRef.onDestroy(() => { this.operation?.unsubscribe(); this.historyOperation?.unsubscribe(); });
   }
   currentScopeKey(): string {
     const actor = this.session.current();
@@ -514,7 +567,8 @@ export class OpenItemAllocations {
   selectedParty(): string { return this.credits().find(x => x.openItemId === this.sourceId)?.counterpartyName ?? ''; }
   totalAllocation(preview: Preview): string { return allocationTotal(preview.lines); }
   private resetAllocationScope(): void {
-    this.balanceRequest++; this.pendingRequest++; this.allocationRequest++; this.reviewRequest++;
+    this.balanceRequest++; this.pendingRequest++; this.allocationRequest++; this.reviewRequest++; this.historyRequest++;
+    this.historyOperation?.unsubscribe(); this.historyBusy.set(false); this.historyError.set(''); this.allocationHistory.set(null); this.historyScope = ''; this.selectedReversal.set(null);
     this.sourceId = this.targetId = this.amount = this.reference = this.reason = "";
     Object.keys(this.reviewReason).forEach(key => delete this.reviewReason[key]);
     this.reviewAssents.set({}); this.pending.set([]); this.pendingLoadedFor.set("");
@@ -528,6 +582,36 @@ export class OpenItemAllocations {
     this.reviewed = false; this.makerAssentKey = "";
   }
   allocationChanged(): void { this.invalidateMakerPreview(); }
+  lineReversible(line: AllocationHistoryLine): boolean { return BigInt(micros(line.reversibleAmount)) > 0n; }
+  loadAllocationHistory(page = 0): void {
+    if (this.busy() || this.hasUnresolvedSubmission() || !Number.isSafeInteger(page) || page < 0 || page > 10000) return;
+    const client = this.clientId(), context = this.currentScopeKey(), request = ++this.historyRequest;
+    if (!guidPattern.test(client) || !this.session.current()) return;
+    this.historyOperation?.unsubscribe(); this.historyBusy.set(true); this.historyError.set(''); this.historyScope = '';
+    this.allocationHistory.set(null); this.selectedReversal.set(null); this.invalidateMakerPreview();
+    this.historyOperation = this.http.get<unknown>(`/api/ui/accounting/clients/${client}/open-item-allocations/history`, { params: { page: String(page), pageSize: '25' } }).pipe(timeout(15000)).subscribe({
+      next: value => {
+        if (request !== this.historyRequest || context !== this.currentScopeKey()) return;
+        this.historyBusy.set(false);
+        try { this.allocationHistory.set(decodeAllocationHistory(value, client, page)); this.historyScope = context; }
+        catch { this.historyError.set('Approved allocation history could not be validated. No unallocation is available from this response.'); }
+      }, error: () => {
+        if (request !== this.historyRequest || context !== this.currentScopeKey()) return;
+        this.historyBusy.set(false); this.historyError.set('Approved allocation history is unavailable in this scope. Refresh before preparing an unallocation.');
+      }
+    });
+  }
+  selectUnallocation(line: AllocationHistoryLine): void {
+    const history = this.allocationHistory();
+    if (this.busy() || this.historyBusy() || this.hasUnresolvedSubmission() || this.historyScope !== this.currentScopeKey() ||
+      !history?.bookkeepingActive || !history.lines.includes(line) || !this.lineReversible(line)) return;
+    this.invalidateMakerPreview(); this.selectedReversal.set(line); this.sourceId = line.sourceItemId; this.targetId = line.targetOpenItemId;
+    this.amount = line.reversibleAmount; this.reference = ''; this.reason = '';
+  }
+  startSeparateAllocation(): void {
+    if (this.busy() || this.hasUnresolvedSubmission()) return;
+    this.selectedReversal.set(null); this.sourceId = this.targetId = this.amount = this.reference = this.reason = ''; this.invalidateMakerPreview();
+  }
   load(): void {
     const client = this.clientId(); if (!guidPattern.test(client)) return;
     const context = this.currentScopeKey(), request = ++this.balanceRequest;
@@ -635,16 +719,35 @@ export class OpenItemAllocations {
     });
   }
   private currentAllocationIntent(): AllocationIntent | null {
+    if (!decimal.test(this.amount) || BigInt(micros(this.amount)) <= 0n || !this.reference.trim() || !this.reason.trim()) return null;
+    const original = this.selectedReversal();
+    if (original) {
+      if (this.historyScope !== this.currentScopeKey() || !this.allocationHistory()?.bookkeepingActive || this.historyBusy() ||
+        this.historyError() || BigInt(micros(this.amount)) > BigInt(micros(original.reversibleAmount))) return null;
+      return { commandId: crypto.randomUUID(), context: this.currentScopeKey(), sourceKind: original.sourceKind,
+        sourceItemId: original.sourceItemId, counterpartyId: original.counterpartyId, currency: original.currency, disposition: 'UNALLOCATE',
+        targetKind: original.targetKind, targetOpenItemId: original.targetOpenItemId, amount: this.amount,
+        reference: this.reference.trim(), reason: this.reason.trim(), reversesAllocationLineId: original.allocationLineId };
+    }
     const source = this.credits().find(x => x.openItemId === this.sourceId);
     const target = this.targets().find(x => x.openItemId === this.targetId);
-    if (!source || !target || !decimal.test(this.amount) || BigInt(micros(this.amount)) <= 0n ||
-      !this.reference.trim() || !this.reason.trim()) return null;
+    if (!source || !target) return null;
     return { commandId: crypto.randomUUID(), context: this.currentScopeKey(), sourceKind: source.kind as AllocationIntent["sourceKind"],
       sourceItemId: source.openItemId, counterpartyId: source.counterpartyId, currency: source.currency, disposition: "ALLOCATE",
       targetKind: target.kind as AllocationIntent["targetKind"], targetOpenItemId: target.openItemId, amount: this.amount,
-      reference: this.reference.trim(), reason: this.reason.trim() };
+      reference: this.reference.trim(), reason: this.reason.trim(), reversesAllocationLineId: null };
   }
   private intentStillMatchesForm(intent: AllocationIntent): boolean {
+    if (intent.disposition === 'UNALLOCATE') {
+      const original = this.selectedReversal();
+      return !!original && this.historyScope === this.currentScopeKey() && !!this.allocationHistory()?.bookkeepingActive &&
+        intent.context === this.currentScopeKey() && original.allocationLineId === intent.reversesAllocationLineId &&
+        original.sourceKind === intent.sourceKind && original.sourceItemId === intent.sourceItemId && original.counterpartyId === intent.counterpartyId &&
+        original.currency === intent.currency && original.targetKind === intent.targetKind && original.targetOpenItemId === intent.targetOpenItemId &&
+        this.amount === intent.amount && this.reference.trim() === intent.reference && this.reason.trim() === intent.reason &&
+        BigInt(micros(intent.amount)) <= BigInt(micros(original.reversibleAmount));
+    }
+    if (this.selectedReversal()) return false;
     const source = this.credits().find(x => x.openItemId === this.sourceId);
     const target = this.targets().find(x => x.openItemId === this.targetId);
     return intent.context === this.currentScopeKey() && source?.kind === intent.sourceKind && source.openItemId === intent.sourceItemId &&
@@ -657,7 +760,7 @@ export class OpenItemAllocations {
     return preview.submissionId === "00000000-0000-0000-0000-000000000000" && preview.disposition === intent.disposition &&
       preview.sourceKind === intent.sourceKind && preview.sourceItemId === intent.sourceItemId && preview.counterpartyId === intent.counterpartyId &&
       preview.currency === intent.currency && !!line && line.targetKind === intent.targetKind && line.targetOpenItemId === intent.targetOpenItemId &&
-      normalizedAmount(line.amount) === normalizedAmount(intent.amount);
+      line.reversesAllocationLineId === intent.reversesAllocationLineId && normalizedAmount(line.amount) === normalizedAmount(intent.amount);
   }
   private currentMakerAssentKey(): string {
     const preview = this.preview(), intent = this.previewIntent;
@@ -678,14 +781,15 @@ export class OpenItemAllocations {
       !this.hasUnresolvedSubmission() && this.reviewed && this.makerAssentKey === this.currentMakerAssentKey();
   }
   previewAllocation(): void {
+    if (this.busy() || this.historyBusy() || this.hasUnresolvedSubmission()) return;
     const intent = this.currentAllocationIntent();
-    if (!intent || this.busy()) return;
+    if (!intent) { if (this.selectedReversal()) this.error.set('Enter a positive amount within the selected approved line’s reversible balance and provide a reference and reason.'); return; }
     const context = intent.context, request = ++this.allocationRequest;
     this.preview.set(null); this.previewIntent = intent; this.previewContext = context;
     this.reviewed = false; this.makerAssentKey = ""; this.busy.set(true); this.error.set("");
     const body = { commandId: intent.commandId, sourceKind: intent.sourceKind, sourceItemId: intent.sourceItemId, disposition: intent.disposition,
       reference: intent.reference, reason: intent.reason,
-      lines: [{ lineNumber: 1, targetKind: intent.targetKind, targetOpenItemId: intent.targetOpenItemId, amount: intent.amount, reversesAllocationLineId: null }],
+      lines: [{ lineNumber: 1, targetKind: intent.targetKind, targetOpenItemId: intent.targetOpenItemId, amount: intent.amount, reversesAllocationLineId: intent.reversesAllocationLineId }],
       previewDigest: "" };
     this.http.post<unknown>("/api/ui/accounting/clients/" + this.clientId() + "/open-item-allocations/preview", body).pipe(timeout(15000)).subscribe({
       next: value => {
