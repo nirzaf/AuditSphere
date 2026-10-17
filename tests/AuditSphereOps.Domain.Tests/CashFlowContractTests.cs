@@ -636,6 +636,7 @@ public sealed class CashFlowContractTests
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
     var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    await SealAndAcceptTrialBalanceAsync(pg, fixture, fixture.DatasetId, reviewer, "two-period-current-tb-v1");
 
     // A prior period in the same engagement, with its own sealed ledger accepted after the current one.
     var priorPeriodId = Guid.NewGuid();
@@ -667,7 +668,10 @@ public sealed class CashFlowContractTests
         Id = priorDatasetId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
         PeriodId = priorPeriodId, BookId = priorBookId, Basis = "STATUTORY",
         SourceKind = "Raw", Revision = 1, Currency = "QAR", Balanced = true,
-        ValidationStatus = "Accepted", ControlTotal = 0m, ImportedAt = DateTimeOffset.UtcNow,
+        RawFileSha256Hex = Hashing.Sha256Hex("two-period-prior-tb-v1"),
+        NormalizedDatasetDigest = Hashing.Sha256Hex("two-period-prior-tb-v1"),
+        Sha256Hex = Hashing.Sha256Hex("two-period-prior-tb-v1"),
+        ImportState = TrialBalanceImportStates.Loading, ValidationStatus = "Accepted", ControlTotal = 0m, ImportedAt = DateTimeOffset.UtcNow,
         ImportedByUserId = fixture.Preparer.Id
       });
       db.TrialBalanceRows.AddRange(
@@ -675,6 +679,7 @@ public sealed class CashFlowContractTests
         new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = priorDatasetId, AccountCode = "4000", AccountName = "Revenue", Amount = -100m, Currency = "QAR", Entity = "TEST" });
       await db.SaveChangesAsync();
     }
+    await SealAndAcceptTrialBalanceAsync(pg, fixture, priorDatasetId, reviewer, "two-period-prior-tb-v1");
 
     // Both periods own their complete accounting inputs; mappings and plans are not shared across datasets.
     var (priorMappingId, priorPlanId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer,
@@ -700,6 +705,7 @@ public sealed class CashFlowContractTests
     }
 
     Guid comparativePinId;
+    Guid priorPinId;
     Guid layoutId;
     string comparativeHash;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -758,10 +764,48 @@ public sealed class CashFlowContractTests
       Assert.False(string.IsNullOrWhiteSpace(currentPin.Value.ComparativeCalculationHash));
       comparativePinId = currentPin.Value.RevisionId;
       comparativeHash = currentPin.Value.ComparativeCalculationHash!;
+      var priorPin = await FinancialStatementService.PinPresentationAsync(db, preparer, priorPackageId, layoutId);
+      Assert.True(priorPin.Succeeded, priorPin.Message);
+      priorPinId = priorPin.Value!.RevisionId;
       var exactPinned = await FinancialStatementService.GetPinnedPresentationAsync(db, reviewer, packageId, comparativePinId);
       Assert.True(exactPinned.Succeeded, exactPinned.Message);
       Assert.Equal(priorPackageId, exactPinned.Value!.Manifest.ComparativePackageId);
       Assert.Equal(comparativeHash, exactPinned.Value.Manifest.ComparativeCalculationHash);
+    }
+
+    // A replacement accepted TB stales only the package built from that same period/book.
+    // The prior-period review and pinned evidence remain current.
+    var replacementTbId = Guid.NewGuid();
+    var replacementTbHash = Hashing.Sha256Hex("two-period-current-tb-v2");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = replacementTbId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        PeriodId = fixture.PeriodId, BookId = fixture.BookId, Basis = "STATUTORY",
+        SourceKind = "Raw", Revision = 2, Currency = "QAR", Balanced = true,
+        RawFileSha256Hex = replacementTbHash, NormalizedDatasetDigest = replacementTbHash, Sha256Hex = replacementTbHash,
+        ImportState = TrialBalanceImportStates.Loading, ValidationStatus = "Accepted", ControlTotal = 0m,
+        ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = fixture.Preparer.Id
+      });
+      db.TrialBalanceRows.AddRange(
+        new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = replacementTbId, AccountCode = "1000", AccountName = "Cash", Amount = 110m, Currency = "QAR", Entity = "TEST" },
+        new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = replacementTbId, AccountCode = "4000", AccountName = "Revenue", Amount = -110m, Currency = "QAR", Entity = "TEST" });
+      await db.SaveChangesAsync();
+    }
+    await SealAndAcceptTrialBalanceAsync(pg, fixture, replacementTbId, reviewer, "two-period-current-tb-v2");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var staleCurrentPin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layoutId);
+      Assert.False(staleCurrentPin.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, staleCurrentPin.ErrorCode);
+      var currentDraft = await FinancialStatementService.GetPinnedPresentationAsync(db, reviewer, packageId, comparativePinId);
+      Assert.False(currentDraft.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, currentDraft.ErrorCode);
+      var priorPin = await FinancialStatementService.PinPresentationAsync(db, preparer, priorPackageId, layoutId);
+      Assert.True(priorPin.Succeeded, priorPin.Message);
+      Assert.Equal(priorPinId, priorPin.Value!.RevisionId);
+      Assert.True(priorPin.Value.SourceIsCurrent);
     }
 
     // Replacing the current period's ledger stales only that period and invalidates its pending comparative pin.
@@ -1046,6 +1090,30 @@ public sealed class CashFlowContractTests
     CashFlowSourceSeed.OptionalCashEvents optional = CashFlowSourceSeed.OptionalCashEvents.None) =>
     CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg.Options, f.FirmId, f.ClientId, f.EngagementId, f.PeriodId, f.BookId, f.Preparer.Id, reviewer,
       "contract", amount, null, optional);
+
+  private static async Task SealAndAcceptTrialBalanceAsync(
+    PgTestSchema pg, Fixture fixture, Guid datasetId, ActorContext reviewer, string identity)
+  {
+    var digest = Hashing.Sha256Hex(identity);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var dataset = await db.TrialBalanceDatasets.SingleAsync(x => x.Id == datasetId);
+      dataset.RawFileSha256Hex = digest;
+      dataset.NormalizedDatasetDigest = digest;
+      dataset.Sha256Hex = digest;
+      dataset.ImportState = TrialBalanceImportStates.Sealed;
+      dataset.ValidationStatus = "Accepted";
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+        new AcceptSourceRevisionRequest(fixture.ClientId, fixture.EngagementId, AccountingSourceKinds.TrialBalance,
+          datasetId, null, "evidence:" + identity));
+      Assert.True(accepted.Succeeded, accepted.Message);
+    }
+  }
 
   private static async Task<(Guid MappingId, Guid PlanId)> CreateApprovedMappingAndPlanAsync(
     PgTestSchema pg, Fixture fixture, ActorContext preparer, ActorContext reviewer,
