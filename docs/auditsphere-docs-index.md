@@ -267,6 +267,8 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 
 | [`docs/operations/auditsphere-operations-guide-telemetry.md`](operations/auditsphere-operations-guide-telemetry.md) | OpenTelemetry ActivitySource and Meter diagnostic configuration for the API and Worker hosts. | `CURRENT` |
 
+| [`infra/auditsphere-deployment-iac-runbook.md`](../infra/auditsphere-deployment-iac-runbook.md) | Source-controlled Azure Bicep / Container Apps definition of the production topology; templates compile locally and live deployment remains `BLOCKED_EXTERNAL`. | `CURRENT` |
+
 ---
 
 ## 11. Evidence & Methodology Approvals
