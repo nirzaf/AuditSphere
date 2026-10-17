@@ -1158,6 +1158,7 @@
     "cp12IndirectCashFlowRoles": {
       "recordedAtUtc": "2026-10-17T11:39:41Z",
       "baseCommit": "4d5f588d46e9e0058d72f6ec7a2fd5593598f231",
+      "codeCommit": "1ff7bf4881f84b8f68dc7038671a5972ff527da8",
       "status": "PARTIAL",
       "scope": "Draft typed roles persist and hash-bind indirect cash-flow classifications, validate role/section/noncash consistency, reject mixed explicit/legacy rows, include noncash profit adjustments in the operating bridge, and exclude disclosure-only noncash investing/financing rows. This is not approved methodology.",
       "checks": "PostgreSQL Domain TypedNonCashProfitAddback 1/1 after mixed-role guard; Domain presentation role test 1/1; Angular financial-package-build.spec.ts 37/37; current API Release build 0 warnings/errors; EF drift clean; Angular production build pass with existing commercial/settings.scss warning. Browser NOT_VERIFIED: 127.0.0.1:4300 refused connection.",

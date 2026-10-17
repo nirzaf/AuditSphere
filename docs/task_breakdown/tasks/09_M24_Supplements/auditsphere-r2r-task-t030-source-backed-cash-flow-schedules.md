@@ -19,7 +19,7 @@ updated_at: "2026-10-17T11:40:22+00:00"
 
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Original work-package order](../../reference/auditsphere-r2r-reference-execution-coordination-and-handover.md#section-6-1)
 
-**Status scope:** Technical partial work now exists on `master` based on `4d5f588d`: typed indirect calculation roles are persisted and included in validation, hashes, draft bridge arithmetic and presentation. This does not satisfy the source-backed schedule task or approve an accounting methodology. T030 is blocked until T029 is completed and T003 supplies qualified methodology and independent-review approval; evidence is recorded in `docs/execution/status.json#targetedVerification.cp12IndirectCashFlowRoles`.
+**Status scope:** Technical partial work is committed on `master` as `1ff7bf48`: typed indirect calculation roles are persisted and included in validation, hashes, draft bridge arithmetic and presentation. This does not satisfy the source-backed schedule task or approve an accounting methodology. T030 is blocked until T029 is completed and T003 supplies qualified methodology and independent-review approval; evidence is recorded in `docs/execution/status.json#targetedVerification.cp12IndirectCashFlowRoles`.
 
 ## Outcome
 
@@ -141,7 +141,7 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | Field | Value to record |
 |---|---|
 | Inspected baseline and reused symbols | Existing `FinancialPackageCashFlowLine`, calculator, presentation builder, source review, package builder and Angular financial-package builder extended. |
-| Code commit / schema / deployed build if applicable | Uncommitted working-tree changes based on `4d5f588d`; migration `20261017110415_FinancialPackageCashFlowCalculationRoles` generated, not applied. |
+| Code commit / schema / deployed build if applicable | Commit `1ff7bf48`; migration `20261017110415_FinancialPackageCashFlowCalculationRoles` generated, not applied. |
 | Requirement → assertion → command/run → observed result | Focused Domain cash-flow role tests 1/1 each; Angular `financial-package-build.spec.ts` 37/37; current API Release build 0 warnings/errors; EF model drift clean. Exact evidence is recorded in `docs/execution/status.json#targetedVerification.cp12IndirectCashFlowRoles`. |
 | Policy / scope approval reference | None. Draft roles are technical classifications and are explicitly not approved accounting policy. |
 | Known limitations / exact blocker | T029 incomplete; T003 indirect-method policy and independent-review approval absent; source-backed payment roles and complete movement population remain open; no authenticated browser, persistent migration or live-provider verification. |
