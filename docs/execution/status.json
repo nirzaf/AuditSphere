@@ -2021,5 +2021,24 @@
       },
       "historicalVerification": "status-archive-2026-10.json: apiAngularParity.localVerification.supersededBeforeMatchingOptions20261017"
     }
+  },
+  "completePracticeManagement": {
+    "specification": "docs/requirements/auditsphere-requirements-specification-complete-practice-management-proposed.md",
+    "specificationSha256": "e9de0646894a31552f9c9f8c0c16eb422d6e94a54cb86c59ce43ac72eefeb3cd",
+    "sourceBase": "502ce6c81b05167f4a4e5bd44c7cb20cdc0a1ed2",
+    "tracker": "docs/execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md",
+    "inventoryStatus": "IN_PROGRESS",
+    "criterionCount": 87,
+    "criterionAudit": "IN_PROGRESS: initial CRM blocked-shell and NFR/production-gate evidence inspected; remaining rows explicitly NOT_REVERIFIED",
+    "releaseAcceptance": "NOT_VERIFIED",
+    "professionalAndExternalGates": "Preserved; see supplied decision register. No new policy, consent or live acceptance recorded.",
+    "inspectedCriteria": [
+      "CRM-01",
+      "CRM-05",
+      "NFR-05",
+      "NFR-06",
+      "NFR-08",
+      "UAT-15"
+    ]
   }
 }

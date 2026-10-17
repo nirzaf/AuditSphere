@@ -168,3 +168,138 @@ Names are tests in `tests/AuditSphereOps.Domain.Tests`. A named test covers the 
 - **PM-01 remainder:** a per-phase milestone date and a role-computed next action.
 
 Everything else that is open waits on a decision listed as not decided in ADR-0018, on live infrastructure, or on a scope choice. Those are not development defects.
+
+## Complete-product specification inventory
+
+The [complete-product specification](../requirements/auditsphere-requirements-specification-complete-practice-management-proposed.md) extends this crosswalk. The earlier next-work conclusion above describes the older scope; it does not classify the expanded product requirements. PMCOMP-00 is **IN_PROGRESS**. This inventory preserves every functional, UAT and NFR identifier; it is not a completion claim. Exact source identity and current verification belong to `status.json` under `completePracticeManagement`.
+
+### PMCOMP-00 micro-spec
+
+- Intent: reconcile the supplied product criteria with existing services and original PM/STE/R2R/CP identities before feature changes.
+- Authority: current requirements and approved ADRs remain controlling. The supplied proposed document is authorized as implementation scope, but does not supply professional, contractual or live-provider approvals.
+- Write scope: this crosswalk, the preserved supplied specification, documentation index and execution ledger. No runtime, schema, provider or production changes in this inventory slice.
+- Acceptance: inspect every criterion against its owning command/query, existing test body and applicable original task; record actual gaps and decision/external gates independently. Candidate anchors below are discovery starting points, not proof that the whole criterion is implemented.
+- Verification: documentation links/naming and diff checks only. Existing application evidence is retained separately; full current-source release acceptance remains CI/CD.
+
+### Existing discovery anchors
+
+| Family | Existing Application owner | Existing test cohort | Product packages |
+| --- | --- | --- | --- |
+| CRM | [PracticeCrmService.cs](../../src/AuditSphereOps.Application/Practice/PracticeCrmService.cs) | [PracticeCrmTests.cs](../../tests/AuditSphereOps.Domain.Tests/PracticeCrmTests.cs) | PMCOMP-03 |
+| COM | [FeeAgreementService.cs](../../src/AuditSphereOps.Application/Practice/FeeAgreementService.cs) | [BillingTests.cs](../../tests/AuditSphereOps.Domain.Tests/BillingTests.cs) | PMCOMP-04 |
+| WF | [EngagementWorkflowTaskService.cs](../../src/AuditSphereOps.Application/Practice/EngagementWorkflowTaskService.cs) | [EngagementWorkflowTaskTests.cs](../../tests/AuditSphereOps.Domain.Tests/EngagementWorkflowTaskTests.cs) | PMCOMP-05/06/07 |
+| CLIENT | [ClientPortalService.cs](../../src/AuditSphereOps.Application/Documents/ClientPortalService.cs) | [ClientPortalOnboardingTests.cs](../../tests/AuditSphereOps.Domain.Tests/ClientPortalOnboardingTests.cs) | PMCOMP-08/09 |
+| RES | [PracticeTimeService.cs](../../src/AuditSphereOps.Application/Practice/PracticeTimeService.cs) | [PracticeTimeTests.cs](../../tests/AuditSphereOps.Domain.Tests/PracticeTimeTests.cs) | PMCOMP-10 |
+| FIN | [FirmReceivablesAgingQuery.cs](../../src/AuditSphereOps.Application/Practice/FirmReceivablesAgingQuery.cs) | [FirmReceivablesAgingQueryTests.cs](../../tests/AuditSphereOps.Domain.Tests/FirmReceivablesAgingQueryTests.cs) | PMCOMP-11/12 |
+| ACC | [FinancialStatementCalculator.cs](../../src/AuditSphereOps.Application/Accounting/FinancialStatementCalculator.cs) | [FinancialStatementTests.cs](../../tests/AuditSphereOps.Domain.Tests/FinancialStatementTests.cs) | PMCOMP-13/16 |
+| AUD | [FileFreezeService.cs](../../src/AuditSphereOps.Application/Records/FileFreezeService.cs) | [AuditDeliverablesTests.cs](../../tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs) | PMCOMP-14/15 |
+| UX | [EngagementWorkflowWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Acceptance/EngagementWorkflowWorkspaceQuery.cs) | [EngagementLifecycleQueryTests.cs](../../tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs) | PMCOMP-02/17 |
+| UAT | [EngagementLifecycleQuery.cs](../../src/AuditSphereOps.Application/Acceptance/EngagementLifecycleQuery.cs) | [EngagementLifecycleQueryTests.cs](../../tests/AuditSphereOps.Domain.Tests/EngagementLifecycleQueryTests.cs) | PMCOMP-19 |
+| NFR | [FileFreezeService.cs](../../src/AuditSphereOps.Application/Records/FileFreezeService.cs) | [ReleaseTests.cs](../../tests/AuditSphereOps.Domain.Tests/ReleaseTests.cs) | PMCOMP-18/19 |
+
+These paths were checked to exist. The test cohorts are not blanket evidence for every row: inspect the named test bodies and add only a missing behavior assertion where necessary. `NOT_REVERIFIED` means the criterion has not yet undergone the required current-code audit, not that the feature is absent.
+
+### Criterion audit queue
+
+| Original requirement ID | Discovery family | Current disposition |
+| --- | --- | --- |
+| `CRM-01` | CRM | EXISTS_NOT_VERIFIED |
+| `CRM-02` | CRM | NOT_REVERIFIED |
+| `CRM-03` | CRM | NOT_REVERIFIED |
+| `CRM-04` | CRM | NOT_REVERIFIED |
+| `CRM-05` | CRM | PARTIAL |
+| `COM-01` | COM | NOT_REVERIFIED |
+| `COM-02` | COM | NOT_REVERIFIED |
+| `COM-03` | COM | NOT_REVERIFIED |
+| `COM-04` | COM | NOT_REVERIFIED |
+| `COM-05` | COM | NOT_REVERIFIED |
+| `COM-06` | COM | NOT_REVERIFIED |
+| `WF-01` | WF | NOT_REVERIFIED |
+| `WF-02` | WF | NOT_REVERIFIED |
+| `WF-03` | WF | NOT_REVERIFIED |
+| `WF-04` | WF | NOT_REVERIFIED |
+| `WF-05` | WF | NOT_REVERIFIED |
+| `WF-06` | WF | NOT_REVERIFIED |
+| `WF-07` | WF | NOT_REVERIFIED |
+| `WF-08` | WF | NOT_REVERIFIED |
+| `CLIENT-01` | CLIENT | NOT_REVERIFIED |
+| `CLIENT-02` | CLIENT | NOT_REVERIFIED |
+| `CLIENT-03` | CLIENT | NOT_REVERIFIED |
+| `CLIENT-04` | CLIENT | NOT_REVERIFIED |
+| `CLIENT-05` | CLIENT | NOT_REVERIFIED |
+| `CLIENT-06` | CLIENT | NOT_REVERIFIED |
+| `RES-01` | RES | NOT_REVERIFIED |
+| `RES-02` | RES | NOT_REVERIFIED |
+| `RES-03` | RES | NOT_REVERIFIED |
+| `RES-04` | RES | NOT_REVERIFIED |
+| `RES-05` | RES | NOT_REVERIFIED |
+| `RES-06` | RES | NOT_REVERIFIED |
+| `FIN-01` | FIN | NOT_REVERIFIED |
+| `FIN-02` | FIN | NOT_REVERIFIED |
+| `FIN-03` | FIN | NOT_REVERIFIED |
+| `FIN-04` | FIN | NOT_REVERIFIED |
+| `FIN-05` | FIN | NOT_REVERIFIED |
+| `FIN-06` | FIN | NOT_REVERIFIED |
+| `FIN-07` | FIN | NOT_REVERIFIED |
+| `FIN-08` | FIN | NOT_REVERIFIED |
+| `ACC-01` | ACC | NOT_REVERIFIED |
+| `ACC-02` | ACC | NOT_REVERIFIED |
+| `ACC-03` | ACC | NOT_REVERIFIED |
+| `ACC-04` | ACC | NOT_REVERIFIED |
+| `ACC-05` | ACC | NOT_REVERIFIED |
+| `ACC-06` | ACC | NOT_REVERIFIED |
+| `ACC-07` | ACC | NOT_REVERIFIED |
+| `AUD-01` | AUD | NOT_REVERIFIED |
+| `AUD-02` | AUD | NOT_REVERIFIED |
+| `AUD-03` | AUD | NOT_REVERIFIED |
+| `AUD-04` | AUD | NOT_REVERIFIED |
+| `AUD-05` | AUD | NOT_REVERIFIED |
+| `AUD-06` | AUD | NOT_REVERIFIED |
+| `AUD-07` | AUD | NOT_REVERIFIED |
+| `AUD-08` | AUD | NOT_REVERIFIED |
+| `UX-01` | UX | NOT_REVERIFIED |
+| `UX-02` | UX | NOT_REVERIFIED |
+| `UX-03` | UX | NOT_REVERIFIED |
+| `UX-04` | UX | NOT_REVERIFIED |
+| `UX-05` | UX | NOT_REVERIFIED |
+| `UX-06` | UX | NOT_REVERIFIED |
+| `UAT-01` | UAT | NOT_REVERIFIED |
+| `UAT-02` | UAT | NOT_REVERIFIED |
+| `UAT-03` | UAT | NOT_REVERIFIED |
+| `UAT-04` | UAT | NOT_REVERIFIED |
+| `UAT-05` | UAT | NOT_REVERIFIED |
+| `UAT-06` | UAT | NOT_REVERIFIED |
+| `UAT-07` | UAT | NOT_REVERIFIED |
+| `UAT-08` | UAT | NOT_REVERIFIED |
+| `UAT-09` | UAT | NOT_REVERIFIED |
+| `UAT-10` | UAT | NOT_REVERIFIED |
+| `UAT-11` | UAT | NOT_REVERIFIED |
+| `UAT-12` | UAT | NOT_REVERIFIED |
+| `UAT-13` | UAT | NOT_REVERIFIED |
+| `UAT-14` | UAT | NOT_REVERIFIED |
+| `UAT-15` | UAT | BLOCKED_EXTERNAL |
+| `NFR-01` | NFR | NOT_REVERIFIED |
+| `NFR-02` | NFR | NOT_REVERIFIED |
+| `NFR-03` | NFR | NOT_REVERIFIED |
+| `NFR-04` | NFR | NOT_REVERIFIED |
+| `NFR-05` | NFR | OWNER_DECISION |
+| `NFR-06` | NFR | OWNER_DECISION |
+| `NFR-07` | NFR | NOT_REVERIFIED |
+| `NFR-08` | NFR | OWNER_DECISION |
+| `NFR-09` | NFR | NOT_REVERIFIED |
+| `NFR-10` | NFR | NOT_REVERIFIED |
+| `NFR-11` | NFR | NOT_REVERIFIED |
+| `NFR-12` | NFR | NOT_REVERIFIED |
+
+### Separate acceptance gates
+
+D1 and DEC-01 through DEC-10 require their specified human or live evidence where applicable. Existing approved ADRs are reused. PM-NATIVE and PM-SAAS are conditional release claims; this task does not enable them. PMCOMP-20 remains conditional on DEC-11. The illustrative monthly fee is not a firm tariff, and no monthly cadence or new fee policy is approved by this inventory. The original API/Angular parity backlog remains active in its own tracker; duplicate implementation is not requested.
+
+### Initial inspected criterion evidence
+
+- **CRM-01 / PMCOMP-03:** `PracticeCrmService.CreateLeadAsync` retains canonical channel/owner and request identity; `ConvertToClientDraftAsync` binds conversion. Existing `PracticeCrmTests.CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending` asserts one client, no engagement, pending clearance, awaiting-acceptance portal intent and no client role grant. Its body was inspected; it was not executed in this documentation slice. The entire lead action-history and invalid-stage browser criterion remains unverified.
+- **CRM-05 / PMCOMP-01/02:** `EngagementLifecycleService.CreateDraftAsync` stores route/profile and creates a Draft with `ProfessionalWorkBlocked = true`, serialized against client safety and duplicate service-period creation. This supplies a blocked shell; it does not establish an approved accounting-only service policy, review or completion profile. Those remain separate requirements.
+- **NFR-05/06/08 / PM-14/16:** the current NFR authority explicitly leaves HTTP p95/concurrency targets, recovery goals and supported browser/locale/assistive-technology acceptance open. No numeric target or accessibility certification is invented here. See [current NFR authority](../architecture/auditsphere-architecture-policy-non-functional-requirements-current.md#5-availability-performance-and-recovery--open).
+- **UAT-15 / PM-14:** production-like recovery, live exact-site readback, certificate/checkpoint and independent operator evidence are required separately. Local fixture tests do not close this gate.
+
+Next local inventory slice: inspect the protected audit commercial activation fixture and task-plan/service-profile boundaries, then reconcile the remaining criterion bodies and original task aliases. Preserve the original broader parity work and its exact-source release runs.
