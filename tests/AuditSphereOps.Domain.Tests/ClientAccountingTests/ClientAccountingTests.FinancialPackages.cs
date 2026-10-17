@@ -26,6 +26,51 @@ public sealed partial class ClientAccountingTests
 {
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task FinancialPackageBuildInputs_EnumeratesComparativesOnlyWithIndependentPriorEngagementAccess()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var scopedPreparer = User(scope.FirmId, "comparative-preparer");
+    var priorEngagementId = Guid.CreateVersion7();
+    Guid priorPackageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(scopedPreparer);
+      db.RoleGrants.Add(Grant(scope.FirmId, scopedPreparer, "AccountingPreparer", scope.ClientA, scope.EngagementA));
+      db.Engagements.Add(new Engagement
+      {
+        Id = priorEngagementId, FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+        ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
+      });
+      priorPackageId = await AddPackageAsync(db, scope, scope.ClientA, priorEngagementId, 100m, "CASH", "prior-engagement");
+      var prior = db.FinancialPackages.Local.Single(x => x.Id == priorPackageId);
+      prior.PeriodStart = "2025-01-01";
+      prior.PeriodEnd = "2025-12-31";
+      await db.SaveChangesAsync();
+    }
+
+    var actor = Actor(scopedPreparer, "AccountingPreparer");
+    await using (var deniedDb = new AuditSphereDbContext(pg.Options))
+    {
+      var denied = await FinancialPackageBuildInputsQuery.GetAsync(deniedDb, actor, scope.EngagementA);
+      Assert.True(denied.Succeeded, denied.Message);
+      Assert.DoesNotContain(denied.Value!.Comparatives, x => x.Id == priorPackageId);
+    }
+
+    await using (var grantDb = new AuditSphereDbContext(pg.Options))
+    {
+      grantDb.RoleGrants.Add(Grant(scope.FirmId, scopedPreparer, "Staff", scope.ClientA, priorEngagementId));
+      await grantDb.SaveChangesAsync();
+    }
+    await using var authorizedDb = new AuditSphereDbContext(pg.Options);
+    var authorized = await FinancialPackageBuildInputsQuery.GetAsync(authorizedDb, actor, scope.EngagementA);
+    Assert.True(authorized.Succeeded, authorized.Message);
+    var option = Assert.Single(authorized.Value!.Comparatives, x => x.Id == priorPackageId);
+    Assert.Equal(priorEngagementId, option.EngagementId);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task FinancialPackageReviews_AreStageBoundAndImmutable_AndReleaseRequiresSelectedComposition()
   {
     await using var pg = await PgTestSchema.CreateAsync();

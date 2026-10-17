@@ -15,9 +15,9 @@ public static partial class FinancialStatementService
 
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
 
-  private static readonly string[] PackageReadRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "AccountingPreparer", "AccountingReviewer"];
+  internal static readonly string[] PackageReadRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "AccountingPreparer", "AccountingReviewer"];
 
-  private static async Task<CommandResult> AuthorizeAsync(
+  internal static async Task<CommandResult> AuthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid firmId, Guid clientId, Guid engagementId,
     IReadOnlyList<string> roles, CancellationToken ct) =>
     await AuthorizationDecision.AuthorizeAsync(db, actor,

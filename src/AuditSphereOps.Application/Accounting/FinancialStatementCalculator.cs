@@ -83,7 +83,9 @@ public static class FinancialStatementCalculator
 
   public static string ComputeSupplementaryHash(
     FinancialSupplementaryInformation input,
-    string currency)
+    string currency,
+    long? comparativeRevision = null,
+    string? comparativeCalculationHash = null)
   {
     var parts = new List<string>
     {
@@ -133,8 +135,14 @@ public static class FinancialStatementCalculator
       .Select(x => string.Join('|', "FX", x.CurrencyPair.Trim().ToUpperInvariant(),
         x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference.Trim())));
     if (input.Comparative is { } comparative)
+    {
       parts.Add(string.Join('|', "COMPARATIVE", comparative.PackageId.ToString("D"),
         comparative.Basis.Trim(), comparative.EvidenceReference.Trim()));
+      if (comparativeRevision is not null || comparativeCalculationHash is not null)
+        parts.Add(string.Join('|', "COMPARATIVE_SOURCE", comparative.PackageId.ToString("D"),
+          comparativeRevision?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+          comparativeCalculationHash ?? string.Empty));
+    }
     return Hashing.Sha256Hex(string.Join('\n', parts));
   }
 

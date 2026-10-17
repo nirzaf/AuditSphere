@@ -581,6 +581,22 @@ public sealed class FinancialStatementTests
 
   [Fact]
   [Trait("Profile", "Unit")]
+  public void ComparativePackageSnapshot_IsBoundIntoSupplementaryHash()
+  {
+    var packageId = Guid.Parse("77777777-7777-4777-8777-777777777777");
+    var input = new FinancialSupplementaryInformation(0m, 0m, [], [],
+      Comparative: new FinancialComparativeInput(packageId, "As issued", "approved-comparative-evidence"));
+
+    var original = FinancialStatementCalculator.ComputeSupplementaryHash(input, "QAR", 1, new string('a', 64));
+    var revised = FinancialStatementCalculator.ComputeSupplementaryHash(input, "QAR", 2, new string('a', 64));
+    var differentContent = FinancialStatementCalculator.ComputeSupplementaryHash(input, "QAR", 1, new string('b', 64));
+
+    Assert.NotEqual(original, revised);
+    Assert.NotEqual(original, differentContent);
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
   public void PackageRounding_ConservesEachSourceBalanceAndRecordsResidual()
   {
     var lines = FinancialStatementCalculator.BuildPackageLines(

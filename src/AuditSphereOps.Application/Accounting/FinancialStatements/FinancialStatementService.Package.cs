@@ -64,6 +64,8 @@ public static partial class FinancialStatementService
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked, "The source dataset is unavailable.");
     var typedAccounting = db as IClientAccountingDbContext;
     var datasetBasis = dataset.Basis?.Trim().ToUpperInvariant();
+    ClientReportingPeriod? sourcePeriod = null;
+    ClientReportingBook? sourceBook = null;
     var hasReportingContext = dataset.PeriodId is not null || dataset.BookId is not null || !string.IsNullOrWhiteSpace(datasetBasis);
     if (hasReportingContext)
     {
@@ -88,7 +90,9 @@ public static partial class FinancialStatementService
             !string.Equals(book.Currency, dataset.Currency, StringComparison.Ordinal))
           return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
             "The source dataset reporting book is unavailable or inconsistent.");
+        sourceBook = book;
       }
+      sourcePeriod = period;
     }
     var allocations = await db.MappingAllocations.AsNoTracking()
       .Where(x => x.FirmId == mapping.FirmId && x.MappingVersionId == mapping.Id)
@@ -114,13 +118,24 @@ public static partial class FinancialStatementService
       comparative = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
         x.Id == comparativeInput.PackageId && x.FirmId == mapping.FirmId, ct);
       if (comparative is null ||
-          comparative.ClientId != mapping.ClientId || comparative.EngagementId != mapping.EngagementId ||
+          comparative.ClientId != mapping.ClientId ||
           comparative.Status != AccountingPackageStates.PackageValidated ||
           !string.Equals(comparative.Framework, request.Framework.Trim(), StringComparison.Ordinal) ||
           !string.Equals(comparative.Currency, dataset.Currency, StringComparison.Ordinal) ||
           string.CompareOrdinal(comparative.PeriodEnd, request.PeriodStart.Trim()) >= 0)
         return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid,
-          "The comparative must be an approved validated package for the same scope, framework and currency, from an earlier period.");
+          "The comparative must be a validated package for the same client, framework and currency, from an earlier period.");
+      if (comparative.EngagementId != mapping.EngagementId)
+      {
+        var comparativeAuth = await AuthorizeAsync(db, actor, comparative.FirmId, comparative.ClientId,
+          comparative.EngagementId, PackageReadRoles, ct);
+        if (!comparativeAuth.Succeeded)
+          return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        var contextError = await ValidateCrossEngagementComparativeContextAsync(typedAccounting, comparative,
+          sourcePeriod, sourceBook, dataset.Currency, datasetBasis, mapping.TaxonomyVersion, request, ct);
+        if (contextError is not null)
+          return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid, contextError);
+      }
     }
 
     var packageLines = FinancialStatementCalculator.BuildPackageLines(calculated.Value.Balances, allocations, dataset.Currency);
@@ -132,7 +147,9 @@ public static partial class FinancialStatementService
       .ToDictionary(x => x.Key, x => MoneyPolicy.Normalize(x.Sum(y => y.Amount)), StringComparer.Ordinal);
     var supplementaryHash = request.SupplementaryInformation is null
       ? null
-      : FinancialStatementCalculator.ComputeSupplementaryHash(request.SupplementaryInformation, dataset.Currency);
+      : FinancialStatementCalculator.ComputeSupplementaryHash(request.SupplementaryInformation, dataset.Currency,
+        comparative?.EngagementId != mapping.EngagementId ? comparative?.Revision : null,
+        comparative?.EngagementId != mapping.EngagementId ? comparative?.CalculationHash : null);
     var equityHash = request.SupplementaryInformation?.EquityLines is { Count: > 0 } equityLines
       ? FinancialStatementCalculator.ComputeEquityHash(equityLines, dataset.Currency,
         request.SupplementaryInformation.EquityTransfers)
@@ -169,6 +186,53 @@ public static partial class FinancialStatementService
         currentPlan.Status != "Finalized" || currentPlan.ResultHash != plan.ResultHash)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
         "Accounting inputs changed while the package was being calculated; reload and retry.");
+
+    // Recheck both engagement grants and the exact comparative snapshot after acquiring the
+    // client lock. This prevents a revoked grant or changed prior package from being consumed.
+    var currentAuth = await AuthorizeAsync(db, actor, mapping.FirmId, mapping.ClientId, mapping.EngagementId,
+      PreparerRoles.ToArray(), ct);
+    if (!currentAuth.Succeeded)
+      return CommandResult<FinancialPackageBuildResult>.Fail(currentAuth.ErrorCode!, currentAuth.Message!);
+    if (comparative is not null)
+    {
+      var currentComparativeAuth = await AuthorizeAsync(db, actor, comparative.FirmId, comparative.ClientId,
+        comparative.EngagementId, PackageReadRoles, ct);
+      var currentComparative = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.Id == comparative.Id && x.FirmId == actor.FirmId, ct);
+      if (!currentComparativeAuth.Succeeded)
+        return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      if (currentComparative is null || currentComparative.Status != AccountingPackageStates.PackageValidated ||
+          currentComparative.Revision != comparative.Revision || currentComparative.CalculationHash != comparative.CalculationHash ||
+          currentComparative.Generation != comparative.Generation)
+        return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
+          "The selected comparative package changed while the current package was being calculated; reload and retry.");
+      if (currentComparative.EngagementId != mapping.EngagementId)
+      {
+        var currentSourcePeriod = sourcePeriod is null || typedAccounting is null ? null :
+          await typedAccounting.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == sourcePeriod.Id && x.FirmId == mapping.FirmId && x.ClientId == mapping.ClientId, ct);
+        var currentSourceBook = sourceBook is null || typedAccounting is null || currentSourcePeriod is null ? null :
+          await typedAccounting.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.Id == sourceBook.Id && x.FirmId == mapping.FirmId && x.ClientId == mapping.ClientId &&
+            x.PeriodId == currentSourcePeriod!.Id, ct);
+        if (currentSourcePeriod is null || currentSourceBook is null)
+          return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
+            "The selected reporting context changed while the current package was being calculated; reload and retry.");
+        if (!string.Equals(currentSourcePeriod.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), request.PeriodStart.Trim(), StringComparison.Ordinal) ||
+            !string.Equals(currentSourcePeriod.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), request.PeriodEnd.Trim(), StringComparison.Ordinal) ||
+            !string.Equals(currentSourcePeriod.Basis, datasetBasis, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(currentSourcePeriod.Currency, dataset.Currency, StringComparison.Ordinal) ||
+            !string.Equals(currentSourceBook.Basis, datasetBasis, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(currentSourceBook.Currency, dataset.Currency, StringComparison.Ordinal))
+          return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
+            "The selected reporting context changed while the current package was being calculated; reload and retry.");
+        var contextError = await ValidateCrossEngagementComparativeContextAsync(typedAccounting, currentComparative,
+          currentSourcePeriod, currentSourceBook, dataset.Currency, datasetBasis, mapping.TaxonomyVersion, request, ct);
+        if (contextError is not null)
+          return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
+            "The selected comparative context changed while the current package was being calculated; reload and retry.");
+      }
+    }
 
     var existing = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.AdjustmentPlanId == plan.Id &&
@@ -485,6 +549,41 @@ public static partial class FinancialStatementService
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.IdempotencyConflict,
         "The package identity changed; retry from the current mapping and plan.");
     }
+  }
+
+  private static async Task<string?> ValidateCrossEngagementComparativeContextAsync(
+    IClientAccountingDbContext? db,
+    FinancialPackage comparative,
+    ClientReportingPeriod? currentPeriod,
+    ClientReportingBook? currentBook,
+    string currentCurrency,
+    string? currentBasis,
+    string currentTaxonomyVersion,
+    BuildFinancialPackageRequest request,
+    CancellationToken ct)
+  {
+    if (db is null || currentPeriod is null || currentBook is null || comparative.PeriodId is null || comparative.BookId is null)
+      return "Cross-engagement comparatives require linked reporting periods and books on both packages.";
+    var priorPeriod = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == comparative.PeriodId && x.FirmId == comparative.FirmId && x.ClientId == comparative.ClientId, ct);
+    var priorBook = await db.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == comparative.BookId && x.FirmId == comparative.FirmId && x.ClientId == comparative.ClientId &&
+      x.PeriodId == comparative.PeriodId, ct);
+    if (priorPeriod is null || priorBook is null ||
+        !string.Equals(priorPeriod.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), comparative.PeriodStart, StringComparison.Ordinal) ||
+        !string.Equals(priorPeriod.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), comparative.PeriodEnd, StringComparison.Ordinal) ||
+        priorPeriod.EndDate >= currentPeriod.StartDate ||
+        !string.Equals(priorBook.Code, currentBook.Code, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(priorPeriod.Basis, currentBasis, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(priorBook.Basis, currentBook.Basis, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(priorBook.Currency, currentBook.Currency, StringComparison.Ordinal) ||
+        !string.Equals(priorPeriod.Currency, currentPeriod.Currency, StringComparison.Ordinal) ||
+        !string.Equals(comparative.Basis, currentBasis, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(comparative.Currency, currentCurrency, StringComparison.Ordinal) ||
+        !string.Equals(comparative.TaxonomyVersion, currentTaxonomyVersion, StringComparison.Ordinal) ||
+        !string.Equals(comparative.Framework, request.Framework.Trim(), StringComparison.Ordinal))
+      return "The cross-engagement comparative must have an earlier non-overlapping period and compatible reporting book, basis and currency.";
+    return null;
   }
 
   public static async Task<CommandResult<Guid>> EnqueueFinancialPackageBuildAsync(

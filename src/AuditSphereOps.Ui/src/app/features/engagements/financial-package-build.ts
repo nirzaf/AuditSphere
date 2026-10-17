@@ -12,7 +12,7 @@ export const decodeBuildInputs = obj({
   mappings: arr(obj({ id: guid, version: nat, datasetId: guid }), 100),
   plans: arr(obj({ id: guid, baseDatasetId: guid, resultHash: text }), 100),
   periods: arr(obj({ id: guid, periodCode: text, startDate: date, endDate: date, currency: text, basis: text }), 100),
-  comparatives: arr(obj({ id: guid, framework: text, periodStart: text, periodEnd: text, currency: text, status: text }), 100),
+  comparatives: arr(obj({ id: guid, engagementId: guid, framework: text, periodStart: text, periodEnd: text, currency: text, basis: nullable(text), status: text }), 100),
 });
 export const decodeBuildStatus = obj({
   operationId: guid,
@@ -421,7 +421,7 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
         <label>Comparative package (optional)
           <select name="comparativePackage" [(ngModel)]="form.comparativePackageId">
             <option value="">No comparative package</option>
-            @for (p of comparativesFor(data); track p.id) { <option [value]="p.id">{{ p.periodStart }} to {{ p.periodEnd }} · {{ p.framework }} · {{ p.currency }} · {{ p.id }}</option> }
+            @for (p of comparativesFor(data); track p.id) { <option [value]="p.id">{{ p.periodStart }} to {{ p.periodEnd }} · {{ p.framework }} · {{ p.currency }} · engagement {{ p.engagementId }} · {{ p.id }}</option> }
           </select>
         </label>
         @if (form.comparativePackageId.trim()) {
@@ -765,7 +765,8 @@ export class FinancialPackageBuild {
   comparativesFor(data: BuildInputs) {
     const period = data.periods.find((p) => p.id === this.form.periodId);
     return period ? data.comparatives.filter((p) => p.status === 'VALIDATED' && p.framework === this.form.framework.trim() &&
-      p.currency === period.currency && p.periodEnd < period.startDate) : [];
+      p.currency === period.currency && (!p.basis || p.basis.toUpperCase() === period.basis.toUpperCase()) &&
+      p.periodEnd < period.startDate) : [];
   }
 
   choosePeriod(data: BuildInputs): void {
