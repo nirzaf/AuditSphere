@@ -266,6 +266,7 @@
         "docsHealth": "PASS",
         "uiInventory": "PASS: retired source keeps the historical discovery inventory",
         "retirementInventory": "PASS",
+        "openApiContract": "PASS: no drift",
         "gitDiffCheck": "PASS"
       },
       "notDone": [
