@@ -12,7 +12,7 @@ public sealed class AngularPbcStaffJourneyTests
 {
   [Fact]
   [Trait("CaseId", "ANGULAR-PBC-STAFF-INBOX")]
-  public async Task StaffInbox_CreatesRequest_RequestsMoreFiles_AndQueuesVerifiedTransfer()
+  public async Task StaffInbox_CreatesRequest_QueuesTransfer_AndReviewerAcceptsExactVerifiedVersion()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PBC-STAFF-INBOX");
     var fixture = host.Fixture;
@@ -158,7 +158,47 @@ public sealed class AngularPbcStaffJourneyTests
       Assert.Equal("nosniff", download.Headers["x-content-type-options"]);
       Assert.Equal(uploadBytes, await download.BodyAsync());
 
+      var reviewerOrigin = await host.StartReviewerApiAsync();
+      await using var reviewerContext = await browser.NewContextAsync();
+      var reviewerPage = await reviewerContext.NewPageAsync();
+      var reviewerErrors = new List<string>();
+      reviewerPage.PageError += (_, error) => reviewerErrors.Add(error);
+      var reviewerPath = $"/ui/app/engagements/{fixture.EngagementId:D}/pbc";
+      await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(reviewerPath));
+      await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
+        new() { Name = "Prepared-by-client requests", Exact = true })).ToBeVisibleAsync();
+
+      var reviewCard = reviewerPage.Locator("section.panel").Filter(new() { HasText = "Bank statements" });
+      await Assertions.Expect(reviewCard.GetByText("Client uploaded staged-bank-statements.txt", new() { Exact = true }))
+        .ToBeVisibleAsync();
+      await reviewCard.GetByRole(AriaRole.Button,
+        new() { Name = "Begin assigned review", Exact = true }).ClickAsync();
+      var acceptButton = reviewCard.GetByRole(AriaRole.Button,
+        new() { Name = "Accept this exact version", Exact = true });
+      await Assertions.Expect(acceptButton).ToBeDisabledAsync();
+      await reviewCard.GetByLabel(
+        "I reviewed this provider-verified submission and its content SHA-256.", new() { Exact = true }).CheckAsync();
+      await Assertions.Expect(acceptButton).ToBeEnabledAsync();
+      await acceptButton.ClickAsync();
+      await Assertions.Expect(reviewerPage.GetByText(
+        "The exact provider-verified submission version was accepted.", new() { Exact = true })).ToBeVisibleAsync();
+
+      var acceptedEvidence = reviewCard.GetByRole(AriaRole.Region,
+        new() { Name = "Accepted submission version", Exact = true });
+      await Assertions.Expect(acceptedEvidence).ToContainTextAsync("staged-bank-statements.txt");
+      await Assertions.Expect(acceptedEvidence).ToContainTextAsync(staged.DeclaredSha256Hex);
+      await Assertions.Expect(acceptedEvidence).ToContainTextAsync(fixture.Reviewer.Id.ToString());
+      await using (var db = host.CreateDbContext())
+      {
+        var request = await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == host.RequestId);
+        var receipt = await db.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == host.RequestId);
+        Assert.Equal(PbcStates.Accepted, request.State);
+        Assert.Equal((staged.UploadIntentId, fixture.Reviewer.Id, staged.DeclaredSha256Hex),
+          (receipt.PbcUploadIntentId, receipt.ReviewerUserId, receipt.ContentSha256Hex));
+      }
+
       Assert.Empty(errors);
+      Assert.Empty(reviewerErrors);
     }
     finally
     {
