@@ -1219,21 +1219,21 @@
       ]
     },
     "cp10PeriodScopedPackageFreshness": {
-      "recordedAtUtc": "2026-10-17T06:15:00Z",
-      "codeCommit": "6f405cc226474fda26a4206126438fff9901db28",
+      "recordedAtUtc": "2026-10-17T05:57:20Z",
+      "codeCommit": "b6e465bcdead151516bb9a65fbde222c0ea160bc",
       "status": "PARTIAL",
       "verified": {
-        "focusedTests": "5/5 focused invocations across incremental slices; latest comparative case 1/1 on 6f405cc2.",
-        "periodBehavior": "Period reviews stay separate; displayed statement values and one comparative note/reference pair match selected packages. Pin binds prior package ID/hash; new current GL stales only current review and draft.",
+        "focusedTests": "Focused PostgreSQL test TwoPeriods_RetainTheirOwnAcceptedCashSources passed 1/1 on b6e465bc; full suites deferred to CI/CD.",
+        "periodBehavior": "Period-specific GL/TB sources coexist; exact current/prior face values, one synthetic comparative note and prior package pin are checked. Current GL/TB replacement invalidates only current-period pending presentation; prior pin stays current.",
         "approvalReleaseBehavior": "Approval/release survives unrelated client generation changes.",
-        "commit": "6f405cc2 pushed to master."
+        "commit": "b6e465bc pushed to master."
       },
       "notRun": [
-        "Full suites pending CI/CD; none run locally.",
-        "Full note/professional verification, comparative release/as-issued retention, TB replacement, restatement, opening continuity, cross-engagement denial and live acceptance."
+        "Full Domain/API/Playwright E2E regressions deferred to hosted CI/CD.",
+        "Full note policy/source verification, comparative release/as-issued retention, restatement, opening continuity, cross-engagement denial and live acceptance."
       ],
       "open": [
-        "Full note policy/source verification; release/as-issued retention; TB replacement; restatement/reselection; opening continuity.",
+        "Full note policy/source verification; comparative release/as-issued retention; restatement/reselection; opening continuity.",
         "Cross-engagement denial, approval noninheritance and professional acceptance."
       ]
     }
