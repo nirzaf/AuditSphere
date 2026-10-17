@@ -190,6 +190,37 @@ public sealed class CashFlowContractTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task SourceReviewCanReview_RequiresCurrentScopedReviewGrant()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+    var packageId = await BuildCompletePackageAsync(pg, planId, mappingId, preparer, source, "review-capability-current-grant-v1");
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // Preserve scoped read access while revoking only the source-review grant.
+      db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Reviewer, "AccountingPreparer"));
+      var reviewGrant = await db.RoleGrants.SingleAsync(x => x.FirmId == fixture.FirmId &&
+        x.UserId == fixture.Reviewer.Id && x.Role == "AccountingReviewer" && x.RevokedAt == null);
+      reviewGrant.RevokedAt = DateTimeOffset.UtcNow;
+      await db.SaveChangesAsync();
+    }
+
+    var staleSession = new ActorContext(fixture.Reviewer.Id, fixture.FirmId, fixture.Reviewer.SessionEpoch,
+      ["AccountingReviewer", "AccountingPreparer"]);
+    await using var queryDb = new AuditSphereDbContext(pg.Options);
+    var state = await FinancialStatementService.GetCashFlowSourceReviewAsync(queryDb, staleSession, packageId);
+    Assert.True(state.Succeeded, state.Message);
+    Assert.False(state.Value!.CanReview);
+    Assert.False(state.Value.Approved);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task SourceLinkedMovements_ResolveLineageOnlyWhenFullyAllocatedToAcceptedGeneralLedger()
   {
     await using var pg = await PgTestSchema.CreateAsync();

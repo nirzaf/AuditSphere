@@ -174,6 +174,8 @@ public static partial class FinancialStatementService
       new AuthorizationRequest(actor.FirmId, package.ClientId, package.EngagementId, CashFlowSourceReadRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<CashFlowSourceReviewState>.Fail(auth.ErrorCode!, auth.Message!);
+    var reviewAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, package.ClientId, package.EngagementId, CashFlowSourceReviewRoles, InternalOnly: true), ct);
     var lineage = await LoadCashFlowLineageAsync(db, actor, package, ct);
     if (!lineage.Succeeded)
       return CommandResult<CashFlowSourceReviewState>.Fail(lineage.ErrorCode!, lineage.Message!);
@@ -192,7 +194,7 @@ public static partial class FinancialStatementService
     var lineagePassed = await LineageValidatedAsync(db, package.FirmId, package.Id, ct);
     var approved = fxAssessmentMatches && lineagePassed && current.AllResolved && current.CurrentBatchId is Guid batch && latest is { Decision: "APPROVED" } &&
       latest.SourceImportBatchId == batch && current.Allocations.All(x => x.SourceImportBatchId == batch) && latest.LinkDigest == currentDigest;
-    var canReview = fxAssessmentMatches && actor.Roles.Any(CashFlowSourceReviewRoles.Contains) && current.Allocations.Count > 0 &&
+    var canReview = fxAssessmentMatches && reviewAuth.Succeeded && current.Allocations.Count > 0 &&
       current.Allocations.All(x => x.CreatedByUserId != Guid.Empty && x.CreatedByUserId != actor.UserId);
     return CommandResult<CashFlowSourceReviewState>.Ok(new CashFlowSourceReviewState(package.Id, current.Movements,
       current.Resolved.Count(x => x), current.Allocations.Count, current.CurrentBatchId, approved, canReview,
