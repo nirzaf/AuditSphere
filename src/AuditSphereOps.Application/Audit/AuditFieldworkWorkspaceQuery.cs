@@ -16,7 +16,7 @@ public sealed record FieldworkProcedure(Guid Id, string SourceProcedureId, int? 
   int ApplicabilityRevision = 0, Guid? ApplicabilityDecisionId = null, Guid? PendingApplicabilityProposalId = null,
   string? ApplicabilityRationale = null, IReadOnlyList<FieldworkApplicabilityHistoryItem>? ApplicabilityHistory = null,
   bool CanProposeNotApplicable = false, bool CanApproveNotApplicable = false, bool CanReturnNotApplicable = false,
-  string EvidenceState = "MISSING_RESULT");
+  string EvidenceState = "MISSING_RESULT", IReadOnlyList<ProcedureSupportLink>? SupportLinks = null);
 public sealed record FieldworkApplicabilityHistoryItem(Guid Id, int Revision, string Action, string? Rationale,
   Guid? ProposalDecisionId, Guid ActorUserId, DateTimeOffset OccurredAt, int DefinitionRevision, long InputGeneration);
 public sealed record FieldworkRiskOption(Guid Id, string Area, string SignificanceDecision, string? Band,
@@ -254,7 +254,8 @@ public static class AuditFieldworkWorkspaceQuery
         row.CurrentApplicabilityRevision, currentDecision?.Id, pendingProposalId, row.ApplicabilityRationale,
         historyByProcedure.GetValueOrDefault(row.Id, []), canPropose && pendingProposalId is null,
         canApprove && pendingProposalId is not null, canApprove && pendingProposalId is not null,
-        evidence.GetValueOrDefault(row.Id)?.State ?? "MISSING_RESULT");
+        evidence.GetValueOrDefault(row.Id)?.State ?? "MISSING_RESULT",
+        AuditProcedureSupportMap.For(row.SourceProcedureId, row.SourceSectionNumber, engagementId, workpaperMap.GetValueOrDefault(row.Id)));
     }).ToList();
   }
 

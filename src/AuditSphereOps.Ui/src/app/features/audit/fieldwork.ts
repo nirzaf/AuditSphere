@@ -18,7 +18,8 @@ const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: 
   applicabilityRationale: nullable(text), applicabilityHistory: arr(obj({ id: guid, revision: nat, action: text,
     rationale: nullable(text), proposalDecisionId: nullable(guid), actorUserId: guid, occurredAt: instant,
     definitionRevision: nat, inputGeneration: nat }), 20), canProposeNotApplicable: bool,
-  canApproveNotApplicable: bool, canReturnNotApplicable: bool, evidenceState: text });
+  canApproveNotApplicable: bool, canReturnNotApplicable: bool, evidenceState: text,
+  supportLinks: arr(obj({ toolKind: text, label: text, route: nullable(text), explanation: text, availability: text }), 20) });
 const decodeManagerReview = obj({ engagementId: guid, completionReady: bool, partnerHandoffReady: bool,
   applicableProcedures: nat, proceduresNeedingReview: nat, itemTestsNeedingReview: nat, selectionsNeedingReview: nat,
   unresolvedReviewThreads: nat, openConfirmations: nat, bankReconciliationsNeedingApproval: nat, unevaluatedDifferences: nat,
@@ -531,6 +532,17 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
                   <p><strong>Effective instructions:</strong> {{ selected.effectiveWording ?? selected.title }}</p>
                   <p><strong>Definition provenance:</strong> {{ selected.definitionProvenance }}{{ selected.definitionRevision ? ' · revision ' + selected.definitionRevision : '' }}</p>
                 </details>
+              }
+              @if (selectedProcedure(w); as selected) {
+                @if (selected.supportLinks.length) {
+                  <section aria-labelledby="procedure-support-heading">
+                    <h3 id="procedure-support-heading">Supporting tools and manual work</h3>
+                    @for (support of selected.supportLinks; track support.toolKind + ':' + (support.route ?? '')) {
+                      <p>@if (support.route) { <a [routerLink]="support.route">{{ support.label }}</a> } @else { <strong>{{ support.label }}</strong> }
+                        · {{ support.availability }} — {{ support.explanation }}</p>
+                    }
+                  </section>
+                }
               }
               @if (state.basis.blockers.length) {
                 <div role="alert" class="error"><p>Current blockers:</p><ul>@for (b of state.basis.blockers; track b) { <li>{{ b }}</li> }</ul></div>

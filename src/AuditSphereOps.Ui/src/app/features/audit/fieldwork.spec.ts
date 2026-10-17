@@ -45,6 +45,7 @@ describe('Audit Fieldwork Contracts', () => {
           canApproveNotApplicable: false,
           canReturnNotApplicable: false,
           evidenceState: 'REVIEWED_CURRENT',
+          supportLinks: [{ toolKind: 'WORKSPACE', label: 'Record work', route: null, explanation: 'Manual work remains required.', availability: 'AVAILABLE' }],
           status: 'COMPLETED',
           riskId: null,
         },
