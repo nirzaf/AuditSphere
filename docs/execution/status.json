@@ -196,42 +196,6 @@
       "key": "keys.targetedVerification.angularBlazorPackageGateFixtureFollowUp",
       "note": "Retained full package-gate fixture evidence; current full-release verification is recorded in angularMigrationAcceptanceBatch."
     },
-    "angularBlazorTenantConsentFixtureFollowUp": {
-      "sourceCommit": "d5aaec16d6d3cdb56f508020d4aeb06c2396dde2",
-      "recordedAtUtc": "2026-10-15T23:27:57.469558+00:00",
-      "result": "FOCUSED_PASS_RETIREMENT_NOT_READY",
-      "repair": "TenantConsentServiceTests fixture now includes the firm safety row required by role-administration serialization. Production authorization, consent and directory freshness guards are unchanged.",
-      "baseline": {
-        "sourceCommit": "3e2ba586c3c997268c40f24d6d4ba0aadb6255a5",
-        "passed": 0,
-        "failed": 3,
-        "scope": [
-          "ExactEnabledDirectoryMemberBindsOnceWithoutGrant",
-          "StaleGraphObservationBlocksLocalGrantUntilExactReverification",
-          "Restatement_RequiresSupportedChangeTypeAndAffectedPeriods"
-        ],
-        "report": "/tmp/auditsphere-parity-regression/parity-domain-baseline.trx"
-      },
-      "verification": {
-        "passed": 12,
-        "failed": 0,
-        "skipped": 0,
-        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --maxcpucount:1 --filter FullyQualifiedName~TenantConsentServiceTests --logger trx;LogFileName=tenant-consent-fixture-repair.trx --results-directory /tmp/auditsphere-parity-regression",
-        "report": "/tmp/auditsphere-parity-regression/tenant-consent-fixture-repair.trx"
-      },
-      "remaining": "Other full-regression failures, remaining source-action comparisons, authenticated browser, cutover/recovery, human and external acceptance. Retirement remains NOT_READY.",
-      "boundaries": "Synthetic owned test databases and fake directory reader only; no live tenant acceptance or deployment.",
-      "restatementFollowUp": {
-        "sourceCommit": "8681b3634170662d57c0f0730942e52b2565198b",
-        "passed": 5,
-        "failed": 0,
-        "skipped": 0,
-        "scope": "AccountingRecordsApprovalTests",
-        "report": "/tmp/auditsphere-parity-regression/restatement-composition-fixture.trx",
-        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --maxcpucount:1 --filter FullyQualifiedName~AccountingRecordsApprovalTests --logger trx;LogFileName=restatement-composition-fixture.trx --results-directory /tmp/auditsphere-parity-regression",
-        "coverage": "Selected composition and management/accounting/Partner decisions; unreviewed close denied; correction after close; type/period refusals and independent approval retained."
-      }
-    },
     "angularBlazorConsolidationGuardFollowUp": {
       "archive": "docs/execution/status-archive-2026-10.json",
       "key": "keys.targetedVerification.angularBlazorConsolidationGuardFollowUp"
@@ -1219,6 +1183,32 @@
       ],
       "uiRecoveryCodeCommit": "61d6630895235789ff4c6622eb09c250f5791aa2",
       "uiRecoverySpec": "package.spec.ts: 13 passed, including no dispatch without session storage and stale-refusal recovery failure blocks repeat; Angular production build PASS with existing commercial/settings.scss budget warning."
+    },
+    "cp10OpeningBridgeCloseGate": {
+      "recordedAtUtc": "2026-10-17T07:23:32Z",
+      "codeCommit": "484b37b8410308123f1cf126fadfa3858000d417",
+      "status": "FOCUSED_REGRESSION_PASS",
+      "domainTest": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "name": "PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence",
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence'",
+        "duration": "41 s"
+      },
+      "scope": "A linked prior-period bridge is required; an existing bridge must be approved by a reviewer before period close. Regression asserts refusal before approval and successful close after approval.",
+      "documentation": "Markdown health, filename policy, narrative metrics and git diff checks passed.",
+      "notRun": [
+        "Full .NET, API, Angular and Playwright suites are deferred to CI/CD.",
+        "Comparative release/as-issued retention, restatement, broader opening continuity and professional acceptance remain open."
+      ],
+      "fastCi": {
+        "workflow": "AuditSphereOps CI",
+        "runId": 39013455559,
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39013455559",
+        "status": "IN_PROGRESS",
+        "headSha": "484b37b8410308123f1cf126fadfa3858000d417"
+      }
     }
   },
   "externalGates": [
