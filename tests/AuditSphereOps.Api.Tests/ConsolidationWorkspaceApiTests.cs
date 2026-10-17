@@ -103,8 +103,8 @@ public sealed class ConsolidationWorkspaceApiTests
     try { await WaitForOwnershipGroupWaitersAsync(observer, 2, timeout.Token); }
     finally { await fence.RollbackAsync(); }
     var results = await Task.WhenAll(firstTask, secondTask);
-    Assert.Single(results.Where(x => x.Succeeded));
-    Assert.Single(results.Where(x => !x.Succeeded && x.ErrorCode == ErrorCodes.Accounting.MappingInvalid));
+    Assert.Single(results, x => x.Succeeded);
+    Assert.Single(results, x => !x.Succeeded && x.ErrorCode == ErrorCodes.Accounting.MappingInvalid);
     Assert.Equal(1, await observer.OwnershipInterestVersions.CountAsync(x => x.ScopeVersionId == fixture.ScopeId));
   }
 
