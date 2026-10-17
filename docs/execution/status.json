@@ -1201,19 +1201,27 @@
       "followUp": "The accepted-GL discovery/picker and period-scoped source query remain in place; current CP-11 retry fencing is recorded under cashFlowSourceReviewExpectedPredecessor."
     },
     "cashFlowSourceReviewExpectedPredecessor": {
-      "recordedAtUtc": "2026-10-17T06:15:42Z",
-      "codeCommit": "60f346d5",
+      "recordedAtUtc": "2026-10-17T06:24:52Z",
+      "codeCommit": "942e4c3c",
       "status": "FOCUSED_REGRESSION_PASS",
-      "test": "CashFlowContractTests.SourceReview_ReplayReturnsOriginalDecisionAndManifest",
-      "result": {
-        "passed": 1,
-        "failed": 0,
-        "skipped": 0
-      },
-      "verified": "New intent hashes include expectedPreviousReviewId; exact retries recover the saved decision; reusing the key with a changed predecessor conflicts. Legacy v1 rows replay only when the supplied predecessor matches the persisted PreviousReviewId.",
+      "tests": [
+        {
+          "name": "package.spec.ts",
+          "passed": 11,
+          "failed": 0
+        },
+        {
+          "name": "AngularCashFlowPackageJourneyTests.PreparerBuildsFromAcceptedGlAndIndependentReviewerApprovesPersistedLinks",
+          "passed": 1,
+          "failed": 0,
+          "scope": "API-hosted Playwright; commits then drops first response, reloads and replays exact request"
+        }
+      ],
+      "angularProductionBuild": "PASS; existing commercial/settings.scss stylesheet-budget warning.",
+      "verified": "The browser restores the saved decision and reason and reuses request ID, link digest and predecessor after reload. It refuses to send if session storage cannot persist the intent. The browser journey verified same-request replay creates one review row. Server intent hashes include the predecessor; changed payload or predecessor conflicts.",
       "notRun": [
-        "Full Domain/API/Playwright/Angular suites are delegated to exact-SHA CI/CD.",
-        "Source-kind provenance, professional methodology and live acceptance remain open."
+        "Full regressions delegated to exact-SHA CI/CD; current master run is pending.",
+        "Storage-disabled refusal and known-stale intent reset are not covered by browser acceptance; source-kind provenance and professional/live acceptance remain open."
       ]
     }
   },
