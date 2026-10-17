@@ -102,7 +102,8 @@ public static partial class FinancialStatementService
       request.SupplementaryInformation, request.PeriodStart, request.PeriodEnd);
     if (supplementaryError is not null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid, supplementaryError);
-    if ((request.SupplementaryInformation?.EquityLines is not null || request.SupplementaryInformation?.NoteLines is not null) && typedAccounting is null)
+    if ((request.SupplementaryInformation?.EquityLines is not null || request.SupplementaryInformation?.EquityTransfers is not null ||
+        request.SupplementaryInformation?.NoteLines is not null) && typedAccounting is null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
         "Structured equity and note package outputs require the client-accounting persistence surface.");
 
@@ -132,7 +133,8 @@ public static partial class FinancialStatementService
       ? null
       : FinancialStatementCalculator.ComputeSupplementaryHash(request.SupplementaryInformation, dataset.Currency);
     var equityHash = request.SupplementaryInformation?.EquityLines is { Count: > 0 } equityLines
-      ? FinancialStatementCalculator.ComputeEquityHash(equityLines, dataset.Currency)
+      ? FinancialStatementCalculator.ComputeEquityHash(equityLines, dataset.Currency,
+        request.SupplementaryInformation.EquityTransfers)
       : null;
     var noteTotals = (request.SupplementaryInformation?.NoteLines ?? [])
       .GroupBy(x => x.FaceDestinationCode.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -302,6 +304,15 @@ public static partial class FinancialStatementService
           OciAmount = MoneyPolicy.Normalize(line.OciAmount), CapitalMovementAmount = MoneyPolicy.Normalize(line.CapitalMovementAmount),
           DividendsAmount = MoneyPolicy.Normalize(line.DividendsAmount), ClosingAmount = MoneyPolicy.Normalize(line.ClosingAmount),
           Currency = package.Currency, EvidenceReference = line.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
+        });
+      foreach (var transfer in request.SupplementaryInformation.EquityTransfers ?? [])
+        typedAccounting!.FinancialPackageEquityTransfers.Add(new FinancialPackageEquityTransfer
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          TransferReference = transfer.TransferReference.Trim().ToUpperInvariant(), SourceLineCode = transfer.SourceLineCode.Trim().ToUpperInvariant(),
+          DestinationLineCode = transfer.DestinationLineCode.Trim().ToUpperInvariant(), Amount = MoneyPolicy.Normalize(transfer.Amount),
+          Currency = package.Currency, EvidenceReference = transfer.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
         });
     }
     else
@@ -605,16 +616,36 @@ public static partial class FinancialStatementService
       return "Disclosure codes must be unique in a package.";
     if (input.EquityLines is { Count: > 0 } equity)
     {
+      var transfers = input.EquityTransfers ?? [];
       if (equity.Any(x => string.IsNullOrWhiteSpace(x.LineCode) || string.IsNullOrWhiteSpace(x.Description) ||
           string.IsNullOrWhiteSpace(x.EvidenceReference) || new[] { x.OpeningAmount, x.ProfitOrLossAmount, x.OciAmount,
             x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount }.Any(y => MoneyPolicy.Normalize(y) != y)))
         return "Each equity line needs descriptions, evidence and six-decimal amounts.";
       if (equity.GroupBy(x => x.LineCode.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() != 1))
         return "Equity line codes must be unique in a package.";
+      if (transfers.Count > 100 || transfers.Any(x => string.IsNullOrWhiteSpace(x.TransferReference) || x.TransferReference.Trim().Length > 100 ||
+          string.IsNullOrWhiteSpace(x.SourceLineCode) || x.SourceLineCode.Trim().Length > 100 ||
+          string.IsNullOrWhiteSpace(x.DestinationLineCode) || x.DestinationLineCode.Trim().Length > 100 ||
+          string.Equals(x.SourceLineCode.Trim(), x.DestinationLineCode.Trim(), StringComparison.OrdinalIgnoreCase) ||
+          x.Amount <= 0m || MoneyPolicy.Normalize(x.Amount) != x.Amount ||
+          string.IsNullOrWhiteSpace(x.EvidenceReference) || x.EvidenceReference.Trim().Length > 2000))
+        return "Each equity transfer needs distinct components, a positive six-decimal amount, a unique reference and supporting evidence.";
+      if (transfers.GroupBy(x => x.TransferReference.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() != 1))
+        return "Equity transfer references must be unique in a package.";
+      var equityCodes = equity.Select(x => x.LineCode.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+      if (transfers.Any(x => !equityCodes.Contains(x.SourceLineCode.Trim()) || !equityCodes.Contains(x.DestinationLineCode.Trim())))
+        return "Each equity transfer must point to two components present in the package.";
+      var transferIn = transfers.GroupBy(x => x.DestinationLineCode.Trim(), StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(x => x.Key, x => x.Sum(y => y.Amount), StringComparer.OrdinalIgnoreCase);
+      var transferOut = transfers.GroupBy(x => x.SourceLineCode.Trim(), StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(x => x.Key, x => x.Sum(y => y.Amount), StringComparer.OrdinalIgnoreCase);
       if (equity.Any(x => MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount +
-          x.CapitalMovementAmount - x.DividendsAmount) != MoneyPolicy.Normalize(x.ClosingAmount)))
+          x.CapitalMovementAmount - x.DividendsAmount + transferIn.GetValueOrDefault(x.LineCode.Trim()) -
+          transferOut.GetValueOrDefault(x.LineCode.Trim())) != MoneyPolicy.Normalize(x.ClosingAmount)))
         return "Each equity line must reconcile opening balance, profit/loss, OCI, capital, dividends and closing balance.";
     }
+    else if (input.EquityTransfers is { Count: > 0 })
+      return "Equity transfers require source and destination equity component lines in the same package.";
     if (input.NoteLines is { Count: > 0 } notes)
     {
       if (notes.Any(x => string.IsNullOrWhiteSpace(x.NoteCode) || string.IsNullOrWhiteSpace(x.FaceDestinationCode) ||

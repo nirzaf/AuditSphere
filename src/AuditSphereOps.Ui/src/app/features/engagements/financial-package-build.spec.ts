@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  decodeBuildInputs, decodeBuildStatus, emptyBuildForm, emptyFxCashEffect, emptyEquityLine, emptyMovement, emptyNoteLine,
+  decodeBuildInputs, decodeBuildStatus, emptyBuildForm, emptyFxCashEffect, emptyEquityLine, emptyEquityTransfer, emptyMovement, emptyNoteLine,
   formatMicro, isTerminalBuildStatus, movementProjection, queueButtonLabel, scheduleBlockers, toBuildRequest, BuildForm,
 } from './financial-package-build';
 
@@ -137,6 +137,26 @@ describe('financial package build request', () => {
 });
 
 describe('equity, numeric note and FX schedules', () => {
+  it('serializes paired component transfers and blocks invalid or unpaired selections', () => {
+    const form = fullForm();
+    form.equityLines.push({ ...emptyEquityLine(), lineCode: 'RESERVE', description: 'Reserve', openingAmount: '0',
+      profitOrLossAmount: '0', ociAmount: '0', capitalMovementAmount: '0', dividendsAmount: '0', closingAmount: '10', evidenceReference: 'reserve' });
+    form.equityLines[0].closingAmount = '-10';
+    form.equityTransfers = [{ ...emptyEquityTransfer(), transferReference: ' TX-01 ', sourceLineCode: 'SHARE-CAPITAL',
+      destinationLineCode: 'RESERVE', amount: '10.000000', evidenceReference: ' signed resolution ' }];
+    const body = (toBuildRequest(form) as { body: any }).body.supplementaryInformation;
+    expect(body.equityTransfers).toEqual([{ transferReference: 'TX-01', sourceLineCode: 'SHARE-CAPITAL',
+      destinationLineCode: 'RESERVE', amount: '10.000000', evidenceReference: 'signed resolution' }]);
+
+    form.equityTransfers[0].destinationLineCode = 'SHARE-CAPITAL';
+    expect('error' in toBuildRequest(form)).toBe(true);
+    form.equityTransfers[0].destinationLineCode = 'MISSING';
+    expect('error' in toBuildRequest(form)).toBe(true);
+    form.equityTransfers[0].destinationLineCode = 'RESERVE';
+    form.equityTransfers[0].amount = '0';
+    expect('error' in toBuildRequest(form)).toBe(true);
+  });
+
   it('serializes entered rows to the server field names with exact decimal strings', () => {
     const body = (toBuildRequest(fullForm()) as { body: any }).body.supplementaryInformation;
     expect(body.equityLines).toEqual([{

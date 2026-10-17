@@ -20,6 +20,7 @@ public static class FinancialStatementPresentationPolicy
   public const int MaxCashFlowLinesPerPeriod = 100;
   public const int MaxFxEffectsPerPeriod = 100;
   public const int MaxEquityLinesPerPeriod = 35;
+  public const int MaxEquityTransfersPerPeriod = 100;
   public const int MaxNoteLinesPerPeriod = 500;
   public const int MaxDisclosuresPerPeriod = 100;
 
@@ -80,7 +81,11 @@ public sealed record PresentationFxCashEffect(string CurrencyPair, decimal Amoun
 
 public sealed record PresentationEquityMovement(
   string LineCode, string Description, decimal OpeningAmount, decimal ProfitOrLossAmount,
-  decimal OciAmount, decimal CapitalMovementAmount, decimal DividendsAmount, decimal ClosingAmount);
+  decimal OciAmount, decimal CapitalMovementAmount, decimal DividendsAmount, decimal ClosingAmount,
+  decimal TransferInAmount = 0m, decimal TransferOutAmount = 0m);
+
+public sealed record PresentationEquityTransfer(
+  string TransferReference, string SourceLineCode, string DestinationLineCode, decimal Amount, string EvidenceReference);
 
 public sealed record PresentationPackageValidation(string Code, bool Passed, string Detail);
 
@@ -92,7 +97,8 @@ public sealed record PresentationSupplementarySchedules(
   IReadOnlyList<PresentationEquityMovement> EquityLines,
   IReadOnlyList<PresentationPackageValidation>? PackageValidations = null,
   // True only when an independent reviewer approved this package's source links against the current accepted ledger.
-  bool CashFlowSourceApproved = false);
+  bool CashFlowSourceApproved = false,
+  IReadOnlyList<PresentationEquityTransfer>? EquityTransfers = null);
 
 public sealed record PresentationHeader(
   string Entity, string Framework, string Currency, string CurrentPeriodEnd, string? PriorPeriodEnd, string Reference);
@@ -185,7 +191,8 @@ public static class FinancialStatementPresentationBuilder
     if (new[] { currentSupplementary, priorSupplementary }.Where(x => x is not null).Any(x =>
         x!.CashFlowLines.Count > FinancialStatementPresentationPolicy.MaxCashFlowLinesPerPeriod ||
         x.FxCashEffects.Count > FinancialStatementPresentationPolicy.MaxFxEffectsPerPeriod ||
-        x.EquityLines.Count > FinancialStatementPresentationPolicy.MaxEquityLinesPerPeriod))
+        x.EquityLines.Count > FinancialStatementPresentationPolicy.MaxEquityLinesPerPeriod ||
+        (x.EquityTransfers?.Count ?? 0) > FinancialStatementPresentationPolicy.MaxEquityTransfersPerPeriod))
     {
       Fail("SUPPLEMENTARY_BOUNDS", "The supplementary statement schedules exceed their presentation row limits; no rows were truncated.");
       return Refuse();
@@ -598,7 +605,8 @@ public static class FinancialStatementPresentationBuilder
     else
     {
       var rollforwardPassed = currentLines.Count > 0 && currentLines.All(x =>
-        MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount + x.CapitalMovementAmount - x.DividendsAmount) ==
+        MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount + x.CapitalMovementAmount - x.DividendsAmount +
+          x.TransferInAmount - x.TransferOutAmount) ==
         MoneyPolicy.Normalize(x.ClosingAmount));
       checks.Add(new PresentationCheck("EQUITY_ROLLFORWARD", rollforwardPassed,
         rollforwardPassed ? "Each current-period equity line reconciles its opening balance and recorded movements to closing balance."
@@ -627,7 +635,8 @@ public static class FinancialStatementPresentationBuilder
       {
         var priorControl = priorBalances is null ? EquityControlTotals.Empty : EquityControlTotals.From(priorBalances);
         var priorRollforwardPassed = priorLines.Count > 0 && priorLines.All(x =>
-          MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount + x.CapitalMovementAmount - x.DividendsAmount) ==
+          MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount + x.CapitalMovementAmount - x.DividendsAmount +
+            x.TransferInAmount - x.TransferOutAmount) ==
           MoneyPolicy.Normalize(x.ClosingAmount));
         checks.Add(new PresentationCheck("EQUITY_COMPARATIVE_ROLLFORWARD", priorRollforwardPassed,
           priorRollforwardPassed ? "Each comparative equity line reconciles to closing balance."
@@ -661,12 +670,34 @@ public static class FinancialStatementPresentationBuilder
         Add("Other comprehensive income", x => x.OciAmount);
         Add("Capital movements", x => x.CapitalMovementAmount);
         Add("Dividends and distributions", x => x.DividendsAmount);
+        Add("Reserve/component transfers in", x => x.TransferInAmount);
+        Add("Reserve/component transfers out", x => -x.TransferOutAmount);
         Add("Closing balance", x => x.ClosingAmount, PresentationRowKinds.Total);
         index++;
 
         void Add(string label, Func<PresentationEquityMovement, decimal> amount, string kind = PresentationRowKinds.Line) =>
           rows.Add(new PresentationRow(kind, $"EQ_{index}_{label.Replace(' ', '_').ToUpperInvariant()}", label, 1, null,
             c is null ? null : amount(c), p is null ? null : amount(p)));
+      }
+      var transferKeys = (current?.EquityTransfers ?? []).Concat(prior?.EquityTransfers ?? [])
+        .Select(x => (Reference: Normal(x.TransferReference), Source: Normal(x.SourceLineCode), Destination: Normal(x.DestinationLineCode)))
+        .Distinct().OrderBy(x => x.Reference, StringComparer.Ordinal).ThenBy(x => x.Source, StringComparer.Ordinal)
+        .ThenBy(x => x.Destination, StringComparer.Ordinal).ToArray();
+      for (var transferIndex = 0; transferIndex < transferKeys.Length; transferIndex++)
+      {
+        var key = transferKeys[transferIndex];
+        var currentTransfer = (current?.EquityTransfers ?? []).SingleOrDefault(x => Normal(x.TransferReference) == key.Reference &&
+          Normal(x.SourceLineCode) == key.Source && Normal(x.DestinationLineCode) == key.Destination);
+        var priorTransfer = (prior?.EquityTransfers ?? []).SingleOrDefault(x => Normal(x.TransferReference) == key.Reference &&
+          Normal(x.SourceLineCode) == key.Source && Normal(x.DestinationLineCode) == key.Destination);
+        var reference = currentTransfer?.TransferReference ?? priorTransfer!.TransferReference;
+        var evidence = currentTransfer?.EvidenceReference ?? priorTransfer!.EvidenceReference;
+        rows.Add(new PresentationRow(PresentationRowKinds.Line, $"EQ_TRANSFER_{transferIndex}_OUT",
+          $"Component transfer out: {key.Source} to {key.Destination} ({reference}; evidence {evidence})",
+          0, null, currentTransfer is null ? null : -currentTransfer.Amount, priorTransfer is null ? null : -priorTransfer.Amount));
+        rows.Add(new PresentationRow(PresentationRowKinds.Line, $"EQ_TRANSFER_{transferIndex}_IN",
+          $"Component transfer in: {key.Source} to {key.Destination} ({reference}; evidence {evidence})",
+          0, null, currentTransfer?.Amount, priorTransfer?.Amount));
       }
       checks.Add(new PresentationCheck("EQUITY_SOURCE_LINEAGE", false,
         "Equity evidence references are preparer-entered text and are not resolved to accepted source records."));

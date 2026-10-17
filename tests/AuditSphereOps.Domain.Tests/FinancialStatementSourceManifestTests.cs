@@ -20,6 +20,7 @@ public sealed class FinancialStatementSourceManifestTests
   [InlineData("equity-source")]
   [InlineData("equity-sign")]
   [InlineData("equity-scope")]
+  [InlineData("equity-transfer")]
   [InlineData("opening-source")]
   [InlineData("closing-source")]
   [InlineData("cash-population")]
@@ -41,7 +42,9 @@ public sealed class FinancialStatementSourceManifestTests
       CashFlowLineId = cash.Id, GeneralLedgerLineId = Guid.NewGuid(), GeneralLedgerTransactionId = Guid.NewGuid(),
       SourceImportBatchId = Guid.NewGuid(), SourceLineHash = "source-line-hash", SignedAmount = -25m, Currency = "QAR" };
     var notes = "notes";
-    string Hash() => FinancialStatementService.ComputePresentationSourceManifestHash([package], [cash], [fx], [equity], [allocation], notes);
+    var transfers = new List<FinancialPackageEquityTransfer>();
+    string Hash() => FinancialStatementService.ComputePresentationSourceManifestHash([package], [cash], [fx], [equity], [allocation], notes,
+      equityTransfers: transfers);
     var before = Hash();
     switch (change)
     {
@@ -59,6 +62,9 @@ public sealed class FinancialStatementSourceManifestTests
       case "equity-source": equity.EvidenceReference = "replacement"; break;
       case "equity-sign": equity.ClosingAmount = 100m; break;
       case "equity-scope": equity.EngagementId = Guid.NewGuid(); break;
+      case "equity-transfer": transfers.Add(new FinancialPackageEquityTransfer { Id = Guid.NewGuid(), FinancialPackageId = package.Id,
+        TransferReference = "TR-01", SourceLineCode = "RETAINED_EARNINGS", DestinationLineCode = "RESERVE", Amount = 5m,
+        Currency = "QAR", EvidenceReference = "approved-transfer" }); break;
       case "opening-source": package.OpeningCashEvidenceReferences = ["replacement"]; break;
       case "closing-source": package.ClosingCashEvidenceReferences = ["replacement"]; break;
       case "cash-population": package.CashAccountCodes = ["1001"]; break;

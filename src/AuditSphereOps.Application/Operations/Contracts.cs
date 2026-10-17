@@ -362,6 +362,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<CurrencyRemeasurementSchedule> CurrencyRemeasurementSchedules { get; }
   DbSet<CurrencyRemeasurementItem> CurrencyRemeasurementItems { get; }
   DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines { get; }
+  DbSet<FinancialPackageEquityTransfer> FinancialPackageEquityTransfers { get; }
   DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines { get; }
   DbSet<FinancialPackageReviewDecision> FinancialPackageReviewDecisions { get; }
 }

@@ -45,6 +45,9 @@ export interface EquityLineForm {
   lineCode: string; description: string; openingAmount: string; profitOrLossAmount: string; ociAmount: string;
   capitalMovementAmount: string; dividendsAmount: string; closingAmount: string; evidenceReference: string;
 }
+export interface EquityTransferForm {
+  transferReference: string; sourceLineCode: string; destinationLineCode: string; amount: string; evidenceReference: string;
+}
 /** One numeric note line. The server calls the statement destination `faceDestinationCode`. */
 export interface NoteLineForm { noteCode: string; faceDestinationCode: string; amount: string; evidenceReference: string }
 /** One foreign-exchange effect on cash, with its evidence. */
@@ -54,7 +57,7 @@ export interface BuildForm {
   periodStart: string; periodEnd: string; cashBeginning: string; cashEnding: string; cashAccountCodes: string;
   openingEvidence: string; closingEvidence: string; comparativePackageId: string; comparativeBasis: string; comparativeEvidence: string;
   movements: MovementForm[]; disclosures: DisclosureForm[];
-  equityLines: EquityLineForm[]; noteLines: NoteLineForm[]; fxCashEffects: FxCashEffectForm[];
+  equityLines: EquityLineForm[]; equityTransfers: EquityTransferForm[]; noteLines: NoteLineForm[]; fxCashEffects: FxCashEffectForm[];
 }
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -128,7 +131,7 @@ export function emptyBuildForm(): BuildForm {
   return { mappingVersionId: '', adjustmentPlanId: '', periodId: '', framework: 'IFRS', templateVersion: '', periodStart: '', periodEnd: '',
     cashBeginning: '0', cashEnding: '0', cashAccountCodes: '', openingEvidence: '', closingEvidence: '',
     comparativePackageId: '', comparativeBasis: '', comparativeEvidence: '', movements: [], disclosures: [],
-    equityLines: [], noteLines: [], fxCashEffects: [] };
+    equityLines: [], equityTransfers: [], noteLines: [], fxCashEffects: [] };
 }
 
 export function emptyMovement(): MovementForm {
@@ -139,6 +142,10 @@ export function emptyMovement(): MovementForm {
 export function emptyEquityLine(): EquityLineForm {
   return { lineCode: '', description: '', openingAmount: '', profitOrLossAmount: '', ociAmount: '', capitalMovementAmount: '',
     dividendsAmount: '', closingAmount: '', evidenceReference: '' };
+}
+
+export function emptyEquityTransfer(): EquityTransferForm {
+  return { transferReference: '', sourceLineCode: '', destinationLineCode: '', amount: '', evidenceReference: '' };
 }
 
 export function emptyNoteLine(): NoteLineForm {
@@ -202,6 +209,24 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
     }
     if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
   }
+  if (form.equityTransfers.length && !form.equityLines.length)
+    return { error: 'Add the source and destination equity component lines before recording a transfer.' };
+  const transferReferences = new Set<string>();
+  for (const [index, row] of form.equityTransfers.entries()) {
+    const at = `Equity transfer ${index + 1}`;
+    const reference = row.transferReference.trim().toUpperCase();
+    const source = row.sourceLineCode.trim().toUpperCase();
+    const destination = row.destinationLineCode.trim().toUpperCase();
+    if (!reference || reference.length > 100) return { error: `${at}: enter a reference of up to 100 characters.` };
+    if (transferReferences.has(reference)) return { error: `${at}: transfer references must be unique.` };
+    transferReferences.add(reference);
+    if (!source || !destination || source === destination || !equityCodes.has(source) || !equityCodes.has(destination))
+      return { error: `${at}: choose two different equity components entered above.` };
+    if (!AMOUNT.test(row.amount) || row.amount.startsWith('-') || !/[1-9]/.test(row.amount))
+      return { error: `${at}: enter a positive amount with at most six decimals.` };
+    if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000)
+      return { error: `${at}: enter an evidence reference.` };
+  }
   const noteIdentities = new Set<string>();
   for (const [index, row] of form.noteLines.entries()) {
     const at = `Note line ${index + 1}`;
@@ -244,6 +269,11 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
           lineCode: row.lineCode.trim(), description: row.description.trim(), openingAmount: row.openingAmount,
           profitOrLossAmount: row.profitOrLossAmount, ociAmount: row.ociAmount, capitalMovementAmount: row.capitalMovementAmount,
           dividendsAmount: row.dividendsAmount, closingAmount: row.closingAmount, evidenceReference: row.evidenceReference.trim(),
+        })) : null,
+        equityTransfers: form.equityTransfers.length ? form.equityTransfers.map((row) => ({
+          transferReference: row.transferReference.trim(), sourceLineCode: row.sourceLineCode.trim(),
+          destinationLineCode: row.destinationLineCode.trim(), amount: row.amount,
+          evidenceReference: row.evidenceReference.trim(),
         })) : null,
         noteLines: form.noteLines.length ? form.noteLines.map((row) => ({
           noteCode: row.noteCode.trim(), faceDestinationCode: row.faceDestinationCode.trim(), amount: row.amount,
@@ -412,6 +442,21 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
         }
         <button matButton="outlined" type="button" (click)="form.equityLines.push(newEquityLine())">Add equity line</button>
 
+        <h3>Reserve and component transfers</h3>
+        <p><small>Each transfer is a paired, zero-sum movement between the components above; it does not create income or expense. Add the transfer to both component rollforwards and cite its supporting evidence.</small></p>
+        @for (row of form.equityTransfers; track $index; let i = $index) {
+          <fieldset class="movement">
+            <legend>Equity transfer {{ i + 1 }}</legend>
+            <label>Transfer reference <input [name]="'eqTransferRef' + i" [(ngModel)]="row.transferReference" maxlength="100" /></label>
+            <label>From component <select [name]="'eqTransferSource' + i" [(ngModel)]="row.sourceLineCode"><option value="">Choose component</option>@for (component of form.equityLines; track $index) { <option [value]="component.lineCode">{{ component.lineCode || 'Uncoded component' }}</option> }</select></label>
+            <label>To component <select [name]="'eqTransferDestination' + i" [(ngModel)]="row.destinationLineCode"><option value="">Choose component</option>@for (component of form.equityLines; track $index) { <option [value]="component.lineCode">{{ component.lineCode || 'Uncoded component' }}</option> }</select></label>
+            <label>Transfer amount <input [name]="'eqTransferAmount' + i" [(ngModel)]="row.amount" inputmode="decimal" /></label>
+            <label>Transfer evidence reference <input [name]="'eqTransferEvidence' + i" [(ngModel)]="row.evidenceReference" maxlength="2000" /></label>
+            <button matButton type="button" (click)="form.equityTransfers.splice(i, 1)">Remove equity transfer {{ i + 1 }}</button>
+          </fieldset>
+        }
+        <button matButton="outlined" type="button" (click)="form.equityTransfers.push(newEquityTransfer())">Add reserve/component transfer</button>
+
         <h2>Numeric note lines</h2>
         <p><small>Each note amount must cross-cast to the statement face destination it feeds. Enter the face destination code exactly as the approved mapping defines it.</small></p>
         @for (row of form.noteLines; track $index; let i = $index) {
@@ -551,6 +596,7 @@ export class FinancialPackageBuild {
   projection(m: MovementForm): string | null { return movementProjection(m); }
   newDisclosure(): DisclosureForm { return { code: '', response: '', notApplicable: false, rationale: '' }; }
   newEquityLine(): EquityLineForm { return emptyEquityLine(); }
+  newEquityTransfer(): EquityTransferForm { return emptyEquityTransfer(); }
   newNoteLine(): NoteLineForm { return emptyNoteLine(); }
   newFxCashEffect(): FxCashEffectForm { return emptyFxCashEffect(); }
 

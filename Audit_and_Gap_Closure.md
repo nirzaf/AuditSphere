@@ -690,10 +690,12 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 **Evidence / reuse map:** [R15] [R16] [R20].
 
+**Implementation update (2026-10-17):** CP-13.AC-04 now has explicit package support for paired reserve/component transfers. A transfer identifies its source and destination equity codes, unique reference, positive six-decimal amount and evidence reference. Server validation requires both equity lines, applies the same amount as source outflow and destination inflow in both component rollforwards, and prevents transfer data from entering profit/loss or OCI. Transfers are persisted append-only, included in package and presentation source hashes, and shown as linked rows in the equity statement and package artifact. The build form accepts these rows. CP-13 remains **PARTIAL**: this records preparer-supplied evidence and package-level review binding; it does not resolve evidence references to accepted source records, supply independent reserve-policy approval, or close profit convention, distributions, opening lineage or explicit no-movement assessments.
+
 ### Remaining implementation
 
 1. Reuse existing equity lines and signed current/prior checks. Add exact opening/source/movement/review references where absent; do not reintroduce absolute-value comparisons.
-2. Support required share capital, retained earnings, reserves and owner/partner current-account components with signed balances. Model distributions, contributions, OCI, reserve transfers and approved prior-period adjustments explicitly.
+2. Support required share capital, retained earnings, reserves and owner/partner current-account components with signed balances. Model distributions, contributions, OCI, reserve transfers (paired transfer rows now supported; independent policy approval remains open) and approved prior-period adjustments explicitly.
 3. Prove opening-to-closing continuity per component and total. Transfer pairs conserve total equity. A distribution cannot be silently missing, and a negative component cannot be turned into a positive magnitude.
 4. Bind pre-closing or post-closing source convention so profit is transferred exactly once. A source already closed to retained earnings must still supply the approved period-result basis for the statement; it cannot be treated as a zero-result year.
 5. Complete independently reviewed evidence for owner/reserve decisions and explicit no-OCI/no-movement assessments. Add usable component/movement matrix selection to the build/report form and all selected export formats.

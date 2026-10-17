@@ -400,6 +400,35 @@ public sealed class FinancialStatementPresentationTests
     Assert.Equal(2687078m, presentation.Statements.Single(x => x.Code == "CHANGES_IN_EQUITY").Rows.Single(x => x.Label == "Closing balance").Prior);
   }
 
+  [Fact]
+  public void EquityComponentTransfer_PresentsLinkedZeroSumRows_AndReconcilesBothComponents()
+  {
+    var current = new PresentationSupplementarySchedules(
+      58372m, 1090993m,
+      [new("OPERATING", "Net operating cash", 1200000m, false, "OPERATING"),
+       new("INVESTING", "Investment payments", -200000m, false, "INVESTING"),
+       new("FINANCING", "New borrowing", 32621m, false, "FINANCING")],
+      [new("USD/QAR", 0m)],
+      [new("RETAINED_EARNINGS", "Retained earnings", 979299m, 3818172m, 0m, 0m, 0m, 4797446m, TransferOutAmount: 25m),
+       new("GENERAL_RESERVE", "General reserve", 0m, 0m, 0m, 0m, 0m, 25m, TransferInAmount: 25m)],
+      [new("CASH_FLOW_RECONCILED", true, "Cash reconciles.")],
+      EquityTransfers: [new("TR-01", "RETAINED_EARNINGS", "GENERAL_RESERVE", 25m, "approved-resolution-17")]);
+
+    var result = FinancialStatementPresentationBuilder.Build(Layout(), Current(), null, Notes(), Header(withPrior: false), Manifest(withPrior: false),
+      currentSupplementary: current, priorSupplementary: null);
+    Assert.True(result.Succeeded, result.Message);
+    var presentation = result.Value!;
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_ROLLFORWARD" && x.Passed);
+    Assert.Contains(presentation.Checks, x => x.Code == "EQUITY_SFP_CROSS_CAST" && x.Passed);
+    var transfers = presentation.Statements.Single(x => x.Code == "CHANGES_IN_EQUITY").Rows
+      .Where(x => x.Code.StartsWith("EQ_TRANSFER_", StringComparison.Ordinal)).ToArray();
+    Assert.Equal(2, transfers.Length);
+    Assert.Equal(-25m, transfers.Single(x => x.Code.EndsWith("_OUT", StringComparison.Ordinal)).Current);
+    Assert.Equal(25m, transfers.Single(x => x.Code.EndsWith("_IN", StringComparison.Ordinal)).Current);
+    Assert.All(transfers, x => Assert.Contains("approved-resolution-17", x.Label, StringComparison.Ordinal));
+    Assert.All(transfers, x => Assert.Null(x.NoteReference));
+  }
+
   [Theory]
   [InlineData(false, false)]
   [InlineData(false, true)]

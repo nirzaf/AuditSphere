@@ -110,13 +110,14 @@ blocked when the client generation changes; journal risk is deterministic, never
 
 - Persistence: `AuditSphereDbContext.FinancialStatements.cs`
 
-- UI: `Mapping.razor`, `FinancialPackage.razor`, `FinancialPackageReviews.razor`, `ClientFinancialPackage.razor`, `Release.razor`
+- UI: Angular financial package build in `Ui/src/app/features/engagements/financial-package-build.ts`; statement preview/export in `features/accounting/presentation.ts`; legacy reference screens are `Mapping.razor`, `FinancialPackage.razor`, `FinancialPackageReviews.razor`, `ClientFinancialPackage.razor`, `Release.razor`
 
 - Tests: `ClientAccountingTests.FinancialPackages.cs`
 
 Critical invariants: mapping allocations are append-only; review decisions are stage-bound and
 
 immutable; artifacts are exact-byte sealed; release candidates bind the current reviewed package.
+Equity component transfers are paired, zero-sum package inputs, recorded in `FinancialPackageEquityTransfer`, included in package/presentation hashes and rendered as linked outflow/inflow rows.
 
 A signing candidate is created only when every presentation check passes, with note, disclosure and equity
 content approved by an independent content review of the exact draft snapshot. Formal decisions carry an

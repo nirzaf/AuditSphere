@@ -309,9 +309,11 @@ public sealed class FinancialStatementTests
           SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash and cash equivalents are presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-schedule-1")],
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 90m, "equity-schedule-1"),
+         new EquityLineInput("RESERVE", "General reserve", 0m, 0m, 0m, 0m, 0m, 10m, "reserve-schedule-1")],
         NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-schedule-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-template-v2"], ClosingCashEvidenceReferences: ["closing-cash-template-v2"])
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-template-v2"], ClosingCashEvidenceReferences: ["closing-cash-template-v2"],
+        EquityTransfers: [new EquityComponentTransferInput("TRANSFER-001", "RETAINED_EARNINGS", "RESERVE", 10m, "reserve-transfer-approval")])
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -321,7 +323,12 @@ public sealed class FinancialStatementTests
       Assert.NotEqual(first.CalculationHash, complete.Value.CalculationHash);
       Assert.Equal(1, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
       Assert.Equal(2, await db.FinancialPackageDisclosures.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
-      Assert.Equal(1, await db.FinancialPackageEquityLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      Assert.Equal(2, await db.FinancialPackageEquityLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      var transfer = await db.FinancialPackageEquityTransfers.SingleAsync(x => x.FinancialPackageId == complete.Value.PackageId);
+      Assert.Equal("RETAINED_EARNINGS", transfer.SourceLineCode);
+      Assert.Equal("RESERVE", transfer.DestinationLineCode);
+      Assert.Equal(10m, transfer.Amount);
+      Assert.Equal("reserve-transfer-approval", transfer.EvidenceReference);
       Assert.Equal(1, await db.FinancialPackageNoteLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
       var historicalPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == first.PackageId);
       Assert.Equal(request.TemplateVersion, historicalPackage.TemplateVersion);
@@ -344,9 +351,23 @@ public sealed class FinancialStatementTests
       var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE financial_package_cash_flow_lines SET amount = amount + 1 WHERE id = {cashFlowLineId}"));
-      var equityLineId = await db.FinancialPackageEquityLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
+      var equityLineId = await db.FinancialPackageEquityLines.Where(x => x.FinancialPackageId == complete.Value.PackageId && x.LineCode == "RETAINED_EARNINGS")
+        .Select(x => x.Id).SingleAsync();
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE financial_package_equity_lines SET closing_amount = closing_amount + 1 WHERE id = {equityLineId}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE financial_package_equity_transfers SET amount = amount + 1 WHERE id = {transfer.Id}"));
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var invalidTransfer = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer,
+        completeRequest with { TemplateVersion = "template-v4", SupplementaryInformation = completeRequest.SupplementaryInformation! with
+        {
+          EquityTransfers = [new EquityComponentTransferInput("TRANSFER-BAD", "UNKNOWN", "RESERVE", 10m, "approval")]
+        } });
+      Assert.False(invalidTransfer.Succeeded);
+      Assert.Equal("package.supplementary.invalid", invalidTransfer.ErrorCode);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

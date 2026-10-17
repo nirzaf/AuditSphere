@@ -299,6 +299,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines => Set<FinancialPackageEquityLine>();
 
+  public DbSet<FinancialPackageEquityTransfer> FinancialPackageEquityTransfers => Set<FinancialPackageEquityTransfer>();
+
   public DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines => Set<FinancialPackageNoteLine>();
 
   public DbSet<FinancialPackageReviewDecision> FinancialPackageReviewDecisions => Set<FinancialPackageReviewDecision>();

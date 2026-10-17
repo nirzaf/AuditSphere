@@ -670,6 +670,23 @@ public sealed class FinancialPackageEquityLine
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Immutable identity of one paired, zero-sum transfer between two equity components in a package.</summary>
+public sealed class FinancialPackageEquityTransfer
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string TransferReference { get; set; } = string.Empty;
+  public string SourceLineCode { get; set; } = string.Empty;
+  public string DestinationLineCode { get; set; } = string.Empty;
+  public decimal Amount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 /// <summary>Structured note amount used for note-to-face cross-casts.</summary>
 public sealed class FinancialPackageNoteLine
 {

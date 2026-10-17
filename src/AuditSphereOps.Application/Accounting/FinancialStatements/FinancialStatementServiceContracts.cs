@@ -46,7 +46,8 @@ public sealed record FinancialSupplementaryInformation(
   IReadOnlyList<FxCashEffectInput>? FxCashEffects = null,
   IReadOnlyList<string>? CashAccountCodes = null,
   IReadOnlyList<string>? OpeningCashEvidenceReferences = null,
-  IReadOnlyList<string>? ClosingCashEvidenceReferences = null);
+  IReadOnlyList<string>? ClosingCashEvidenceReferences = null,
+  IReadOnlyList<EquityComponentTransferInput>? EquityTransfers = null);
 
 /// <summary>
 /// One manually prepared cash-flow movement. Activity and evidence are recorded verbatim as preparer inputs;
@@ -87,6 +88,14 @@ public sealed record EquityLineInput(
   decimal CapitalMovementAmount,
   decimal DividendsAmount,
   decimal ClosingAmount,
+  string EvidenceReference);
+
+/// <summary>A zero-sum transfer between two equity components, bound to its supporting evidence reference.</summary>
+public sealed record EquityComponentTransferInput(
+  string TransferReference,
+  string SourceLineCode,
+  string DestinationLineCode,
+  decimal Amount,
   string EvidenceReference);
 
 public sealed record FinancialComparativeInput(Guid PackageId, string Basis, string EvidenceReference);

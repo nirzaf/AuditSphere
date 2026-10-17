@@ -521,6 +521,22 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var equityTransfer = b.Entity<FinancialPackageEquityTransfer>();
+    equityTransfer.Property(x => x.TransferReference).HasMaxLength(100);
+    equityTransfer.Property(x => x.SourceLineCode).HasMaxLength(100);
+    equityTransfer.Property(x => x.DestinationLineCode).HasMaxLength(100);
+    equityTransfer.Property(x => x.Amount).HasPrecision(19, 6);
+    equityTransfer.Property(x => x.Currency).HasMaxLength(3);
+    equityTransfer.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    equityTransfer.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.TransferReference })
+      .IsUnique().HasDatabaseName("ux_financial_package_equity_transfer_reference");
+    equityTransfer.ToTable("financial_package_equity_transfers", t => t.HasCheckConstraint("ck_financial_package_equity_transfer_values",
+      "length(trim(transfer_reference)) > 0 AND length(trim(source_line_code)) > 0 AND length(trim(destination_line_code)) > 0 " +
+      "AND lower(source_line_code) <> lower(destination_line_code) AND amount > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0"));
+    equityTransfer.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var noteLine = b.Entity<FinancialPackageNoteLine>();
     noteLine.Property(x => x.NoteCode).HasMaxLength(100);
     noteLine.Property(x => x.FaceDestinationCode).HasMaxLength(100);

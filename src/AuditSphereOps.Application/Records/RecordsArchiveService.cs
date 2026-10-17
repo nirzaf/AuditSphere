@@ -658,6 +658,9 @@ public static class RecordsArchiveService
     var equityLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityLines.AsNoTracking()
       .Where(x => packageIds.Contains(x.FinancialPackageId)).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.FinancialPackageId, x.LineCode, x.Description, x.OpeningAmount, x.ProfitOrLossAmount, x.OciAmount, x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
+    var equityTransfers = typedAccounting is null ? [] : await typedAccounting.FinancialPackageEquityTransfers.AsNoTracking()
+      .Where(x => packageIds.Contains(x.FinancialPackageId)).OrderBy(x => x.Id)
+      .Select(x => new { x.Id, x.FinancialPackageId, x.TransferReference, x.SourceLineCode, x.DestinationLineCode, x.Amount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
     var noteLines = typedAccounting is null ? [] : await typedAccounting.FinancialPackageNoteLines.AsNoTracking()
       .Where(x => packageIds.Contains(x.FinancialPackageId)).OrderBy(x => x.Id)
       .Select(x => new { x.Id, x.FinancialPackageId, x.NoteCode, x.FaceDestinationCode, x.Amount, x.Currency, x.EvidenceReference, x.CreatedAt }).ToListAsync(ct);
@@ -937,6 +940,7 @@ public static class RecordsArchiveService
         cashFlowLines,
         disclosures,
         equityLines,
+        equityTransfers,
         noteLines,
         clientGroups,
         groupMemberships,
