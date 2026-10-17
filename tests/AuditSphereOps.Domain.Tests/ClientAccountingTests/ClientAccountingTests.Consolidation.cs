@@ -253,6 +253,19 @@ public sealed partial class ClientAccountingTests
         Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id,
         Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
       });
+      var clientBPartnerGrant = new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = scope.Partner.Id, Role = "Partner",
+        ClientId = scope.ClientB, EngagementId = scope.EngagementB, GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = scope.Reviewer.Id, Reason = "Synthetic Engagement Partner fixture for client B"
+      };
+      db.RoleGrants.Add(clientBPartnerGrant);
+      db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientB, EngagementId = scope.EngagementB,
+        UserId = scope.Partner.Id, StaffingLevel = StaffingLevels.EngagementPartner,
+        RoleGrantId = clientBPartnerGrant.Id, AssignedByUserId = scope.Reviewer.Id, AssignedAt = DateTimeOffset.UtcNow
+      });
       db.Users.Add(groupViewer);
       db.GroupAccessGrants.Add(new GroupAccessGrant
       {

@@ -11,7 +11,7 @@ namespace AuditSphereOps.Application.Accounting;
 
 public sealed record ReconciliationItemReview(Guid Id, string StableItemId, string SignedAmount, string Currency,
   DateOnly? ItemDate, string Reason, string EvidenceReference, string Disposition, string DateBasis,
-  string AgingBucket, bool IsCredit, DateOnly? SettlementDate, string SettlementReference);
+  string AgingBucket, bool IsCredit, DateOnly? SettlementDate, string SettlementReference, Guid? LinkedJournalId, long? LinkedJournalRevision);
 public sealed record ReconciliationProofReview(Guid Id, string FormulaVersion, string SourceTotal, string GlTotal,
   string ItemsSignedTotal, string Residual, bool IsReconciled, int ItemCount, string? ItemManifestDigest,
   string? SourceHash, long InputGeneration, Guid CreatedByUserId, DateTimeOffset CreatedAt, bool MatchesCurrentInputs);
@@ -102,13 +102,20 @@ public static class ReconciliationWorkspaceQuery
       x.EngagementId == r.EngagementId && x.ReconciliationId == r.Id).OrderBy(x => x.Id).Take(MaximumItems + 1).ToListAsync(ct);
     if (allItems.Count > MaximumItems)
       return CommandResult<ReconciliationReview>.Fail(ErrorCodes.GateBlocked, "The complete item set exceeds the supported inspection bound. No partial proof is shown.");
-    var manifest = AccountingAnalysisService.ComputeReconciliationItemManifestDigest(allItems.Select(x => (x.Id, MoneyPolicy.Normalize(x.SignedAmount))));
+    var manifest = AccountingAnalysisService.ComputeReconciliationItemManifestDigest(allItems.Select(x =>
+      (x.Id, MoneyPolicy.Normalize(x.SignedAmount), x.LinkedJournalId, x.LinkedJournalRevision)));
+    var linkedIds = allItems.Where(x => x.LinkedJournalId.HasValue).Select(x => x.LinkedJournalId!.Value).Distinct().ToArray();
+    var linkedRevisions = await db.AdjustmentJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == r.ClientId && x.EngagementId == r.EngagementId && linkedIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.Revision, ct);
+    var linkedJournalsCurrent = allItems.All(x => !x.LinkedJournalId.HasValue ||
+      linkedRevisions.TryGetValue(x.LinkedJournalId.Value, out var revision) && revision == x.LinkedJournalRevision);
     var proof = await db.AccountingReconciliationProofs.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == r.ClientId &&
       x.EngagementId == r.EngagementId && x.ReconciliationId == r.Id).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     var currentItemsTotal = MoneyPolicy.Normalize(allItems.Sum(x => x.SignedAmount));
     var proofCurrent = proof is not null && proof.FormulaVersion == AccountingAnalysisService.ReconciliationProofFormulaVersion &&
       sourceAvailable && Digest(r.SourceHash) == currentHash && generation == r.InputGeneration &&
-      proof.ItemManifestDigest == manifest && proof.ItemCount == allItems.Count && proof.SourceHash == r.SourceHash &&
+      proof.ItemManifestDigest == manifest && linkedJournalsCurrent && proof.ItemCount == allItems.Count && proof.SourceHash == r.SourceHash &&
       proof.InputGeneration == r.InputGeneration && proof.SourceTotal == r.SourceTotal && proof.GlTotal == r.GlTotal && proof.Residual == r.Residual &&
       proof.ItemsSignedTotal == currentItemsTotal && proof.Residual == MoneyPolicy.Normalize(r.GlTotal - r.SourceTotal - currentItemsTotal) &&
       proof.IsReconciled == (proof.Residual == 0m);
@@ -118,6 +125,7 @@ public static class ReconciliationWorkspaceQuery
     if (recordedHash is null || currentHash != recordedHash) blockers.Add("The retained source digest differs from the current exact source. Prepare new source-bound evidence.");
     if (generation is null || generation != r.InputGeneration) blockers.Add("The client input generation changed or is unavailable. Retained approval cannot be reused.");
     if (!proofCurrent) blockers.Add("A retained proof of the complete current item set and source is required. Historical amounts are not current proof.");
+    if (!linkedJournalsCurrent) blockers.Add("A linked correction journal changed revision or is unavailable; refresh the link and recalculate proof.");
     if (proof is not null && !proof.IsReconciled) blockers.Add("The retained proof has an unexplained residual.");
     if (r.Status == "STALE") blockers.Add("This reconciliation is explicitly stale.");
     if (allItems.Any(x => x.Currency != period.Currency || x.ItemDate > r.AsOfDate))
@@ -125,9 +133,10 @@ public static class ReconciliationWorkspaceQuery
     if (r.Status == "APPROVED" && (r.ReviewedByUserId is null || r.ReviewedAt is null || r.ReviewedByUserId == r.CreatedByUserId))
       blockers.Add("An independent retained approval is unavailable.");
     var stale = !sourceAvailable || recordedHash is null || currentHash != recordedHash || generation is null || generation != r.InputGeneration ||
-      r.Status == "STALE" || proof is not null && !proofCurrent;
+      r.Status == "STALE" || !linkedJournalsCurrent || proof is not null && !proofCurrent;
     var rows = allItems.Skip(page * PageSize).Take(PageSize).Select(x => new ReconciliationItemReview(x.Id, x.StableItemId, Exact(x.SignedAmount), x.Currency,
-      x.ItemDate, x.Reason, x.EvidenceReference, x.Disposition, x.DateBasis, x.AgingBucket, x.IsCredit, x.SettlementDate, x.SettlementReference)).ToArray();
+      x.ItemDate, x.Reason, x.EvidenceReference, x.Disposition, x.DateBasis, x.AgingBucket, x.IsCredit, x.SettlementDate,
+      x.SettlementReference, x.LinkedJournalId, x.LinkedJournalRevision)).ToArray();
     var retainedProof = proof is null ? null : new ReconciliationProofReview(proof.Id, proof.FormulaVersion, Exact(proof.SourceTotal), Exact(proof.GlTotal),
       Exact(proof.ItemsSignedTotal), Exact(proof.Residual), proof.IsReconciled, proof.ItemCount, Digest(proof.ItemManifestDigest), Digest(proof.SourceHash),
       proof.InputGeneration, proof.CreatedByUserId, proof.CreatedAt, proofCurrent);

@@ -289,16 +289,21 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines => Set<FinancialPackageCashFlowLine>();
   public DbSet<FinancialPackageCashFlowAllocation> FinancialPackageCashFlowAllocations => Set<FinancialPackageCashFlowAllocation>();
+  public DbSet<FinancialPackageCashFlowScheduleAllocation> FinancialPackageCashFlowScheduleAllocations => Set<FinancialPackageCashFlowScheduleAllocation>();
+  public DbSet<FinancialPackageCashFlowMembershipSeal> FinancialPackageCashFlowMembershipSeals => Set<FinancialPackageCashFlowMembershipSeal>();
   public DbSet<FinancialPackageCashFlowSourceReview> FinancialPackageCashFlowSourceReviews => Set<FinancialPackageCashFlowSourceReview>();
   public DbSet<FinancialStatementContentReview> FinancialStatementContentReviews => Set<FinancialStatementContentReview>();
 
   public DbSet<FinancialPackageFxEffect> FinancialPackageFxEffects => Set<FinancialPackageFxEffect>();
+  public DbSet<FinancialPackageFxAssessment> FinancialPackageFxAssessments => Set<FinancialPackageFxAssessment>();
 
   public DbSet<FinancialPackageSeal> FinancialPackageSeals => Set<FinancialPackageSeal>();
 
   public DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures => Set<FinancialPackageDisclosure>();
 
   public DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines => Set<FinancialPackageEquityLine>();
+
+  public DbSet<FinancialPackageEquityTransfer> FinancialPackageEquityTransfers => Set<FinancialPackageEquityTransfer>();
 
   public DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines => Set<FinancialPackageNoteLine>();
 

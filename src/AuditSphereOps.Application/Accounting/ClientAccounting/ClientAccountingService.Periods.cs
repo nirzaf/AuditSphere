@@ -161,6 +161,17 @@ public static partial class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The reporting period is already closed.");
     if (string.IsNullOrWhiteSpace(reason))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "A close decision needs a reason.");
+    var openingBridge = await db.OpeningBalanceBridges.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
+        x.CurrentPeriodId == period.Id, ct);
+    if (period.PriorPeriodId.HasValue &&
+        (openingBridge is null || openingBridge.PriorPeriodId != period.PriorPeriodId.Value))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A reviewed opening balance bridge for the linked prior period is required before close.");
+    if (openingBridge is not null &&
+        (openingBridge.Status != AccountingWorkflowStates.Approved || openingBridge.ApprovedByUserId is null || openingBridge.ApprovedAt is null))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "The opening balance bridge must be approved by a reviewer before period close.");
     if (await db.ClientOperationalJournals.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
       x.PeriodId == period.Id && x.Status != "POSTED", ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Unposted native client journals block period close.");

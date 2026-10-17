@@ -2,6 +2,8 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -652,9 +654,19 @@ public sealed class AngularFinancialArtifactParityJourneyTests
       periodId = package.PeriodId ?? throw new InvalidOperationException("The synthetic package has no reporting period.");
       packageRevision = package.Revision;
       packageHash = package.CalculationHash;
+      var assignedPartnerGrant = PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Admin, "Partner",
+        host.Fixture.ClientId, host.Fixture.EngagementId);
       db.RoleGrants.AddRange(
         PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Admin, "Partner", host.Fixture.ClientId),
-        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "Partner", host.Fixture.ClientId));
+        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "Partner", host.Fixture.ClientId),
+        assignedPartnerGrant);
+      db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+      {
+        Id = Guid.CreateVersion7(), FirmId = host.Fixture.FirmId, ClientId = host.Fixture.ClientId,
+        EngagementId = host.Fixture.EngagementId, UserId = host.Fixture.Admin.Id,
+        StaffingLevel = StaffingLevels.EngagementPartner, RoleGrantId = assignedPartnerGrant.Id,
+        AssignedByUserId = host.Fixture.Admin.Id, AssignedAt = DateTimeOffset.UtcNow
+      });
       await db.SaveChangesAsync();
     }
 

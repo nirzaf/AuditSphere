@@ -2,7 +2,7 @@
 id: "T025"
 work_package: "R2R-07"
 modules: [23]
-status: "NOT_STARTED"
+status: "BLOCKED"
 depends_on: ["T024"]
 owner: ""
 reviewer: ""
@@ -10,16 +10,16 @@ review_decision: ""
 reviewed_commit: ""
 evidence_ref: ""
 approval_ref: ""
-blocked_reason: ""
+blocked_reason: "Hard dependency T024 is NOT_STARTED. A safe correction-journal link/proof revision slice is implemented, but schedule contracts, correction eligibility/reflection treatment and the complete proof workflow are not complete."
 branch: ""
 issue_pr: ""
-updated_at: ""
+updated_at: "2026-10-17"
 ---
 # T025 — Implement reconciliation proof and correction-journal handoff
 
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Original work-package order](../../reference/auditsphere-r2r-reference-execution-coordination-and-handover.md#section-6-1)
 
-**Status scope:** NOT_STARTED means this new task has not been assessed/executed under this breakdown. It does not assert that its underlying code is absent. First inspect and reuse the current implementation. No current repository progress has been imported.
+**Status scope:** BLOCKED / PARTIAL. A focused correction-journal identity/revision handoff and proof-v2 binding are implemented. The hard dependency T024 remains NOT_STARTED, so this task cannot close. Correction eligibility/reflection treatment, raw-versus-adjusted proof rules, complete source/item revision fencing, and the full proof panel remain open. The earlier Blazor UI section is superseded by ADR-0002: implement any future UI work in Angular.
 
 ## Outcome
 
@@ -140,11 +140,11 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 | Field | Value to record |
 |---|---|
-| Inspected baseline and reused symbols | Not recorded |
-| Code commit / schema / deployed build if applicable | Not recorded |
-| Requirement → assertion → command/run → observed result | Not recorded |
+| Inspected baseline and reused symbols | `AccountingAnalysisService.LinkReconciliationCorrectionAsync`, reconciliation proof/workspace, `AdjustmentJournal`, `AccountingReconciliationItem`; commit `2873144a` |
+| Code commit / schema / deployed build if applicable | `2873144a`; generated migration `20261017083726_ReconciliationCorrectionJournalLink`; migration not applied |
+| Requirement → assertion → command/run → observed result | `ReconciliationProof_CalculatesResidualAndLinksCorrectionJournal`: PASS 1/1; verifies scope/purpose/account denial, idempotent exact journal+revision link, no settlement mutation and changed-revision staleness. API Release build 0 warnings/errors; Angular reconciliation spec 5/5; EF model drift and OpenAPI drift pass. Full suites not run locally. |
 | Policy / scope approval reference | Not recorded |
-| Known limitations / exact blocker | Not recorded |
+| Known limitations / exact blocker | T024 remains NOT_STARTED. No approved correction-inclusion policy, complete raw/adjusted proof semantics or full schedule contract. Migration is generated only; no persistent database was migrated. |
 | Exported contract / manifest / artifact references for consumers | Not recorded |
 | Reviewer and acceptance decision | Not recorded |
 

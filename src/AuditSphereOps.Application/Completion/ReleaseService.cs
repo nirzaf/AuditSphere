@@ -80,8 +80,7 @@ public static class ReleaseService
     auth = await AuthorizeAsync(db, actor, current, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    if (current.Revision != request.ExpectedTargetRevision ||
-        (current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != client.InputGeneration))
+    if (current.Revision != request.ExpectedTargetRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The release target changed; reload the candidate.");
     if (client.InputGeneration != request.ExpectedInputGeneration ||
         firm.PolicyGeneration != request.ExpectedPolicyGeneration)
@@ -102,10 +101,11 @@ public static class ReleaseService
     var existing = await db.ReleaseCandidates.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.TargetKind == current.Kind && x.TargetId == current.Id &&
       x.TargetRevision == current.Revision && x.ManifestDigest == request.ManifestDigest, ct);
+    var targetGeneration = current.Kind == ReleaseTargetKinds.FinancialPackage ? current.Generation : client.InputGeneration;
     if (existing is not null)
     {
       return existing.ApprovalId == approval.Id && existing.ClientId == current.ClientId &&
-             existing.EngagementId == current.EngagementId && existing.InputGeneration == client.InputGeneration &&
+             existing.EngagementId == current.EngagementId && existing.InputGeneration == targetGeneration &&
              existing.PolicyGeneration == firm.PolicyGeneration
         ? await CommitExistingAsync(tx, existing.Id, ct)
         : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The candidate identity is already bound to different approval evidence.");
@@ -115,7 +115,7 @@ public static class ReleaseService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = current.ClientId,
       EngagementId = current.EngagementId, TargetKind = current.Kind, TargetId = current.Id, TargetRevision = current.Revision,
-      InputGeneration = client.InputGeneration, PolicyGeneration = firm.PolicyGeneration,
+      InputGeneration = targetGeneration, PolicyGeneration = firm.PolicyGeneration,
       ApprovalId = approval.Id, ManifestDigest = request.ManifestDigest,
       CreatedAt = DateTimeOffset.UtcNow
     };
@@ -243,7 +243,8 @@ public static class ReleaseService
     if (current.Revision != candidate.TargetRevision ||
         (current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != candidate.InputGeneration))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The release target changed; re-review is required.");
-    if (client.InputGeneration != candidate.InputGeneration || firm.PolicyGeneration != candidate.PolicyGeneration)
+    if ((current.Kind != ReleaseTargetKinds.FinancialPackage && client.InputGeneration != candidate.InputGeneration) ||
+        firm.PolicyGeneration != candidate.PolicyGeneration)
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "Release inputs or policy changed; re-review is required.");
 
     if (current.Kind == ReleaseTargetKinds.FinancialPackage)
@@ -448,7 +449,9 @@ public static class ReleaseService
       return (ErrorCodes.ScopeDenied, "Access denied.");
     if (approval.TargetRevision != request.ExpectedTargetRevision)
       return (ErrorCodes.StaleRevision, "The approval is for a different target revision.");
-    if (approval.InputGeneration != request.ExpectedInputGeneration ||
+    if ((target.Kind == ReleaseTargetKinds.FinancialPackage
+          ? approval.InputGeneration != target.Generation
+          : approval.InputGeneration != request.ExpectedInputGeneration) ||
         approval.PolicyGeneration != request.ExpectedPolicyGeneration)
       return (ErrorCodes.GenerationStale, "The approval is for stale release inputs or policy.");
     return approval.ManifestDigest == request.ManifestDigest

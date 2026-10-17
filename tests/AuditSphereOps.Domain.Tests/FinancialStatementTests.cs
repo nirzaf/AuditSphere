@@ -309,30 +309,75 @@ public sealed class FinancialStatementTests
           SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)])],
         [new DisclosureInput("CASH_POLICY", "Cash and cash equivalents are presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")],
-        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-schedule-1")],
-        NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-schedule-1")],
-        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-template-v2"], ClosingCashEvidenceReferences: ["closing-cash-template-v2"])
+        [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 90m, "equity-schedule-1"),
+         new EquityLineInput("RESERVE", "General reserve", 0m, 0m, 0m, 0m, 0m, 10m, "reserve-schedule-1")],
+        NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-schedule-1"),
+          new NoteLineInput("REVENUE_NOTE", "REVENUE", -100m, "revenue-note-schedule-1",
+            [new NoteSourceAllocationInput(source.Receivable, -100m)])],
+        CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-template-v2"], ClosingCashEvidenceReferences: ["closing-cash-template-v2"],
+        EquityTransfers: [new EquityComponentTransferInput("TRANSFER-001", "RETAINED_EARNINGS", "RESERVE", 10m, "reserve-transfer-approval")])
+    };
+    var wrongScopeNote = completeRequest with
+    {
+      SupplementaryInformation = completeRequest.SupplementaryInformation! with
+      {
+        NoteLines = [new NoteLineInput("REVENUE_NOTE", "REVENUE", -100m, "revenue-note-schedule-1",
+          [new NoteSourceAllocationInput(Guid.NewGuid(), -100m)])]
+      }
     };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var complete = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, completeRequest);
-      Assert.True(complete.Succeeded);
-      Assert.Equal(AccountingPackageStates.PackageValidated, complete.Value!.Status);
-      Assert.NotEqual(first.CalculationHash, complete.Value.CalculationHash);
-      Assert.Equal(1, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
-      Assert.Equal(2, await db.FinancialPackageDisclosures.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
-      Assert.Equal(1, await db.FinancialPackageEquityLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
-      Assert.Equal(1, await db.FinancialPackageNoteLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      var refused = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, wrongScopeNote);
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+    }
+    Guid completePackageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var queued = await FinancialStatementService.EnqueueFinancialPackageBuildAsync(db, preparer,
+        completeRequest, operationStore, operationHandler);
+      Assert.True(queued.Succeeded, queued.Message);
+      operationId = queued.Value;
+    }
+    Assert.True(await worker.ProcessNextAsync());
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var operation = await db.DurableOperations.SingleAsync(x => x.Id == operationId);
+      Assert.Equal(OperationState.COMPLETED, operation.Status);
+      completePackageId = Guid.Parse(operation.ResultIdentity!);
+      var completePackage = await db.FinancialPackages.SingleAsync(x => x.Id == completePackageId);
+      Assert.Equal(AccountingPackageStates.PackageValidated, completePackage.Status);
+      Assert.NotEqual(first.CalculationHash, completePackage.CalculationHash);
+      Assert.Equal(1, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == completePackageId));
+      Assert.Equal(2, await db.FinancialPackageDisclosures.CountAsync(x => x.FinancialPackageId == completePackageId));
+      Assert.Equal(2, await db.FinancialPackageEquityLines.CountAsync(x => x.FinancialPackageId == completePackageId));
+      var transfer = await db.FinancialPackageEquityTransfers.SingleAsync(x => x.FinancialPackageId == completePackageId);
+      Assert.Equal("RETAINED_EARNINGS", transfer.SourceLineCode);
+      Assert.Equal("RESERVE", transfer.DestinationLineCode);
+      Assert.Equal(10m, transfer.Amount);
+      Assert.Equal("reserve-transfer-approval", transfer.EvidenceReference);
+      var savedNotes = await db.FinancialPackageNoteLines.Where(x => x.FinancialPackageId == completePackageId).ToListAsync();
+      Assert.Equal(2, savedNotes.Count);
+      var linkedNote = savedNotes.Single(x => x.NoteCode == "REVENUE_NOTE");
+      using (var lineage = JsonDocument.Parse(linkedNote.SourceLineageJson))
+      {
+        var link = Assert.Single(lineage.RootElement.EnumerateArray());
+        Assert.Equal(source.Receivable, link.GetProperty("GeneralLedgerLineId").GetGuid());
+        Assert.Equal(source.BatchId, link.GetProperty("SourceImportBatchId").GetGuid());
+        Assert.Matches("^[a-f0-9]{64}$", link.GetProperty("SourceLineHash").GetString());
+      }
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE financial_package_note_lines SET source_lineage_json = '[]'::jsonb WHERE id = {linkedNote.Id}"));
       var historicalPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == first.PackageId);
       Assert.Equal(request.TemplateVersion, historicalPackage.TemplateVersion);
       Assert.Equal(FinancialStatementCalculator.CalculationEngineVersion, historicalPackage.CalculationEngineVersion);
       Assert.Equal(first.CalculationHash, historicalPackage.CalculationHash);
-      var currentPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == complete.Value.PackageId);
+      var currentPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == completePackageId);
       Assert.Equal(completeRequest.TemplateVersion, currentPackage.TemplateVersion);
       Assert.Equal(FinancialStatementCalculator.CalculationEngineVersion, currentPackage.CalculationEngineVersion);
-      Assert.NotEqual(historicalPackage.Id, complete.Value.PackageId);
+      Assert.NotEqual(historicalPackage.Id, completePackageId);
       var checks = await db.FinancialPackageValidations.AsNoTracking()
-        .Where(x => x.FinancialPackageId == complete.Value.PackageId).ToListAsync();
+        .Where(x => x.FinancialPackageId == completePackageId).ToListAsync();
       Assert.All(checks.Where(x => x.Code is "CASH_FLOW_RECONCILED" or "DISCLOSURES_COMPLETE" or "SUPPLEMENTARY_INFORMATION"), x => Assert.True(x.Passed));
       Assert.Contains(checks, x => x.Code == "STATEMENT_CROSS_CAST" && x.Passed);
       Assert.Contains(checks, x => x.Code == "ACCOUNTING_EQUATION" && x.Passed);
@@ -341,12 +386,26 @@ public sealed class FinancialStatementTests
       Assert.Contains(checks, x => x.Code == "COMPARATIVE_CONSISTENCY" && x.Passed);
       Assert.Contains(checks, x => x.Code == "NOTE_TO_FACE_TOTALS" && x.Passed);
 
-      var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
+      var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == completePackageId).Select(x => x.Id).SingleAsync();
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE financial_package_cash_flow_lines SET amount = amount + 1 WHERE id = {cashFlowLineId}"));
-      var equityLineId = await db.FinancialPackageEquityLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
+      var equityLineId = await db.FinancialPackageEquityLines.Where(x => x.FinancialPackageId == completePackageId && x.LineCode == "RETAINED_EARNINGS")
+        .Select(x => x.Id).SingleAsync();
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE financial_package_equity_lines SET closing_amount = closing_amount + 1 WHERE id = {equityLineId}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE financial_package_equity_transfers SET amount = amount + 1 WHERE id = {transfer.Id}"));
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var invalidTransfer = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer,
+        completeRequest with { TemplateVersion = "template-v4", SupplementaryInformation = completeRequest.SupplementaryInformation! with
+        {
+          EquityTransfers = [new EquityComponentTransferInput("TRANSFER-BAD", "UNKNOWN", "RESERVE", 10m, "approval")]
+        } });
+      Assert.False(invalidTransfer.Succeeded);
+      Assert.Equal("package.supplementary.invalid", invalidTransfer.ErrorCode);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -748,9 +807,13 @@ public sealed class FinancialStatementTests
               -signedProfitOrLoss, "synthetic-equity-movement")],
             CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash"],
             ClosingCashEvidenceReferences: ["synthetic-closing-cash"],
-            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")] )));
+            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")],
+            FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "synthetic-functional-currency-cash",
+              "The synthetic selected cash population has no foreign-currency effect."))));
       Assert.True(completed.Succeeded, completed.Message);
       packageId = completed.Value!.PackageId;
+      var sourceReview = await CashFlowSourceReviewCall.RecordAsync(db, reviewer, packageId, "APPROVED", null);
+      Assert.True(sourceReview.Succeeded, sourceReview.Message);
     }
 
     static StatementLineDefinition Heading(string code, string label, string section, int order) =>
@@ -802,7 +865,7 @@ public sealed class FinancialStatementTests
       var knownUnapprovedGaps = new[]
       {
         "NOTE_CONTENT", "EQUITY_PROFIT_CROSS_CAST", "EQUITY_OCI_CROSS_CAST", "EQUITY_SFP_CROSS_CAST",
-        "EQUITY_SOURCE_LINEAGE", "CASH_FLOW_REQUIRED_SECTIONS", "CASH_FLOW_BRIDGE", "CASH_FLOW_SOURCE_LINEAGE"
+        "EQUITY_SOURCE_LINEAGE", "CASH_FLOW_REQUIRED_SECTIONS", "CASH_FLOW_BRIDGE"
       };
       Assert.Equal(knownUnapprovedGaps.OrderBy(x => x, StringComparer.Ordinal),
         p.Checks.Where(check => !check.Passed).Select(check => check.Code).OrderBy(x => x, StringComparer.Ordinal));
@@ -948,10 +1011,10 @@ public sealed class FinancialStatementTests
       Assert.Equal(ErrorCodes.ScopeDenied,
         (await FinancialStatementService.GetPinnedPresentationAsync(db, stranger, packageId, pin.RevisionId)).ErrorCode);
 
-      // A changed client input generation makes the pin stale instead of silently refreshing its snapshot.
-      var safety = await db.ClientSafetyStates.SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == fixture.ClientId);
-      safety.InputGeneration++;
-      await db.SaveChangesAsync();
+      // Replacing the exact accepted GL source reviewed by this package makes the pin stale.
+      var replacement = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg, fixture.FirmId, fixture.ClientId,
+        fixture.EngagementId, fixture.PeriodId, fixture.BookId, fixture.Preparer.Id, reviewer, "layout-stale-pin");
+      Assert.NotEqual(source.BatchId, replacement.BatchId);
       var stalePin = await FinancialStatementService.GetPinnedPresentationAsync(db, reviewer, packageId, pin.RevisionId);
       Assert.False(stalePin.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, stalePin.ErrorCode);
@@ -1036,7 +1099,9 @@ public sealed class FinancialStatementTests
               -signedProfitOrLoss, "synthetic-equity-movement")],
             CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["synthetic-opening-cash"],
             ClosingCashEvidenceReferences: ["synthetic-closing-cash"],
-            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")] )));
+            NoteLines: [new NoteLineInput("NOTE_1", "CASH", closingCash, "synthetic-note-source")],
+            FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "synthetic-functional-currency-cash",
+              "The synthetic selected cash population has no foreign-currency effect."))));
       Assert.True(completed.Succeeded, completed.Message);
       packageId = completed.Value!.PackageId;
     }

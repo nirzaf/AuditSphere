@@ -390,6 +390,8 @@ public sealed partial class AuditSphereDbContext
     cashFlow.Property(x => x.ActivityCode).HasMaxLength(100);
     cashFlow.Property(x => x.SourceReferences).HasColumnType("text[]").HasDefaultValueSql("ARRAY[]::text[]");
     cashFlow.Property(x => x.ClassificationRationale).HasMaxLength(2000);
+    cashFlow.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
+      .HasName("ak_financial_package_cash_flow_lines_package_scope_id");
     cashFlow.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.Section, x.Description })
       .IsUnique().HasDatabaseName("ux_financial_package_cash_flow_line_identity");
     cashFlow.ToTable("financial_package_cash_flow_lines", t => t.HasCheckConstraint("ck_financial_package_cash_flow_values",
@@ -410,8 +412,51 @@ public sealed partial class AuditSphereDbContext
     cashAllocation.ToTable("financial_package_cash_flow_allocations", t => t.HasCheckConstraint("ck_financial_package_cash_allocation_values",
       "signed_amount <> 0 AND currency ~ '^[A-Z]{3}$' AND source_line_hash ~ '^[a-f0-9]{64}$'"));
     cashAllocation.HasOne<FinancialPackageCashFlowLine>().WithMany()
-      .HasForeignKey(x => x.CashFlowLineId).OnDelete(DeleteBehavior.Restrict);
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.CashFlowLineId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_cash_alloc_movement_scoped");
+    cashAllocation.HasOne<GeneralLedgerLine>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceImportBatchId, x.GeneralLedgerTransactionId, x.GeneralLedgerLineId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ImportBatchId, x.TransactionId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_cash_alloc_gl_source");
+    cashAllocation.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_cash_alloc_creator");
     cashAllocation.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var scheduleAllocation = b.Entity<FinancialPackageCashFlowScheduleAllocation>();
+    scheduleAllocation.Property(x => x.ComponentCode).HasMaxLength(30);
+    scheduleAllocation.Property(x => x.SourceScheduleHash).HasMaxLength(64).IsFixedLength();
+    scheduleAllocation.Property(x => x.Currency).HasMaxLength(3);
+    scheduleAllocation.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.SpecialistScheduleId, x.ComponentCode })
+      .IsUnique().HasDatabaseName("ux_financial_package_cash_schedule_allocation_source");
+    scheduleAllocation.HasIndex(x => new { x.FirmId, x.SpecialistScheduleId });
+    scheduleAllocation.ToTable("financial_package_cash_flow_schedule_allocations", t => t.HasCheckConstraint(
+      "ck_financial_package_cash_schedule_allocation_values",
+      "component_code IN ('DEPRECIATION','IMPAIRMENT') AND signed_amount > 0 AND currency ~ '^[A-Z]{3}$' AND source_schedule_hash ~ '^[a-f0-9]{64}$'"));
+    scheduleAllocation.HasOne<FinancialPackageCashFlowLine>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.CashFlowLineId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_cash_schedule_alloc_movement_scoped");
+    scheduleAllocation.HasOne<SpecialistAccountingSchedule>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SpecialistScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_cash_schedule_alloc_schedule_scoped");
+    scheduleAllocation.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_cash_schedule_alloc_creator");
+    scheduleAllocation.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var cashFlowMembershipSeal = b.Entity<FinancialPackageCashFlowMembershipSeal>();
+    cashFlowMembershipSeal.HasKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasName("pk_financial_package_cash_flow_membership_seals");
+    cashFlowMembershipSeal.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
@@ -452,6 +497,8 @@ public sealed partial class AuditSphereDbContext
     cashReview.Property(x => x.RequestHash).HasMaxLength(64).IsFixedLength();
     cashReview.Property(x => x.LinkDigest).HasMaxLength(64).IsFixedLength();
     cashReview.Property(x => x.Sequence).ValueGeneratedOnAdd().UseIdentityByDefaultColumn();
+    cashReview.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
+      .HasName("ak_financial_package_cash_source_reviews_package_scope_id");
     cashReview.ToTable("financial_package_cash_flow_source_reviews", t =>
     {
       t.HasCheckConstraint("ck_financial_package_cash_source_review_values",
@@ -467,6 +514,18 @@ public sealed partial class AuditSphereDbContext
     cashReview.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    cashReview.HasOne<SourceImportBatch>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceImportBatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_cash_review_source_batch");
+    cashReview.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReviewedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_cash_review_reviewer");
+    cashReview.HasOne<FinancialPackageCashFlowSourceReview>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.PreviousReviewId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_cash_review_previous");
 
     var packageSeal = b.Entity<FinancialPackageSeal>();
     packageSeal.Property(x => x.PackageHash).HasMaxLength(64).IsFixedLength();
@@ -496,6 +555,26 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var fxCashAssessment = b.Entity<FinancialPackageFxAssessment>();
+    fxCashAssessment.Property(x => x.State).HasMaxLength(30);
+    fxCashAssessment.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    fxCashAssessment.Property(x => x.Rationale).HasMaxLength(2000);
+    fxCashAssessment.Property(x => x.EffectDigest).HasMaxLength(64).IsFixedLength();
+    fxCashAssessment.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
+      .HasName("ak_financial_package_fx_assessments_scope_id");
+    fxCashAssessment.HasIndex(x => new { x.FirmId, x.FinancialPackageId }).IsUnique()
+      .HasDatabaseName("ux_financial_package_fx_assessment_package");
+    fxCashAssessment.ToTable("financial_package_fx_assessments", t => t.HasCheckConstraint("ck_financial_package_fx_assessment_values",
+      "assessed_by_user_id <> '00000000-0000-0000-0000-000000000000'::uuid AND state IN ('ASSESSED_ZERO','EFFECTS_RECORDED') AND length(trim(evidence_reference)) > 0 AND " +
+      "length(trim(rationale)) > 0 AND effect_digest ~ '^[0-9a-f]{64}$'"));
+    fxCashAssessment.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    fxCashAssessment.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, AssessedByUserId = x.AssessedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, Id = x.Id }).OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_financial_package_fx_assessment_preparer");
+
     var disclosure = b.Entity<FinancialPackageDisclosure>();
     disclosure.Property(x => x.Code).HasMaxLength(100);
     disclosure.Property(x => x.Response).HasMaxLength(4000);
@@ -521,15 +600,33 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var equityTransfer = b.Entity<FinancialPackageEquityTransfer>();
+    equityTransfer.Property(x => x.TransferReference).HasMaxLength(100);
+    equityTransfer.Property(x => x.SourceLineCode).HasMaxLength(100);
+    equityTransfer.Property(x => x.DestinationLineCode).HasMaxLength(100);
+    equityTransfer.Property(x => x.Amount).HasPrecision(19, 6);
+    equityTransfer.Property(x => x.Currency).HasMaxLength(3);
+    equityTransfer.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    equityTransfer.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.TransferReference })
+      .IsUnique().HasDatabaseName("ux_financial_package_equity_transfer_reference");
+    equityTransfer.ToTable("financial_package_equity_transfers", t => t.HasCheckConstraint("ck_financial_package_equity_transfer_values",
+      "length(trim(transfer_reference)) > 0 AND length(trim(source_line_code)) > 0 AND length(trim(destination_line_code)) > 0 " +
+      "AND lower(source_line_code) <> lower(destination_line_code) AND amount > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0"));
+    equityTransfer.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var noteLine = b.Entity<FinancialPackageNoteLine>();
     noteLine.Property(x => x.NoteCode).HasMaxLength(100);
     noteLine.Property(x => x.FaceDestinationCode).HasMaxLength(100);
     noteLine.Property(x => x.Currency).HasMaxLength(3);
     noteLine.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    noteLine.Property(x => x.SourceLineageJson).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
     noteLine.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.NoteCode, x.FaceDestinationCode })
       .IsUnique().HasDatabaseName("ux_financial_package_note_line_identity");
     noteLine.ToTable("financial_package_note_lines", t => t.HasCheckConstraint("ck_financial_package_note_line_values",
-      "length(trim(note_code)) > 0 AND length(trim(face_destination_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0"));
+      "length(trim(note_code)) > 0 AND length(trim(face_destination_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND " +
+      "length(trim(evidence_reference)) > 0 AND jsonb_typeof(source_lineage_json) = 'array'"));
     noteLine.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);

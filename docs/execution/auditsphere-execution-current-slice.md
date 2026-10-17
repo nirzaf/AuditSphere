@@ -1,11 +1,3 @@
-## Operations — 2026-10-16
-
-`e4686058` pushed; release CI run 38946802126 active.
-
-## Audit planning and finding recovery — 2026-10-16
-
-Planning and finding actions use exact previews, assent and immutable receipts. Finding amendments retain before/after history and scoped authority; snapshots return canonical UTC. Record drafts and library reads have scope fences. Period editors retain request identities on scope cleanup; roll-forward/restatement source parity is verified. Batched evidence and open browser/hosted gates: `status.json` targetedVerification.angularFindingRecovery. Retirement remains NOT_READY; Web retained.
-
 
 # AuditSphereOps — Current State & Active Slice Handoff
 
@@ -22,7 +14,28 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## R2R-07 and CP-11 — 2026-10-17
+
+`2873144a` adds scoped correction-journal revision links; its PostgreSQL test passed 1/1, with build, Angular 5/5, EF and OpenAPI checks passing. Migration is generated, not applied. `ffa9bd99` makes cash-flow review availability use current scoped authorization; `SourceReviewCanReview_RequiresCurrentScopedReviewGrant` passed 1/1. T025/T026 remain BLOCKED/PARTIAL on T024/T025. Indirect-method policy and source-provenance work remain open; full suites run in CI/CD.
+
+## CP-19 Partner authority and capability projection — 2026-10-17
+
+Partner decisions and release eligibility require the current assigned Engagement Partner and its linked exact engagement-scoped Partner grant. The review queue and financial-package workspace now use the same check before projecting Partner approval as available. The focused PostgreSQL regression passed, including assigned/unassigned positive and negative projections; broader CP-19 signatory, offline-evidence and recovery requirements remain open. Full suites are deferred to CI/CD.
+
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
+
+## CP-10 — period-scoped package freshness — 2026-10-17
+
+Commit `b6e465bc` added same-period TB freshness checks for package pins and presentation. Follow-up `15ae8407` scopes TB acceptance/completeness selection by period, book, basis, currency and entity. The focused PostgreSQL test `TrialBalanceAcceptance_SelectionRemainsIndependentByPeriodAndBook` passed 1/1, covering independent period selections, same-scope replacement and denied reads; the Angular source-acceptance spec passed 5/5. Earlier two-period tests cover package values, prior pin identity, and current-period GL/TB replacement. CP-10 remains PARTIAL: comparative release/as-issued retention, restatement, opening continuity, cross-engagement denial and professional acceptance remain open. Full suites are deferred to CI/CD. Evidence: `targetedVerification.cp10PeriodScopedPackageFreshness` in `status.json`.
+
+### Opening bridge close gate — 2026-10-17
+
+`ClosePeriodAsync` now requires the linked bridge to be approved. `PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence` passed 1/1: close refused before approval and succeeded after. CP-10 remains PARTIAL; comparative release, restatement, broader continuity and professional acceptance remain open. Full suites stay in CI/CD.
+Evidence: `targetedVerification.cp10OpeningBridgeCloseGate` in `status.json`.
+
+## CP-13 — signed equity component transfers — 2026-10-17
+
+Commit `8ea17226cd2caaad973730c42a2232dc00dcdfa7` adds paired, append-only transfers between distinct equity components to the financial-package build, with server validation, hash binding, component rollforwards, linked presentation/export rows, archive evidence and Angular input. The migration is generated but not applied. Focused Domain tests passed (24/24 before the final label assertion edit; final presentation test 1/1 after it); the Angular builder spec passed 31/31, production build passed with the existing commercial-settings style-budget warning, and EF model drift is clean. No authenticated browser record flow or full suite was run. CP-13 remains PARTIAL: accepted-source lineage, professional reserve/profit/distribution policy, opening/no-movement cases and professional acceptance are still open. Exact evidence is in `targetedVerification.cp13EquityComponentTransfers` in `status.json`.
 
 ## Angular accounting maintenance recovery
 
@@ -35,6 +48,8 @@ The acceptance migration batch closes direct checklist navigation, command/recei
 Consolidation fixtures now use genuinely built packages and composition-bound reviews; sparse translation calculations retain separate approval-denial checks. Rollout-boundary and staffing lost-response timing fixes passed their focused cohorts. The interrupted regression runs lost their process handles and temporary reports, so final commit-pinned release verification is required; workspace-local evidence is retained. Exact candidate, completed results and corrections are recorded in `status.json`.
 
 The refreshed complete Angular suite and production build pass; the existing commercial stylesheet warning remains. UI and retirement source inventories match. Acceptance rows now name the specification’s actual atomic task ranges. The interrupted broad runs do not verify the final checkout; final release verification remains required.
+
+Commit-pinned release verification run [38988587433](https://github.com/nirzaf/AuditSphere/actions/runs/38988587433) targets `512696edfe67ef29bfa2323c3bf4f226b0c13999`: Angular passed 1,288/1,288, Domain passed 1,328/1,328, and build/contracts/publication passed. The API runner received a shutdown signal and exited 143 before uploading test results; that is infrastructure interruption, not a test pass or assertion failure. As supplementary current-source evidence, the six AS-PM8 API classes passed 14/14 locally against isolated loopback `auditsphere_tests`; this does not replace the unfiltered API job. The full Playwright E2E job is still running. AS-PM8 remains PARTIAL until API passes unfiltered CI and E2E completes successfully. Current evidence is also recorded under `targetedVerification.asPm8Atomic.latestReleaseVerification` in `status.json`.
 
 Refreshed Domain 56/56 and API 18/18 at candidate `6944ab95`, including dashboard and UTC start-minute endpoints omitted from the earlier API filter. Evidence is in `status.json`. Full E2E completed: 247 passed, 2 failed (supplier invoice and budget preparation). Their strengthened test follow-up passed 3/3 at `a24af13d`; a full rerun remains required. Full-solution verification remains incomplete after interrupted local runs. AS-PM8 is PARTIAL. Whole-product production acceptance is not established by this package. Acceptance release `6944ab95` is healthy; migration/startup rehearsals and live timer/dashboard checks passed. Temporary SSH access was removed. See the deployment record in `status.json`.
 
@@ -52,13 +67,13 @@ Remaining failures concern receivables exact-offer response evidence and consoli
 
 ## Angular/Blazor parity — restatement issuance fixture
 
-The restatement regression fixture now uses a presentable source-backed original package, renders and selects its three-format composition, records management/accounting/Partner decisions, and closes the period through the Application command before preparing the correction. It explicitly checks that an unreviewed close is denied and retains the change-type, affected-period and independent approval assertions. The accounting-record approval class passed; exact source, command and report are in `status.json` under `targetedVerification.angularBlazorTenantConsentFixtureFollowUp.restatementFollowUp`.
+The restatement regression fixture now uses a presentable source-backed original package, renders and selects its three-format composition, records management/accounting/Partner decisions, and closes the period through the Application command before preparing the correction. It explicitly checks that an unreviewed close is denied and retains the change-type, affected-period and independent approval assertions. The accounting-record approval class passed; exact source, command and report are in `status-archive-2026-10.json` under `keys.targetedVerification.angularBlazorTenantConsentFixtureFollowUp.restatementFollowUp`.
 
 This repairs a local regression fixture without changing production gates. Other full-regression failures and source-action, browser, operational and external retirement criteria remain open. Web remains present; retirement is `NOT_READY`.
 
 ## Angular/Blazor parity — directory-binding regression fixture
 
-The tenant-consent test fixture now supplies the firm safety row required by role administration's transaction lock and authority recheck. This repairs the exact directory-binding and stale-observation regression cases without changing production authorization or Microsoft capability behavior. The complete tenant-consent class passed; source attribution, command and report are in `status.json` under `targetedVerification.angularBlazorTenantConsentFixtureFollowUp`.
+The tenant-consent test fixture now supplies the firm safety row required by role administration's transaction lock and authority recheck. This repairs the exact directory-binding and stale-observation regression cases without changing production authorization or Microsoft capability behavior. The complete tenant-consent class passed; source attribution, command and report are in `status-archive-2026-10.json` under `keys.targetedVerification.angularBlazorTenantConsentFixtureFollowUp`.
 
 A current baseline also reproduced the restatement failure at period close. That fixture records legacy package decisions without selecting a reviewed composition. Its reporting setup needs repair while preserving both the close gate and the positive restatement assertions. Other regression failures and per-action migration evidence remain open. Web remains present and retirement is `NOT_READY`; no real tenant acceptance is claimed from these synthetic tests.
 
@@ -72,7 +87,7 @@ Retirement remains `NOT_READY`. The earlier full local regression reported failu
 
 ## Blazor parity — focused security and denial boundaries — 2026-10-15
 
-Focused browser coverage compares foreign-firm and guessed-ID denials for assessment, engagement creation and activation, and verifies the server-owned access-denial page returns 403 with `no-store`, generic text and sign-out. The role-administration PostgreSQL cohort also proves a revoked Administrator waiting on the firm lock cannot finish a grant revocation. These close only narrow boundaries; the full Release solution baseline was interrupted without a verdict. Overall parity remains partial and Blazor removal is NOT_READY. Evidence is in `status.json` under `targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`, `angularMigrationAccessNotAssignedBrowser` and `angularMigrationAdminRevocationFencing`.
+Focused browser coverage compares foreign-firm and guessed-ID denials for assessment, engagement creation and activation, and verifies the server-owned access-denial page returns 403 with `no-store`, generic text and sign-out. The role-administration PostgreSQL cohort also proves a revoked Administrator waiting on the firm lock cannot finish a grant revocation. These close only narrow boundaries; the full Release solution baseline was interrupted without a verdict. Overall parity remains partial and Blazor removal is NOT_READY. Evidence for these focused checks is preserved in `status-archive-2026-10.json` under `keys.targetedVerification.angularMigrationAcceptanceCrossFirmIsolation`, `angularMigrationAccessNotAssignedBrowser` and `angularMigrationAdminRevocationFencing`; `status.json` retains PASS pointers and PARTIAL scope labels.
 
 ## AS-UX-001 Angular visual adoption — shell foundation — 2026-10-15
 
@@ -163,7 +178,9 @@ The build screen now polls a bounded status receipt for the exact operation. Onl
 
 The synthetic browser journey passed 1/1: it completed the worker build, showed the package link, denied another reviewer the originator-only receipt (403), denied preparer source review, and allowed independent approval of persisted GL links. Cash, equity, note and adjusted trial balance cross-cast at six decimals. Exact-head CI [38607048224](https://github.com/nirzaf/AuditSphere/actions/runs/38607048224) passed docs health, Angular (127 files/722 specs), Release build, focused Domain (141) and API (8) checks, EF drift, API/browser journeys, standalone API publication and OpenAPI drift. The private API, worker and migration images were built and published by [38607048220](https://github.com/nirzaf/AuditSphere/actions/runs/38607048220). The previous failing head [38602425958](https://github.com/nirzaf/AuditSphere/actions/runs/38602425958) had four browser failures; this commit fixes them. See `status.json` under `targetedVerification.currentCashFlowPackageJourney`.
 
-This remains one CP-11 cash-flow build subpath, not completion of CP-11 or the attached story. The manual-evidenced path, equity/note source lineage, other required source/review paths and remaining CP-11 acceptance are still open. CP-12 is blocked on the approved indirect cash-flow policy reference and qualified interpretation of reviewed assessed-zero FX states; no accounting treatment is inferred here. Full Domain/API/E2E suites were not run locally; the exact-head CI focused cohorts passed.
+One CP-11 cash-flow subpath, not story completion. Manual-evidenced cash, equity lineage, other source/review paths and remaining CP-11 acceptance remain open. CP-12 remains blocked on approved indirect policy and qualified assessed-zero FX treatment. CP-14 now has optional accepted-GL note provenance; disclosure applicability, independent note review and NOTE_CONTENT remain open. Targeted CP-14: Domain 1/1, Angular 32/32, API Release 0 warnings/errors, EF drift none; full suites not run locally. Exact-head CI focused cohorts passed.
+
+CP-11 retry fix `60f346d5`: predecessor-bound replay; focused PostgreSQL test 1/1. Exact-SHA release verification pending.
 
 Commit 83d3472d also repairs five Domain tests that failed on the prior master: four package-review fixtures now seed the canonical validation population, and the FX test numbers cross-cast to adjusted cash. The exact-head focused Domain cohort passed 141/141; the full Domain suite has not run on this commit.
 
@@ -261,11 +278,7 @@ Focused PostgreSQL 3/3 and Angular 5/5 passed; API/UI builds, EF and OpenAPI pas
 
 ## v2.2 workflow activity — task event trace — 2026-10-12
 
-WF-14 now persists append-only `Operational Task` activity for workflow-task creation, initial assignment, assignment, reassignment and completion. Each event links the exact existing `WorkTask` and `WorkflowTaskBinding`, scope, actor, optional assigned staff member, task revision and timestamp. Events are written in the same transaction as the successful task command; idempotent replays and refused/no-op commands do not create duplicate events. PostgreSQL rejects event updates and deletes and rejects inserts whose work task does not match the referenced binding. The timeline query reauthorizes the current engagement grant, caps date filters at 90 UTC days, uses keyset pagination and returns no task title, free-form note, risk evidence or audit conclusion from the event table.
-
-The staff work queue now has a per-task activity panel. This increment covers only operational task events and labels them `Operational Task`. Template publication already has its own append-only decision records; template/reminder/automation events are not yet projected into a unified timeline. Reopened/rejected tasks and due-date changes have no activity coverage here. Client-wait metrics, other source labels, broader analytics pagination/performance evidence, and remaining WF-14 stories remain open. Additive migrations `20261012060111_WorkflowTaskActivity` and `20261012061421_WorkflowTaskActivityBindingGuard` have not been applied to a persistent database.
-
-Verification on the working tree based on `445e1d99`: API Release build passed with 0 errors and two offline `NU1900` warnings; the focused PostgreSQL workflow-task activity regression passed 1/1, covering create/assign/reassign/complete, idempotent replay, timeline paging, foreign-scope and revoked-grant denials, database update/delete rejection, and mismatched task/binding insert rejection; the Angular activity contract spec passed 3/3; the development server compiled; EF model drift reported no pending changes; OpenAPI drift passed. The production Angular build aborted with exit 134 and no diagnostics. The built-in browser showed the staff sign-in guard because the local API/session was unavailable, so authenticated activity rendering was not observed. No full suite or persistent database migration was run. Exact evidence is in `status.json` under `targetedVerification.workflowTaskActivity`.
+Append-only operational-task activity records creation, assignment changes and completion in the task transaction. The grant-scoped timeline is bounded and paged. Current evidence, exact checks and the known partial source coverage are recorded under `targetedVerification.workflowTaskActivity` in [status.json](status.json); broader unified activity coverage remains open.
 
 ## v2.2 workflow analytics — phase task rollups — 2026-10-12
 
@@ -287,6 +300,14 @@ Verification of the workload slice based on `0afdaf9a`: the focused PostgreSQL a
 
 Per-phase task rollups, client wait, append-only workflow event coverage and broader analytics pagination/performance evidence remain open. Overall WF-14 and v2.2 acceptance remain PARTIAL.
 
+## Explicit FX cash-effect assessment — 2026-10-17
+
+Financial-package builds can now record an explicit `ASSESSED_ZERO` or `EFFECTS_RECORDED` state with evidence and rationale. Assessment is unset by default; missing data is not treated as zero. Zero-valued effect rows are refused, assessment and effect rows are bound by a deterministic digest, and independent cash-flow review includes that exact evidence and population. Statement completeness and presentation pins require matching assessment and current review. The additive migration is `20261017080751_FinancialPackageFxAssessment`; it has not been applied to a persistent database.
+
+Focused verification on the working tree based on `ad2f0bd`: Release solution build passed with 0 warnings/errors; the focused PostgreSQL FX/review cohort passed 3/3; affected Angular specs passed 46/46; Angular production build passed with the existing `commercial/settings.scss` budget warning; EF model drift and OpenAPI drift passed. The built-in browser reached the staff sign-in guard on the local Angular route; `/api/ui/session` was unavailable, so authenticated builder interaction was not observed. Exact-head full release CI run `39015225622` is still running; its unfiltered Domain job failed 19 of 1,333 tests on the prior commit, including statement-pin and accounting fixture failures outside this working-tree change. Full suite and live/provider verification remain deferred to CI and external acceptance.
+
+This closes only the technical explicit-assessment/evidence layer. Typed indirect cash-flow decomposition, payment-role classification and professional approval of the indirect policy remain open under CP-12/T003; the reporting backlog remains PARTIAL.
+
 ## v2.2 final-release evidence projection — 2026-10-12
 
 The engagement completion query now projects the latest release candidate together with its exact external checkpoint and persisted release row. The view reports candidate and target revisions, manifest SHA-256, checkpoint identity/state/verification time, whether the checkpoint revision and read-back digest match the candidate, and whether the persisted Release identity, checkpoint, target revision and manifest agree. It labels a missing issue `NOT_ISSUED`, a fully matching persisted issue `ISSUED`, and inconsistent state `RECONCILIATION_REQUIRED`. The Angular completion screen displays these distinctions and explicitly says that a candidate is not a release. This is read-only; it adds no release or approval command and no migration.
@@ -304,19 +325,3 @@ When `WorkflowExperience:Enabled` is true, an authorized `ChangesRequired` revie
 The two focused PostgreSQL regression tests passed 2/2, including the returned-work blocker, stable redaction, linked task, prior-preparer assignment and duplicate-review refusal. The API Release build, Angular production build, EF model-drift check and OpenAPI contract drift check passed; the .NET build emitted two `NU1900` vulnerability-feed warnings because NuGet was unreachable. The built-in browser could not load the local fieldwork route because the local Angular server was no longer listening; the existing local tab reached only the staff sign-in guard. No authenticated browser journey or full suite was run. Exact commands and results are in `status.json` under `targetedVerification.workflowManagerReviewPrF`.
 
 This is a partial workflow increment. The canonical lifecycle stage does not regress to Fieldwork on rework; the summary flag does not change lifecycle gates; procedure-level assignment/resubmission restrictions and task notifications remain open. Queue filters for rework and waiting-for-client, evidence dependency evaluators, Kanban/calendar views, and task-plan authoring remain open. The workflow feature stays default-off; no live or professional acceptance is claimed.
-
-## v2.2 workflow experience, PRs D–F — earlier evidence
-
-The original increment is preserved verbatim in the [current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Later workflow sections above and `status.json` retain current implementation and pending acceptance.
-
-## Exact pinned financial statement drafts — earlier evidence
-
-The earlier pinning increment is preserved in the [current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Later reporting sections and `status.json` retain current implementation and open acceptance requirements.
-
-## Dedicated client SharePoint sites default rollout — 2026-10-12
-
-`ClientSites:Enabled` now defaults to `true` in the API, worker and Hostinger Compose stack, with an explicit false override. The rollout still requires one administrator-approved UTC `ClientSites:ClientsCreatedAfter` boundary; an absent or invalid boundary never becomes the beginning of time. Historical clients before the boundary are not selected or migrated. The `client-sites` worker starts as an isolated group and reports blocked readiness when its configuration, certificate, tenant consent or rollout boundary is unavailable.
-
-The API and `worker-pbc` receive the same cutoff. Repository resolution blocks shared-site folder creation for clients covered by the enabled or already-persisted cutoff until a dedicated site is verified, including while the dedicated-site worker is blocked and before it can persist the cutoff. Invalid/mismatched settings block dedicated-site discovery; a saved boundary remains authoritative, and conflicting saved values use the earliest recorded boundary for no-fallback enforcement while earlier clients retain their repositories. When the policy is enabled but neither a valid configured nor persisted boundary exists, workspace review/provisioning now also fails closed instead of routing an unclassified client to the shared site; setting an explicit cutoff or explicitly disabling the policy is required before shared-site provisioning. A verified dedicated site continues to serve its client. Automatic discovery remains idempotent per client, and the existing approved yearly engagement templates remain in use. Administration now shows the effective policy, cutoff, counts, tenant consent, worker heartbeat, site permission evidence, per-client site and membership states, durable operation diagnostics, and the existing Operations recovery route.
-
-The heartbeat migration is part of the source tree and model snapshot. The latest grouped follow-up on 2026-10-12 passed the focused Domain cohort 37/37, workspace provisioning API tests 4/4, PostgreSQL-backed Playwright journey 1/1 and Angular workspace administration spec 4/4. The Release test builds emitted NU1900 warnings because `api.nuget.org` was unreachable; the tests themselves passed against isolated synthetic fixtures. These results are from an uncommitted working tree based on `00376915`, which also contains separate in-progress financial statement presentation edits; the full Domain, API and E2E suites were not run. Markdown health, filename and narrative-metrics gates passed. A read-only built-in Chrome check on 2026-10-12 loaded the acceptance tenant page and rendered the Dedicated client SharePoint sites panel, with no client-site rows. The page did not identify its deployed source commit, so this does not prove the current source revision is deployed. No development, acceptance or production migration was run; no real client site was provisioned and no staff membership reconciliation was performed. Exact commands and provenance are in [`status.json`](status.json). Live acceptance still requires identifying the deployed revision, applying the approved UTC cutoff consistently to API and worker configuration, and verifying a synthetic new-client site and staff membership reconciliation in the real tenant.

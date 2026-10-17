@@ -54,9 +54,12 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FinancialPackageValidation> FinancialPackageValidations { get; }
   DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines { get; }
   DbSet<FinancialPackageCashFlowAllocation> FinancialPackageCashFlowAllocations { get; }
+  DbSet<FinancialPackageCashFlowScheduleAllocation> FinancialPackageCashFlowScheduleAllocations { get; }
+  DbSet<FinancialPackageCashFlowMembershipSeal> FinancialPackageCashFlowMembershipSeals { get; }
   DbSet<FinancialPackageCashFlowSourceReview> FinancialPackageCashFlowSourceReviews { get; }
   DbSet<FinancialStatementContentReview> FinancialStatementContentReviews { get; }
   DbSet<FinancialPackageFxEffect> FinancialPackageFxEffects { get; }
+  DbSet<FinancialPackageFxAssessment> FinancialPackageFxAssessments { get; }
   DbSet<FinancialPackageSeal> FinancialPackageSeals { get; }
   DbSet<FinancialPackageDisclosure> FinancialPackageDisclosures { get; }
   DbSet<Engagement> Engagements { get; }
@@ -363,6 +366,7 @@ public interface IClientAccountingDbContext : IAuditSphereDbContext
   DbSet<CurrencyRemeasurementSchedule> CurrencyRemeasurementSchedules { get; }
   DbSet<CurrencyRemeasurementItem> CurrencyRemeasurementItems { get; }
   DbSet<FinancialPackageEquityLine> FinancialPackageEquityLines { get; }
+  DbSet<FinancialPackageEquityTransfer> FinancialPackageEquityTransfers { get; }
   DbSet<FinancialPackageNoteLine> FinancialPackageNoteLines { get; }
   DbSet<FinancialPackageReviewDecision> FinancialPackageReviewDecisions { get; }
 }

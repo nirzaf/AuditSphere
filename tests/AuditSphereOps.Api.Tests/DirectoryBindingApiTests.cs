@@ -34,7 +34,6 @@ public sealed class DirectoryBindingApiTests
       ["DevelopmentIdentity:Enabled"] = "true",
       ["DevelopmentIdentity:Subject"] = staff ? f.Staff.Subject : f.Admin.Subject,
       ["DevelopmentIdentity:TenantId"] = tenant,
-      ["Identity:TenantId"] = tenant,
       ["Application:AllowSimulationAdapters"] = "true",
       ["ExternalEffects:Enabled"] = "false"
     }, services =>

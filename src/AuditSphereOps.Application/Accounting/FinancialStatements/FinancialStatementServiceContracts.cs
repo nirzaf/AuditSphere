@@ -46,7 +46,9 @@ public sealed record FinancialSupplementaryInformation(
   IReadOnlyList<FxCashEffectInput>? FxCashEffects = null,
   IReadOnlyList<string>? CashAccountCodes = null,
   IReadOnlyList<string>? OpeningCashEvidenceReferences = null,
-  IReadOnlyList<string>? ClosingCashEvidenceReferences = null);
+  IReadOnlyList<string>? ClosingCashEvidenceReferences = null,
+  IReadOnlyList<EquityComponentTransferInput>? EquityTransfers = null,
+  FxCashAssessmentInput? FxCashAssessment = null);
 
 /// <summary>
 /// One manually prepared cash-flow movement. Activity and evidence are recorded verbatim as preparer inputs;
@@ -62,10 +64,14 @@ public sealed record CashFlowLineInput(
   IReadOnlyList<string>? SourceReferences = null,
   string? ClassificationRationale = null,
   // Accepted general-ledger lines that make up this movement. Null or empty keeps the movement a draft without lineage.
-  IReadOnlyList<CashFlowSourceAllocationInput>? SourceAllocations = null);
+  IReadOnlyList<CashFlowSourceAllocationInput>? SourceAllocations = null,
+  // Exact independently approved specialist schedule components, currently ASSETS depreciation and impairment.
+  IReadOnlyList<CashFlowScheduleSourceAllocationInput>? ScheduleSourceAllocations = null);
 
 /// <summary>The part of one accepted general-ledger line that contributes to a cash-flow movement. The sign follows the ledger line (debit-positive); the statement effect is projected separately.</summary>
 public sealed record CashFlowSourceAllocationInput(Guid GeneralLedgerLineId, decimal SignedAmount);
+
+public sealed record CashFlowScheduleSourceAllocationInput(Guid SpecialistScheduleId, string ComponentCode, decimal SignedAmount);
 
 /// <summary>
 /// A resolved contribution: the movement's position in the request, the exact accepted source line and its identity. SignedAmount keeps
@@ -74,7 +80,19 @@ public sealed record CashFlowSourceAllocationInput(Guid GeneralLedgerLineId, dec
 internal sealed record ResolvedCashFlowSourceLink(int MovementIndex, Guid GeneralLedgerLineId, Guid GeneralLedgerTransactionId,
   Guid SourceImportBatchId, string SourceLineHash, decimal SignedAmount, string Currency, bool PopulationComplete);
 
+internal sealed record ResolvedCashFlowScheduleSourceLink(int MovementIndex, Guid SpecialistScheduleId, string ComponentCode,
+  string SourceScheduleHash, decimal SignedAmount, string Currency);
+
 public sealed record FxCashEffectInput(string CurrencyPair, decimal Amount, string EvidenceReference);
+
+public static class FxCashAssessmentStates
+{
+  public const string AssessedZero = "ASSESSED_ZERO";
+  public const string EffectsRecorded = "EFFECTS_RECORDED";
+}
+
+/// <summary>Preparer's FX population assessment. It is not approved until an independent cash-flow reviewer approves its exact digest.</summary>
+public sealed record FxCashAssessmentInput(string State, string EvidenceReference, string Rationale);
 
 public sealed record DisclosureInput(string Code, string Response, bool NotApplicable = false, string? Rationale = null);
 
@@ -89,9 +107,24 @@ public sealed record EquityLineInput(
   decimal ClosingAmount,
   string EvidenceReference);
 
+/// <summary>A zero-sum transfer between two equity components, bound to its supporting evidence reference.</summary>
+public sealed record EquityComponentTransferInput(
+  string TransferReference,
+  string SourceLineCode,
+  string DestinationLineCode,
+  decimal Amount,
+  string EvidenceReference);
+
 public sealed record FinancialComparativeInput(Guid PackageId, string Basis, string EvidenceReference);
 
-public sealed record NoteLineInput(string NoteCode, string FaceDestinationCode, decimal Amount, string EvidenceReference);
+public sealed record NoteLineInput(string NoteCode, string FaceDestinationCode, decimal Amount, string EvidenceReference,
+  IReadOnlyList<NoteSourceAllocationInput>? SourceAllocations = null);
+
+/// <summary>Signed contribution from one accepted general-ledger line to a numeric note amount.</summary>
+public sealed record NoteSourceAllocationInput(Guid GeneralLedgerLineId, decimal SignedAmount);
+
+internal sealed record ResolvedNoteSource(Guid GeneralLedgerLineId, Guid GeneralLedgerTransactionId, Guid SourceImportBatchId,
+  string SourceIdentityHash, string SourceLineHash, string AccountCode, DateOnly PostingDate, decimal SignedAmount, string Currency);
 
 public sealed record FinancialPackageBuildResult(
   Guid PackageId,

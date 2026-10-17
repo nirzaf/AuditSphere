@@ -116,6 +116,11 @@ public static class FinancialStatementCalculator
         x.CapitalMovementAmount.ToString("0.000000", CultureInfo.InvariantCulture),
         x.DividendsAmount.ToString("0.000000", CultureInfo.InvariantCulture),
         x.ClosingAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference.Trim())));
+    parts.AddRange((input.EquityTransfers ?? [])
+      .OrderBy(x => x.TransferReference, StringComparer.OrdinalIgnoreCase)
+      .Select(x => string.Join('|', "EQUITY_TRANSFER", x.TransferReference.Trim().ToUpperInvariant(),
+        x.SourceLineCode.Trim().ToUpperInvariant(), x.DestinationLineCode.Trim().ToUpperInvariant(),
+        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference.Trim())));
     parts.AddRange((input.NoteLines ?? [])
       .OrderBy(x => x.NoteCode, StringComparer.OrdinalIgnoreCase)
       .ThenBy(x => x.FaceDestinationCode, StringComparer.OrdinalIgnoreCase)
@@ -135,9 +140,10 @@ public static class FinancialStatementCalculator
 
   public static string ComputeEquityHash(
     IReadOnlyCollection<EquityLineInput> lines,
-    string currency)
+    string currency,
+    IReadOnlyCollection<EquityComponentTransferInput>? transfers = null)
   {
-    var parts = new List<string> { "financial-equity-rollforward.v1", currency };
+    var parts = new List<string> { transfers is { Count: > 0 } ? "financial-equity-rollforward.v2" : "financial-equity-rollforward.v1", currency };
     parts.AddRange(lines.OrderBy(x => x.LineCode, StringComparer.OrdinalIgnoreCase).Select(x => string.Join('|',
       x.LineCode.Trim().ToUpperInvariant(), x.Description.Trim(),
       x.OpeningAmount.ToString("0.000000", CultureInfo.InvariantCulture),
@@ -146,6 +152,11 @@ public static class FinancialStatementCalculator
       x.CapitalMovementAmount.ToString("0.000000", CultureInfo.InvariantCulture),
       x.DividendsAmount.ToString("0.000000", CultureInfo.InvariantCulture),
       x.ClosingAmount.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference.Trim())));
+    parts.AddRange((transfers ?? [])
+      .OrderBy(x => x.TransferReference, StringComparer.OrdinalIgnoreCase)
+      .Select(x => string.Join('|', "TRANSFER", x.TransferReference.Trim().ToUpperInvariant(),
+        x.SourceLineCode.Trim().ToUpperInvariant(), x.DestinationLineCode.Trim().ToUpperInvariant(),
+        x.Amount.ToString("0.000000", CultureInfo.InvariantCulture), x.EvidenceReference.Trim())));
     return Hashing.Sha256Hex(string.Join('\n', parts));
   }
 }

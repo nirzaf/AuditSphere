@@ -12,7 +12,8 @@ namespace AuditSphereOps.Application.Accounting;
 /// The resolved links of a package and the number of cash events in its accepted period ledger that no movement explains in full.
 /// A package can record CASH_FLOW_SOURCE_LINEAGE as passed only when every movement resolves and no cash event is unexplained.
 /// </summary>
-internal sealed record ResolvedCashFlowSources(IReadOnlyList<ResolvedCashFlowSourceLink> Links, int UnexplainedCashEvents);
+internal sealed record ResolvedCashFlowSources(IReadOnlyList<ResolvedCashFlowSourceLink> Links,
+  IReadOnlyList<ResolvedCashFlowScheduleSourceLink> ScheduleLinks, int UnexplainedCashEvents);
 
 /// <summary>
 /// Cash-flow source lineage for a package build (CP-11). Each contribution keeps its accepted general-ledger line's debit-positive
@@ -33,6 +34,14 @@ public static partial class FinancialStatementService
   internal static decimal ProjectCashFlowContribution(bool isNonCash, decimal ledgerSignedAmount) =>
     isNonCash ? ledgerSignedAmount : -ledgerSignedAmount;
 
+  internal static string CashFlowScheduleSourceHash(SpecialistAccountingSchedule schedule, ClientReportingPeriod period,
+    long inputGeneration, string component, decimal amount) =>
+    Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "cash-flow-specialist-schedule.v1", Schedule = schedule, Component = component, Amount = amount,
+      Period = new { period.Id, period.Currency, period.StartDate, period.EndDate }, InputGeneration = inputGeneration
+    }));
+
   /// <summary>
   /// Structural checks that need no database: a bounded count, six-decimal non-zero amounts, no source line repeated within one
   /// movement, and no movement whose projected contributions exceed its own amount or run against its sign.
@@ -41,19 +50,98 @@ public static partial class FinancialStatementService
   {
     foreach (var line in lines)
     {
-      if (line.SourceAllocations is not { } allocations) continue;
-      if (allocations.Count > MaxSourceAllocationsPerMovement)
-        return $"A cash-flow movement can draw on at most {MaxSourceAllocationsPerMovement} accepted source lines.";
+      var allocations = line.SourceAllocations ?? [];
+      var scheduleAllocations = line.ScheduleSourceAllocations ?? [];
+      if (allocations.Count == 0 && scheduleAllocations.Count == 0) continue;
+      if (allocations.Count + scheduleAllocations.Count > MaxSourceAllocationsPerMovement)
+        return $"A cash-flow movement can draw on at most {MaxSourceAllocationsPerMovement} source records.";
+      if (allocations.Count > 0 && scheduleAllocations.Count > 0)
+        return "A movement cannot mix accepted general-ledger lines and specialist schedule sources; prepare separate movements.";
       if (allocations.Any(x => x.GeneralLedgerLineId == Guid.Empty || x.SignedAmount == 0m ||
           MoneyPolicy.Normalize(x.SignedAmount) != x.SignedAmount))
         return "Each source contribution needs an accepted source line and a non-zero six-decimal signed amount.";
       if (allocations.GroupBy(x => x.GeneralLedgerLineId).Any(g => g.Count() != 1))
         return "A source line can contribute to a cash-flow movement only once.";
-      var total = MoneyPolicy.Normalize(ProjectCashFlowContribution(line.IsNonCash, allocations.Sum(x => x.SignedAmount)));
+      if (scheduleAllocations.Any(x => x.SpecialistScheduleId == Guid.Empty || string.IsNullOrWhiteSpace(x.ComponentCode) ||
+          x.ComponentCode.Trim().ToUpperInvariant() is not ("DEPRECIATION" or "IMPAIRMENT") || x.SignedAmount <= 0m ||
+          MoneyPolicy.Normalize(x.SignedAmount) != x.SignedAmount))
+        return "A schedule contribution must name an asset schedule's positive depreciation or impairment amount at six-decimal precision.";
+      if (scheduleAllocations.GroupBy(x => (x.SpecialistScheduleId, Component: x.ComponentCode?.Trim().ToUpperInvariant())).Any(g => g.Count() != 1))
+        return "A specialist schedule component can contribute to a movement only once.";
+      if (scheduleAllocations.Count > 0 && !line.IsNonCash)
+        return "Approved specialist schedule sources are supported only for explicitly noncash movements.";
+      var total = MoneyPolicy.Normalize(ProjectCashFlowContribution(line.IsNonCash,
+        allocations.Sum(x => x.SignedAmount) + scheduleAllocations.Sum(x => x.SignedAmount)));
       if (total != 0m && (Math.Abs(total) > Math.Abs(line.Amount) || Math.Sign(total) != Math.Sign(line.Amount)))
         return $"Source contributions for '{line.Description.Trim()}' exceed the movement amount or run against its sign.";
     }
     return null;
+  }
+
+  internal static async Task<CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>> ResolveCashFlowScheduleSourceLinksAsync(
+    IClientAccountingDbContext? typed, ActorContext actor, FinancialPackage package, Guid? periodId,
+    IReadOnlyList<CashFlowLineInput> lines, CancellationToken ct)
+  {
+    var requested = lines.SelectMany((line, movement) => (line.ScheduleSourceAllocations ?? []).Select(source => new
+      { Movement = movement, line.IsNonCash, source.SpecialistScheduleId, Component = source.ComponentCode?.Trim().ToUpperInvariant() ?? "", source.SignedAmount }))
+      .ToArray();
+    if (requested.Length == 0) return CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>.Ok([]);
+    if (typed is null || periodId is null || requested.Any(x => !x.IsNonCash))
+      return CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>.Fail(ErrorCodes.GateBlocked,
+        "Specialist schedule sources require an accounting workspace, reporting period and noncash movement.");
+    if (requested.Length > 100 || requested.Any(x => x.SpecialistScheduleId == Guid.Empty ||
+        x.Component is not ("DEPRECIATION" or "IMPAIRMENT") || x.SignedAmount <= 0m ||
+        MoneyPolicy.Normalize(x.SignedAmount) != x.SignedAmount) ||
+        requested.Select(x => (x.SpecialistScheduleId, x.Component)).Distinct().Count() != requested.Length)
+      return CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>.Fail(ErrorCodes.Accounting.PackageInvalid,
+        "Use distinct approved asset schedule components with positive six-decimal amounts.");
+
+    var period = await typed.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == package.FirmId &&
+      x.ClientId == package.ClientId && x.Id == periodId, ct);
+    var safety = await typed.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == package.FirmId &&
+      x.Id == package.ClientId, ct);
+    var ids = requested.Select(x => x.SpecialistScheduleId).Distinct().ToArray();
+    var schedules = await typed.SpecialistAccountingSchedules.AsNoTracking().Where(x => x.FirmId == package.FirmId &&
+      x.ClientId == package.ClientId && x.EngagementId == package.EngagementId && x.PeriodId == periodId && ids.Contains(x.Id))
+      .ToListAsync(ct);
+    if (period is null || period.Currency != package.Currency || safety is null || schedules.Count != ids.Length)
+      return CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>.Fail(ErrorCodes.GateBlocked,
+        "A specialist source is unavailable for this package's exact client, engagement, period or currency.");
+    var latestByArea = await typed.SpecialistAccountingSchedules.AsNoTracking().Where(x => x.FirmId == package.FirmId &&
+      x.ClientId == package.ClientId && x.EngagementId == package.EngagementId && x.PeriodId == periodId &&
+      schedules.Select(s => s.Area).Distinct().Contains(x.Area))
+      .GroupBy(x => x.Area).Select(g => new { Area = g.Key, Id = g.OrderByDescending(x => x.Revision)
+        .ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => x.Id).First() }).ToListAsync(ct);
+    var latest = latestByArea.ToDictionary(x => x.Area, x => x.Id, StringComparer.Ordinal);
+    var byId = schedules.ToDictionary(x => x.Id);
+    var resolved = new List<ResolvedCashFlowScheduleSourceLink>(requested.Length);
+    foreach (var source in requested)
+    {
+      if (!byId.TryGetValue(source.SpecialistScheduleId, out var schedule) || schedule.Area != "ASSETS" ||
+          schedule.Status != AccountingWorkflowStates.Approved || schedule.ReviewedByUserId is not Guid reviewerId ||
+          reviewerId == schedule.CreatedByUserId || schedule.ReviewedAt is null || schedule.InputGeneration != safety.InputGeneration ||
+          !latest.TryGetValue(schedule.Area, out var latestId) || latestId != schedule.Id ||
+          AccountingAnalysisService.ValidateRetainedSpecialist(schedule) is not null)
+        return CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>.Fail(ErrorCodes.GateBlocked,
+          "A specialist source must be the current, independently approved asset schedule for this client generation.");
+      var amount = source.Component switch
+      {
+        "DEPRECIATION" => schedule.DepreciationAmount,
+        "IMPAIRMENT" => schedule.ImpairmentAmount,
+        _ => 0m
+      };
+      if (amount <= 0m || amount != source.SignedAmount)
+        return CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>.Fail(ErrorCodes.Accounting.PackageInvalid,
+          "The source contribution must equal the exact retained depreciation or impairment component amount.");
+      var digest = CashFlowScheduleSourceHash(schedule, period, safety.InputGeneration, source.Component, amount);
+      resolved.Add(new(source.Movement, schedule.Id, source.Component, digest, amount, package.Currency));
+    }
+    var currentSafety = await typed.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == package.FirmId &&
+      x.Id == package.ClientId, ct);
+    if (currentSafety?.InputGeneration != safety.InputGeneration)
+      return CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>.Fail(ErrorCodes.StaleRevision,
+        "Client accounting inputs changed during specialist source inspection. Refresh and rebuild.");
+    return CommandResult<IReadOnlyList<ResolvedCashFlowScheduleSourceLink>>.Ok(resolved);
   }
 
   /// <summary>
@@ -67,12 +155,15 @@ public static partial class FinancialStatementService
     IClientAccountingDbContext? typed, ActorContext actor, FinancialPackage package,
     Guid? periodId, IReadOnlyList<CashFlowLineInput> lines, CancellationToken ct)
   {
+    var scheduleResult = await ResolveCashFlowScheduleSourceLinksAsync(typed, actor, package, periodId, lines, ct);
+    if (!scheduleResult.Succeeded)
+      return CommandResult<ResolvedCashFlowSources>.Fail(scheduleResult.ErrorCode!, scheduleResult.Message!);
     var requested = lines.Select((line, index) => (line, index))
       .Where(x => x.line.SourceAllocations is { Count: > 0 })
       .SelectMany(x => x.line.SourceAllocations!.Select(a => new { Movement = x.index, x.line.IsNonCash, a.GeneralLedgerLineId, a.SignedAmount }))
       .ToArray();
     if (requested.Length == 0)
-      return CommandResult<ResolvedCashFlowSources>.Ok(new ResolvedCashFlowSources([], 0));
+      return CommandResult<ResolvedCashFlowSources>.Ok(new ResolvedCashFlowSources([], scheduleResult.Value!, 0));
     if (typed is null || periodId is null)
       return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.GateBlocked,
         "Cash-flow source lines need the accounting workspace and a reporting period.");
@@ -177,7 +268,7 @@ public static partial class FinancialStatementService
       return new ResolvedCashFlowSourceLink(x.Movement, source.Id, source.TransactionId, batchId, hash,
         MoneyPolicy.Normalize(x.SignedAmount), batch.Currency, x.IsNonCash || JournalExplained(source.TransactionId));
     }).ToArray();
-    return CommandResult<ResolvedCashFlowSources>.Ok(new ResolvedCashFlowSources(resolved, unexplainedCashEvents));
+    return CommandResult<ResolvedCashFlowSources>.Ok(new ResolvedCashFlowSources(resolved, scheduleResult.Value!, unexplainedCashEvents));
   }
 
   /// <summary>

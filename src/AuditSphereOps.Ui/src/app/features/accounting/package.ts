@@ -1,8 +1,9 @@
-import { Component, inject, linkedSignal, signal } from '@angular/core';
+import { Component, effect, inject, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
+import { guidPattern } from '../../core/contracts';
 import { arr, bool, dec, guid, instant, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { StatementPresentation } from './presentation';
@@ -17,12 +18,26 @@ export const decodePackage = obj({ id: guid, engagementId: guid, comparativePack
   reviews: arr(obj({ stage: text, decision: text, evidenceMode: text, evidenceReference: text, packageHash: text, decidedAt: instant,
     presentationRevisionId: nullable(guid), compositionId: nullable(guid), compositionManifestDigest: nullable(sha256), id: guid }), 500),
   artifact: nullable(obj({ artifactSha256Hex: text, byteCount: nat, renderedText: text })), canReview: bool, reviewStages: arr(text, 10), reviewDecisions: arr(text, 10) });
-/** The original intent of a source decision, kept until the server answers. */
-export interface PendingSourceIntent { requestId: string; decision: string; reason: string | null; }
+/** The original request and concurrency fence, kept until the server confirms or refuses it as stale. */
+export interface PendingSourceIntent {
+  requestId: string;
+  decision: string;
+  reason: string | null;
+  expectedLinkDigest: string;
+  expectedPreviousReviewId: string | null;
+}
 
-/** A retry keeps the pending identity while the decision and reason are unchanged; a different decision gets a new identity. */
-export function sourceIntentFor(pending: PendingSourceIntent | null, decision: string, reason: string | null, newRequestId: string): PendingSourceIntent {
-  return pending && pending.decision === decision && pending.reason === reason ? pending : { requestId: newRequestId, decision, reason };
+/** Unknown-outcome retries retain the original fence; a changed decision or reason starts a new request. */
+export function sourceIntentFor(pending: PendingSourceIntent | null, decision: string, reason: string | null,
+  expectedLinkDigest: string, expectedPreviousReviewId: string | null, newRequestId: string): PendingSourceIntent {
+  return pending && pending.decision === decision && pending.reason === reason
+    ? pending
+    : { requestId: newRequestId, decision, reason, expectedLinkDigest, expectedPreviousReviewId };
+}
+
+export function sourceReviewRequestFor(intent: PendingSourceIntent): Record<string, unknown> {
+  return { decision: intent.decision, reason: intent.reason, requestId: intent.requestId,
+    expectedLinkDigest: intent.expectedLinkDigest, expectedPreviousReviewId: intent.expectedPreviousReviewId };
 }
 
 const pendingSourceIntentKey = (packageId: string): string => `auditsphere.cash-flow-source-intent.${packageId}`;
@@ -74,18 +89,23 @@ export function readPendingSourceIntent(packageId: string): PendingSourceIntent 
     const raw = globalThis.sessionStorage?.getItem(pendingSourceIntentKey(packageId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PendingSourceIntent>;
-    return typeof parsed.requestId === 'string' && typeof parsed.decision === 'string' ? parsed as PendingSourceIntent : null;
+    return typeof parsed.requestId === 'string' && guidPattern.test(parsed.requestId) &&
+      (parsed.decision === 'APPROVED' || parsed.decision === 'RETURNED') && (parsed.reason === null || typeof parsed.reason === 'string') &&
+      typeof parsed.expectedLinkDigest === 'string' && /^[a-f0-9]{64}$/i.test(parsed.expectedLinkDigest) &&
+      (parsed.expectedPreviousReviewId === null || typeof parsed.expectedPreviousReviewId === 'string' && guidPattern.test(parsed.expectedPreviousReviewId))
+      ? parsed as PendingSourceIntent : null;
   } catch {
     return null;
   }
 }
 
-export function writePendingSourceIntent(packageId: string, intent: PendingSourceIntent | null): void {
+export function writePendingSourceIntent(packageId: string, intent: PendingSourceIntent | null): boolean {
   try {
     if (intent) globalThis.sessionStorage?.setItem(pendingSourceIntentKey(packageId), JSON.stringify(intent));
     else globalThis.sessionStorage?.removeItem(pendingSourceIntentKey(packageId));
+    return !!globalThis.sessionStorage;
   } catch {
-    // Storage is unavailable (private window or blocked site data); the in-flight request still carries its identity.
+    return false;
   }
 }
 
@@ -93,6 +113,8 @@ export function writePendingSourceIntent(packageId: string, intent: PendingSourc
 export const decodeCashFlowSourceReview = obj({
   financialPackageId: guid, movements: nat, resolvedMovements: nat, sourceLinks: nat,
   currentSourceImportBatchId: nullable(guid), approved: bool, canReview: bool,
+  fxAssessmentState: nullable(text), fxAssessmentEvidenceReference: nullable(text), fxAssessmentRationale: nullable(text),
+  fxAssessmentMatchesEffects: bool,
   reviews: arr(obj({ id: guid, decision: oneOf('APPROVED', 'RETURNED'), reason: text, reviewedByUserId: guid, reviewedAt: instant,
     sourceImportBatchId: guid }), 50),
   // The digest of the exact links and the latest decision are sent back so the server decides only on what was reviewed.
@@ -173,6 +195,10 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
           @if (sourceReview.data(); as review) {
             <p role="status">{{ review.resolvedMovements }} of {{ review.movements }} movements fully allocated to {{ review.sourceLinks }} source contribution(s).
               {{ review.approved ? 'Approved by an independent reviewer against the current accepted general ledger.' : 'Not approved for the current accepted general ledger.' }}</p>
+            <p>FX cash-effect assessment: {{ review.fxAssessmentState ?? 'Not assessed' }}.
+              {{ review.fxAssessmentMatchesEffects ? 'Evidence and effect rows reconcile.' : 'Evidence is missing or does not match the recorded effect rows.' }}</p>
+            @if (review.fxAssessmentEvidenceReference) { <p>FX assessment evidence: {{ review.fxAssessmentEvidenceReference }}</p> }
+            @if (review.fxAssessmentRationale) { <p>FX assessment rationale: {{ review.fxAssessmentRationale }}</p> }
             <div class="table-scroll"><table><caption class="sr-only">Immutable cash-flow source review decisions</caption>
               <thead><tr><th scope="col">Decision</th><th scope="col">Reason</th><th scope="col">Reviewed at</th></tr></thead>
               <tbody>@for (x of review.reviews; track x.id) { <tr><td><audit-status [value]="x.decision" /></td><td>{{ x.reason || 'No reason recorded' }}</td><td><time [attr.datetime]="x.reviewedAt">{{ x.reviewedAt }}</time></td></tr> }
@@ -181,7 +207,7 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
               <form class="inline-form" (submit)="$event.preventDefault(); reviewSources(p.id)">
                 <label>Decision <select name="sourceDecision" [(ngModel)]="sourceDecision"><option value="APPROVED">APPROVED</option><option value="RETURNED">RETURNED</option></select></label>
                 <label>Reason <textarea name="sourceReason" [(ngModel)]="sourceReason" maxlength="2000" rows="2"></textarea></label>
-                <button matButton="filled" type="submit" [disabled]="cmd.busy()">{{ cmd.busy() ? 'Recording…' : 'Record source decision' }}</button>
+                <button matButton="filled" type="submit" [disabled]="cmd.busy() || sourceIntentRecoveryBlocked()">{{ cmd.busy() ? 'Recording…' : 'Record source decision' }}</button>
               </form>
               <p><small>The preparer who resolved the links cannot record this decision. A decision made against an earlier general ledger is refused.</small></p>
             }
@@ -221,8 +247,16 @@ export class FinancialPackage {
   readonly cmd = new CommandState(this.api);
   readonly sourceReview = this.api.resource(() => (this.id() ? `/api/ui/accounting/packages/${this.id()}/cash-flow-source-review` : null),
     decodeCashFlowSourceReview, 'The cash-flow source review is not available in the current firm scope.');
+  readonly sourceIntentRecoveryBlocked = signal(false);
   sourceDecision = 'APPROVED';
   sourceReason = '';
+  private readonly restorePendingSourceIntent = effect(() => {
+    const packageId = this.id();
+    if (!packageId) return;
+    const intent = readPendingSourceIntent(packageId);
+    this.sourceDecision = intent?.decision ?? 'APPROVED';
+    this.sourceReason = intent?.reason ?? '';
+  });
   readonly downloading = signal(false);
   readonly selectedComposition = linkedSignal({
     source: this.id,
@@ -233,16 +267,28 @@ export class FinancialPackage {
   r = { stage: 'ACCOUNTING_REVIEW', decision: 'APPROVED', mode: 'SIGNED_IN', reference: '', comment: '' };
   passed(p: ReturnType<typeof decodePackage>): number { return p.validations.filter((v) => v.passed).length; }
   reviewSources(id: string): void {
+    if (this.sourceIntentRecoveryBlocked()) return;
     const state = this.sourceReview.data();
     if (!state) return;
     // The original intent is kept until the server answers, so a lost reply followed by a reload retries the same decision.
     const reason = this.sourceReason || null;
-    const intent = sourceIntentFor(readPendingSourceIntent(id), this.sourceDecision, reason, crypto.randomUUID());
-    writePendingSourceIntent(id, intent);
-    void this.cmd.run(`/api/ui/accounting/packages/${id}/cash-flow-source-review`, { decision: this.sourceDecision,
-      reason, requestId: intent.requestId, expectedLinkDigest: state.linkDigest, expectedPreviousReviewId: state.latestReviewId },
+    const intent = sourceIntentFor(readPendingSourceIntent(id), this.sourceDecision, reason, state.linkDigest, state.latestReviewId, crypto.randomUUID());
+    if (!writePendingSourceIntent(id, intent)) {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('This browser cannot save the review request needed for safe recovery. Enable session storage and retry; no decision was sent.');
+      return;
+    }
+    void this.cmd.run(`/api/ui/accounting/packages/${id}/cash-flow-source-review`, sourceReviewRequestFor(intent),
       'Source decision recorded against the current accepted ledger.',
       () => { this.sourceReason = ''; writePendingSourceIntent(id, null); })
+      .then((accepted) => {
+        // A known stale refusal was not committed; clear its now-obsolete fence so the refreshed state can form a new intent.
+        if (!accepted && !this.cmd.uncertain() && this.cmd.code() === 'revision.stale' && !writePendingSourceIntent(id, null)) {
+          this.sourceIntentRecoveryBlocked.set(true);
+          this.cmd.failed.set(true);
+          this.cmd.message.set('The server refused this stale review without recording it, but this browser could not clear its recovery reference. Enable session storage and reload before retrying; no new decision was sent.');
+        }
+      })
       .finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
   }
   private pendingReview: PendingPackageReview | null = null;

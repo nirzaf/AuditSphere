@@ -18,7 +18,7 @@ public sealed record SourceAcceptanceReview(
   long InputGeneration, SourceAcceptanceDecision? Receipt, SelectedSourceDto? Selected,
   string Revision, bool CanAccept, string? Blocker);
 
-/// <summary>Review/reconciliation of one immutable TB source. Selection remains per engagement/source kind, not per period.</summary>
+/// <summary>Review/reconciliation of one immutable TB source. Selection is scoped to its reporting period and book.</summary>
 public static partial class SourceAcceptanceWorkspace
 {
   private static readonly string[] ReviewerRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
@@ -51,7 +51,8 @@ public static partial class SourceAcceptanceWorkspace
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == source.ClientId && x.Id == source.PeriodId, ct);
     var frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == source.EngagementId && x.State == FileFreezeStates.Frozen, ct);
     var receipt = await db.SourceAcceptanceDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == source.ClientId && x.EngagementId == source.EngagementId && x.TrialBalanceDatasetId == id && x.Decision == "ACCEPTED", ct);
-    var selected = await AccountingSourceAcceptanceService.GetSelectedSourceAsync(db, actor, source.ClientId, source.EngagementId, AccountingSourceKinds.TrialBalance, ct);
+    var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(db, actor,
+      source.ClientId, source.EngagementId, source.PeriodId, source.BookId, source.Basis, source.Currency, source.LegalEntityKey, ct);
     if (!selected.Succeeded) return CommandResult<SourceAcceptanceReview>.Fail(selected.ErrorCode!, selected.Message!);
     var write = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, source.ClientId, source.EngagementId, ReviewerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
     var hash = source.NormalizedDatasetDigest.Length == 64 ? source.NormalizedDatasetDigest : source.Sha256Hex;

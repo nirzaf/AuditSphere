@@ -39066,6 +39066,40 @@
             "items": {
               "$ref": "#/components/schemas/CashFlowSourceAllocationInput"
             }
+          },
+          "scheduleSourceAllocations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CashFlowScheduleSourceAllocationInput"
+            }
+          }
+        }
+      },
+      "CashFlowScheduleSourceAllocationInput": {
+        "required": [
+          "specialistScheduleId",
+          "componentCode",
+          "signedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "specialistScheduleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "componentCode": {
+            "type": "string"
+          },
+          "signedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },
@@ -45307,6 +45341,38 @@
           }
         }
       },
+      "EquityComponentTransferInput": {
+        "required": [
+          "transferReference",
+          "sourceLineCode",
+          "destinationLineCode",
+          "amount",
+          "evidenceReference"
+        ],
+        "type": "object",
+        "properties": {
+          "transferReference": {
+            "type": "string"
+          },
+          "sourceLineCode": {
+            "type": "string"
+          },
+          "destinationLineCode": {
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "evidenceReference": {
+            "type": "string"
+          }
+        }
+      },
       "EquityLineInput": {
         "required": [
           "lineCode",
@@ -45616,6 +45682,25 @@
             "items": {
               "type": "string"
             }
+          },
+          "equityTransfers": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EquityComponentTransferInput"
+            }
+          },
+          "fxCashAssessment": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FxCashAssessmentInput"
+              }
+            ]
           }
         }
       },
@@ -45836,6 +45921,25 @@
         "type": "object",
         "properties": {
           "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "FxCashAssessmentInput": {
+        "required": [
+          "state",
+          "evidenceReference",
+          "rationale"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "rationale": {
             "type": "string"
           }
         }
@@ -46505,6 +46609,36 @@
           },
           "evidenceReference": {
             "type": "string"
+          },
+          "sourceAllocations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/NoteSourceAllocationInput"
+            }
+          }
+        }
+      },
+      "NoteSourceAllocationInput": {
+        "required": [
+          "generalLedgerLineId",
+          "signedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "generalLedgerLineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },

@@ -10,7 +10,7 @@ const proof = obj({ id: guid, formulaVersion: str(100), sourceTotal: dec, glTota
   inputGeneration: nat, createdByUserId: guid, createdAt: instant, matchesCurrentInputs: bool });
 const item = obj({ id: guid, stableItemId: str(200), signedAmount: dec, currency: str(10), itemDate: nullable(date),
   reason: str(4000), evidenceReference: str(4000), disposition: str(100), dateBasis: str(100), agingBucket: str(100),
-  isCredit: bool, settlementDate: nullable(date), settlementReference: str(4000) });
+  isCredit: bool, settlementDate: nullable(date), settlementReference: str(4000), linkedJournalId: nullable(guid), linkedJournalRevision: nullable(nat) });
 const review = obj({ id: guid, clientId: guid, clientName: str(400), engagementId: guid, engagementName: str(200),
   periodId: guid, periodCode: str(100), bookId: nullable(guid), bookCode: nullable(str(100)), basis: str(100), currency: str(10),
   area: str(100), accountSelection: str(20000), asOfDate: date, agingBasis: str(100), agingBucketRuleVersion: str(100),
@@ -77,7 +77,8 @@ export function decodeReconciliation(raw: unknown, path = 'response') {
           <div class="table-scroll"><table><thead><tr><th>Item</th><th>Signed amount</th><th>Date / ageing</th><th>Reason and evidence</th><th>Disposition / settlement</th></tr></thead>
             <tbody>@for (x of r.items; track x.id) { <tr><td>{{ x.stableItemId }}{{ x.isCredit ? ' · Credit' : '' }}</td><td>{{ x.signedAmount }} {{ x.currency }}</td>
               <td>{{ x.itemDate ?? 'Not retained' }}<small>{{ x.dateBasis }} · {{ x.agingBucket }}</small></td><td>{{ x.reason }}<small>{{ x.evidenceReference }}</small></td>
-              <td>{{ x.disposition }}<small>{{ x.settlementDate ?? '' }} {{ x.settlementReference }}</small></td></tr> }</tbody></table></div>
+              <td>{{ x.disposition }}<small>{{ x.settlementDate ?? '' }} {{ x.settlementReference }}</small>
+                @if (x.linkedJournalId) { <small>Correction journal {{ x.linkedJournalId }} r{{ x.linkedJournalRevision }} (not settlement)</small> }</td></tr> }</tbody></table></div>
           <nav class="actions" aria-label="Reconciling item pages"><button matButton="outlined" (click)="page.set(r.page - 1)" [disabled]="!r.page">Previous</button>
             <button matButton="outlined" (click)="page.set(r.page + 1)" [disabled]="!r.hasMore">Next</button></nav>
         }

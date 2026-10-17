@@ -592,6 +592,37 @@ public sealed class FinancialPackageCashFlowAllocation
 }
 
 /// <summary>
+/// A cash-flow movement contribution from one exact, independently approved specialist schedule component.
+/// The source identity and amount are sealed with the package; this records provenance, not cash-flow policy approval.
+/// </summary>
+public sealed class FinancialPackageCashFlowScheduleAllocation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public Guid CashFlowLineId { get; set; }
+  public Guid SpecialistScheduleId { get; set; }
+  public string ComponentCode { get; set; } = string.Empty;
+  public string SourceScheduleHash { get; set; } = string.Empty;
+  public decimal SignedAmount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Append-only marker closing source-allocation membership after the package build transaction.</summary>
+public sealed class FinancialPackageCashFlowMembershipSeal
+{
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public DateTimeOffset SealedAt { get; set; }
+}
+
+/// <summary>
 /// An independent decision on the source-resolved cash-flow movements of one package. Append-only; the newest decision governs,
 /// and an approval is valid only while the accepted general ledger it cites is still the current one.
 /// </summary>
@@ -635,6 +666,22 @@ public sealed class FinancialPackageFxEffect
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Preparer's explicit FX cash-effect assessment, bound to the exact FX rows and reviewed with cash-flow source lineage.</summary>
+public sealed class FinancialPackageFxAssessment
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string State { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public string Rationale { get; set; } = string.Empty;
+  public string EffectDigest { get; set; } = string.Empty;
+  public Guid AssessedByUserId { get; set; }
+  public DateTimeOffset AssessedAt { get; set; }
+}
+
 public sealed class FinancialPackageDisclosure
 {
   public Guid Id { get; set; }
@@ -670,6 +717,23 @@ public sealed class FinancialPackageEquityLine
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Immutable identity of one paired, zero-sum transfer between two equity components in a package.</summary>
+public sealed class FinancialPackageEquityTransfer
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public string TransferReference { get; set; } = string.Empty;
+  public string SourceLineCode { get; set; } = string.Empty;
+  public string DestinationLineCode { get; set; } = string.Empty;
+  public decimal Amount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public string EvidenceReference { get; set; } = string.Empty;
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 /// <summary>Structured note amount used for note-to-face cross-casts.</summary>
 public sealed class FinancialPackageNoteLine
 {
@@ -683,6 +747,8 @@ public sealed class FinancialPackageNoteLine
   public decimal Amount { get; set; }
   public string Currency { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
+  /// <summary>Immutable, server-resolved accepted-GL source contributions. Empty means no typed source lineage was supplied.</summary>
+  public string SourceLineageJson { get; set; } = "[]";
   public DateTimeOffset CreatedAt { get; set; }
 }
 

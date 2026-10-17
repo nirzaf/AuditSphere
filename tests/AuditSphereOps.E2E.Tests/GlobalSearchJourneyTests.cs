@@ -81,10 +81,10 @@ public sealed class GlobalSearchJourneyTests
       await Assertions.Expect(search).ToBeFocusedAsync();
       await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
 
-      var pbcSearchResponse = page.WaitForResponseAsync(response =>
-        response.Url.Contains("/api/ui/search?term=pbc%20test", StringComparison.Ordinal));
-      await search.FillAsync("pbc test");
-      using (var pbcPayload = JsonDocument.Parse(await (await pbcSearchResponse).TextAsync()))
+      var (_, pbcSearchBody) = await PlaywrightResponseCapture.RunAsync(page,
+        request => request.Url.Contains("/api/ui/search?term=pbc%20test", StringComparison.Ordinal),
+        () => search.FillAsync("pbc test"));
+      using (var pbcPayload = JsonDocument.Parse(pbcSearchBody))
       {
         var kindOrder = pbcPayload.RootElement.GetProperty("hits").EnumerateArray()
           .Select(hit => hit.GetProperty("kind").GetString()!).Distinct().ToArray();
@@ -95,10 +95,10 @@ public sealed class GlobalSearchJourneyTests
       Assert.DoesNotContain(Marker, await results.InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
 
       // Page-only overflow exposes the same refinement hint as capped record results.
-      var pageSearchResponse = page.WaitForResponseAsync(response =>
-        response.Url.Contains("/api/ui/search?term=re", StringComparison.Ordinal));
-      await search.FillAsync("re");
-      using var pagePayload = JsonDocument.Parse(await (await pageSearchResponse).TextAsync());
+      var (_, pageSearchBody) = await PlaywrightResponseCapture.RunAsync(page,
+        request => request.Url.Contains("/api/ui/search?term=re", StringComparison.Ordinal),
+        () => search.FillAsync("re"));
+      using var pagePayload = JsonDocument.Parse(pageSearchBody);
       await Assertions.Expect(results.GetByRole(AriaRole.Status))
         .ToContainTextAsync("Refine your search for more specific results", new() { Timeout = 15000 });
       Assert.Equal(6, await results.GetByRole(AriaRole.Link).CountAsync());

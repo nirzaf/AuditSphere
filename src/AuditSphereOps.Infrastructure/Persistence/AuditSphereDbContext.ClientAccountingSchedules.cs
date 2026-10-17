@@ -53,10 +53,14 @@ public sealed partial class AuditSphereDbContext
     reconItem.Property(x => x.Reason).HasMaxLength(1000);
     reconItem.Property(x => x.EvidenceReference).HasMaxLength(2000);
     reconItem.Property(x => x.Disposition).HasMaxLength(100);
+    reconItem.ToTable("accounting_reconciliation_items", t => t.HasCheckConstraint("ck_accounting_reconciliation_item_journal_link",
+      "(linked_journal_id IS NULL AND linked_journal_revision IS NULL) OR (linked_journal_id IS NOT NULL AND linked_journal_revision > 0)"));
     reconItem.HasIndex(x => new { x.FirmId, x.ReconciliationId, x.StableItemId }).IsUnique()
       .HasDatabaseName("ux_accounting_reconciliation_item");
     ScopeToEngagement(reconItem, nameof(AccountingReconciliationItem.FirmId), nameof(AccountingReconciliationItem.ClientId), nameof(AccountingReconciliationItem.EngagementId));
     reconItem.HasOne<AccountingReconciliation>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.ReconciliationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    reconItem.HasOne<AdjustmentJournal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.LinkedJournalId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var ecl = b.Entity<EclAssessment>();

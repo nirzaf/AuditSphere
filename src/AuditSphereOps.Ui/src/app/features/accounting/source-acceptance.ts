@@ -295,15 +295,16 @@ export function decodeAcceptanceDraft(raw: unknown): { evidenceReference: string
         } @else {
           <p>
             No {{ isGeneralLedger ? 'general ledger' : 'trial balance' }} source is selected for
-            this engagement.
+            this reporting period.
           </p>
         }
         <p class="identity">Proposed: {{ sourceIdentity(r) }} · {{ r.sourceHash }}</p>
         <p>
-          Selection is for this engagement and source kind ({{ isGeneralLedger ? 'GL' : 'TB' }}),
-          across reporting periods. A different selected source will be superseded. Earlier
-          decisions remain retained. Acceptance advances input generation; dependent evidence may
-          become stale and needs re-preparation.
+          Selection is for this reporting period and source kind
+          ({{ isGeneralLedger ? 'GL' : 'TB' }}). A different source supersedes the selection in
+          this period only; other periods retain their own accepted source. Earlier decisions
+          remain retained. Acceptance advances input generation; dependent evidence is rechecked
+          against its period-specific source before reuse.
         </p>
       </section>
       @if (r.receipt; as a) {

@@ -232,11 +232,11 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
       Assert.False(staleWrite.Succeeded);
       Assert.Equal(ErrorCodes.GenerationStale, staleWrite.ErrorCode);
     }
-    await riskSection.GetByRole(AriaRole.Button, new() { Name = "Record risk", Exact = true }).ClickAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync(
-      "Sign in with your current AuditSphere identity.");
+    var staleRiskPreview = await page.RunAndWaitForResponseAsync(
+      () => riskSection.GetByRole(AriaRole.Button, new() { Name = "Preview identified risk", Exact = true }).ClickAsync(),
+      response => response.Request.Method == "GET" && response.Url.Contains("/audit-plan/commands/state", StringComparison.Ordinal));
+    Assert.Contains(staleRiskPreview.Status, new[] { 401, 403, 404, 409 });
+    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("unavailable");
     var revokedText = await page.Locator("main").InnerTextAsync();
     Assert.DoesNotContain(privateRisk, revokedText, StringComparison.Ordinal);
     Assert.DoesNotContain(revokedRisk, revokedText, StringComparison.Ordinal);

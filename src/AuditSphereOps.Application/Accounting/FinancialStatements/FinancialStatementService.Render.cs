@@ -22,7 +22,8 @@ public static partial class FinancialStatementService
     IReadOnlyCollection<FinancialPackageDisclosure> disclosures,
     IReadOnlyCollection<FinancialPackageValidation> validations,
     IReadOnlyCollection<FinancialPackageEquityLine>? equityLines = null,
-    IReadOnlyCollection<FinancialPackageNoteLine>? noteLines = null)
+    IReadOnlyCollection<FinancialPackageNoteLine>? noteLines = null,
+    IReadOnlyCollection<FinancialPackageEquityTransfer>? equityTransfers = null)
   {
     var sb = new System.Text.StringBuilder();
     sb.AppendLine("=== AUDITSPHEREOPS FINANCIAL STATEMENT PACKAGE ===");
@@ -99,6 +100,9 @@ public static partial class FinancialStatementService
       sb.AppendLine("--- STATEMENT OF CHANGES IN EQUITY ---");
       foreach (var equity in equityLines.OrderBy(x => x.LineCode, StringComparer.OrdinalIgnoreCase))
         sb.AppendLine($"{equity.LineCode} | {equity.Description} | opening={equity.OpeningAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | profit/loss={equity.ProfitOrLossAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | oci={equity.OciAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | capital={equity.CapitalMovementAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | dividends={equity.DividendsAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | closing={equity.ClosingAmount.ToString("0.000000", CultureInfo.InvariantCulture)} | {equity.Currency} | evidence={equity.EvidenceReference}");
+      if (equityTransfers is { Count: > 0 })
+        foreach (var transfer in equityTransfers.OrderBy(x => x.TransferReference, StringComparer.OrdinalIgnoreCase))
+          sb.AppendLine($"Transfer {transfer.TransferReference} | {transfer.SourceLineCode} -> {transfer.DestinationLineCode} | {transfer.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {transfer.Currency} | evidence={transfer.EvidenceReference}");
       sb.AppendLine();
     }
 
@@ -153,6 +157,9 @@ public static partial class FinancialStatementService
     IReadOnlyCollection<FinancialPackageEquityLine> equityLines = typed is null ? [] : await typed.FinancialPackageEquityLines.AsNoTracking()
       .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
       .ToListAsync(ct);
+    IReadOnlyCollection<FinancialPackageEquityTransfer> equityTransfers = typed is null ? [] : await typed.FinancialPackageEquityTransfers.AsNoTracking()
+      .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
+      .ToListAsync(ct);
     IReadOnlyCollection<FinancialPackageNoteLine> noteLines = typed is null ? [] : await typed.FinancialPackageNoteLines.AsNoTracking()
       .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
       .ToListAsync(ct);
@@ -160,7 +167,7 @@ public static partial class FinancialStatementService
       .Where(x => x.FinancialPackageId == package.Id && x.FirmId == actor.FirmId)
       .ToListAsync(ct);
 
-    var artifact = RenderPackageArtifact(package, lines, cashFlowLines, disclosures, validations, equityLines, noteLines);
+    var artifact = RenderPackageArtifact(package, lines, cashFlowLines, disclosures, validations, equityLines, noteLines, equityTransfers);
     var stored = await db.FinancialPackageArtifacts.SingleOrDefaultAsync(x =>
       x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
       x.FinancialPackageId == package.Id && x.PackageRevision == package.Revision &&

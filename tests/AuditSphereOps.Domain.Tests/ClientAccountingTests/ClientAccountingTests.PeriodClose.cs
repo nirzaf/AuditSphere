@@ -88,6 +88,8 @@ public sealed partial class ClientAccountingTests
       periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
         new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
       Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Initial close")).Succeeded);
+      db.RoleGrants.Add(ClientPartnerGrant(scope));
+      await db.SaveChangesAsync();
       Assert.True((await ClientAccountingService.ReopenPeriodAsync(db, partner, periodId, "Correct the approved opening bridge")).Succeeded);
 
       var period = await db.ClientReportingPeriods.SingleAsync(x => x.Id == periodId);
@@ -180,6 +182,12 @@ public sealed partial class ClientAccountingTests
       Assert.Equal("RECONCILED", bridge.Status);
       Assert.Null(bridge.ApprovedByUserId);
 
+      var closeBeforeBridgeApproval = await ClientAccountingService.ClosePeriodAsync(db, reviewer,
+        nextPeriodId, "Unreviewed opening bridge");
+      Assert.False(closeBeforeBridgeApproval.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, closeBeforeBridgeApproval.ErrorCode);
+      Assert.Contains("opening balance bridge", closeBeforeBridgeApproval.Message!, StringComparison.OrdinalIgnoreCase);
+
       var duplicate = await ClientAccountingService.RollForwardPeriodAsync(db, preparer,
         new RollForwardPeriodRequest(scope.ClientA, priorPeriodId, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
           "STATUTORY", "QAR", new string('f', 64), 100m, 100m, "signed-prior-closing"));
@@ -201,5 +209,8 @@ public sealed partial class ClientAccountingTests
       opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: new string('a', 64))).ErrorCode);
     Assert.True((await ClientAccountingService.ApproveOpeningBalanceBridgeAsync(verify, reviewer,
       opening.Id, expectedClientId: scope.ClientA, expectedSourceHash: opening.SourceHash)).Succeeded);
+    var closeAfterBridgeApproval = await ClientAccountingService.ClosePeriodAsync(verify, reviewer,
+      nextPeriodId, "Opening bridge reviewed");
+    Assert.True(closeAfterBridgeApproval.Succeeded, closeAfterBridgeApproval.Message);
   }
 }

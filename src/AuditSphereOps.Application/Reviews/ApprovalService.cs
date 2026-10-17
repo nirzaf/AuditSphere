@@ -89,8 +89,7 @@ public static class ApprovalService
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    if (current.Revision != request.ExpectedRevision ||
-        (current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != client.InputGeneration))
+    if (current.Revision != request.ExpectedRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The approved target changed; reload the current revision.");
     if (client.InputGeneration != request.ExpectedInputGeneration ||
         firm.PolicyGeneration != request.ExpectedPolicyGeneration)
@@ -100,7 +99,11 @@ public static class ApprovalService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = current.ClientId,
       EngagementId = current.EngagementId, TargetKind = current.Kind, TargetId = current.Id,
-      TargetRevision = current.Revision, InputGeneration = client.InputGeneration,
+      // Package decisions bind to the immutable package generation. The client-wide generation
+      // is still checked above as a command concurrency token, but unrelated period inputs must
+      // not invalidate this package's approval later.
+      TargetRevision = current.Revision,
+      InputGeneration = current.Kind == ReleaseTargetKinds.FinancialPackage ? current.Generation : client.InputGeneration,
       PolicyGeneration = firm.PolicyGeneration, ManifestDigest = request.ManifestDigest,
       Decision = request.Decision.Trim().ToUpperInvariant(), DecidedByUserId = actor.UserId,
       DecidedAt = DateTimeOffset.UtcNow
@@ -164,9 +167,10 @@ public static class ApprovalService
         ? (ApprovalStates.Stale, "The approval target is no longer eligible.", ErrorCodes.GateBlocked)
       : current.Revision != approval.TargetRevision
         ? (ApprovalStates.Stale, "The approved target revision changed.", ErrorCodes.StaleRevision)
-        : current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != approval.InputGeneration
+      : current.Kind == ReleaseTargetKinds.FinancialPackage && current.Generation != approval.InputGeneration
           ? (ApprovalStates.Stale, "The financial package generation changed.", ErrorCodes.GenerationStale)
-        : client.InputGeneration != approval.InputGeneration || firm.PolicyGeneration != approval.PolicyGeneration
+        : (current.Kind != ReleaseTargetKinds.FinancialPackage && client.InputGeneration != approval.InputGeneration) ||
+          firm.PolicyGeneration != approval.PolicyGeneration
           ? (ApprovalStates.Stale, "The client input or firm policy generation changed.", ErrorCodes.GenerationStale)
           : (ApprovalStates.Current, "Approval matches the current target and generations.", (string?)null);
 

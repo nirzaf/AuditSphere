@@ -220,4 +220,45 @@ public static class AccountingSourceAcceptanceService
     return CommandResult<SelectedSourceDto?>.Ok(new SelectedSourceDto(decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId,
       decision.ImportBatchId, decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation.Value));
   }
+
+  /// <summary>
+  /// The selected accepted trial balance for one reporting period/book/basis/currency.
+  /// Accepting another period or book leaves this pointer unchanged (CP-10).
+  /// </summary>
+  public static async Task<CommandResult<SelectedSourceDto?>> GetSelectedTrialBalanceForPeriodAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid engagementId, Guid? periodId,
+    Guid? bookId, string? basis, string currency, string legalEntityKey, CancellationToken ct = default)
+  {
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, engagementId, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<SelectedSourceDto?>.Fail(auth.ErrorCode!, auth.Message!);
+    var decision = await (from d in db.SourceAcceptanceDecisions.AsNoTracking()
+        join dataset in db.TrialBalanceDatasets.AsNoTracking() on d.TrialBalanceDatasetId equals dataset.Id
+        where d.FirmId == actor.FirmId && d.ClientId == clientId && d.EngagementId == engagementId &&
+          d.SourceKind == AccountingSourceKinds.TrialBalance && d.Decision == "ACCEPTED" &&
+          dataset.FirmId == actor.FirmId && dataset.ClientId == clientId && dataset.EngagementId == engagementId &&
+          dataset.PeriodId == periodId && dataset.BookId == bookId && dataset.Basis == basis &&
+          dataset.Currency == currency && dataset.LegalEntityKey == legalEntityKey
+        orderby d.CreatedAt descending, d.Id descending
+        select d).FirstOrDefaultAsync(ct);
+    if (decision is null)
+    {
+      auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, clientId, engagementId, InternalOnly: true), ct);
+      return auth.Succeeded
+        ? CommandResult<SelectedSourceDto?>.Ok(null)
+        : CommandResult<SelectedSourceDto?>.Fail(auth.ErrorCode!, auth.Message!);
+    }
+    var generation = await db.ClientSafetyStates.AsNoTracking()
+      .Where(x => x.Id == clientId && x.FirmId == actor.FirmId)
+      .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, engagementId, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<SelectedSourceDto?>.Fail(auth.ErrorCode!, auth.Message!);
+    if (generation is null) return CommandResult<SelectedSourceDto?>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return CommandResult<SelectedSourceDto?>.Ok(new SelectedSourceDto(
+      decision.Id, decision.SourceKind, decision.TrialBalanceDatasetId, decision.ImportBatchId,
+      decision.SourceIdentityHash, decision.AcceptedByUserId, decision.CreatedAt, generation.Value));
+  }
 }

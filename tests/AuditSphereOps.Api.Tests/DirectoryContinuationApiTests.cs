@@ -42,7 +42,6 @@ public sealed class DirectoryContinuationApiTests
       ["DevelopmentIdentity:Enabled"] = "true",
       ["DevelopmentIdentity:Subject"] = otherActor ? f.Staff.Subject : f.Admin.Subject,
       ["DevelopmentIdentity:TenantId"] = tenant,
-      ["Identity:TenantId"] = tenant,
       ["Application:AllowSimulationAdapters"] = "true",
       ["ExternalEffects:Enabled"] = "false"
     }, services =>

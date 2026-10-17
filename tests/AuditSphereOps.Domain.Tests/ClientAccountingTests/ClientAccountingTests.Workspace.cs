@@ -126,6 +126,8 @@ public sealed partial class ClientAccountingTests
     {
       Assert.Equal(ErrorCodes.StaleRevision, (await ClientAccountingService.ReopenPeriodAsync(db, partner, id,
         "Correction", expectedRevision: 1, expectedClientId: scope.ClientA)).ErrorCode);
+      db.RoleGrants.Add(ClientPartnerGrant(scope));
+      await db.SaveChangesAsync();
       Assert.True((await ClientAccountingService.ReopenPeriodAsync(db, partner, id, "Correction",
         expectedRevision: 2, expectedClientId: scope.ClientA)).Succeeded);
     }

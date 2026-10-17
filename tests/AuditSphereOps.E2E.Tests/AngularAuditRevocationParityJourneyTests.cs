@@ -105,7 +105,7 @@ public sealed class AngularAuditRevocationParityJourneyTests
       }
     }
 
-    await workpaperPage.GetByRole(AriaRole.Button, new() { Name = "Reload current target", Exact = true }).ClickAsync();
+    await workpaperPage.GetByRole(AriaRole.Button, new() { Name = "Refresh current target", Exact = true }).ClickAsync();
     await Assertions.Expect(workpaperPage.GetByRole(AriaRole.Alert))
       .ToContainTextAsync("current AuditSphere identity");
     await Assertions.Expect(workpaperPage.GetByLabel("Work performed", new() { Exact = true })).ToHaveCountAsync(0);

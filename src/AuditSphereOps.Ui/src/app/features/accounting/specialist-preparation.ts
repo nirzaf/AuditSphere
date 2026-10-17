@@ -15,7 +15,8 @@ import { decodeSpecialistContext, decodeSpecialistLookup, decodeSpecialistPrevie
 export const decodeScheduleSources = obj({periodId:guid,bookId:nullable(guid),batchId:guid,acceptanceId:guid,
  sourceHash:sha256,inputGeneration:nat,currency:str(10),page:nat,hasMore:bool,
  lines:arr(obj({lineId:guid,transactionId:guid,journal:str(2000),accountCode:str(200),postingDate:date,
- signedAmount:dec,currency:str(10),lineHash:sha256}),25)});
+ signedAmount:dec,currency:str(10),lineHash:sha256}),25),
+ specialistSources:arr(obj({scheduleId:guid,componentCode:str(30),signedAmount:dec,currency:str(10),scheduleHash:sha256,inputGeneration:nat,revision:nat}),10)});
 
 const commonAmounts=['openingAmount','additionsAmount','disposalsAmount','depreciationAmount','impairmentAmount','interestAmount','currentPortion','nonCurrentPortion','capitalMovement','dividends','taxPaid','managementAmount'] as const;
 const optionalAmounts=['payrollGrossAmount','payrollDeductionsAmount','payrollNetAmount','loanRepaymentAmount','equityProfitOrLossAmount','equityOciAmount','taxBaseAmount','taxRate','forecastCashInputAmount','forecastDebtInputAmount'] as const;

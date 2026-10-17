@@ -19,7 +19,7 @@ internal static class CashFlowSourceSeed
   /// payment journal opts in, and then must explain every cash event it includes, because an unexplained one fails lineage.
   /// </summary>
   [Flags]
-  internal enum OptionalCashEvents { None = 0, Equipment = 1, Compound = 2, Borrowing = 4 }
+  internal enum OptionalCashEvents { None = 0, Equipment = 1, Compound = 2, Borrowing = 4, Repayment = 8, Supplier = 16, ReceiptReversal = 32 }
 
   /// <summary>
   /// Named lines. Receivable is the credit side of a customer receipt (negative), Depreciation a debit with no cash leg,
@@ -27,7 +27,8 @@ internal static class CashFlowSourceSeed
   /// CompoundEquipment and CompoundFee the two debits of a compound payment whose single cash credit is in the same journal.
   /// </summary>
   internal sealed record Source(Guid BatchId, Guid Receivable, Guid Depreciation, Guid CashAccount, Guid Equipment,
-    Guid NoncashEquipment, Guid CompoundEquipment, Guid CompoundFee, Guid Borrowing = default);
+    Guid NoncashEquipment, Guid CompoundEquipment, Guid CompoundFee, Guid Borrowing = default,
+    Guid BorrowingRepayment = default, Guid SupplierPayable = default, Guid ReceiptReversal = default);
 
   internal static async Task<Source> SeedAcceptedGeneralLedgerAsync(PgTestSchema pg, Guid firmId, Guid clientId, Guid engagementId,
     Guid periodId, Guid bookId, Guid preparerId, ActorContext reviewer, string tag) =>
@@ -41,9 +42,9 @@ internal static class CashFlowSourceSeed
     var batchHash = batch.ToString("N") + batch.ToString("N");
     var now = DateTimeOffset.UtcNow;
     var source = new Source(batch, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-      Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+      Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
     // Default journals: J1 cash receipt, J2 noncash depreciation, J3 a transfer between two declared cash lines that nets to zero, and
-    // J5 noncash equipment bought on credit. Account 1000 is the cash account. Optional journals: J4 cash equipment, J6 compound payment with a fee.
+    // J5 noncash equipment bought on credit. Optional journals cover investing, compound payments, financing, supplier payment and reversal.
     var lines = new List<(int Journal, Guid Id, string Account, string Stable, decimal Amount)>
     {
       (1, Guid.NewGuid(), "1000", "L1-cash", amount),
@@ -71,6 +72,24 @@ internal static class CashFlowSourceSeed
       // J7: a new loan received in cash. The credited borrowing (-40) is the noncash counterpart of a +40 financing inflow.
       lines.Add((7, Guid.NewGuid(), "1000", "L7-cash", 40m));
       lines.Add((7, source.Borrowing, "2500", "L7-borrowing", -40m));
+    }
+    if (optional.HasFlag(OptionalCashEvents.Repayment))
+    {
+      // J8: loan principal repaid in cash. The liability debit is the noncash counterpart of a -15 outflow.
+      lines.Add((8, source.BorrowingRepayment, "2500", "L8-borrowing-repayment", 15m));
+      lines.Add((8, Guid.NewGuid(), "1000", "L8-cash", -15m));
+    }
+    if (optional.HasFlag(OptionalCashEvents.Supplier))
+    {
+      // J9: supplier payable settled in cash. The payable debit is the counterpart of a -30 operating outflow.
+      lines.Add((9, source.SupplierPayable, "2100", "L9-supplier-payable", 30m));
+      lines.Add((9, Guid.NewGuid(), "1000", "L9-cash", -30m));
+    }
+    if (optional.HasFlag(OptionalCashEvents.ReceiptReversal))
+    {
+      // J10: a customer receipt reversal refunds 10 in cash and debits the receivable counterpart.
+      lines.Add((10, Guid.NewGuid(), "1000", "L10-cash", -10m));
+      lines.Add((10, source.ReceiptReversal, "1100", "L10-receivable-reversal", 10m));
     }
     var journals = lines.Select(x => x.Journal).Distinct().ToDictionary(i => i, _ => Guid.NewGuid());
     await using (var db = new AuditSphereDbContext(options))

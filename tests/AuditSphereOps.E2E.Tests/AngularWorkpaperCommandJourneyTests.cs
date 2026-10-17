@@ -49,6 +49,9 @@ public sealed class AngularWorkpaperCommandJourneyTests
     var page = await context.NewPageAsync();
     var errors = new List<string>();
     var dropped = false;
+    var retryStatus = 0;
+    var retryBody = "";
+    var retryFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     page.PageError += (_, error) => errors.Add(error);
     page.Console += (_, message) =>
     {
@@ -82,7 +85,11 @@ public sealed class AngularWorkpaperCommandJourneyTests
       else
       {
         Assert.Equal(retainedId, id); Assert.Equal(retainedHash, hash);
-        await route.ContinueAsync();
+        var response = await route.FetchAsync();
+        retryStatus = response.Status;
+        retryBody = await response.TextAsync();
+        await route.FulfillAsync(new() { Response = response });
+        retryFinished.TrySetResult();
       }
     });
     if (action == "SAVE_DRAFT")
@@ -148,6 +155,8 @@ public sealed class AngularWorkpaperCommandJourneyTests
       }
       await retry.ClickAsync();
       if (action != "SAVE_DRAFT") await ReviewAndConfirm(page, action, originalWork, originalConclusion);
+      await retryFinished.Task.WaitAsync(TimeSpan.FromSeconds(10));
+      Assert.True(retryStatus == 200, $"Retry returned {retryStatus}: {retryBody}");
       await Assertions.Expect(recovery).ToHaveCountAsync(0); Assert.Equal(2, writes);
     }
     await using (var proof = host.CreateDbContext())

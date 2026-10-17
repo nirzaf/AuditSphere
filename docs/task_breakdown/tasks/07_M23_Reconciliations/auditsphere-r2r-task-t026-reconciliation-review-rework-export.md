@@ -2,7 +2,7 @@
 id: "T026"
 work_package: "R2R-07"
 modules: [23]
-status: "NOT_STARTED"
+status: "BLOCKED"
 depends_on: ["T025"]
 owner: ""
 reviewer: ""
@@ -10,16 +10,16 @@ review_decision: ""
 reviewed_commit: ""
 evidence_ref: ""
 approval_ref: ""
-blocked_reason: ""
+blocked_reason: "Hard dependency T025 is NOT_STARTED and lacks reviewed proof/correction-handoff evidence. A carry-forward safety subset was fixed, but T026 cannot proceed to task-level completion until T025 is completed."
 branch: ""
 issue_pr: ""
-updated_at: ""
+updated_at: "2026-10-17"
 ---
 # T026 — Implement reconciliation review, rework and export
 
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Original work-package order](../../reference/auditsphere-r2r-reference-execution-coordination-and-handover.md#section-6-1)
 
-**Status scope:** NOT_STARTED means this new task has not been assessed/executed under this breakdown. It does not assert that its underlying code is absent. First inspect and reuse the current implementation. No current repository progress has been imported.
+**Status scope:** BLOCKED because hard dependency T025 is not completed with reviewed handoff evidence. A narrow carry-forward safety correction is recorded in the current-slice handoff; it does not satisfy T026's task-level outcome. Existing behavior remains subject to the code and evidence audit below.
 
 ## Outcome
 
@@ -145,11 +145,11 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 
 | Field | Value to record |
 |---|---|
-| Inspected baseline and reused symbols | Not recorded |
-| Code commit / schema / deployed build if applicable | Not recorded |
-| Requirement → assertion → command/run → observed result | Not recorded |
+| Inspected baseline and reused symbols | `AccountingAnalysisService.CarryForwardReconciliationItemsAsync`; existing `AccountingReconciliation` / `AccountingReconciliationItem` append-only records and existing revision regression |
+| Code commit / schema / deployed build if applicable | `d91a271356cca1a3933aac46ddb59e71d60851d1`; no schema change |
+| Requirement → assertion → command/run → observed result | Settled-item and wrong-period-book carry attempts rejected; valid outstanding item carried without copied approval; `ReconciliationRevision_CreatesSuccessorAndCarryForward` passed 1/1 in 38 s. `dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ReconciliationRevision_CreatesSuccessorAndCarryForward'` |
 | Policy / scope approval reference | Not recorded |
-| Known limitations / exact blocker | Not recorded |
+| Known limitations / exact blocker | T025 proof/correction handoff is NOT_STARTED; T026 reviewed rework lifecycle and export are unimplemented or unaudited; no task-level completion claimed |
 | Exported contract / manifest / artifact references for consumers | Not recorded |
 | Reviewer and acceptance decision | Not recorded |
 

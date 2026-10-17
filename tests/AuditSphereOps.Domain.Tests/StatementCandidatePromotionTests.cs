@@ -148,10 +148,22 @@ public sealed class StatementCandidatePromotionTests
       db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
       db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
       db.Users.AddRange(preparer, reviewer, partner);
+      var partnerGrant = new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, UserId = partner.Id, Role = "Partner", ClientId = clientId,
+        EngagementId = engagementId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.Id,
+        Reason = "Engagement staffing: Engagement Partner"
+      };
       db.RoleGrants.AddRange(
         Grant(firmId, preparer, "AccountingPreparer"),
         Grant(firmId, reviewer, "AccountingReviewer"),
-        Grant(firmId, partner, "Partner"));
+        partnerGrant);
+      db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, UserId = partner.Id,
+        StaffingLevel = StaffingLevels.EngagementPartner, RoleGrantId = partnerGrant.Id,
+        AssignedByUserId = reviewer.Id, AssignedAt = DateTimeOffset.UtcNow
+      });
       db.ClientReportingPeriods.Add(new ClientReportingPeriod
       {
         Id = periodId, FirmId = firmId, ClientId = clientId, PeriodCode = "FY2026",
@@ -252,7 +264,8 @@ public sealed class StatementCandidatePromotionTests
               new EquityLineInput("REVALUATION_RESERVE", "Revaluation reserve", 0m, 0m, 10m, 0m, 0m, 10m, "valuation-report-candidate"),
               new EquityLineInput("SHARE_CAPITAL", "Share capital", 5m, 0m, 0m, 0m, 0m, 5m, "share-register-candidate")
             ],
-            FxCashEffects: [new FxCashEffectInput("USD/QAR", 0m, "USD account translated at the unchanged 3.64 peg")],
+            FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+              "The selected cash population has no foreign-currency cash effect."),
             CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-candidate"],
             ClosingCashEvidenceReferences: ["closing-cash-candidate"])
         });

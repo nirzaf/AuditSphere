@@ -152,8 +152,8 @@ public sealed partial class ClientAccountingTests
            new DisclosureInput("OCI_POLICY", "No OCI transactions occurred during the period.")],
           [new EquityLineInput("CAPITAL", "Capital", 0m, 0m, 0m, capital, 0m, capital, "capital-" + suffix),
            new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, profit, 0m, 0m, 0m, profit, "profit-" + suffix)],
-          FxCashEffects: [new FxCashEffectInput(currency + "/" + currency, 0m,
-            "All cash is denominated in functional currency; no entity-level exchange exposure.")],
+          FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
+            "All cash is denominated in functional currency; no entity-level exchange exposure."),
           CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-" + suffix],
           ClosingCashEvidenceReferences: ["closing-" + suffix])
       });
@@ -216,7 +216,7 @@ public sealed partial class ClientAccountingTests
         new(packageId, stage, FinancialPackageReviewDecisions.Approved, mode, "currency-" + stage,
           "Reviewed exact currency composition.", candidate.Value.RevisionId, null,
           composition.Value!.Id, composition.Value.ManifestDigest));
-      Assert.True(decision.Succeeded, decision.Message);
+      Assert.True(decision.Succeeded, $"{stage}: {decision.Message}");
     }
     Assert.True((await FinancialPackageReviewService.RequireCurrentAsync(db, Actor(scope.Partner, "Partner"), packageId, true)).Succeeded);
     var decisions = await db.FinancialPackageReviewDecisions.AsNoTracking().Where(x => x.FinancialPackageId == packageId).ToListAsync();

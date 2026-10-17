@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
@@ -88,7 +89,14 @@ public sealed class ConsolidationWorkspaceApiTests
 
       // Reviewer and preparer need engagement scope for package review verification
       db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Staff, "AccountingPreparer", clientId: seed.ClientId, engagementId: seed.EngagementId));
-      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, reviewer, "Partner", clientId: seed.ClientId, engagementId: seed.EngagementId));
+      var reviewerPartnerGrant = PbcSeed.Grant(seed.FirmId, reviewer, "Partner", clientId: seed.ClientId, engagementId: seed.EngagementId);
+      db.RoleGrants.Add(reviewerPartnerGrant);
+      db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
+        UserId = reviewer.Id, StaffingLevel = StaffingLevels.EngagementPartner, RoleGrantId = reviewerPartnerGrant.Id,
+        AssignedByUserId = seed.Staff.Id, AssignedAt = DateTimeOffset.UtcNow
+      });
 
       var scope = new ConsolidationScopeVersion
       {

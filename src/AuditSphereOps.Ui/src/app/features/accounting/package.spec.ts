@@ -1,9 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { decodeCashFlowSourceReview, decodePackage, latestCompositionDecisionId, packageReviewIntentFor, packageReviewRequestFor, sourceIntentFor } from './package';
+import { describe, expect, it, vi } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { Api } from '../../core/api';
+import { decodeCashFlowSourceReview, decodePackage, latestCompositionDecisionId, packageReviewIntentFor, packageReviewRequestFor,
+  readPendingSourceIntent, sourceIntentFor, sourceReviewRequestFor, writePendingSourceIntent } from './package';
+import { FinancialPackage } from './package';
 import { decodeReviewQueue } from './reviews';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
+const id3 = '33333333-3333-4333-8333-333333333333';
 const hash64 = 'a'.repeat(64);
 
 describe('Financial Package and Review Queue Contracts', () => {
@@ -143,14 +150,44 @@ describe('Financial Package and Review Queue Contracts', () => {
 });
 
 describe('Cash-flow source review contract (CP-11)', () => {
-  it('keeps the original intent for a retry and gives a changed decision a new identity', () => {
-    const first = sourceIntentFor(null, 'APPROVED', null, id1);
-    expect(sourceIntentFor(first, 'APPROVED', null, id2).requestId).toBe(id1);
-    expect(sourceIntentFor(first, 'RETURNED', 'Re-check support.', id2).requestId).toBe(id2);
+  it('replays a saved decision with its original digest and predecessor after reload', () => {
+    const originalDigest = 'a'.repeat(64);
+    const changedDigest = 'b'.repeat(64);
+    const first = sourceIntentFor(null, 'APPROVED', null, originalDigest, id1, id2);
+    expect(writePendingSourceIntent(id1, first)).toBe(true);
+    const replay = sourceIntentFor(readPendingSourceIntent(id1), 'APPROVED', null, changedDigest, null, id1);
+    writePendingSourceIntent(id1, null);
+
+    expect(replay.requestId).toBe(id2);
+    expect(sourceReviewRequestFor(replay)).toEqual({ decision: 'APPROVED', reason: null, requestId: id2,
+      expectedLinkDigest: originalDigest, expectedPreviousReviewId: id1 });
+  });
+
+  it('refuses to claim a pending intent is durable when session storage fails', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage blocked'); });
+    try {
+      expect(writePendingSourceIntent(id1, sourceIntentFor(null, 'APPROVED', null, 'a'.repeat(64), null, id2))).toBe(false);
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it('starts a new intent when the reviewer changes the decision or reason', () => {
+    const first = sourceIntentFor(null, 'APPROVED', null, 'a'.repeat(64), null, id1);
+    const changedDecision = sourceIntentFor(first, 'RETURNED', null, 'b'.repeat(64), id2, id2);
+    const changedReason = sourceIntentFor(first, 'APPROVED', 'Re-check support.', 'b'.repeat(64), id2, id3);
+
+    expect(changedDecision.requestId).toBe(id2);
+    expect(changedDecision.expectedLinkDigest).toBe('b'.repeat(64));
+    expect(changedDecision.expectedPreviousReviewId).toBe(id2);
+    expect(changedReason.requestId).toBe(id3);
+    expect(changedReason.reason).toBe('Re-check support.');
   });
 
   const review = {
     financialPackageId: id1, movements: 2, resolvedMovements: 2, sourceLinks: 2, currentSourceImportBatchId: id2, approved: true, canReview: false,
+    fxAssessmentState: 'ASSESSED_ZERO', fxAssessmentEvidenceReference: 'functional-currency-cash',
+    fxAssessmentRationale: 'No foreign-currency cash effect.', fxAssessmentMatchesEffects: true,
     reviews: [{ id: id1, decision: 'APPROVED', reason: '', reviewedByUserId: id2, reviewedAt: '2026-10-14T10:00:00Z', sourceImportBatchId: id2 }],
     linkDigest: 'a'.repeat(64), latestReviewId: id1,
   };
@@ -165,5 +202,58 @@ describe('Cash-flow source review contract (CP-11)', () => {
   it('refuses an unknown decision and a malformed reviewer identity', () => {
     expect(() => decodeCashFlowSourceReview({ ...review, reviews: [{ ...review.reviews[0], decision: 'PENDING' }] }, 'review')).toThrow();
     expect(() => decodeCashFlowSourceReview({ ...review, reviews: [{ ...review.reviews[0], reviewedByUserId: 'me' }] }, 'review')).toThrow();
+  });
+});
+
+describe('Cash-flow source review recovery UI (CP-11)', () => {
+  const reviewState = {
+    financialPackageId: id1, movements: 1, resolvedMovements: 1, sourceLinks: 1, currentSourceImportBatchId: id2,
+    approved: false, canReview: true, reviews: [], linkDigest: hash64, latestReviewId: null,
+    fxAssessmentState: 'ASSESSED_ZERO', fxAssessmentEvidenceReference: 'functional-currency-cash',
+    fxAssessmentRationale: 'No foreign-currency cash effect.', fxAssessmentMatchesEffects: true,
+  };
+  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let command: ReturnType<typeof vi.fn>;
+  let fixture: ReturnType<typeof TestBed.createComponent<FinancialPackage>>;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    const resource = { data: () => reviewState, error: () => '', loading: () => false, reload: vi.fn() };
+    command = vi.fn(async () => ({ ok: false as const, unknown: false as const, code: 'revision.stale', message: 'Review is stale.', status: 409 }));
+    TestBed.configureTestingModule({ imports: [FinancialPackage], providers: [
+      { provide: ActivatedRoute, useValue: { paramMap: params } },
+      { provide: Api, useValue: { resource: () => resource, command } },
+    ] });
+    TestBed.overrideComponent(FinancialPackage, { set: { template: '<button [disabled]="sourceIntentRecoveryBlocked()" (click)="reviewSources(id()!)">Review</button>' } });
+    fixture = TestBed.createComponent(FinancialPackage);
+  });
+
+  afterEach(() => { vi.restoreAllMocks(); TestBed.resetTestingModule(); sessionStorage.clear(); });
+
+  it('does not dispatch when recovery storage is unavailable', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage disabled'); });
+    fixture.componentInstance.reviewSources(id1);
+    await fixture.whenStable();
+
+    expect(command).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.cmd.message()).toContain('no decision was sent');
+  });
+
+  it('blocks another decision when a known-stale intent cannot be removed', async () => {
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+    fixture.componentInstance.reviewSources(id1);
+    await fixture.whenStable();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(command).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.sourceIntentRecoveryBlocked()).toBe(true);
+    expect(fixture.nativeElement.querySelector('button').disabled).toBe(true);
+    expect(fixture.componentInstance.cmd.message()).toContain('no new decision was sent');
+
+    fixture.componentInstance.reviewSources(id1);
+    await fixture.whenStable();
+    expect(command).toHaveBeenCalledTimes(1);
   });
 });

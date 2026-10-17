@@ -260,9 +260,17 @@ public sealed class AccountingRecordsApprovalTests
     Guid groupId, scopeId, journalId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var partnerActor = Actor(fixture.Partner, "Partner");
-      groupId = (await ConsolidationService.CreateGroupAsync(db, partnerActor,
-        new ClientGroupRequest("GROUP-RETURN", "Group journal return regression"))).Value;
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = fixture.Partner.Id, Role = "Partner",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Reviewer.Id,
+        Reason = "Synthetic firm-wide group creator fixture"
+      });
+      await db.SaveChangesAsync();
+      var groupCreator = await ConsolidationService.CreateGroupAsync(db, Actor(fixture.Partner, "Partner"),
+        new ClientGroupRequest("GROUP-RETURN", "Group journal return regression"));
+      Assert.True(groupCreator.Succeeded, groupCreator.Message);
+      groupId = groupCreator.Value;
       // Explicit group access for the preparer and reviewer actors.
       db.GroupAccessGrants.AddRange(
         new GroupAccessGrant
@@ -364,9 +372,20 @@ public sealed class AccountingRecordsApprovalTests
     db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
     db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = firmId });
     db.Users.AddRange(preparer, reviewer, partner);
+    var partnerGrant = new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, UserId = partner.Id, Role = "Partner", ClientId = clientId,
+      EngagementId = engagementId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.Id,
+      Reason = "Engagement staffing: Engagement Partner"
+    };
     db.RoleGrants.AddRange(
-      Grant(firmId, preparer, "AccountingPreparer"), Grant(firmId, reviewer, "AccountingReviewer"),
-      Grant(firmId, partner, "Partner"));
+      Grant(firmId, preparer, "AccountingPreparer"), Grant(firmId, reviewer, "AccountingReviewer"), partnerGrant);
+    db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+    {
+      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, UserId = partner.Id,
+      StaffingLevel = StaffingLevels.EngagementPartner, RoleGrantId = partnerGrant.Id,
+      AssignedByUserId = reviewer.Id, AssignedAt = DateTimeOffset.UtcNow
+    });
     db.TrialBalanceDatasets.Add(new TrialBalanceDataset
     {
       Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId,

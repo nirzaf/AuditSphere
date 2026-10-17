@@ -63,10 +63,20 @@ public static partial class FinancialStatementService
       if (lockedComparative is null)
         return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
           "The comparative package is no longer available to pin.");
+      if (!await CashFlowSourceApprovedAsync(db, lockedComparative, ct) ||
+          !await AcceptedTrialBalanceIsCurrentAsync(db, lockedComparative, ct))
+        return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
+          "The comparative package no longer uses current accepted sources for its reporting period.");
     }
-    if (lockedSafety.InputGeneration != package.Generation)
-      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GenerationStale,
-        "The source package is stale against current client inputs and cannot be pinned.");
+    // Client input generation is client-wide. Accepting a source for another reporting period
+    // must not stale this package; the package snapshot and its period-scoped source review are
+    // the authoritative freshness boundary here.
+    if (!await CashFlowSourceApprovedAsync(db, package, ct))
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
+        "The package's period-specific cash-flow source review is no longer current.");
+    if (!await AcceptedTrialBalanceIsCurrentAsync(db, package, ct))
+      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.StaleRevision,
+        "The package no longer uses the selected accepted trial-balance source for its reporting period.");
     var writeAuth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId,
       PreparerRoles, ct);
     if (!writeAuth.Succeeded)
@@ -199,10 +209,6 @@ public static partial class FinancialStatementService
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (package is null || package.ClientId != packageClientId.Value)
       return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-
-    if (lockedSafety.InputGeneration != package.Generation)
-      return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GenerationStale,
-        "The source package is stale against current client inputs and cannot be promoted to a candidate.");
 
     var auth = await AuthorizeAsync(db, actor, package.FirmId, package.ClientId, package.EngagementId, PreparerRoles, ct);
     if (!auth.Succeeded)
@@ -454,11 +460,12 @@ public static partial class FinancialStatementService
         package.CalculationHash != revision.PackageCalculationHash || package.ComparativePackageId != revision.ComparativePackageId)
       return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
         "The package no longer matches the exact source revision recorded for this draft.");
-    var currentSafety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == revision.FirmId && x.Id == revision.ClientId, ct);
-    if (currentSafety is null || currentSafety.InputGeneration != revision.PackageGeneration)
+    if (!await CashFlowSourceApprovedAsync(db, package, ct))
       return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
-        "Client source inputs changed after this draft was pinned.");
+        "The package's period-specific cash-flow source review changed after this draft was pinned.");
+    if (!await AcceptedTrialBalanceIsCurrentAsync(db, package, ct))
+      return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
+        "The package no longer uses the selected accepted trial-balance source for its reporting period.");
     var layout = await db.StatementLayoutVersions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == revision.LayoutVersionId && x.FirmId == revision.FirmId && x.ClientId == revision.ClientId, ct);
     if (layout is null || layout.Status != StatementLayoutStatuses.Published || layout.LayoutHash != revision.LayoutHash)
@@ -479,6 +486,12 @@ public static partial class FinancialStatementService
           comparative.CalculationHash != revision.ComparativeCalculationHash)
         return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
           "The comparative package no longer matches the exact source revision recorded for this draft.");
+      if (!await CashFlowSourceApprovedAsync(db, comparative, ct))
+        return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
+          "The comparative package's period-specific cash-flow source review changed after this draft was pinned.");
+      if (!await AcceptedTrialBalanceIsCurrentAsync(db, comparative, ct))
+        return CommandResult<FinancialStatementPresentation>.Fail(ErrorCodes.StaleRevision,
+          "The comparative package no longer uses the selected accepted trial-balance source for its reporting period.");
     }
     var packageIds = comparative is null ? new[] { package.Id } : new[] { package.Id, comparative.Id };
     var noteLines = await db.FinancialPackageNoteLines.AsNoTracking()
@@ -682,9 +695,9 @@ public static partial class FinancialStatementService
         package.CalculationHash != revision.PackageCalculationHash || package.ComparativePackageId != revision.ComparativePackageId ||
         package.ComparativeBasis != revision.ComparativeBasis || package.ComparativeEvidenceReference != revision.ComparativeEvidenceReference)
       return false;
-    var safety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == revision.FirmId && x.Id == revision.ClientId, ct);
-    if (safety is null || safety.InputGeneration != revision.PackageGeneration)
+    if (!await CashFlowSourceApprovedAsync(db, package, ct))
+      return false;
+    if (!await AcceptedTrialBalanceIsCurrentAsync(db, package, ct))
       return false;
 
     var layout = await db.StatementLayoutVersions.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -704,6 +717,10 @@ public static partial class FinancialStatementService
           comparative.Currency != package.Currency || comparative.Revision != revision.ComparativePackageRevision ||
           comparative.Generation != revision.ComparativePackageGeneration || comparative.CalculationHash != revision.ComparativeCalculationHash)
         return false;
+      if (!await CashFlowSourceApprovedAsync(db, comparative, ct))
+        return false;
+      if (!await AcceptedTrialBalanceIsCurrentAsync(db, comparative, ct))
+        return false;
     }
     var packageIds = comparative is null ? new[] { package.Id } : new[] { package.Id, comparative.Id };
     var noteLines = await db.FinancialPackageNoteLines.AsNoTracking()
@@ -714,6 +731,43 @@ public static partial class FinancialStatementService
       Hashing.Sha256Hex(revision.SnapshotJson) == revision.SnapshotSha256Hex &&
       PresentationRevisionHash(package, layout, comparative, revision.NoteSourceManifestHash,
         revision.SnapshotSha256Hex, revision.BuilderVersion, revision.RendererVersion, revision.DisplayPolicy) == revision.RevisionHash;
+  }
+
+  /// <summary>
+  /// A later accepted TB revision supersedes only the same period/book/basis/currency source.
+  /// The client-wide input generation is deliberately not used here because other periods
+  /// may be accepted independently and must remain usable as comparatives.
+  /// </summary>
+  private static async Task<bool> AcceptedTrialBalanceIsCurrentAsync(
+    IClientAccountingDbContext db, FinancialPackage package, CancellationToken ct)
+  {
+    var baseDatasetId = await (from plan in db.AdjustmentPlans.AsNoTracking()
+        join dataset in db.TrialBalanceDatasets.AsNoTracking() on plan.BaseDatasetId equals dataset.Id
+        where plan.Id == package.AdjustmentPlanId && plan.FirmId == package.FirmId &&
+          plan.ClientId == package.ClientId && plan.EngagementId == package.EngagementId &&
+          dataset.FirmId == package.FirmId && dataset.ClientId == package.ClientId &&
+          dataset.EngagementId == package.EngagementId
+        select new { DatasetId = dataset.Id, dataset.PeriodId, dataset.BookId, dataset.Basis, dataset.Currency, dataset.LegalEntityKey })
+      .SingleOrDefaultAsync(ct);
+    if (baseDatasetId is null || baseDatasetId.PeriodId != package.PeriodId || baseDatasetId.BookId != package.BookId ||
+        !string.Equals(baseDatasetId.Basis, package.Basis, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(baseDatasetId.Currency, package.Currency, StringComparison.Ordinal))
+      return false;
+
+    var selectedDatasetId = await (from decision in db.SourceAcceptanceDecisions.AsNoTracking()
+        join dataset in db.TrialBalanceDatasets.AsNoTracking() on decision.TrialBalanceDatasetId equals dataset.Id
+        where decision.FirmId == package.FirmId && decision.ClientId == package.ClientId &&
+          decision.EngagementId == package.EngagementId && decision.SourceKind == AccountingSourceKinds.TrialBalance &&
+          decision.Decision == "ACCEPTED" && dataset.FirmId == package.FirmId &&
+          dataset.ClientId == package.ClientId && dataset.EngagementId == package.EngagementId &&
+          dataset.PeriodId == package.PeriodId && dataset.BookId == package.BookId &&
+          dataset.Basis == baseDatasetId.Basis && dataset.Currency == package.Currency &&
+          dataset.LegalEntityKey == baseDatasetId.LegalEntityKey
+        orderby decision.CreatedAt descending, decision.Id descending
+        select (Guid?)dataset.Id).FirstOrDefaultAsync(ct);
+
+    // Preserve legacy packages where no accepted TB pointer exists for this exact source scope.
+    return selectedDatasetId is null || selectedDatasetId == baseDatasetId.DatasetId;
   }
 
   private static async Task<FinancialPackageArtifact?> PackageArtifactForPinAsync(

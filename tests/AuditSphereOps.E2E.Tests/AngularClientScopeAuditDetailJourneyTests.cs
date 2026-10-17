@@ -128,7 +128,7 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 {
                     var planLink = page.GetByRole(AriaRole.Link, new() { Name = "Audit plan", Exact = true }).Last;
                     await planLink.FocusAsync();
-                    await page.Keyboard.PressAsync("Tab");
+                    await planLink.PressAsync("Tab");
                     var fieldworkLink = page.GetByRole(AriaRole.Link,
                       new() { Name = "Fieldwork control center", Exact = true }).Last;
                     await Assertions.Expect(fieldworkLink).ToBeFocusedAsync();
@@ -138,7 +138,7 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 {
                     var planLink = page.GetByRole(AriaRole.Link, new() { Name = "Audit plan", Exact = true });
                     await planLink.FocusAsync();
-                    await page.Keyboard.PressAsync("Tab");
+                    await planLink.PressAsync("Tab");
                     var engagementLink = page.GetByRole(AriaRole.Link,
                       new() { Name = "Engagement", Exact = true });
                     await Assertions.Expect(engagementLink).ToBeFocusedAsync();
@@ -149,7 +149,7 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                     var fieldworkLink = page.GetByRole(AriaRole.Link,
                       new() { Name = "Fieldwork control center", Exact = true }).Last;
                     await fieldworkLink.FocusAsync();
-                    await page.Keyboard.PressAsync("Tab");
+                    await fieldworkLink.PressAsync("Tab");
                     var planLink = page.GetByRole(AriaRole.Link, new() { Name = "Audit plan", Exact = true });
                     await Assertions.Expect(planLink).ToBeFocusedAsync();
                     await Assertions.Expect(planLink).ToHaveCSSAsync("outline-style", "solid");
@@ -160,11 +160,14 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                       new() { Name = "Breadcrumb", Exact = true }).GetByRole(AriaRole.Link,
                       new() { Name = "Portfolio", Exact = true });
                     await portfolioLink.FocusAsync();
-                    await page.Keyboard.PressAsync("Tab");
-                    var engagementLink = page.GetByRole(AriaRole.Link,
-                      new() { Name = "Engagement", Exact = true }).First;
-                    await Assertions.Expect(engagementLink).ToBeFocusedAsync();
-                    await Assertions.Expect(engagementLink).ToHaveCSSAsync("outline-style", "solid");
+                    await portfolioLink.PressAsync("Tab");
+                    var nextControl = page.GetByRole(AriaRole.Button, new()
+                    {
+                        Name = route.Template == "/app/records/archives/{0}" ? "Refresh archive" : "Refresh review point",
+                        Exact = true
+                    });
+                    await Assertions.Expect(nextControl).ToBeFocusedAsync();
+                    await Assertions.Expect(nextControl).ToHaveCSSAsync("outline-style", "solid");
                 }
 
                 if (route.Template == "/app/findings/{0}")
@@ -256,6 +259,7 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
             await workpaperPage.GetByText(own.WorkpaperMarker, new() { Exact = false })
               .WaitForAsync(new() { Timeout = 15000 });
             WorkpaperDraftResult initialDraft;
+            AuditSphereOps.Domain.Audit.WorkpaperDraft persistedDraft;
             await using (var db = host.CreateDbContext())
             {
                 var workpaper = await AuditRecordQueries.WorkpaperAsync(db,
@@ -265,6 +269,8 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                   PbcSeed.Actor(host.Fixture.Staff, "Staff"), own.WorkpaperId);
                 Assert.True(draft.Succeeded, draft.Message);
                 initialDraft = draft.Value!;
+                persistedDraft = await db.WorkpaperDrafts.AsNoTracking()
+                  .SingleAsync(x => x.WorkpaperId == own.WorkpaperId);
             }
             await using (var db = host.CreateDbContext())
             {
@@ -294,7 +300,14 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
                 Assert.False(refusedWorkpaperSave.Succeeded);
                 Assert.False(await db.ReviewPoints.AsNoTracking().Where(x => x.Id == own.ReviewPointId)
                   .Select(x => x.Cleared).SingleAsync());
-                Assert.False(await db.WorkpaperDrafts.AsNoTracking().AnyAsync(x => x.WorkpaperId == own.WorkpaperId));
+                var unchangedDraft = await db.WorkpaperDrafts.AsNoTracking()
+                  .SingleAsync(x => x.WorkpaperId == own.WorkpaperId);
+                Assert.Equal(persistedDraft.DraftRevision, unchangedDraft.DraftRevision);
+                Assert.Equal(persistedDraft.LastSaveId, unchangedDraft.LastSaveId);
+                Assert.Equal(persistedDraft.WorkPerformed, unchangedDraft.WorkPerformed);
+                Assert.Equal(persistedDraft.Conclusion, unchangedDraft.Conclusion);
+                Assert.Equal("CONSUMED", unchangedDraft.Lifecycle);
+                Assert.DoesNotContain("AFTER-REVOKE", unchangedDraft.WorkPerformed, StringComparison.Ordinal);
             }
 
             await page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
@@ -423,19 +436,17 @@ public sealed class AngularClientScopeAuditDetailJourneyTests
         var workpaperId = workpaperResult.Value!.WorkpaperId;
         var workpaperProcedureMarker = $"{marker}-WORKPAPER-PROCEDURE";
         var workpaperConclusionMarker = $"{marker}-SUBMISSION-CONCLUSION";
-        db.WorkpaperSubmissions.Add(new WorkpaperSubmission
-        {
-            Id = Guid.NewGuid(),
-            FirmId = scope.FirmId,
-            ClientId = scope.ClientId,
-            EngagementId = scope.EngagementId,
-            WorkpaperId = workpaperId,
-            ActorId = scope.Staff.Id,
-            Revision = 2,
-            WorkPerformed = workpaperPerformedMarker,
-            Conclusion = workpaperConclusionMarker,
-            SubmittedAt = now
-        });
+        var savedWorkpaper = await AuditPlanningService.SaveWorkpaperDraftAsync(db, actor,
+          new SaveWorkpaperDraftRequest(workpaperId, ExpectedDraftRevision: 0,
+            BaseWorkpaperRevision: workpaperResult.Value.Revision, BaseInputGeneration: 1,
+            BasePolicyGeneration: 1, Guid.NewGuid(), workpaperPerformedMarker, workpaperConclusionMarker));
+        Assert.True(savedWorkpaper.Succeeded, savedWorkpaper.Message);
+        var submittedWorkpaper = await AuditPlanningService.SubmitWorkpaperAsync(db, actor,
+          new SubmitWorkpaperRequest(workpaperId, ExpectedRevision: workpaperResult.Value.Revision,
+            WorkPerformed: workpaperPerformedMarker, Conclusion: workpaperConclusionMarker,
+            ExpectedDraftRevision: savedWorkpaper.Value!.DraftRevision,
+            DraftSaveId: savedWorkpaper.Value.LastSaveId));
+        Assert.True(submittedWorkpaper.Succeeded, submittedWorkpaper.Message);
 
         var reviewPointId = Guid.NewGuid();
         db.ReviewPoints.Add(new ReviewPoint

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -102,7 +103,8 @@ public static partial class FinancialStatementService
       request.SupplementaryInformation, request.PeriodStart, request.PeriodEnd);
     if (supplementaryError is not null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.Accounting.PackageSupplementaryInvalid, supplementaryError);
-    if ((request.SupplementaryInformation?.EquityLines is not null || request.SupplementaryInformation?.NoteLines is not null) && typedAccounting is null)
+    if ((request.SupplementaryInformation?.EquityLines is not null || request.SupplementaryInformation?.EquityTransfers is not null ||
+        request.SupplementaryInformation?.NoteLines is not null) && typedAccounting is null)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GateBlocked,
         "Structured equity and note package outputs require the client-accounting persistence surface.");
 
@@ -132,7 +134,8 @@ public static partial class FinancialStatementService
       ? null
       : FinancialStatementCalculator.ComputeSupplementaryHash(request.SupplementaryInformation, dataset.Currency);
     var equityHash = request.SupplementaryInformation?.EquityLines is { Count: > 0 } equityLines
-      ? FinancialStatementCalculator.ComputeEquityHash(equityLines, dataset.Currency)
+      ? FinancialStatementCalculator.ComputeEquityHash(equityLines, dataset.Currency,
+        request.SupplementaryInformation.EquityTransfers)
       : null;
     var noteTotals = (request.SupplementaryInformation?.NoteLines ?? [])
       .GroupBy(x => x.FaceDestinationCode.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -161,7 +164,7 @@ public static partial class FinancialStatementService
       x.Id == plan.Id && x.FirmId == plan.FirmId, ct);
     if (currentMapping is null || currentPlan is null ||
         currentMapping.Version != mapping.Version ||
-        currentMapping.Generation != client.InputGeneration ||
+        currentMapping.Generation != mapping.Generation ||
         currentMapping.Status != AccountingPackageStates.MappingApproved ||
         currentPlan.Status != "Finalized" || currentPlan.ResultHash != plan.ResultHash)
       return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
@@ -232,6 +235,10 @@ public static partial class FinancialStatementService
       ComparativeEvidenceReference = request.SupplementaryInformation?.Comparative?.EvidenceReference.Trim(),
       CreatedAt = DateTimeOffset.UtcNow
     };
+    var noteRows = request.SupplementaryInformation?.NoteLines ?? [];
+    var noteSourceLinks = await ResolveNoteSourceLinksAsync(typedAccounting, actor, package, dataset.PeriodId, noteRows, ct);
+    if (!noteSourceLinks.Succeeded)
+      return CommandResult<FinancialPackageBuildResult>.Fail(noteSourceLinks.ErrorCode!, noteSourceLinks.Message!);
     db.FinancialPackages.Add(package);
     foreach (var line in packageLines)
       db.FinancialPackageLines.Add(new FinancialPackageLine
@@ -268,8 +275,10 @@ public static partial class FinancialStatementService
     var cashBridgeReconciled = request.SupplementaryInformation is { } supplied &&
       ValidateSupplementaryInformation(supplied, request.PeriodStart, request.PeriodEnd) is null;
     AddValidation(db, package, "CASH_FLOW_RECONCILED", hasSupplementary && cashBridgeReconciled,
-      hasSupplementary
-        ? "Cash movements, FX cash effects and noncash disclosures reconcile to the supplied opening and closing cash."
+      hasSupplementary && cashBridgeReconciled
+        ? "Cash movements, recorded FX effects and noncash disclosures reconcile numerically to the supplied opening and closing cash; separate FX assessment and independent review are required for presentation."
+        : hasSupplementary
+          ? "Cash-flow amounts do not reconcile to the supplied opening and closing cash, or required schedule inputs are incomplete."
         : "Cash-flow workings are not supplied.");
     AddValidation(db, package, "DISCLOSURES_COMPLETE", hasSupplementary,
       hasSupplementary ? "Disclosure responses are present, including rationale for not-applicable items." : "Disclosure responses are not supplied.");
@@ -303,6 +312,15 @@ public static partial class FinancialStatementService
           DividendsAmount = MoneyPolicy.Normalize(line.DividendsAmount), ClosingAmount = MoneyPolicy.Normalize(line.ClosingAmount),
           Currency = package.Currency, EvidenceReference = line.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
         });
+      foreach (var transfer in request.SupplementaryInformation.EquityTransfers ?? [])
+        typedAccounting!.FinancialPackageEquityTransfers.Add(new FinancialPackageEquityTransfer
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          TransferReference = transfer.TransferReference.Trim().ToUpperInvariant(), SourceLineCode = transfer.SourceLineCode.Trim().ToUpperInvariant(),
+          DestinationLineCode = transfer.DestinationLineCode.Trim().ToUpperInvariant(), Amount = MoneyPolicy.Normalize(transfer.Amount),
+          Currency = package.Currency, EvidenceReference = transfer.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
+        });
     }
     else
       AddValidation(db, package, "EQUITY_PROFIT", false,
@@ -325,15 +343,20 @@ public static partial class FinancialStatementService
     {
       AddValidation(db, package, "NOTE_TO_FACE_TOTALS", true,
         "Structured note amounts cross-cast to the mapped face destinations.");
-      foreach (var line in requestedNotes)
+      for (var index = 0; index < requestedNotes.Count; index++)
+      {
+        var line = requestedNotes[index];
         typedAccounting!.FinancialPackageNoteLines.Add(new FinancialPackageNoteLine
         {
           Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
           EngagementId = package.EngagementId, FinancialPackageId = package.Id,
           NoteCode = line.NoteCode.Trim().ToUpperInvariant(), FaceDestinationCode = line.FaceDestinationCode.Trim(),
           Amount = MoneyPolicy.Normalize(line.Amount), Currency = package.Currency,
-          EvidenceReference = line.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
+          EvidenceReference = line.EvidenceReference.Trim(),
+          SourceLineageJson = JsonSerializer.Serialize(noteSourceLinks.Value!.GetValueOrDefault(index, (IReadOnlyList<ResolvedNoteSource>)[])),
+          CreatedAt = package.CreatedAt
         });
+      }
     }
     else
       AddValidation(db, package, "NOTE_TO_FACE_TOTALS", true,
@@ -372,13 +395,23 @@ public static partial class FinancialStatementService
           SourceLineHash = link.SourceLineHash, SignedAmount = link.SignedAmount, Currency = link.Currency,
           CreatedByUserId = actor.UserId, CreatedAt = package.CreatedAt
         });
+      foreach (var link in sourceLinks.Value.ScheduleLinks)
+        db.FinancialPackageCashFlowScheduleAllocations.Add(new FinancialPackageCashFlowScheduleAllocation
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          CashFlowLineId = movements[link.MovementIndex].Id, SpecialistScheduleId = link.SpecialistScheduleId,
+          ComponentCode = link.ComponentCode, SourceScheduleHash = link.SourceScheduleHash,
+          SignedAmount = link.SignedAmount, Currency = link.Currency, CreatedByUserId = actor.UserId, CreatedAt = package.CreatedAt
+        });
       // A new schedule always receives an explicit lineage result. Missing links remain
       // a persisted draft; historical packages are not backfilled or reclassified.
       if (request.SupplementaryInformation.CashFlowLines.Count > 0)
       {
         var resolvedMovements = ResolvedCashFlowMovements(
           request.SupplementaryInformation.CashFlowLines.Select(x => (MoneyPolicy.Normalize(x.Amount), x.IsNonCash)).ToArray(),
-          sourceLinks.Value!.Links.Select(x => (x.MovementIndex, x.SignedAmount, x.PopulationComplete)));
+          sourceLinks.Value!.Links.Select(x => (x.MovementIndex, x.SignedAmount, x.PopulationComplete))
+            .Concat(sourceLinks.Value.ScheduleLinks.Select(x => (x.MovementIndex, x.SignedAmount, true))));
         var unresolved = resolvedMovements.Count(x => !x);
         // Lineage also fails when a cash event in the accepted period ledger is not explained by any movement, linked or not.
         var unexplained = sourceLinks.Value!.UnexplainedCashEvents;
@@ -387,17 +420,31 @@ public static partial class FinancialStatementService
             ? "Every cash-flow movement is fully allocated, and every cash event in the accepted general ledger is explained."
             : unexplained > 0
               ? $"{unexplained} cash event(s) in the accepted general ledger are not explained by any cash-flow movement."
-              : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines.");
+              : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted source records.");
       }
-      foreach (var fxEffect in request.SupplementaryInformation.FxCashEffects ?? [])
-        db.FinancialPackageFxEffects.Add(new FinancialPackageFxEffect
+      var persistedFxEffects = (request.SupplementaryInformation.FxCashEffects ?? []).Select(fxEffect => new FinancialPackageFxEffect
         {
           Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
           EngagementId = package.EngagementId, FinancialPackageId = package.Id,
           CurrencyPair = fxEffect.CurrencyPair.Trim().ToUpperInvariant(),
           Amount = MoneyPolicy.Normalize(fxEffect.Amount), Currency = package.Currency,
           EvidenceReference = fxEffect.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
-        });
+        }).ToArray();
+      db.FinancialPackageFxEffects.AddRange(persistedFxEffects);
+      if (request.SupplementaryInformation.FxCashAssessment is { } fxAssessment)
+      {
+        var assessment = new FinancialPackageFxAssessment
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          State = fxAssessment.State.Trim().ToUpperInvariant(), EvidenceReference = fxAssessment.EvidenceReference.Trim(),
+          Rationale = fxAssessment.Rationale.Trim(),
+          EffectDigest = CashFlowFxAssessmentDigest(package, fxAssessment.State, fxAssessment.EvidenceReference, fxAssessment.Rationale,
+            persistedFxEffects),
+          AssessedByUserId = actor.UserId, AssessedAt = package.CreatedAt
+        };
+        db.FinancialPackageFxAssessments.Add(assessment);
+      }
       foreach (var disclosure in request.SupplementaryInformation.Disclosures)
         db.FinancialPackageDisclosures.Add(new FinancialPackageDisclosure
         {
@@ -421,6 +468,12 @@ public static partial class FinancialStatementService
 
     try
     {
+      await db.SaveChangesAsync(ct);
+      db.FinancialPackageCashFlowMembershipSeals.Add(new FinancialPackageCashFlowMembershipSeal
+      {
+        FirmId = package.FirmId, ClientId = package.ClientId, EngagementId = package.EngagementId,
+        FinancialPackageId = package.Id, SealedAt = DateTimeOffset.UtcNow
+      });
       await db.SaveChangesAsync(ct);
       if (ownsTransaction)
         await tx!.CommitAsync(ct);
@@ -588,8 +641,19 @@ public static partial class FinancialStatementService
     if (input.FxCashEffects is { Count: > 0 } fxEffects &&
         fxEffects.Any(x => string.IsNullOrWhiteSpace(x.CurrencyPair) || x.CurrencyPair.Trim().Length > 20 ||
           string.IsNullOrWhiteSpace(x.EvidenceReference) || x.EvidenceReference.Trim().Length > 2000 ||
-          MoneyPolicy.Normalize(x.Amount) != x.Amount))
-      return "Each FX cash effect needs a currency pair, bounded amount and evidence reference.";
+          x.Amount == 0m || MoneyPolicy.Normalize(x.Amount) != x.Amount))
+      return "Each FX cash effect needs a currency pair, non-zero bounded amount and evidence reference; assessed zero is recorded separately.";
+    if (input.FxCashAssessment is { } fxAssessment &&
+        (fxAssessment.State.Trim().ToUpperInvariant() is not (FxCashAssessmentStates.AssessedZero or FxCashAssessmentStates.EffectsRecorded) ||
+         string.IsNullOrWhiteSpace(fxAssessment.EvidenceReference) || fxAssessment.EvidenceReference.Trim().Length > 2000 ||
+         string.IsNullOrWhiteSpace(fxAssessment.Rationale) || fxAssessment.Rationale.Trim().Length > 2000))
+      return "An FX assessment needs a supported state, bounded evidence reference and rationale.";
+    if (input.FxCashAssessment?.State.Trim().Equals(FxCashAssessmentStates.AssessedZero, StringComparison.OrdinalIgnoreCase) == true &&
+        input.FxCashEffects is { Count: > 0 })
+      return "An assessed-zero FX population cannot contain FX effect rows.";
+    if (input.FxCashAssessment?.State.Trim().Equals(FxCashAssessmentStates.EffectsRecorded, StringComparison.OrdinalIgnoreCase) == true &&
+        input.FxCashEffects is not { Count: > 0 })
+      return "An effects-recorded FX assessment requires at least one evidenced non-zero FX effect row.";
     if (input.CashFlowLines.GroupBy(x => x.Section.Trim().ToUpperInvariant() + "\u001f" + x.Description.Trim(), StringComparer.Ordinal).Any(x => x.Count() != 1))
       return "Cash-flow section and description pairs must be unique.";
     if (MoneyPolicy.Normalize(input.CashBeginning) != input.CashBeginning ||
@@ -605,16 +669,36 @@ public static partial class FinancialStatementService
       return "Disclosure codes must be unique in a package.";
     if (input.EquityLines is { Count: > 0 } equity)
     {
+      var transfers = input.EquityTransfers ?? [];
       if (equity.Any(x => string.IsNullOrWhiteSpace(x.LineCode) || string.IsNullOrWhiteSpace(x.Description) ||
           string.IsNullOrWhiteSpace(x.EvidenceReference) || new[] { x.OpeningAmount, x.ProfitOrLossAmount, x.OciAmount,
             x.CapitalMovementAmount, x.DividendsAmount, x.ClosingAmount }.Any(y => MoneyPolicy.Normalize(y) != y)))
         return "Each equity line needs descriptions, evidence and six-decimal amounts.";
       if (equity.GroupBy(x => x.LineCode.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() != 1))
         return "Equity line codes must be unique in a package.";
+      if (transfers.Count > 100 || transfers.Any(x => string.IsNullOrWhiteSpace(x.TransferReference) || x.TransferReference.Trim().Length > 100 ||
+          string.IsNullOrWhiteSpace(x.SourceLineCode) || x.SourceLineCode.Trim().Length > 100 ||
+          string.IsNullOrWhiteSpace(x.DestinationLineCode) || x.DestinationLineCode.Trim().Length > 100 ||
+          string.Equals(x.SourceLineCode.Trim(), x.DestinationLineCode.Trim(), StringComparison.OrdinalIgnoreCase) ||
+          x.Amount <= 0m || MoneyPolicy.Normalize(x.Amount) != x.Amount ||
+          string.IsNullOrWhiteSpace(x.EvidenceReference) || x.EvidenceReference.Trim().Length > 2000))
+        return "Each equity transfer needs distinct components, a positive six-decimal amount, a unique reference and supporting evidence.";
+      if (transfers.GroupBy(x => x.TransferReference.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() != 1))
+        return "Equity transfer references must be unique in a package.";
+      var equityCodes = equity.Select(x => x.LineCode.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+      if (transfers.Any(x => !equityCodes.Contains(x.SourceLineCode.Trim()) || !equityCodes.Contains(x.DestinationLineCode.Trim())))
+        return "Each equity transfer must point to two components present in the package.";
+      var transferIn = transfers.GroupBy(x => x.DestinationLineCode.Trim(), StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(x => x.Key, x => x.Sum(y => y.Amount), StringComparer.OrdinalIgnoreCase);
+      var transferOut = transfers.GroupBy(x => x.SourceLineCode.Trim(), StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(x => x.Key, x => x.Sum(y => y.Amount), StringComparer.OrdinalIgnoreCase);
       if (equity.Any(x => MoneyPolicy.Normalize(x.OpeningAmount + x.ProfitOrLossAmount + x.OciAmount +
-          x.CapitalMovementAmount - x.DividendsAmount) != MoneyPolicy.Normalize(x.ClosingAmount)))
+          x.CapitalMovementAmount - x.DividendsAmount + transferIn.GetValueOrDefault(x.LineCode.Trim()) -
+          transferOut.GetValueOrDefault(x.LineCode.Trim())) != MoneyPolicy.Normalize(x.ClosingAmount)))
         return "Each equity line must reconcile opening balance, profit/loss, OCI, capital, dividends and closing balance.";
     }
+    else if (input.EquityTransfers is { Count: > 0 })
+      return "Equity transfers require source and destination equity component lines in the same package.";
     if (input.NoteLines is { Count: > 0 } notes)
     {
       if (notes.Any(x => string.IsNullOrWhiteSpace(x.NoteCode) || string.IsNullOrWhiteSpace(x.FaceDestinationCode) ||
@@ -637,6 +721,13 @@ public static partial class FinancialStatementService
 
   private static bool ValidActivityCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Trim().Length <= 100 &&
     code.Trim().All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.');
+
+  private static bool FxAssessmentMatchesEffects(FinancialSupplementaryInformation input) => input.FxCashAssessment?.State.Trim().ToUpperInvariant() switch
+  {
+    FxCashAssessmentStates.AssessedZero => input.FxCashEffects is null or { Count: 0 },
+    FxCashAssessmentStates.EffectsRecorded => input.FxCashEffects is { Count: > 0 } effects && effects.All(x => x.Amount != 0m),
+    _ => false
+  };
 
   private static bool ValidCashFlowMovement(CashFlowLineInput line, DateOnly start, DateOnly end) =>
     line.Section.Trim().ToUpperInvariant() is "OPERATING" or "INVESTING" or "FINANCING" &&

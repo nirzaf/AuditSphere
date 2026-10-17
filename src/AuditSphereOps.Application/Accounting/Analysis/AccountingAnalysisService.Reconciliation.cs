@@ -187,15 +187,15 @@ public static partial class AccountingAnalysisService
     return CommandResult.Ok();
   }
 
-  public const string ReconciliationProofFormulaVersion = "reconciliation-proof.v1";
+  public const string ReconciliationProofFormulaVersion = "reconciliation-proof.v2";
 
   /// <summary>Canonical digest of the exact reconciliation item set; the proof and the
   /// approval gate both recompute it so an edited item set invalidates old proofs.</summary>
   internal static string ComputeReconciliationItemManifestDigest(
-    IEnumerable<(Guid ItemId, decimal SignedAmount)> items) =>
+    IEnumerable<(Guid ItemId, decimal SignedAmount, Guid? LinkedJournalId, long? LinkedJournalRevision)> items) =>
     Hashing.Sha256Hex(string.Join('\n', items
       .OrderBy(x => x.ItemId)
-      .Select(x => $"{x.ItemId:D}|{x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture)}")));
+      .Select(x => $"{x.ItemId:D}|{x.SignedAmount.ToString("0.000000", CultureInfo.InvariantCulture)}|{x.LinkedJournalId?.ToString("D") ?? string.Empty}|{x.LinkedJournalRevision?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}")));
 
   public static async Task<CommandResult<ReconciliationProofDto>> CalculateReconciliationProofAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid reconciliationId,
@@ -229,7 +229,7 @@ public static partial class AccountingAnalysisService
       ItemsSignedTotal = itemsSum, Residual = residual, IsReconciled = residual == 0m,
       ItemCount = items.Count,
       ItemManifestDigest = ComputeReconciliationItemManifestDigest(
-        items.Select(x => (x.Id, MoneyPolicy.Normalize(x.SignedAmount)))),
+        items.Select(x => (x.Id, MoneyPolicy.Normalize(x.SignedAmount), x.LinkedJournalId, x.LinkedJournalRevision))),
       SourceHash = reconciliation.SourceHash, InputGeneration = reconciliation.InputGeneration,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
@@ -252,7 +252,7 @@ public static partial class AccountingAnalysisService
     IClientAccountingDbContext db, ActorContext actor, Guid reconciliationId,
     Guid itemId, Guid journalId, CancellationToken ct = default)
   {
-    var reconciliation = await db.AccountingReconciliations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == reconciliationId && x.FirmId == actor.FirmId, ct);
+    var reconciliation = await db.AccountingReconciliations.SingleOrDefaultAsync(x => x.Id == reconciliationId && x.FirmId == actor.FirmId, ct);
     if (reconciliation is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -264,16 +264,39 @@ public static partial class AccountingAnalysisService
       x.Id == itemId && x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId, ct);
     if (item is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (reconciliation.Status == AccountingWorkflowStates.Approved || item.SettlementDate is not null ||
+        !string.IsNullOrWhiteSpace(item.SettlementReference) || item.Disposition != "PENDING_JOURNAL")
+      return CommandResult.Fail(ErrorCodes.ProtectedState,
+        "A correction can be linked only to an unsettled pending item on an unapproved reconciliation.");
 
     var journal = await db.AdjustmentJournals.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == journalId && x.FirmId == actor.FirmId && x.ClientId == reconciliation.ClientId &&
       x.EngagementId == reconciliation.EngagementId, ct);
     if (journal is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The correction journal is outside the reconciliation engagement scope.");
+    if (journal.Purpose is not (AdjustmentJournalPurposes.ClientBookCorrection or AdjustmentJournalPurposes.ReportingAdjustment) ||
+        journal.PeriodId != reconciliation.PeriodId || journal.BookId != reconciliation.BookId ||
+        !string.Equals(journal.Currency, item.Currency, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(journal.Basis, await db.ClientReportingPeriods.AsNoTracking()
+          .Where(x => x.Id == reconciliation.PeriodId && x.FirmId == actor.FirmId && x.ClientId == reconciliation.ClientId)
+          .Select(x => x.Basis).SingleOrDefaultAsync(ct), StringComparison.OrdinalIgnoreCase) ||
+        reconciliation.TrialBalanceDatasetId is { } selectedDatasetId && journal.BaseDatasetId != selectedDatasetId)
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "The correction journal must match the reconciliation period, book, basis, currency and selected trial-balance source.");
+    if (item.LinkedJournalId is { } linkedJournalId && linkedJournalId != journal.Id)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "A different correction journal is already linked to this item.");
+    var selectedAccounts = reconciliation.AccountSelection.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+      .ToHashSet(StringComparer.Ordinal);
+    var journalLines = await db.AdjustmentLines.AsNoTracking().Where(x => x.JournalId == journal.Id).ToListAsync(ct);
+    if (journalLines.Count < 2 || !journalLines.Any(x => selectedAccounts.Contains(x.AccountCode)))
+      return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "The correction journal must contain a line for an account selected by this reconciliation.");
 
-    item.SettlementReference = $"JOURNAL:{journal.JournalNumber}";
-    item.SettlementDate = DateOnly.FromDateTime(DateTime.UtcNow);
-    item.Disposition = "LINKED_JOURNAL";
+    // The journal link is explicit lineage, not settlement or approval. It is included
+    // in the proof manifest so any retained proof must be recalculated after linking.
+    if (item.LinkedJournalId == journal.Id && item.LinkedJournalRevision == journal.Revision) return CommandResult.Ok();
+    item.LinkedJournalId = journal.Id;
+    item.LinkedJournalRevision = journal.Revision;
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
   }
@@ -325,18 +348,25 @@ public static partial class AccountingAnalysisService
         "A calculated reconciliation proof with zero unexplained residual is required before approval.");
     var liveItems = await db.AccountingReconciliationItems.AsNoTracking()
       .Where(x => x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId)
-      .Select(x => new ValueTuple<Guid, decimal>(x.Id, x.SignedAmount))
+      .Select(x => new ValueTuple<Guid, decimal, Guid?, long?>(x.Id, x.SignedAmount, x.LinkedJournalId, x.LinkedJournalRevision))
       .ToListAsync(ct);
     var liveDigest = ComputeReconciliationItemManifestDigest(
-      liveItems.Select(x => (x.Item1, MoneyPolicy.Normalize(x.Item2))));
+      liveItems.Select(x => (x.Item1, MoneyPolicy.Normalize(x.Item2), x.Item3, x.Item4)));
+    var linkedIds = liveItems.Where(x => x.Item3.HasValue).Select(x => x.Item3!.Value).Distinct().ToArray();
+    var journalRevisions = await db.AdjustmentJournals.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.ClientId == reconciliation.ClientId && x.EngagementId == reconciliation.EngagementId && linkedIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.Revision, ct);
+    var linkedJournalsCurrent = liveItems.All(x => !x.Item3.HasValue ||
+      journalRevisions.TryGetValue(x.Item3.Value, out var revision) && revision == x.Item4);
     if (latestProof.ItemManifestDigest != liveDigest ||
+        !linkedJournalsCurrent ||
         latestProof.ItemCount != liveItems.Count ||
         latestProof.SourceHash != reconciliation.SourceHash ||
         latestProof.InputGeneration != reconciliation.InputGeneration ||
         latestProof.SourceTotal != reconciliation.SourceTotal ||
         latestProof.GlTotal != reconciliation.GlTotal)
       return CommandResult.Fail(ErrorCodes.ManifestMismatch,
-        "The reconciliation inputs changed after the proof was calculated; recalculate the proof.");
+        "The reconciliation inputs or linked correction revision changed after the proof was calculated; refresh the proof and journal link.");
 
     reconciliation.Status = AccountingWorkflowStates.Approved;
     reconciliation.ReviewedByUserId = actor.UserId;
@@ -429,6 +459,10 @@ public static partial class AccountingAnalysisService
     if (targetPeriod.StartDate <= source.AsOfDate)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "The carry-forward target period must start after the source reconciliation as-of date.");
+    if (targetBookId is { } selectedTargetBookId && !await db.ClientReportingBooks.AsNoTracking().AnyAsync(x =>
+        x.Id == selectedTargetBookId && x.FirmId == actor.FirmId && x.ClientId == source.ClientId && x.PeriodId == targetPeriod.Id, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied,
+        "The target reporting book must belong to the selected client and target period.");
 
     var sourceItems = await db.AccountingReconciliationItems.AsNoTracking()
       .Where(x => x.ReconciliationId == source.Id && x.FirmId == actor.FirmId &&
@@ -437,6 +471,12 @@ public static partial class AccountingAnalysisService
     if (sourceItems.Count != selectedItemIds.Count)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied,
         "One or more selected items do not belong to the source reconciliation.");
+    if (sourceItems.Any(x => x.SettlementDate is not null || !string.IsNullOrWhiteSpace(x.SettlementReference) ||
+        x.Disposition.Trim().ToUpperInvariant() is not ("OPEN" or "CARRIED_FORWARD")))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "Only outstanding, unsettled items can be carried forward.");
+
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
 
     var carry = new AccountingReconciliation
     {
@@ -450,7 +490,6 @@ public static partial class AccountingAnalysisService
       InputGeneration = 1, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.AccountingReconciliations.Add(carry);
-    await db.SaveChangesAsync(ct);
 
     foreach (var item in sourceItems)
     {
@@ -467,6 +506,7 @@ public static partial class AccountingAnalysisService
       });
     }
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult<Guid>.Ok(carry.Id);
   }
 }

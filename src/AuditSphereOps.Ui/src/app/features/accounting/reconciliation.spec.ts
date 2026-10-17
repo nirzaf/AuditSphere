@@ -12,7 +12,7 @@ const view={id,clientId:id,clientName:'Scoped client',engagementId:id,engagement
   status:'APPROVED',revision:1,supersedesReconciliationId:null,createdByUserId:id,createdAt:'2026-10-03T00:00:00Z',
   reviewedByUserId:other,reviewedAt:'2026-10-03T00:00:00Z',sourceKind:'TRIAL_BALANCE',sourceId:id,sourceHash:'d'.repeat(64),currentSourceHash:'d'.repeat(64),
   sourceAvailable:true,inputGeneration:1,currentGeneration:1,isStale:false,canReuseApprovedEvidence:true,sourceTotal:'100.123456',glTotal:'100.123456',residual:'0.000000',
-  latestProof:{id,formulaVersion:'reconciliation-proof.v1',sourceTotal:'100.123456',glTotal:'100.123456',itemsSignedTotal:'0.000000',residual:'0.000000',
+  latestProof:{id,formulaVersion:'reconciliation-proof.v2',sourceTotal:'100.123456',glTotal:'100.123456',itemsSignedTotal:'0.000000',residual:'0.000000',
     isReconciled:true,itemCount:0,itemManifestDigest:'a'.repeat(64),sourceHash:'d'.repeat(64),inputGeneration:1,createdByUserId:id,createdAt:'2026-10-03T00:00:00Z',matchesCurrentInputs:true},
   blockers:[],items:[],itemCount:0,page:0,hasMore:false,reviewBasis:'b'.repeat(64)};
 

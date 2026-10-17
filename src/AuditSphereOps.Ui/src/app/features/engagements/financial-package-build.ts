@@ -35,9 +35,10 @@ export function isTerminalBuildStatus(status: BuildStatus['status']): boolean {
 }
 
 export interface AllocationForm { generalLedgerLineId: string; signedAmount: string }
+export interface ScheduleAllocationForm { specialistScheduleId: string; componentCode: 'DEPRECIATION' | 'IMPAIRMENT'; signedAmount: string }
 export interface MovementForm {
   section: string; description: string; amount: string; isNonCash: boolean; movementDate: string; activityCode: string;
-  sourceReferences: string; rationale: string; allocations: AllocationForm[];
+  sourceReferences: string; rationale: string; allocations: AllocationForm[]; scheduleAllocations: ScheduleAllocationForm[];
 }
 export interface DisclosureForm { code: string; response: string; notApplicable: boolean; rationale: string }
 /** One equity rollforward row. Its field names are the server's EquityLineInput names, so the request is not renamed. */
@@ -45,16 +46,20 @@ export interface EquityLineForm {
   lineCode: string; description: string; openingAmount: string; profitOrLossAmount: string; ociAmount: string;
   capitalMovementAmount: string; dividendsAmount: string; closingAmount: string; evidenceReference: string;
 }
+export interface EquityTransferForm {
+  transferReference: string; sourceLineCode: string; destinationLineCode: string; amount: string; evidenceReference: string;
+}
 /** One numeric note line. The server calls the statement destination `faceDestinationCode`. */
-export interface NoteLineForm { noteCode: string; faceDestinationCode: string; amount: string; evidenceReference: string }
+export interface NoteLineForm { noteCode: string; faceDestinationCode: string; amount: string; evidenceReference: string; allocations: AllocationForm[] }
 /** One foreign-exchange effect on cash, with its evidence. */
 export interface FxCashEffectForm { currencyPair: string; amount: string; evidenceReference: string }
 export interface BuildForm {
   mappingVersionId: string; adjustmentPlanId: string; periodId: string; framework: string; templateVersion: string;
   periodStart: string; periodEnd: string; cashBeginning: string; cashEnding: string; cashAccountCodes: string;
   openingEvidence: string; closingEvidence: string; comparativePackageId: string; comparativeBasis: string; comparativeEvidence: string;
+  fxAssessmentState: '' | 'ASSESSED_ZERO' | 'EFFECTS_RECORDED'; fxAssessmentEvidence: string; fxAssessmentRationale: string;
   movements: MovementForm[]; disclosures: DisclosureForm[];
-  equityLines: EquityLineForm[]; noteLines: NoteLineForm[]; fxCashEffects: FxCashEffectForm[];
+  equityLines: EquityLineForm[]; equityTransfers: EquityTransferForm[]; noteLines: NoteLineForm[]; fxCashEffects: FxCashEffectForm[];
 }
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -83,7 +88,7 @@ function toMicro(amount: string): bigint {
 
 const absMicro = (value: bigint): bigint => (value < 0n ? -value : value);
 
-function sumContributions(allocations: readonly AllocationForm[]): bigint {
+function sumContributions(allocations: readonly { signedAmount: string }[]): bigint {
   return allocations.reduce((sum, a) => sum + toMicro(a.signedAmount), 0n);
 }
 
@@ -102,8 +107,9 @@ export function projectedContribution(allocations: readonly AllocationForm[], is
  * The server's shape rule: projected contributions may not exceed the movement amount or run against its sign. Inputs must already be
  * valid.
  */
-function contributionsOverdrawn(allocations: readonly AllocationForm[], amount: string, isNonCash: boolean): boolean {
-  const total = projectedContribution(allocations, isNonCash);
+function contributionsOverdrawn(allocations: readonly { signedAmount: string }[], amount: string, isNonCash: boolean): boolean {
+  const ledger = sumContributions(allocations);
+  const total = isNonCash ? ledger : -ledger;
   if (total === 0n) return false;
   const target = toMicro(amount);
   return absMicro(total) > absMicro(target) || (total < 0n) !== (target < 0n);
@@ -120,20 +126,23 @@ export function formatMicro(units: bigint): string {
 
 /** The projected statement effect of a movement's valid links, or null while any link or amount is not yet a valid value. */
 export function movementProjection(m: MovementForm): string | null {
-  if (!m.allocations.length || m.allocations.some((a) => !AMOUNT.test(a.signedAmount))) return null;
-  return formatMicro(projectedContribution(m.allocations, m.isNonCash));
+  const values = [...m.allocations, ...m.scheduleAllocations];
+  if (!values.length || values.some((a) => !AMOUNT.test(a.signedAmount))) return null;
+  const total = sumContributions(values);
+  return formatMicro(m.isNonCash ? total : -total);
 }
 
 export function emptyBuildForm(): BuildForm {
   return { mappingVersionId: '', adjustmentPlanId: '', periodId: '', framework: 'IFRS', templateVersion: '', periodStart: '', periodEnd: '',
     cashBeginning: '0', cashEnding: '0', cashAccountCodes: '', openingEvidence: '', closingEvidence: '',
     comparativePackageId: '', comparativeBasis: '', comparativeEvidence: '', movements: [], disclosures: [],
-    equityLines: [], noteLines: [], fxCashEffects: [] };
+    fxAssessmentState: '', fxAssessmentEvidence: '', fxAssessmentRationale: '',
+    equityLines: [], equityTransfers: [], noteLines: [], fxCashEffects: [] };
 }
 
 export function emptyMovement(): MovementForm {
   return { section: 'OPERATING', description: '', amount: '', isNonCash: false, movementDate: '', activityCode: '', sourceReferences: '',
-    rationale: '', allocations: [] };
+    rationale: '', allocations: [], scheduleAllocations: [] };
 }
 
 export function emptyEquityLine(): EquityLineForm {
@@ -141,8 +150,12 @@ export function emptyEquityLine(): EquityLineForm {
     dividendsAmount: '', closingAmount: '', evidenceReference: '' };
 }
 
+export function emptyEquityTransfer(): EquityTransferForm {
+  return { transferReference: '', sourceLineCode: '', destinationLineCode: '', amount: '', evidenceReference: '' };
+}
+
 export function emptyNoteLine(): NoteLineForm {
-  return { noteCode: '', faceDestinationCode: '', amount: '', evidenceReference: '' };
+  return { noteCode: '', faceDestinationCode: '', amount: '', evidenceReference: '', allocations: [] };
 }
 
 export function emptyFxCashEffect(): FxCashEffectForm {
@@ -179,9 +192,21 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
       if (!GUID.test(a.generalLedgerLineId)) return { error: `${at}: a source line is not valid.` };
       if (!AMOUNT.test(a.signedAmount) || Number(a.signedAmount) === 0) return { error: `${at}: a source contribution needs a non-zero amount.` };
     }
+    if (m.allocations.length && m.scheduleAllocations.length)
+      return { error: `${at}: use accepted general-ledger lines or specialist schedule sources, not both.` };
+    if (m.scheduleAllocations.length && !m.isNonCash)
+      return { error: `${at}: specialist schedule sources can only support a noncash movement.` };
+    for (const a of m.scheduleAllocations) {
+      if (!GUID.test(a.specialistScheduleId) || !['DEPRECIATION', 'IMPAIRMENT'].includes(a.componentCode))
+        return { error: `${at}: choose a valid approved asset schedule component.` };
+      if (!AMOUNT.test(a.signedAmount) || !/[1-9]/.test(a.signedAmount) || a.signedAmount.startsWith('-'))
+        return { error: `${at}: a specialist component contribution must be a positive amount.` };
+    }
+    if (new Set(m.scheduleAllocations.map((a) => `${a.specialistScheduleId.toLowerCase()}:${a.componentCode}`)).size !== m.scheduleAllocations.length)
+      return { error: `${at}: a specialist schedule component can contribute to a movement only once.` };
     if (new Set(m.allocations.map((a) => a.generalLedgerLineId.toLowerCase())).size !== m.allocations.length)
       return { error: `${at}: a source line can contribute to a movement only once.` };
-    if (m.allocations.length && contributionsOverdrawn(m.allocations, m.amount, m.isNonCash))
+    if ((m.allocations.length || m.scheduleAllocations.length) && contributionsOverdrawn([...m.allocations, ...m.scheduleAllocations], m.amount, m.isNonCash))
       return { error: `${at}: source contributions exceed the movement amount or run against its sign.` };
   }
   for (const d of form.disclosures) {
@@ -202,6 +227,24 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
     }
     if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
   }
+  if (form.equityTransfers.length && !form.equityLines.length)
+    return { error: 'Add the source and destination equity component lines before recording a transfer.' };
+  const transferReferences = new Set<string>();
+  for (const [index, row] of form.equityTransfers.entries()) {
+    const at = `Equity transfer ${index + 1}`;
+    const reference = row.transferReference.trim().toUpperCase();
+    const source = row.sourceLineCode.trim().toUpperCase();
+    const destination = row.destinationLineCode.trim().toUpperCase();
+    if (!reference || reference.length > 100) return { error: `${at}: enter a reference of up to 100 characters.` };
+    if (transferReferences.has(reference)) return { error: `${at}: transfer references must be unique.` };
+    transferReferences.add(reference);
+    if (!source || !destination || source === destination || !equityCodes.has(source) || !equityCodes.has(destination))
+      return { error: `${at}: choose two different equity components entered above.` };
+    if (!AMOUNT.test(row.amount) || row.amount.startsWith('-') || !/[1-9]/.test(row.amount))
+      return { error: `${at}: enter a positive amount with at most six decimals.` };
+    if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000)
+      return { error: `${at}: enter an evidence reference.` };
+  }
   const noteIdentities = new Set<string>();
   for (const [index, row] of form.noteLines.entries()) {
     const at = `Note line ${index + 1}`;
@@ -214,13 +257,30 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
     noteIdentities.add(identity);
     if (!AMOUNT.test(row.amount)) return { error: `${at}: enter an amount with at most six decimals.` };
     if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
+    for (const allocation of row.allocations) {
+      if (!GUID.test(allocation.generalLedgerLineId)) return { error: `${at}: a source line is not valid.` };
+      if (!AMOUNT.test(allocation.signedAmount) || toMicro(allocation.signedAmount) === 0n)
+        return { error: `${at}: a source contribution needs a non-zero amount with at most six decimals.` };
+    }
+    if (new Set(row.allocations.map((allocation) => allocation.generalLedgerLineId.toLowerCase())).size !== row.allocations.length)
+      return { error: `${at}: a source line can contribute to a note only once.` };
+    if (row.allocations.length && sumContributions(row.allocations) !== toMicro(row.amount))
+      return { error: `${at}: source contributions must total the note amount exactly.` };
   }
   for (const [index, row] of form.fxCashEffects.entries()) {
     const at = `FX cash effect ${index + 1}`;
     if (!row.currencyPair.trim() || row.currencyPair.trim().length > 20) return { error: `${at}: enter a currency pair of up to 20 characters.` };
     if (!AMOUNT.test(row.amount)) return { error: `${at}: enter an amount with at most six decimals.` };
     if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
+    if (toMicro(row.amount) === 0n) return { error: `${at}: zero is recorded with an assessed-zero population, not as an effect row.` };
   }
+  if (form.fxAssessmentState && (!form.fxAssessmentEvidence.trim() || form.fxAssessmentEvidence.trim().length > 2000 ||
+      !form.fxAssessmentRationale.trim() || form.fxAssessmentRationale.trim().length > 2000))
+    return { error: 'An FX cash-effect assessment needs bounded evidence and a rationale.' };
+  if (form.fxAssessmentState === 'ASSESSED_ZERO' && form.fxCashEffects.length > 0)
+    return { error: 'An assessed-zero FX population cannot contain FX effect rows.' };
+  if (form.fxAssessmentState === 'EFFECTS_RECORDED' && form.fxCashEffects.length === 0)
+    return { error: 'An effects-recorded FX assessment needs at least one non-zero evidenced effect row.' };
   return {
     body: {
       adjustmentPlanId: form.adjustmentPlanId, mappingVersionId: form.mappingVersionId, framework: form.framework.trim(),
@@ -237,6 +297,9 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
           sourceAllocations: m.allocations.length
             ? m.allocations.map((a) => ({ generalLedgerLineId: a.generalLedgerLineId, signedAmount: a.signedAmount }))
             : null,
+          scheduleSourceAllocations: m.scheduleAllocations.length
+            ? m.scheduleAllocations.map((a) => ({ specialistScheduleId: a.specialistScheduleId, componentCode: a.componentCode, signedAmount: a.signedAmount }))
+            : null,
         })),
         disclosures: form.disclosures.map((d) => ({ code: d.code.trim(), response: d.notApplicable ? '' : d.response.trim(),
           notApplicable: d.notApplicable, rationale: d.notApplicable ? d.rationale.trim() : null })),
@@ -245,13 +308,23 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
           profitOrLossAmount: row.profitOrLossAmount, ociAmount: row.ociAmount, capitalMovementAmount: row.capitalMovementAmount,
           dividendsAmount: row.dividendsAmount, closingAmount: row.closingAmount, evidenceReference: row.evidenceReference.trim(),
         })) : null,
+        equityTransfers: form.equityTransfers.length ? form.equityTransfers.map((row) => ({
+          transferReference: row.transferReference.trim(), sourceLineCode: row.sourceLineCode.trim(),
+          destinationLineCode: row.destinationLineCode.trim(), amount: row.amount,
+          evidenceReference: row.evidenceReference.trim(),
+        })) : null,
         noteLines: form.noteLines.length ? form.noteLines.map((row) => ({
           noteCode: row.noteCode.trim(), faceDestinationCode: row.faceDestinationCode.trim(), amount: row.amount,
-          evidenceReference: row.evidenceReference.trim(),
+          evidenceReference: row.evidenceReference.trim(), sourceAllocations: row.allocations.length
+            ? row.allocations.map((allocation) => ({ generalLedgerLineId: allocation.generalLedgerLineId, signedAmount: allocation.signedAmount }))
+            : null,
         })) : null,
         fxCashEffects: form.fxCashEffects.length ? form.fxCashEffects.map((row) => ({
           currencyPair: row.currencyPair.trim(), amount: row.amount, evidenceReference: row.evidenceReference.trim(),
         })) : null,
+        fxCashAssessment: form.fxAssessmentState ? {
+          state: form.fxAssessmentState, evidenceReference: form.fxAssessmentEvidence.trim(), rationale: form.fxAssessmentRationale.trim(),
+        } : null,
         cashAccountCodes: list(form.cashAccountCodes), openingCashEvidenceReferences: list(form.openingEvidence),
         closingCashEvidenceReferences: list(form.closingEvidence),
       },
@@ -269,18 +342,39 @@ export function scheduleBlockers(form: BuildForm): string[] {
     open.push('Equity rollforward: no rows entered. Each equity line must reconcile opening balance, profit or loss, OCI, capital movements, dividends and closing balance, with evidence.');
   if (form.noteLines.length === 0)
     open.push('Numeric note lines: none entered. Each note amount must cross-cast to its statement face destination.');
-  if (form.fxCashEffects.length === 0)
-    open.push('FX cash effect: none entered. The cash bridge must reconcile including FX effects, and this screen cannot yet record an assessed no-FX zero.');
+  if (!form.fxAssessmentState)
+    open.push('FX cash-effect population: not assessed. Missing evidence is not treated as zero.');
+  else if (!form.fxAssessmentEvidence.trim() || !form.fxAssessmentRationale.trim())
+    open.push('FX cash-effect assessment: evidence and rationale are required.');
+  if (form.fxAssessmentState === 'ASSESSED_ZERO' && form.fxCashEffects.length > 0)
+    open.push('FX cash-effect assessment is inconsistent: assessed zero cannot contain effect rows.');
+  if (form.fxAssessmentState === 'EFFECTS_RECORDED' && form.fxCashEffects.length === 0)
+    open.push('FX cash-effect assessment is inconsistent: recorded effects need at least one effect row.');
   if (form.movements.length === 0) open.push('Cash-flow movements: none entered. Add at least one movement.');
   for (const [index, m] of form.movements.entries()) {
     const at = `Cash-flow source lineage: movement ${index + 1}`;
-    if (m.allocations.length === 0) {
+    if (m.allocations.length === 0 && m.scheduleAllocations.length === 0) {
       open.push(`${at} is not linked to accepted general-ledger lines, so it stays a draft without lineage.`);
     } else if (!AMOUNT.test(m.amount) || m.allocations.some((a) => !GUID.test(a.generalLedgerLineId) || !AMOUNT.test(a.signedAmount))) {
       open.push(`${at} has a link or amount that is not a valid value yet.`);
-    } else if (projectedContribution(m.allocations, m.isNonCash) !== toMicro(m.amount)) {
+    } else if (m.allocations.length && m.scheduleAllocations.length) {
+      open.push(`${at} mixes accepted ledger and specialist schedule sources; split the movement by source type.`);
+    } else if (m.scheduleAllocations.length && !m.isNonCash) {
+      open.push(`${at} uses specialist schedule sources for a cash movement; mark it noncash or link accepted ledger lines.`);
+    } else if (m.scheduleAllocations.some((a) => !GUID.test(a.specialistScheduleId) || !AMOUNT.test(a.signedAmount) || a.signedAmount.startsWith('-')) ||
+      (m.allocations.length ? projectedContribution(m.allocations, m.isNonCash) : sumContributions(m.scheduleAllocations)) !== toMicro(m.amount)) {
       open.push(`${at} has linked lines that do not total the movement amount, so it is not source-resolved.`);
     }
+  }
+  for (const [index, row] of form.noteLines.entries()) {
+    if (!row.allocations.length) continue;
+    const at = `Note source attribution: note line ${index + 1}`;
+    if (!AMOUNT.test(row.amount) || row.allocations.some((allocation) => !GUID.test(allocation.generalLedgerLineId) ||
+      !AMOUNT.test(allocation.signedAmount) || toMicro(allocation.signedAmount) === 0n) ||
+      new Set(row.allocations.map((allocation) => allocation.generalLedgerLineId.toLowerCase())).size !== row.allocations.length)
+      open.push(`${at} has a link or amount that is not a valid value yet.`);
+    else if (sumContributions(row.allocations) !== toMicro(row.amount))
+      open.push(`${at} has linked lines that do not total the note amount, so it is not source-resolved.`);
   }
   if (form.disclosures.length === 0)
     open.push('Disclosures: none entered. Add at least one disclosure response, or a rationale when not applicable.');
@@ -367,13 +461,21 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
                 <p><small>Projected statement effect of these ledger amounts: <span class="number">{{ effect }}</span> ({{ m.isNonCash ? 'noncash role keeps the ledger sign' : 'cash role reverses the ledger sign' }}). The server recomputes this when the build runs.</small></p>
               }
             }
-            <button matButton="outlined" type="button" (click)="pickerFor.set(i)">{{ pickerFor() === i ? 'Hide source lines' : 'Choose source lines' }}</button>
+            @if (m.scheduleAllocations.length) {
+              <h4>Approved asset schedule sources</h4>
+              <ul>@for (a of m.scheduleAllocations; track $index; let j = $index) {
+                <li>{{ a.componentCode }} · <code>{{ a.specialistScheduleId }}</code> · {{ a.signedAmount }}
+                  <button matButton type="button" (click)="m.scheduleAllocations.splice(j, 1)">Remove</button></li>
+              }</ul>
+              @if (projection(m); as effect) { <p><small>Projected noncash effect from exact approved schedule components: <span class="number">{{ effect }}</span>. The server rechecks the retained schedule and client generation when the build runs.</small></p> }
+            }
+            <button matButton="outlined" type="button" (click)="openMovementSources(i)">{{ pickerFor() === i ? 'Hide source lines' : 'Choose source lines' }}</button>
             <button matButton type="button" (click)="form.movements.splice(i, 1)">Remove movement</button>
           </fieldset>
         }
         <button matButton="outlined" type="button" (click)="form.movements.push(newMovement())">Add movement</button>
 
-        @if (pickerFor() !== null && form.periodId) {
+        @if ((pickerFor() !== null || notePickerFor() !== null) && form.periodId) {
           <section aria-label="Accepted source lines" class="panel">
             <h3>Accepted general-ledger lines for the period</h3>
             <audit-state [loading]="sources.loading()" [error]="sources.error()" label="the accepted source lines" />
@@ -383,12 +485,25 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
                 <thead><tr><th scope="col">Date</th><th scope="col">Journal</th><th scope="col">Account</th><th scope="col" class="number">Signed amount</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
                 <tbody>@for (line of page.lines; track line.lineId) {
                   <tr><td>{{ line.postingDate }}</td><td>{{ line.journal }}</td><td>{{ line.accountCode }}</td><td class="number">{{ line.signedAmount }} {{ line.currency }}</td>
-                    <td><button matButton="outlined" type="button" (click)="addSource(pickerFor()!, line.lineId, line.signedAmount)">Add to movement {{ pickerFor()! + 1 }}</button></td></tr>
+                    <td><button matButton="outlined" type="button" (click)="addSelectedSource(line.lineId, line.signedAmount)">{{ notePickerFor() !== null ? 'Add to note ' + (notePickerFor()! + 1) : 'Add to movement ' + (pickerFor()! + 1) }}</button></td></tr>
                 } @empty { <tr><td colspan="5">No accepted general-ledger lines in this period on this page.</td></tr> }</tbody></table></div>
               <p class="actions">
                 <button matButton="outlined" type="button" [disabled]="sourcePage() <= 1" (click)="sourcePage.set(sourcePage() - 1)">Previous lines</button>
                 <button matButton="outlined" type="button" [disabled]="!page.hasMore" (click)="sourcePage.set(sourcePage() + 1)">Next lines</button>
               </p>
+              @if (pickerFor() !== null && page.specialistSources.length) {
+                <h4>Current independently approved asset schedule components</h4>
+                <p><small>These source amounts are available for noncash movements only. The package build revalidates the schedule revision, approval and client input generation.</small></p>
+                @if (!form.movements[pickerFor()!]?.isNonCash) { <p role="status">Mark the selected movement as noncash to add an approved asset schedule component.</p> }
+                <div class="table-scroll"><table>
+                  <caption>Approved asset schedule components</caption>
+                  <thead><tr><th scope="col">Component</th><th scope="col">Schedule revision</th><th scope="col" class="number">Amount</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+                  <tbody>@for (source of page.specialistSources; track source.scheduleId + ':' + source.componentCode) {
+                    <tr><td>{{ source.componentCode }}</td><td>{{ source.revision }} · <code>{{ source.scheduleId }}</code></td><td class="number">{{ source.signedAmount }} {{ source.currency }}</td>
+                      <td><button matButton="outlined" type="button" [disabled]="!form.movements[pickerFor()!]?.isNonCash || !!form.movements[pickerFor()!]?.allocations.length"
+                        (click)="addSelectedScheduleSource(source.scheduleId, source.componentCode, source.signedAmount)">Add to movement {{ (pickerFor()! + 1) }}</button></td></tr>
+                  }</tbody></table></div>
+              }
             }
           </section>
         }
@@ -412,6 +527,21 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
         }
         <button matButton="outlined" type="button" (click)="form.equityLines.push(newEquityLine())">Add equity line</button>
 
+        <h3>Reserve and component transfers</h3>
+        <p><small>Each transfer is a paired, zero-sum movement between the components above; it does not create income or expense. Add the transfer to both component rollforwards and cite its supporting evidence.</small></p>
+        @for (row of form.equityTransfers; track $index; let i = $index) {
+          <fieldset class="movement">
+            <legend>Equity transfer {{ i + 1 }}</legend>
+            <label>Transfer reference <input [name]="'eqTransferRef' + i" [(ngModel)]="row.transferReference" maxlength="100" /></label>
+            <label>From component <select [name]="'eqTransferSource' + i" [(ngModel)]="row.sourceLineCode"><option value="">Choose component</option>@for (component of form.equityLines; track $index) { <option [value]="component.lineCode">{{ component.lineCode || 'Uncoded component' }}</option> }</select></label>
+            <label>To component <select [name]="'eqTransferDestination' + i" [(ngModel)]="row.destinationLineCode"><option value="">Choose component</option>@for (component of form.equityLines; track $index) { <option [value]="component.lineCode">{{ component.lineCode || 'Uncoded component' }}</option> }</select></label>
+            <label>Transfer amount <input [name]="'eqTransferAmount' + i" [(ngModel)]="row.amount" inputmode="decimal" /></label>
+            <label>Transfer evidence reference <input [name]="'eqTransferEvidence' + i" [(ngModel)]="row.evidenceReference" maxlength="2000" /></label>
+            <button matButton type="button" (click)="form.equityTransfers.splice(i, 1)">Remove equity transfer {{ i + 1 }}</button>
+          </fieldset>
+        }
+        <button matButton="outlined" type="button" (click)="form.equityTransfers.push(newEquityTransfer())">Add reserve/component transfer</button>
+
         <h2>Numeric note lines</h2>
         <p><small>Each note amount must cross-cast to the statement face destination it feeds. Enter the face destination code exactly as the approved mapping defines it.</small></p>
         @for (row of form.noteLines; track $index; let i = $index) {
@@ -421,13 +551,36 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
             <label>Face destination code <input [name]="'nlFace' + i" [(ngModel)]="row.faceDestinationCode" maxlength="100" /></label>
             <label>Note amount <input [name]="'nlAmount' + i" [(ngModel)]="row.amount" inputmode="decimal" /></label>
             <label>Note evidence reference <input [name]="'nlEvidence' + i" [(ngModel)]="row.evidenceReference" maxlength="2000" /></label>
+            <h3>Source attribution (optional)</h3>
+            <p><small>Accepted general-ledger links evidence provenance only; they do not approve the note content.</small></p>
+            @if (row.allocations.length) {
+              <ul>
+                @for (allocation of row.allocations; track $index; let j = $index) {
+                  <li><code>{{ allocation.generalLedgerLineId }}</code>
+                    <label>Signed contribution <input [name]="'nlAlloc' + i + '-' + j" [(ngModel)]="allocation.signedAmount" inputmode="decimal" /></label>
+                    <button matButton type="button" (click)="row.allocations.splice(j, 1)">Remove source link</button></li>
+                }
+              </ul>
+              @if (noteAllocationIssue(row); as issue) { <p role="alert">{{ issue }}</p> }
+            }
+            <button matButton="outlined" type="button" (click)="openNoteSources(i)">{{ notePickerFor() === i ? 'Hide source lines' : 'Choose accepted source lines' }}</button>
             <button matButton type="button" (click)="form.noteLines.splice(i, 1)">Remove note line {{ i + 1 }}</button>
           </fieldset>
         }
         <button matButton="outlined" type="button" (click)="form.noteLines.push(newNoteLine())">Add note line</button>
 
         <h2>FX cash effects</h2>
-        <p><small>Foreign-exchange effects on cash, each with its evidence. The cash bridge must reconcile including these effects.</small></p>
+        <p><small>Explicitly assess the period FX cash population. Zero is an evidenced assessment state, never an implied default.</small></p>
+        <label>FX cash-effect assessment
+          <select name="fxAssessmentState" [(ngModel)]="form.fxAssessmentState">
+            <option value="">Not assessed</option><option value="ASSESSED_ZERO">Assessed zero</option><option value="EFFECTS_RECORDED">Effects recorded</option>
+          </select>
+        </label>
+        @if (form.fxAssessmentState) {
+          <label>FX assessment evidence reference <input name="fxAssessmentEvidence" [(ngModel)]="form.fxAssessmentEvidence" maxlength="2000" /></label>
+          <label>FX assessment rationale <textarea name="fxAssessmentRationale" [(ngModel)]="form.fxAssessmentRationale" maxlength="2000" rows="2"></textarea></label>
+        }
+        <p><small>FX effects and this assessment require independent review with the cash-flow source links before statement presentation can pass.</small></p>
         @for (row of form.fxCashEffects; track $index; let i = $index) {
           <fieldset class="movement">
             <legend>FX cash effect {{ i + 1 }}</legend>
@@ -515,6 +668,7 @@ export class FinancialPackageBuild {
       : null;
   }, decodeBuildStatus, 'The build status is unavailable in your current scope.');
   readonly pickerFor = signal<number | null>(null);
+  readonly notePickerFor = signal<number | null>(null);
   readonly sourcePage = signal(1);
   /** The period the source picker reads. A signal, so changing the period reloads the lines. */
   readonly chosenPeriod = signal('');
@@ -542,7 +696,7 @@ export class FinancialPackageBuild {
   }
   readonly sources = this.api.resource(() => {
     const periodId = this.chosenPeriod();
-    return this.id() && periodId && this.pickerFor() !== null
+    return this.id() && periodId && (this.pickerFor() !== null || this.notePickerFor() !== null)
       ? `/api/ui/engagements/${this.id()}/specialist-preparation/source-lines?periodId=${periodId}&page=${this.sourcePage()}`
       : null;
   }, decodeScheduleSources, 'The accepted general-ledger lines are unavailable in your current scope.');
@@ -551,8 +705,53 @@ export class FinancialPackageBuild {
   projection(m: MovementForm): string | null { return movementProjection(m); }
   newDisclosure(): DisclosureForm { return { code: '', response: '', notApplicable: false, rationale: '' }; }
   newEquityLine(): EquityLineForm { return emptyEquityLine(); }
+  newEquityTransfer(): EquityTransferForm { return emptyEquityTransfer(); }
   newNoteLine(): NoteLineForm { return emptyNoteLine(); }
   newFxCashEffect(): FxCashEffectForm { return emptyFxCashEffect(); }
+
+  openMovementSources(movement: number): void {
+    this.notePickerFor.set(null);
+    this.pickerFor.set(this.pickerFor() === movement ? null : movement);
+    this.sourcePage.set(1);
+  }
+
+  openNoteSources(note: number): void {
+    this.pickerFor.set(null);
+    this.notePickerFor.set(this.notePickerFor() === note ? null : note);
+    this.sourcePage.set(1);
+  }
+
+  addSelectedSource(lineId: string, signedAmount: string): void {
+    const note = this.notePickerFor();
+    if (note !== null) {
+      const row = this.form.noteLines[note];
+      if (row && !row.allocations.some((allocation) => allocation.generalLedgerLineId === lineId))
+        row.allocations.push({ generalLedgerLineId: lineId, signedAmount });
+      return;
+    }
+    const movement = this.pickerFor();
+    if (movement !== null) this.addSource(movement, lineId, signedAmount);
+  }
+
+  addSelectedScheduleSource(scheduleId: string, componentCode: string, signedAmount: string): void {
+    const movement = this.pickerFor();
+    const row = movement === null ? null : this.form.movements[movement];
+    if (!row || row.allocations.length || !row.isNonCash ||
+        (componentCode !== 'DEPRECIATION' && componentCode !== 'IMPAIRMENT') ||
+        row.scheduleAllocations.some(x => x.specialistScheduleId === scheduleId && x.componentCode === componentCode)) return;
+    row.scheduleAllocations.push({ specialistScheduleId: scheduleId, componentCode, signedAmount });
+  }
+
+  noteAllocationIssue(row: NoteLineForm): string | null {
+    if (!row.allocations.length) return null;
+    if (!AMOUNT.test(row.amount) || row.allocations.some((allocation) => !GUID.test(allocation.generalLedgerLineId) ||
+      !AMOUNT.test(allocation.signedAmount) || toMicro(allocation.signedAmount) === 0n))
+      return 'Enter valid note and signed contribution amounts with at most six decimals.';
+    if (new Set(row.allocations.map((allocation) => allocation.generalLedgerLineId.toLowerCase())).size !== row.allocations.length)
+      return 'A general-ledger line can be linked to this note only once.';
+    return sumContributions(row.allocations) === toMicro(row.amount)
+      ? null : 'Signed source contributions must total the note amount exactly.';
+  }
 
   /** The open schedules and lineage gaps for the current form. Recomputed on each check, so it follows every edit. */
   blockers(): string[] { return scheduleBlockers(this.form); }
@@ -585,7 +784,7 @@ export class FinancialPackageBuild {
 
   addSource(movement: number, lineId: string, signedAmount: string): void {
     const m = this.form.movements[movement];
-    if (!m || m.allocations.some((a) => a.generalLedgerLineId === lineId)) return;
+    if (!m || m.scheduleAllocations.length || m.allocations.some((a) => a.generalLedgerLineId === lineId)) return;
     m.allocations.push({ generalLedgerLineId: lineId, signedAmount });
   }
 

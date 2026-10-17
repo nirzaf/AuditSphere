@@ -25,7 +25,7 @@ The [supplied implementation backlog](auditsphere-execution-user-stories-ste-v22
 | NOT_AUDITED | 84 |
 | **Total** | **99** |
 
-Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 71 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
+Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 69 NOT_STARTED of 75 cards. Nothing is COMPLETED from the audit: no item met every completion test in the card.
 
 ## 2. Board
 
@@ -55,9 +55,9 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 71 NOT_STARTED of 75 
 | T022 | R2R-06 | Implement adjustment decisions, revisions and reversals | NOT_STARTED | NOT_AUDITED | T021 (NOT_STARTED) | — | Audit against the codebase before building |
 | T023 | R2R-06 | Build reflection treatment, sealed plans and adjusted TB snapshots | NOT_STARTED | NOT_AUDITED | T022 (NOT_STARTED) | — | Audit against the codebase before building |
 | T024 | R2R-07 | Build reconciliation schedules and typed source items | NOT_STARTED | NOT_AUDITED | T023 (NOT_STARTED) | — | Audit against the codebase before building |
-| T025 | R2R-07 | Implement reconciliation proof and correction-journal handoff | NOT_STARTED | NOT_AUDITED | T024 (NOT_STARTED) | — | Audit against the codebase before building |
-| T026 | R2R-07 | Implement reconciliation review, rework and export | NOT_STARTED | NOT_AUDITED | T025 (NOT_STARTED) | — | Audit against the codebase before building |
-| T027 | R2R-08 | Build bounded statement-layout definitions and publication | NOT_STARTED | NOT_AUDITED | T026 (NOT_STARTED) | — | Audit against the codebase before building |
+| T025 | R2R-07 | Implement reconciliation proof and correction-journal handoff | BLOCKED | NOT_AUDITED | T024 (NOT_STARTED) | — | Audit against the codebase before building |
+| T026 | R2R-07 | Implement reconciliation review, rework and export | BLOCKED | NOT_AUDITED | T025 (BLOCKED) | — | Audit against the codebase before building |
+| T027 | R2R-08 | Build bounded statement-layout definitions and publication | NOT_STARTED | NOT_AUDITED | T026 (BLOCKED) | — | Audit against the codebase before building |
 | T028 | R2R-08 | Implement comparative-basis selection and historical differences | NOT_STARTED | NOT_AUDITED | T027 (NOT_STARTED) | — | Audit against the codebase before building |
 | T029 | R2R-08 | Build canonical statement sets and exact line drill-down | NOT_STARTED | NOT_AUDITED | T028 (NOT_STARTED) | — | Audit against the codebase before building |
 | T030 | R2R-09 | Build source-backed cash-flow schedules | NOT_STARTED | NOT_AUDITED | T029 (NOT_STARTED) | — | Audit against the codebase before building |
@@ -91,7 +91,7 @@ Card status in the front matter: 2 COMPLETED, 0 IN_REVIEW, 71 NOT_STARTED of 75 
 | T058 | AUD-17 | Implement audit sampling, item testing and subsequent matching | NOT_STARTED | NOT_AUDITED | T057 (NOT_STARTED) | — | Audit against the codebase before building |
 | T059 | AUD-17 | Manage audit confirmations and alternative procedures | BLOCKED | PARTIAL | T058 (NOT_STARTED) | 4 | Build the open gaps |
 | T060 | AUD-18 | Implement audit planning, materiality and risk assessment | NOT_STARTED | NOT_AUDITED | T056 (NOT_STARTED), T057 (NOT_STARTED) | — | Audit against the codebase before building |
-| T061 | AUD-18 | Implement cash and bank audit workpapers | NOT_STARTED | NOT_AUDITED | T026 (NOT_STARTED), T059 (BLOCKED), T060 (NOT_STARTED) | — | Audit against the codebase before building |
+| T061 | AUD-18 | Implement cash and bank audit workpapers | NOT_STARTED | NOT_AUDITED | T026 (BLOCKED), T059 (BLOCKED), T060 (NOT_STARTED) | — | Audit against the codebase before building |
 | T062 | AUD-18 | Implement trade receivables and allowance audit workpapers | NOT_STARTED | NOT_AUDITED | T058 (NOT_STARTED), T059 (BLOCKED), T060 (NOT_STARTED) | — | Audit against the codebase before building |
 | T063 | AUD-18 | Implement inventory count, costing and nrv audit workpapers | NOT_STARTED | NOT_AUDITED | T058 (NOT_STARTED), T060 (NOT_STARTED) | — | Audit against the codebase before building |
 | T064 | AUD-18 | Implement revenue testing and cut-off audit workpapers | NOT_STARTED | NOT_AUDITED | T058 (NOT_STARTED), T060 (NOT_STARTED) | — | Audit against the codebase before building |

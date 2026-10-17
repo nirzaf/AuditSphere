@@ -46,7 +46,8 @@ public static partial class GeneralLedgerCompletenessWorkspace
       x.Id == bookId && x.FirmId == actor.FirmId && x.ClientId == batch.ClientId && x.PeriodId == batch.PeriodId, ct) : null;
     var firm = await db.FirmSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == actor.FirmId, ct);
     var safety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == batch.ClientId && x.FirmId == actor.FirmId, ct);
-    var selected = await AccountingSourceAcceptanceService.GetSelectedSourceAsync(db, actor, batch.ClientId, batch.EngagementId, AccountingSourceKinds.TrialBalance, ct);
+    var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(db, actor,
+      batch.ClientId, batch.EngagementId, batch.PeriodId, batch.BookId, period?.Basis, batch.Currency, batch.LegalEntityKey, ct);
     if (!selected.Succeeded) return CommandResult<CompletenessSourceContext>.Fail(selected.ErrorCode!, selected.Message!);
     if (period is null || firm is null || safety is null) return CommandResult<CompletenessSourceContext>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == batch.EngagementId && x.State == FileFreezeStates.Frozen, ct);
