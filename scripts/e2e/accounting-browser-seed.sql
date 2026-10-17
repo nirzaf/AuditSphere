@@ -42,6 +42,17 @@ VALUES
   ('c1000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000001', 'Collision Client B LLC', 'Collision B', 'ACTIVE', '2026-09-22T08:00:00Z', 'United States')
 ON CONFLICT DO NOTHING;
 
+-- Direct fixture inserts must retain the same safety fence as normal client creation.
+-- Restrict repair to these synthetic identities; never reset an existing generation.
+INSERT INTO client_safety_states (id, firm_id, input_generation)
+SELECT id, firm_id, 1
+FROM practice_clients
+WHERE firm_id = 'f0000000-0000-0000-0000-000000000001'
+  AND id IN ('c1000000-0000-0000-0000-000000000001',
+             'c1000000-0000-0000-0000-000000000002',
+             'c1000000-0000-0000-000000000003')
+ON CONFLICT DO NOTHING;
+
 INSERT INTO engagements (id, firm_id, practice_client_id, service_route, period_start, period_end, service_profile_id, status, professional_work_blocked, generation, created_at)
 VALUES
   ('e1000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', 'c1000000-0000-0000-0000-000000000001', 'ACCOUNTING', '2026-01-01', '2026-12-31', 'SME-QAR', 'Active', false, 1, '2026-09-22T08:00:00Z'),

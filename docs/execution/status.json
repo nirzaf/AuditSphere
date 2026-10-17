@@ -2034,14 +2034,14 @@
     },
     "queuePrerequisiteDisplay": {
       "codeCommit": "1865b20c",
-      "result": "FOCUSED_PASS_BROWSER_BLOCKED_FIXTURE",
+      "result": "FOCUSED_PASS_BROWSER_DEPENDENCY_PASS",
       "angularSpec": {
         "path": "src/app/features/practice/work-queue.spec.ts",
         "passed": 18,
         "failed": 0
       },
       "builds": "Angular PASS (existing SCSS budget warning); API Release PASS, zero warnings/errors",
-      "browser": "Isolated browser DB: canonical engagement/manual task form reached. Creation refused: Client safety state is unavailable. Dependency journey and responsive acceptance NOT_VERIFIED. No safety bypass.",
+      "browser": "Synthetic browser DB only: repaired missing client safety fixture rows without resetting generations. Created and assigned two tasks via UI; saved reviewed dependency; BLOCKED shown in list/board/calendar and completion withheld. Completing predecessor cleared blocker and restored completion. Console warning/error log empty. Responsive acceptance NOT_VERIFIED.",
       "scope": "Separate BLOCKED prerequisite label in list/board/calendar; no persisted status, permission or queue-membership change.",
       "fullRegression": "NOT_RUN on this source; full suites delegated to CI"
     }
