@@ -906,6 +906,23 @@
         "domain": "PASS: 1328/1328",
         "releaseBuildContractsAndPublication": "PASS",
         "api": "INTERRUPTED_INFRASTRUCTURE: runner shutdown signal; exit 143; no test result artifact",
+        "focusedApiCohort": {
+          "sourceCommit": "512696edfe67ef29bfa2323c3bf4f226b0c13999",
+          "classes": [
+            "PortalActionCenterApiTests",
+            "ClientPortalBrandingApiTests",
+            "FirmPortalLogoSettingsApiTests",
+            "FirmUnbilledTimeApiTests",
+            "EngagementActivityApiTests",
+            "EngagementDeadlineReminderApiTests"
+          ],
+          "passed": 14,
+          "failed": 0,
+          "skipped": 0,
+          "durationSeconds": 113,
+          "environment": "Loopback PostgreSQL auditsphere_tests on port 5433",
+          "limitation": "Focused feature evidence only; does not replace the interrupted unfiltered API release job."
+        },
         "playwrightE2E": "IN_PROGRESS",
         "acceptance": "AS-PM8 remains PARTIAL until the API cohort is rerun successfully and the full Playwright E2E job completes successfully on a commit-pinned run."
       },
