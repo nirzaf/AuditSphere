@@ -192,6 +192,8 @@ describe('client open-item allocation manifest assent', () => {
       submissionId, decisionId: null, outcome: 'SUBMITTED', previewDigest: 'a'.repeat(64), intentHash: 'd'.repeat(64), sourceKind: 'SALES_RECEIPT',
       sourceItemId: sourceId, disposition: 'ALLOCATE', reference: 'RCPT-2026-01', reason: 'Apply received customer funds',
       lines: [{ lineNumber: 1, targetKind: 'SALES_INVOICE', targetOpenItemId: targetId, amount: '100.000000', reversesAllocationLineId: null }], decision: null, decisionReason: null } });
+    // WebCrypto runs outside Angular's pending-task tracking; await recovery, not only rendering.
+    await vi.waitFor(() => expect(component.busy()).toBe(false));
     await fixture.whenStable();
     expect(component.recoveryMatched()['SUBMIT:' + previewCommandId]).toBe(false);
     expect(component.hasUnresolvedSubmission()).toBe(true);
@@ -201,6 +203,8 @@ describe('client open-item allocation manifest assent', () => {
       submissionId, decisionId: null, outcome: 'SUBMITTED', previewDigest: 'a'.repeat(64), intentHash: 'd'.repeat(64), sourceKind: 'SALES_RECEIPT',
       sourceItemId: sourceId, disposition: 'ALLOCATE', reference: 'RCPT-2026-01', reason: 'Apply received customer funds',
       lines: [{ lineNumber: 1, targetKind: 'SALES_INVOICE', targetOpenItemId: targetId, amount: '100.000000', reversesAllocationLineId: null }], decision: null, decisionReason: null } });
+    // WebCrypto runs outside Angular's pending-task tracking; await recovery, not only rendering.
+    await vi.waitFor(() => expect(component.busy()).toBe(false));
     await fixture.whenStable();
     expect(component.recoveryMatched()['SUBMIT:' + previewCommandId]).toBe(true);
     component.acknowledgeRecovery(submitRecovery);
@@ -248,6 +252,8 @@ describe('client open-item allocation manifest assent', () => {
       submissionId, decisionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', outcome: 'APPROVED', previewDigest: retained.digest, intentHash: 'e'.repeat(64),
       sourceKind: retained.sourceKind, sourceItemId: retained.sourceItemId, disposition: retained.disposition, reference: 'RCPT-2026-01',
       reason: 'Apply received customer funds', lines: retained.lines, decision: 'APPROVE', decisionReason: 'Reviewed both retained targets' } });
+    // WebCrypto runs outside Angular's pending-task tracking; await recovery, not only rendering.
+    await vi.waitFor(() => expect(component.busy()).toBe(false));
     await fixture.whenStable();
     expect(component.recoveryMatched()['REVIEW:' + reviewRecovery.commandId]).toBe(true);
     component.acknowledgeRecovery(reviewRecovery);
