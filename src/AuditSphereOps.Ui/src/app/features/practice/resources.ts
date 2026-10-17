@@ -25,6 +25,7 @@ import {
   resourceMinutes,
   validResourceDate,
 } from './resource-editor';
+import { CertificationReview } from './certification-review';
 import { ResourceNavigationDialog } from './resource-navigation-dialog';
 import { TabDrafts, PendingRequestReference, pendingRequestReference } from '../../core/tab-drafts';
 import {
@@ -52,7 +53,7 @@ const row = obj({
   name: text,
   department: text,
   skills: arr(text, 100),
-  certifications: arr(obj({ name: text, expiresOn: nullable(date), current: bool }), 100),
+  certifications: arr(obj({ id: guid, name: text, expiresOn: nullable(date), current: bool }), 100),
   weeklyCapacityMinutes: nat,
   targetUtilizationPercent: dec,
   hasProfile: bool,
@@ -102,6 +103,7 @@ export const toMinutes = resourceMinutes;
   host: { '(window:beforeunload)': 'beforeUnload($event)' },
 })
 export class ResourcePlanning {
+  reviewCertification(id: string) { this.dialog.open(CertificationReview, { data: id, width: '640px', maxWidth: '95vw' }); }
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
   private readonly dialog = inject(MatDialog);

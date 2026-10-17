@@ -12,7 +12,7 @@ public sealed record AddCertificationRequest(Guid UserId, string Name, string? I
 public sealed record AddAvailabilityRequest(Guid UserId, DateOnly StartDate, DateOnly EndDate, string Kind, int MinutesPerDay);
 public sealed record SetAllocationRequest(Guid EngagementId, Guid UserId, DateOnly WeekStart, int PlannedMinutes);
 
-public sealed record ResourceCertificationView(string Name, DateOnly? ExpiresOn, bool Current);
+public sealed record ResourceCertificationView(Guid Id, string Name, DateOnly? ExpiresOn, bool Current);
 public sealed record ResourceAllocationView(Guid EngagementId, string EngagementLabel, DateOnly WeekStart, int PlannedMinutes);
 public sealed record ResourceGridRow(
   Guid UserId, string Name, string Department, IReadOnlyList<string> Skills, IReadOnlyList<ResourceCertificationView> Certifications,
@@ -190,7 +190,7 @@ public static partial class ResourcePlanningService
       var mine = allocations.Where(x => x.UserId == u.Id).ToList();
       return new ResourceGridRow(u.Id, u.DisplayName, profile?.Department ?? "Unassigned",
         (profile?.Skills ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries),
-        certifications.Where(c => c.UserId == u.Id).OrderBy(c => c.Name).Select(c => new ResourceCertificationView(c.Name, c.ExpiresOn, c.ExpiresOn is null || c.ExpiresOn >= today)).ToList(),
+        certifications.Where(c => c.UserId == u.Id).OrderBy(c => c.Name).Select(c => new ResourceCertificationView(c.Id, c.Name, c.ExpiresOn, c.ExpiresOn is null || c.ExpiresOn >= today)).ToList(),
         profile?.WeeklyCapacityMinutes ?? 0, profile?.TargetUtilizationPercent ?? 0, profile is not null,
         ResourceGridCalculator.Build(profile?.WeeklyCapacityMinutes ?? 0, availability.Where(a => a.UserId == u.Id).ToList(), mine,
           time.Where(t => t.UserId == u.Id).Select(t => (t.WorkDate, t.DurationMinutes)).ToList(), start, weeks,

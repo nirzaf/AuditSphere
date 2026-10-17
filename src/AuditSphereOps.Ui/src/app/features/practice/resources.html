@@ -77,10 +77,11 @@
                 @if (r.skills.length) {
                   <span>{{ r.skills.join(', ') }}</span>
                 }
-                @for (c of r.certifications; track c.name) {
+                @for (c of r.certifications; track c.id) {
                   <small [class.error-text]="!c.current"
-                    >{{ c.name }} · Not verified · {{ c.expiresOn ? (c.current ? 'Not expired' : 'Expired') + ' · expires ' + c.expiresOn : 'Expiry not recorded' }}</small
+                    >{{ c.name }} · Verification recorded separately · {{ c.expiresOn ? (c.current ? 'Not expired' : 'Expired') + ' · expires ' + c.expiresOn : 'Expiry not recorded' }}</small
                   >
+                  <button matButton type="button" (click)="reviewCertification(c.id)">View verification for {{ c.name }}</button>
                 }
               </td>
               <td>{{ r.hasProfile ? whole(r.targetUtilizationPercent) + '%' : '—' }}</td>

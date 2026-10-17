@@ -21,7 +21,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Certification administrative review integration
 
-Exact-source applicability rules, append-only review persistence and independent administrator publication are implemented. Current evidence and commit identities are in `status.json` under `completePracticeManagement.certificationReview`. The read workspace is being verified. API/Angular review actions and staffing eligibility readers remain unfinished; existing assignment history is preserved and legacy qualifications are not automatically verified. No live or development database migration was performed. Client portal write-gate corrections are a separate active worker slice.
+Exact-source applicability rules, append-only review persistence and independent administrator publication are implemented. Current evidence and commit identities are in `status.json` under `completePracticeManagement.certificationReview`. The read workspace, API and Angular review dialog have focused verification, including a synthetic browser verification/withdrawal flow. Staffing eligibility readers and concurrency acceptance remain unfinished; existing assignment history is preserved and legacy qualifications are not automatically verified. Only the synthetic browser database received the review migration; live/development databases remain unchanged. Client portal write-gate corrections are committed separately, with focused evidence in the crosswalk.
 
 ## Resource range safety
 

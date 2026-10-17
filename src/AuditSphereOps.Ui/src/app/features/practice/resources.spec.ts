@@ -25,9 +25,9 @@ const workspace = {
         department: 'Tax',
         skills: ['IFRS'],
         certifications: [
-          { name: 'Synthetic current qualification', expiresOn: '2099-12-31', current: true },
-          { name: 'Synthetic expired qualification', expiresOn: '2000-01-01', current: false },
-          { name: 'Synthetic undated qualification', expiresOn: null, current: true },
+          { id: '33333333-3333-4333-8333-333333333333', name: 'Synthetic current qualification', expiresOn: '2099-12-31', current: true },
+          { id: '44444444-4444-4444-8444-444444444444', name: 'Synthetic expired qualification', expiresOn: '2000-01-01', current: false },
+          { id: '55555555-5555-4555-8555-555555555555', name: 'Synthetic undated qualification', expiresOn: null, current: true },
         ],
         weeklyCapacityMinutes: 1200,
         targetUtilizationPercent: '75.000000',
@@ -118,9 +118,9 @@ describe('Resource planning forms', () => {
     const f = setup();
     const text = f.nativeElement.textContent;
     expect(text).toContain('Over-allocated');
-    expect(text).toContain('Synthetic current qualification · Not verified · Not expired');
-    expect(text).toContain('Synthetic expired qualification · Not verified · Expired');
-    expect(text).toContain('Synthetic undated qualification · Not verified · Expiry not recorded');
+    expect(text).toContain('Synthetic current qualification · Verification recorded separately · Not expired');
+    expect(text).toContain('Synthetic expired qualification · Verification recorded separately · Expired');
+    expect(text).toContain('Synthetic undated qualification · Verification recorded separately · Expiry not recorded');
     expect(text).toContain('approved actual 10 h');
     // Utilization is stated on approved billable time, beside all approved hours.
     expect(text).toContain('billable 8 h, 50% utilised');

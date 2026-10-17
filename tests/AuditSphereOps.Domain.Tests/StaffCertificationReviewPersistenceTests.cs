@@ -18,7 +18,11 @@ public sealed class StaffCertificationReviewPersistenceTests
     await using var db = new AuditSphereDbContext(pg.Options);
     var source = new StaffCertification { Id = Guid.NewGuid(), FirmId = seed.FirmId, UserId = seed.Staff.Id,
       Name = "Synthetic qualification", RecordedByUserId = seed.Reviewer.Id, RecordedAt = DateTimeOffset.UtcNow.AddDays(-1) };
-    db.StaffCertifications.Add(source); await db.SaveChangesAsync();
+    db.StaffCertifications.Add(source);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Reviewer, "Manager", clientId: seed.ClientId, engagementId: seed.EngagementId));
+    await db.SaveChangesAsync();
+    Assert.False((await AuditSphereOps.Application.Practice.ResourcePlanningService.GetCertificationReviewAsync(db,
+      PbcSeed.Actor(seed.Reviewer, "Manager"), source.Id)).Succeeded);
     var intent = new AuditSphereOps.Application.Practice.ReviewStaffCertificationRequest(source.Id, Guid.NewGuid(),
       StaffCertificationEvidence.SourceDigest(source), 0, "VERIFIED", "Synthetic evidence", "Independent review");
     var actor = PbcSeed.Actor(seed.Admin, "Administrator");

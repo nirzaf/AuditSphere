@@ -18140,6 +18140,16 @@
       "skipped": 0,
       "scope": "Pure source digest and independent/current exact-source applicability only.",
       "remaining": "Persistence, review UI/API and staffing integration NOT_IMPLEMENTED."
+    },
+    "capacityRemainder20261018": {
+      "codeCommit": "668b295eaa1a84b2528048d11c071cbb8571bdbd",
+      "result": "FOCUSED_PASS",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "cohort": "CapacityDeductsLeaveOnASundayButNotOnTheWeekend; Analytics_MissingCostRateKeepsChargeOutValueAndZeroCapacityDoesNotInventUtilization",
+      "scope": "Pure and isolated PostgreSQL: 2401 weekly minutes retained; Sunday leave leaves 1920 in grid/analytics; full leave removes all capacity; final supported date succeeds.",
+      "deferred": "Positive browser and full current-SHA CI acceptance NOT_VERIFIED."
     }
   }
 }
