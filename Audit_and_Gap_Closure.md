@@ -136,13 +136,15 @@ The existing browser journey exercises the cash-source subpath and asserts store
 
 **Remaining acceptance:** run the full journey using actual balanced input and declare every seeded prerequisite; verify the serialized schedules through the API-hosted Angular flow, independent review, final readiness, composition and issuance. CP-11 source-kind completeness and schedule rework, CP-12 approved indirect classification, and CP-13/14 professional source/applicability decisions remain separately open.
 
-## F-05 — Indirect cash-flow methodology and explicit zero states remain incomplete
+## F-05 — Indirect cash-flow method remains blocked; explicit FX population assessment is implemented
 
-**P0 for final cash-flow approval · SOURCE_CONFIRMED / BLOCKED_PROFESSIONAL · CP-12.**
+**P0 for final cash-flow approval · PARTIAL / BLOCKED_PROFESSIONAL · CP-12.**
 
-The presentation sums movements excluding `IsNonCash`; its completeness still requires an FX row. This does not express a policy-approved profit starting subtotal, distinct noncash add-backs, supported working-capital decomposition, or independently assessed zero/no-FX facts. The new source review improves evidence linkage but does not approve that missing methodology. [R16] [R06]
+The earlier FX-row/count shortcut is superseded. Each package can now carry an explicit `ASSESSED_ZERO` or `EFFECTS_RECORDED` population state with evidence reference and rationale. Zero effect rows are refused; the assessment and exact effect rows are included in the independent cash-flow source-review digest. A focused PostgreSQL cohort and Angular coverage are recorded under `targetedVerification.cp12FxCashAssessment`. This proves a preparer assertion is persisted and reviewed as part of the package snapshot; it does not independently prove the FX population is complete or approve the cash-flow method. [R16] [R06]
 
-**Required correction:** implement the approved indirect profile with exact statement-start, role-specific transformations, genuine cash and noncash distinctions, source allocations, separate FX effect and independently reviewed no-activity decisions. Reject residual plugs and double-counted impairment. A missing source/section remains missing; an evidenced zero is explicitly zero. Unsupported direct methods remain disabled, not guessed.
+The code still lacks an approved indirect starting subtotal and role-specific adjustments, supported working-capital decomposition, source-backed depreciation/impairment/accrual schedules, noncash investing classification, and reviewed assessed-zero decisions for every required section. Mixed gross/net receivable and impairment treatments must remain rejected. A missing source/section stays missing; a recorded zero is never inferred. Unsupported direct methods remain disabled, not guessed.
+
+**Remaining correction:** after qualified approval of the exact indirect profile, bind its version and source identities, implement its role transformations and section assessments, reconcile current/prior cash populations without plugs, and verify the numerical acceptance fixture. Do not treat the synthetic profile or current FX assessment as professional policy evidence.
 
 ## F-06 — Equity and note content are still not independently source-approved
 
@@ -663,7 +665,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 1. Pin the approved starting P&L subtotal and selected cash/equivalent account populations for each period. Confirm the policy reference through qualified review; no default IFRS text or generic IsNonCash interpretation constitutes approval.
 2. Model explicit roles for starting profit, noncash profit adjustments, working-capital decomposition, investing and financing cash, cash FX and noncash disclosure-only events. Use the corrected source projection/consumption contract from CP-11.
 3. Connect depreciation, impairment, accruals and working-capital movements to actual approved account/schedule contributions. Remove noncash acquisitions, FX, transfers and reclassifications from cash effects where required; reconcile cash-to-cash transfers separately.
-4. Replace the FX-row/count completeness shortcut with assessed-zero/no-activity evidence and independent review. Missing stays incomplete. Do not invent zero currency pairs, journals or rows solely to satisfy required counts.
+4. **FX population state implemented:** persist explicit assessed-zero or effects-recorded evidence, reject invented zero effect rows, and bind the assessment/effects into independent review. Remaining: qualify the evidence's population and add policy-approved no-activity decisions for other required sections. Missing stays incomplete; do not invent zero currency pairs, journals or rows solely to satisfy required counts.
 5. Provide current/prior schedule editing and reviewer selection in the product. Show unsupported roles, unresolved populations and exact residuals; never generate a balancing plug or silently include a duplicated impairment add-back.
 6. Keep unsupported direct-method functionality disabled with a clear profile reason. Complete the supported indirect profile and comparative bridge before final approval/signing.
 
