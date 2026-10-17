@@ -7436,9 +7436,11 @@
    "refutation": "NOT_NEEDED"
   }
  ],
- "currentDispositionsAsOf": "2026-10-10",
+ "currentDispositionsAsOf": "2026-10-17",
+ "currentDispositionsNote": "Latest documentation amendment date; individual historical observations retain their original source commits and observation times. No new application execution is claimed by an amendment.",
  "currentDispositions": {
   "T003": {
+   "amendedOn": "2026-10-17",
    "verdict": "OWNER_DECISION",
    "summary": "PROFESSIONAL_POLICY: qualified owners must approve framework/FX/consolidation and all eight GOLD-R2R outcomes. ADR-0014 closes arithmetic. Existing NFR bounds are engineering defaults; production capacity needs operations evidence.",
    "missing": [
@@ -7451,10 +7453,11 @@
    "conflicts": []
   },
   "T004": {
+   "amendedOn": "2026-10-17",
    "verdict": "PARTIAL",
    "summary": "ADR-0001 resolves the architecture choice: keep static capability services and do not add a mediator facade or dependency. The card was rewritten to match. No architecture decision remains open; T004 itself remains NOT_STARTED and blocked by T003.",
    "missing": [
-    "Independent command/query inventory and transaction analysis may proceed under engineering delegation. Card completion and policy-dependent changes retain T003 and exact reviewed dependency evidence.",
+    "T004 command/query inventory and transaction analysis must wait until T003 is COMPLETED with its exact reviewed handoff. Engineering delegation does not bypass this hard dependency.",
     "Complete a transaction-owner registry and an architecture check for the selected single-owner invariant.",
     "Record observed before/after or characterization evidence for the selected command/query without changing business behavior."
    ],
@@ -7556,13 +7559,19 @@
   },
   "STE-GAP-007": {
    "verdict": "EXTERNAL_BLOCKED",
-   "summary": "Local frozen-state controls and reviewed-manifest/structured-record export pass current-tree evidence; these do not establish provider-side read-only protection.",
+   "summary": "The historical local frozen-state controls and reviewed-manifest/structured-record export observations are retained; these do not establish provider-side read-only protection.",
    "missing": [
     "APPROVED_ALREADY: ADR-0009 selects the authoritative release/archive store plus a secondary read-only SharePoint library. Implement/verify the copy, exact hashes, reconciled grants and live staff edit/delete/overwrite denials; remain BLOCKED_EXTERNAL."
    ],
    "conflicts": [],
-   "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
-   "observedAtUtc": "2026-10-10T17:51:40Z"
+   "amendedOn": "2026-10-17",
+   "amendmentBasis": "ADR-0009 amendment dated 2026-10-11 selects the read-only SharePoint library; documentation reconciliation records this later decision without rerunning historical checks.",
+   "decisionReference": "docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md",
+   "historicalObservation": {
+    "observedCommit": "bc66c38b6a03010a7d1e468da3537481af81339c",
+    "observedAtUtc": "2026-10-10T17:51:40Z",
+    "missing": ["Obtain approved provider protection strategy, exact-resource readback and real-tenant edit/delete/overwrite denial evidence."]
+   }
   },
   "STE-GAP-008": {
    "verdict": "COMPLETE",

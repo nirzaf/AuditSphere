@@ -14,7 +14,7 @@ Change a limit only in its source constant or configuration key, and update this
 | Security headers | `nosniff`, `no-referrer`, `X-Frame-Options: DENY`, strict CSP with hashed inline scripts | `Api/HttpBoundary/SecurityHeadersMiddleware` | Enforced |
 | Error bodies | `{ code, message, correlationId }`; never SQL, stack traces, tokens or internal paths | `Api/HttpBoundary/ApiError.cs` | Enforced |
 | Microsoft permissions | One app identity per capability, exactly one role, off by default, consent-verified | `docs/architecture/auditsphere-m365-tenant-administration-permissions.md` | Enforced locally; live `BLOCKED_EXTERNAL` |
-| Secrets | .NET user secrets in development; approved secret custody in production; never log or commit secrets | `AGENTS.md` §§5–6 | Production custody Open (P8) |
+| Secrets | .NET user secrets in development; production custody requires P8 approval/evidence; never log or commit secrets | [API development boundary](auditsphere-angular-migration-current.md#api-and-angular-project-boundary); [P8 custody gate](../execution/auditsphere-execution-pending-tasks.md); `AGENTS.md` §6 (no logging/committing secrets) | Production custody Open (P8); no production secret store is selected here |
 
 ## 2. Request rate limits (per authenticated identity, configurable under `HttpBoundary:RateLimit`)
 
@@ -65,7 +65,7 @@ These are request or aggregate bounds. None limits how many clients, engagements
 
 | Requirement | Current evidence | State |
 | --- | --- | --- |
-| Interactive latency (p95 per endpoint class) | No target recorded; historical application-query sample is in `status-archive-2026-10.json` under `keys.verification.p8bProvisionalStaffQueryBaseline`, not an HTTP p95 measurement | **Open (P8)** — operations owner to set targets |
+| Interactive latency (p95 per endpoint class) | No target recorded; historical application-query sample is in `docs/execution/status-archive-2026-10.json` under `keys.verification.p8bProvisionalStaffQueryBaseline`, not an HTTP p95 measurement | **Open (P8)** — operations owner to set targets |
 | Concurrent users | Bounded historical application-query sample only; no accepted browser/session workload or production capacity target | **Open (P8)** — operations owner to define workload and acceptance targets |
 | RPO / RTO | Local restore drill (`scripts/db/restore-drill.sh`, `docs/operations/auditsphere-operations-runbook-restore-drill.md`) | **Open (P7)** — custodially separate rehearsal required |
 | Observability | Telemetry guide `docs/operations/auditsphere-operations-guide-telemetry.md`; correlation IDs on errors | Collector and alerts **Open (P8)** |

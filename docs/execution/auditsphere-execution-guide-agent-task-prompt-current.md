@@ -21,7 +21,7 @@ Branch/PR policy:
 - <owner-directed branch/worktree and whether staging, commit, push, PR creation and merge are authorized; include the exact merge codeword when one is required>
 
 Constraints:
-- AGENTS.md applies in full except where the owner states an explicit task-specific rule; follow that narrower rule for the named task and preserve global guidance unchanged.
+- AGENTS.md applies in full. A named owner-approved task rule may narrow procedural instructions for that task; it does not waive product invariants, fail-closed behavior, security restrictions, professional approval, release gates or authorization for external effects.
 - <story-specific constraints>
 
 Verify with (run each applicable focused check once; report results and omitted checks with reasons):

@@ -67,6 +67,7 @@ def load_cards():
             'title': heading.group(2).strip(),
             'status': meta['status'],
             'depends_on': re.findall(r'T\d{3}', meta.get('depends_on', '')),
+            'blocked_reason': meta.get('blocked_reason', ''),
         }
     return cards
 
@@ -100,8 +101,14 @@ def main():
     for card_id in sorted(cards):
         card = cards[card_id]
         blockers = [f'{d} ({cards[d]["status"]})' for d in card['depends_on'] if cards[d]['status'] != 'COMPLETED']
+        if card['status'] == 'BLOCKED':
+            for dependency in re.findall(r'T\d{3}', card['blocked_reason']):
+                if dependency in cards and cards[dependency]['status'] != 'COMPLETED':
+                    blocker = f'{dependency} ({cards[dependency]["status"]})'
+                    if blocker not in blockers:
+                        blockers.append(blocker)
         rows.append({'id': card_id, 'family': card['family'], 'title': card['title'], 'record': card['status'],
-                     'deps': blockers, 'state': card['status']})
+                     'deps': blockers, 'state': card['status'], 'blocked_reason': card['blocked_reason']})
     for story_id, story in list(nxt.items()) + list(gap.items()):
         family = 'STE-NXT' if story_id.startswith('STE-NXT') else 'STE-GAP'
         rows.append({'id': story_id, 'family': family, 'title': story['title'], 'record': story['status'],
@@ -156,7 +163,7 @@ def main():
         '',
         'The API/Angular bidirectional parity backlog uses a separate [implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md). Its `T` identifiers do not replace the R2R identifiers below; code presence and functional acceptance are recorded separately.',
         '',
-        'The [documentation reconciliation](auditsphere-execution-report-documentation-reconciliation-current.md) applies approved ADRs and delegated engineering defaults without duplicate approvals. Remaining OWNER_DECISION entries retain qualified professional policy; code/evidence and external gates remain separate. AS-AWP-EXEC Task 10/D1 is proposed only and does not waive terminal procedures. No card status or independent review is changed by that report.',
+        'The [documentation reconciliation](auditsphere-execution-report-documentation-reconciliation-current.md) applies approved ADRs and delegated engineering defaults without duplicate approvals. Remaining OWNER_DECISION entries retain qualified professional policy; code/evidence and external gates remain separate. AS-AWP-EXEC Task 10 remains BLOCKED_DECISION; D1-DRAFT-01 is PROPOSED, NOT APPROVED and does not waive terminal procedures. No card status or independent review is changed by that report.',
         '',
         '## 1. Summary',
         '',
@@ -186,6 +193,8 @@ def main():
             blocked.append('live evidence')
         if row['state'] == 'COMPLETED':
             action = 'None; completed'
+        elif row['state'] == 'BLOCKED':
+            action = 'Blocked: ' + clip(row.get('blocked_reason') or 'Complete the listed dependency and approval exits before starting')
         else:
             action = NEXT_ACTION[row['verdict']]
         verdict = row['verdict'] if row['state'] != 'COMPLETED' or row['verdict'] in ('COMPLETE', 'NOT_AUDITED') else 'superseded: ' + row['verdict']
