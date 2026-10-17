@@ -57,15 +57,30 @@ public sealed class BillingTests
       Assert.True((await BillingService.PostInvoiceAsync(db, fixture.ManagerActor, invoiceId)).Succeeded);
       Assert.True((await BillingService.SendInvoiceAsync(db, fixture.ManagerActor, invoiceId)).Succeeded);
 
-      var note = await BillingService.IssueCreditNoteAsync(db, fixture.ManagerActor,
-        new IssueCreditNoteRequest(invoiceId, "CN-100", 20, "Approved service credit"));
+      var creditRequest = new IssueCreditNoteRequest(invoiceId, "CN-100", 20, "Approved service credit", Guid.NewGuid());
+      var note = await BillingService.IssueCreditNoteAsync(db, fixture.ManagerActor, creditRequest);
       Assert.True(note.Succeeded);
-      receiptId = (await BillingService.RecordReceiptAsync(db, fixture.ManagerActor,
-        new RecordReceiptRequest(accountId, 200, "BANK-100"))).Value;
-      Assert.True((await BillingService.AllocateReceiptAsync(db, fixture.ManagerActor,
-        new AllocateReceiptRequest(receiptId, invoiceId, 200))).Succeeded);
+      var noteReplay = await BillingService.IssueCreditNoteAsync(db, fixture.ManagerActor, creditRequest);
+      Assert.Equal(note.Value, noteReplay.Value);
+      Assert.Equal(ErrorCodes.IdempotencyConflict,
+        (await BillingService.IssueCreditNoteAsync(db, fixture.ManagerActor, creditRequest with { Amount = 21 })).ErrorCode);
+
+      var receiptRequest = new RecordReceiptRequest(accountId, 200, "BANK-100", RequestId: Guid.NewGuid());
+      var recorded = await BillingService.RecordReceiptAsync(db, fixture.ManagerActor, receiptRequest);
+      receiptId = recorded.Value;
+      Assert.Equal(receiptId, (await BillingService.RecordReceiptAsync(db, fixture.ManagerActor, receiptRequest)).Value);
+      Assert.Equal(ErrorCodes.IdempotencyConflict,
+        (await BillingService.RecordReceiptAsync(db, fixture.ManagerActor, receiptRequest with { Amount = 201 })).ErrorCode);
+
+      var allocationRequest = new AllocateReceiptRequest(receiptId, invoiceId, 200, Guid.NewGuid());
+      var allocation = await BillingService.AllocateReceiptCommandAsync(db, fixture.ManagerActor, allocationRequest);
+      Assert.True(allocation.Succeeded);
+      var allocationReplay = await BillingService.AllocateReceiptCommandAsync(db, fixture.ManagerActor, allocationRequest);
+      Assert.Equal(allocation.Value, allocationReplay.Value);
+      Assert.Equal(ErrorCodes.IdempotencyConflict,
+        (await BillingService.AllocateReceiptCommandAsync(db, fixture.ManagerActor, allocationRequest with { Amount = 199 })).ErrorCode);
       var over = await BillingService.AllocateReceiptAsync(db, fixture.ManagerActor,
-        new AllocateReceiptRequest(receiptId, invoiceId, 1));
+        new AllocateReceiptRequest(receiptId, invoiceId, 1, Guid.NewGuid()));
       Assert.False(over.Succeeded);
       Assert.Equal("billing.over-allocation", over.ErrorCode);
 

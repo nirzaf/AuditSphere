@@ -50,7 +50,7 @@ public sealed class BillingCommandScopeIsolationTests
         Assert.True((await BillingService.SubmitInvoiceAsync(db, siblingManagerActor, siblingInvoiceId)).Succeeded);
         Assert.True((await BillingService.ApproveInvoiceAsync(db, siblingReviewerActor, siblingInvoiceId)).Succeeded);
         var receipt = await BillingService.RecordReceiptAsync(db, siblingManagerActor,
-          new(siblingAccountId, 50m, "SYN-BILLING-B-RECEIPT"));
+          new(siblingAccountId, 50m, "SYN-BILLING-B-RECEIPT", RequestId: Guid.NewGuid()));
         Assert.True(receipt.Succeeded, receipt.Message);
         siblingReceiptId = receipt.Value;
       }
@@ -68,11 +68,11 @@ public sealed class BillingCommandScopeIsolationTests
         Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.PostInvoiceAsync(db, manager, siblingInvoiceId)).ErrorCode);
         Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.SendInvoiceAsync(db, manager, siblingInvoiceId)).ErrorCode);
         Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.RecordReceiptAsync(db, manager,
-          new(siblingAccountId, 1m, "SYN-UNAUTHORIZED-RECEIPT"))).ErrorCode);
+          new(siblingAccountId, 1m, "SYN-UNAUTHORIZED-RECEIPT", RequestId: Guid.NewGuid()))).ErrorCode);
         Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.AllocateReceiptAsync(db, manager,
-          new(siblingReceiptId, siblingInvoiceId, 1m))).ErrorCode);
+          new(siblingReceiptId, siblingInvoiceId, 1m, Guid.NewGuid()))).ErrorCode);
         Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.IssueCreditNoteAsync(db, manager,
-          new(siblingInvoiceId, "SYN-UNAUTHORIZED-CREDIT", 1m, "Must not persist"))).ErrorCode);
+          new(siblingInvoiceId, "SYN-UNAUTHORIZED-CREDIT", 1m, "Must not persist", Guid.NewGuid()))).ErrorCode);
         Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.GetInvoiceBalanceAsync(db, manager, siblingInvoiceId)).ErrorCode);
         Assert.Equal(ErrorCodes.ScopeDenied, (await BillingService.GetInvoiceDetailAsync(db, manager, siblingInvoiceId)).ErrorCode);
         Assert.False(await BillingService.CanOpenInvoiceAsync(db, manager, siblingInvoiceId));

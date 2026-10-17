@@ -182,8 +182,8 @@ public sealed partial class FirmOperationsTests
       Assert.True((await BillingService.SubmitInvoiceAsync(db, finance, invoice.Value)).Succeeded);
       Assert.True((await BillingService.ApproveInvoiceAsync(db, w.A("reviewer", "FinanceReviewer"), invoice.Value)).Succeeded);
       Assert.True((await BillingService.PostInvoiceAsync(db, finance, invoice.Value)).Succeeded);
-      var receipt = (await BillingService.RecordReceiptAsync(db, finance, new RecordReceiptRequest(account, 2400m, "BANK-1"))).Value;
-      Assert.True((await BillingService.AllocateReceiptAsync(db, finance, new AllocateReceiptRequest(receipt, invoice.Value, 2400m))).Succeeded);
+      var receipt = (await BillingService.RecordReceiptAsync(db, finance, new RecordReceiptRequest(account, 2400m, "BANK-1", RequestId: Guid.NewGuid()))).Value;
+      Assert.True((await BillingService.AllocateReceiptAsync(db, finance, new AllocateReceiptRequest(receipt, invoice.Value, 2400m, Guid.NewGuid()))).Succeeded);
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {

@@ -7,6 +7,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using System.Text.Json;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -30,15 +31,19 @@ public sealed record RecordReceiptRequest(
   Guid BillingAccountId,
   decimal Amount,
   string Reference,
-  DateTimeOffset? ReceivedAt = null);
+  DateTimeOffset? ReceivedAt = null,
+  Guid RequestId = default);
 
-public sealed record AllocateReceiptRequest(Guid ReceiptId, Guid InvoiceId, decimal Amount);
+public sealed record AllocateReceiptRequest(Guid ReceiptId, Guid InvoiceId, decimal Amount, Guid RequestId = default);
 
 public sealed record IssueCreditNoteRequest(
   Guid InvoiceId,
   string NoteNumber,
   decimal Amount,
-  string Reason);
+  string Reason,
+  Guid RequestId = default);
+
+public sealed record ReceiptAllocationCommandOutcome(Guid AllocationId, Guid ReceiptId, Guid InvoiceId, string Amount);
 
 public sealed record InvoiceBalance(
   Guid InvoiceId,
@@ -216,6 +221,8 @@ public static class BillingService
     IAuditSphereDbContext db, ActorContext actor, RecordReceiptRequest request,
     CancellationToken ct = default)
   {
+    if (request.RequestId == Guid.Empty)
+      return CommandResult<Guid>.Fail("billing.command-invalid", "A reviewed billing request identity is required.");
     if (request.Amount <= 0 || MoneyPolicy.Normalize(request.Amount) != request.Amount)
       return CommandResult<Guid>.Fail("billing.invalid", "Receipt amount must be positive and have at most 6 decimals.");
     if (string.IsNullOrWhiteSpace(request.Reference) || request.Reference.Trim().Length > 200)
@@ -225,6 +232,10 @@ public static class BillingService
     if (account is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeBillingAsync(db, actor, account.PracticeClientId, BillingRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var action = "RECORD_RECEIPT";
+    var hash = BillingCommandWorkspace.IntentHash(action, actor.FirmId, account.PracticeClientId,
+      request.BillingAccountId.ToString("D"), BillingCommandWorkspace.Decimal(request.Amount), request.Reference.Trim(),
+      request.ReceivedAt?.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
@@ -233,6 +244,13 @@ public static class BillingService
     if (!guard.Succeeded) return CommandResult<Guid>.Fail(guard.ErrorCode!, guard.Message!);
     var lockedAccount = await LoadBillingAccountForUpdateAsync(db, actor.FirmId, account.Id, ct);
     if (lockedAccount is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizeBillingAsync(db, actor, lockedAccount.PracticeClientId, BillingRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var replay = await BillingCommandWorkspace.FindReplayAsync(db, actor, lockedAccount.PracticeClientId,
+      request.RequestId, action, hash, BillingRoles,
+      BillingCommandWorkspace.DecodeResultId, ct);
+    if (replay.Found)
+      return replay.ErrorCode is null ? CommandResult<Guid>.Ok(replay.Value!) : CommandResult<Guid>.Fail(replay.ErrorCode, replay.Message!);
     var receipt = new Receipt
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, BillingAccountId = lockedAccount.Id,
@@ -240,7 +258,16 @@ public static class BillingService
       RecordedByUserId = actor.UserId, ReceivedAt = request.ReceivedAt ?? DateTimeOffset.UtcNow
     };
     db.Receipts.Add(receipt);
-    await db.SaveChangesAsync(ct);
+    var now = DateTimeOffset.UtcNow;
+    var outcome = new BillingCommandOutcome(action, receipt.Id, receipt.Id, null,
+      BillingCommandWorkspace.Decimal(receipt.Amount), now);
+    db.BillingCommandReceipts.Add(BillingCommandWorkspace.Create(actor, lockedAccount.PracticeClientId,
+      request.RequestId, action, hash, outcome));
+    try { await db.SaveChangesAsync(ct); }
+    catch (DbUpdateException)
+    {
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The billing request identity was claimed concurrently. Recover its retained outcome before retrying.");
+    }
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(receipt.Id);
   }
@@ -249,35 +276,56 @@ public static class BillingService
     IAuditSphereDbContext db, ActorContext actor, AllocateReceiptRequest request,
     CancellationToken ct = default)
   {
+    var result = await AllocateReceiptCommandAsync(db, actor, request, ct);
+    return result.Succeeded ? CommandResult.Ok() : CommandResult.Fail(result.ErrorCode!, result.Message!);
+  }
+
+  public static async Task<CommandResult<ReceiptAllocationCommandOutcome>> AllocateReceiptCommandAsync(
+    IAuditSphereDbContext db, ActorContext actor, AllocateReceiptRequest request,
+    CancellationToken ct = default)
+  {
+    if (request.RequestId == Guid.Empty)
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail("billing.command-invalid", "A reviewed billing request identity is required.");
     if (request.Amount <= 0 || MoneyPolicy.Normalize(request.Amount) != request.Amount)
-      return CommandResult.Fail("billing.invalid", "Allocation amount must be positive and have at most 6 decimals.");
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail("billing.invalid", "Allocation amount must be positive and have at most 6 decimals.");
     var receipt = await db.Receipts.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.ReceiptId && x.FirmId == actor.FirmId, ct);
     var invoice = await db.Invoices.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.InvoiceId && x.FirmId == actor.FirmId, ct);
     if (receipt is null || invoice is null || receipt.BillingAccountId != invoice.BillingAccountId)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var account = await db.BillingAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == receipt.BillingAccountId && x.FirmId == actor.FirmId, ct);
-    if (account is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (account is null) return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeBillingAsync(db, actor, account.PracticeClientId, BillingRoles, ct);
-    if (!auth.Succeeded) return auth;
+    if (!auth.Succeeded) return CommandResult<ReceiptAllocationCommandOutcome>.Fail(auth.ErrorCode!, auth.Message!);
+    var action = "ALLOCATE_RECEIPT";
+    var hash = BillingCommandWorkspace.IntentHash(action, actor.FirmId, account.PracticeClientId,
+      request.ReceiptId.ToString("D"), request.InvoiceId.ToString("D"), BillingCommandWorkspace.Decimal(request.Amount));
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
-      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var guard = await LockClientAsync(db, actor.FirmId, account.PracticeClientId, ct);
-    if (!guard.Succeeded) return guard;
+    if (!guard.Succeeded) return CommandResult<ReceiptAllocationCommandOutcome>.Fail(guard.ErrorCode!, guard.Message!);
     var lockedAccount = await LoadBillingAccountForUpdateAsync(db, actor.FirmId, account.Id, ct);
-    if (lockedAccount is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (lockedAccount is null) return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var lockedReceipt = await LoadReceiptForUpdateAsync(db, actor.FirmId, request.ReceiptId, ct);
     var lockedInvoice = await LoadInvoiceForUpdateAsync(db, actor.FirmId, request.InvoiceId, ct);
     if (lockedReceipt is null || lockedInvoice is null || lockedReceipt.BillingAccountId != lockedInvoice.BillingAccountId)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizeBillingAsync(db, actor, lockedAccount.PracticeClientId, BillingRoles, ct);
+    if (!auth.Succeeded) return CommandResult<ReceiptAllocationCommandOutcome>.Fail(auth.ErrorCode!, auth.Message!);
+    var replay = await BillingCommandWorkspace.FindReplayAsync(db, actor, lockedAccount.PracticeClientId,
+      request.RequestId, action, hash, BillingRoles,
+      BillingCommandWorkspace.DecodeAllocation, ct);
+    if (replay.Found)
+      return replay.ErrorCode is null ? CommandResult<ReceiptAllocationCommandOutcome>.Ok(replay.Value!) :
+        CommandResult<ReceiptAllocationCommandOutcome>.Fail(replay.ErrorCode, replay.Message!);
     if (lockedReceipt.Status != BillingStates.ReceiptRecorded ||
         lockedInvoice.Status is not (BillingStates.InvoicePosted or BillingStates.InvoiceSent) ||
         !string.Equals(lockedInvoice.Currency, lockedAccount.Currency, StringComparison.OrdinalIgnoreCase))
-      return CommandResult.Fail(ErrorCodes.GateBlocked, "Receipt allocation requires a posted invoice in the billing currency.");
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.GateBlocked, "Receipt allocation requires a posted invoice in the billing currency.");
 
     var receiptAllocated = await GetNetAppliedToReceiptAsync(db, actor.FirmId, lockedReceipt.Id, ct);
     var invoiceAllocated = await GetNetAppliedToInvoiceAsync(db, actor.FirmId, lockedInvoice.Id, ct);
@@ -286,28 +334,37 @@ public static class BillingService
       .SumAsync(x => (decimal?)x.Amount, ct) ?? 0;
     if (request.Amount > lockedReceipt.Amount - receiptAllocated ||
         request.Amount > lockedInvoice.Total - invoiceAllocated - credited)
-      return CommandResult.Fail("billing.over-allocation", "Allocation exceeds the receipt or invoice balance.");
-    db.ReceiptAllocations.Add(new ReceiptAllocation
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail("billing.over-allocation", "Allocation exceeds the receipt or invoice balance.");
+    var createdAt = DateTimeOffset.UtcNow;
+    var allocation = new ReceiptAllocation
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ReceiptId = lockedReceipt.Id,
-      InvoiceId = lockedInvoice.Id, Amount = request.Amount, CreatedAt = DateTimeOffset.UtcNow
-    });
+      InvoiceId = lockedInvoice.Id, Amount = request.Amount, CreatedAt = createdAt
+    };
+    var outcome = new ReceiptAllocationCommandOutcome(allocation.Id, lockedReceipt.Id, lockedInvoice.Id,
+      BillingCommandWorkspace.Decimal(request.Amount));
+    db.ReceiptAllocations.Add(allocation);
+    db.BillingCommandReceipts.Add(BillingCommandWorkspace.Create(actor, lockedAccount.PracticeClientId,
+      request.RequestId, action, hash, new BillingCommandOutcome(action, allocation.Id, lockedReceipt.Id,
+        lockedInvoice.Id, outcome.Amount, createdAt)));
     try
     {
       await db.SaveChangesAsync(ct);
     }
     catch (DbUpdateException)
     {
-      return CommandResult.Fail("billing.conflict", "The receipt allocation changed; reload the current balance.");
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.IdempotencyConflict, "The allocation or billing request identity changed concurrently. Recover its retained outcome before retrying.");
     }
     await tx.CommitAsync(ct);
-    return CommandResult.Ok();
+    return CommandResult<ReceiptAllocationCommandOutcome>.Ok(outcome);
   }
 
   public static async Task<CommandResult<Guid>> IssueCreditNoteAsync(
     IAuditSphereDbContext db, ActorContext actor, IssueCreditNoteRequest request,
     CancellationToken ct = default)
   {
+    if (request.RequestId == Guid.Empty)
+      return CommandResult<Guid>.Fail("billing.command-invalid", "A reviewed billing request identity is required.");
     if (request.Amount <= 0 || MoneyPolicy.Normalize(request.Amount) != request.Amount)
       return CommandResult<Guid>.Fail("billing.invalid", "Credit amount must be positive and have at most 6 decimals.");
     if (string.IsNullOrWhiteSpace(request.NoteNumber) || string.IsNullOrWhiteSpace(request.Reason))
@@ -320,6 +377,9 @@ public static class BillingService
     if (account is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeBillingAsync(db, actor, account.PracticeClientId, ManagerRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var action = "ISSUE_CREDIT_NOTE";
+    var hash = BillingCommandWorkspace.IntentHash(action, actor.FirmId, account.PracticeClientId,
+      request.InvoiceId.ToString("D"), request.NoteNumber.Trim(), BillingCommandWorkspace.Decimal(request.Amount), request.Reason.Trim());
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
@@ -329,6 +389,13 @@ public static class BillingService
     var lockedAccount = await LoadBillingAccountForUpdateAsync(db, actor.FirmId, account.Id, ct);
     var lockedInvoice = await LoadInvoiceForUpdateAsync(db, actor.FirmId, invoice.Id, ct);
     if (lockedAccount is null || lockedInvoice is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizeBillingAsync(db, actor, lockedAccount.PracticeClientId, ManagerRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    var replay = await BillingCommandWorkspace.FindReplayAsync(db, actor, lockedAccount.PracticeClientId,
+      request.RequestId, action, hash, ManagerRoles,
+      BillingCommandWorkspace.DecodeResultId, ct);
+    if (replay.Found)
+      return replay.ErrorCode is null ? CommandResult<Guid>.Ok(replay.Value!) : CommandResult<Guid>.Fail(replay.ErrorCode, replay.Message!);
     if (lockedInvoice.Status is not (BillingStates.InvoicePosted or BillingStates.InvoiceSent) ||
         lockedInvoice.Currency is null || !string.Equals(lockedInvoice.Currency, lockedAccount.Currency, StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A credit note requires a posted invoice in the billing currency.");
@@ -349,7 +416,15 @@ public static class BillingService
       CreatedAt = DateTimeOffset.UtcNow
     };
     db.CreditNotes.Add(note);
-    await db.SaveChangesAsync(ct);
+    var createdAt = DateTimeOffset.UtcNow;
+    db.BillingCommandReceipts.Add(BillingCommandWorkspace.Create(actor, lockedAccount.PracticeClientId,
+      request.RequestId, action, hash, new BillingCommandOutcome(action, note.Id, null, lockedInvoice.Id,
+        BillingCommandWorkspace.Decimal(note.Amount), createdAt)));
+    try { await db.SaveChangesAsync(ct); }
+    catch (DbUpdateException)
+    {
+      return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The billing request identity was claimed concurrently. Recover its retained outcome before retrying.");
+    }
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(note.Id);
   }

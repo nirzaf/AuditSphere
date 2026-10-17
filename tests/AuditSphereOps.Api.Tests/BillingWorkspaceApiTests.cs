@@ -58,20 +58,26 @@ public sealed class BillingWorkspaceApiTests
     Assert.Empty(initial.GetProperty("receipts").EnumerateArray());
     Assert.Empty(initial.GetProperty("creditNotes").EnumerateArray());
 
-    var receiptBody = new { amount = "40.125", reference = "SYN-BANK-001", reviewed = true };
+    var receiptRequestId = Guid.NewGuid();
+    var receiptBody = new { requestId = receiptRequestId, amount = "40.125", reference = "SYN-BANK-001", reviewed = true };
     Assert.Equal(HttpStatusCode.Forbidden,
       (await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts", JsonContent.Create(receiptBody), null)).StatusCode);
     using var recorded = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts", JsonContent.Create(receiptBody), proof);
     Assert.Equal(HttpStatusCode.OK, recorded.StatusCode);
     var receiptId = (await recorded.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid();
+    using var receiptReplay = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts", JsonContent.Create(receiptBody), proof);
+    Assert.Equal(HttpStatusCode.OK, receiptReplay.StatusCode);
+    Assert.Equal(receiptId, (await receiptReplay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid());
+    var retainedReceipt = await client.GetFromJsonAsync<JsonElement>($"/api/ui/finance/commands/receipts/{receiptRequestId:D}");
+    Assert.Equal(receiptId, retainedReceipt.GetProperty("value").GetProperty("outcome").GetProperty("resultId").GetGuid());
 
-    var allocationBody = new { invoiceId, amount = "25.125", reviewed = true };
+    var allocationBody = new { requestId = Guid.NewGuid(), invoiceId, amount = "25.125", reviewed = true };
     Assert.Equal(HttpStatusCode.Forbidden,
       (await PostAsync(client, $"/api/ui/finance/receipts/{receiptId:D}/allocations", JsonContent.Create(allocationBody), null)).StatusCode);
     using var allocated = await PostAsync(client, $"/api/ui/finance/receipts/{receiptId:D}/allocations", JsonContent.Create(allocationBody), proof);
     Assert.Equal(HttpStatusCode.OK, allocated.StatusCode);
 
-    var creditBody = new { noteNumber = "SYN-CN-001", amount = "10.5", reason = "Synthetic reviewed fee adjustment", reviewed = true };
+    var creditBody = new { requestId = Guid.NewGuid(), noteNumber = "SYN-CN-001", amount = "10.5", reason = "Synthetic reviewed fee adjustment", reviewed = true };
     using var credited = await PostAsync(client, $"/api/ui/finance/invoices/{invoiceId:D}/credit-notes", JsonContent.Create(creditBody), proof);
     Assert.Equal(HttpStatusCode.OK, credited.StatusCode);
     var final = await client.GetFromJsonAsync<JsonElement>(path);

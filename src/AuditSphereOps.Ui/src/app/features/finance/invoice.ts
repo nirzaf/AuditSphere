@@ -35,6 +35,11 @@ export const decodeInvoice = obj({
   canSendInvoice: bool,
 });
 
+const decodeBillingCommandReceipt = obj({
+  requestId: guid, action: text, requestHash: text, createdAt: instant,
+  outcome: obj({ action: text, resultId: guid, receiptId: nullable(guid), invoiceId: nullable(guid), amount: nullable(text), createdAt: instant }),
+});
+
 @Component({
   selector: 'audit-invoice',
   imports: [ReactiveFormsModule, RouterLink, MatButtonModule, ...SHARED],
@@ -245,7 +250,8 @@ export const decodeInvoice = obj({
       }
     }
     @if (uncertain()) { <section class="panel" aria-labelledby="uncertain-heading"><h2 id="uncertain-heading">Verify the saved billing state</h2>
-      <p>The last command response was lost. Refresh the invoice and billing history to confirm the saved status or record before preparing another action.</p>
+      <p>The last command response was lost. Resolve its exact command outcome before preparing another action.</p>
+      @if (pendingBillingCommand()) { <button matButton="outlined" (click)="retryPendingBillingCommand()" [disabled]="busy()">Retry the same billing command</button> }
       @if (!reconciliationLoaded()) { <button matButton="outlined" (click)="reconcile()" [disabled]="busy()">Refresh persisted billing state</button> }
       @else { <p role="status">Persisted state was refreshed. Matching records remain in the history above; the unresolved form stays disabled until you clear it and prepare a fresh reviewed action.</p>
         <button matButton="outlined" (click)="clearUnresolved()" [disabled]="busy()">Clear unresolved billing draft</button> }
@@ -283,6 +289,7 @@ export class InvoiceDetail {
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly reconciliationLoaded = signal(false);
+  readonly pendingBillingCommand = signal<{ requestId: string; url: string; body: Record<string, unknown>; success: string; afterSuccess?: () => void } | null>(null);
   readonly message = signal('');
   readonly failed = signal(false);
   readonly receiptForm = this.fb.group({ amount: ['', [Validators.required, positiveAmount]], reference: ['', [Validators.required, Validators.maxLength(200)]], reviewed: [false, Validators.requiredTrue] });
@@ -410,20 +417,23 @@ export class InvoiceDetail {
   async recordReceipt(i: ReturnType<typeof decodeInvoice>): Promise<void> {
     if (this.receiptForm.invalid || this.busy() || this.uncertain()) { this.receiptForm.markAllAsTouched(); return; }
     const input = this.receiptForm.getRawValue();
-    await this.run(`/api/ui/finance/billing-accounts/${i.billingAccountId}/receipts`, input,
+    const requestId = crypto.randomUUID();
+    await this.run(`/api/ui/finance/billing-accounts/${i.billingAccountId}/receipts`, { ...input, requestId },
       'Receipt recorded. Refresh or allocate it to a posted invoice when ready.', () => this.receiptForm.reset({ amount: '', reference: '', reviewed: false }));
   }
 
   async allocate(i: ReturnType<typeof decodeInvoice>): Promise<void> {
     if (this.allocationForm.invalid || this.busy() || this.uncertain()) { this.allocationForm.markAllAsTouched(); return; }
     const input = this.allocationForm.getRawValue();
-    await this.run(`/api/ui/finance/receipts/${input.receiptId}/allocations`, { invoiceId: i.id, amount: input.amount, reviewed: input.reviewed },
+    const requestId = crypto.randomUUID();
+    await this.run(`/api/ui/finance/receipts/${input.receiptId}/allocations`, { requestId, invoiceId: i.id, amount: input.amount, reviewed: input.reviewed },
       'Receipt allocation recorded against this invoice.', () => this.allocationForm.reset({ receiptId: '', amount: '', reviewed: false }));
   }
 
   async issueCredit(i: ReturnType<typeof decodeInvoice>): Promise<void> {
     if (this.creditForm.invalid || this.busy() || this.uncertain()) { this.creditForm.markAllAsTouched(); return; }
-    await this.run(`/api/ui/finance/invoices/${i.id}/credit-notes`, this.creditForm.getRawValue(),
+    const requestId = crypto.randomUUID();
+    await this.run(`/api/ui/finance/invoices/${i.id}/credit-notes`, { ...this.creditForm.getRawValue(), requestId },
       'Credit note issued. The invoice balance has been refreshed.', () => this.creditForm.reset({ noteNumber: '', amount: '', reason: '', reviewed: false }));
   }
 
@@ -490,6 +500,20 @@ export class InvoiceDetail {
     const generation = this.session.invalidation();
     this.busy.set(true);
     try {
+      const pending = this.pendingBillingCommand();
+      if (pending) {
+        const receipt = await this.api.get(`/api/ui/finance/commands/receipts/${pending.requestId}`, decodeBillingCommandReceipt);
+        if (receipt.requestId !== pending.requestId) throw new Error('Billing command receipt identity mismatch');
+        if (this.destroyed || visit !== this.visitToken || generation !== this.session.invalidation() || id !== this.id()) return;
+        this.pendingBillingCommand.set(null);
+        this.uncertain.set(false);
+        this.reconciliationLoaded.set(false);
+        pending.afterSuccess?.();
+        this.invoice.reload();
+        this.failed.set(false);
+        this.message.set(`Confirmed ${receipt.action.toLowerCase().replaceAll('_', ' ')} outcome ${receipt.outcome.resultId}.`);
+        return;
+      }
       await this.api.get(`/api/ui/finance/invoices/${id}`, decodeInvoice);
       if (this.destroyed || visit !== this.visitToken || generation !== this.session.invalidation() || id !== this.id()) return;
       this.invoice.reload();
@@ -534,7 +558,7 @@ export class InvoiceDetail {
   }
 
   clearUnresolved(): void {
-    if (!this.reconciliationLoaded() || this.busy()) return;
+    if (!this.reconciliationLoaded() || this.busy() || this.pendingBillingCommand()) return;
     this.receiptForm.reset({ amount: '', reference: '', reviewed: false });
     this.allocationForm.reset({ receiptId: '', amount: '', reviewed: false });
     this.creditForm.reset({ noteNumber: '', amount: '', reason: '', reviewed: false });
@@ -549,7 +573,14 @@ export class InvoiceDetail {
     this.message.set('Unresolved fields cleared. Review the current billing records before preparing a new action.');
   }
 
-  private async run(url: string, body: unknown, success: string, afterSuccess?: () => void): Promise<void> {
+  async retryPendingBillingCommand(): Promise<void> {
+    const pending = this.pendingBillingCommand();
+    if (!pending || this.busy()) return;
+    await this.run(pending.url, pending.body, pending.success, pending.afterSuccess, pending);
+  }
+
+  private async run(url: string, body: unknown, success: string, afterSuccess?: () => void,
+    retry?: { requestId: string; url: string; body: Record<string, unknown>; success: string; afterSuccess?: () => void }): Promise<void> {
     if (this.busy() || this.uncertain()) return;
     const visit = this.visitToken;
     const invoiceId = this.id();
@@ -560,7 +591,11 @@ export class InvoiceDetail {
       if (this.destroyed || visit !== this.visitToken || invoiceId !== this.id() || generation !== this.session.invalidation()) return;
       if (!result.ok) {
         this.failed.set(true); this.message.set(result.message);
-        if (result.unknown) { this.uncertain.set(true); this.reconciliationLoaded.set(false); }
+        if (result.unknown) {
+          if (typeof (body as { requestId?: unknown })?.requestId === 'string')
+            this.pendingBillingCommand.set(retry ?? { requestId: (body as { requestId: string }).requestId, url, body: body as Record<string, unknown>, success, afterSuccess });
+          this.uncertain.set(true); this.reconciliationLoaded.set(false);
+        }
         else if (['scope.denied', 'generation.stale'].includes(result.code) || [401, 403, 404].includes(result.status)) {
           // Drop the protected snapshot immediately; only a fresh authorized read may restore it.
           this.historyVisit++;
@@ -573,6 +608,8 @@ export class InvoiceDetail {
         }
         return;
       }
+      this.pendingBillingCommand.set(null);
+      this.uncertain.set(false);
       afterSuccess?.();
       this.message.set(success);
       this.invoice.reload();
