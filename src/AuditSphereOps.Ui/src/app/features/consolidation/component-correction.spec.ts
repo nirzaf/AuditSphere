@@ -33,7 +33,12 @@ function workspace(overrides: Record<string, unknown> = {}) {
       submittedByUserId: actorId, submittedAt: '2026-10-12T10:11:12Z',
       approvedByUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', approvedAt: '2026-10-13T11:12:13Z',
     }],
-    eligiblePackages: [], journals: [], runs: [], latestReport: null, componentReadiness: [], intercompanyExceptions: [],
+    eligiblePackages: { items: [], totalCount: 0, page: 1, pageSize: 25 },
+    journals: { items: [], totalCount: 0, page: 1, pageSize: 25 },
+    runs: { items: [], totalCount: 0, page: 1, pageSize: 25 },
+    latestReport: { available: false, value: null, errorCode: 'GATE_BLOCKED', message: 'No approved run.' },
+    componentReadiness: { available: true, value: [], errorCode: null, message: null },
+    intercompanyExceptions: { available: false, value: null, errorCode: 'GATE_BLOCKED', message: 'No approved run.' },
     ...overrides,
   };
 }

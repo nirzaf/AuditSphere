@@ -247,6 +247,12 @@ public sealed class OpenApiContractTests
     var binary = Resolve(download.GetProperty("application/octet-stream").GetProperty("schema"));
     Assert.Equal("string", binary.GetProperty("type").GetString());
     Assert.Equal("binary", binary.GetProperty("format").GetString());
+    var retainedDownload = paths.GetProperty("/api/pbc/uploads/{uploadId}/download").GetProperty("get")
+      .GetProperty("responses").GetProperty("200").GetProperty("content");
+    var retainedBinary = Resolve(retainedDownload.GetProperty("*/*").GetProperty("schema"));
+    Assert.Equal("string", retainedBinary.GetProperty("type").GetString());
+    Assert.Equal("binary", retainedBinary.GetProperty("format").GetString());
+    Assert.False(retainedDownload.TryGetProperty("application/json", out _));
   }
 
   [Fact]

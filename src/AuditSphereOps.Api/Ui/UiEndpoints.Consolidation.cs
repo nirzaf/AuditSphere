@@ -188,9 +188,13 @@ public static partial class UiEndpoints
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
 
     // Scope workspace detail & lifecycle
-    group.MapGet("/consolidation/scopes/{scopeId:guid}", (Guid scopeId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(db, actor, scopeId, ct)))
+    group.MapGet("/consolidation/scopes/{scopeId:guid}",
+      (Guid scopeId, HttpContext http, int eligiblePackagesPage = 1, int journalsPage = 1, int runsPage = 1) =>
+        ReadAsync(http, (db, actor, ct) => ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(
+          db, actor, scopeId, eligiblePackagesPage, journalsPage, runsPage, ct)))
+      .WithDescription("Returns the authorized scope workspace with independent eligiblePackagesPage, journalsPage and runsPage query parameters. Each defaults to 1 and must be positive with a representable row offset; each history page contains at most 100 items.")
       .Produces<ConsolidationScopeWorkspaceDto>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
     group.MapGet("/consolidation/scopes/{scopeId:guid}/intercompany-match-options", (Guid scopeId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => ConsolidationQuery.GetIntercompanyMatchOptionsAsync(db, actor, scopeId, ct)))

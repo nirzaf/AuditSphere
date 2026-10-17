@@ -105,6 +105,9 @@ describe('External consolidation component packs', () => {
     const decoded = decodeExternalPackPage(pagePayload(), 'root');
     expect(decoded.eligibleClientPageSize).toBe(25);
     expect(decoded.resolvedClient).toBeNull();
+    const reconciled = pack({ status: 'SUBMITTED', reconciliationStatus: 'RECONCILED', canReconcile: false, canApprove: true });
+    expect(decodeExternalPackPage(pagePayload({ items: [reconciled], totalCount: 1 }), 'root').items[0].canApprove).toBe(true);
+    expect(() => decodeExternalPackPage(pagePayload({ items: [{ ...reconciled, reconciliationStatus: 'PENDING' }], totalCount: 1 }), 'root')).toThrow();
     expect(() => decodeExternalPackPage({ ...pagePayload(), eligibleClientPage: undefined, clientsTruncated: false }, 'root')).toThrow();
     expect(() => decodeExternalPackDetail({ ...detailPayload(), linesTruncated: false, linePage: undefined }, 'root')).toThrow();
   });
@@ -116,7 +119,11 @@ describe('External consolidation component packs', () => {
       amount: index === 0 ? '9007199254.740993' : '0.000001',
       currency: 'QAR', sourceLineReference: `L${String(index).padStart(2, '0')}`,
     }));
-    const bytes = new TextEncoder().encode(JSON.stringify({ lines: rows }));
+    const tiedRows = [
+      { taxonomyCode: 'BS-Z', amount: '2.000000', currency: 'QAR', sourceLineReference: 'L99' },
+      { taxonomyCode: 'BS-Z', amount: '-2.000000', currency: 'QAR', sourceLineReference: 'L99' },
+    ];
+    const bytes = new TextEncoder().encode(JSON.stringify({ lines: [...rows, ...tiedRows] }));
     const file = {
       name: 'trial-balance.json', size: bytes.byteLength,
       arrayBuffer: vi.fn().mockResolvedValue(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)),
@@ -125,13 +132,14 @@ describe('External consolidation component packs', () => {
     await component.sourceFileSelected({ currentTarget: { files: [file] } } as unknown as Event);
     await vi.waitFor(() => expect(component.sourceBusy()).toBe(false));
 
-    const canonical = rows.map(row => `${row.taxonomyCode}|${row.amount}|${row.currency}|${row.sourceLineReference}`).join('\n');
+    const canonical = [...rows.map(row => `${row.taxonomyCode}|${row.amount}|${row.currency}|${row.sourceLineReference}`),
+      'BS-Z|-2.000000|QAR|L99', 'BS-Z|2.000000|QAR|L99'].join('\n');
     expect(component.rawSourceHash()).toBe(await sha256Hex(bytes));
     expect(component.normalizedSourceDigest()).toBe(await sha256Hex(new TextEncoder().encode(canonical)));
     expect(component.sourceLines()[0].amount).toBe('9007199254.740993');
     expect(component.declaredSignedTotal()).toBe('9007199254.741018');
     expect(component.sourcePreview()).toHaveLength(25);
-    expect(component.sourceLines()).toHaveLength(26);
+    expect(component.sourceLines()).toHaveLength(28);
   });
 
   it('submits exact hashes, amounts, current revision and returned-pack lineage', async () => {
@@ -191,7 +199,7 @@ describe('External consolidation component packs', () => {
     component.returnReviewed.set(true);
     await component.returnPack(detailData()!.pack);
 
-    const approvable = pack({ status: 'RESUBMITTED', reconciliationStatus: 'RECONCILED', canReconcile: true, canApprove: true });
+    const approvable = pack({ status: 'RESUBMITTED', reconciliationStatus: 'RECONCILED', canReconcile: false, canApprove: true });
     setDetail(approvable);
     component.approveReviewed.set(true);
     await component.approvePack(detailData()!.pack);

@@ -61,7 +61,7 @@ export function decodeExternalPackPage(value: unknown, path = '') {
       page.canSubmitPack && (page.scopeStatus !== 'DRAFT' || page.pinnedGroupRevision !== page.currentGroupRevision) ||
       page.canPinApprovedPacks && !page.canSubmitPack ||
       page.items.some(x => x.version < 1 || x.periodEnd < x.periodStart ||
-        x.canApprove && (!x.canReconcile || x.reconciliationStatus !== 'RECONCILED') ||
+        x.canApprove && x.reconciliationStatus !== 'RECONCILED' ||
         x.canPin && (x.status !== 'APPROVED' || x.reconciliationStatus !== 'RECONCILED') ||
         (x.canReconcile || x.canReturn || x.canApprove || x.canPin) &&
           (page.scopeStatus !== 'DRAFT' || page.pinnedGroupRevision !== page.currentGroupRevision) ||
@@ -143,7 +143,8 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 }
 
 function normalizedLineDigestInput(lines: readonly SourceLine[]): Uint8Array {
-  const canonical = [...lines].sort((a, b) => ordinal(a.sourceLineReference, b.sourceLineReference) || ordinal(a.taxonomyCode, b.taxonomyCode))
+  const canonical = [...lines].sort((a, b) => ordinal(a.sourceLineReference, b.sourceLineReference) ||
+    ordinal(a.taxonomyCode, b.taxonomyCode) || ordinal(a.currency, b.currency) || ordinal(a.amount, b.amount))
     .map(line => [line.taxonomyCode, line.amount, line.currency, line.sourceLineReference].join('|')).join('\n');
   return new TextEncoder().encode(canonical);
 }

@@ -196,7 +196,8 @@ public static partial class ApiHost
         await input.CopyToAsync(http.Response.Body, ct);
       }
       return Results.Empty;
-    }).Produces<Stream>(StatusCodes.Status200OK, "*/*")
+    }).Produces<Stream>(StatusCodes.Status200OK, "application/octet-stream")
+      .WithMetadata(new RetainedBinaryContentTypeMetadata())
       .Produces(StatusCodes.Status401Unauthorized)
       .Produces(StatusCodes.Status403Forbidden)
       .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")

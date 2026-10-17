@@ -439,6 +439,11 @@ public sealed class ConsolidationWorkspaceApiTests
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-SCOPE-OPTIONS");
     var seed = await PbcSeed.SeedAsync(pg);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Staff, "Manager"));
+      await db.SaveChangesAsync();
+    }
     using var factory = Factory(pg, seed.Staff);
     using var client = factory.CreateClient();
     var csrf = await SignIn(client);
@@ -514,6 +519,21 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Null(saved.ExchangeRateSetVersionId);
     Assert.Null(saved.TranslationPolicyVersionId);
     Assert.Null(saved.PriorScopeVersionId);
+
+    var pagedWorkspace = await Read(client,
+      $"/api/ui/consolidation/scopes/{scopeId}?eligiblePackagesPage=2&journalsPage=3&runsPage=4");
+    foreach (var (section, requestedPage) in new[] { ("eligiblePackages", 2), ("journals", 3), ("runs", 4) })
+    {
+      var history = pagedWorkspace.GetProperty(section);
+      Assert.Equal(requestedPage, history.GetProperty("page").GetInt32());
+      Assert.Equal(100, history.GetProperty("pageSize").GetInt32());
+      Assert.Empty(history.GetProperty("items").EnumerateArray());
+    }
+    foreach (var parameter in new[] { "eligiblePackagesPage", "journalsPage", "runsPage" })
+    {
+      using var invalidPage = await client.GetAsync($"/api/ui/consolidation/scopes/{scopeId}?{parameter}=0");
+      Assert.Equal(HttpStatusCode.BadRequest, invalidPage.StatusCode);
+    }
 
     using var stale = await Post(client, csrf, "/api/ui/consolidation/scopes", new
     {

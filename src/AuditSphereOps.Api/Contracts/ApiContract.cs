@@ -10,6 +10,9 @@ namespace AuditSphereOps.Api.Contracts;
 /// <summary>Marks an existing JSON read whose successful body may be null; CLR response metadata erases reference nullability.</summary>
 public sealed class NullableJsonSuccessBodyMetadata { }
 
+/// <summary>Documents a download whose retained media type is determined by the uploaded evidence.</summary>
+public sealed class RetainedBinaryContentTypeMetadata { }
+
 /// <summary>Documents scalar inputs read manually from HttpContext without changing binding or refusal order.</summary>
 public sealed record ManualParameterMetadata(string Name, ParameterLocation Location, bool Required,
   JsonSchemaType Type, string? Format = null, string? Pattern = null, string? Description = null);
@@ -71,6 +74,12 @@ public static class ApiContract
       options.AddOperationTransformer(async (operation, context, ct) =>
       {
         var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        // Produces metadata rejects wildcard media types at host startup. OpenAPI allows
+        // them: uploaded evidence retains its original type rather than always being octet-stream.
+        if (metadata.OfType<RetainedBinaryContentTypeMetadata>().Any() &&
+            operation.Responses?.TryGetValue("200", out var binaryResponse) == true &&
+            binaryResponse.Content?.Remove("application/octet-stream", out var binaryContent) == true)
+          binaryResponse.Content["*/*"] = binaryContent;
         foreach (var parameter in metadata.OfType<ManualParameterMetadata>())
         {
           operation.Parameters ??= [];
