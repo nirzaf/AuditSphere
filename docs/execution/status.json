@@ -898,6 +898,17 @@
     "asPm8Atomic": {
       "sourceCommit": "6e4d8682fa4886223422990f010f6d40e8729fe6",
       "result": "PARTIAL",
+      "latestReleaseVerification": {
+        "run": "https://github.com/nirzaf/AuditSphere/actions/runs/38988587433",
+        "sourceCommit": "512696edfe67ef29bfa2323c3bf4f226b0c13999",
+        "status": "IN_PROGRESS",
+        "angular": "PASS: 1288/1288",
+        "domain": "PASS: 1328/1328",
+        "releaseBuildContractsAndPublication": "PASS",
+        "api": "INTERRUPTED_INFRASTRUCTURE: runner shutdown signal; exit 143; no test result artifact",
+        "playwrightE2E": "IN_PROGRESS",
+        "acceptance": "AS-PM8 remains PARTIAL until the API cohort is rerun successfully and the full Playwright E2E job completes successfully on a commit-pinned run."
+      },
       "matrix": [
         [
           "01",
@@ -1058,141 +1069,8 @@
       "filterRule": "OR by FullyQualifiedName",
       "matrixCommit": "sourceCommit",
       "currentFollowUp": {
-        "candidateCommit": "6944ab95b8c4dd1b8947161301fc80c84c2e5c7f",
-        "domain": {
-          "passed": 56,
-          "failed": 0,
-          "skipped": 0,
-          "report": "/tmp/auditsphere-parity-regression/pm8-current-domain.trx"
-        },
-        "api": {
-          "passed": 14,
-          "failed": 0,
-          "skipped": 0,
-          "durationSeconds": 130,
-          "report": "/tmp/auditsphere-parity-regression/pm8-current-api.trx"
-        },
-        "dashboardAndTimeApi": {
-          "passed": 4,
-          "failed": 0,
-          "skipped": 0,
-          "durationSeconds": 69,
-          "report": "/tmp/auditsphere-parity-regression/pm8-dashboard-time-api.trx"
-        },
-        "limitations": "Full regression remains unproven. Interrupted local process handles disappeared without terminal results. Use existing release-verification workflow for a final commit-pinned run. AS-PM8 remains PARTIAL.",
-        "acceptanceDeployment": {
-          "commit": "6944ab95b8c4dd1b8947161301fc80c84c2e5c7f",
-          "ciRun": 38828041267,
-          "imageRun": 38828151617,
-          "backupRestoreAndApiRehearsal": "PASS",
-          "migration": "20261016000000_FirmPortalLogoFields",
-          "updatedServices": [
-            "api",
-            "worker-general",
-            "worker-processing",
-            "worker-records"
-          ],
-          "mailWorker": "unchanged",
-          "publicReadiness": "Healthy",
-          "browser": [
-            "Operations authorized empty state",
-            "Time synthetic task and Start/Pause/Resume/Stop; no time saved",
-            "My Work UTC counts, Due Today and board"
-          ],
-          "configuration": "Acceptance-only compose.acceptance-workflow.yaml sets WorkflowExperience__Enabled=true; .env COMPOSE_FILE includes that override and RELEASE_TAG pins the commit. No permission or provider flags changed.",
-          "cleanup": "Rehearsal container/database removed; temporary SSH key removed in Hostinger and login denial verified; local private key deleted.",
-          "limits": "Empty engagement data; full business acceptance and regression remain open."
-        },
-        "fullE2E": {
-          "passed": 247,
-          "failed": 2,
-          "skipped": 0,
-          "durationSeconds": 1821,
-          "candidateCommit": "6944ab95",
-          "report": "/tmp/auditsphere-parity-regression/e2e-parity-consolidated-current.trx",
-          "failures": [
-            "AngularClientSalesInvoiceWorkflowJourneyTests.SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting",
-            "AngularBudgetPreparationJourneyTests.ExactReviewLostResponseReloadAndRetainedReceiptNeverDuplicateBudget(canonical: False)"
-          ],
-          "result": "FAIL",
-          "targetedFollowUp": {
-            "codeCommit": "a24af13d",
-            "passed": 3,
-            "failed": 0,
-            "skipped": 0,
-            "durationSeconds": 70,
-            "report": "/tmp/auditsphere-parity-regression/budget-supplier-readiness-followup.trx",
-            "changes": "Supplier waits for dependent read completion and asserts retained voucher; budget asserts API preparation authority. Product guards unchanged; full E2E rerun still required."
-          }
-        },
-        "angularRegression": {
-          "candidateCommit": "bf61d925",
-          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci",
-          "exitCode": 0,
-          "passed": 839,
-          "failed": 0,
-          "testFiles": 139,
-          "durationSeconds": 4.09,
-          "report": "/tmp/auditsphere-parity-regression/angular-current.log",
-          "limitation": "jsdom reports unsupported document navigation; this is not browser acceptance."
-        },
-        "angularBuild": {
-          "candidateCommit": "bf61d925",
-          "command": "npm --prefix src/AuditSphereOps.Ui run build",
-          "exitCode": 0,
-          "durationSeconds": 12.627,
-          "report": "/tmp/auditsphere-parity-regression/angular-build-current.log",
-          "warning": "Existing commercial/settings.scss 7.53 kB exceeds 4 kB warning budget."
-        },
-        "sourceInventories": {
-          "candidateCommit": "bf61d925",
-          "exitCode": 0,
-          "commands": [
-            "python3 scripts/ui/inventory.py --check",
-            "python3 scripts/migration/generate-blazor-retirement-inventory.py --check"
-          ]
-        },
-        "regressionRepair": {
-          "candidateCommit": "765af3f8",
-          "build": {
-            "exitCode": 0,
-            "warnings": 0,
-            "errors": 0,
-            "durationSeconds": 5.27
-          },
-          "workspacePolicyApi": {
-            "passed": 4,
-            "failed": 0,
-            "skipped": 0,
-            "durationSeconds": 93,
-            "report": "scratchpad/parity-verification-20261016/workspace-policy.trx",
-            "source": "Pre-commit working tree; API test file matches765af3f8."
-          },
-          "staffingBrowser": {
-            "passed": 2,
-            "failed": 0,
-            "skipped": 0,
-            "durationSeconds": 84,
-            "report": "scratchpad/parity-verification-20261016/staffing-recovery.trx",
-            "source": "Pre-commit working tree; browser test file matches765af3f8."
-          },
-          "domainBeforeFinalFixtureCorrections": {
-            "passed": 1057,
-            "failed": 2,
-            "skipped": 0,
-            "durationSeconds": 279,
-            "report": "scratchpad/parity-verification-20261016/domain-current.trx",
-            "corrections": "Use persisted mapping version; compare source package bytes before submission and after legitimate composition rendering separately."
-          },
-          "fullSolution": {
-            "state": "INTERRUPTED",
-            "command": "dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --maxcpucount:1 --logger trx --results-directory scratchpad/parity-verification-20261016/full-solution",
-            "report": "scratchpad/parity-verification-20261016/full-solution.log",
-            "limitation": "Handle80921 missing after user interruption; no completed suite verdict. UI changed after starting commit765af3f8, so even an older terminal report cannot verify the final tree."
-          },
-          "liveBrowser": "Operations authorized empty ledger and My Work UTC counts loaded; no captured error logs; no business mutations."
-        }
-      }
+  "historicalEvidence": "Moved verbatim to docs/execution/status-archive-2026-10.json under keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017. Current result remains PARTIAL; see latestReleaseVerification."
+}
     },
     "angularAuditPlanningRecovery": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.angularAuditPlanningRecovery",
