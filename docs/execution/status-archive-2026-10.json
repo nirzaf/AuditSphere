@@ -17795,6 +17795,68 @@
         "CP-25 live identity, mail, selected-site, recovery and capacity gates (BLOCKED_EXTERNAL)",
         "F-08 remains PARTIAL: CP-18 output-quality/profile acceptance, CP-19 management identity/evidence/recovery, and CP-20 audit-report/signing/legal/provider acceptance remain open"
       ]
-    }
+    },
+    "parityTrackerPreviousRemainingLocalWork20261017": [
+      {
+        "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
+        "status": "PARTIAL",
+        "details": "Whole-application scope, revocation, source-action behavior and dynamic acceptance remain partial. Use apiAngularParity for the attached backlog; the previous verification narrative is preserved in the archive.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
+        "status": "PARTIAL",
+        "details": "Pricing implementation exists; firm-approved policy, provider delivery evidence and current end-to-end acceptance remain separate gates. Earlier implementation and check history is preserved in the archive.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "ASP.NET Core API and Angular 22 migration",
+        "status": "PARTIAL",
+        "details": "The legacy Blazor host is retired on master. Current API/Angular functional parity and remaining source-action acceptance are tracked separately under apiAngularParity; earlier migration narratives are archived.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
+        "status": "PARTIAL",
+        "details": "End-of-service accrual requires the existing approved treatment, provision and expense account configuration and independent Partner confirmation. Prior technical verification is archived.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
+        "status": "PARTIAL",
+        "details": "Final report certificate policy, legal acceptance and live deployment remain explicit external/operator gates. Earlier technical signing evidence is archived.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
+        "status": "PARTIAL",
+        "details": "Typed and pinned financial statement presentation is implemented incrementally. Professional policy, complete approved schedules/disclosures, report composition and release acceptance remain governed by their current records. Prior slice narratives are archived.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
+        "status": "PARTIAL",
+        "details": "Source-backed cash flow and its professional classification policy remain governed by their current completion records. Historical first-slice verification is archived.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "CP-13 — signed equity components and transfer workflow",
+        "status": "PARTIAL",
+        "details": "Equity components and transfer workflows remain subject to source lineage and independent professional acceptance. Historical increment evidence is archived.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
+        "status": "PARTIAL",
+        "details": "Workflow implementation does not replace professional approval or production acceptance. Current focused evidence is in targetedVerification; earlier long-form incremental narratives are archived.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      },
+      {
+        "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) — NOT COMPLETE",
+        "status": "PARTIAL",
+        "details": "The production-readiness backlog remains incomplete; its external and independent acceptance gates are not closed by local parity implementation.",
+        "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
+      }
+    ]
   }
 }

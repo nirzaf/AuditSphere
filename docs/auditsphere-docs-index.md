@@ -22,6 +22,7 @@ The repository ships Angular as the canonical staff/client presentation. The leg
 | Product requirements | [STE v2.2 requirements](requirements/auditsphere-accounting-module-requirements-current.md) |
 | Audit programme execution | [Atomic specification](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md) · [Extracted 165-procedure source](task_breakdown/source/auditsphere-audit-working-process-procedures-source.md) |
 | Current state and evidence | [status.json](execution/status.json) · [Current-slice handoff](execution/auditsphere-execution-current-slice.md) · [Pending work](execution/auditsphere-execution-pending-tasks.md) |
+| API and Angular parity work | [Implementation tracker](execution/auditsphere-execution-tracker-api-angular-parity-current.md) · `apiAngularParity` in [status.json](execution/status.json) |
 | Testing and Definition of Done | [Testing strategy](testing/auditsphere-testing-strategy-definition-of-done-current.md) |
 | Migration history and retirement evidence | [Removal gate](migration/auditsphere-migration-blazor-removal-readiness.md) · [Angular migration](architecture/auditsphere-angular-migration-current.md) |
 | Operations and recovery | [Restore drill](operations/auditsphere-operations-runbook-restore-drill.md) |

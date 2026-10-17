@@ -12,6 +12,8 @@
 
 The [supplied implementation backlog](auditsphere-execution-user-stories-ste-v22-implementation-backlog-proposed.md) adds local story/decision IDs and an acceptance matrix. Read its integration notes and existing ADRs before selecting a card. `TASK-01` dependency amendments have focused evidence in [status.json](status.json); the broader card remains partial. Template/plan regression evidence also proves that completed operational tasks do not satisfy professional or lifecycle gates. `REL-01` has focused signature-policy replay and retained Web journey evidence; correspondence lineage/bounds checks also passed. Comment bounds, injected races and the canonical Angular journey also passed. Exact ZIP contents and corruption-read denials are covered; release-identity adverse cases and full acceptance remain open. Baseline claims are not current completion evidence.
 
+The API/Angular bidirectional parity backlog uses a separate [implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md). Its `T` identifiers do not replace the R2R identifiers below; code presence and functional acceptance are recorded separately.
+
 ## 1. Summary
 
 | Code verdict | Items |
