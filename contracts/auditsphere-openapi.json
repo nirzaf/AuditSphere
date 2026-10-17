@@ -37263,6 +37263,74 @@
         ]
       }
     },
+    "/api/ui/engagements/{engagementId}/task-plan/pbc-drafts": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "engagementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowPlanPbcDraftsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/engagements/{engagementId}/task-plan/receipts/{idempotencyKey}": {
       "get": {
         "tags": [
@@ -51391,6 +51459,15 @@
             "items": {
               "$ref": "#/components/schemas/WorkflowPlanOwnerInput"
             }
+          },
+          "pbcOwners": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPlanPbcOwnerInput"
+            }
           }
         }
       },
@@ -51405,6 +51482,57 @@
             "type": "string"
           },
           "assigneeUserId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "WorkflowPlanPbcDraftsInput": {
+        "required": [
+          "templateRevisionId",
+          "expectedPreviewDigest"
+        ],
+        "type": "object",
+        "properties": {
+          "templateRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedPreviewDigest": {
+            "type": "string"
+          },
+          "pbcOwners": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPlanPbcOwnerInput"
+            }
+          }
+        }
+      },
+      "WorkflowPlanPbcOwnerInput": {
+        "required": [
+          "stepKey",
+          "clientOwnerUserId",
+          "firmOwnerUserId",
+          "reviewerUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "stepKey": {
+            "type": "string"
+          },
+          "clientOwnerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firmOwnerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reviewerUserId": {
             "type": "string",
             "format": "uuid"
           }
@@ -51428,6 +51556,15 @@
             ],
             "items": {
               "$ref": "#/components/schemas/WorkflowPlanOwnerInput"
+            }
+          },
+          "pbcOwners": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPlanPbcOwnerInput"
             }
           }
         }
@@ -51646,6 +51783,44 @@
           }
         }
       },
+      "WorkflowTemplatePbcDefinitionInput": {
+        "required": [
+          "objective",
+          "entityScope",
+          "area",
+          "requestedFormat",
+          "controlTotals",
+          "confidentiality",
+          "acceptanceCriteria"
+        ],
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string"
+          },
+          "entityScope": {
+            "type": "string"
+          },
+          "area": {
+            "type": "string"
+          },
+          "requestedFormat": {
+            "type": "string"
+          },
+          "controlTotals": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "confidentiality": {
+            "type": "string"
+          },
+          "acceptanceCriteria": {
+            "type": "string"
+          }
+        }
+      },
       "WorkflowTemplateStepInput": {
         "required": [
           "stableKey",
@@ -51723,6 +51898,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "pbcDefinition": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WorkflowTemplatePbcDefinitionInput"
+              }
+            ]
           }
         }
       },
