@@ -19968,6 +19968,127 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcAcceptanceReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<long>("AcceptedRequestRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("accepted_request_revision");
+
+                    b.Property<long>("ByteCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("byte_count");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ContentSha256Hex")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("content_sha256_hex");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("PbcRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_request_id");
+
+                    b.Property<Guid>("PbcUploadIntentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("pbc_upload_intent_id");
+
+                    b.Property<string>("ProviderIdentity")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("provider_identity");
+
+                    b.Property<string>("ProviderReceiptDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("provider_receipt_digest");
+
+                    b.Property<DateTimeOffset>("ProviderRegisteredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("provider_registered_at");
+
+                    b.Property<Guid>("ReviewerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewer_user_id");
+
+                    b.Property<string>("SourceDigest")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_digest");
+
+                    b.Property<long>("SourceRequestRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_request_revision");
+
+                    b.Property<Guid>("TransferOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("transfer_operation_id");
+
+                    b.Property<long>("UploadIntentRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("upload_intent_revision");
+
+                    b.Property<Guid>("UploaderUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uploader_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_pbc_acceptance_receipts_firm_id_id");
+
+                    b.HasIndex("FirmId", "PbcRequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_pbc_acceptance_receipt_request");
+
+                    b.HasIndex("FirmId", "PbcUploadIntentId");
+
+                    b.HasIndex("FirmId", "ReviewerUserId");
+
+                    b.HasIndex("FirmId", "TransferOperationId");
+
+                    b.HasIndex("FirmId", "UploaderUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcRequestId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "PbcUploadIntentId")
+                        .HasDatabaseName("IX_pbc_acceptance_receipts_firm_id_client_id_engagement_id_pb~1");
+
+                    b.ToTable("pbc_acceptance_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_pbc_acceptance_receipt_values", "accepted_request_revision >= 1 AND source_request_revision >= 1 AND upload_intent_revision >= 1 AND byte_count > 0 AND length(trim(file_name)) BETWEEN 1 AND 255 AND length(trim(provider_identity)) BETWEEN 1 AND 1000 AND content_sha256_hex ~ '^[0-9a-f]{64}$' AND provider_receipt_digest ~ '^[0-9a-f]{64}$' AND source_digest ~ '^[0-9a-f]{64}$'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcCommunication", b =>
                 {
                     b.Property<Guid>("Id")
@@ -20481,6 +20602,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("received_byte_count");
 
+                    b.Property<long>("RequestRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("request_revision");
+
                     b.Property<long>("Revision")
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
@@ -20517,7 +20642,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("pbc_upload_intents", null, t =>
                         {
-                            t.HasCheckConstraint("ck_pbc_upload_intent_values", "state IN ('STARTED','CHUNKING','STAGED','RECEIVED','FAILED','EXPIRED') AND revision >= 1 AND length(trim(file_name)) > 0 AND length(trim(content_type)) > 0 AND declared_byte_count > 0 AND declared_byte_count <= 262144000 AND received_byte_count >= 0 AND received_byte_count <= declared_byte_count AND declared_sha256_hex ~ '^[0-9a-f]{64}$' AND capability_hash ~ '^[0-9a-f]{64}$' AND expires_at > created_at AND ((state = 'STAGED' AND transfer_operation_id IS NOT NULL) OR state NOT IN ('STAGED')) AND ((state = 'RECEIVED' AND completed_at IS NOT NULL AND final_sha256_hex = declared_sha256_hex AND provider_registered_at IS NOT NULL AND provider_receipt_digest ~ '^[0-9a-f]{64}$' AND transfer_operation_id IS NOT NULL) OR state <> 'RECEIVED')");
+                            t.HasCheckConstraint("ck_pbc_upload_intent_values", "state IN ('STARTED','CHUNKING','STAGED','RECEIVED','FAILED','EXPIRED') AND revision >= 1 AND request_revision >= 0 AND length(trim(file_name)) > 0 AND length(trim(content_type)) > 0 AND declared_byte_count > 0 AND declared_byte_count <= 262144000 AND received_byte_count >= 0 AND received_byte_count <= declared_byte_count AND declared_sha256_hex ~ '^[0-9a-f]{64}$' AND capability_hash ~ '^[0-9a-f]{64}$' AND expires_at > created_at AND ((state = 'STAGED' AND transfer_operation_id IS NOT NULL) OR state NOT IN ('STAGED')) AND ((state = 'RECEIVED' AND completed_at IS NOT NULL AND final_sha256_hex = declared_sha256_hex AND provider_registered_at IS NOT NULL AND provider_receipt_digest ~ '^[0-9a-f]{64}$' AND transfer_operation_id IS NOT NULL) OR state <> 'RECEIVED')");
                         });
                 });
 
@@ -34169,6 +34294,44 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "RepositoryBindingId")
                         .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Documents.PbcAcceptanceReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ReviewerUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Completion.DurableOperation", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TransferOperationId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "UploaderUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcRequest", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcRequestId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Documents.PbcUploadIntent", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "PbcUploadIntentId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

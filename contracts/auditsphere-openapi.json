@@ -39896,6 +39896,148 @@
         ]
       }
     },
+    "/api/ui/pbc-requests/{id}/state": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PbcStateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfboolean"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/pbc-uploads/{id}/complete": {
       "post": {
         "tags": [
@@ -117820,6 +117962,75 @@
           }
         }
       },
+      "PbcAcceptanceRow": {
+        "required": [
+          "uploadIntentId",
+          "fileName",
+          "sourceRequestRevision",
+          "uploadIntentRevision",
+          "byteCount",
+          "contentSha256Hex",
+          "providerIdentity",
+          "providerReceiptDigest",
+          "reviewerUserId",
+          "acceptedAt",
+          "sourceDigest"
+        ],
+        "type": "object",
+        "properties": {
+          "uploadIntentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "sourceRequestRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "uploadIntentRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "byteCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "contentSha256Hex": {
+            "type": "string"
+          },
+          "providerIdentity": {
+            "type": "string"
+          },
+          "providerReceiptDigest": {
+            "type": "string"
+          },
+          "reviewerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourceDigest": {
+            "type": "string"
+          }
+        }
+      },
       "PbcChunkErrorResponse": {
         "required": [
           "code"
@@ -118008,11 +118219,17 @@
         "required": [
           "id",
           "fileName",
+          "requestRevision",
+          "revision",
           "receivedByteCount",
           "declaredByteCount",
           "state",
           "transferState",
-          "declaredSha256Hex"
+          "declaredSha256Hex",
+          "contentSha256Hex",
+          "providerIdentity",
+          "providerReceiptDigest",
+          "providerRegisteredAt"
         ],
         "type": "object",
         "properties": {
@@ -118022,6 +118239,22 @@
           },
           "fileName": {
             "type": "string"
+          },
+          "requestRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "revision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           },
           "receivedByteCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -118050,6 +118283,31 @@
           },
           "declaredSha256Hex": {
             "type": "string"
+          },
+          "contentSha256Hex": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerIdentity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerReceiptDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "providerRegisteredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -118097,7 +118355,10 @@
           "revision",
           "intents",
           "timeline",
-          "canRequestMore"
+          "canRequestMore",
+          "canStartReview",
+          "canAccept",
+          "acceptance"
         ],
         "type": "object",
         "properties": {
@@ -118139,6 +118400,69 @@
           },
           "canRequestMore": {
             "type": "boolean"
+          },
+          "canStartReview": {
+            "type": "boolean"
+          },
+          "canAccept": {
+            "type": "boolean"
+          },
+          "acceptance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PbcAcceptanceRow"
+              }
+            ]
+          }
+        }
+      },
+      "PbcStateInput": {
+        "required": [
+          "state",
+          "expectedRevision",
+          "clarificationReason",
+          "reviewedUploadIntentId",
+          "reviewedUploadRevision",
+          "reviewedContentSha256Hex"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "string"
+          },
+          "clarificationReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewedUploadIntentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "reviewedUploadRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "reviewedContentSha256Hex": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

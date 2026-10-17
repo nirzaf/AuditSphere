@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
@@ -33,7 +34,10 @@ public sealed record PbcStateChangeRequest(
   Guid PbcRequestId,
   string State,
   long ExpectedRevision,
-  string? ClarificationReason = null);
+  string? ClarificationReason = null,
+  Guid? ReviewedUploadIntentId = null,
+  long? ReviewedUploadRevision = null,
+  string? ReviewedContentSha256Hex = null);
 
 public sealed record StartPbcUploadRequest(
   Guid PbcRequestId,
@@ -76,10 +80,14 @@ public sealed record PbcDownload(string FileName, string ContentType, long ByteC
 /// </summary>
 public static class PbcService
 {
+  private sealed record VerifiedPbcSubmission(PbcUploadIntent Upload, DurableOperation Operation,
+    DateTimeOffset ProviderRegisteredAt);
+
   public const long MaxUploadBytes = 250L * 1024 * 1024;
   public const int MaxChunkBytes = 8 * 1024 * 1024;
   private static readonly string[] StaffRoles =
     ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"];
+  internal static readonly string[] ReviewerRoles = ["Reviewer", "Manager", "Partner", "AccountingReviewer"];
 
   public static async Task<CommandResult<Guid>> CreateRequestAsync(
     IAuditSphereDbContext db, ActorContext actor, CreatePbcRequestRequest input,
@@ -111,8 +119,18 @@ public static class PbcService
       return CommandResult<Guid>.Fail("pbc.users.invalid", "PBC owners and reviewer must be active firm users with one client upload owner.");
     if (users.Any(x => x.Disabled))
       return CommandResult<Guid>.Fail("pbc.users.disabled", "PBC cannot assign a disabled user.");
-
+    if (input.ReviewerUserId == actor.UserId || input.ReviewerUserId == input.FirmOwnerUserId)
+      return CommandResult<Guid>.Fail("pbc.reviewer-separation", "The request owner and request creator cannot also be its reviewer.");
     var now = DateTimeOffset.UtcNow;
+    var hasScopedReviewerGrant = await db.RoleGrants.AsNoTracking().AnyAsync(g =>
+      g.FirmId == actor.FirmId && g.UserId == input.ReviewerUserId && g.RevokedAt == null &&
+      (g.ExpiresAt == null || g.ExpiresAt > now) && ReviewerRoles.Contains(g.Role) &&
+      ((g.ClientId == null && g.EngagementId == null) ||
+       (g.ClientId == engagement.PracticeClientId && g.EngagementId == engagement.Id) ||
+       (g.ClientId == engagement.PracticeClientId && g.EngagementId == null)), ct);
+    if (!hasScopedReviewerGrant)
+      return CommandResult<Guid>.Fail("pbc.reviewer-required", "The assigned reviewer needs a current reviewer, manager, partner or accounting-reviewer grant covering this engagement.");
+
     var request = new PbcRequest
     {
       Id = Guid.CreateVersion7(),
@@ -408,13 +426,19 @@ public static class PbcService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var clientAction = input.State is PbcStates.Acknowledged or PbcStates.Resubmitted;
+    var reviewerAction = input.State is PbcStates.UnderReview or PbcStates.ClarificationRequired or
+      PbcStates.Accepted or PbcStates.Closed;
     var auth = clientAction
       ? await AuthorizeClientAsync(db, actor, current, ct)
-      : await AuthorizeStaffAsync(db, actor, current.ClientId, current.EngagementId, ct);
+      : reviewerAction
+        ? await AuthorizeAssignedReviewerAsync(db, actor, current, ct)
+        : await AuthorizeStaffAsync(db, actor, current.ClientId, current.EngagementId, ct);
     if (!auth.Succeeded)
       return auth;
-    if (input.State == PbcStates.Accepted && actor.UserId != current.ReviewerUserId)
-      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the assigned reviewer can accept this request.");
+    if (input.State == PbcStates.Accepted &&
+        (input.ReviewedUploadIntentId is null || input.ReviewedUploadIntentId == Guid.Empty ||
+         input.ReviewedUploadRevision is null or <= 0 || !IsSha256(input.ReviewedContentSha256Hex)))
+      return CommandResult.Fail("pbc.acceptance-review-required", "Review and submit the exact source upload ID, revision and content hash before accepting it.");
     if (input.State == PbcStates.ClarificationRequired && string.IsNullOrWhiteSpace(input.ClarificationReason))
       return CommandResult.Fail("pbc.clarification-required", "A specific clarification reason is required.");
 
@@ -439,12 +463,73 @@ public static class PbcService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (request.Revision != input.ExpectedRevision)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The PBC request changed; reload before changing its state.");
+    auth = clientAction
+      ? await AuthorizeClientAsync(db, actor, request, ct)
+      : reviewerAction
+        ? await AuthorizeAssignedReviewerAsync(db, actor, request, ct)
+        : await AuthorizeStaffAsync(db, actor, request.ClientId, request.EngagementId, ct);
+    if (!auth.Succeeded)
+      return auth;
     if (!AllowedTransition(request.State, input.State))
       return CommandResult.Fail("pbc.transition", $"Cannot change a {request.State} request to {input.State}.");
 
+    VerifiedPbcSubmission? verifiedSubmission = null;
+    if (input.State is PbcStates.UnderReview or PbcStates.Accepted)
+    {
+      verifiedSubmission = await LoadLatestVerifiedSubmissionAsync(db, request, ct);
+      if (verifiedSubmission is null)
+        return CommandResult.Fail(input.State == PbcStates.Accepted ? "pbc.acceptance-evidence" : "pbc.review-evidence",
+          "The latest submission must finish provider verification before reviewer action.");
+    }
+    if (input.State == PbcStates.Accepted &&
+        (input.ReviewedUploadIntentId != verifiedSubmission!.Upload.Id ||
+         input.ReviewedUploadRevision != verifiedSubmission.Upload.Revision ||
+         !string.Equals(input.ReviewedContentSha256Hex, verifiedSubmission.Upload.FinalSha256Hex,
+           StringComparison.OrdinalIgnoreCase)))
+      return CommandResult.Fail("pbc.acceptance-source-changed", "The submitted source version changed after review; reload and review the current provider-verified upload.");
+
+    PbcAcceptanceReceipt? acceptanceReceipt = null;
+    if (input.State == PbcStates.Accepted)
+    {
+      var latestUpload = verifiedSubmission!.Upload;
+      if (latestUpload.UploaderUserId == actor.UserId)
+        return CommandResult.Fail("pbc.acceptance-separation", "The assigned reviewer cannot accept a version they uploaded.");
+      var operation = verifiedSubmission.Operation;
+      var transferId = operation.Id;
+      var finalHash = latestUpload.FinalSha256Hex!;
+      var providerDigest = latestUpload.ProviderReceiptDigest!;
+      var registeredAt = verifiedSubmission.ProviderRegisteredAt;
+      var acceptedAt = DateTimeOffset.UtcNow;
+      var sourceDigest = Hashing.Sha256Hex(JsonSerializer.Serialize(new
+      {
+        Version = "pbc-accepted-source-v1", request.FirmId, request.ClientId, request.EngagementId,
+        RequestId = request.Id, AcceptedRequestRevision = request.Revision + 1,
+        SourceRequestRevision = latestUpload.RequestRevision,
+        UploadIntentId = latestUpload.Id, UploadIntentRevision = latestUpload.Revision,
+        latestUpload.UploaderUserId, latestUpload.FileName, ByteCount = latestUpload.DeclaredByteCount,
+        ContentSha256Hex = finalHash.ToLowerInvariant(), TransferOperationId = transferId,
+        ProviderIdentity = operation.ResultIdentity!, ProviderReceiptDigest = providerDigest.ToLowerInvariant(),
+        ProviderRegisteredAt = registeredAt, ReviewerUserId = actor.UserId, AcceptedAt = acceptedAt
+      }));
+      acceptanceReceipt = new PbcAcceptanceReceipt
+      {
+        Id = Guid.CreateVersion7(), FirmId = request.FirmId, ClientId = request.ClientId,
+        EngagementId = request.EngagementId, PbcRequestId = request.Id,
+        AcceptedRequestRevision = request.Revision + 1,
+        SourceRequestRevision = latestUpload.RequestRevision,
+        ReviewerUserId = actor.UserId,
+        AcceptedAt = acceptedAt, PbcUploadIntentId = latestUpload.Id,
+        UploadIntentRevision = latestUpload.Revision, UploaderUserId = latestUpload.UploaderUserId,
+        FileName = latestUpload.FileName, ByteCount = latestUpload.DeclaredByteCount,
+        ContentSha256Hex = finalHash.ToLowerInvariant(), TransferOperationId = transferId,
+        ProviderIdentity = operation.ResultIdentity!, ProviderReceiptDigest = providerDigest.ToLowerInvariant(),
+        ProviderRegisteredAt = registeredAt, SourceDigest = sourceDigest
+      };
+    }
+
     request.State = input.State;
     request.Revision++;
-    request.UpdatedAt = DateTimeOffset.UtcNow;
+    request.UpdatedAt = acceptanceReceipt?.AcceptedAt ?? DateTimeOffset.UtcNow;
     request.ClarificationReason = input.State == PbcStates.ClarificationRequired
       ? input.ClarificationReason!.Trim() : request.ClarificationReason;
     if (input.State is PbcStates.Acknowledged or PbcStates.Resubmitted)
@@ -460,11 +545,61 @@ public static class PbcService
     {
       request.AcceptedByUserId = actor.UserId;
       request.AcceptedAt = request.UpdatedAt;
+      if (acceptanceReceipt is null)
+        return CommandResult.Fail("pbc.acceptance-evidence", "The accepted source version was not captured.");
+      db.PbcAcceptanceReceipts.Add(acceptanceReceipt);
     }
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
+
+  private static async Task<VerifiedPbcSubmission?> LoadLatestVerifiedSubmissionAsync(
+    IAuditSphereDbContext db, PbcRequest request, CancellationToken ct)
+  {
+    var upload = await db.PbcUploadIntents.AsNoTracking().Where(x =>
+        x.FirmId == request.FirmId && x.ClientId == request.ClientId &&
+        x.EngagementId == request.EngagementId && x.PbcRequestId == request.Id)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+      .FirstOrDefaultAsync(ct);
+    var revisionOffset = request.State switch
+    {
+      PbcStates.Received => 1,
+      PbcStates.UnderReview => 2,
+      _ => 0
+    };
+    if (upload is null || revisionOffset == 0 || request.Revision <= revisionOffset ||
+        upload.RequestRevision < 1 || upload.RequestRevision != request.Revision - revisionOffset ||
+        upload.State != PbcUploadStates.Received ||
+        await db.PbcUploadIntents.AsNoTracking().AnyAsync(x =>
+          x.FirmId == request.FirmId && x.PbcRequestId == request.Id &&
+          (x.State == PbcUploadStates.Started || x.State == PbcUploadStates.Chunking || x.State == PbcUploadStates.Staged), ct) ||
+        upload.TransferOperationId is not { } transferId || upload.CompletedAt is null ||
+        upload.ProviderRegisteredAt is not { } registeredAt ||
+        upload.FinalSha256Hex is not { Length: 64 } finalHash ||
+        upload.ProviderReceiptDigest is not { Length: 64 } providerDigest ||
+        !string.Equals(finalHash, upload.DeclaredSha256Hex, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(providerDigest, finalHash, StringComparison.OrdinalIgnoreCase))
+      return null;
+
+    var operation = await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == request.FirmId && x.Id == transferId &&
+      x.OperationKind == PbcDocumentTransferHandler.Kind && x.TargetId == upload.Id &&
+      x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
+      x.ExpectedRevision == upload.Revision - 1, ct);
+    if (operation is null || operation.Status != OperationState.COMPLETED ||
+        string.IsNullOrWhiteSpace(operation.ResultIdentity) || operation.ResultIdentity.Length > 1000 ||
+        !string.Equals(operation.ResultDigest, finalHash, StringComparison.OrdinalIgnoreCase))
+      return null;
+    return new(upload, operation, registeredAt);
+  }
+
+  private static Task<CommandResult> AuthorizeAssignedReviewerAsync(
+    IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct) =>
+    actor.UserId != request.ReviewerUserId
+      ? Task.FromResult(CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the assigned reviewer can make this review decision."))
+      : AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, ReviewerRoles, InternalOnly: true), ct);
 
   public static async Task<CommandResult<PbcUploadReceipt>> StartUploadAsync(
     IAuditSphereDbContext db, ActorContext actor, StartPbcUploadRequest input,
@@ -501,6 +636,10 @@ public static class PbcService
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (lockedRequest.State is not (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.Resubmitted or PbcStates.PartiallyReceived))
       return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-state", "The request is not accepting an upload.");
+    if (await db.PbcUploadIntents.AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.PbcRequestId == lockedRequest.Id &&
+        (x.State == PbcUploadStates.Started || x.State == PbcUploadStates.Chunking || x.State == PbcUploadStates.Staged), ct))
+      return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-active", "Finish or reconcile the current upload before starting another version.");
 
     var now = DateTimeOffset.UtcNow;
     var capability = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
@@ -511,6 +650,7 @@ public static class PbcService
       ClientId = lockedRequest.ClientId,
       EngagementId = lockedRequest.EngagementId,
       PbcRequestId = lockedRequest.Id,
+      RequestRevision = lockedRequest.Revision + 1,
       UploaderUserId = actor.UserId,
       FileName = input.FileName.Trim(),
       ContentType = input.ContentType.Trim(),
@@ -876,7 +1016,6 @@ public static class PbcService
       (PbcStates.Draft, PbcStates.Sent) => true,
       (PbcStates.Sent, PbcStates.Acknowledged) => true,
       (PbcStates.Received, PbcStates.UnderReview) => true,
-      (PbcStates.Resubmitted, PbcStates.UnderReview) => true,
       (PbcStates.UnderReview, PbcStates.Accepted) => true,
       (PbcStates.UnderReview, PbcStates.ClarificationRequired) => true,
       (PbcStates.ClarificationRequired, PbcStates.Resubmitted) => true,

@@ -228,6 +228,7 @@ replay/approval/readback); the group-report export/archive leg is a declared M37
 - Persistence: `AuditSphereDbContext.Documents.cs`, `.Pbc.cs`
 
 - Current Angular/API entry points: `src/AuditSphereOps.Ui/src/app/features/engagements/pbc.ts`, `src/AuditSphereOps.Ui/src/app/features/portal/documents.ts`, `request.ts`, `home.ts` and `src/AuditSphereOps.Ui/src/app/features/audit/records.ts`; `src/AuditSphereOps.Api/Ui/UiEndpoints.Pbc.cs` and `UiEndpoints.Portal.cs`. This mapping identifies current files only and does not assert parity.
+- PBC acceptance is assigned-reviewer-only and binds one accepted request to the exact provider-verified upload revision, content hash, durable transfer result and provider receipt. `PbcInboxWorkspaceQuery.cs`, `/api/ui/pbc-requests/{id}/state` and the Angular PBC inbox expose review/accept actions and source identity; `PbcAcceptanceReceipt` is append-only, and its upload source is protected from mutation by migration `PbcAcceptanceReceipts`.
 - Historical Blazor screens (pinned pre-removal source only): `PbcRequests.razor`, `ClientPbcRequest.razor`, `RecordsArchive.razor`, `ClientPortal.razor`.
 
 - Tests: `tests/.../` document/PBC suites

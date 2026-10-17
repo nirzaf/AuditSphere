@@ -61,6 +61,38 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.AcceptedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var acceptance = b.Entity<PbcAcceptanceReceipt>();
+    acceptance.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_pbc_acceptance_receipts_firm_id_id");
+    acceptance.Property(x => x.FileName).HasMaxLength(255);
+    acceptance.Property(x => x.ContentSha256Hex).HasMaxLength(64);
+    acceptance.Property(x => x.ProviderIdentity).HasMaxLength(1000);
+    acceptance.Property(x => x.ProviderReceiptDigest).HasMaxLength(64);
+    acceptance.Property(x => x.SourceDigest).HasMaxLength(64);
+    acceptance.HasIndex(x => new { x.FirmId, x.PbcRequestId }).IsUnique()
+      .HasDatabaseName("ux_pbc_acceptance_receipt_request");
+    acceptance.HasIndex(x => new { x.FirmId, x.PbcUploadIntentId });
+    acceptance.ToTable("pbc_acceptance_receipts", t => t.HasCheckConstraint("ck_pbc_acceptance_receipt_values",
+      "accepted_request_revision >= 1 AND source_request_revision >= 1 AND upload_intent_revision >= 1 AND byte_count > 0 AND " +
+      "length(trim(file_name)) BETWEEN 1 AND 255 AND length(trim(provider_identity)) BETWEEN 1 AND 1000 AND " +
+      "content_sha256_hex ~ '^[0-9a-f]{64}$' AND provider_receipt_digest ~ '^[0-9a-f]{64}$' AND " +
+      "source_digest ~ '^[0-9a-f]{64}$'"));
+    acceptance.HasOne<PbcRequest>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcRequestId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    acceptance.HasOne<PbcUploadIntent>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.PbcUploadIntentId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    acceptance.HasOne<AuditSphereOps.Domain.Completion.DurableOperation>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.TransferOperationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    acceptance.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReviewerUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    acceptance.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.UploaderUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var intent = b.Entity<PbcUploadIntent>();
     intent.HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_pbc_upload_intents_firm_id_id");
@@ -76,7 +108,7 @@ public sealed partial class AuditSphereDbContext
     intent.Property(x => x.ProviderReceiptDigest).HasMaxLength(64);
     intent.HasIndex(x => new { x.FirmId, x.PbcRequestId, x.CreatedAt });
     intent.ToTable("pbc_upload_intents", t => t.HasCheckConstraint("ck_pbc_upload_intent_values",
-      "state IN ('STARTED','CHUNKING','STAGED','RECEIVED','FAILED','EXPIRED') AND revision >= 1 AND length(trim(file_name)) > 0 AND length(trim(content_type)) > 0 AND declared_byte_count > 0 AND declared_byte_count <= 262144000 AND received_byte_count >= 0 AND received_byte_count <= declared_byte_count AND declared_sha256_hex ~ '^[0-9a-f]{64}$' AND capability_hash ~ '^[0-9a-f]{64}$' AND expires_at > created_at AND ((state = 'STAGED' AND transfer_operation_id IS NOT NULL) OR state NOT IN ('STAGED')) AND ((state = 'RECEIVED' AND completed_at IS NOT NULL AND final_sha256_hex = declared_sha256_hex AND provider_registered_at IS NOT NULL AND provider_receipt_digest ~ '^[0-9a-f]{64}$' AND transfer_operation_id IS NOT NULL) OR state <> 'RECEIVED')"));
+      "state IN ('STARTED','CHUNKING','STAGED','RECEIVED','FAILED','EXPIRED') AND revision >= 1 AND request_revision >= 0 AND length(trim(file_name)) > 0 AND length(trim(content_type)) > 0 AND declared_byte_count > 0 AND declared_byte_count <= 262144000 AND received_byte_count >= 0 AND received_byte_count <= declared_byte_count AND declared_sha256_hex ~ '^[0-9a-f]{64}$' AND capability_hash ~ '^[0-9a-f]{64}$' AND expires_at > created_at AND ((state = 'STAGED' AND transfer_operation_id IS NOT NULL) OR state NOT IN ('STAGED')) AND ((state = 'RECEIVED' AND completed_at IS NOT NULL AND final_sha256_hex = declared_sha256_hex AND provider_registered_at IS NOT NULL AND provider_receipt_digest ~ '^[0-9a-f]{64}$' AND transfer_operation_id IS NOT NULL) OR state <> 'RECEIVED')"));
     intent.HasOne<AuditSphereOps.Domain.Completion.DurableOperation>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.TransferOperationId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id })

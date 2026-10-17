@@ -25,11 +25,17 @@ describe('PBC Request Inbox Contracts', () => {
             {
               id: id3,
               fileName: 'qnb_bank_statement.pdf',
+              requestRevision: 1,
+              revision: 3,
               receivedByteCount: 524288,
               declaredByteCount: 524288,
               state: 'RECEIVED',
               transferState: 'COMPLETED',
               declaredSha256Hex: hash64,
+              contentSha256Hex: hash64,
+              providerIdentity: 'synthetic-site:drive:item:v1',
+              providerReceiptDigest: 'b'.repeat(64),
+              providerRegisteredAt: '2026-10-02T10:00:00Z',
             },
           ],
           timeline: [
@@ -40,6 +46,9 @@ describe('PBC Request Inbox Contracts', () => {
             },
           ],
           canRequestMore: true,
+          canStartReview: true,
+          canAccept: false,
+          acceptance: null,
         },
       ],
       clientOwners: [
@@ -64,6 +73,8 @@ describe('PBC Request Inbox Contracts', () => {
     expect(decoded.requests[0].area).toBe('Cash and Bank');
     expect(decoded.requests[0].intents.length).toBe(1);
     expect(decoded.requests[0].intents[0].state).toBe('RECEIVED');
+    expect(decoded.requests[0].intents[0].requestRevision).toBe(1);
+    expect(decoded.requests[0].intents[0].contentSha256Hex).toBe(hash64);
     expect(decoded.clientOwners[0].name).toBe('Jane Client');
     expect(decoded.reviewers[0].name).toBe('Audit Senior');
   });

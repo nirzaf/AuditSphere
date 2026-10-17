@@ -82,6 +82,8 @@ public sealed class PbcUploadIntent
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid PbcRequestId { get; set; }
+  // Zero denotes a pre-lineage row from before submission-bound revisions were recorded.
+  public long RequestRevision { get; set; }
   public Guid UploaderUserId { get; set; }
   public string FileName { get; set; } = string.Empty;
   public string ContentType { get; set; } = string.Empty;
@@ -101,6 +103,34 @@ public sealed class PbcUploadIntent
   public string? ProviderReceiptDigest { get; set; }
   public DateTimeOffset? ProviderRegisteredAt { get; set; }
   public long Revision { get; set; } = 1;
+}
+
+/// <summary>
+/// Immutable record of the exact provider-verified upload version accepted by the assigned
+/// reviewer for a PBC request. Later resubmissions remain separate upload intents.
+/// </summary>
+public sealed class PbcAcceptanceReceipt
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid PbcRequestId { get; set; }
+  public long AcceptedRequestRevision { get; set; }
+  public long SourceRequestRevision { get; set; }
+  public Guid ReviewerUserId { get; set; }
+  public DateTimeOffset AcceptedAt { get; set; }
+  public Guid PbcUploadIntentId { get; set; }
+  public long UploadIntentRevision { get; set; }
+  public Guid UploaderUserId { get; set; }
+  public string FileName { get; set; } = string.Empty;
+  public long ByteCount { get; set; }
+  public string ContentSha256Hex { get; set; } = string.Empty;
+  public Guid TransferOperationId { get; set; }
+  public string ProviderIdentity { get; set; } = string.Empty;
+  public string ProviderReceiptDigest { get; set; } = string.Empty;
+  public DateTimeOffset ProviderRegisteredAt { get; set; }
+  public string SourceDigest { get; set; } = string.Empty;
 }
 
 public sealed class PbcUploadChunk

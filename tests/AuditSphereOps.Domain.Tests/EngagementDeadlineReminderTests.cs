@@ -90,12 +90,12 @@ public sealed class EngagementDeadlineReminderTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var acceptedAt = DateTimeOffset.UtcNow;
       await db.PbcRequests.Where(x => x.Id == requestId).ExecuteUpdateAsync(s => s
-        .SetProperty(x => x.State, PbcStates.UnderReview)
-        .SetProperty(x => x.Revision, 4));
-      var accepted = await PbcService.ChangeStateAsync(db, reviewer,
-        new(requestId, PbcStates.Accepted, 4));
-      Assert.True(accepted.Succeeded, accepted.Message);
+        .SetProperty(x => x.State, PbcStates.Accepted)
+        .SetProperty(x => x.Revision, 5)
+        .SetProperty(x => x.AcceptedByUserId, f.Reviewer.Id)
+        .SetProperty(x => x.AcceptedAt, acceptedAt));
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {

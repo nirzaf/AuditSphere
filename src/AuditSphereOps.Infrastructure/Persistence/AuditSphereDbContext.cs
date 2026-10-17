@@ -229,6 +229,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<PbcRequest> PbcRequests => Set<PbcRequest>();
 
+  public DbSet<PbcAcceptanceReceipt> PbcAcceptanceReceipts => Set<PbcAcceptanceReceipt>();
+
   public DbSet<PbcUploadIntent> PbcUploadIntents => Set<PbcUploadIntent>();
 
   public DbSet<PbcUploadChunk> PbcUploadChunks => Set<PbcUploadChunk>();

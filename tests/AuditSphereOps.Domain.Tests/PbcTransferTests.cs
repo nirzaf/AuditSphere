@@ -158,11 +158,28 @@ public sealed class PbcTransferTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var source = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == transfer.Staged.UploadIntentId);
       var underReview = await PbcService.ChangeStateAsync(db, reviewer,
         new PbcStateChangeRequest(transfer.RequestId, PbcStates.UnderReview, 5));
       Assert.True(underReview.Succeeded, underReview.ErrorCode);
-      var accepted = await PbcService.ChangeStateAsync(db, reviewer,
+      var unreviewed = await PbcService.ChangeStateAsync(db, reviewer,
         new PbcStateChangeRequest(transfer.RequestId, PbcStates.Accepted, 6));
+      Assert.Equal("pbc.acceptance-review-required", unreviewed.ErrorCode);
+      var unassignedReviewer = await PbcService.ChangeStateAsync(db,
+        PbcSeed.Actor(transfer.Fixture.Staff, "Staff"),
+        new PbcStateChangeRequest(transfer.RequestId, PbcStates.Accepted, 6,
+          ReviewedUploadIntentId: transfer.Staged.UploadIntentId, ReviewedUploadRevision: source.Revision,
+          ReviewedContentSha256Hex: transfer.Staged.DeclaredSha256Hex));
+      Assert.Equal(ErrorCodes.ScopeDenied, unassignedReviewer.ErrorCode);
+      var wrongSource = await PbcService.ChangeStateAsync(db, reviewer,
+        new PbcStateChangeRequest(transfer.RequestId, PbcStates.Accepted, 6,
+          ReviewedUploadIntentId: Guid.NewGuid(), ReviewedUploadRevision: source.Revision,
+          ReviewedContentSha256Hex: transfer.Staged.DeclaredSha256Hex));
+      Assert.Equal("pbc.acceptance-source-changed", wrongSource.ErrorCode);
+      var accepted = await PbcService.ChangeStateAsync(db, reviewer,
+        new PbcStateChangeRequest(transfer.RequestId, PbcStates.Accepted, 6,
+          ReviewedUploadIntentId: transfer.Staged.UploadIntentId, ReviewedUploadRevision: source.Revision,
+          ReviewedContentSha256Hex: transfer.Staged.DeclaredSha256Hex));
       Assert.True(accepted.Succeeded, accepted.ErrorCode);
       Assert.False((await PbcService.ChangeStateAsync(db, client,
         new PbcStateChangeRequest(transfer.RequestId, PbcStates.Accepted, 7))).Succeeded);
@@ -170,7 +187,100 @@ public sealed class PbcTransferTests
         PbcSeed.Actor(transfer.Fixture.Staff, "Staff"),
         new PbcStateChangeRequest(transfer.RequestId, PbcStates.Closed, 1))).Succeeded);
     }
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      var receipt = await verify.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == transfer.RequestId);
+      var operation = await verify.DurableOperations.AsNoTracking().SingleAsync(x =>
+        x.OperationKind == PbcDocumentTransferHandler.Kind && x.TargetId == transfer.Staged.UploadIntentId);
+      var sourceUpload = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == receipt.PbcUploadIntentId);
+      Assert.Equal(transfer.Staged.UploadIntentId, receipt.PbcUploadIntentId);
+      Assert.Equal(sourceUpload.RequestRevision, receipt.SourceRequestRevision);
+      Assert.Equal(sourceUpload.Revision, receipt.UploadIntentRevision);
+      Assert.Equal(transfer.Staged.DeclaredSha256Hex, receipt.ContentSha256Hex);
+      Assert.Equal(transfer.Staged.DeclaredSha256Hex, receipt.ProviderReceiptDigest);
+      Assert.Equal(operation.Id, receipt.TransferOperationId);
+      Assert.Equal(operation.ResultIdentity, receipt.ProviderIdentity);
+      Assert.Equal(transfer.Fixture.Reviewer.Id, receipt.ReviewerUserId);
+      Assert.Matches("^[0-9a-f]{64}$", receipt.SourceDigest);
+      Assert.Equal(1, await verify.PbcAcceptanceReceipts.CountAsync(x => x.PbcRequestId == transfer.RequestId));
+      var accepted = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == transfer.RequestId);
+      Assert.Equal(receipt.AcceptedAt, accepted.AcceptedAt);
+      Assert.Equal(receipt.ReviewerUserId, accepted.AcceptedByUserId);
+      var receiptMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE pbc_acceptance_receipts SET file_name = 'rewritten.pdf' WHERE id = {receipt.Id}"));
+      Assert.Equal("55000", receiptMutation.SqlState);
+      var sourceMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE pbc_upload_intents SET file_name = 'rewritten.pdf' WHERE id = {receipt.PbcUploadIntentId}"));
+      Assert.Equal("55000", sourceMutation.SqlState);
+      var requestMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE pbc_requests SET accepted_by_user_id = {transfer.Fixture.Staff.Id} WHERE id = {transfer.RequestId}"));
+      Assert.Equal("55000", requestMutation.SqlState);
+      var requestContentMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE pbc_requests SET objective = 'rewritten after acceptance' WHERE id = {transfer.RequestId}"));
+      Assert.Equal("55000", requestContentMutation.SqlState);
+    }
     PbcSeed.DeleteDirectory(transfer.Staged.StagingRoot);
+  }
+
+  [Fact]
+  public async Task AcceptanceWithoutCompletedProviderVersionFailsClosed()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var staff = PbcSeed.Actor(fixture.Staff, "Staff");
+    Guid requestId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await PbcService.CreateRequestAsync(db, staff, new CreatePbcRequestRequest(
+        fixture.EngagementId, "Bank statements", "TEST ENTITY", "2026-01-01", "2026-12-31",
+        "Cash", "PDF", "12 months", fixture.Client.Id, fixture.Staff.Id, fixture.Reviewer.Id,
+        "2027-01-31", "Confidential", "Complete period with readable account identity."));
+      Assert.True(created.Succeeded, created.ErrorCode);
+      requestId = created.Value;
+      var request = await db.PbcRequests.SingleAsync(x => x.Id == requestId);
+      request.State = PbcStates.UnderReview;
+      request.Revision++;
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await PbcService.ChangeStateAsync(db, PbcSeed.Actor(fixture.Reviewer, "Reviewer"),
+        new PbcStateChangeRequest(requestId, PbcStates.Accepted, 2,
+          ReviewedUploadIntentId: Guid.NewGuid(), ReviewedUploadRevision: 1,
+          ReviewedContentSha256Hex: new string('a', 64)));
+      Assert.Equal("pbc.acceptance-evidence", result.ErrorCode);
+    }
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await verify.PbcAcceptanceReceipts.AsNoTracking().ToListAsync());
+    Assert.Equal(PbcStates.UnderReview,
+      await verify.PbcRequests.AsNoTracking().Where(x => x.Id == requestId).Select(x => x.State).SingleAsync());
+  }
+
+  [Fact]
+  public async Task CreateRequestRequiresQualifiedIndependentReviewer()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var unqualified = PbcSeed.User(fixture.FirmId, "Staff");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Users.Add(unqualified);
+    db.RoleGrants.Add(PbcSeed.Grant(fixture.FirmId, unqualified, "Staff",
+      clientId: fixture.ClientId, engagementId: fixture.EngagementId));
+    await db.SaveChangesAsync();
+
+    var admin = PbcSeed.Actor(fixture.Admin, "Administrator");
+    var unqualifiedResult = await PbcService.CreateRequestAsync(db, admin, new CreatePbcRequestRequest(
+      fixture.EngagementId, "Bank statements", "TEST ENTITY", "2026-01-01", "2026-12-31",
+      "Cash", "PDF", "12 months", fixture.Client.Id, fixture.Staff.Id, unqualified.Id,
+      "2027-01-31", "Confidential", "Complete period with readable account identity."));
+    Assert.Equal("pbc.reviewer-required", unqualifiedResult.ErrorCode);
+
+    var selfReviewResult = await PbcService.CreateRequestAsync(db, admin, new CreatePbcRequestRequest(
+      fixture.EngagementId, "Bank statements", "TEST ENTITY", "2026-01-01", "2026-12-31",
+      "Cash", "PDF", "12 months", fixture.Client.Id, fixture.Reviewer.Id, fixture.Reviewer.Id,
+      "2027-01-31", "Confidential", "Complete period with readable account identity."));
+    Assert.Equal("pbc.reviewer-separation", selfReviewResult.ErrorCode);
   }
 
   [Fact]

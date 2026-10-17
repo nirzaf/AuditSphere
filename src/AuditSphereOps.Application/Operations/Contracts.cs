@@ -74,6 +74,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<DocumentReference> DocumentReferences { get; }
   DbSet<DocumentSnapshot> DocumentSnapshots { get; }
   DbSet<PbcRequest> PbcRequests { get; }
+  DbSet<PbcAcceptanceReceipt> PbcAcceptanceReceipts { get; }
   DbSet<PbcUploadIntent> PbcUploadIntents { get; }
   DbSet<PbcUploadChunk> PbcUploadChunks { get; }
   DbSet<PbcCommunication> PbcCommunications { get; }

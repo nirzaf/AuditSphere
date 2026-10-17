@@ -9,8 +9,12 @@ import { SHARED } from '../../core/ui';
 const person = obj({ id: guid, name: text, email: nullable(text) });
 export const decodePbcInbox = obj({ engagementId: guid, serviceRoute: text, periodStart: text, periodEnd: text,
   requests: arr(obj({ id: guid, area: text, objective: text, dueDate: text, state: text, revision: nat,
-    intents: arr(obj({ id: guid, fileName: text, receivedByteCount: nat, declaredByteCount: nat, state: text, transferState: nullable(text), declaredSha256Hex: text }), 1000),
-    timeline: arr(obj({ at: instant, label: text, body: text }), 5000), canRequestMore: bool }), 2000),
+    intents: arr(obj({ id: guid, fileName: text, requestRevision: nat, revision: nat, receivedByteCount: nat, declaredByteCount: nat,
+      state: text, transferState: nullable(text), declaredSha256Hex: text, contentSha256Hex: nullable(text), providerIdentity: nullable(text),
+      providerReceiptDigest: nullable(text), providerRegisteredAt: nullable(instant) }), 1000),
+    timeline: arr(obj({ at: instant, label: text, body: text }), 5000), canRequestMore: bool, canStartReview: bool, canAccept: bool,
+    acceptance: nullable(obj({ uploadIntentId: guid, fileName: text, sourceRequestRevision: nat, uploadIntentRevision: nat, byteCount: nat,
+      contentSha256Hex: text, providerIdentity: text, providerReceiptDigest: text, reviewerUserId: guid, acceptedAt: instant, sourceDigest: text })) }), 2000),
   clientOwners: arr(person, 500), reviewers: arr(person, 500) });
 
 @Component({
@@ -43,12 +47,31 @@ export const decodePbcInbox = obj({ engagementId: guid, serviceRoute: text, peri
         <section class="panel" [attr.aria-labelledby]="'pbc-' + r.id">
           <h2 [id]="'pbc-' + r.id">{{ r.area }} <audit-status [value]="r.state" /></h2>
           <p><small>{{ r.objective }} · due {{ r.dueDate }} · revision {{ r.revision }}</small></p>
+          @if (r.acceptance; as accepted) {
+            <section aria-label="Accepted submission version" class="review-evidence">
+              <h3>Accepted submission version</h3>
+              <p>{{ accepted.fileName }} · request submission revision {{ accepted.sourceRequestRevision }} · upload {{ accepted.uploadIntentId }} revision {{ accepted.uploadIntentRevision }} · {{ accepted.byteCount }} bytes</p>
+              <p>Content SHA-256: <code>{{ accepted.contentSha256Hex }}</code></p>
+              <p>Provider registration: <code>{{ accepted.providerIdentity }}</code> · receipt SHA-256: <code>{{ accepted.providerReceiptDigest }}</code></p>
+              <p>Source digest: <code>{{ accepted.sourceDigest }}</code></p>
+              <p>Accepted by {{ accepted.reviewerUserId }} at {{ accepted.acceptedAt }}</p>
+            </section>
+          }
           @if (r.intents.length) {
             <div class="table-scroll"><table>
               <caption class="sr-only">Upload intents for request {{ r.area }}</caption>
               <thead><tr><th scope="col">File</th><th scope="col">Bytes</th><th scope="col">Intent state</th><th scope="col">Transfer state</th><th scope="col">Action</th></tr></thead>
               <tbody>@for (i of r.intents; track i.id) {
-                <tr><td>{{ i.fileName }}</td><td>{{ i.receivedByteCount }} / {{ i.declaredByteCount }}</td><td><audit-status [value]="i.state" /></td>
+                <tr><td>{{ i.fileName }}
+                    @if (i.state === 'RECEIVED' && i.contentSha256Hex && i.providerIdentity && i.providerReceiptDigest) {
+                      <details><summary>Verified source evidence</summary>
+                        <p>Request revision {{ i.requestRevision }} · upload {{ i.id }} revision {{ i.revision }}</p>
+                        <p>Content SHA-256: <code>{{ i.contentSha256Hex }}</code></p>
+                        <p>Provider identity: <code>{{ i.providerIdentity }}</code></p>
+                        <p>Provider receipt SHA-256: <code>{{ i.providerReceiptDigest }}</code> · registered {{ i.providerRegisteredAt }}</p>
+                      </details>
+                    }
+                  </td><td>{{ i.receivedByteCount }} / {{ i.declaredByteCount }}</td><td><audit-status [value]="i.state" /></td>
                   <td><audit-status [value]="i.transferState ?? '—'" /></td>
                   <td>@if (i.state === 'CHUNKING' && i.receivedByteCount === i.declaredByteCount) {
                       <button matButton="filled" (click)="complete(i.id, i.declaredSha256Hex)" [disabled]="cmd.busy()">Complete staged transfer</button>
@@ -56,11 +79,25 @@ export const decodePbcInbox = obj({ engagementId: guid, serviceRoute: text, peri
               }</tbody>
             </table></div>
           } @else { <p>No upload intents are recorded for this request.</p> }
+          @if (r.canStartReview) {
+            <button matButton="filled" type="button" (click)="changeState(r.id, r.revision, 'UNDER_REVIEW')" [disabled]="cmd.busy()">
+              Begin assigned review
+            </button>
+          }
+          @if (r.canAccept) {
+            <fieldset class="review-evidence">
+              <legend>Review the exact submission version above</legend>
+              <label><input type="checkbox" [name]="'reviewed-' + reviewKey(r)" [(ngModel)]="reviewed[reviewKey(r)]" />
+                I reviewed this provider-verified submission and its content SHA-256.</label>
+              <button matButton="filled" type="button" (click)="accept(r)"
+                [disabled]="cmd.busy() || !reviewSource(r) || !reviewed[reviewKey(r)]">Accept this exact version</button>
+            </fieldset>
+          }
           <h3>Conversation timeline</h3>
           <ol>@for (t of r.timeline; track $index) { <li><strong>{{ t.label }}</strong> <small>{{ t.at.slice(0, 16).replace('T', ' ') }}</small><p>{{ t.body }}</p></li> }</ol>
           @if (r.canRequestMore) {
-            <label>Request more files <textarea [(ngModel)]="more[r.id]" [name]="'more-' + r.id" maxlength="3000" required></textarea></label>
-            <button matButton="filled" (click)="requestMore(r.id)" [disabled]="cmd.busy() || !(more[r.id] ?? '').trim()">Request more files</button>
+            <label>Clarification or additional file request <textarea [(ngModel)]="more[r.id]" [name]="'more-' + r.id" maxlength="3000" required></textarea></label>
+            <button matButton="filled" (click)="requestMore(r.id)" [disabled]="cmd.busy() || !(more[r.id] ?? '').trim()">Send request</button>
           }
         </section>
       } @empty {
@@ -78,6 +115,7 @@ export class PbcInbox {
   readonly cmd = new CommandState(this.api);
   f = { description: '', owner: '', reviewer: '', due: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10), format: '' };
   more: Record<string, string> = {};
+  reviewed: Record<string, boolean> = {};
 
   intents(w: ReturnType<typeof decodePbcInbox>): number { return w.requests.reduce((n, r) => n + r.intents.length, 0); }
   received(w: ReturnType<typeof decodePbcInbox>): number { return w.requests.reduce((n, r) => n + r.intents.filter((i) => i.state === 'RECEIVED').length, 0); }
@@ -97,5 +135,25 @@ export class PbcInbox {
   complete(intentId: string, sha: string): void {
     void this.cmd.run(`/api/ui/pbc-uploads/${intentId}/complete`, { declaredSha256: sha },
       'Staged bytes verified; a durable provider transfer is queued. The request is not received until that transfer completes.').finally(this.reload);
+  }
+  reviewSource(r: ReturnType<typeof decodePbcInbox>['requests'][number]) {
+    return r.intents.find((i) => i.state === 'RECEIVED' && i.contentSha256Hex && i.providerIdentity &&
+      i.providerReceiptDigest && i.providerRegisteredAt) ?? null;
+  }
+  reviewKey(r: ReturnType<typeof decodePbcInbox>['requests'][number]): string {
+    const source = this.reviewSource(r);
+    return source ? `${r.id}:${source.id}:${source.revision}:${source.contentSha256Hex}` : '';
+  }
+  accept(r: ReturnType<typeof decodePbcInbox>['requests'][number]): void {
+    const source = this.reviewSource(r);
+    if (source) this.changeState(r.id, r.revision, 'ACCEPTED', source);
+  }
+  changeState(requestId: string, revision: number, state: string, source?: NonNullable<ReturnType<PbcInbox['reviewSource']>>): void {
+    void this.cmd.run(`/api/ui/pbc-requests/${requestId}/state`, {
+      state, expectedRevision: String(revision), clarificationReason: null,
+      reviewedUploadIntentId: source?.id ?? null, reviewedUploadRevision: source?.revision ?? null,
+      reviewedContentSha256Hex: source?.contentSha256Hex ?? null,
+    }, state === 'ACCEPTED' ? 'The exact provider-verified submission version was accepted.' : 'PBC review state updated.')
+      .finally(this.reload);
   }
 }
