@@ -205,7 +205,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | --- | --- | --- |
 | `CRM-01` | CRM | EXISTS_NOT_VERIFIED |
 | `CRM-02` | CRM | NOT_REVERIFIED |
-| `CRM-03` | CRM | NOT_REVERIFIED |
+| `CRM-03` | CRM | PARTIAL |
 | `CRM-04` | CRM | NOT_REVERIFIED |
 | `CRM-05` | CRM | PARTIAL |
 | `COM-01` | COM | NOT_REVERIFIED |
@@ -299,6 +299,7 @@ D1 and DEC-01 through DEC-10 require their specified human or live evidence wher
 
 - **CRM-01 / PMCOMP-03:** `PracticeCrmService.CreateLeadAsync` retains canonical channel/owner and request identity; `ConvertToClientDraftAsync` binds conversion. Existing `PracticeCrmTests.CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending` asserts one client, no engagement, pending clearance, awaiting-acceptance portal intent and no client role grant. Its body was inspected; it was not executed in this documentation slice. The entire lead action-history and invalid-stage browser criterion remains unverified.
 - **CRM-05 / PMCOMP-01/02:** `EngagementLifecycleService.CreateDraftAsync` stores route/profile and creates a Draft with `ProfessionalWorkBlocked = true`, serialized against client safety and duplicate service-period creation. This supplies a blocked shell; it does not establish an approved accounting-only service policy, review or completion profile. Those remain separate requirements.
+- **CRM-03 / PM-05:** `PracticeCrmService.Routing.cs` filters purpose routes by firm/client, revocation, effective dates and active contact; it refuses absent/ambiguous routes and retains recipient name/email/document hash in dispatch records. `ClientRelationshipsAndRoutingTests.CorrespondenceRouting_ResolvesPurposeSpecificContacts_AndRecordsImmutableDispatch` covers purpose selection, absent recipient, override reason, retained snapshot and deactivated contact refusal. The body was inspected, not rerun. DEC-09 and end-to-end dispatch-time changes/expiry remain separate acceptance work.
 - **NFR-05/06/08 / PM-14/16:** the current NFR authority explicitly leaves HTTP p95/concurrency targets, recovery goals and supported browser/locale/assistive-technology acceptance open. No numeric target or accessibility certification is invented here. See [current NFR authority](../architecture/auditsphere-architecture-policy-non-functional-requirements-current.md#5-availability-performance-and-recovery--open).
 - **UAT-15 / PM-14:** production-like recovery, live exact-site readback, certificate/checkpoint and independent operator evidence are required separately. Local fixture tests do not close this gate.
 

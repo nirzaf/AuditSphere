@@ -1897,17 +1897,7 @@
         ],
         "contractRenderer": "Large JSON accessibility snapshot timed out; server request was HTTP 200 and contract verified by served-artifact tests."
       },
-      "currentCommitReleaseVerification": {
-        "runId": 39061831892,
-        "commit": "270c9c9184f942e5b3677dd376018600a1aa64e1",
-        "result": "IN_PROGRESS",
-        "observed": "Requested immutable full SHA resolved successfully; full regression jobs queued",
-        "discardedDispatch": {
-          "runId": 39061767898,
-          "result": "FAIL",
-          "reason": "Short-SHA checkout failed before tests; replaced by full immutable SHA dispatch"
-        }
-      },
+      "currentCommitReleaseVerification": "NOT_RUN: new repaired source requires exact-SHA CI/CD; preceding run remains observed separately",
       "testedCodeCommit": "37457ac4ead06b274be2ac8b99ac1b547677879a",
       "negativeRevisionDomain": {
         "result": "PASS",
@@ -2019,7 +2009,33 @@
         "angularBuild": "PASS; existing commercial settings stylesheet budget warning",
         "openApiDrift": "PASS"
       },
-      "historicalVerification": "status-archive-2026-10.json: apiAngularParity.localVerification.supersededBeforeMatchingOptions20261017"
+      "historicalVerification": "status-archive-2026-10.json: apiAngularParity.localVerification.supersededBeforeMatchingOptions20261017",
+      "fullRegressionObserved": {
+        "runId": 39062107416,
+        "commit": "884c7a52768746c304d0f292a65d8a4fac9ba4b9",
+        "domain": {
+          "result": "FAIL",
+          "passed": 1348,
+          "failed": 3,
+          "total": 1351
+        },
+        "angular": "PASS",
+        "buildAndContracts": "PASS",
+        "api": "IN_PROGRESS",
+        "e2e": "IN_PROGRESS"
+      },
+      "regressionRepair": {
+        "testedCodeCommit": "3dc3b50cd4a0eb6af59fc3748bf546d83aaff920",
+        "result": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "scope": [
+          "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing",
+          "PortalRequestHistory_ContinuesBoundedOrderedPagesAndDeniesUnassignedClient",
+          "ApprovedClientCreditAllocationDerivesBalancesAndSupportsAuditedUnallocation"
+        ],
+        "notes": "SQL-translatable bounded assignee projection; final portal history continuation asserted; authorized sibling command lookup proves absent/null receipt rather than disclosing foreign intent. No suite skipped or full local run."
+      }
     }
   },
   "completePracticeManagement": {
@@ -2038,7 +2054,9 @@
       "NFR-05",
       "NFR-06",
       "NFR-08",
-      "UAT-15"
-    ]
+      "UAT-15",
+      "CRM-03"
+    ],
+    "lastTechnicalSlice": "3dc3b50cd4a0eb6af59fc3748bf546d83aaff920"
   }
 }

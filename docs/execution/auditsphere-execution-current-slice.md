@@ -19,6 +19,12 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Complete practice-management inventory and parity regression repair
+
+The supplied complete-product specification is preserved under requirements and linked to the existing PM crosswalk. PMCOMP-00 remains in progress: discovery anchors and explicit unverified rows prevent existing code from being mistaken for completed product acceptance. Current NFR targets and professional/live gates remain open.
+
+Full CI exposed an untranslatable task-assignee projection and two incorrect history/receipt assertions. The assignee query now deduplicates/orders an anonymous projection before constructing its DTO; portal history checks the last retained page; authorized sibling-client receipt recovery explicitly returns no foreign receipt. The affected focused cohort passed. Exact source/results and preceding CI failure evidence are in `status.json`. Continue criterion reconciliation and exact-SHA release verification; no production acceptance is claimed.
+
 ## API and Angular parity: task implementation verification complete (T025, T028)
 
 Both remaining parity implementation tasks from the 51-task specification have been verified with targeted checks:
