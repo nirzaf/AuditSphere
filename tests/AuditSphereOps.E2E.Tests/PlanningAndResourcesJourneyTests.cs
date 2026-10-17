@@ -49,6 +49,11 @@ public sealed class PlanningAndResourcesJourneyTests
       });
       db.TrialBalanceRows.AddRange(accounts.Select(a => new TrialBalanceRow { Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = a.Code, AccountName = a.Destination, Amount = a.Amount, Currency = "QAR", Entity = "E" }));
       await db.SaveChangesAsync();
+      var certification = await db.StaffCertifications.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId && x.UserId == manager.Id);
+      var verified = await ResourcePlanningService.ReviewCertificationAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        new(certification.Id, Guid.NewGuid(), StaffCertificationEvidence.SourceDigest(certification), 0,
+          "VERIFIED", "Synthetic planning fixture evidence", "Independent synthetic qualification review"));
+      Assert.True(verified.Succeeded, verified.Message);
       await db.TrialBalanceDatasets.Where(x => x.Id == datasetId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ImportState, TrialBalanceImportStates.Sealed));
       db.MappingVersions.Add(new MappingVersion
       {

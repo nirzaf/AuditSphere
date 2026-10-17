@@ -14,10 +14,16 @@ public sealed record StaffAssignmentRow(Guid AssignmentId, Guid UserId, string N
 
 public sealed record StaffCandidate(Guid UserId, string Name, string? Department, bool Certified);
 
+internal sealed record StaffingCertificationEligibility(Guid CertificationId, Guid UserId, string SourceDigest,
+  Guid? LatestReviewId, long LatestReviewRevision, string? LatestReviewRequestDigest,
+  string? LatestReviewSourceDigest, string? LatestReviewDecision, bool Applicable);
+
+internal sealed record StaffingCertificationSnapshot(bool Overflowed, IReadOnlyList<StaffingCertificationEligibility> Entries);
+
 /// <summary>
 /// Four-level engagement staffing. Each level maps explicitly to one engagement-scoped authorization role
 /// (Partner, Manager, Senior, Staff) that the assignment creates and its revocation removes, with role-change
-/// evidence and session invalidation. Partner and Manager levels need a current certification on the staff profile;
+/// evidence and session invalidation. Partner and Manager levels need current independently reviewed certification evidence;
 /// an engagement has at most one Engagement Partner; nobody staffs themselves or above their own rank.
 /// </summary>
 public static class StaffingService
@@ -53,8 +59,13 @@ public static class StaffingService
         : CommandResult<Guid>.Fail("staffing.conflict", "This person is already staffed at another level; revoke that assignment first.");
     if (level == StaffingLevels.EngagementPartner && active.Any(x => x.StaffingLevel == StaffingLevels.EngagementPartner))
       return CommandResult<Guid>.Fail("staffing.conflict", "The engagement already has an Engagement Partner.");
-    if (StaffingLevels.Rank(level) >= 3 && !await IsCertifiedAsync(db, actor.FirmId, target.Id, ct))
-      return CommandResult<Guid>.Fail("staffing.certification", "Partner and Manager levels need a current professional certification on the staff profile.");
+    if (StaffingLevels.Rank(level) >= 3)
+    {
+      var certifications = await CertificationSnapshotAsync(db, actor.FirmId, [target.Id],
+        DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime), ct);
+      if (!certifications.Entries.Any(x => x.Applicable))
+        return CommandResult<Guid>.Fail("staffing.certification", "Partner and Manager levels need a current professional certification on the staff profile.");
+    }
 
     var now = DateTimeOffset.UtcNow;
     var role = StaffingLevels.AuthorizationRole(level);
@@ -156,9 +167,9 @@ public static class StaffingService
     if (!auth.Succeeded) return CommandResult<IReadOnlyList<StaffAssignmentRow>>.Fail(auth.ErrorCode!, auth.Message!);
     var rows = await db.EngagementStaffAssignments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.RevokedAt == null)
       .Join(db.Users.AsNoTracking(), a => a.UserId, u => u.Id, (a, u) => new { a, u.DisplayName }).ToListAsync(ct);
-    var today = DateOnly.FromDateTime(DateTime.UtcNow);
-    var certified = await db.StaffCertifications.AsNoTracking().Where(x => x.FirmId == actor.FirmId && (x.ExpiresOn == null || x.ExpiresOn >= today))
-      .Select(x => x.UserId).Distinct().ToListAsync(ct);
+    var certifications = await CertificationSnapshotAsync(db, actor.FirmId, rows.Select(x => x.a.UserId).Distinct().ToArray(),
+      DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime), ct);
+    var certified = certifications.Entries.Where(x => x.Applicable).Select(x => x.UserId).ToHashSet();
     return CommandResult<IReadOnlyList<StaffAssignmentRow>>.Ok(rows
       .OrderByDescending(x => StaffingLevels.Rank(x.a.StaffingLevel)).ThenBy(x => x.DisplayName)
       .Select(x => new StaffAssignmentRow(x.a.Id, x.a.UserId, x.DisplayName, x.a.StaffingLevel, StaffingLevels.Label(x.a.StaffingLevel),
@@ -168,13 +179,15 @@ public static class StaffingService
   public static async Task<IReadOnlyList<StaffCandidate>> CandidatesAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct = default, int? limit = null)
   {
     if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
-    var today = DateOnly.FromDateTime(DateTime.UtcNow);
-    return await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserKind == "Staff" && !x.Disabled && x.Id != actor.UserId)
+    var users = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserKind == "Staff" && !x.Disabled && x.Id != actor.UserId)
       .OrderBy(x => x.DisplayName)
-      .Select(x => new StaffCandidate(x.Id, x.DisplayName,
-        db.StaffProfiles.Where(p => p.FirmId == x.FirmId && p.UserId == x.Id).Select(p => p.Department).FirstOrDefault(),
-        db.StaffCertifications.Any(c => c.FirmId == x.FirmId && c.UserId == x.Id && (c.ExpiresOn == null || c.ExpiresOn >= today))))
+      .Select(x => new { x.Id, x.DisplayName,
+        Department = db.StaffProfiles.Where(p => p.FirmId == x.FirmId && p.UserId == x.Id).Select(p => p.Department).FirstOrDefault() })
       .Take(limit ?? int.MaxValue).ToListAsync(ct);
+    var certifications = await CertificationSnapshotAsync(db, actor.FirmId, users.Select(x => x.Id).ToArray(),
+      DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime), ct);
+    var certified = certifications.Entries.Where(x => x.Applicable).Select(x => x.UserId).ToHashSet();
+    return users.Select(x => new StaffCandidate(x.Id, x.DisplayName, x.Department, certified.Contains(x.Id))).ToList();
   }
 
   /// <summary>Staffing rank of the acting user on this engagement: administrators and firm Partners rank as Partner.</summary>
@@ -192,9 +205,37 @@ public static class StaffingService
     return 1;
   }
 
-  private static async Task<bool> IsCertifiedAsync(IAuditSphereDbContext db, Guid firmId, Guid userId, CancellationToken ct)
+  internal static async Task<StaffingCertificationSnapshot> CertificationSnapshotAsync(IAuditSphereDbContext db,
+    Guid firmId, IReadOnlyCollection<Guid> userIds, DateOnly asOfDate, CancellationToken ct, int? maximumCount = null)
   {
-    var today = DateOnly.FromDateTime(DateTime.UtcNow);
-    return await db.StaffCertifications.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.UserId == userId && (x.ExpiresOn == null || x.ExpiresOn >= today), ct);
+    if (maximumCount is < 0) throw new ArgumentOutOfRangeException(nameof(maximumCount));
+    var selectedUsers = userIds.Distinct().ToArray();
+    if (selectedUsers.Length == 0) return new(false, []);
+
+    var sourceQuery = db.StaffCertifications.AsNoTracking()
+      .Where(x => x.FirmId == firmId && selectedUsers.Contains(x.UserId))
+      .OrderBy(x => x.UserId).ThenBy(x => x.Id);
+    if (maximumCount is { } max) sourceQuery = sourceQuery.Take(max + 1).OrderBy(x => x.UserId).ThenBy(x => x.Id);
+    var sources = await sourceQuery.ToListAsync(ct);
+    var overflowed = maximumCount is { } bound && sources.Count > bound;
+    if (overflowed) sources = sources.Take(maximumCount!.Value).ToList();
+    if (sources.Count == 0) return new(overflowed, []);
+
+    var sourceIds = sources.Select(x => x.Id).ToArray();
+    var reviews = await db.StaffCertificationReviews.AsNoTracking()
+      .Where(x => x.FirmId == firmId && sourceIds.Contains(x.CertificationId) &&
+        !db.StaffCertificationReviews.Any(newer => newer.FirmId == x.FirmId && newer.CertificationId == x.CertificationId && newer.Revision > x.Revision))
+      .OrderBy(x => x.CertificationId).ThenByDescending(x => x.Revision).ThenByDescending(x => x.Id)
+      .ToListAsync(ct);
+    var latestByCertification = reviews.GroupBy(x => x.CertificationId)
+      .ToDictionary(x => x.Key, x => x.First());
+    var entries = sources.Select(source =>
+    {
+      latestByCertification.TryGetValue(source.Id, out var latest);
+      return new StaffingCertificationEligibility(source.Id, source.UserId, StaffCertificationEvidence.SourceDigest(source),
+        latest?.Id, latest?.Revision ?? 0, latest?.RequestDigest, latest?.SourceDigest, latest?.Decision,
+        StaffCertificationEvidence.IsApplicable(source, latest?.Evidence(), asOfDate));
+    }).ToList();
+    return new(overflowed, entries);
   }
 }

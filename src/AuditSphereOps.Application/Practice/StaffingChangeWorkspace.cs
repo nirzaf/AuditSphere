@@ -72,10 +72,9 @@ public static class StaffingChangeWorkspace
       (fields.Level == StaffingLevels.EngagementPartner && active.Any(x => x.StaffingLevel == fields.Level))))
       return CommandResult<StaffingChangePreview>.Fail("staffing.conflict", "The requested assignment is no longer available.");
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
-    var certifications = await db.StaffCertifications.AsNoTracking().Where(x => x.FirmId == a.FirmId && x.UserId == fields.UserId &&
-      (x.ExpiresOn == null || x.ExpiresOn >= today)).OrderBy(x => x.Id).Select(x => new { x.Id, x.ExpiresOn }).Take(1001).ToListAsync(ct);
-    if (certifications.Count > 1000) return Unavailable<StaffingChangePreview>();
-    var certified = certifications.Count > 0;
+    var certifications = await StaffingService.CertificationSnapshotAsync(db, a.FirmId, [fields.UserId], today, ct, maximumCount: 1000);
+    if (certifications.Overflowed) return Unavailable<StaffingChangePreview>();
+    var certified = certifications.Entries.Any(x => x.Applicable);
     if (fields.Action == "ASSIGN" && StaffingLevels.Rank(fields.Level) >= 3 && !certified)
       return CommandResult<StaffingChangePreview>.Fail("staffing.certification", "Partner and Manager levels need current certification.");
     var role = StaffingLevels.AuthorizationRole(fields.Level);
@@ -91,7 +90,7 @@ public static class StaffingChangeWorkspace
     var hash = RequestHash(a, id, r.RequestId, fields);
     var basis = Hashing.Sha256Hex(JsonSerializer.Serialize(new { a.FirmId, a.UserId, a.SessionEpoch, id,
       e.Generation, ClientGeneration = generation.Value, Fields = fields, TargetEpoch = target.SessionEpoch, target.Disabled,
-      target.DisplayName, Rank = rank, Active = active, Certifications = certifications, Grants = grants, Day = today }));
+      target.DisplayName, Rank = rank, Active = active, Certifications = certifications.Entries, Grants = grants, Day = today }));
     if (!await Authorized(db, a, id, ct)) return Unavailable<StaffingChangePreview>();
     return CommandResult<StaffingChangePreview>.Ok(new(id, r.RequestId, hash, basis, fields, target.DisplayName, role,
       certified, removesGrant, effect, Exact(target.SessionEpoch), Exact(e.Generation), Exact(generation.Value)));

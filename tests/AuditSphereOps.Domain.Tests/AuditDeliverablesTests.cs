@@ -59,6 +59,9 @@ public sealed partial class AuditDeliverablesTests
     db.AuditProgramVersions.Add(new AuditProgramVersion { Id = versionId, FirmId = firmId, Version = "2026.1", SourceHash = Hashing.Sha256Hex("p"), Status = AuditProgramStatuses.Published,
       CreatedByUserId = u["partner"].Id, ApprovedByUserId = u["partner"].Id, CreatedAt = now, ApprovedAt = now });
     await db.SaveChangesAsync();
+    var administrator = await StaffingCertificationTestEvidence.CreateAdministratorAsync(db, firmId);
+    foreach (var certificationId in db.StaffCertifications.Local.Select(x => x.Id).ToArray())
+      await StaffingCertificationTestEvidence.ReviewAsync(db, administrator, certificationId);
     var programId = Guid.NewGuid();
     db.EngagementAuditPrograms.Add(new EngagementAuditProgram { Id = programId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId, ProgramVersionId = versionId, AdoptedByUserId = u["partner"].Id, AdoptedAt = now });
     var procedure = new AuditProcedure { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, EngagementProgramId = programId, SourceProcedureId = "REV-01",

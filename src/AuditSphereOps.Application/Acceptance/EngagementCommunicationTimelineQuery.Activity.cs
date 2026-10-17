@@ -221,10 +221,10 @@ public static partial class EngagementCommunicationTimelineQuery
       }
       var correspondenceRows = await correspondenceQuery.OrderByDescending(x => x.DispatchedAt).ThenByDescending(x => x.Id)
         .Take(request.PageSize + 1)
-        .Select(x => new { x.Id, x.DispatchedAt })
+        .Select(x => new { x.Id, x.DispatchedAt, x.DispatchedByUserId })
         .ToListAsync(ct);
       items.AddRange(correspondenceRows.Select(x => new EngagementActivityItem(x.Id, CorrespondenceSource,
-        "CORRESPONDENCE_RECORDED", "Correspondence routing recorded", null,
+        "CORRESPONDENCE_RECORDED", "Correspondence routing recorded", x.DispatchedByUserId == Guid.Empty ? null : x.DispatchedByUserId,
         x.DispatchedAt.ToUniversalTime(), "RECORDED", $"/app/engagements/{engagementId}/completion")));
 
       var commercialQuery = db.CommercialNotifications.AsNoTracking()

@@ -34,14 +34,20 @@ public sealed class RiskRankItemTestsTests
     // Staff actor with an engagement staffing rank.
     var staffId = Guid.NewGuid();
     var certificationRecordedAt = DateTimeOffset.UtcNow;
-    db.StaffCertifications.AddRange(
+    var certifications = new[]
+    {
       new StaffCertification { Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = manager.UserId, Name = "ACCA", RecordedAt = certificationRecordedAt, RecordedByUserId = manager.UserId },
-      new StaffCertification { Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = senior.UserId, Name = "CPA", RecordedAt = certificationRecordedAt, RecordedByUserId = manager.UserId });
+      new StaffCertification { Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = senior.UserId, Name = "CPA", RecordedAt = certificationRecordedAt, RecordedByUserId = manager.UserId }
+    };
+    db.StaffCertifications.AddRange(certifications);
     db.Users.Add(NewStaffUser(scope.FirmId, staffId));
     db.RoleGrants.Add(Grant(scope, staffId, "Staff"));
     var seniorId = senior.UserId;
     var reviewManagerId = manager.UserId;
     await db.SaveChangesAsync();
+    var administrator = await StaffingCertificationTestEvidence.CreateAdministratorAsync(db, scope.FirmId);
+    foreach (var certification in certifications)
+      await StaffingCertificationTestEvidence.ReviewAsync(db, administrator, certification.Id);
 
     var staffAssigned = await StaffingService.AssignAsync(db, scope.Actor, new(scope.EngagementId, staffId, StaffingLevels.StaffAssociate));
     Assert.True(staffAssigned.Succeeded, $"staff: {staffAssigned.Message}");

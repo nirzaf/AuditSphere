@@ -52,6 +52,13 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     return new(firmId, clientId, engagementId, users);
   }
 
+  private static async Task VerifyCertificationsAsync(AuditSphereDbContext db, World w, params Guid[] certificationIds)
+  {
+    var administrator = await StaffingCertificationTestEvidence.CreateAdministratorAsync(db, w.FirmId);
+    foreach (var certificationId in certificationIds)
+      await StaffingCertificationTestEvidence.ReviewAsync(db, administrator, certificationId);
+  }
+
   [Fact]
   public async Task Staffing_ConcurrentAssignmentPublishesOneGrantAndAssignment()
   {
@@ -317,11 +324,16 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     var manager = w.Actor("manager", "Manager");
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      // Partner level needs a current certification; an expired one does not count.
+      // Partner level needs a current independent review; an expired or recorded-only source does not count.
       Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "ACCA", "ACCA", new DateOnly(2020, 1, 1)))).Succeeded);
       Assert.Equal("staffing.certification", (await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["partner2"].Id, StaffingLevels.EngagementPartner))).ErrorCode);
-      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "CPA", "AICPA", null))).Succeeded);
-      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["manager"].Id, "ACCA", "ACCA", null))).Succeeded);
+      var partnerCertification = await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "CPA", "AICPA", null));
+      var managerCertification = await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["manager"].Id, "ACCA", "ACCA", null));
+      Assert.True(partnerCertification.Succeeded);
+      Assert.True(managerCertification.Succeeded);
+      Assert.Equal("staffing.certification", (await StaffingService.AssignAsync(db, partner,
+        new(w.EngagementId, w.Users["partner2"].Id, StaffingLevels.EngagementPartner))).ErrorCode);
+      await VerifyCertificationsAsync(db, w, partnerCertification.Value, managerCertification.Value);
     }
     Guid AssignOk(AuditSphereDbContext db, ActorContext actor, string user, string level)
     {
@@ -563,9 +575,11 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     // Add certifications and staffing assignments
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "CPA", "AICPA", null))).Succeeded);
-      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["manager"].Id, "ACCA", "ACCA", null))).Succeeded);
-
+      var partnerCertification = await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "CPA", "AICPA", null));
+      var managerCertification = await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["manager"].Id, "ACCA", "ACCA", null));
+      Assert.True(partnerCertification.Succeeded);
+      Assert.True(managerCertification.Succeeded);
+      await VerifyCertificationsAsync(db, w, partnerCertification.Value, managerCertification.Value);
       Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["partner2"].Id, StaffingLevels.EngagementPartner))).Succeeded);
       Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["manager"].Id, StaffingLevels.AuditManager))).Succeeded);
       Assert.True((await StaffingService.AssignAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.SeniorAuditor))).Succeeded);
@@ -651,8 +665,11 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     var associate = w.Actor("associate", "Staff");
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "CPA", "AICPA", null))).Succeeded);
-      Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["manager"].Id, "ACCA", "ACCA", null))).Succeeded);
+      var partnerCertification = await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["partner2"].Id, "CPA", "AICPA", null));
+      var managerCertification = await ResourcePlanningService.AddCertificationAsync(db, manager, new(w.Users["manager"].Id, "ACCA", "ACCA", null));
+      Assert.True(partnerCertification.Succeeded);
+      Assert.True(managerCertification.Succeeded);
+      await VerifyCertificationsAsync(db, w, partnerCertification.Value, managerCertification.Value);
       Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["partner2"].Id, StaffingLevels.EngagementPartner))).Succeeded);
       Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["manager"].Id, StaffingLevels.AuditManager))).Succeeded);
       Assert.True((await StaffingService.AssignAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.SeniorAuditor))).Succeeded);

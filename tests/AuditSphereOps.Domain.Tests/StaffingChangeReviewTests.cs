@@ -1,6 +1,9 @@
 using System.Text.Json;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -65,5 +68,109 @@ public sealed class StaffingChangeReviewTests
     Assert.False((await StaffingChangeWorkspace.ExecuteAsync(db, actor, f.EngagementId, r with { RequestHash = new string('f',64) })).Succeeded);
     await db.Users.Where(x => x.Id == f.Reviewer.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Disabled, true));
     Assert.False((await StaffingChangeWorkspace.PreviewAsync(db, actor, f.EngagementId, r)).Succeeded);
+  }
+
+  [Fact]
+  public async Task HigherStaffingEligibilityUsesLatestExactReviewAcrossCandidatesCommandsAndPreview()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options); var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    var revokedTarget = PbcSeed.User(f.FirmId, "Staff");
+    var staleTarget = PbcSeed.User(f.FirmId, "Staff");
+    db.Users.AddRange(revokedTarget, staleTarget);
+    var recordedAt = DateTimeOffset.UtcNow.AddSeconds(-1);
+    var firstSource = new StaffCertification { Id = Guid.NewGuid(), FirmId = f.FirmId, UserId = f.Reviewer.Id,
+      Name = "Synthetic CPA", RecordedAt = recordedAt, RecordedByUserId = f.Staff.Id };
+    var revokedSource = new StaffCertification { Id = Guid.NewGuid(), FirmId = f.FirmId, UserId = revokedTarget.Id,
+      Name = "Synthetic ACCA", RecordedAt = recordedAt, RecordedByUserId = f.Staff.Id };
+    var staleSource = new StaffCertification { Id = Guid.NewGuid(), FirmId = f.FirmId, UserId = staleTarget.Id,
+      Name = "Synthetic CA", RecordedAt = recordedAt, RecordedByUserId = f.Staff.Id };
+    db.StaffCertifications.AddRange(firstSource, revokedSource, staleSource);
+    await db.SaveChangesAsync();
+
+    Assert.False((await StaffingService.CandidatesAsync(db, actor)).Single(x => x.UserId == f.Reviewer.Id).Certified);
+    var firstRequest = new StaffingChangeRequest(Guid.NewGuid(), new("ASSIGN", f.Reviewer.Id, StaffingLevels.AuditManager));
+    Assert.Equal("staffing.certification", (await StaffingChangeWorkspace.PreviewAsync(db, actor, f.EngagementId, firstRequest)).ErrorCode);
+    Assert.Equal("staffing.certification", (await StaffingService.AssignAsync(db, actor,
+      new(f.EngagementId, f.Reviewer.Id, StaffingLevels.AuditManager))).ErrorCode);
+
+    await StaffingCertificationTestEvidence.ReviewAsync(db, actor, firstSource.Id);
+    await StaffingCertificationTestEvidence.ReviewAsync(db, actor, revokedSource.Id);
+    await StaffingCertificationTestEvidence.ReviewAsync(db, actor, staleSource.Id);
+    Assert.True((await StaffingService.CandidatesAsync(db, actor)).Single(x => x.UserId == f.Reviewer.Id).Certified);
+
+    var firstPreview = (await StaffingChangeWorkspace.PreviewAsync(db, actor, f.EngagementId, firstRequest)).Value!;
+    Assert.True(firstPreview.Certified);
+    var secondRequest = new StaffingChangeRequest(Guid.NewGuid(), new("ASSIGN", f.Reviewer.Id, StaffingLevels.AuditManager));
+    await StaffingCertificationTestEvidence.ReviewAsync(db, actor, firstSource.Id, expectedRevision: 1);
+    var secondPreview = (await StaffingChangeWorkspace.PreviewAsync(db, actor, f.EngagementId, secondRequest)).Value!;
+    Assert.True(secondPreview.Certified);
+    Assert.NotEqual(firstPreview.ReviewBasis, secondPreview.ReviewBasis);
+
+    var staleHead = firstRequest with { Reviewed = true, RequestHash = firstPreview.RequestHash, ReviewBasis = firstPreview.ReviewBasis };
+    Assert.Equal(ErrorCodes.StaleRevision, (await StaffingChangeWorkspace.ExecuteAsync(db, actor, f.EngagementId, staleHead)).ErrorCode);
+    var approved = secondRequest with { Reviewed = true, RequestHash = secondPreview.RequestHash, ReviewBasis = secondPreview.ReviewBasis };
+    var assigned = await StaffingChangeWorkspace.ExecuteAsync(db, actor, f.EngagementId, approved);
+    Assert.True(assigned.Succeeded, assigned.Message);
+    var assignmentReceipt = assigned.Value!;
+    Assert.True((await StaffingService.ListAsync(db, actor, f.EngagementId)).Value!
+      .Single(x => x.UserId == f.Reviewer.Id).Certified);
+    var historicAssignment = await db.EngagementStaffAssignments.AsNoTracking().SingleAsync(x => x.Id == assignmentReceipt.AssignmentId);
+    var historicReceipt = await db.StaffingChanges.AsNoTracking().SingleAsync(x => x.Id == assignmentReceipt.Id);
+    var historicGrant = await db.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == historicAssignment.RoleGrantId);
+
+    await StaffingCertificationTestEvidence.ReviewAsync(db, actor, firstSource.Id, expectedRevision: 2, decision: "REVOKED");
+    await StaffingCertificationTestEvidence.ReviewAsync(db, actor, revokedSource.Id, expectedRevision: 1, decision: "REVOKED");
+    Assert.False((await StaffingService.CandidatesAsync(db, actor)).Single(x => x.UserId == f.Reviewer.Id).Certified);
+    Assert.False((await StaffingService.CandidatesAsync(db, actor)).Single(x => x.UserId == revokedTarget.Id).Certified);
+    var listed = (await StaffingService.ListAsync(db, actor, f.EngagementId)).Value!.Single(x => x.UserId == f.Reviewer.Id);
+    Assert.False(listed.Certified);
+    Assert.Equal(historicAssignment.Id, listed.AssignmentId);
+    Assert.Equal("staffing.certification", (await StaffingChangeWorkspace.PreviewAsync(db, actor, f.EngagementId,
+      new(Guid.NewGuid(), new("ASSIGN", revokedTarget.Id, StaffingLevels.AuditManager)))).ErrorCode);
+    Assert.Equal("staffing.certification", (await StaffingService.AssignAsync(db, actor,
+      new(f.EngagementId, revokedTarget.Id, StaffingLevels.AuditManager))).ErrorCode);
+
+    await db.StaffCertifications.Where(x => x.Id == staleSource.Id)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.Name, "Changed synthetic source"));
+    Assert.False((await StaffingService.CandidatesAsync(db, actor)).Single(x => x.UserId == staleTarget.Id).Certified);
+    Assert.Equal("staffing.certification", (await StaffingChangeWorkspace.PreviewAsync(db, actor, f.EngagementId,
+      new(Guid.NewGuid(), new("ASSIGN", staleTarget.Id, StaffingLevels.AuditManager)))).ErrorCode);
+    Assert.Equal("staffing.certification", (await StaffingService.AssignAsync(db, actor,
+      new(f.EngagementId, staleTarget.Id, StaffingLevels.AuditManager))).ErrorCode);
+
+    var currentAssignment = await db.EngagementStaffAssignments.AsNoTracking().SingleAsync(x => x.Id == historicAssignment.Id);
+    var currentGrant = await db.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == historicGrant.Id);
+    var currentReceipt = await db.StaffingChanges.AsNoTracking().SingleAsync(x => x.Id == historicReceipt.Id);
+    Assert.Equal((historicAssignment.AssignedAt, historicAssignment.AssignedByUserId, historicAssignment.RevokedAt),
+      (currentAssignment.AssignedAt, currentAssignment.AssignedByUserId, currentAssignment.RevokedAt));
+    Assert.Equal((historicGrant.Role, historicGrant.RevokedAt), (currentGrant.Role, currentGrant.RevokedAt));
+    Assert.Equal((historicReceipt.ReviewBasis, historicReceipt.PreviewJson), (currentReceipt.ReviewBasis, currentReceipt.PreviewJson));
+    Assert.Equal(new long[] { 1, 2, 3 }, await db.StaffCertificationReviews.AsNoTracking()
+      .Where(x => x.CertificationId == firstSource.Id).OrderBy(x => x.Revision).Select(x => x.Revision).ToListAsync());
+  }
+}
+
+internal static class StaffingCertificationTestEvidence
+{
+  internal static async Task<ActorContext> CreateAdministratorAsync(AuditSphereDbContext db, Guid firmId)
+  {
+    var admin = PbcSeed.User(firmId, "Staff");
+    db.Users.Add(admin);
+    db.RoleGrants.Add(PbcSeed.AdminGrant(firmId, admin));
+    await db.SaveChangesAsync();
+    return PbcSeed.Actor(admin, "Administrator");
+  }
+
+  internal static async Task<Guid> ReviewAsync(AuditSphereDbContext db, ActorContext admin, Guid certificationId,
+    long expectedRevision = 0, string decision = "VERIFIED")
+  {
+    var source = await db.StaffCertifications.AsNoTracking()
+      .SingleAsync(x => x.FirmId == admin.FirmId && x.Id == certificationId);
+    var result = await ResourcePlanningService.ReviewCertificationAsync(db, admin,
+      new(certificationId, Guid.NewGuid(), StaffCertificationEvidence.SourceDigest(source), expectedRevision,
+        decision, "test://independent-review", "Synthetic independent administrator review."));
+    Assert.True(result.Succeeded, result.Message);
+    return result.Value;
   }
 }

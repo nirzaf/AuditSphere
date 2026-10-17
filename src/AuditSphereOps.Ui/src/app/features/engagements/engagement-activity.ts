@@ -136,6 +136,7 @@ function defaultUtcDate(daysAgo: number): string {
               <li>
                 <time [attr.datetime]="item.atUtc">{{ utcTime(item.atUtc) }} UTC</time>
                 <p>{{ item.label }}</p>
+                <p>Recorded actor ID: {{ item.actorUserId || 'Not recorded' }}</p>
                 <p><small>{{ sourceLabel(item.source) }} · {{ item.kind }}</small></p>
                 @if (item.currentStatus !== null) {
                   <p>Current stored status: {{ item.currentStatus }}</p>

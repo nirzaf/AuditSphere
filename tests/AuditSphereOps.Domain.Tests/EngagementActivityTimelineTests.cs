@@ -40,6 +40,7 @@ public sealed class EngagementActivityTimelineTests
     var siblingNoteId = Guid.NewGuid();
     var siblingEventId = Guid.NewGuid();
     var correspondenceId = Guid.NewGuid();
+    var legacyCorrespondenceId = Guid.Parse("00000000-0000-0000-0000-000000000001");
     var deliverableId = Guid.NewGuid();
     var notificationId = Guid.NewGuid();
     var requestId = Guid.NewGuid();
@@ -181,6 +182,14 @@ public sealed class EngagementActivityTimelineTests
         DocumentType = "MANAGEMENT_LETTER", DocumentReference = "ML-09", DocumentRevision = 1,
         DocumentSha256 = new string('c', 64), DispatchedByUserId = manager.Id, DispatchedAt = occurredAt
       });
+      db.CorrespondenceDispatchRecords.Add(new CorrespondenceDispatchRecord
+      {
+        Id = legacyCorrespondenceId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+        EngagementId = seed.EngagementId, Purpose = CorrespondencePurposes.Completion,
+        RecipientContactId = contactId, RecipientName = "Legacy Contact", RecipientEmail = "legacy@example.test",
+        DocumentType = "MANAGEMENT_LETTER", DocumentReference = "LEGACY-ML", DocumentRevision = 1,
+        DocumentSha256 = new string('c', 64), DispatchedByUserId = Guid.Empty, DispatchedAt = occurredAt
+      });
       db.AuditDeliverables.Add(new AuditDeliverable
       {
         Id = deliverableId, FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
@@ -204,7 +213,7 @@ public sealed class EngagementActivityTimelineTests
     var expected = new (int Source, Guid Id)[]
     {
       (1, pbcHighId), (1, pbcLowId), (2, uploadId), (3, workflowActivityId), (4, noteId),
-      (5, noteEventId), (6, correspondenceId), (7, notificationId)
+      (5, noteEventId), (6, correspondenceId), (6, legacyCorrespondenceId), (7, notificationId)
     };
     var all = new List<EngagementActivityItem>();
     EngagementActivityRequest request = new(from, to, PageSize: 2);
@@ -254,6 +263,9 @@ public sealed class EngagementActivityTimelineTests
       Assert.Equal("STARTED", all.Single(x => x.Id == uploadId).CurrentStatus);
       Assert.DoesNotContain("accepted", all.Single(x => x.Id == uploadId).Label, StringComparison.OrdinalIgnoreCase);
       Assert.Equal("RECORDED", all.Single(x => x.Id == correspondenceId).CurrentStatus);
+      Assert.Equal(manager.Id, all.Single(x => x.Id == correspondenceId).ActorUserId);
+      Assert.Null(all.Single(x => x.Id == notificationId).ActorUserId);
+      Assert.Null(all.Single(x => x.Source == 6 && x.Id == legacyCorrespondenceId).ActorUserId);
       Assert.Equal("Review note response", all.Single(x => x.Id == noteEventId).Label);
       Assert.DoesNotContain(all, x => x.Id == siblingEventId);
       Assert.All(all, x => Assert.StartsWith("/app/", x.SourceHref, StringComparison.Ordinal));

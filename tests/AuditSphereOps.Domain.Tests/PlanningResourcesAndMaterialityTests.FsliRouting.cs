@@ -65,10 +65,13 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     var partner = w.Actor("partner", "Partner");
     var manager = w.Actor("manager", "Manager");
     await using var db = new AuditSphereDbContext(pg.Options);
-    Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager,
-      new(w.Users["partner2"].Id, "CPA", "AICPA", null))).Succeeded);
-    Assert.True((await ResourcePlanningService.AddCertificationAsync(db, manager,
-      new(w.Users["manager"].Id, "ACCA", "ACCA", null))).Succeeded);
+    var partnerCertification = await ResourcePlanningService.AddCertificationAsync(db, manager,
+      new(w.Users["partner2"].Id, "CPA", "AICPA", null));
+    var managerCertification = await ResourcePlanningService.AddCertificationAsync(db, manager,
+      new(w.Users["manager"].Id, "ACCA", "ACCA", null));
+    Assert.True(partnerCertification.Succeeded);
+    Assert.True(managerCertification.Succeeded);
+    await VerifyCertificationsAsync(db, w, partnerCertification.Value, managerCertification.Value);
     Assert.True((await StaffingService.AssignAsync(db, partner,
       new(w.EngagementId, w.Users["partner2"].Id, StaffingLevels.EngagementPartner))).Succeeded);
     Assert.True((await StaffingService.AssignAsync(db, partner,

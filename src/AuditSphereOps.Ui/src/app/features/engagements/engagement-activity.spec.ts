@@ -133,7 +133,7 @@ describe('Engagement activity panel', () => {
         label: 'Review note response', currentStatus: null,
         sourceHref: `/app/engagements/${engagementA}/audit-fieldwork` }),
       item({ id: '40000000-0000-4000-8000-000000000006', source: 6, kind: 'CORRESPONDENCE_RECORDED',
-        label: 'Correspondence routing recorded', currentStatus: 'RECORDED',
+        label: 'Correspondence routing recorded', currentStatus: 'RECORDED', actorUserId: '50000000-0000-4000-8000-000000000001',
         sourceHref: `/app/engagements/${engagementA}/completion` }),
       item({ id: '40000000-0000-4000-8000-000000000007', source: 7, kind: 'PROPOSAL',
         label: 'Commercial notification recorded', currentStatus: 'QUEUED',
@@ -146,6 +146,8 @@ describe('Engagement activity panel', () => {
     expect(root.querySelector('img')).toBeNull();
     expect(root.textContent).toContain(injectedLabel);
     expect(root.textContent).toContain('Current stored status: STARTED');
+    expect(root.textContent).toContain('Recorded actor ID: 50000000-0000-4000-8000-000000000001');
+    expect(root.textContent).toContain('Recorded actor ID: Not recorded');
     expect(root.textContent).toContain('PBC upload · UPLOAD_INTENT_RECORDED');
     for (const label of [
       'PBC email recorded', 'Operational task activity', 'Review note created', 'Review note response',

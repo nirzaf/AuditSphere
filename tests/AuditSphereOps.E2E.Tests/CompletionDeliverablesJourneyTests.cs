@@ -79,8 +79,16 @@ public sealed class CompletionDeliverablesJourneyTests
       await CompletionTestFixtures.SeedTaxonomyAsync(db, f.FirmId, partner.Id);
     }
     await using (var db = host.CreateDbContext())
-      Assert.True((await StaffingService.AssignAsync(db, new ActorContext(f.Admin.Id, f.FirmId, f.Admin.SessionEpoch, ["Administrator"]),
+    {
+      var administrator = new ActorContext(f.Admin.Id, f.FirmId, f.Admin.SessionEpoch, ["Administrator"]);
+      var certification = await db.StaffCertifications.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId && x.UserId == partner.Id);
+      var verified = await ResourcePlanningService.ReviewCertificationAsync(db, administrator,
+        new(certification.Id, Guid.NewGuid(), StaffCertificationEvidence.SourceDigest(certification), 0,
+          "VERIFIED", "Synthetic completion fixture evidence", "Independent synthetic qualification review"));
+      Assert.True(verified.Succeeded, verified.Message);
+      Assert.True((await StaffingService.AssignAsync(db, administrator,
         new(f.EngagementId, partner.Id, StaffingLevels.EngagementPartner))).Succeeded);
+    }
 
     // Seed the released financial package before generating/signing deliverables so every final document
     // is current against the same completed-engagement facts.
