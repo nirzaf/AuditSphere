@@ -104,7 +104,7 @@ Exact existing application keys are sourced from [API settings](../../src/AuditS
 | `DOTNET_ENVIRONMENT` / Web `ASPNETCORE_ENVIRONMENT` | Both `Development` for Web | Both `Test` for Web; Worker `DOTNET_ENVIRONMENT=Test` | `Test` for owned hosts | `Acceptance`; subject to approved composition |
 | `AUDITSPHERE_TEST_CONNECTION` | Loopback `auditsphere_tests` | Existing suite only; scenario fixture uses separate connection | Loopback `auditsphere_tests` per job | Not a tenant target |
 | `ConnectionStrings__AuditSphere` | Explicit loopback development DB | Owned `auditsphere_e2e_*` DB | Test DB for readiness; scenario DB for future UI | Approved isolated DB; secret supplied privately |
-| `AUDITSPHERE_EF_CONNECTION` | Explicit migration target | Same owned scenario target during migration | Test/scenario target only | Approved migration procedure, no runtime migrations |
+| `AUDITSPHERE_MIGRATION_CONNECTION` | Explicit migration target | Same owned scenario target during migration | Test/scenario target only | Approved migration procedure, no runtime migrations |
 | Web `Application__FirmId`, `Application__InstallationId`, `Application__PublicBaseUrl` | Configured local scope/origin | Seeded firm/installation and role-host origin | Same synthetic scope, not production values | Approved values from protected configuration |
 | Web `Application__AllowSimulationAdapters` | `true` for local profile | `true` | `true` for simulated hosts | `false`; does not itself enable live providers |
 | Worker `AllowSimulationAdapters` | `false` unless explicitly testing; Development still cannot transfer | `true` | `true` for Test transfer worker | `false` |
@@ -168,7 +168,7 @@ The last command is **not** a complete unit partition. Traits are incomplete and
 Run EF database update only against an explicitly authorized disposable readiness/scenario DB, before host startup:
 
 ```bash
-export AUDITSPHERE_EF_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres'
+export AUDITSPHERE_MIGRATION_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres'
 dotnet ef database update --project src/AuditSphereOps.Infrastructure \
   --startup-project src/AuditSphereOps.Api --no-build --configuration Release
 ```
@@ -208,7 +208,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       AUDITSPHERE_TEST_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
-      AUDITSPHERE_EF_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
+      AUDITSPHERE_MIGRATION_CONNECTION: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
       ConnectionStrings__AuditSphere: Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres
       DOTNET_ENVIRONMENT: Test
       ASPNETCORE_ENVIRONMENT: Test

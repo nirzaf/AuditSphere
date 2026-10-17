@@ -14,7 +14,7 @@ Use the repository's current authority order and task-specific reading rules in 
 2. For implementation boundaries, use the [current architecture](auditsphere-architecture-current-architecture.md), the [code map](auditsphere-architecture-code-map.md), and the relevant `CURRENT` or `APPROVED` requirement.
 3. For decisions, use the [current ADR register](adr/auditsphere-architecture-index-adr-register-current.md) and each linked ADR's own status. Do not infer current approvals from the historical snapshot below or rename a proposed ADR based on this guide.
 4. For test selection and completion claims, use [`AGENTS.md` §4](../../AGENTS.md) and the [current testing strategy](../testing/auditsphere-testing-strategy-definition-of-done-current.md). Test suites have been restored; the old test-absence finding below records only the 2026-10-08 baseline.
-5. For backlog ownership and current execution evidence, use the task board and `docs/execution/status.json` as directed by `AGENTS.md`; historical counts and commit references in this file are not current verification.
+5. For backlog ownership and current execution evidence, use [the task board](../execution/auditsphere-execution-index-task-board-current.md) and `docs/execution/status.json` as directed by `AGENTS.md`; historical counts and commit references in this file are not current verification.
 
 ## 2. Historical 2026-10-08 pack snapshot
 
