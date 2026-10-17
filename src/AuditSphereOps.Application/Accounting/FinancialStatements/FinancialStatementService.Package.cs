@@ -215,7 +215,7 @@ public static partial class FinancialStatementService
           await typedAccounting.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
             x.Id == sourceBook.Id && x.FirmId == mapping.FirmId && x.ClientId == mapping.ClientId &&
             x.PeriodId == currentSourcePeriod!.Id, ct);
-        if (currentSourcePeriod is null || currentSourceBook is null)
+        if (currentSourcePeriod is null || currentSourceBook is null || currentSourcePeriod.Revision != sourcePeriod!.Revision)
           return CommandResult<FinancialPackageBuildResult>.Fail(ErrorCodes.GenerationStale,
             "The selected reporting context changed while the current package was being calculated; reload and retry.");
         if (!string.Equals(currentSourcePeriod.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), request.PeriodStart.Trim(), StringComparison.Ordinal) ||
@@ -570,7 +570,7 @@ public static partial class FinancialStatementService
     var priorBook = await db.ClientReportingBooks.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == comparative.BookId && x.FirmId == comparative.FirmId && x.ClientId == comparative.ClientId &&
       x.PeriodId == comparative.PeriodId, ct);
-    if (priorPeriod is null || priorBook is null ||
+    if (priorPeriod is null || priorBook is null || currentPeriod.PriorPeriodId != priorPeriod.Id ||
         !string.Equals(priorPeriod.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), comparative.PeriodStart, StringComparison.Ordinal) ||
         !string.Equals(priorPeriod.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), comparative.PeriodEnd, StringComparison.Ordinal) ||
         priorPeriod.EndDate >= currentPeriod.StartDate ||

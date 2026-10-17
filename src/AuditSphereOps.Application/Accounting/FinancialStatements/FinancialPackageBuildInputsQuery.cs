@@ -52,7 +52,10 @@ public static class FinancialPackageBuildInputsQuery
     var candidateEngagementIds = await db.FinancialPackages.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId &&
         x.Status == AccountingPackageStates.PackageValidated)
-      .Select(x => x.EngagementId).Distinct().ToListAsync(ct);
+      .GroupBy(x => x.EngagementId)
+      .Select(x => new { EngagementId = x.Key, LatestPeriodEnd = x.Max(p => p.PeriodEnd) })
+      .OrderByDescending(x => x.LatestPeriodEnd).ThenBy(x => x.EngagementId).Take(MaxOptions)
+      .Select(x => x.EngagementId).ToListAsync(ct);
     var authorizedEngagements = new HashSet<Guid> { engagement.Id };
     foreach (var candidateEngagementId in candidateEngagementIds.Where(x => x != engagement.Id))
     {

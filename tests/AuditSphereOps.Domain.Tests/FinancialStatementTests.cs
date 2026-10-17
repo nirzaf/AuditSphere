@@ -590,9 +590,13 @@ public sealed class FinancialStatementTests
     var original = FinancialStatementCalculator.ComputeSupplementaryHash(input, "QAR", 1, new string('a', 64));
     var revised = FinancialStatementCalculator.ComputeSupplementaryHash(input, "QAR", 2, new string('a', 64));
     var differentContent = FinancialStatementCalculator.ComputeSupplementaryHash(input, "QAR", 1, new string('b', 64));
+    var differentPackage = FinancialStatementCalculator.ComputeSupplementaryHash(
+      input with { Comparative = input.Comparative! with { PackageId = Guid.Parse("88888888-8888-4888-8888-888888888888") } },
+      "QAR", 1, new string('a', 64));
 
     Assert.NotEqual(original, revised);
     Assert.NotEqual(original, differentContent);
+    Assert.NotEqual(original, differentPackage);
   }
 
   [Fact]
