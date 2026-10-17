@@ -147,6 +147,110 @@ public sealed class AuditProgramCommandsApiTests
     Assert.Equal(165, await proof.AuditProcedures.CountAsync());
   }
 
+  [Fact]
+  public async Task ProcedureCommandHttpPublishesAndRecoversTheExactSubmittedOutcome()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-AUDIT-PROCEDURE-COMMAND");
+    var f = await PbcSeed.SeedAsync(pg);
+    var preparer = PbcSeed.Actor(f.Staff, "Partner");
+    var reviewer = PbcSeed.Actor(f.Reviewer, "Partner");
+    Guid procedureId;
+
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, f.Staff, "Partner"),
+        PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner"));
+      await setup.SaveChangesAsync();
+
+      var draft = await AuditProgramService.PrepareControlledAuditProgramAsync(setup, preparer,
+        new("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(draft.Succeeded, draft.Message);
+      var published = await AuditProgramService.ReviewControlledAuditProgramPublicationAsync(setup, reviewer,
+        new(draft.Value!.ProgramVersionId, draft.Value.ContentDigest!, "api-procedure-command-review"));
+      Assert.True(published.Succeeded, published.Message);
+      var adopted = await AuditProgramService.AdoptAsync(setup, preparer,
+        new(f.EngagementId, published.Value!.ProgramVersionId, AuditProgramCatalog.SourceHash,
+          published.Value.ContentDigest));
+      Assert.True(adopted.Succeeded, adopted.Message);
+
+      await PlanningBasisSeed.EstablishAsync(setup, f.FirmId, f.ClientId, f.EngagementId, preparer, reviewer);
+      procedureId = await setup.AuditProcedures.Where(x => x.EngagementId == f.EngagementId &&
+          x.SourceProcedureId == "AWP-01-01")
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    using var factory = Factory(pg, f.Staff);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(client);
+    var root = $"/api/ui/procedures/{procedureId:D}/commands";
+    using var stateResponse = await client.GetAsync(root + "/state");
+    Assert.Equal(HttpStatusCode.OK, stateResponse.StatusCode);
+    using var stateJson = JsonDocument.Parse(await stateResponse.Content.ReadAsStringAsync());
+    var basis = stateJson.RootElement.GetProperty("basis");
+    Assert.Equal("AWP-01-01", basis.GetProperty("sourceProcedureId").GetString());
+    Assert.True(basis.GetProperty("canSubmit").GetBoolean());
+    var requestId = Guid.NewGuid();
+    var request = new
+    {
+      requestId,
+      action = ProcedureCommandActions.SubmitResult,
+      expectedDefinitionRevision = basis.GetProperty("definitionRevision").GetInt32(),
+      expectedInputGeneration = basis.GetProperty("inputGeneration").GetInt64(),
+      expectedResultRevision = basis.GetProperty("currentResultRevision").GetInt64(),
+      resultId = (Guid?)null,
+      workPerformed = "Inspected the synthetic company registration record against the entity profile.",
+      structuredResultJson = "{\"observation\":\"name and registration number agree\"}",
+      evidenceReferences = new[] { "manual:synthetic-registration-record" },
+      conclusion = "The inspected registration particulars agree.",
+      decision = (string?)null,
+      comment = (string?)null,
+      reviewed = false,
+      expectedRequestHash = (string?)null
+    };
+    using var previewResponse = await Post(client, csrf, root + "/preview", request);
+    Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+    using var previewJson = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
+    var preview = previewJson.RootElement.GetProperty("value");
+    Assert.True(preview.GetProperty("canProceed").GetBoolean());
+    Assert.Equal(ProcedureCommandActions.SubmitResult, preview.GetProperty("action").GetString());
+    var requestHash = preview.GetProperty("requestHash").GetString();
+    Assert.Matches("^[0-9a-f]{64}$", requestHash!);
+
+    using var unassented = await Post(client, csrf, root + "/actions", request with
+    {
+      reviewed = false,
+      expectedRequestHash = requestHash
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, unassented.StatusCode);
+
+    var action = request with { reviewed = true, expectedRequestHash = requestHash };
+    using var response = await Post(client, csrf, root + "/actions", action);
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    using var responseJson = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    var receipt = responseJson.RootElement.GetProperty("value");
+    Assert.Equal(requestId, receipt.GetProperty("requestId").GetGuid());
+    Assert.Equal(requestHash, receipt.GetProperty("requestHash").GetString());
+    Assert.Equal(ProcedureCommandActions.SubmitResult, receipt.GetProperty("action").GetString());
+    Assert.Equal(JsonValueKind.String, receipt.GetProperty("actorEpoch").ValueKind);
+    Assert.Equal(1L, receipt.GetProperty("resultRevision").GetInt64());
+    var receiptId = receipt.GetProperty("id").GetGuid();
+
+    using var replay = await Post(client, csrf, root + "/actions", action);
+    Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+    using var replayJson = JsonDocument.Parse(await replay.Content.ReadAsStringAsync());
+    Assert.Equal(receiptId, replayJson.RootElement.GetProperty("value").GetProperty("id").GetGuid());
+    var lookup = await client.GetFromJsonAsync<JsonElement>(
+      root + $"/receipts/{requestId:D}?requestHash={requestHash}");
+    Assert.True(lookup.GetProperty("found").GetBoolean());
+    Assert.Equal(receiptId, lookup.GetProperty("receipt").GetProperty("id").GetGuid());
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Single(await proof.AuditProcedureResults.Where(x => x.AuditProcedureId == procedureId).ToListAsync());
+    Assert.Single(await proof.AuditProcedureCommandReceipts.Where(x => x.AuditProcedureId == procedureId).ToListAsync());
+    Assert.Single(await proof.WorkpaperSubmissions.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+  }
+
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg, AppUser user) => new(new Dictionary<string, string?>
   {
     ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
