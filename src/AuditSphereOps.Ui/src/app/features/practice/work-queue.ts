@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { Api, CommandState } from '../../core/api';
@@ -55,6 +55,12 @@ const decodeQueue = obj({
   summary: nullable(decodeQueueSummary),
 });
 const decodeAssigneeOptions = arr(obj({ userId: guid, displayName: nonBlank(200) }), 200);
+const decodeAssignmentWorkspace = obj({
+  engagementId: guid, truncated: bool,
+  tasks: arr(obj({ id: guid, assigneeUserId: nullable(guid), assigneeDisplayName: nullable(str(200)), revision: int, status: str(40) }), 500),
+});
+type AssignmentIntent = { task: QueueTask; owner: { userId: string; displayName: string }; action: 'assign' | 'reassign'; scope: string };
+type AssignmentObservation = ReturnType<typeof decodeAssignmentWorkspace>['tasks'][number];
 const reviewItem = obj({ resultId: guid, procedureId: guid, engagementId: guid, clientName: text,
   serviceRoute: str(100), engagementPeriod: str(80), sourceProcedureId: str(100), procedureTitle: text,
   revision: int, preparedByDisplayName: str(200), submittedAt: instant });
@@ -310,7 +316,21 @@ const queueViews: { key: QueueView; label: string }[] = [
             <dt>Engagement</dt><dd>{{ selected.engagementPeriod }} · {{ selected.engagementId }}</dd>
             <dt>Current owner</dt><dd>{{ selected.assigneeUserId ? (selected.assigneeDisplayName ?? selected.assigneeUserId) : 'Unassigned' }}</dd>
           </dl>
-          @if (assignmentOptions().length) {
+          @if (assignmentUncertain()) {
+            <p role="alert">The assignment outcome is unconfirmed. The original task, owner and revision are retained. Check current task and activity before another assignment.</p>
+            <button matButton (click)="recoverAssignment()" [disabled]="assignmentBusy() || assignmentLoading()">Check current task and activity</button>
+            @if (assignmentObservation(); as observed) {
+              <p role="status">Observed owner: {{ observed.assigneeDisplayName ?? observed.assigneeUserId ?? 'Unassigned' }} · revision {{ observed.revision }} · status {{ observed.status }}.</p>
+              @for (event of assignmentObservedActivity(); track event.id) {
+                <p>{{ eventLabel(event.kind) }} · {{ event.actorDisplayName }} · {{ event.assigneeDisplayName ?? 'Unassigned' }} · revision {{ event.taskRevision }}</p>
+              }
+              @if (observed.revision > selected.revision) {
+                <button matButton (click)="acknowledgeAssignmentObservation()" [disabled]="assignmentBusy()">Acknowledge observed owner and refresh</button>
+              } @else if (canRetryAssignment()) {
+                <button matButton (click)="retryAssignment()" [disabled]="assignmentBusy()">Retry the exact original assignment</button>
+              }
+            }
+          } @else if (assignmentOptions().length) {
             <label [attr.for]="'task-assignee-' + selected.taskId">New owner
               <select [id]="'task-assignee-' + selected.taskId" [value]="assignmentUserId()" (change)="selectAssignmentOwner($any($event.target).value)">
                 <option value="">Choose eligible staff</option>
@@ -326,10 +346,10 @@ const queueViews: { key: QueueView; label: string }[] = [
                 (click)="saveAssignment()">Confirm assignment</button>
             }
           } @else if (!assignmentLoading() && !assignmentError()) { <p>No eligible active staff members are available for this engagement.</p> }
-          <button matButton (click)="closeAssignment()" [disabled]="assignmentBusy()">Cancel</button>
-          @if (assignmentMessage()) { <p [attr.role]="assignmentFailed() ? 'alert' : 'status'">{{ assignmentMessage() }}</p> }
+          <button matButton (click)="closeAssignment()" [disabled]="assignmentBusy() || assignmentUncertain()">Cancel</button>
         </section>
       }
+      @if (assignmentMessage()) { <p [attr.role]="assignmentFailed() ? 'alert' : 'status'">{{ assignmentMessage() }}</p> }
       <p class="queue-note">Waiting for client is derived from the linked PBC request. Under review and Changes required follow the exact current procedure result; task completion never changes audit review or approval state.</p>
       @if (result.hasMore && result.nextCursor) {
         <button matButton (click)="nextPage(result.nextCursor)">Next tasks</button>
@@ -362,6 +382,12 @@ export class WorkflowWorkQueue {
   readonly assignmentError = signal('');
   readonly assignmentMessage = signal('');
   readonly assignmentFailed = signal(false);
+  readonly assignmentUncertain = signal(false);
+  readonly assignmentObservation = signal<AssignmentObservation | null>(null);
+  readonly assignmentObservedActivity = signal<ReturnType<typeof decodeActivity>['events']>([]);
+  private assignmentIntent: AssignmentIntent | null = null;
+  private assignmentRequest = 0;
+  private assignmentDestroyed = false;
   private readonly cursor = signal<{ dueDate: string | null; taskId: string } | null>(null);
   private readonly reviewCursor = signal<{ submittedAt: string; resultId: string } | null>(null);
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
@@ -406,8 +432,11 @@ export class WorkflowWorkQueue {
   constructor() {
     effect(() => {
       this.session.invalidation(); this.session.current();
-      this.evidenceTask.set(null); this.orderingTask.set(null); this.activityTask.set(null); this.closeAssignment();
+      untracked(() => {
+        this.evidenceTask.set(null); this.orderingTask.set(null); this.activityTask.set(null); this.resetAssignment();
+      });
     });
+    inject(DestroyRef).onDestroy(() => { this.assignmentDestroyed = true; ++this.assignmentRequest; });
     effect(() => {
       const ordering = this.orderingTask(); const page = this.queue.data();
       if (ordering && !page?.tasks.some(x => x.taskId === ordering.taskId && x.engagementId === ordering.engagementId)) this.orderingTask.set(null);
@@ -469,15 +498,17 @@ export class WorkflowWorkQueue {
   }
 
   async openAssignment(task: QueueTask): Promise<void> {
-    if (!task.canAssign || this.assignmentBusy()) return;
+    if (!task.canAssign || this.assignmentBusy() || this.assignmentUncertain()) return;
+    const scope = this.assignmentScope(), request = ++this.assignmentRequest;
     this.assignmentTask.set(task); this.assignmentOptions.set([]); this.assignmentUserId.set('');
     this.assignmentReviewed.set(false); this.assignmentError.set(''); this.assignmentMessage.set('');
     this.assignmentLoading.set(true);
     try {
-      this.assignmentOptions.set(await this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`, decodeAssigneeOptions));
+      const options = await this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`, decodeAssigneeOptions);
+      if (this.assignmentCurrent(scope, request)) this.assignmentOptions.set(options);
     } catch (error) {
-      this.assignmentError.set(error instanceof Error ? error.message : 'Eligible staff are unavailable. Refresh the task list.');
-    } finally { this.assignmentLoading.set(false); }
+      if (this.assignmentCurrent(scope, request)) this.assignmentError.set(error instanceof Error ? error.message : 'Eligible staff are unavailable. Refresh the task list.');
+    } finally { if (this.assignmentCurrent(scope, request)) this.assignmentLoading.set(false); }
   }
 
   selectedAssignmentOwner(): { userId: string; displayName: string } | null {
@@ -485,38 +516,116 @@ export class WorkflowWorkQueue {
   }
 
   selectAssignmentOwner(userId: string): void {
+    if (this.assignmentBusy() || this.assignmentUncertain()) return;
     this.assignmentUserId.set(userId); this.assignmentReviewed.set(false); this.assignmentMessage.set('');
   }
 
   closeAssignment(): void {
-    if (this.assignmentBusy()) return;
+    if (this.assignmentBusy() || this.assignmentUncertain()) return;
+    this.resetAssignment();
+  }
+
+  private resetAssignment(): void {
+    ++this.assignmentRequest;
     this.assignmentTask.set(null); this.assignmentOptions.set([]); this.assignmentUserId.set('');
     this.assignmentReviewed.set(false); this.assignmentError.set('');
+    this.assignmentBusy.set(false); this.assignmentLoading.set(false); this.assignmentUncertain.set(false);
+    this.assignmentMessage.set(''); this.assignmentFailed.set(false);
+    this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]); this.assignmentIntent = null;
+  }
+
+  private assignmentScope(): string {
+    const actor = this.session.current();
+    return [actor?.firmId, actor?.userId, actor?.generation, actor?.staff, this.session.invalidation()].join('|');
+  }
+
+  private assignmentCurrent(scope: string, request: number): boolean {
+    return !this.assignmentDestroyed && request === this.assignmentRequest && scope === this.assignmentScope();
   }
 
   async saveAssignment(): Promise<void> {
     const task = this.assignmentTask(); const owner = this.selectedAssignmentOwner();
-    if (!task || !owner || !task.canAssign || !this.assignmentReviewed() || this.assignmentBusy() || owner.userId === task.assigneeUserId) return;
+    if (!task || !owner || !task.canAssign || !this.assignmentReviewed() || this.assignmentBusy() || this.assignmentUncertain() || owner.userId === task.assigneeUserId) return;
+    this.assignmentIntent = { task: { ...task }, owner: { ...owner }, action: task.assigneeUserId ? 'reassign' : 'assign', scope: this.assignmentScope() };
+    await this.dispatchAssignment(false);
+  }
+
+  private async dispatchAssignment(retry: boolean): Promise<void> {
+    const intent = this.assignmentIntent;
+    if (!intent || intent.scope !== this.assignmentScope()) return;
+    const { task, owner, action, scope } = intent, request = ++this.assignmentRequest;
     this.assignmentBusy.set(true); this.assignmentFailed.set(false); this.assignmentMessage.set('');
-    const action = task.assigneeUserId ? 'reassign' : 'assign';
+    this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]);
     const outcome = await this.api.command(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/${action}`,
       { assigneeUserId: owner.userId, expectedRevision: task.revision });
+    if (!this.assignmentCurrent(scope, request)) return;
     this.assignmentBusy.set(false);
     if (outcome.ok) {
+      this.resetAssignment();
       this.assignmentMessage.set(`Task assigned to ${owner.displayName}.`);
-      this.assignmentTask.set(null); this.assignmentOptions.set([]); this.assignmentReviewed.set(false);
       this.queue.reload(); this.activity.reload();
       return;
     }
     this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.message);
-    if (!outcome.unknown && (outcome.status === 409 || /stale|revision/i.test(outcome.code))) {
-      this.assignmentTask.set(null); this.assignmentOptions.set([]); this.assignmentReviewed.set(false);
+    if (outcome.unknown || retry) {
+      this.assignmentUncertain.set(true); this.assignmentReviewed.set(false);
+      this.assignmentMessage.set('The original assignment remains unconfirmed. Check the current task and its activity before retrying or choosing another owner.');
+    } else if (outcome.status === 409 || /stale|revision/i.test(outcome.code)) {
+      this.resetAssignment();
+      this.assignmentFailed.set(true);
       this.queue.reload(); this.activity.reload();
       this.assignmentMessage.set('The task changed before assignment. The queue has been refreshed; reopen it and review the current owner and revision.');
-    } else if (!outcome.unknown && outcome.status === 403) {
-      this.assignmentTask.set(null); this.assignmentOptions.set([]); this.assignmentUserId.set('');
-      this.assignmentReviewed.set(false); this.queue.reload();
+    } else if (outcome.status === 403) {
+      this.resetAssignment(); this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.message); this.queue.reload();
+    } else {
+      this.assignmentIntent = null; this.assignmentReviewed.set(false);
     }
+  }
+
+  async recoverAssignment(): Promise<void> {
+    const intent = this.assignmentIntent;
+    if (!intent || !this.assignmentUncertain() || this.assignmentBusy() || this.assignmentLoading() || intent.scope !== this.assignmentScope()) return;
+    const request = ++this.assignmentRequest, { task, scope } = intent;
+    this.assignmentLoading.set(true); this.assignmentError.set('');
+    this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]);
+    try {
+      const [workspace, history] = await Promise.all([
+        this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks`, decodeAssignmentWorkspace),
+        this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`, decodeActivity),
+      ]);
+      if (!this.assignmentCurrent(scope, request)) return;
+      const observed = workspace.tasks.find(row => row.id === task.taskId);
+      if (workspace.engagementId !== task.engagementId || history.engagementId !== task.engagementId || history.taskId !== task.taskId ||
+          !observed || observed.revision < task.revision) throw new Error('The exact current task and activity could not be verified. Keep the original request unresolved.');
+      this.assignmentObservation.set(observed);
+      this.assignmentObservedActivity.set(history.events.filter(event => event.taskRevision > task.revision &&
+        ['TASK_ASSIGNED', 'TASK_REASSIGNED'].includes(event.kind)));
+      this.assignmentMessage.set(observed.revision > task.revision
+        ? 'The task revision advanced. Review and acknowledge the observed owner before opening another assignment.'
+        : 'The task still has its original revision. An explicit retry uses the exact original owner and revision, so the server can refuse a concurrent change.');
+    } catch (error) {
+      if (this.assignmentCurrent(scope, request)) this.assignmentError.set(error instanceof Error ? error.message : 'Current assignment could not be verified.');
+    } finally { if (this.assignmentCurrent(scope, request)) this.assignmentLoading.set(false); }
+  }
+
+  canRetryAssignment(): boolean {
+    const intent = this.assignmentIntent, observed = this.assignmentObservation();
+    return !!intent && intent.scope === this.assignmentScope() && this.assignmentUncertain() && !!observed &&
+      observed.id === intent.task.taskId && observed.revision === intent.task.revision && observed.assigneeUserId === intent.task.assigneeUserId &&
+      !['COMPLETED', 'CANCELLED'].includes(observed.status) && !this.assignmentBusy() && !this.assignmentLoading();
+  }
+
+  async retryAssignment(): Promise<void> {
+    if (this.canRetryAssignment()) await this.dispatchAssignment(true);
+  }
+
+  acknowledgeAssignmentObservation(): void {
+    const intent = this.assignmentIntent, observed = this.assignmentObservation();
+    if (!intent || intent.scope !== this.assignmentScope() || !this.assignmentUncertain() || this.assignmentBusy() ||
+        !observed || observed.revision <= intent.task.revision) return;
+    const owner = observed.assigneeDisplayName ?? observed.assigneeUserId ?? 'Unassigned';
+    this.resetAssignment(); this.queue.reload(); this.activity.reload();
+    this.assignmentMessage.set(`Observed assignment to ${owner} at revision ${observed.revision} acknowledged. Review the refreshed queue before another change.`);
   }
 
   changeDueDate(engagementId: string, taskId: string, revision: number, dueDate: string): void {

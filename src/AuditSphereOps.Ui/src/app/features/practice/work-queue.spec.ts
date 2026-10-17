@@ -354,4 +354,131 @@ describe('workflow queue assignment filters', () => {
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
+
+  it('keeps options for the selected task when an older options read completes later', async () => {
+    const { fixture, http, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      const otherTask = { ...task, taskId: '66666666-6666-4666-8666-666666666666', title: 'Review revenue' };
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task, otherTask], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const first = component.openAssignment(task);
+      const firstRead = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`);
+      const second = component.openAssignment(otherTask);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+        .flush([{ userId: '77777777-7777-4777-8777-777777777777', displayName: 'Current eligible owner' }]);
+      await second;
+      firstRead.flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Earlier eligible owner' }]);
+      await first;
+      expect(component.assignmentTask()?.taskId).toBe(otherTask.taskId);
+      expect(component.assignmentOptions().map(owner => owner.displayName)).toEqual(['Current eligible owner']);
+      expect(component.assignmentLoading()).toBe(false);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('clears an in-flight assignment on session invalidation and ignores its late command response', async () => {
+    const { fixture, http, session, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const opening = component.openAssignment(task);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+        .flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Replacement staff' }]); await opening;
+      component.selectAssignmentOwner('55555555-5555-4555-8555-555555555555'); component.assignmentReviewed.set(true);
+      const saving = component.saveAssignment();
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`);
+      session.clear(); TestBed.tick();
+      expect(component.assignmentTask()).toBeNull();
+      expect(component.assignmentBusy()).toBe(false);
+      post.flush({ value: true }); await saving;
+      expect(component.assignmentOptions()).toEqual([]);
+      expect(component.assignmentUncertain()).toBe(false);
+      expect(component.assignmentMessage()).not.toContain('Task assigned');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('fences an unknown assignment and permits only the original request after current task and activity are inspected', async () => {
+    const { fixture, http, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const opening = component.openAssignment(task);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+        .flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Replacement staff' }]); await opening;
+      component.selectAssignmentOwner('55555555-5555-4555-8555-555555555555'); component.assignmentReviewed.set(true);
+      const saving = component.saveAssignment();
+      const original = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`);
+      const originalBody = original.request.body;
+      original.flush({}, { status: 503, statusText: 'Service Unavailable' }); await saving;
+      expect(component.assignmentUncertain()).toBe(true);
+      component.selectAssignmentOwner('77777777-7777-4777-8777-777777777777');
+      component.closeAssignment(); await component.saveAssignment(); await component.retryAssignment();
+      expect(component.assignmentUserId()).toBe(originalBody.assigneeUserId);
+      expect(component.assignmentTask()?.taskId).toBe(task.taskId);
+      http.expectNone(request => request.method === 'POST');
+      const checking = component.recoverAssignment();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks`).flush({ engagementId: task.engagementId,
+        truncated: false, tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
+        .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });
+      await checking;
+      expect(component.canRetryAssignment()).toBe(true);
+      const retrying = component.retryAssignment();
+      const retry = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`);
+      expect(retry.request.body).toEqual(originalBody);
+      retry.flush({ value: true }); await retrying;
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      expect(component.assignmentUncertain()).toBe(false);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('requires acknowledgement of an advanced owner and keeps wrong-engagement recovery unresolved', async () => {
+    const { fixture, http, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const opening = component.openAssignment(task);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+        .flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Replacement staff' }]); await opening;
+      component.selectAssignmentOwner('55555555-5555-4555-8555-555555555555'); component.assignmentReviewed.set(true);
+      const saving = component.saveAssignment();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`)
+        .flush({}, { status: 503, statusText: 'Service Unavailable' }); await saving;
+      const current = { id: task.taskId, assigneeUserId: '77777777-7777-4777-8777-777777777777', assigneeDisplayName: 'Concurrent owner', revision: 2, status: 'IN_PROGRESS' };
+      const wrongScope = component.recoverAssignment();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks`)
+        .flush({ engagementId: '88888888-8888-4888-8888-888888888888', truncated: false, tasks: [current] });
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
+        .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });
+      await wrongScope;
+      expect(component.assignmentObservation()).toBeNull();
+      expect(component.assignmentUncertain()).toBe(true);
+      const checking = component.recoverAssignment();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks`)
+        .flush({ engagementId: task.engagementId, truncated: false, tasks: [current] });
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
+        .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });
+      await checking;
+      expect(component.canRetryAssignment()).toBe(false);
+      await component.retryAssignment();
+      http.expectNone(request => request.method === 'POST');
+      component.acknowledgeAssignmentObservation();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      expect(component.assignmentUncertain()).toBe(false);
+      expect(component.assignmentMessage()).toContain('Concurrent owner at revision 2 acknowledged');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
 });
