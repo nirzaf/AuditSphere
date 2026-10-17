@@ -50,7 +50,8 @@ describe('client document comments', () => {
     fixture.componentInstance.review.controls.body.markAsDirty();
     const sent = fixture.componentInstance.comment(documentReviewId);
     const accepted = http.expectOne({ method: 'POST', url: `/api/ui/portal/documents/${documentReviewId}/comment` });
-    expect(accepted.request.body).toEqual({ body: 'Please clarify this statement.' });
+    expect(accepted.request.body.body).toBe('Please clarify this statement.');
+    expect(accepted.request.body.requestId).toMatch(/^[0-9a-f-]{36}$/i);
     accepted.flush({ value: receiptId });
     await sent; fixture.detectChanges();
     http.expectOne('/api/ui/portal/documents').flush(documents(null, [{ ...sharedDocument,
@@ -69,6 +70,35 @@ describe('client document comments', () => {
     expect(fixture.componentInstance.review.controls.body.value).toBe('Keep this draft if refused.');
     expect(fixture.componentInstance.review.controls.body.dirty).toBe(true);
     fixture.destroy();
+  });
+
+  it('recovers only the exact comment receipt after an unknown command outcome', async () => {
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(PortalDocuments);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [sharedDocument]));
+    TestBed.tick(); fixture.detectChanges();
+    const editor = fixture.componentInstance;
+    editor.select(documentReviewId);
+    editor.review.controls.body.setValue('Please confirm this exact disclosure.');
+    const sent = editor.comment(documentReviewId);
+    const url = `/api/ui/portal/documents/${documentReviewId}/comment`;
+    const post = http.expectOne({ method: 'POST', url });
+    const original = post.request.body;
+    post.flush({}, { status: 503, statusText: 'Unavailable' });
+    await sent; fixture.detectChanges();
+    expect(editor.uncertain()).toBe(true);
+    http.expectNone('/api/ui/portal/documents');
+
+    const recovery = editor.recoverComment();
+    const get = http.expectOne(`/api/ui/portal/documents/${documentReviewId}/comment-receipts/${original.requestId}`);
+    get.flush({ succeeded: true, value: receiptId });
+    await recovery; fixture.detectChanges();
+    expect(editor.uncertain()).toBe(false);
+    expect(editor.review.controls.body.value).toBe('Please confirm this exact disclosure.');
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [{ ...sharedDocument,
+      comments: [{ body: 'Please confirm this exact disclosure.', fromClient: true, resolution: null }] }]));
+    await fixture.whenStable(); TestBed.tick(); fixture.destroy();
   });
 
   it.each(['destroyed', 'revoked'] as const)('keeps a late comment reply inert once the editor visit is %s', async (ending) => {

@@ -17296,15 +17296,28 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("review_id");
 
+                    b.Property<Guid?>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("RequestSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_sha256");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ReviewId");
 
                     b.HasIndex("FirmId", "ReviewId", "CreatedAt");
 
+                    b.HasIndex("FirmId", "AuthorUserId", "RequestId")
+                        .IsUnique()
+                        .HasFilter("request_id IS NOT NULL");
+
                     b.ToTable("client_deliverable_comments", null, t =>
                         {
-                            t.HasCheckConstraint("ck_client_deliverable_comment_values", "length(body) > 0 AND ((resolved_at IS NULL) = (resolution IS NULL))");
+                            t.HasCheckConstraint("ck_client_deliverable_comment_values", "length(body) > 0 AND ((resolved_at IS NULL) = (resolution IS NULL)) AND ((request_id IS NULL) = (request_sha256 IS NULL))");
                         });
                 });
 

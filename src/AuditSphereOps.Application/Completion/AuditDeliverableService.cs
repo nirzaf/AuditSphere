@@ -30,6 +30,10 @@ public sealed record ConfirmationDashboardRow(Guid CaseId, string Type, string R
 /// </summary>
 public static partial class AuditDeliverableService
 {
+  // Compatibility for the retained rollback host and internal callers. The Angular portal supplies a stable ID.
+  public static Task<CommandResult<Guid>> CommentAsync(IAuditSphereDbContext db, ActorContext actor, Guid reviewId, string body, CancellationToken ct = default) =>
+    CommentAsync(db, actor, reviewId, Guid.CreateVersion7(), body, ct);
+
   private static readonly string[] PreparerRoles = ["Manager", "Partner", "Administrator"];
   private static readonly string[] ReaderRoles = ["Staff", "Senior", "Manager", "Partner", "Administrator", "Reviewer", "Auditor"];
   public const int FollowUpDays = 14;
@@ -588,11 +592,19 @@ public static partial class AuditDeliverableService
     return CommandResult<Guid>.Ok(review.Id);
   }
 
-  public static async Task<CommandResult<Guid>> CommentAsync(IAuditSphereDbContext db, ActorContext actor, Guid reviewId, string body, CancellationToken ct = default)
+  public static async Task<CommandResult<Guid>> CommentAsync(IAuditSphereDbContext db, ActorContext actor, Guid reviewId, Guid requestId, string body, CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(body) || body.Length > 4000) return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "A comment is required.");
+    if (requestId == Guid.Empty || string.IsNullOrWhiteSpace(body) || body.Length > 4000) return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "A comment and request identity are required.");
+    var canonicalBody = body.Trim();
+    var requestHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(canonicalBody))).ToLowerInvariant();
     var review = await db.ClientDeliverableReviews.AsNoTracking().SingleOrDefaultAsync(x => x.Id == reviewId && x.FirmId == actor.FirmId, ct);
     if (review is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var prior = await db.ClientDeliverableComments.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.AuthorUserId == actor.UserId && x.RequestId == requestId, ct);
+    if (prior is not null)
+      return prior.ReviewId == reviewId && prior.RequestSha256 == requestHash
+        ? CommandResult<Guid>.Ok(prior.Id)
+        : CommandResult<Guid>.Fail("idempotency.conflict", "This request identity was already used for different comment content or target.");
     var fromClient = actor.Roles.Contains("ClientUser");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, review.ClientId, review.EngagementId,
       fromClient ? ["ClientUser"] : ReaderRoles, InternalOnly: !fromClient), ct);
@@ -600,7 +612,7 @@ public static partial class AuditDeliverableService
     var writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, review.EngagementId, "comment on a shared deliverable", ct);
     if (!writable.Succeeded) return CommandResult<Guid>.Fail(writable.ErrorCode!, writable.Message!);
     if (review.AcknowledgedAt is not null) return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The document was already acknowledged.");
-    var comment = new ClientDeliverableComment { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ReviewId = reviewId, Body = body.Trim(), AuthorUserId = actor.UserId, FromClient = fromClient, CreatedAt = DateTimeOffset.UtcNow };
+    var comment = new ClientDeliverableComment { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ReviewId = reviewId, Body = canonicalBody, AuthorUserId = actor.UserId, FromClient = fromClient, CreatedAt = DateTimeOffset.UtcNow, RequestId = requestId, RequestSha256 = requestHash };
     db.ClientDeliverableComments.Add(comment);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(comment.Id);
