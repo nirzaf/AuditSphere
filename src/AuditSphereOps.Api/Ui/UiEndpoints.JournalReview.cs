@@ -14,13 +14,17 @@ public static partial class UiEndpoints
   {
     MapJournalManagementEndpoints(group);
     group.MapGet("/datasets/{id:guid}/journal-drafts", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.GetCreationAsync(db, actor, id, ct)));
+      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.GetCreationAsync(db, actor, id, ct)))
+      .WithUiResponse<JournalCreationContext>(includeConflict: true);
     group.MapGet("/datasets/{id:guid}/journal-drafts/receipts/{requestId:guid}", (Guid id, Guid requestId, string requestHash, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.LookupCreationAsync(db, db, actor, id, requestId, requestHash, ct)));
+      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.LookupCreationAsync(db, db, actor, id, requestId, requestHash, ct)))
+      .WithUiResponse<JournalReceiptLookup>(includeConflict: true);
     group.MapPost("/datasets/{id:guid}/journal-drafts/preview", (Guid id, JournalCreationRequest? input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.PreviewCreationAsync(db, actor, id, input, ct)));
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.PreviewCreationAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<JournalActionPreview>>(includeConflict: true);
     group.MapPost("/datasets/{id:guid}/journal-drafts", (Guid id, JournalCreationRequest? input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.CreateAsync(db, db, actor, id, input, ct)));
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.CreateAsync(db, db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<JournalActionReceipt>>(includeConflict: true);
     group.MapPost("/accounting/journals/{id:guid}/workspace/instructions", async (Guid id, JournalExportInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) => {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -35,19 +39,26 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Journal-Id"] = id.ToString("D");
       http.Response.Headers["X-Journal-Basis"] = input.ReviewBasis;
       return Results.File(Encoding.UTF8.GetBytes(export.Value.Csv), "text/csv; charset=utf-8", export.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .WithUiCsvResponse(includeConflict: true);
     group.MapGet("/accounting/journals/{id:guid}/workspace", (Guid id, int? historyPage, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.GetAsync(db, db, actor, id, historyPage ?? 1, ct)));
+      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.GetAsync(db, db, actor, id, historyPage ?? 1, ct)))
+      .WithUiResponse<JournalReviewView>(includeConflict: true);
     group.MapGet("/accounting/journals/{id:guid}/receipts/{requestId:guid}", (Guid id, Guid requestId, string requestHash, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.LookupAsync(db, db, actor, id, requestId, requestHash, ct)));
+      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.LookupAsync(db, db, actor, id, requestId, requestHash, ct)))
+      .WithUiResponse<JournalReceiptLookup>(includeConflict: true);
     group.MapGet("/accounting/journals/{id:guid}/history/{eventId:guid}", (Guid id, Guid eventId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.HistoryAsync(db, db, actor, id, eventId, ct)));
+      ReadAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.HistoryAsync(db, db, actor, id, eventId, ct)))
+      .WithUiResponse<JournalHistoricalRevision>(includeConflict: true);
     group.MapPost("/accounting/journals/{id:guid}/preview", (Guid id, JournalActionRequest? input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.PreviewAsync(db, db, actor, id, input, ct)));
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.PreviewAsync(db, db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<JournalActionPreview>>(includeConflict: true);
     group.MapPost("/accounting/journals/{id:guid}/actions", (Guid id, JournalActionRequest? input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.ExecuteAsync(db, db, actor, id, input, ct)));
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.ExecuteAsync(db, db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<JournalActionReceipt>>(includeConflict: true);
     group.MapPost("/accounting/journals/{id:guid}/source-reflection", (Guid id, AdjustmentJournalWorkspace.JournalSourceReflectionRequest? input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.ReconcileSourceReflectionAsync(db, db, actor, id, input, ct)));
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalWorkspace.ReconcileSourceReflectionAsync(db, db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<bool>>(includeConflict: true);
   }
   public sealed record JournalExportInput(string ReviewBasis);
 }

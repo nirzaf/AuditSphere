@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -54,7 +55,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<QuotationWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/proposals/{id:guid}/quotation/preview", async (Guid id, QuotationInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -69,7 +73,11 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<QuotationAmounts>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/proposals/{id:guid}/quotation", async (Guid id, QuotationInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -82,7 +90,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.SaveAsync(db, actor, request, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/quotations/{id:guid}/submit", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -93,7 +105,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.SubmitAsync(db, actor, id, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/quotations/{id:guid}/approve", async (Guid id, QuotationApprovalInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -106,7 +122,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.ApproveAsync(db, actor, id, input.RuleKey, input.Reason, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/quotations/approvals/{id:guid}/revoke", async (Guid id, QuotationRevocationInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -119,6 +139,10 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.RevokeApprovalAsync(db, actor, id, input.Reason, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
   }
 }

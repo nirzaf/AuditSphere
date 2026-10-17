@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { Api, CommandState } from '../../core/api';
+import { Api, CommandState, queryParam } from '../../core/api';
 import { guidPattern } from '../../core/contracts';
 import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
@@ -32,6 +32,28 @@ type ScopeIntent = { groupId: string; groupRevision: number; periodId: string; r
   openingBasis: string; exchangeRateSetVersionId: string | null; translationPolicyVersionId: string | null;
   translationRateDate: string | null; translationRateType: string | null; priorScopeVersionId: string | null };
 type Group = ReturnType<typeof decodeConsolidation>['groups'][number];
+type ScopeVersion = Group['scopes'][number];
+type CorrectionContext =
+  | { state: 'none' | 'pending' | 'invalid' | 'unavailable' | 'wrong-group' }
+  | { state: 'valid'; group: Group; scope: ScopeVersion };
+
+/** Query-string correction identities are only usable when both match a scope in the authorized overview. */
+export function resolveCorrectionContext(groups: Group[] | null, scopeValue: string | null,
+  groupValue: string | null): CorrectionContext {
+  if (scopeValue === null && groupValue === null) return { state: 'none' };
+  if (!scopeValue || !groupValue || !guidPattern.test(scopeValue) || !guidPattern.test(groupValue)) return { state: 'invalid' };
+  if (!groups) return { state: 'pending' };
+
+  const scopeId = scopeValue.toLowerCase();
+  const groupId = groupValue.toLowerCase();
+  const group = groups.find(x => x.id.toLowerCase() === groupId);
+  if (!group) return { state: 'unavailable' };
+  const scope = group.scopes.find(x => x.id.toLowerCase() === scopeId);
+  if (scope) return { state: 'valid', group, scope };
+  return groups.some(x => x.scopes.some(s => s.id.toLowerCase() === scopeId))
+    ? { state: 'wrong-group' }
+    : { state: 'unavailable' };
+}
 
 /** Exact-decimal sum of report lines without floating point (scaled BigInt). */
 export function sumDecimals(values: string[]): string {
@@ -56,6 +78,28 @@ export function displayUtcInstant(value: string | null): string {
     <nav aria-label="Consolidation location"><a routerLink="/app/accounting">Accounting</a> / <span>Group consolidation</span></nav>
     <audit-page-header title="Group consolidation" eyebrow="Group accounting" description="Approved group perimeters and component packs. Consolidation never mutates component client books." />
     <p><small>Only explicitly granted group scopes appear here. The enabled first profile is same-currency, fully-owned consolidation; configured foreign-operation translation is shown separately, while advanced methods remain fail-closed until approved source-bound schedules and execution verification are complete.</small></p>
+    @let correction = correctionContext();
+    @switch (correction.state) {
+      @case ('pending') { <p role="status">Checking the correction source against the groups and scope versions available to this identity…</p> }
+      @case ('valid') {
+        <section class="panel" aria-labelledby="component-correction-heading">
+          <h2 id="component-correction-heading">Correct a component in a new scope version</h2>
+          <p>The selected source is in {{ correction.group.name }} ({{ correction.group.code }}), scope version {{ correction.scope.version }}. The existing scope, component and package evidence stays intact.</p>
+          <ol>
+            <li>Correct the underlying entity records through their existing accounting workflow and obtain a newly reviewed component package.</li>
+            <li>Use the existing scope form below to create a new version for this same authorized group and reporting period. Review the period and other inputs before creating it.</li>
+            <li>Open the new scope and submit the corrected package for the normal independent component review.</li>
+          </ol>
+          <p><small>This handoff never copies a component, creates a scope, replaces a pin, or approves evidence. The original scope, component, package and prior run remain available as historical evidence.</small></p>
+          <p><a [routerLink]="[]" [queryParams]="{ correctionScopeId: correction.scope.id, correctionGroupId: correction.group.id }" fragment="create-scope-heading">Continue to the existing new-scope form</a></p>
+          <p><a routerLink="/app/consolidation" [queryParams]="{}">Exit correction handoff and open ordinary scope creation</a></p>
+        </section>
+      }
+      @case ('none') { }
+      @case ('invalid') { <section class="panel" role="alert"><h2>Correction source could not be verified</h2><p>The handoff needs both a valid scope and group identity. Reopen it from the current authorized component workspace; no correction action was taken.</p><p><a routerLink="/app/consolidation" [queryParams]="{}">Open ordinary scope creation</a></p></section> }
+      @case ('unavailable') { <section class="panel" role="alert"><h2>Correction source is unavailable</h2><p>This scope/group pair is not present in the current authorized overview. Reopen the handoff from a current component workspace; no correction action was taken.</p><p><a routerLink="/app/consolidation" [queryParams]="{}">Open ordinary scope creation</a></p></section> }
+      @case ('wrong-group') { <section class="panel" role="alert"><h2>Correction source group does not match</h2><p>The selected scope does not belong to the supplied authorized group. Reopen the handoff from that scope’s component workspace; no correction action was taken.</p><p><a routerLink="/app/consolidation" [queryParams]="{}">Open ordinary scope creation</a></p></section> }
+    }
     <audit-state [loading]="groups.loading()" [error]="groups.error()" label="the accounting group overview" />
     @if (groups.data(); as g) {
       @if (g.canCreateGroup) {
@@ -83,7 +127,7 @@ export function displayUtcInstant(value: string | null): string {
         <section class="panel" aria-labelledby="create-scope-heading">
           <h2 id="create-scope-heading">Start or roll forward a consolidation scope</h2>
           <p><small>Select only from this identity’s explicitly granted groups and the periods, methods and approved FX inputs returned for that group. The saved scope records the group revision and, for a roll-forward, the approved prior scope and run basis. Creating a scope does not change component books or approve the perimeter.</small></p>
-          <label>Accounting group * <select name="scopeGroup" [ngModel]="scopeGroupId()" (ngModelChange)="selectScopeGroup($event)" [disabled]="scopeCommand.busy() || scopeCommand.uncertain()">
+          <label>Accounting group * <select name="scopeGroup" [ngModel]="scopeGroupId()" (ngModelChange)="selectScopeGroup($event)" [disabled]="scopeCommand.busy() || scopeCommand.uncertain() || correctionContext().state === 'valid'">
             <option value="">Choose an authorized group</option>
             @for (grp of g.groups; track grp.id) { <option [value]="grp.id">{{ grp.name }} · {{ grp.code }}</option> }
           </select></label>
@@ -217,10 +261,20 @@ export class ConsolidationOverview {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
   readonly groups = this.api.resource(() => '/api/ui/consolidation', decodeConsolidation, 'No explicit accounting-group grant is available for the current identity.');
+  private readonly correctionScopeParam = queryParam('correctionScopeId');
+  private readonly correctionGroupParam = queryParam('correctionGroupId');
+  readonly correctionContext = computed(() => resolveCorrectionContext(
+    this.groups.data()?.groups ?? null, this.correctionScopeParam(), this.correctionGroupParam()));
   readonly createCommand = new CommandState(this.api);
   readonly scopeCommand = new CommandState(this.api);
   readonly selectedGroupId = signal('');
-  readonly scopeGroupId = signal('');
+  private readonly chosenScopeGroupId = signal('');
+  readonly scopeGroupId = computed(() => {
+    const chosen = this.chosenScopeGroupId();
+    if (chosen) return chosen;
+    const correction = this.correctionContext();
+    return correction.state === 'valid' ? correction.group.id : '';
+  });
   readonly scopeOptions = this.api.resource(() => this.scopeGroupId() ? `/api/ui/consolidation/groups/${this.scopeGroupId()}/scope-options` : null,
     decodeScopeOptions, 'Scope options are unavailable for this group.');
   readonly checkingCreateRecovery = signal(false);
@@ -250,7 +304,7 @@ export class ConsolidationOverview {
   net(lines: { consolidatedAmount: string }[]): string { return sumDecimals(lines.map((l) => l.consolidatedAmount)); }
 
   selectScopeGroup(groupId: string): void {
-    this.scopeGroupId.set(groupId);
+    this.chosenScopeGroupId.set(groupId);
     this.scopePeriodId = '';
     this.scopeMethod = '';
     this.scopeCurrency = '';
@@ -288,7 +342,24 @@ export class ConsolidationOverview {
     this.scopeValidation.set('');
     const options = this.scopeOptions.data();
     if (!options || !options.canCreateScope || this.scopeCommand.busy() || this.scopeCommand.uncertain()) return;
+    const correction = this.correctionContext();
+    if (correction.state !== 'none' && correction.state !== 'valid') {
+      this.scopeValidation.set('The correction source is not verified in the current authorized group list. Reopen the handoff from its component workspace before creating a correction scope.');
+      return;
+    }
+    if (options.groupId.toLowerCase() !== this.scopeGroupId().toLowerCase() ||
+        correction.state === 'valid' && correction.group.id.toLowerCase() !== options.groupId.toLowerCase()) {
+      this.scopeValidation.set('The current scope options do not match the authorized correction group. Refresh the source workspace and review the group before continuing.');
+      return;
+    }
     const period = options.periods.find(x => x.id === this.scopePeriodId);
+    if (correction.state === 'valid') {
+      const source = options.existingScopes.find(x => x.id.toLowerCase() === correction.scope.id.toLowerCase());
+      if (!source || source.periodId !== this.scopePeriodId) {
+        this.scopeValidation.set('A component correction must retain the original reporting period. Load the current source scope and select that same period before creating its new version.');
+        return;
+      }
+    }
     if (!period || !options.methods.some(x => x.code === this.scopeMethod && x.enabled) ||
         !this.currenciesFor(options).includes(this.scopeCurrency)) {
       this.scopeValidation.set('Choose a permitted period, enabled method and currency from the current group options.');

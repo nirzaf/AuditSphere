@@ -41,19 +41,21 @@ public sealed record ExternalComponentPackRequest(
   string Framework, string ReportingCurrency, string PeriodBasis, string TaxonomyVersion,
   string MappingVersion, string SourceReference, string RawSourceHash, string NormalizedSourceDigest,
   decimal DeclaredSignedTotal, IReadOnlyList<ExternalComponentPackLineRequest> Lines,
-  Guid? PriorPackId = null, string CompatibilityBridgeReference = "");
+  Guid? PriorPackId = null, string CompatibilityBridgeReference = "", long ExpectedGroupRevision = 0);
 
-public sealed record ExternalComponentReconciliationRequest(Guid PackId, string EvidenceReference);
+public sealed record ExternalComponentReconciliationRequest(Guid PackId, string EvidenceReference,
+  long ExpectedGroupRevision = 0);
 
 public sealed record ExternalComponentRequest(Guid ScopeVersionId, Guid ExternalComponentPackId,
-  decimal OwnershipPercent = 100m, string ControlMethod = "CONTROLLED");
+  decimal OwnershipPercent = 100m, string ControlMethod = "CONTROLLED", long ExpectedGroupRevision = 0);
 
 public sealed record IntercompanyMatchRequest(
   Guid ScopeVersionId, Guid SellerClientId, Guid BuyerClientId,
   string AccountNature, string PeriodCode, string Currency, string TransactionReference,
   decimal SellerAmount, decimal BuyerAmount, decimal MatchedAmount, string EvidenceReference,
   string SellerTaxonomyCode = "", string BuyerTaxonomyCode = "", string DifferenceReason = "",
-  string MatchMode = IntercompanyMatchModes.OneToOne, string MatchGroupReference = "", bool OutsidePerimeterReview = false);
+  string MatchMode = IntercompanyMatchModes.OneToOne, string MatchGroupReference = "", bool OutsidePerimeterReview = false,
+  long ExpectedGroupRevision = 0);
 
 public sealed record ConsolidationJournalLineInput(
   Guid? IntercompanyMatchId, string TaxonomyCode, decimal Debit, decimal Credit, string Description);

@@ -13,13 +13,18 @@ public static partial class UiEndpoints
 {
   public sealed record FirmExpenseReviewInput(bool Approve, string? Comment);
   public sealed record FirmTrialBalanceExportInput(string FromPeriod, string ToPeriod);
+  public sealed record FirmExpenseForm(DateOnly ExpenseDate, string Amount, Guid ExpenseAccountId,
+    Guid PaymentAccountId, Guid RequestId, string RequestHash, string Category, string Payee,
+    string Description, string Currency, IFormFile Evidence);
 
   private static void MapFirmBooksEndpoints(RouteGroupBuilder group)
   {
-    group.MapUiGet("/finance/books", http => ReadAsync(http, (db, actor, ct) => FirmBooksWorkspaceQuery.GetAsync(db, actor, ct)));
+    group.MapUiGet("/finance/books", http => ReadAsync(http, (db, actor, ct) => FirmBooksWorkspaceQuery.GetAsync(db, actor, ct)))
+      .Produces<FirmBooksWorkspace>().Produces<UiFailureResponse>(403);
     group.MapGet("/finance/books/trial-balance", (string from, string to, int? activityPage, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FirmExpenseService.TrialBalanceAsync(
-        db, actor, from.Trim(), to.Trim(), ct, activityPage ?? 1)));
+        db, actor, from.Trim(), to.Trim(), ct, activityPage ?? 1)))
+      .Produces<FirmTrialBalanceView>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
     group.MapPost("/finance/books/trial-balance/export", async (FirmTrialBalanceExportInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -40,7 +45,8 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Firm-Trial-Balance-Currency"] = result.Value.Currency;
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(Encoding.UTF8.GetBytes(result.Value.Csv), "text/csv; charset=utf-8", result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<string>(200, "text/csv").Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
     group.MapUiPost("/finance/books/expenses", async http =>
     {
       if (!http.Request.HasFormContentType) return Invalid("Send the expense as a form with its source document.");
@@ -54,14 +60,19 @@ public static partial class UiEndpoints
       return await CommandAsync(http, (db, actor, ct) => FirmExpenseService.RecordAsync(db, actor, new RecordFirmExpenseRequest(date, form["category"].ToString(),
         form["payee"].ToString(), form["description"].ToString(), amount, form["currency"].ToString(), expense, payment,
         evidence.Value.Name, evidence.Value.ContentType, evidence.Value.Content, requestId, form["requestHash"].ToString()), ct));
-    });
+    }).Accepts<FirmExpenseForm>("multipart/form-data")
+      .Produces<UiValueResponse<Guid>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapGet("/finance/books/expenses/receipts/{requestId:guid}", (Guid requestId, string requestHash, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => FirmExpenseService.LookupCreationAsync(db, actor, requestId, requestHash, ct)));
+      ReadAsync(http, (db, actor, ct) => FirmExpenseService.LookupCreationAsync(db, actor, requestId, requestHash, ct)))
+      .Produces<FirmExpenseCreationLookup>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
     group.MapPost("/finance/books/expenses/{id:guid}/submit", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FirmExpenseService.SubmitAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => FirmExpenseService.SubmitAsync(db, actor, id, ct)))
+      .Produces<UiValueResponse<bool>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
     group.MapPost("/finance/books/expenses/{id:guid}/review", (Guid id, FirmExpenseReviewInput input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FirmExpenseService.ReviewAsync(db, actor, id, input.Approve, input.Comment, ct)));
+      CommandAsync(http, (db, actor, ct) => FirmExpenseService.ReviewAsync(db, actor, id, input.Approve, input.Comment, ct)))
+      .Produces<UiValueResponse<bool>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
     group.MapPost("/finance/books/expenses/{id:guid}/post", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FirmExpenseService.PostAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => FirmExpenseService.PostAsync(db, actor, id, ct)))
+      .Produces<UiValueResponse<Guid>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
   }
 }

@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,8 @@ public static partial class UiEndpoints
   public sealed record PricingPolicyInput(string Currency, string? MinimumFee, string? MaximumFee, string? MaxDiscount,
     string ValidityDays, long? ExpectedRevision, bool Reviewed);
   public sealed record PricingPolicyDecisionInput(string Reason, bool Reviewed);
+  /// <summary>Describes settings-profile refusals, whose existing handlers may omit the safe message.</summary>
+  public sealed record CommercialProfileRefusalResponse(string Code, string? Message = null);
   private static void MapCommercialSettingsEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/commercial-settings", async (HttpContext http, TrustedActorResolver resolver,
@@ -30,7 +33,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<CommercialSettingsWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/commercial-settings/profile", async (CommercialProfileInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -45,7 +51,12 @@ public static partial class UiEndpoints
         new(input.LegalName, input.Address, input.Email, input.Phone, input.Accent, input.Closing, input.History, input.Credentials,
           input.Methodology, version, input.LogoPngBase64, input.RemoveLogo), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Failure(result.ErrorCode, result.Message);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<CommercialProfileRefusalResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<CommercialProfileRefusalResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/commercial-settings/rules", async (CommercialRuleInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -66,7 +77,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.SaveRuleAsync(db, actor, input.Kind, threshold, input.Role, http.RequestAborted, input.RulesRevision);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/commercial-settings/rules/{id:guid}/deactivate", async (Guid id, CommercialRuleDeactivationInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -78,7 +93,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await QuotationService.DeactivateRuleAsync(db, actor, id, http.RequestAborted, input.RulesRevision);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet("/commercial-settings/pricing-policy", async (HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -90,7 +109,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<IReadOnlyList<PricingPolicyItem>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/commercial-settings/pricing-policy", async (PricingPolicyInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -108,7 +130,11 @@ public static partial class UiEndpoints
       var result = await FirmPricingPolicyService.SaveAsync(db, actor,
         new(input.Currency, minimumFee, maximumFee, maxDiscount, validityDays, input.ExpectedRevision), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/commercial-settings/pricing-policy/{id:guid}/submit", async (Guid id, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -119,7 +145,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FirmPricingPolicyService.SubmitAsync(db, actor, id, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/commercial-settings/pricing-policy/{id:guid}/approve", async (Guid id, PricingPolicyDecisionInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -132,7 +162,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FirmPricingPolicyService.ApproveAsync(db, actor, id, input.Reason, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
   }
   private static bool RulesProof(string? value) => value is { Length: 64 } && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
   private static bool OptionalDecimal(string? text, out decimal? value)

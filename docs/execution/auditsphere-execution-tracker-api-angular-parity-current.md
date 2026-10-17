@@ -31,35 +31,35 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | T021 | Recover purchase-credit submission and return outcomes | IMPLEMENTED_VERIFICATION_PENDING | [ClientPurchaseCreditNoteWorkflow.cs](../../src/AuditSphereOps.Application/Accounting/ClientPurchaseCreditNoteWorkflow.cs) |
 | T022 | Make manual-settlement draft recovery survive edits and reloads | IMPLEMENTED_VERIFICATION_PENDING | [ClientOperationalLedgerWorkspace.Settlements.cs](../../src/AuditSphereOps.Application/Accounting/ClientOperationalLedgerWorkspace.Settlements.cs) |
 | T023 | Paginate supplier selection in both purchase workflows | IMPLEMENTED_VERIFICATION_PENDING | [purchase-invoice-workflow.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/purchase-invoice-workflow.ts) |
-| T024 | Expose controlled unallocation from approved allocation history | IN_PROGRESS | [ClientOpenItemAllocationHistoryQuery.cs](../../src/AuditSphereOps.Application/Accounting/ClientOpenItemAllocationHistoryQuery.cs) |
-| T025 | Resolve component replacement retention before exposing correction | IN_PROGRESS | Pending implementation |
+| T024 | Expose controlled unallocation from approved allocation history | IMPLEMENTED_VERIFICATION_PENDING | [ClientOpenItemAllocationHistoryQuery.cs](../../src/AuditSphereOps.Application/Accounting/ClientOpenItemAllocationHistoryQuery.cs) |
+| T025 | Resolve component replacement retention before exposing correction | IN_PROGRESS | [overview.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/overview.ts) · [component-correction.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/component-correction.ts) |
 | T026 | Surface draft-scope ownership relationships | IMPLEMENTED_VERIFICATION_PENDING | [ownership.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/ownership.ts) |
-| T027 | Add intercompany matching and independent approval | IN_PROGRESS | Pending implementation |
-| T028 | Complete external component-pack intake, review and pinning | NOT_STARTED | Pending implementation |
+| T027 | Add intercompany matching and independent approval | IN_PROGRESS | [ConsolidationService.Intercompany.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Intercompany.cs) |
+| T028 | Complete external component-pack intake, review and pinning | IN_PROGRESS | [ConsolidationExternalComponentPackQuery.cs](../../src/AuditSphereOps.Application/Accounting/ConsolidationExternalComponentPackQuery.cs) |
 | T029 | Preserve portal request drafts during a same-context refresh | IMPLEMENTED_VERIFICATION_PENDING | [request.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.ts) |
 | T030 | Let slow package-build status reads finish | IMPLEMENTED_VERIFICATION_PENDING | [financial-package-build.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts) |
-| T031 | Preserve consolidation pagination and bounded subquery errors | NOT_STARTED | Pending implementation |
+| T031 | Preserve consolidation pagination and bounded subquery errors | IN_PROGRESS | [ConsolidationScopeWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationScopeWorkspaceQuery.cs) |
 | T032 | Provide bounded portal request and package history continuation | IMPLEMENTED_VERIFICATION_PENDING | [ClientPortalWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Documents/ClientPortalWorkspaceQuery.cs) |
 | T033 | Show statutory milestone preview before save | IMPLEMENTED_VERIFICATION_PENDING | [plan.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/plan.ts) |
 | T034 | Show the statement body of a selected pinned presentation | IMPLEMENTED_VERIFICATION_PENDING | [presentation.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/presentation.ts) |
 | T035 | Document native client counterparty, account-role, operational-journal, allocation and settlement contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.ClientOpenItemAllocations.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.ClientOpenItemAllocations.cs) |
 | T036 | Document native client sales, purchase and credit-note contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.ClientPurchaseInvoices.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.ClientPurchaseInvoices.cs) |
-| T037 | Document client accounting setup, chart, currency, mapping and remeasurement contracts | IN_PROGRESS | Pending implementation |
-| T038 | Document trial-balance/GL intake and source-evidence contracts | IN_PROGRESS | Pending implementation |
-| T039 | Document adjustment-journal and adjustment-plan contracts | IN_PROGRESS | Pending implementation |
-| T040 | Document financial package and statement report contracts | NOT_STARTED | Pending implementation |
-| T041 | Document period-maintenance, reconciliation, evidence and valuation contracts | NOT_STARTED | Pending implementation |
-| T042 | Document group consolidation contracts | NOT_STARTED | Pending implementation |
-| T043 | Document firm ledger, billing and end-of-service contracts | NOT_STARTED | Pending implementation |
-| T044 | Document commercial lead, quotation, fee-agreement and conversion contracts | NOT_STARTED | Pending implementation |
-| T045 | Document client, acceptance, engagement, staffing and budget contracts | NOT_STARTED | Pending implementation |
-| T046 | Document practice resource, time, workflow and portfolio contracts | NOT_STARTED | Pending implementation |
-| T047 | Document audit planning, procedure, fieldwork and confirmation contracts | NOT_STARTED | Pending implementation |
-| T048 | Document audit completion, records and deliverable contracts | NOT_STARTED | Pending implementation |
-| T049 | Document client portal, PBC and portal journal-management contracts | NOT_STARTED | Pending implementation |
-| T050 | Document administration, setup, Microsoft services and durable-operation contracts | NOT_STARTED | Pending implementation |
-| T051 | Document session, search and browser authentication protocol contracts | NOT_STARTED | Pending implementation |
+| T037 | Document client accounting setup, chart, currency, mapping and remeasurement contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Accounting.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Accounting.cs) |
+| T038 | Document trial-balance/GL intake and source-evidence contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Intake.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Intake.cs) |
+| T039 | Document adjustment-journal and adjustment-plan contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.AdjustmentPlans.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.AdjustmentPlans.cs) |
+| T040 | Document financial package and statement report contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Packages.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Packages.cs) |
+| T041 | Document period-maintenance, reconciliation, evidence and valuation contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.PeriodMaintenance.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.PeriodMaintenance.cs) |
+| T042 | Document group consolidation contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Consolidation.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Consolidation.cs) |
+| T043 | Document firm ledger, billing and end-of-service contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Finance.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Finance.cs) |
+| T044 | Document commercial lead, quotation, fee-agreement and conversion contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Commercial.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Commercial.cs) |
+| T045 | Document client, acceptance, engagement, staffing and budget contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.cs) |
+| T046 | Document practice resource, time, workflow and portfolio contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.WorkflowTasks.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.WorkflowTasks.cs) |
+| T047 | Document audit planning, procedure, fieldwork and confirmation contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Fieldwork.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Fieldwork.cs) |
+| T048 | Document audit completion, records and deliverable contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Completion.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs) |
+| T049 | Document client portal, PBC and portal journal-management contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Portal.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs) |
+| T050 | Document administration, setup, Microsoft services and durable-operation contracts | IN_PROGRESS | [UiEndpoints.Administration.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Administration.cs) |
+| T051 | Document session, search and browser authentication protocol contracts | IMPLEMENTED_VERIFICATION_PENDING | [ApiHost.AuthenticationEndpoints.cs](../../src/AuditSphereOps.Api/ApiHost.AuthenticationEndpoints.cs) |
 
 ## Retention and acceptance decisions
 
-Component corrections use a new scope version, retaining original scope, component and package evidence. The implementation handoff must guide users through the existing authorized scope and component submission workflows; no same-draft destructive replacement adapter is authorized by this tracker. Professional audit decisions and live-provider acceptance remain governed by their existing controls.
+Component corrections use a new scope version, retaining original scope, component and package evidence. The presentation handoff re-reads the authorized source scope and exact component/package identities, then accepts scope/group query identities only when the authorized overview contains that pair. Stale, unknown and wrong-group sources have no correction link. The scope workspace opens this retained-source handoff. Correction creation must retain the source period from the authorized scope options; missing or different periods are refused. No same-draft replacement adapter is authorized. Professional audit decisions and live-provider acceptance remain governed by their existing controls.

@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,9 @@ public static partial class UiEndpoints
   public sealed record FeePaymentInput(string Amount, string Reference, bool Reviewed);
   public sealed record FeeLinkInput(Guid EngagementId, bool Reviewed);
   public sealed record FeeReviewInput(bool Reviewed);
+  /// <summary>Describes the payment handler's existing flattened receipt and delivery fields.</summary>
+  public sealed record FeePaymentResponse(Guid Id, bool Paid, Guid? ReceiptDocumentId, bool EmailQueued,
+    Guid? VoucherDocumentId, bool VoucherEmailQueued);
   private static void MapFeeAgreementEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/proposals/{id:guid}/fee-agreement", async (Guid id, HttpContext http, TrustedActorResolver resolver,
@@ -30,7 +34,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<FeeAgreementWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/proposals/{id:guid}/fee-agreement", async (Guid id, FeeReviewInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -42,7 +49,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FeeAgreementService.CreateAgreementAsync(db, actor, id, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/fee-agreements/{id:guid}/engagement", async (Guid id, FeeLinkInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -54,7 +65,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FeeAgreementService.LinkEngagementAsync(db, actor, id, input.EngagementId, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     foreach (var kind in new[] { "advance", "balance" })
       group.MapPost("/fee-agreements/{id:guid}/" + kind + "-invoice", async (Guid id, FeeReviewInput input, HttpContext http,
         TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -68,7 +83,11 @@ public static partial class UiEndpoints
         var result = kind == "advance" ? await FeeAgreementService.IssueAdvanceInvoiceAsync(db, actor, id, http.RequestAborted)
           : await FeeAgreementService.IssueBalanceInvoiceAsync(db, actor, id, http.RequestAborted);
         return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-      });
+      })
+        .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+        .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+        .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+        .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/fee-agreements/{id:guid}/advance-payment", async (Guid id, FeePaymentInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -84,7 +103,11 @@ public static partial class UiEndpoints
         receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued,
         voucherDocumentId = result.Value.VoucherDocumentId, voucherEmailQueued = result.Value.VoucherEmailQueued })
         : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<FeePaymentResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/fee-agreements/{id:guid}/balance-payment", async (Guid id, FeePaymentInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -100,6 +123,10 @@ public static partial class UiEndpoints
         receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued,
         voucherDocumentId = result.Value.VoucherDocumentId, voucherEmailQueued = result.Value.VoucherEmailQueued })
         : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<FeePaymentResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
   }
 }

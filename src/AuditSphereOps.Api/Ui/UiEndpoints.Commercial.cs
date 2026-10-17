@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,7 +33,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<LeadWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/leads/{id:guid}/opportunities", async (Guid id, OpportunityInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -52,7 +56,11 @@ public static partial class UiEndpoints
         new(id, input.ServiceRoute, input.EntityScope, input.PeriodStart, input.PeriodEnd, fee, input.Currency,
           OwnerUserId: actor.UserId, RequestId: input.RequestId), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/opportunities/{id:guid}/proposals", async (Guid id, ProposalRevisionInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -81,7 +89,12 @@ public static partial class UiEndpoints
       if (result.Succeeded) return Results.Ok(new { id = result.Value });
       var status = result.ErrorCode == ErrorCodes.IdempotencyConflict ? 409 : 400;
       return Results.Json(new { code = result.ErrorCode }, statusCode: status);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status409Conflict, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet("/proposals/{id:guid}", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -93,7 +106,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<ProposalWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/proposals/{id:guid}/review", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -104,7 +120,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.ApproveProposalAsync(db, actor, id, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/proposals/{id:guid}/sent", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -115,7 +135,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.SendProposalAsync(db, actor, id, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/proposals/{id:guid}/response", async (Guid id, ProposalResponseInput input, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -128,7 +152,11 @@ public static partial class UiEndpoints
         new(input.Decision, input.Reason, input.OfferSha256, input.RespondentName, input.RespondentEmail, input.EvidenceReference, input.Channel),
         http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/proposals/{id:guid}/convert", async (Guid id, ClientConversionInput input, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -139,7 +167,11 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.ConvertToClientDraftAsync(db, actor, new(id, input.LegalName), http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapGet("/leads", async (string? search, int? page, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -151,7 +183,11 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    });
+    })
+      .Produces<PracticeLeadPage>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/leads", async (LeadInput input, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -167,7 +203,12 @@ public static partial class UiEndpoints
         new(input.Name!, input.Source!, input.ContactName, input.ContactEmail, actor.UserId, RequestId: input.RequestId), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode },
         statusCode: result.ErrorCode == AuditSphereOps.Domain.Shared.ErrorCodes.IdempotencyConflict ? 409 : 400);
-    });
+    })
+      .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status409Conflict, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/leads/{id:guid}/qualify", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -178,6 +219,10 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.QualifyLeadAsync(db, actor, id, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    });
+    })
+      .Produces(StatusCodes.Status204NoContent)
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
   }
 }

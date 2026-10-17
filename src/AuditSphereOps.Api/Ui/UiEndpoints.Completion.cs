@@ -20,25 +20,34 @@ public static partial class UiEndpoints
   public sealed record LockInput(string DocumentKey);
   public sealed record ReleaseCandidateInput(Guid PackageId);
   public sealed record WorkprogramApprovalInput(string Rationale);
+  public sealed record SignatureUploadForm(IFormFile File);
+  public sealed record GeneratedReportResponse(Guid DeliverableId, string Message);
 
   private static void MapCompletionEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/engagements/{id:guid}/completion", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.GetAsync(db, actor, id, DateTimeOffset.UtcNow, ct,
-        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())));
+        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())))
+      .WithUiResponse<EngagementCompletionWorkspace>();
     group.MapPost("/engagements/{id:guid}/completion/release-candidate", (Guid id, ReleaseCandidateInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db, actor, id, i.PackageId, ct)));
+      CommandAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db, actor, id, i.PackageId, ct)))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/confirmations/{caseId:guid}/criticality", (Guid caseId, CriticalityInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.SetConfirmationCriticalityAsync(db, actor, caseId, i.Critical,
-        i.Critical ? "Material to the audit opinion" : "Reassessed as not critical to the report", ct)));
+        i.Critical ? "Material to the audit opinion" : "Reassessed as not critical to the report", ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/engagements/{id:guid}/completion/srm", (Guid id, SrmInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, actor, id, i.Recommendations ?? "", ct)));
+      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, actor, id, i.Recommendations ?? "", ct)))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/engagements/{id:guid}/completion/workprogram-approval", (Guid id, WorkprogramApprovalInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ApproveWorkprogramsAsync(db, actor, new(id, i.Rationale ?? ""), ct)));
+      CommandAsync(http, (db, actor, ct) => AuditFieldworkService.ApproveWorkprogramsAsync(db, actor, new(id, i.Rationale ?? ""), ct)))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/engagements/{id:guid}/completion/clearance", (Guid id, ClearanceInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.PartnerClearAsync(db, actor, i.SrmId, i.KeyRiskAreasComment ?? "", i.NotesComment ?? "", ct)));
+      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.PartnerClearAsync(db, actor, i.SrmId, i.KeyRiskAreasComment ?? "", i.NotesComment ?? "", ct)))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/engagements/{id:guid}/completion/opinion", (Guid id, OpinionInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.DecideOpinionAsync(db, actor, id, i.OpinionType, i.FocusArea, i.Basis, ct)));
+      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.DecideOpinionAsync(db, actor, id, i.OpinionType, i.FocusArea, i.Basis, ct)))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/engagements/{id:guid}/completion/reports", (Guid id, ReportInput i, HttpContext http) =>
       CommandAsync(http, async (db, actor, ct) =>
       {
@@ -48,56 +57,73 @@ public static partial class UiEndpoints
         return r.Value!.DeliverableId is null
           ? CommandResult<object>.Fail(ErrorCodes.GateBlocked, r.Value.Message)
           : CommandResult<object>.Ok(new { r.Value.DeliverableId, r.Value.Message });
-      }));
+      }))
+      .WithUiResponse<UiValueResponse<GeneratedReportResponse>>();
     group.MapPost("/deliverables/{id:guid}/share", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.ShareWithClientAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.ShareWithClientAsync(db, actor, id, ct)))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/deliverables/{id:guid}/sign", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.SignIndependentReportAsync(db, actor, id, ct,
-        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())));
+        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapUiGet("/deliverables/{id:guid}/signature", http =>
       Guid.TryParse(http.Request.RouteValues["id"]?.ToString(), out var id)
         ? ReadAsync(http, (db, actor, ct) => AuditDeliverableService.VerifyReportSignatureAsync(db, actor, id, ct))
-        : Task.FromResult(Invalid("The deliverable identity is invalid.")));
+        : Task.FromResult(Invalid("The deliverable identity is invalid.")))
+      .WithUiResponse<ReportSignatureCheck>();
     group.MapPost("/deliverable-comments/{id:guid}/resolve", (Guid id, CommentResolutionInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.ResolveCommentAsync(db, actor, id, i.Resolution ?? "", ct)));
+      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.ResolveCommentAsync(db, actor, id, i.Resolution ?? "", ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/representation-scans/{id:guid}/verify", (Guid id, ScanVerificationInput i, HttpContext http) =>
       i.Reviewed
         ? CommandAsync(http, (db, actor, ct) => AuditDeliverableService.VerifySignedRepresentationAsync(db, actor, id, i.ExpectedSha256 ?? "", i.Reason ?? "", ct))
-        : Task.FromResult(Invalid("Confirm you reviewed this exact scan.")));
+        : Task.FromResult(Invalid("Confirm you reviewed this exact scan.")))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/engagements/{id:guid}/completion/bundle", (Guid id, BundleInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.AssembleBundleAsync(db, actor, id, i.StatementsReviewed, ct,
-        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())));
+        http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapUiPost("/signatures", async http =>
     {
       var png = await ReadUploadAsync(http, "file", AuditDeliverableService.MaxSignatureBytes);
       return png is null ? Invalid("Upload a PNG of at most 512 KB.")
         : await CommandAsync(http, (db, actor, ct) => AuditDeliverableService.RegisterSignatureAsync(db, actor, png.Value.Content, ct));
-    });
+    }).Accepts<SignatureUploadForm>("multipart/form-data")
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapUiPost("/firm-seal", async http =>
     {
       var png = await ReadUploadAsync(http, "file", AuditDeliverableService.MaxSignatureBytes);
       return png is null ? Invalid("Seal PNG must be at most 512 KB.")
         : await CommandAsync(http, (db, actor, ct) => AuditDeliverableService.RegisterFirmSealAsync(db, actor, png.Value.Content, ct));
-    });
+    }).Accepts<SignatureUploadForm>("multipart/form-data")
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/engagements/{id:guid}/amendments", (Guid id, AmendmentInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FileFreezeService.RequestAmendmentAsync(db, actor, id, i.Reason ?? "", ct)));
+      CommandAsync(http, (db, actor, ct) => FileFreezeService.RequestAmendmentAsync(db, actor, id, i.Reason ?? "", ct)))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/engagements/{id:guid}/holding-letter/dispatch", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => HoldingLetterDispatch.DispatchCurrentAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => HoldingLetterDispatch.DispatchCurrentAsync(db, actor, id, ct)))
+      .WithUiResponse<UiValueResponse<HoldingLetterStatus>>(includeConflict: true);
     group.MapGet("/engagements/{id:guid}/early-lock/readiness", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => FileFreezeService.GetArchiveReadinessAsync(db, actor, id, DateTimeOffset.UtcNow, ct)));
+      ReadAsync(http, (db, actor, ct) => FileFreezeService.GetArchiveReadinessAsync(db, actor, id, DateTimeOffset.UtcNow, ct)))
+      .WithUiResponse<FileFreezeService.ArchiveReadinessView>();
     group.MapPost("/engagements/{id:guid}/early-lock", (Guid id, EarlyLockInput i, HttpContext http) =>
       long.TryParse(i.ExpectedRevision, out var revision)
         ? CommandAsync(http, (db, actor, ct) => FileFreezeService.RequestEarlyComplianceLockAsync(db, actor,
             new FileFreezeService.EarlyComplianceLockRequest(id, revision, i.PartnerConfirmed, i.Rationale ?? "", i.ArchiveReadinessDigest ?? ""),
             DateTimeOffset.UtcNow, ct))
-        : Task.FromResult(Invalid("The countdown revision must be a whole number.")));
+        : Task.FromResult(Invalid("The countdown revision must be a whole number.")))
+      .WithUiResponse<UiValueResponse<FileFreezeService.EarlyComplianceLockResult>>(includeConflict: true);
     group.MapPost("/amendments/{id:guid}/approve", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FileFreezeService.ApproveAmendmentAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => FileFreezeService.ApproveAmendmentAsync(db, actor, id, ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/amendments/{id:guid}/close", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => FileFreezeService.CloseAmendmentAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => FileFreezeService.CloseAmendmentAsync(db, actor, id, ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/engagements/{id:guid}/locks", (Guid id, LockInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => EngagementActivityQuery.LockAsync(db, actor, id, i.DocumentKey ?? "", ct)));
+      CommandAsync(http, (db, actor, ct) => EngagementActivityQuery.LockAsync(db, actor, id, i.DocumentKey ?? "", ct)))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/locks/{id:guid}/release", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => EngagementActivityQuery.UnlockAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => EngagementActivityQuery.UnlockAsync(db, actor, id, ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
   }
 }

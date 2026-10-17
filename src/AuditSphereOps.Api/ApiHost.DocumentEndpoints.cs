@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using AuditSphereOps.Api.Contracts;
+using Microsoft.OpenApi;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
@@ -31,6 +33,9 @@ namespace AuditSphereOps.Api;
 
 public static partial class ApiHost
 {
+  public sealed record PbcChunkSuccessResponse(Guid UploadId, int ChunkIndex, long Offset, long ByteCount, string State);
+  public sealed record PbcChunkErrorResponse(string Code);
+
   private static void MapDocumentEndpoints(WebApplication app)
   {
     app.MapPost("/api/pbc/uploads/{uploadId:guid}/chunks/{chunkIndex:int}", async (
@@ -135,7 +140,26 @@ public static partial class ApiHost
           try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { }
         }
       }
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload))
+      .Accepts<Stream>("application/octet-stream")
+      .WithMetadata(
+        new ManualParameterMetadata("Origin", ParameterLocation.Header, true, JsonSchemaType.String,
+          Format: "uri", Description: "Must match the request scheme, host and port."),
+        new ManualParameterMetadata("X-Upload-Offset", ParameterLocation.Header, true, JsonSchemaType.Integer,
+          Format: "int64", Description: "Nonnegative byte offset for this retained upload chunk."),
+        new ManualParameterMetadata("X-Content-SHA256", ParameterLocation.Header, true, JsonSchemaType.String,
+          Pattern: "^[a-fA-F0-9]{64}$", Description: "SHA-256 of the exact chunk bytes."),
+        new ManualParameterMetadata("X-Pbc-Upload-Capability", ParameterLocation.Header, true, JsonSchemaType.String,
+          Description: "The server-issued capability bound to this upload and actor; never persist it in client logs."))
+      .Produces<PbcChunkSuccessResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<PbcChunkErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces(StatusCodes.Status401Unauthorized)
+      .Produces(StatusCodes.Status403Forbidden)
+      .Produces<PbcChunkErrorResponse>(StatusCodes.Status409Conflict, "application/json")
+      .Produces(StatusCodes.Status413PayloadTooLarge)
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")
+      .Produces<ApiError>(StatusCodes.Status429TooManyRequests, "application/json")
+      .WithMetadata(new CookieSessionContractMetadata());
 
     app.MapGet("/api/pbc/uploads/{uploadId:guid}/download", async (
       Guid uploadId,
@@ -172,7 +196,12 @@ public static partial class ApiHost
         await input.CopyToAsync(http.Response.Body, ct);
       }
       return Results.Empty;
-    });
+    }).Produces<Stream>(StatusCodes.Status200OK, "*/*")
+      .Produces(StatusCodes.Status401Unauthorized)
+      .Produces(StatusCodes.Status403Forbidden)
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")
+      .Produces<ApiError>(StatusCodes.Status429TooManyRequests, "application/json")
+      .WithMetadata(new CookieSessionContractMetadata());
 
     // Generated commercial documents (quotation, engagement letter, receipt): same authorization as the service, no
     // existence oracle (unknown and out-of-scope identifiers both refuse), never cached or sniffed.
@@ -193,7 +222,12 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(document.Bytes, document.ContentType, document.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, AuditSphereOps.Application.Practice.CommercialDocumentRenderer.DocxContentType)
+      .Produces(StatusCodes.Status401Unauthorized)
+      .Produces(StatusCodes.Status403Forbidden)
+      .Produces<ApiError>(StatusCodes.Status429TooManyRequests, "application/json")
+      .WithMetadata(new CookieSessionContractMetadata());
 
     app.MapGet("/api/deliverables/{deliverableId:guid}/download", async (
       Guid deliverableId,
@@ -210,7 +244,13 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, result.Value.ContentType, result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, "application/pdf")
+      .Produces<Stream>(StatusCodes.Status200OK, AuditSphereOps.Application.Completion.AuditDeliverableRenderer.DocxContentType)
+      .Produces(StatusCodes.Status401Unauthorized)
+      .Produces(StatusCodes.Status403Forbidden)
+      .Produces<ApiError>(StatusCodes.Status429TooManyRequests, "application/json")
+      .WithMetadata(new CookieSessionContractMetadata());
 
     app.MapGet("/api/representation-scans/{scanId:guid}/download", async (
       Guid scanId, HttpContext http, TrustedActorResolver actorResolver, IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
@@ -223,7 +263,12 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, "application/pdf", $"Management-signed-LOR-{scanId}.pdf");
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, "application/pdf")
+      .Produces(StatusCodes.Status401Unauthorized)
+      .Produces(StatusCodes.Status403Forbidden)
+      .Produces<ApiError>(StatusCodes.Status429TooManyRequests, "application/json")
+      .WithMetadata(new CookieSessionContractMetadata());
     app.MapGet("/api/deliverable-bundles/{bundleId:guid}/download", async (
       Guid bundleId, HttpContext http, TrustedActorResolver actorResolver, IDbContextFactory<AuditSphereDbContext> dbFactory, CancellationToken ct) =>
     {
@@ -235,6 +280,11 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, "application/zip", $"Final-audit-bundle-{bundleId}.zip");
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, "application/zip")
+      .Produces(StatusCodes.Status401Unauthorized)
+      .Produces(StatusCodes.Status403Forbidden)
+      .Produces<ApiError>(StatusCodes.Status429TooManyRequests, "application/json")
+      .WithMetadata(new CookieSessionContractMetadata());
   }
 }

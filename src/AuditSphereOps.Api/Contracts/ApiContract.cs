@@ -7,6 +7,16 @@ using Microsoft.OpenApi;
 
 namespace AuditSphereOps.Api.Contracts;
 
+/// <summary>Marks an existing JSON read whose successful body may be null; CLR response metadata erases reference nullability.</summary>
+public sealed class NullableJsonSuccessBodyMetadata { }
+
+/// <summary>Documents scalar inputs read manually from HttpContext without changing binding or refusal order.</summary>
+public sealed record ManualParameterMetadata(string Name, ParameterLocation Location, bool Required,
+  JsonSchemaType Type, string? Format = null, string? Pattern = null, string? Description = null);
+
+/// <summary>Transport-only session declaration for handlers that resolve the cookie actor themselves.</summary>
+public sealed class CookieSessionContractMetadata { }
+
 /// <summary>
 /// The canonical OpenAPI 3.1 contract, generated from the actual ASP.NET Core endpoints. The
 /// document describes transport behavior only: URLs, methods, authentication requirements and
@@ -60,7 +70,18 @@ public static class ApiContract
       });
       options.AddOperationTransformer(async (operation, context, ct) =>
       {
-        var authorized = context.Description.ActionDescriptor.EndpointMetadata.OfType<IAuthorizeData>().Any();
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        foreach (var parameter in metadata.OfType<ManualParameterMetadata>())
+        {
+          operation.Parameters ??= [];
+          operation.Parameters.Add(new OpenApiParameter
+          {
+            Name = parameter.Name, In = parameter.Location, Required = parameter.Required,
+            Description = parameter.Description,
+            Schema = new OpenApiSchema { Type = parameter.Type, Format = parameter.Format, Pattern = parameter.Pattern }
+          });
+        }
+        var authorized = metadata.OfType<IAuthorizeData>().Any() || metadata.OfType<CookieSessionContractMetadata>().Any();
         if (!authorized) return;
         operation.Security ??= [];
         operation.Security.Add(new OpenApiSecurityRequirement
@@ -72,11 +93,19 @@ public static class ApiContract
         operation.Responses.TryAdd("429", BoundaryError("The boundary rate limit rejected the request."));
         if (HttpMethods.IsPost(context.Description.HttpMethod ?? "") && context.Description.AcceptsJsonBody())
           operation.Responses.TryAdd("413", BoundaryError("The JSON command body exceeded the accepted size."));
+        if (context.Description.ActionDescriptor.EndpointMetadata.OfType<NullableJsonSuccessBodyMetadata>().Any() &&
+            operation.Responses.TryGetValue("200", out var success) && success.Content is not null &&
+            success.Content.TryGetValue("application/json", out var json) && json.Schema is not null)
+          json.Schema = new OpenApiSchema { AnyOf = [json.Schema, new OpenApiSchema { Type = JsonSchemaType.Null }] };
       });
       options.AddSchemaTransformer((schema, context, _) =>
       {
         var clrType = context.JsonPropertyInfo?.PropertyType ?? context.JsonTypeInfo.Type;
         ApplyFinancialDecimalStringRule(schema, clrType);
+        // This metadata-only union describes existing anonymous {id}/{revision} replies.
+        // Neither reply carries a discriminator on the wire.
+        if (clrType == typeof(AuditSphereOps.Api.Ui.UiEndpoints.UiProfileResponse))
+          schema.Discriminator = null;
         return Task.CompletedTask;
       });
     });

@@ -1,11 +1,15 @@
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Api.Contracts;
+using Microsoft.OpenApi;
 
 namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record UiWorkspaceAdministrationResponse(WorkspaceAdministrationPage Workspace, bool ProviderConfigured);
+
   public sealed record UiWorkspaceProvision(Guid TargetId, string? ReviewToken, string? Reason, bool Reviewed);
 
   private static void MapWorkspaceProvisioningEndpoints(RouteGroupBuilder group)
@@ -20,14 +24,17 @@ public static partial class UiEndpoints
       return result.Succeeded ? CommandResult<object>.Ok(new { workspace = result.Value,
         providerConfigured = http.RequestServices.GetRequiredService<ISelectedSiteWorkspaceProvisioner>().IsConfigured }) :
         CommandResult<object>.Fail(result.ErrorCode!, result.Message!);
-    }));
+    })).WithUiResponse<UiWorkspaceAdministrationResponse>()
+      .WithMetadata(new ManualParameterMetadata("page", ParameterLocation.Query, false, JsonSchemaType.Integer,
+        Format: "int32", Description: "Zero-based bounded workspace page; omitted values default to zero."));
     foreach (var engagement in new[] { false, true })
     {
       var kind = engagement ? "engagements" : "clients";
       group.MapUiGet($"/administration/microsoft365/workspaces/{kind}/{{id:guid}}/review", http => ReadAsync(http,
         (db, actor, ct) => WorkspaceProvisioningAdministration.ReviewAsync(db, actor,
           Guid.Parse(http.Request.RouteValues["id"]!.ToString()!), engagement, ct,
-          ReadClientSiteRolloutPolicy(http.RequestServices.GetRequiredService<IConfiguration>()))));
+          ReadClientSiteRolloutPolicy(http.RequestServices.GetRequiredService<IConfiguration>()))))
+        .WithUiResponse<WorkspaceTargetReview>();
       group.MapPost($"/administration/microsoft365/workspaces/{kind}/provision", (UiWorkspaceProvision i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
       {
         if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
@@ -37,7 +44,7 @@ public static partial class UiEndpoints
           http.RequestServices.GetRequiredService<ISelectedSiteWorkspaceProvisioner>(), i.TargetId, engagement,
           i.ReviewToken, i.Reason, DateTimeOffset.UtcNow, ct,
           ReadClientSiteRolloutPolicy(http.RequestServices.GetRequiredService<IConfiguration>()));
-      }));
+      })).WithUiResponse<UiValueResponse<WorkspaceProvisioningResult>>(includeConflict: true);
     }
     group.MapUiGet("/administration/microsoft365/client-sites", http => ReadAsync(http, (db, actor, ct) =>
     {
@@ -45,7 +52,7 @@ public static partial class UiEndpoints
       var policy = ReadClientSiteRolloutPolicy(configuration);
       return ClientSharePointSiteQuery.GetAdministrationAsync(db, actor, policy.Enabled,
         policy.ClientsCreatedAfter, policy.BoundaryInvalid, ct);
-    }));
+    })).WithUiResponse<ClientSiteAdministrationView>();
   }
 
   private static ClientSiteRolloutPolicy ReadClientSiteRolloutPolicy(IConfiguration configuration)

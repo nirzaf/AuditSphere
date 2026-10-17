@@ -19,6 +19,12 @@ namespace AuditSphereOps.Api.Ui;
 /// </summary>
 public static partial class UiEndpoints
 {
+  /// <summary>The existing command helper's JSON value envelope; this is transport metadata only.</summary>
+  public sealed record UiValueResponse<T>(T? Value);
+  public sealed record UiCodeErrorResponse(string Code);
+  public sealed record UiFailureResponse(string Code, string Message);
+  public sealed record UiIdentifierResponse(Guid Id);
+
   public delegate Task<CommandResult<T>> UiQuery<T>(AuditSphereDbContext db, ActorContext actor, CancellationToken ct);
   public delegate Task<CommandResult> UiCommand(AuditSphereDbContext db, ActorContext actor, CancellationToken ct);
 
@@ -120,7 +126,11 @@ public static partial class UiEndpoints
     return (Path.GetFileName(file.FileName), string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType, buffer.ToArray());
   }
 
-  internal static IResult UiResult(object? value) => Results.Json(value, UiJson);
+  // JsonHttpResult omits the body for a null CLR value. Successful optional reads still
+  // need a JSON null so their declared nullable contract is an actual JSON response.
+  internal static IResult UiResult(object? value) => value is null
+    ? Results.Content("null", "application/json")
+    : Results.Json(value, UiJson);
 
   internal static IResult Failure(string? code, string? message, int? status = null) =>
     Results.Json(new { code = code ?? "request.failed", message = message ?? "The request could not be completed." },

@@ -1795,7 +1795,7 @@
       },
       {
         "id": "T024",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1815,7 +1815,7 @@
       },
       {
         "id": "T028",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IN_PROGRESS",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1830,7 +1830,7 @@
       },
       {
         "id": "T031",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IN_PROGRESS",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
@@ -1860,80 +1860,117 @@
       },
       {
         "id": "T037",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T038",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T039",
-        "implementationStatus": "IN_PROGRESS",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T040",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T041",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T042",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T043",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T044",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T045",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T046",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T047",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T048",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T049",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T050",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IN_PROGRESS",
         "acceptanceStatus": "NOT_VERIFIED"
       },
       {
         "id": "T051",
-        "implementationStatus": "NOT_STARTED",
+        "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
         "acceptanceStatus": "NOT_VERIFIED"
       }
     ],
-    "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md"
+    "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
+    "workingTreeBase": "150c7671762ac93f87b2b539cb53f688fb90557e",
+    "localVerification": {
+      "sourceState": "UNCOMMITTED_WORKING_TREE; results do not establish current-commit acceptance",
+      "allocationDomain": {
+        "result": "PASS",
+        "passed": 1,
+        "filter": "ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice"
+      },
+      "allocationUi": {
+        "result": "PASS",
+        "passed": 7,
+        "spec": "open-item-allocations.spec.ts"
+      },
+      "correctionOverviewUi": {
+        "result": "PASS",
+        "passed": 9,
+        "spec": "consolidation/overview.spec.ts"
+      },
+      "apiIntegration": {
+        "result": "FAIL",
+        "passed": 9,
+        "failed": 4,
+        "total": 13,
+        "scope": "OpenApiContractTests; intercompany API flow; cookie-session denial; mapping batch"
+      },
+      "apiCorrections": "JSON-null transport, nullable-envelope schema assertion, purchase-page continuation assertion corrected; remaining metadata integration and rerun pending",
+      "browser": "NOT_RUN",
+      "currentCommitReleaseVerification": "NOT_RUN",
+      "lastPushedFastCi": {
+        "runId": 39057271667,
+        "commit": "150c7671762ac93f87b2b539cb53f688fb90557e",
+        "result": "FAST_CI_PASS",
+        "angular": "PASS",
+        "docs": "PASS",
+        "dotnetRelease": "PASS"
+      }
+    }
   }
 }

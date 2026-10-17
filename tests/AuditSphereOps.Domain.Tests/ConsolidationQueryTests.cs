@@ -78,6 +78,7 @@ public sealed class ConsolidationQueryTests
         Status = AccountingWorkflowStates.Draft, CreatedByUserId = fixture.Manager.Id,
         CreatedAt = DateTimeOffset.UtcNow.AddMinutes(1)
       });
+      var matchesCreatedAt = DateTimeOffset.UtcNow;
       db.IntercompanyMatches.Add(new IntercompanyMatch
       {
         Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId, ScopeVersionId = fixture.ScopeId,
@@ -86,7 +87,7 @@ public sealed class ConsolidationQueryTests
         PeriodCode = "FY2026", Currency = "QAR", TransactionReference = "IC-001",
         SellerAmount = 100m, BuyerAmount = 90m, MatchedAmount = 90m, Difference = 10m,
         Status = AccountingWorkflowStates.Submitted, EvidenceReference = "ic-evidence-1",
-        CreatedByUserId = fixture.Manager.Id, CreatedAt = DateTimeOffset.UtcNow
+        CreatedByUserId = fixture.Manager.Id, CreatedAt = matchesCreatedAt
       });
       db.IntercompanyMatches.Add(new IntercompanyMatch
       {
@@ -94,10 +95,60 @@ public sealed class ConsolidationQueryTests
         SellerClientId = fixture.ClientA, BuyerClientId = fixture.ClientB, AccountNature = "RECEIVABLE_PAYABLE",
         SellerTaxonomyCode = "REVENUE", BuyerTaxonomyCode = "EXPENSE",
         PeriodCode = "FY2026", Currency = "QAR", TransactionReference = "IC-002",
-        SellerAmount = 50m, BuyerAmount = 50m, MatchedAmount = 50m, Difference = 0m,
+        SellerAmount = 50m, BuyerAmount = -50m, MatchedAmount = 50m, Difference = 0m,
         Status = AccountingWorkflowStates.Approved, ReviewedByUserId = fixture.Manager.Id,
-        ReviewedAt = DateTimeOffset.UtcNow, CreatedByUserId = fixture.Manager.Id, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(2)
+        ReviewedAt = matchesCreatedAt.AddSeconds(3), CreatedByUserId = fixture.Manager.Id, CreatedAt = matchesCreatedAt.AddSeconds(3)
       });
+      db.IntercompanyMatches.Add(new IntercompanyMatch
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId, ScopeVersionId = fixture.ScopeId,
+        SellerClientId = fixture.ClientA, BuyerClientId = fixture.ClientB, AccountNature = "RECEIVABLE_PAYABLE",
+        SellerTaxonomyCode = "REVENUE", BuyerTaxonomyCode = "EXPENSE",
+        PeriodCode = "FY2026", Currency = "QAR", TransactionReference = "IC-PARTIAL",
+        SellerAmount = 100m, BuyerAmount = -100m, MatchedAmount = 50m, Difference = 0m,
+        Status = AccountingWorkflowStates.Approved, EvidenceReference = "ic-evidence-partial",
+        CreatedByUserId = fixture.Manager.Id, CreatedAt = matchesCreatedAt.AddSeconds(1)
+      });
+      db.IntercompanyMatches.Add(new IntercompanyMatch
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId, ScopeVersionId = fixture.ScopeId,
+        SellerClientId = fixture.ClientA, BuyerClientId = fixture.ClientB, AccountNature = "RECEIVABLE_PAYABLE",
+        SellerTaxonomyCode = "REVENUE", BuyerTaxonomyCode = "EXPENSE",
+        PeriodCode = "FY2026", Currency = "QAR", TransactionReference = "IC-NEGATIVE",
+        SellerAmount = 90m, BuyerAmount = -100m, MatchedAmount = 90m, Difference = -10m,
+        Status = AccountingWorkflowStates.Submitted, EvidenceReference = "ic-evidence-negative",
+        CreatedByUserId = fixture.Manager.Id, CreatedAt = matchesCreatedAt.AddSeconds(2)
+      });
+      var additionalMatches = new List<IntercompanyMatch>();
+      for (var i = 0; i < 98; i++)
+      {
+        additionalMatches.Add(new IntercompanyMatch
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId, ScopeVersionId = fixture.ScopeId,
+          SellerClientId = fixture.ClientA, BuyerClientId = fixture.ClientB, AccountNature = "RECEIVABLE_PAYABLE",
+          SellerTaxonomyCode = "REVENUE", BuyerTaxonomyCode = "EXPENSE",
+          PeriodCode = "FY2026", Currency = "QAR", TransactionReference = $"IC-UNRESOLVED-{i:D3}",
+          SellerAmount = 100m, BuyerAmount = -100m, MatchedAmount = 100m, Difference = 0m,
+          Status = AccountingWorkflowStates.Submitted, EvidenceReference = $"ic-evidence-unresolved-{i:D3}",
+          CreatedByUserId = fixture.Manager.Id, CreatedAt = matchesCreatedAt.AddMinutes(1).AddSeconds(i)
+        });
+      }
+      for (var i = 0; i < 400; i++)
+      {
+        additionalMatches.Add(new IntercompanyMatch
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId, ScopeVersionId = fixture.ScopeId,
+          SellerClientId = fixture.ClientA, BuyerClientId = fixture.ClientB, AccountNature = "RECEIVABLE_PAYABLE",
+          SellerTaxonomyCode = "REVENUE", BuyerTaxonomyCode = "EXPENSE",
+          PeriodCode = "FY2026", Currency = "QAR", TransactionReference = $"IC-APPROVED-{i:D3}",
+          SellerAmount = 100m, BuyerAmount = -100m, MatchedAmount = 100m, Difference = 0m,
+          Status = AccountingWorkflowStates.Approved, DifferenceReason = "Reviewed balanced match.",
+          EvidenceReference = $"ic-evidence-approved-{i:D3}", CreatedByUserId = fixture.Manager.Id,
+          ReviewedByUserId = fixture.GroupReviewer.Id, CreatedAt = matchesCreatedAt.AddMinutes(2).AddSeconds(i),
+          ReviewedAt = matchesCreatedAt.AddMinutes(2).AddSeconds(i)
+        });
+      }
+      db.IntercompanyMatches.AddRange(additionalMatches);
       await db.SaveChangesAsync();
     }
 
@@ -120,13 +171,69 @@ public sealed class ConsolidationQueryTests
 
       var unresolved = await ConsolidationQuery.GetIntercompanyExceptionsAsync(db, manager, fixture.ScopeId);
       Assert.True(unresolved.Succeeded, unresolved.Message);
-      var row = Assert.Single(unresolved.Value!.Items);
-      Assert.Equal("IC-001", row.TransactionReference);
-      Assert.Equal(10m, row.Difference);
-      Assert.Equal(10m, unresolved.Value.TotalUnmatchedDifference);
+      Assert.Equal(101, unresolved.Value!.TotalCount);
+      Assert.Equal(100, unresolved.Value.Items.Count);
+      Assert.Equal(0m, unresolved.Value.TotalUnmatchedDifference);
+      Assert.Equal(120m, unresolved.Value.TotalGrossUnmatchedExposure);
+      var partial = unresolved.Value.Items.Single(x => x.TransactionReference == "IC-PARTIAL");
+      Assert.Equal(0m, partial.Difference);
+      Assert.Equal(100m, partial.UnmatchedResidual);
 
-      var all = await ConsolidationQuery.GetIntercompanyExceptionsAsync(db, manager, fixture.ScopeId, unresolvedOnly: false);
-      Assert.Equal(2, all.Value!.TotalCount);
+      var secondExceptionPage = await ConsolidationQuery.GetIntercompanyExceptionsAsync(
+        db, manager, fixture.ScopeId, page: 2, pageSize: 100);
+      Assert.True(secondExceptionPage.Succeeded, secondExceptionPage.Message);
+      Assert.Equal(101, secondExceptionPage.Value!.TotalCount);
+      Assert.Equal(2, secondExceptionPage.Value.Page);
+      Assert.Single(secondExceptionPage.Value.Items);
+
+      var optionsWithoutPeriod = await ConsolidationQuery.GetIntercompanyMatchOptionsAsync(db, manager, fixture.ScopeId);
+      Assert.True(optionsWithoutPeriod.Succeeded, optionsWithoutPeriod.Message);
+      Assert.Null(optionsWithoutPeriod.Value!.PeriodStartDate);
+      Assert.Null(optionsWithoutPeriod.Value.PeriodEndDate);
+      Assert.NotNull(optionsWithoutPeriod.Value.MembershipBlocker);
+      Assert.Empty(optionsWithoutPeriod.Value.Members);
+
+      var all = await ConsolidationQuery.GetIntercompanyExceptionsAsync(
+        db, manager, fixture.ScopeId, unresolvedOnly: false, pageSize: 500);
+      Assert.True(all.Succeeded, all.Message);
+      Assert.Equal(502, all.Value!.TotalCount);
+      Assert.Equal(500, all.Value.Items.Count);
+      Assert.Equal(0m, all.Value.TotalUnmatchedDifference);
+      Assert.Equal(120m, all.Value.TotalGrossUnmatchedExposure);
+      var allHistoryPage2 = await ConsolidationQuery.GetIntercompanyExceptionsAsync(
+        db, manager, fixture.ScopeId, unresolvedOnly: false, page: 2, pageSize: 500);
+      Assert.True(allHistoryPage2.Succeeded, allHistoryPage2.Message);
+      Assert.Equal(502, allHistoryPage2.Value!.TotalCount);
+      Assert.Equal(2, allHistoryPage2.Value.Items.Count);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var scopePeriodId = await db.ConsolidationScopeVersions.AsNoTracking()
+        .Where(x => x.FirmId == fixture.FirmId && x.Id == fixture.ScopeId)
+        .Select(x => x.PeriodId).SingleAsync();
+      var membershipA = await db.ClientGroupMemberships.SingleAsync(x =>
+        x.FirmId == fixture.FirmId && x.GroupId == fixture.GroupId && x.ClientId == fixture.ClientA);
+      membershipA.EffectiveFrom = new DateOnly(2026, 1, 1);
+      membershipA.EffectiveTo = new DateOnly(2026, 6, 30);
+      var membershipB = await db.ClientGroupMemberships.SingleAsync(x =>
+        x.FirmId == fixture.FirmId && x.GroupId == fixture.GroupId && x.ClientId == fixture.ClientB);
+      membershipB.EffectiveFrom = new DateOnly(2027, 1, 1);
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = scopePeriodId, FirmId = fixture.FirmId, ClientId = fixture.ClientA, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY",
+        Currency = "QAR", Status = AccountingWorkflowStates.Approved, CreatedByUserId = fixture.Manager.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+
+      var options = await ConsolidationQuery.GetIntercompanyMatchOptionsAsync(db, manager, fixture.ScopeId);
+      Assert.True(options.Succeeded, options.Message);
+      Assert.Equal(new DateOnly(2026, 1, 1), options.Value!.PeriodStartDate);
+      Assert.Equal(new DateOnly(2026, 12, 31), options.Value.PeriodEndDate);
+      Assert.Null(options.Value.MembershipBlocker);
+      Assert.Collection(options.Value.Members, member => Assert.Equal(fixture.ClientA, member.ClientId));
     }
   }
 

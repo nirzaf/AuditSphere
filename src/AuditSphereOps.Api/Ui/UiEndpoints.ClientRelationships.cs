@@ -30,10 +30,16 @@ public static partial class UiEndpoints
 
   public sealed record RevokeRoutingInput(string Reason);
 
+  /// <summary>Direct success body returned after a client relationship or routing is revoked.</summary>
+  public sealed record ClientRelationshipMutationResponse(bool Success);
+
+  /// <summary>Direct refusal body that allows the existing optional message field.</summary>
+  public sealed record ClientRelationshipErrorResponse(string Code, string? Message = null);
+
   private static void MapClientRelationshipEndpoints(RouteGroupBuilder group)
   {
     // Hierarchy
-    group.MapGet("/clients/{id:guid}/relationship-candidates", async (Guid id, string? search, int? page, int? pageSize,
+    var candidates = group.MapGet("/clients/{id:guid}/relationship-candidates", async (Guid id, string? search, int? page, int? pageSize,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -49,9 +55,14 @@ public static partial class UiEndpoints
       }
 
       return Results.Ok(result.Value);
-    });
+    }).WithSummary("List client relationship candidates")
+      .WithDescription("Returns a bounded page of relationship candidates authorized for this client.");
+    candidates.Produces<ClientRelationshipCandidates>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
 
-    group.MapGet("/clients/{id:guid}/hierarchy", async (Guid id, HttpContext http,
+    var hierarchy = group.MapGet("/clients/{id:guid}/hierarchy", async (Guid id, HttpContext http,
       TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -62,10 +73,14 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
 
       return Results.Ok(result.Value);
-    });
+    }).WithSummary("Read the client organization hierarchy")
+      .WithDescription("Returns the client and its currently authorized parent, subsidiary and affiliate relationships.");
+    hierarchy.Produces<ClientOrganizationHierarchyDto>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
 
     // Create relationship
-    group.MapPost("/clients/{id:guid}/relationships", async (Guid id, CreateRelationshipInput input,
+    var createRelationship = group.MapPost("/clients/{id:guid}/relationships", async (Guid id, CreateRelationshipInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -101,10 +116,16 @@ public static partial class UiEndpoints
       return result.Succeeded
         ? Results.Ok(new { id = result.Value })
         : Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: 400);
-    });
+    }).WithSummary("Create a client relationship")
+      .WithDescription("Creates the requested client relationship after validating both client identities and its effective dates.");
+    createRelationship.Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<ClientRelationshipErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
     // Revoke relationship
-    group.MapDelete("/clients/{id:guid}/relationships/{relationshipId:guid}", async (Guid id, Guid relationshipId,
+    var revokeRelationship = group.MapDelete("/clients/{id:guid}/relationships/{relationshipId:guid}", async (Guid id, Guid relationshipId,
       [Microsoft.AspNetCore.Mvc.FromBody] RevokeRelationshipInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -124,10 +145,16 @@ public static partial class UiEndpoints
       return result.Succeeded
         ? Results.Ok(new { success = true })
         : Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: 400);
-    });
+    }).WithSummary("Revoke a client relationship")
+      .WithDescription("Revokes the relationship with its stated reason; the response confirms the action without returning a value envelope.");
+    revokeRelationship.Produces<ClientRelationshipMutationResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<ClientRelationshipErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
     // List routings
-    group.MapGet("/clients/{id:guid}/routings", async (Guid id, HttpContext http,
+    var routings = group.MapGet("/clients/{id:guid}/routings", async (Guid id, HttpContext http,
       TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -138,10 +165,14 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
 
       return Results.Ok(result.Value);
-    });
+    }).WithSummary("List client contact routings")
+      .WithDescription("Returns the client's correspondence routing assignments without exposing other clients' contacts.");
+    routings.Produces<IReadOnlyList<ClientContactRoutingDto>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json");
 
     // Assign routing
-    group.MapPost("/clients/{id:guid}/routings", async (Guid id, AssignRoutingInput input,
+    var assignRouting = group.MapPost("/clients/{id:guid}/routings", async (Guid id, AssignRoutingInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -177,10 +208,16 @@ public static partial class UiEndpoints
       return result.Succeeded
         ? Results.Ok(new { id = result.Value })
         : Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: 400);
-    });
+    }).WithSummary("Assign a client contact routing")
+      .WithDescription("Assigns a contact to a correspondence purpose over the supplied effective dates.");
+    assignRouting.Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<ClientRelationshipErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
     // Revoke routing
-    group.MapDelete("/clients/{id:guid}/routings/{routingId:guid}", async (Guid id, Guid routingId,
+    var revokeRouting = group.MapDelete("/clients/{id:guid}/routings/{routingId:guid}", async (Guid id, Guid routingId,
       [Microsoft.AspNetCore.Mvc.FromBody] RevokeRoutingInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -200,10 +237,16 @@ public static partial class UiEndpoints
       return result.Succeeded
         ? Results.Ok(new { success = true })
         : Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: 400);
-    });
+    }).WithSummary("Revoke a client contact routing")
+      .WithDescription("Revokes the routing assignment with its stated reason; the response confirms the action without a value envelope.");
+    revokeRouting.Produces<ClientRelationshipMutationResponse>(StatusCodes.Status200OK, "application/json")
+      .Produces<ClientRelationshipErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
 
     // Resolve routing
-    group.MapGet("/clients/{id:guid}/routings/resolve", async (Guid id, string purpose, string? asOfDate, Guid? overrideContactId,
+    var resolveRouting = group.MapGet("/clients/{id:guid}/routings/resolve", async (Guid id, string purpose, string? asOfDate, Guid? overrideContactId,
       string? overrideReason, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -227,6 +270,12 @@ public static partial class UiEndpoints
       return result.Status == RecipientResolutionStatus.Denied
         ? Results.Json(new { code = ErrorCodes.ScopeDenied, message = result.Message }, statusCode: 403)
         : Results.Ok(result);
-    });
+    }).WithSummary("Resolve a correspondence recipient")
+      .WithDescription("Returns the exact recipient resolution for the requested purpose and date, or a nondisclosing refusal.");
+    resolveRouting.Produces<RecipientResolutionResult>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<Microsoft.AspNetCore.Mvc.ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json");
   }
 }

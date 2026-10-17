@@ -8,6 +8,8 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record UiSelectedResourcesResponse(SelectedResourceWorkspace Workspace, bool ProbeConfigured);
+
   public sealed record UiResourceDraft(Guid DraftId, string? ExpectedRevision, string? SiteUrl,
     string? SiteId, string? DriveId, string? RootFolderId, string? AccessProfile, bool Reviewed);
   public sealed record UiTemplateSave(string? Purpose, string? ManifestJson, string? ExpectedVersion, bool Reviewed);
@@ -25,7 +27,7 @@ public static partial class UiEndpoints
       var configured = new[] { "TenantId", "ClientId", "CertificatePath", "PrivateKeyPath", "CredentialReference", "NegativeControlSiteUrl" }
         .All(key => !string.IsNullOrWhiteSpace(config[$"SelectedSite:{key}"]));
       return CommandResult<object>.Ok(new { workspace = result.Value, probeConfigured = configured });
-    }));
+    })).WithUiResponse<UiSelectedResourcesResponse>();
     group.MapPost("/administration/microsoft365/resources/save", (UiResourceDraft i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<Guid>();
@@ -35,7 +37,7 @@ public static partial class UiEndpoints
       return await Microsoft365ConfigurationService.SaveSelectedResourceAsync(db, actor,
         new(i.DraftId, revision, i.SiteUrl, i.SiteId, i.DriveId, i.RootFolderId, i.AccessProfile),
         http.RequestServices.GetRequiredService<TenantAdministrationSettings>().Options.TenantId, DateTimeOffset.UtcNow, ct);
-    }));
+    })).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/administration/microsoft365/templates/save", (UiTemplateSave i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<FolderTemplateResult>();
@@ -43,7 +45,7 @@ public static partial class UiEndpoints
           CultureInfo.InvariantCulture, out var version) || version < 0)
         return CommandResult<FolderTemplateResult>.Fail("review.required", "Review the bounded folder manifest and current version before saving.");
       return await Microsoft365ConfigurationService.SaveFolderTemplateAsync(db, actor, new(i.Purpose, i.ManifestJson, version), DateTimeOffset.UtcNow, ct);
-    }));
+    })).WithUiResponse<UiValueResponse<FolderTemplateResult>>(includeConflict: true);
     group.MapPost("/administration/microsoft365/templates/approve", (UiTemplateApproval i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied();
@@ -54,7 +56,7 @@ public static partial class UiEndpoints
       if (template is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The template is unavailable.");
       if (template.ManifestDigest != i.ExpectedDigest) return CommandResult.Fail(ErrorCodes.StaleRevision, "Review the exact template digest before approval.");
       return await Microsoft365ConfigurationService.ApproveFolderTemplateAsync(db, actor, i.TemplateId, DateTimeOffset.UtcNow, ct);
-    }));
+    })).WithUiResponse<UiValueResponse<bool>>(includeConflict: true);
     group.MapPost("/administration/microsoft365/resources/verify", (UiResourceVerification i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied();
@@ -69,13 +71,13 @@ public static partial class UiEndpoints
       }
       catch (OperationBlockedException) { return CommandResult.Fail(ErrorCodes.GateBlocked, "BLOCKED_EXTERNAL: verify Microsoft consent, the selected-site grant, exact resource IDs and the approved unrelated-site denial control."); }
       catch (SafeRetryException) { return CommandResult.Fail(ErrorCodes.GateBlocked, "Microsoft temporarily limited the check. Refresh persisted verification status before requesting it again."); }
-    }));
+    })).WithUiResponse<UiValueResponse<bool>>(includeConflict: true);
     group.MapPost("/administration/microsoft365/resources/activate", (UiResourceActivation i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<Guid>();
       if (!i.Reviewed || !Revision(i.ExpectedRevision, out var revision)) return CommandResult<Guid>.Fail("review.required", "Review the verified resource and approved client template before activation.");
       return await Microsoft365ConfigurationService.ActivateSelectedResourceAsync(db, actor, i.DraftId, revision, i.TemplateId, DateTimeOffset.UtcNow, ct);
-    }));
+    })).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
   }
 
   private static bool Revision(string? value, out long revision) => long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out revision) && revision > 0;

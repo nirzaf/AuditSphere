@@ -13,11 +13,23 @@ public static partial class UiEndpoints
   private static void MapStatementEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/engagements/{id:guid}/statements/workspace", (Guid id, string? section, string? filter, int? page, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetAsync(db, actor, id, section ?? "profit", filter, page ?? 1, ct)));
+      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetAsync(db, actor, id, section ?? "profit", filter, page ?? 1, ct)))
+      .Produces<StatementReviewPage>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapGet("/engagements/{id:guid}/statements/split", (Guid id, string? filter, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetSplitDashboardAsync(db, actor, id, filter, ct)));
+      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetSplitDashboardAsync(db, actor, id, filter, ct)))
+      .Produces<StatementReviewPage>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapGet("/engagements/{id:guid}/statements/contributions", (Guid id, string section, string destination, string statementSection, string revision, int? page, int? procedurePage, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.ContributionsAsync(db, actor, id, section, destination, statementSection, revision, page ?? 1, procedurePage ?? 1, ct)));
+      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.ContributionsAsync(db, actor, id, section, destination, statementSection, revision, page ?? 1, procedurePage ?? 1, ct)))
+      .Produces<StatementContributionPage>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/engagements/{id:guid}/statements/export", async (Guid id, StatementExportInput? input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -33,6 +45,11 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Mapping-Id"] = result.Value.MappingId.ToString("D");
       http.Response.Headers["X-Engagement-Id"] = id.ToString("D");
       return Results.File(result.Value.Content, "text/csv; charset=utf-8", result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    })
+      .Produces<string>(StatusCodes.Status200OK, "text/csv")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json")
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
   }
 }

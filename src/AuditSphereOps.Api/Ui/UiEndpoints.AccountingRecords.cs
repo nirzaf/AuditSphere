@@ -12,20 +12,26 @@ public static partial class UiEndpoints
 {
   public sealed record TrialBalanceExportInput(long Revision);
   public sealed record SourceAcceptanceInput(string Revision, string EvidenceReference, bool Reviewed);
+
   private static void MapAccountingRecordEndpoints(RouteGroupBuilder group)
   {
     MapJournalReviewEndpoints(group);
     group.MapGet("/gl-sources/{id:guid}/acceptance", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.GetGeneralLedgerAsync(db, actor, id, ct)));
+      ReadAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.GetGeneralLedgerAsync(db, actor, id, ct)))
+      .WithUiResponse<GeneralLedgerAcceptanceReview>(includeConflict: true);
     group.MapPost("/gl-sources/{id:guid}/acceptance", (Guid id, SourceAcceptanceInput input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.AcceptGeneralLedgerAsync(db, actor, id, input.Revision, input.EvidenceReference, input.Reviewed, ct)));
+      CommandAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.AcceptGeneralLedgerAsync(db, actor, id, input.Revision, input.EvidenceReference, input.Reviewed, ct)))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapGet("/datasets/{id:guid}/source/acceptance", (Guid id, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.GetAsync(db, actor, id, ct)));
+      ReadAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.GetAsync(db, actor, id, ct)))
+      .WithUiResponse<SourceAcceptanceReview>(includeConflict: true);
     group.MapPost("/datasets/{id:guid}/source/acceptance", (Guid id, SourceAcceptanceInput input, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.AcceptAsync(db, actor, id, input.Revision, input.EvidenceReference, input.Reviewed, ct)));
+      CommandAsync(http, (db, actor, ct) => SourceAcceptanceWorkspace.AcceptAsync(db, actor, id, input.Revision, input.EvidenceReference, input.Reviewed, ct)))
+      .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapGet("/datasets/{id:guid}/source", (Guid id, string? filter, int? page, int? issuePage, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => TrialBalanceSourceWorkspace.GetAsync(db, actor, id, filter, page ?? 1, issuePage ?? 1, ct)));
-    group.MapPost("/datasets/{id:guid}/source/export", async (Guid id, TrialBalanceExportInput input, HttpContext http,
+      ReadAsync(http, (db, actor, ct) => TrialBalanceSourceWorkspace.GetAsync(db, actor, id, filter, page ?? 1, issuePage ?? 1, ct)))
+      .WithUiResponse<TrialBalanceSourceWorkspaceDto>(includeConflict: true);
+    UiEndpointContractMetadata.WithUiCsvResponse(group.MapPost("/datasets/{id:guid}/source/export", async (Guid id, TrialBalanceExportInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -40,15 +46,16 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Dataset-Id"] = id.ToString("D");
       http.Response.Headers["X-Dataset-Revision"] = export.Value.Revision.ToString(System.Globalization.CultureInfo.InvariantCulture);
       return Results.File(Encoding.UTF8.GetBytes(export.Value.Csv), "text/csv; charset=utf-8", export.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
-    group.MapUiGet("/accounting/mappings", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.MappingsAsync(db, actor, ct)));
-    group.MapUiGet("/accounting/journals", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.JournalsAsync(db, actor, ct)));
-    group.MapUiGet("/accounting/differences", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.DifferencesAsync(db, actor, ct)));
-    group.MapGet("/accounting/journals/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.JournalAsync(db, actor, id, ct)));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export)), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<IReadOnlyList<MappingRecordRow>>(group.MapUiGet("/accounting/mappings", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.MappingsAsync(db, actor, ct))), includeBadRequest: false);
+    UiEndpointContractMetadata.WithUiResponse<IReadOnlyList<JournalRecordRow>>(group.MapUiGet("/accounting/journals", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.JournalsAsync(db, actor, ct))), includeBadRequest: false);
+    UiEndpointContractMetadata.WithUiResponse<IReadOnlyList<DifferenceRecordRow>>(group.MapUiGet("/accounting/differences", http => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.DifferencesAsync(db, actor, ct))), includeBadRequest: false);
+    UiEndpointContractMetadata.WithUiResponse<JournalDetailView>(group.MapGet("/accounting/journals/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http, (db, actor, ct) => AccountingRecordsQuery.JournalAsync(db, actor, id, ct))), includeBadRequest: false);
     group.MapPost("/accounting/journals/{id:guid}/post", (Guid id, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AdjustmentJournalService.PostAsync(db, actor, id, ct)));
+      CommandAsync(http, (db, actor, ct) => AdjustmentJournalService.PostAsync(db, actor, id, ct)))
+      .WithUiResponse<UiValueResponse<bool>>();
     // The export rechecks source, scope and management evidence; it is an instruction file only, never proof of posting.
-    group.MapPost("/accounting/journals/{id:guid}/instructions", async (Guid id, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
+    UiEndpointContractMetadata.WithUiCsvResponse(group.MapPost("/accounting/journals/{id:guid}/instructions", async (Guid id, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -60,6 +67,31 @@ public static partial class UiEndpoints
       if (!export.Succeeded || export.Value is null) return Failure(export.ErrorCode, export.Message);
       http.Response.Headers["X-Journal-Revision"] = export.Value.JournalRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
       return Results.File(Encoding.UTF8.GetBytes(export.Value.Csv), "text/csv; charset=utf-8", export.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export)));
+  }
+}
+
+internal static class UiEndpointContractMetadata
+{
+  internal static RouteHandlerBuilder WithUiResponse<T>(this RouteHandlerBuilder endpoint,
+    bool includeConflict = false, bool includePayloadTooLarge = false, bool includeBadRequest = true)
+  {
+    endpoint.Produces<T>(StatusCodes.Status200OK);
+    if (includeBadRequest) endpoint.Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status400BadRequest);
+    endpoint.Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status403Forbidden);
+    if (includeConflict) endpoint.Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status409Conflict);
+    if (includePayloadTooLarge) endpoint.Produces<ApiError>(StatusCodes.Status413PayloadTooLarge);
+    return endpoint;
+  }
+
+  internal static RouteHandlerBuilder WithUiCsvResponse(this RouteHandlerBuilder endpoint,
+    bool includeConflict = false, bool includePayloadTooLarge = false)
+  {
+    endpoint.Produces<string>(StatusCodes.Status200OK, "text/csv");
+    endpoint.Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status400BadRequest)
+      .Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status403Forbidden);
+    if (includeConflict) endpoint.Produces<UiEndpoints.UiFailureResponse>(StatusCodes.Status409Conflict);
+    if (includePayloadTooLarge) endpoint.Produces<ApiError>(StatusCodes.Status413PayloadTooLarge);
+    return endpoint;
   }
 }

@@ -12,14 +12,14 @@ fi
 
 cd "${repo_root}"
 npm --prefix src/AuditSphereOps.Ui run build
-AUDITSPHERE_EF_CONNECTION="${connection}" dotnet ef database update \
+dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --configuration Release --no-restore
+AUDITSPHERE_MIGRATION_CONNECTION="${connection}" dotnet ef database update \
+  --no-build --configuration Release \
   --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api
 "${pg_bin}/psql" -h 127.0.0.1 -p 5433 -U postgres -d "${database}" \
   -f scripts/e2e/accounting-browser-seed.sql
-dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --configuration Release
-
-exec env DOTNET_ENVIRONMENT=Development \
-  ASPNETCORE_ENVIRONMENT=Development \
+exec env DOTNET_ENVIRONMENT=Test \
+  ASPNETCORE_ENVIRONMENT=Test \
   ASPNETCORE_URLS=http://127.0.0.1:5029 \
   ConnectionStrings__AuditSphere="${connection}" \
   AngularUi__Enabled=true \

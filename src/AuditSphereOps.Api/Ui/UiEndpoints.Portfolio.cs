@@ -15,7 +15,8 @@ public static partial class UiEndpoints
   private static void MapPortfolioEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/portfolio/workspace", (string? search, int? page, int? pageSize, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => PortfolioQuery.WorkspaceAsync(db, actor, search, page ?? 0, pageSize ?? 25, ct)));
+      ReadAsync(http, (db, actor, ct) => PortfolioQuery.WorkspaceAsync(db, actor, search, page ?? 0, pageSize ?? 25, ct)))
+      .WithT046Response<PortfolioWorkspace>();
     group.MapPost("/portfolio/export", async (PortfolioExportInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -29,6 +30,7 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Failure("session.unavailable", "Sign in again.", 401);
       http.Response.Headers["X-Portfolio-Clients"] = result.Value!.ClientCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
       return Results.File(Encoding.UTF8.GetBytes(result.Value.Csv), "text/csv; charset=utf-8", result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export));
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .WithT046Response<Stream>("text/csv");
   }
 }

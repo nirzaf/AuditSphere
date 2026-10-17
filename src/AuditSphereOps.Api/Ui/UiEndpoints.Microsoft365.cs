@@ -8,7 +8,12 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record UiTenantAdministrationResponse(TenantAdministrationWorkspace Workspace, bool ConsentConfigured,
+    bool DirectoryConfigured, Guid? ConfiguredTenantId, bool PreparationConfigured, bool Simulation);
+
   public sealed record UiConsentBegin(Guid DraftId, bool Reviewed);
+  /// <summary>Authorization redirect returned by the tenant-consent command.</summary>
+  public sealed record UiConsentRedirectResponse(string Redirect);
   public sealed record UiDirectorySearch(string Prefix, string? Domain, string? PageToken, bool Browse);
   public sealed record UiDirectoryBind(Guid ObjectId, bool Guest, bool Reviewed);
   public sealed record UiTenantPreparation(Guid DraftId, string ExpectedRevision, bool Reviewed);
@@ -38,7 +43,7 @@ public static partial class UiEndpoints
         configuredTenantId = Guid.TryParse(settings.Options.TenantId, out var tenantId) ? tenantId.ToString("D") : null,
         preparationConfigured = InitialAdministratorSignIn.AllowsUnmappedIdentity(config, http.User.FindFirstValue("tid"), http.User.FindFirstValue("oid")),
         simulation = settings.Simulation }) : CommandResult<object>.Fail(workspace.ErrorCode!, workspace.Message!);
-    }));
+    })).WithUiResponse<UiTenantAdministrationResponse>();
     group.MapPost("/administration/microsoft365/prepare", (UiTenantPreparation i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<Guid>();
@@ -49,7 +54,7 @@ public static partial class UiEndpoints
       return await Microsoft365InstallationService.PrepareTenantAsync(db, actor, ApiHost.InstallationOptions(config),
         new(i.DraftId, revision, i.Reviewed), settings.Options.TenantId, "configuration:Identity:ClientId",
         config["SelectedSite:CredentialReference"] ?? "configuration:SelectedSite", DateTimeOffset.UtcNow, ct);
-    }));
+    })).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/administration/microsoft365/connect", (UiConsentBegin i, HttpContext http) => CommandAsync(http,
       async (db, actor, ct) =>
       {
@@ -65,7 +70,7 @@ public static partial class UiEndpoints
         var redirect = settings.Simulation ? "/auth/m365-consent/simulated-consent?state=" + Uri.EscapeDataString(begin.Value!.State) :
           ConsentRedirect(http, begin.Value!.State)!.AbsoluteUri;
         return CommandResult<object>.Ok(new { redirect });
-      }));
+      })).WithUiResponse<UiValueResponse<UiConsentRedirectResponse>>();
     group.MapUiPost("/administration/microsoft365/verify", http => CommandAsync(http, async (db, actor, ct) =>
     {
       var settings = http.RequestServices.GetRequiredService<TenantAdministrationSettings>();
@@ -77,7 +82,7 @@ public static partial class UiEndpoints
           settings.Simulation ? "00000000-0000-0000-0000-00000000c0de" : config["DirectoryReader:ClientId"] ?? string.Empty, DateTimeOffset.UtcNow, ct);
       return await TenantCapabilityService.VerifyAsync(db, actor, http.RequestServices.GetRequiredService<IMicrosoftTenantConsentVerifier>(),
         settings.Options, DateTimeOffset.UtcNow, ct);
-    }));
+    })).WithUiResponse<UiValueResponse<IReadOnlyList<CapabilityStatus>>>();
     group.MapPost("/administration/directory/search", (UiDirectorySearch i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       var settings = http.RequestServices.GetRequiredService<TenantAdministrationSettings>();
@@ -96,7 +101,7 @@ public static partial class UiEndpoints
       if (!continuation.TryWrite(result.Value!.NextPageToken, context!, DateTimeOffset.UtcNow, out var nextToken))
         return CommandResult<DirectoryCandidatePage>.Fail(ErrorCodes.GateBlocked, "Directory continuation could not be verified. Start again.");
       return CommandResult<DirectoryCandidatePage>.Ok(new(result.Value.Users, nextToken));
-    }));
+    })).WithUiResponse<UiValueResponse<DirectoryCandidatePage>>(includeConflict: true);
     group.MapGet("/administration/directory/binding", (Guid tenantId, Guid objectId, HttpContext http) => ReadAsync(http, async (db, actor, ct) =>
     {
       var settings = http.RequestServices.GetRequiredService<TenantAdministrationSettings>();
@@ -105,7 +110,7 @@ public static partial class UiEndpoints
       if (!settings.Options.DirectoryReadEnabled)
         return CommandResult<DirectoryBindingReconciliation>.Fail(ErrorCodes.GateBlocked, "The separately configured directory reader is disabled.");
       return await DirectoryUserBindingService.ReconcileAsync(db, actor, settings.Options.TenantId, tenantId, objectId, ct);
-    }));
+    })).WithUiResponse<DirectoryBindingReconciliation>();
     group.MapPost("/administration/directory/bind", (UiDirectoryBind i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       var settings = http.RequestServices.GetRequiredService<TenantAdministrationSettings>();
@@ -114,6 +119,6 @@ public static partial class UiEndpoints
       var reader = http.RequestServices.GetRequiredService<IMicrosoftDirectoryReader>();
       return i.Guest ? await DirectoryUserBindingService.BindExistingGuestAsync(db, actor, reader, settings.Options.TenantId, i.ObjectId, ct) :
         await DirectoryUserBindingService.BindMemberAsync(db, actor, reader, settings.Options.TenantId, i.ObjectId, ct);
-    }));
+    })).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
   }
 }

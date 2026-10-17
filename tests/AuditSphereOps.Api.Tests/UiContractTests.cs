@@ -43,6 +43,7 @@ public sealed class UiContractTests
     Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/ui/session")).StatusCode);
     Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/ui/portfolio")).StatusCode);
     Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/ui/accounting/clients")).StatusCode);
+    Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"/api/ui/accounting/clients/{seed.ClientId}/open-item-allocations/history")).StatusCode);
     using var login = await client.GetAsync("/auth/sign-in?returnUrl=%2Fui%2Fapp");
     Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
     using var session = await client.GetAsync("/api/ui/session");
@@ -53,6 +54,7 @@ public sealed class UiContractTests
     Assert.Equal(seed.ClientId, Assert.Single(page!.Items).Id);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/accounting/clients")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/ui/accounting/clients/" + seed.ClientId)).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/ui/accounting/clients/{seed.ClientId}/open-item-allocations/history")).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/ui/accounting/clients/" + seed.ClientId + "/profile",
       new { profileId = (Guid?)null, revision = "0", jurisdiction = "QA", currency = "QAR", fiscalMonth = 1,
         fiscalDay = 1, sourceSystem = "TEST", sourceIdentifier = "TEST", reviewed = true })).StatusCode);
