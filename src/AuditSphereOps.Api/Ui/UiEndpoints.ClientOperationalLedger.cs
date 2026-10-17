@@ -9,6 +9,14 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  // These metadata types describe the existing anonymous success/error payloads exactly.
+  public sealed record ClientNativeIdHttpResponse(Guid Id);
+  public sealed record ClientNativeSavedHttpResponse(bool Saved);
+  public sealed record ClientNativeDecidedHttpResponse(bool Decided);
+  public sealed record ClientNativeAcceptedHttpResponse(bool Accepted);
+  public sealed record ClientNativeReturnedHttpResponse(bool Returned);
+  public sealed record ClientNativeErrorHttpResponse(string Code);
+
   public sealed record ClientOperationalJournalLineHttpInput(string AccountCode, string Description, string Debit, string Credit);
   public sealed record ClientOperationalJournalCreateHttpInput(Guid PeriodId, string JournalNumber, string Description,
     string PostingDate, IReadOnlyList<ClientOperationalJournalLineHttpInput> Lines, bool Reviewed);
@@ -41,7 +49,11 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).Produces<ClientOperationalOpeningBalanceView>();
+    }).WithDescription("Returns HTTP 200 with the opening balance JSON object when one exists. " +
+      "When this period has no opening balance, returns HTTP 200 with an empty response body.")
+      .Produces<ClientOperationalOpeningBalanceView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-opening-balances", async (Guid clientId,
       ClientOperationalOpeningBalanceHttpInput input, HttpContext http, TrustedActorResolver resolver,
@@ -75,7 +87,9 @@ public static partial class UiEndpoints
       var result = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, actor,
         new(clientId, input.PeriodId, revision, asOf, input.Currency, input.EvidenceReference, input.EvidenceSha256, lines, openItems), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeIdHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-opening-balances/{openingId:guid}/approve", async (Guid clientId,
       Guid openingId, ClientOperationalOpeningBalanceApprovalHttpInput input, HttpContext http, TrustedActorResolver resolver,
@@ -90,7 +104,9 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, actor, clientId, openingId, revision, input.ManifestSha256, http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces(StatusCodes.Status204NoContent)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/operational-journals", async (Guid clientId, Guid? periodId,
       string? status, int? page, int? pageSize, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -102,7 +118,9 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).Produces<ClientOperationalJournalList>();
+    }).Produces<ClientOperationalJournalList>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/operational-posting-receipts/{commandId:guid}", async (Guid clientId,
       Guid commandId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -114,7 +132,9 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "command.receipt-not-found" ? 404 : 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).Produces<ClientOperationalPostingReceiptView>();
+    }).Produces<ClientOperationalPostingReceiptView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status404NotFound);
 
     group.MapGet("/accounting/clients/{clientId:guid}/operational-ledger", async (Guid clientId, Guid periodId,
       int page, int pageSize, DateOnly? fromDate, DateOnly? toDate, bool? includeZeroAccounts, long? postingSnapshotThrough,
@@ -131,7 +151,9 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).Produces<ClientOperationalGeneralLedgerView>();
+    }).Produces<ClientOperationalGeneralLedgerView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/preview", async (Guid clientId,
       Guid journalId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -144,7 +166,9 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).Produces<ClientOperationalJournalPreview>();
+    }).Produces<ClientOperationalJournalPreview>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/snapshots", async (Guid clientId,
       Guid journalId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -157,7 +181,9 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).Produces<IReadOnlyList<ClientOperationalJournalSnapshotView>>();
+    }).Produces<IReadOnlyList<ClientOperationalJournalSnapshotView>>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals", async (Guid clientId,
       ClientOperationalJournalCreateHttpInput input, HttpContext http, TrustedActorResolver resolver,
@@ -182,7 +208,9 @@ public static partial class UiEndpoints
         new(clientId, input.PeriodId, input.JournalNumber, input.Description, postingDate, lines), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) :
         Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeIdHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}", async (Guid clientId,
       Guid journalId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -195,7 +223,9 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).Produces<ClientOperationalJournalView>();
+    }).Produces<ClientOperationalJournalView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     foreach (var editAction in new[] { "rework", "edit" })
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/" + editAction, async (Guid clientId,
@@ -224,7 +254,9 @@ public static partial class UiEndpoints
         : await ClientOperationalLedgerWorkspace.ReworkAsync(db, actor, clientId, journalId, request, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = journalId }) :
         Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeIdHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/submit", async (Guid clientId,
       Guid journalId, ClientOperationalJournalSubmitHttpInput input, HttpContext http, TrustedActorResolver resolver,
@@ -240,7 +272,9 @@ public static partial class UiEndpoints
       var result = await ClientOperationalLedgerWorkspace.SubmitAsync(db, actor, clientId, journalId, revision, http.RequestAborted, input.PreviewDigest);
       return result.Succeeded ? Results.Ok(new { accepted = true }) :
         Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeAcceptedHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/return", async (Guid clientId,
       Guid journalId, ClientOperationalJournalPostHttpInput input, HttpContext http, TrustedActorResolver resolver,
@@ -256,7 +290,9 @@ public static partial class UiEndpoints
       var result = await ClientOperationalLedgerWorkspace.ReturnAsync(db, actor, clientId, journalId, revision, input.Reason, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { returned = true }) :
         Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeReturnedHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/reversal", async (Guid clientId,
       Guid journalId, ClientOperationalJournalReversalHttpInput input, HttpContext http, TrustedActorResolver resolver,
@@ -273,7 +309,9 @@ public static partial class UiEndpoints
       var result = await ClientOperationalLedgerWorkspace.CreateReversalAsync(db, actor, clientId, journalId,
         new(revision, input.PeriodId, input.JournalNumber, postingDate, input.Reason, input.EvidenceReference), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeIdHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/operational-journals/{journalId:guid}/post", async (Guid clientId,
       Guid journalId, ClientOperationalJournalPostingHttpInput input, HttpContext http, TrustedActorResolver resolver,
@@ -291,6 +329,8 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
       var receipt = await ClientOperationalLedgerWorkspace.GetPostingReceiptAsync(db, actor, clientId, input.CommandId, http.RequestAborted);
       return receipt.Succeeded ? Results.Ok(receipt.Value) : Results.Json(new { code = receipt.ErrorCode }, statusCode: 403);
-    });
+    }).Produces<ClientOperationalPostingReceiptView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
   }
 }

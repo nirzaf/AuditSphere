@@ -216,6 +216,42 @@ public sealed class OpenApiContractTests
   }
 
   [Fact]
+  public async Task NativeAccountingContractsRetainExactEnvelopesReceiptsAndEmptySuccess()
+  {
+    using var factory = ContractFactory();
+    using var client = factory.CreateClient();
+    var contract = await FetchContractAsync(client);
+    var paths = contract.GetProperty("paths");
+    var schemas = contract.GetProperty("components").GetProperty("schemas");
+    JsonElement Response(string path, string method, string status = "200") =>
+      paths.GetProperty(path).GetProperty(method).GetProperty("responses").GetProperty(status);
+    JsonElement Body(JsonElement response)
+    {
+      var schema = response.GetProperty("content").GetProperty("application/json").GetProperty("schema");
+      return schema.TryGetProperty("$ref", out var reference)
+        ? schemas.GetProperty(reference.GetString()!.Split('/').Last()) : schema;
+    }
+
+    const string prefix = "/api/ui/accounting/clients/{clientId}";
+    var created = Body(Response(prefix + "/account-roles", "post"));
+    var id = created.GetProperty("properties").GetProperty("id");
+    Assert.Contains("string", SchemaTypes(id));
+    Assert.Equal("uuid", id.GetProperty("format").GetString());
+    Assert.False(created.GetProperty("properties").TryGetProperty("value", out _));
+
+    var posted = Body(Response(prefix + "/operational-journals/{journalId}/post", "post"));
+    Assert.True(posted.GetProperty("properties").TryGetProperty("commandId", out _));
+    Assert.False(posted.GetProperty("properties").TryGetProperty("value", out _));
+    var snapshots = Body(Response(prefix + "/operational-journals/{journalId}/snapshots", "get"));
+    Assert.Contains("array", SchemaTypes(snapshots));
+
+    var approved = Response(prefix + "/operational-opening-balances/{openingId}/approve", "post", "204");
+    Assert.False(approved.TryGetProperty("content", out _));
+    var missingReceipt = Body(Response(prefix + "/operational-posting-receipts/{commandId}", "get", "404"));
+    Assert.True(missingReceipt.GetProperty("properties").TryGetProperty("code", out _));
+  }
+
+  [Fact]
   public async Task ContractSerializationIsDeterministicForDriftDetection()
   {
     using var factory = ContractFactory();

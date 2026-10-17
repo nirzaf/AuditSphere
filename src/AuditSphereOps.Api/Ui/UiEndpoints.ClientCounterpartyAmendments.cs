@@ -23,7 +23,9 @@ public static partial class UiEndpoints
       var result = await ClientBookkeepingCounterpartyWorkspace.HistoryAsync(db, actor, clientId, partyId, page ?? 0, pageSize ?? 25, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    }).Produces<CounterpartyHistory>();
+    }).Produces<CounterpartyHistory>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
     group.MapPost("/accounting/clients/{clientId:guid}/counterparties/{partyId:guid}/amendments", async (Guid clientId, Guid partyId,
       CounterpartyAmendmentHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) => {
@@ -35,7 +37,9 @@ public static partial class UiEndpoints
       var result = await ClientBookkeepingCounterpartyWorkspace.ProposeAmendmentAsync(db, actor, clientId, partyId,
         new(revision, input.DisplayName, input.Address, input.TaxIdentifier, input.ContactDetails, input.PaymentTerms, input.Reason), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeIdHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
     group.MapPost("/accounting/clients/{clientId:guid}/counterparties/{partyId:guid}/amendments/{amendmentId:guid}/review", async (Guid clientId, Guid partyId,
       Guid amendmentId, CounterpartyReviewHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) => {
@@ -47,6 +51,8 @@ public static partial class UiEndpoints
       var result = await ClientBookkeepingCounterpartyWorkspace.ReviewAmendmentAsync(db, actor, clientId, partyId, amendmentId,
         revision, input.Decision, input.Reason, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { decided = true }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeDecidedHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
   }
 }

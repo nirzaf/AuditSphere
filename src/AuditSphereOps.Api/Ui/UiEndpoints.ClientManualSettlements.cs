@@ -35,7 +35,9 @@ public static partial class UiEndpoints
       var result = await ClientOperationalLedgerWorkspace.SettlementOptionsAsync(db, actor, clientId, postingDate, sourceKind, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
-    }).Produces<ClientManualSettlementOptions>();
+    }).Produces<ClientManualSettlementOptions>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/manual-settlement-requests/{commandId:guid}", async (Guid clientId, Guid commandId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -46,7 +48,9 @@ public static partial class UiEndpoints
       var result = await ClientOperationalLedgerWorkspace.FindSettlementByCommandAsync(db, actor, clientId, commandId, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
-    }).Produces<ClientManualSettlementLookup>();
+    }).Produces<ClientManualSettlementLookup>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/manual-settlements/preview", async (Guid clientId,
       ClientManualSettlementHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
@@ -61,7 +65,9 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Failure(result.ErrorCode);
       http.Response.Headers["X-AuditSphere-Intent-Hash"] = ClientOperationalLedgerWorkspace.SettlementIntentHash(actor, request, result.Value!.Digest);
       return Results.Ok(result.Value);
-    }).Produces<ClientManualSettlementPreview>();
+    }).Produces<ClientManualSettlementPreview>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/manual-settlements", async (Guid clientId,
       ClientManualSettlementHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
@@ -74,6 +80,8 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, actor, request, input.PreviewDigest, http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
-    }).Produces<ClientManualSettlementReceipt>();
+    }).Produces<ClientManualSettlementReceipt>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
   }
 }

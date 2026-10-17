@@ -20,7 +20,9 @@ public static partial class UiEndpoints
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
-    }).Produces<ClientCounterpartyList>();
+    }).Produces<ClientCounterpartyList>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
     group.MapPost("/accounting/clients/{clientId:guid}/counterparties", async (Guid clientId, ClientCounterpartyHttpInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) => {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -30,6 +32,8 @@ public static partial class UiEndpoints
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db, actor, clientId, input.Party, http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    });
+    }).Produces<ClientNativeIdHttpResponse>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
   }
 }
