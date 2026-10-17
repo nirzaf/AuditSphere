@@ -110,6 +110,8 @@ public sealed class UiWorkbenchContractTests
 
     var books = await admin.GetFromJsonAsync<JsonElement>("/api/ui/finance/books");
     Assert.True(books.GetProperty("canPrepare").GetBoolean());
+    foreach (var range in new[] { "start=0001-01-01&weeks=1", "start=9999-12-31&weeks=1", "start=2026-10-11&weeks=13" })
+      Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/ui/practice/resources?" + range)).StatusCode);
     Assert.Equal(1, books.GetProperty("expensePage").GetInt32());
     Assert.False(books.GetProperty("hasMoreExpenses").GetBoolean());
     Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/ui/finance/books?expensePage=0")).StatusCode);

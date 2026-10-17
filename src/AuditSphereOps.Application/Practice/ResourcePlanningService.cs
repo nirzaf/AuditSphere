@@ -121,6 +121,8 @@ public static partial class ResourcePlanningService
   {
     if (request.PlannedMinutes is < 0 or > MaxWeeklyMinutes)
       return CommandResult.Fail("resource.invalid", "Planned time must be between 0 and 80 hours in a week.");
+    if (!TryWeekRange(request.WeekStart, 1, out var week, out _))
+      return CommandResult.Fail("resource.invalid-range", "Choose a date within a complete supported working week.");
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.EngagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -135,7 +137,6 @@ public static partial class ResourcePlanningService
     if (!await db.EngagementStaffAssignments.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagement.Id &&
           x.UserId == request.UserId && x.RevokedAt == null, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Staff the person on this engagement before allocating time.");
-    var week = ResourceGridCalculator.WeekStart(request.WeekStart);
     var allocation = await db.StaffAllocations.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagement.Id &&
       x.UserId == request.UserId && x.WeekStart == week, ct);
     if (request.PlannedMinutes == 0)
@@ -168,9 +169,8 @@ public static partial class ResourcePlanningService
   {
     var auth = await AuthorizeAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<ResourceGridView>.Fail(auth.ErrorCode!, auth.Message!);
-    weeks = Math.Clamp(weeks, 1, 12);
-    var start = ResourceGridCalculator.WeekStart(firstWeek);
-    var end = start.AddDays(7 * weeks - 1);
+    if (!TryWeekRange(firstWeek, weeks, out var start, out var end))
+      return CommandResult<ResourceGridView>.Fail("resource.invalid-range", "Choose 1 to 12 complete supported working weeks.");
     var users = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserKind == "Staff" && !x.Disabled)
       .OrderBy(x => x.DisplayName).Select(x => new { x.Id, x.DisplayName }).ToListAsync(ct);
     var profiles = await db.StaffProfiles.AsNoTracking().Where(x => x.FirmId == actor.FirmId).ToDictionaryAsync(x => x.UserId, ct);
@@ -203,4 +203,16 @@ public static partial class ResourcePlanningService
 
   private static Task<CommandResult> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct);
+  private static bool TryWeekRange(DateOnly date, int weeks, out DateOnly start, out DateOnly end)
+  {
+    start = default; end = default;
+    if (weeks is < 1 or > 12) return false;
+    var firstDay = date.DayNumber - (int)date.DayOfWeek;
+    var lastDay = firstDay + 7 * weeks - 1;
+    if (firstDay < DateOnly.MinValue.DayNumber || lastDay > DateOnly.MaxValue.DayNumber) return false;
+    start = DateOnly.FromDayNumber(firstDay);
+    end = DateOnly.FromDayNumber(lastDay);
+    return true;
+  }
+
 }

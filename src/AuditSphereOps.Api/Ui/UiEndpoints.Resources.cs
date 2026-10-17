@@ -19,6 +19,7 @@ public static partial class UiEndpoints
       return ReadAsync(http, (db, actor, ct) => ResourcePlanningWorkspaceQuery.GetAsync(db, actor, first, weeks ?? 4, ct));
     })
       .Produces<ResourcePlanningWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
     group.MapPost("/practice/resources/profiles", (StaffProfileInput input, HttpContext http) =>

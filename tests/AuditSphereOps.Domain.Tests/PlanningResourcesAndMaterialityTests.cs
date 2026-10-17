@@ -431,6 +431,25 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      foreach (var (date, weeks) in new[] { (DateOnly.MinValue, 1), (DateOnly.MaxValue, 1), (week, 0), (week, 13) })
+      {
+        var refused = await ResourcePlanningService.GetGridAsync(db, manager, date, weeks);
+        Assert.Equal("resource.invalid-range", refused.ErrorCode);
+      }
+      foreach (var supportedWeek in new[] { new DateOnly(1, 1, 7), new DateOnly(9999, 12, 19) })
+      {
+        var edgeGrid = await ResourcePlanningService.GetGridAsync(db, manager, supportedWeek, 1);
+        Assert.True(edgeGrid.Succeeded, edgeGrid.Message);
+        Assert.Equal(supportedWeek, edgeGrid.Value!.FirstWeek);
+      }
+      var allocationCount = await db.StaffAllocations.CountAsync();
+      foreach (var invalidDate in new[] { DateOnly.MinValue, DateOnly.MaxValue })
+      {
+        var refused = await ResourcePlanningService.SetAllocationAsync(db, manager,
+          new(w.EngagementId, w.Users["senior"].Id, invalidDate, 60));
+        Assert.Equal("resource.invalid-range", refused.ErrorCode);
+      }
+      Assert.Equal(allocationCount, await db.StaffAllocations.CountAsync());
       var grid = (await ResourcePlanningService.GetGridAsync(db, manager, week, 2)).Value!;
       var row = grid.Rows.Single(x => x.UserId == w.Users["senior"].Id);
       Assert.Equal(["IFRS", "SAMPLING"], row.Skills);
