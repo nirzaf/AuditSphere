@@ -545,6 +545,59 @@ public sealed class CashFlowContractTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task FinancingSupplierAndReversalCashEvents_ProjectFromBalancedAcceptedJournals()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer, optional:
+      CashFlowSourceSeed.OptionalCashEvents.Equipment | CashFlowSourceSeed.OptionalCashEvents.Compound |
+      CashFlowSourceSeed.OptionalCashEvents.Borrowing | CashFlowSourceSeed.OptionalCashEvents.Repayment |
+      CashFlowSourceSeed.OptionalCashEvents.Supplier | CashFlowSourceSeed.OptionalCashEvents.ReceiptReversal);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+
+    // Each contribution retains its ledger sign. Projection yields +40 borrowing, -15 repayment,
+    // -30 supplier payment and -10 receipt reversal; together with the other source events,
+    // opening cash 65 reconciles to 100. These labels test source projection only, not policy approval.
+    var request = SourceRequest(planId, mappingId, "source-events-v1", 65m, 100m,
+      CashMovement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS",
+        new CashFlowSourceAllocationInput(source.Receivable, -100m)),
+      CashMovement("INVESTING", "Cash equipment payment", -25m, false, "CAPEX_PAID",
+        new CashFlowSourceAllocationInput(source.Equipment, 25m)),
+      CashMovement("INVESTING", "Compound equipment payment", -20m, false, "CAPEX_PAID",
+        new CashFlowSourceAllocationInput(source.CompoundEquipment, 20m)),
+      CashMovement("OPERATING", "Compound bank fee", -5m, false, "BANK_CHARGES",
+        new CashFlowSourceAllocationInput(source.CompoundFee, 5m)),
+      CashMovement("FINANCING", "Loan proceeds received", 40m, false, "BORROWING_RECEIPT",
+        new CashFlowSourceAllocationInput(source.Borrowing, -40m)),
+      CashMovement("FINANCING", "Loan principal repaid", -15m, false, "BORROWING_REPAYMENT",
+        new CashFlowSourceAllocationInput(source.BorrowingRepayment, 15m)),
+      CashMovement("OPERATING", "Supplier settlement", -30m, false, "SUPPLIER_PAYMENT",
+        new CashFlowSourceAllocationInput(source.SupplierPayable, 30m)),
+      CashMovement("OPERATING", "Reversed customer receipt", -10m, false, "CASH_RECEIPT_REVERSAL",
+        new CashFlowSourceAllocationInput(source.ReceiptReversal, 10m)));
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
+    Assert.True(built.Succeeded, built.Message);
+    Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
+    var lines = await db.FinancialPackageCashFlowLines.AsNoTracking()
+      .Where(x => x.FinancialPackageId == built.Value.PackageId).ToListAsync();
+    Assert.Equal(40m, lines.Single(x => x.ActivityCode == "BORROWING_RECEIPT").Amount);
+    Assert.Equal(-15m, lines.Single(x => x.ActivityCode == "BORROWING_REPAYMENT").Amount);
+    Assert.Equal(-30m, lines.Single(x => x.ActivityCode == "SUPPLIER_PAYMENT").Amount);
+    Assert.Equal(-10m, lines.Single(x => x.ActivityCode == "CASH_RECEIPT_REVERSAL").Amount);
+    var allocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking()
+      .Where(x => x.FinancialPackageId == built.Value.PackageId).ToDictionaryAsync(x => x.GeneralLedgerLineId, x => x.SignedAmount);
+    Assert.Equal(-40m, allocations[source.Borrowing]);
+    Assert.Equal(15m, allocations[source.BorrowingRepayment]);
+    Assert.Equal(30m, allocations[source.SupplierPayable]);
+    Assert.Equal(10m, allocations[source.ReceiptReversal]);
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task InternalCashTransfer_DoesNotInflateActivities()
   {
     await using var pg = await PgTestSchema.CreateAsync();
