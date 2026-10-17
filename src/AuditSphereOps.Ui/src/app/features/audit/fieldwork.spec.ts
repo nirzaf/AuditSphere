@@ -306,15 +306,75 @@ describe('Procedure execution and review workspace', () => {
     committedAt: '2026-10-02T09:00:00Z' };
   function open() {
     const workspace = signal({ engagementId: id1, canManageFieldwork: true, canViewReviewNotes: true, aggregate: null,
-      risks: [], procedures: [{ id: id2, riskId: null }] });
+      risks: [], procedures: [{ id: id2, riskId: null, title: 'Cash confirmation', originalWording: null as string | null,
+        effectiveWording: null as string | null, definitionRevision: null as number | null }] });
+    const drafts = { readPendingRequest: vi.fn(() => ({ state: 'absent' })), read: vi.fn(() => ({ state: 'absent' })),
+      save: vi.fn(() => true), clear: vi.fn(() => true) };
     const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })),
       command: vi.fn(), get: vi.fn() };
     TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api },
       { provide: SessionService, useValue: { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) } },
-      { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
+      { provide: TabDrafts, useValue: drafts }, { provide: Router, useValue: { events: new Subject() } },
       { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
-    const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api };
+    const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api, drafts };
   }
+  it('appends controlled wording with source lineage, rationale and the current expected revision', async () => {
+    const { page, workspace, api, drafts } = open();
+    workspace.update(w => ({ ...w, procedures: [{ ...w.procedures[0], originalWording: 'Original controlled source wording.',
+      effectiveWording: 'Existing effective instructions.', definitionRevision: 4 }] }));
+    TestBed.tick();
+    page.beginTailoring(workspace().procedures[0] as Parameters<AuditFieldwork['beginTailoring']>[0]);
+    page.tailoringTitle = 'Cash confirmation';
+    page.tailoringWording = 'Confirm the balance directly with the bank and investigate exceptions.';
+    page.tailoringRationale = 'The engagement includes a material foreign-currency bank account.';
+    api.command.mockResolvedValueOnce({ ok: true, value: {} });
+    await page.submitTailoring();
+
+    expect(api.command).toHaveBeenCalledWith(`/api/ui/procedures/${id2}/tailor`, expect.objectContaining({
+      title: 'Cash confirmation', customWording: 'Confirm the balance directly with the bank and investigate exceptions.',
+      rationale: 'The engagement includes a material foreign-currency bank account.', expectedDefinitionRevision: 4,
+    }));
+    expect((api.command.mock.calls[0][1] as { commandId: string }).commandId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(workspace().procedures[0].originalWording).toBe('Original controlled source wording.');
+    expect(drafts.save).toHaveBeenCalledWith(expect.objectContaining({ entity: `audit-procedure-tailoring/${id2}` }),
+      expect.objectContaining({ expectedDefinitionRevision: 4 }), expect.any(Function), true);
+    expect(drafts.clear).toHaveBeenCalledWith(`audit-procedure-tailoring/${id2}`);
+  });
+  it('retains and retries the same tailoring identity after an uncertain response', async () => {
+    const { page, workspace, api } = open();
+    workspace.update(w => ({ ...w, procedures: [{ ...w.procedures[0], originalWording: 'Original controlled source wording.',
+      effectiveWording: 'Existing effective instructions.', definitionRevision: 2 }] }));
+    TestBed.tick();
+    page.beginTailoring(workspace().procedures[0] as Parameters<AuditFieldwork['beginTailoring']>[0]);
+    page.tailoringTitle = 'Cash confirmation';
+    page.tailoringWording = 'Confirm the bank balance at year end.';
+    page.tailoringRationale = 'The account is material.';
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', message: 'unknown', status: 0 })
+      .mockResolvedValueOnce({ ok: true, value: {} });
+    await page.submitTailoring();
+    const original = api.command.mock.calls[0][1] as { commandId: string; title: string; customWording: string };
+    expect(page.tailoringUncertain()).toBe(true);
+    page.beginTailoring(workspace().procedures[0] as Parameters<AuditFieldwork['beginTailoring']>[0]);
+    expect(page.tailoringPending()?.command.commandId).toBe(original.commandId);
+    page.tailoringTitle = 'Changed while outcome unknown';
+    await page.recoverTailoring();
+    expect(api.command.mock.calls[1][1]).toEqual(api.command.mock.calls[0][1]);
+    expect(api.command.mock.calls[1][1]).toMatchObject({ commandId: original.commandId, title: original.title, customWording: original.customWording });
+    expect(page.tailoringUncertain()).toBe(false);
+    expect(page.tailoringPending()).toBeNull();
+  });
+  it('does not send a tailoring command without a meaningful rationale', async () => {
+    const { page, workspace, api } = open();
+    workspace.update(w => ({ ...w, procedures: [{ ...w.procedures[0], originalWording: 'Original controlled source wording.',
+      effectiveWording: 'Existing effective instructions.', definitionRevision: 1 }] }));
+    TestBed.tick();
+    page.beginTailoring(workspace().procedures[0] as Parameters<AuditFieldwork['beginTailoring']>[0]);
+    page.tailoringWording = 'Updated instructions.';
+    page.tailoringRationale = '   ';
+    await page.submitTailoring();
+    expect(api.command).not.toHaveBeenCalled();
+    expect(page.tailoringFailed()).toBe(true);
+  });
   it('requires preview and fresh assent, then recovers an unknown outcome from its exact receipt', async () => {
     const { page, workspace, api } = open();
     api.get.mockResolvedValueOnce(state)

@@ -10,6 +10,27 @@ import { SessionService } from '../../core/session';
 import { PlanningCommandState } from './planning-command-state';
 import { PlanningCommandReview } from './planning-command-review';
 import { SHARED } from '../../core/ui';
+import { TabDrafts } from '../../core/tab-drafts';
+
+type TailorProcedureCommand = {
+  title: string;
+  customWording: string;
+  rationale: string;
+  expectedDefinitionRevision: number;
+  commandId: string;
+};
+
+function decodeTailorProcedureCommand(raw: unknown): TailorProcedureCommand | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const value = raw as Record<string, unknown>;
+  if (typeof value['title'] !== 'string' || !value['title'].trim() || value['title'].length > 500 ||
+      typeof value['customWording'] !== 'string' || !value['customWording'].trim() || value['customWording'].length > 2000 ||
+      typeof value['rationale'] !== 'string' || !value['rationale'].trim() || value['rationale'].length > 1000 ||
+      !Number.isInteger(value['expectedDefinitionRevision']) || (value['expectedDefinitionRevision'] as number) < 1 ||
+      typeof value['commandId'] !== 'string' || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value['commandId'])) return null;
+  return { title: value['title'], customWording: value['customWording'], rationale: value['rationale'],
+    expectedDefinitionRevision: value['expectedDefinitionRevision'] as number, commandId: value['commandId'] };
+}
 
 const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text,
   applicabilityStatus: text, status: text, riskId: nullable(guid), workpaperId: nullable(guid), originalWording: nullable(text),
@@ -422,7 +443,34 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
                   <p><strong>Original source:</strong> {{ p.originalWording ?? 'No controlled source text; see the retained ad-hoc wording history.' }}</p>
                   <p><strong>Effective instructions:</strong> {{ p.effectiveWording ?? p.title }}</p>
                   <p><strong>Definition provenance:</strong> {{ p.definitionProvenance }}{{ p.definitionRevision ? ' · revision ' + p.definitionRevision : '' }}</p>
-                </details></td><td>{{ p.applicabilityStatus }}</td>
+                </details>
+                @if (w.canManageFieldwork && p.originalWording && p.definitionRevision) {
+                  <button matButton="outlined" type="button" (click)="beginTailoring(p)"
+                    [disabled]="tailoringBusy() || tailoringUncertain() || tailoringProcedureId() !== ''">Tailor effective wording</button>
+                }
+                @if (tailoringProcedureId() === p.id) {
+                  <form class="stack-form" (submit)="$event.preventDefault(); submitTailoring()" aria-label="Tailor controlled procedure wording">
+                    <p>The original controlled wording remains unchanged. This creates a new append-only effective definition revision.</p>
+                    <p><strong>Original source:</strong> {{ p.originalWording }}</p>
+                    <p><strong>Current effective wording:</strong> {{ p.effectiveWording ?? p.title }}</p>
+                    <p>Expected definition revision {{ p.definitionRevision }}</p>
+                    <label>Effective title <input name="tailor-title-{{ p.id }}" [(ngModel)]="tailoringTitle" maxlength="500" required [disabled]="tailoringBusy() || tailoringUncertain()" /></label>
+                    <label>Effective instructions <textarea name="tailor-wording-{{ p.id }}" [(ngModel)]="tailoringWording" maxlength="2000" rows="4" required [disabled]="tailoringBusy() || tailoringUncertain()"></textarea></label>
+                    <label>Tailoring rationale <textarea name="tailor-rationale-{{ p.id }}" [(ngModel)]="tailoringRationale" maxlength="1000" rows="3" required [disabled]="tailoringBusy() || tailoringUncertain()"></textarea></label>
+                    @if (tailoringUncertain()) {
+                      <section class="panel" role="region" aria-label="Uncertain tailoring outcome recovery">
+                        <p role="alert">The result is unknown. The exact request identity and wording are retained. Retry that same command to reconcile it before starting another tailoring change.</p>
+                        @if (tailoringPending(); as pending) { <p>Command <code>{{ pending.command.commandId }}</code> · expected revision {{ pending.command.expectedDefinitionRevision }}</p> }
+                        <button matButton="filled" type="button" (click)="recoverTailoring()" [disabled]="tailoringBusy()">Retry exact tailoring request</button>
+                      </section>
+                    } @else {
+                      <button matButton="filled" type="submit" [disabled]="tailoringBusy()">Append wording revision</button>
+                      <button matButton="outlined" type="button" (click)="cancelTailoring()" [disabled]="tailoringBusy()">Cancel</button>
+                    }
+                    @if (tailoringMessage()) { <p [attr.role]="tailoringFailed() || tailoringUncertain() ? 'alert' : 'status'">{{ tailoringMessage() }}</p> }
+                  </form>
+                }
+                </td><td>{{ p.applicabilityStatus }}</td>
                 <td>
                   @if (w.canManageFieldwork) {
                     <div class="inline-form">
@@ -625,6 +673,7 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
 })
 export class AuditFieldwork {
   private readonly api = inject(Api);
+  private readonly tabDrafts = inject(TabDrafts);
   private readonly applicabilityReasons = signal<Record<string, string>>({});
   private readonly route = inject(ActivatedRoute);
   readonly id = routeGuid();
@@ -654,6 +703,15 @@ export class AuditFieldwork {
   readonly procedureCommandError = signal('');
   readonly procedureCommandBusy = signal(false);
   readonly procedureUnknown = signal<{ requestId: string; requestHash: string } | null>(null);
+  readonly tailoringProcedureId = signal('');
+  readonly tailoringPending = signal<{ procedureId: string; command: TailorProcedureCommand } | null>(null);
+  readonly tailoringBusy = signal(false);
+  readonly tailoringUncertain = signal(false);
+  readonly tailoringFailed = signal(false);
+  readonly tailoringMessage = signal('');
+  tailoringTitle = '';
+  tailoringWording = '';
+  tailoringRationale = '';
   procedureWork = '';
   procedureConclusion = '';
   procedureDecision = 'REVIEWED';
@@ -706,6 +764,10 @@ export class AuditFieldwork {
         if (workspace && this.e.procedure && workspace.procedures.some(p => p.id === this.e.procedure))
           void this.selectProcedure(this.e.procedure);
       });
+    });
+    effect(() => {
+      const workspace = this.ws.data();
+      untracked(() => { if (workspace) this.restorePendingTailoring(workspace); });
     });
     effect(() => {
       this.id(); this.riskLinkSession.current(); this.riskLinkSession.invalidation();
@@ -858,6 +920,101 @@ export class AuditFieldwork {
   applicabilityReason(procedureId: string): string { return this.applicabilityReasons()[procedureId] ?? ''; }
   setApplicabilityReason(procedureId: string, value: string): void {
     this.applicabilityReasons.update(current => ({ ...current, [procedureId]: value }));
+  }
+  private tailoringScope(procedureId: string) {
+    return { entity: `audit-procedure-tailoring/${procedureId}`, baseRevision: '0'.repeat(64) };
+  }
+  private restorePendingTailoring(workspace: Fieldwork): void {
+    if (this.tailoringPending() || !workspace.canManageFieldwork) return;
+    for (const procedure of workspace.procedures) {
+      if (!procedure.originalWording || !procedure.definitionRevision) continue;
+      const saved = this.tabDrafts.read(this.tailoringScope(procedure.id), decodeTailorProcedureCommand);
+      if (saved.state !== 'ready' || !saved.draft.submissionPending) continue;
+      this.tailoringPending.set({ procedureId: procedure.id, command: saved.draft.value });
+      this.tailoringProcedureId.set(procedure.id);
+      this.tailoringTitle = saved.draft.value.title;
+      this.tailoringWording = saved.draft.value.customWording;
+      this.tailoringRationale = saved.draft.value.rationale;
+      this.tailoringUncertain.set(true);
+      this.tailoringMessage.set('A previous tailoring request needs reconciliation. Retry the retained request before making another change.');
+      return;
+    }
+  }
+  beginTailoring(procedure: Fieldwork['procedures'][number]): void {
+    if (!this.ws.data()?.canManageFieldwork || !procedure.originalWording || !procedure.definitionRevision ||
+        this.tailoringBusy() || this.tailoringUncertain() || this.tailoringPending()) return;
+    this.tailoringProcedureId.set(procedure.id);
+    this.tailoringTitle = procedure.title;
+    this.tailoringWording = procedure.effectiveWording ?? procedure.title;
+    this.tailoringRationale = '';
+    this.tailoringMessage.set('');
+    this.tailoringFailed.set(false);
+  }
+  cancelTailoring(): void {
+    if (this.tailoringBusy() || this.tailoringUncertain()) return;
+    this.tailoringProcedureId.set('');
+    this.tailoringTitle = ''; this.tailoringWording = ''; this.tailoringRationale = '';
+    this.tailoringMessage.set(''); this.tailoringFailed.set(false);
+  }
+  async submitTailoring(): Promise<void> {
+    if (this.tailoringBusy() || this.tailoringUncertain() || this.tailoringPending()) return;
+    const procedureId = this.tailoringProcedureId(), workspace = this.ws.data();
+    const procedure = workspace?.procedures.find(item => item.id === procedureId);
+    const title = this.tailoringTitle.trim(), customWording = this.tailoringWording.trim(), rationale = this.tailoringRationale.trim();
+    if (!workspace?.canManageFieldwork || !procedure?.originalWording || !procedure.definitionRevision ||
+        !title || title.length > 500 || !customWording || customWording.length > 2000 || !rationale || rationale.length > 1000) {
+      this.tailoringFailed.set(true);
+      this.tailoringMessage.set('Enter a bounded effective title, instructions and rationale for the current controlled definition.');
+      return;
+    }
+    const command: TailorProcedureCommand = { title, customWording, rationale,
+      expectedDefinitionRevision: procedure.definitionRevision, commandId: globalThis.crypto.randomUUID() };
+    await this.sendTailoring(procedureId, command);
+  }
+  async recoverTailoring(): Promise<void> {
+    const pending = this.tailoringPending();
+    if (!pending || !this.tailoringUncertain() || this.tailoringBusy()) return;
+    await this.sendTailoring(pending.procedureId, pending.command);
+  }
+  private async sendTailoring(procedureId: string, command: TailorProcedureCommand): Promise<void> {
+    const scope = this.tailoringScope(procedureId);
+    this.tailoringFailed.set(false);
+    this.tailoringMessage.set('');
+    this.tailoringBusy.set(true);
+    if (!this.tabDrafts.save(scope, command, decodeTailorProcedureCommand, true)) {
+      this.tailoringBusy.set(false);
+      this.tailoringFailed.set(true);
+      this.tailoringMessage.set('The request could not be safely retained in this tab, so it was not sent.');
+      return;
+    }
+    this.tailoringPending.set({ procedureId, command });
+    try {
+      const result = await this.api.command(`/api/ui/procedures/${procedureId}/tailor`, command);
+      if (result.ok) {
+        this.tabDrafts.clear(scope.entity);
+        this.tailoringPending.set(null);
+        this.tailoringUncertain.set(false);
+        this.tailoringProcedureId.set('');
+        this.tailoringMessage.set('A new effective wording revision was appended. The original controlled definition is unchanged.');
+        this.ws.reload();
+      } else if (result.unknown) {
+        this.tailoringUncertain.set(true);
+        this.tailoringMessage.set('The outcome is unknown. Retry the exact retained request to reconcile it before starting another tailoring change.');
+      } else {
+        this.tabDrafts.clear(scope.entity);
+        this.tailoringPending.set(null);
+        this.tailoringUncertain.set(false);
+        this.tailoringProcedureId.set('');
+        this.tailoringFailed.set(true);
+        this.tailoringMessage.set(result.code === 'generation.stale'
+          ? 'The definition revision changed. The current procedure is refreshing; review its source and effective wording before trying again.'
+          : result.message);
+        this.ws.reload();
+      }
+    } catch {
+      this.tailoringUncertain.set(true);
+      this.tailoringMessage.set('The outcome could not be verified. Retry the exact retained request to reconcile it before starting another tailoring change.');
+    } finally { this.tailoringBusy.set(false); }
   }
   decide(procedure: ReturnType<typeof decodeFieldwork>['procedures'][number], decision: string): void {
     const rationale = this.applicabilityReason(procedure.id).trim();
