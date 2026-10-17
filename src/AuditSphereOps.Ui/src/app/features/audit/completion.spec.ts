@@ -138,6 +138,7 @@ const validPayload = {
         amendments: [],
       },
       freezeDays: 60,
+      workprogramApproval: { hasApproval: false, isCurrent: false, approvedAt: null, canApprove: true },
       trail: [
         {
           at: '2026-10-02T12:00:00Z',
@@ -192,6 +193,12 @@ const scheduled = { ...validPayload, freeze: { ...validPayload.freeze, state: 'S
 const readinessUrl = `/api/ui/engagements/${id1}/early-lock/readiness`;
 const lockUrl = `/api/ui/engagements/${id1}/early-lock`;
 const readyRecord = { freezeId: id2, revision: 3, state: 'SCHEDULED', dueAt: '2026-12-07T00:00:00Z', archiveReadinessDigest: hash64, blockers: [] };
+const programBasis = { engagementId: id1, program: { programCode: 'ISA', version: '2026.1', sourceHash: hash64 }, canManageFieldwork: true,
+  procedures: [
+    { sourceProcedureId: 'ISA-001', title: 'Obtain sufficient evidence', applicabilityStatus: 'APPLICABLE', status: 'REVIEWED' },
+    { sourceProcedureId: 'ISA-002', title: 'Evaluate subsequent events', applicabilityStatus: 'APPLICABLE', status: 'SUBMITTED' },
+    { sourceProcedureId: 'ISA-003', title: 'Exclude irrelevant section', applicabilityStatus: 'NOT_APPLICABLE_APPROVED', status: 'NOT_STARTED' },
+  ] };
 
 describe('Early compliance lock panel (STE 4.4.3)', () => {
   function setup(): HttpTestingController {
@@ -208,10 +215,11 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     TestBed.inject(SessionService).current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
     return TestBed.inject(HttpTestingController);
   }
-  function load(http: HttpTestingController, payload: object) {
+  function load(http: HttpTestingController, payload: object, basis = programBasis) {
     const f = TestBed.createComponent(EngagementCompletion);
     f.detectChanges();
     http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(payload);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(basis);
     f.detectChanges();
     return f;
   }
@@ -254,6 +262,71 @@ describe('Early compliance lock panel (STE 4.4.3)', () => {
     const f = load(http, validPayload);
     http.expectNone(readinessUrl);
     expect((f.nativeElement as HTMLElement).textContent).not.toContain('Early compliance lock (STE 4.4.3)');
+  });
+
+  it('shows the applicable review set and blocks Manager approval while a procedure is unreviewed', () => {
+    const http = setup();
+    const f = load(http, validPayload);
+    const host = f.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Current adopted programme: ISA v2026.1');
+    expect(host.textContent).toContain('ISA-001Obtain sufficient evidence');
+    expect(host.textContent).toContain('ISA-002 — Evaluate subsequent events: independent review is SUBMITTED');
+    expect(host.textContent).not.toContain('ISA-003');
+    const action = Array.from(host.querySelectorAll('button')).find((button) => button.textContent?.includes('Record Manager workprogramme approval')) as HTMLButtonElement;
+    expect(action.disabled).toBe(true);
+  });
+
+  it('submits Manager rationale once and refreshes current approval and SRM state', async () => {
+    const http = setup();
+    const f = load(http, validPayload, { ...programBasis, procedures: [programBasis.procedures[0], programBasis.procedures[2]] });
+    const page = f.componentInstance;
+    const host = f.nativeElement as HTMLElement;
+    const rationale = host.querySelector('textarea[name="workprogramRationale"]') as HTMLTextAreaElement;
+    rationale.value = 'Reviewed the current applicable procedures and their independent review records.';
+    rationale.dispatchEvent(new Event('input', { bubbles: true }));
+    const assent = host.querySelector('input[name="workprogramReviewed"]') as HTMLInputElement;
+    assent.checked = true;
+    assent.dispatchEvent(new Event('change', { bubbles: true }));
+    f.detectChanges();
+    expect(page.programBasis.data()?.engagementId).toBe(id1);
+    expect(page.canApproveCurrentWorkprograms()).toBe(true);
+    expect(page.f.workprogramReviewed).toBe(true);
+    expect(page.f.workprogramRationale.trim().length).toBeGreaterThan(0);
+    expect(page.ws.data()?.workprogramApproval).toEqual({ hasApproval: false, isCurrent: false, approvedAt: null, canApprove: true });
+    expect(page.cmd.busy()).toBe(false);
+    const action = Array.from((f.nativeElement as HTMLElement).querySelectorAll('button')).find((button) => button.textContent?.includes('Record Manager workprogramme approval')) as HTMLButtonElement;
+    expect(action.disabled).toBe(false);
+    const attempt = page.approveWorkprograms();
+    const post = http.expectOne(`/api/ui/engagements/${id1}/completion/workprogram-approval`);
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({ rationale: page.f.workprogramRationale });
+    post.flush({ value: id3 });
+    await attempt;
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ ...validPayload,
+      workprogramApproval: { hasApproval: true, isCurrent: true, approvedAt: '2026-10-17T10:00:00Z', canApprove: true },
+      deliverables: [...validPayload.deliverables, { ...validPayload.deliverables[0], id: id3, kind: 'SUMMARY_REVIEW_MEMORANDUM', title: 'Summary Review Memorandum', version: 2 }] });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ ...programBasis, procedures: [programBasis.procedures[0], programBasis.procedures[2]] });
+    f.detectChanges();
+    expect((f.nativeElement as HTMLElement).textContent).toContain('Manager approval is current');
+    expect((f.nativeElement as HTMLElement).textContent).toContain('Latest SRM v2 is current');
+  });
+
+  it('keeps approval unresolved and refreshes both sources after a stale refusal', async () => {
+    const http = setup();
+    const f = load(http, validPayload, { ...programBasis, procedures: [programBasis.procedures[0], programBasis.procedures[2]] });
+    const page = f.componentInstance;
+    page.f.workprogramReviewed = true;
+    page.f.workprogramRationale = 'Reviewed current workprogramme set after procedure review.';
+    const attempt = page.approveWorkprograms();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/workprogram-approval`).flush(
+      { code: 'generation.stale', message: 'The procedure review set changed; refresh before approval.' }, { status: 409, statusText: 'Conflict' });
+    await attempt;
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ ...validPayload,
+      workprogramApproval: { hasApproval: true, isCurrent: false, approvedAt: '2026-10-16T10:00:00Z', canApprove: true } });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(programBasis);
+    f.detectChanges();
+    expect((f.nativeElement as HTMLElement).textContent).toContain('Manager approval is stale and must be renewed');
+    expect(page.cmd.failed()).toBe(true);
   });
 
   it('reloads readiness after a stale refusal and keeps the Partner reason', async () => {
@@ -327,6 +400,7 @@ describe('Report certificate signing (ADR-0016)', () => {
     const f = TestBed.createComponent(EngagementCompletion);
     f.detectChanges();
     http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(payload);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(programBasis);
     f.detectChanges();
     return { f, http, params };
   }
@@ -372,9 +446,11 @@ describe('Report certificate signing (ADR-0016)', () => {
     const { f, http, params } = open(validPayload), page = f.componentInstance;
     const oldCheck = page.verifySignature(id2), oldRequest = http.expectOne(`/api/ui/deliverables/${id2}/signature`);
     params.next(convertToParamMap({ id: id3 })); f.detectChanges();
-    http.expectOne(`/api/ui/engagements/${id3}/completion`).flush({ ...validPayload, engagementId: id3 }); f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id3}/completion`).flush({ ...validPayload, engagementId: id3 });
+    http.expectOne(`/api/ui/engagements/${id3}/fieldwork`).flush({ ...programBasis, engagementId: id3 }); f.detectChanges();
     params.next(convertToParamMap({ id: id1 })); f.detectChanges();
-    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(validPayload); f.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush(validPayload);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(programBasis); f.detectChanges();
     const newCheck = page.verifySignature(id2), newRequest = http.expectOne(`/api/ui/deliverables/${id2}/signature`);
     oldRequest.flush({ signatureKind: 'CERTIFICATE', state: 'VALID', subject: null, thumbprintSha256: null, message: 'Old result.' });
     await oldCheck; expect(page.signatureCheck()).toBeNull(); expect(page.verifying()).toBe(true);

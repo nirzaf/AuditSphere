@@ -10,6 +10,14 @@ namespace AuditSphereOps.Application.Audit;
 
 public static partial class AuditFieldworkService
 {
+  /// <summary>UI projection only; the approval command repeats both checks before writing.</summary>
+  public static async Task<bool> CanApproveWorkprogramsAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var auth = await AuthorizeEngagementAsync(db, actor, engagementId, ["Manager", "Partner", "Administrator"], ct);
+    return auth.Succeeded && await EngagementRankAsync(db, actor, engagementId, ct) >= 3;
+  }
+
   /// <summary>
   /// Independent Manager-level approval of every applicable workprogramme of the engagement after
   /// independent per-procedure review. The final automatic Summary Review Memorandum handoff fires

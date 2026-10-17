@@ -35,9 +35,12 @@ export const decodeCompletion = obj({ engagementId: guid,
   freezeDays: nat, trail: nullable(arr(obj({ at: instant, kind: text, actor: text, description: text, entityId: guid }), 20000)), trailCoverageNote: text,
   locks: arr(obj({ id: guid, documentKey: text, lockedBy: text, lockedAt: instant }), 500),
   holdingLetter: nullable(obj({ deliverableId: nullable(guid), issuedAt: nullable(instant), outstandingCount: nat, state: text, message: text })),
+  workprogramApproval: nullable(obj({ hasApproval: bool, isCurrent: bool, approvedAt: nullable(instant), canApprove: bool })),
   reportSigning: obj({ mode: oneOf('VISUAL', 'CERTIFICATE'), required: bool, ready: bool, subject: nullable(text), notAfter: nullable(instant), message: text }) });
 /** Archive readiness reviewed before an early compliance lock (STE 4.4.3). */
 const archiveReadiness = obj({ freezeId: guid, revision: nat, state: text, dueAt: instant, archiveReadinessDigest: nullable(text), blockers: arr(text, 50) });
+const fieldworkBasis = obj({ engagementId: guid, program: nullable(obj({ programCode: text, version: text, sourceHash: text })),
+  procedures: arr(obj({ sourceProcedureId: text, title: text, applicabilityStatus: text, status: text }), 5000), canManageFieldwork: bool });
 type Completion = ReturnType<typeof decodeCompletion>;
 const OPINION_LABELS: Record<string, string> = { UNMODIFIED: 'Clean (unmodified)', QUALIFIED: 'Qualified', ADVERSE: 'Adverse', DISCLAIMER: 'Disclaimer of opinion' };
 const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings Report'], ['MANAGEMENT_LETTER', 'Management Letter'],
@@ -95,6 +98,48 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
         }
 
         <h3>Summary Review Memorandum and Partner clearance</h3>
+        <section aria-labelledby="workprogram-approval-heading" class="workprogram-approval">
+          <h4 id="workprogram-approval-heading">Manager workprogramme approval</h4>
+          <p>This is a distinct Manager approval of the current applicable programme after independent procedure review. It does not adopt a programme or replace Partner clearance.</p>
+          @if (programBasis.loading()) { <p role="status">Loading the current applicable workprogramme set…</p> }
+          @else if (programBasis.error()) { <p role="alert">The current review set could not be verified: {{ programBasis.error() }}</p> }
+          @else if (programBasis.data(); as basis) {
+            @if (basis.engagementId !== w.engagementId) { <p role="alert">The programme belongs to a different engagement. Refresh before approving.</p> }
+            @else if (!basis.program) { <p role="alert">Approval blocked: no adopted workprogramme is available for this engagement.</p> }
+            @else {
+              <p>Current adopted programme: <strong>{{ basis.program.programCode }} v{{ basis.program.version }}</strong> · source <code>{{ basis.program.sourceHash }}</code> ·
+                {{ applicableWorkprogrammes(basis).length }} applicable workprogramme(s) · {{ reviewedWorkprogrammes(basis) }} independently reviewed.</p>
+              <div class="table-scroll"><table aria-label="Current applicable workprogramme review set">
+                <thead><tr><th scope="col">Procedure</th><th scope="col">Workprogramme</th><th scope="col">Applicability</th><th scope="col">Independent review</th></tr></thead>
+                <tbody>@for (p of applicableWorkprogrammes(basis); track p.sourceProcedureId) {
+                  <tr><td>{{ p.sourceProcedureId }}</td><td>{{ p.title }}</td><td>{{ p.applicabilityStatus }}</td><td><audit-status [value]="p.status" /></td></tr>
+                } @empty { <tr><td colspan="4">No currently applicable workprogrammes are available.</td></tr> }</tbody>
+              </table></div>
+              @if (unreviewedWorkprogrammes(basis).length) {
+                <div role="alert"><strong>Approval blockers</strong><ul>@for (p of unreviewedWorkprogrammes(basis); track p.sourceProcedureId) {
+                  <li>{{ p.sourceProcedureId }} — {{ p.title }}: independent review is {{ p.status }}.</li>
+                }</ul></div>
+              } @else if (applicableWorkprogrammes(basis).length === 0) {
+                <p role="alert">Approval blocked: the current adopted programme has no applicable workprogrammes.</p>
+              }
+            }
+          }
+          @if (w.workprogramApproval?.hasApproval) {
+            <p [attr.role]="w.workprogramApproval?.isCurrent ? 'status' : 'alert'">
+              Manager approval {{ w.workprogramApproval?.isCurrent ? 'is current' : 'is stale and must be renewed' }}.
+              @if (w.workprogramApproval?.approvedAt; as approvedAt) { Recorded {{ approvedAt.slice(0, 16).replace('T', ' ') }} UTC. }
+            </p>
+          } @else { <p role="status">No aggregate Manager workprogramme approval is recorded.</p> }
+          @if (w.workprogramApproval?.canApprove && !w.workprogramApproval?.isCurrent) {
+            <label>Manager rationale <textarea name="workprogramRationale" [(ngModel)]="f.workprogramRationale" rows="2" maxlength="2000" required></textarea></label>
+            <label><input type="checkbox" name="workprogramReviewed" [(ngModel)]="f.workprogramReviewed" /> I reviewed the exact current applicable workprogramme set and its independent review states.</label>
+            <button matButton="filled" (click)="approveWorkprograms()" [disabled]="cmd.busy() || !f.workprogramReviewed || !f.workprogramRationale.trim() || !canApproveCurrentWorkprograms()">
+              Record Manager workprogramme approval
+            </button>
+          } @else if (!w.workprogramApproval?.canApprove && !w.workprogramApproval?.isCurrent) {
+            <p role="status">This account is not authorized for the Manager approval action. The server rechecks Manager rank and engagement scope on submission.</p>
+          }
+        </section>
         <label>Reviewer recommendations <textarea name="rec" [(ngModel)]="f.recommendations" rows="2" maxlength="8000"></textarea></label>
         <button matButton="outlined" (click)="send(base() + '/srm', { recommendations: f.recommendations }, 'Summary Review Memorandum generated.')" [disabled]="cmd.busy()">Generate Summary Review Memorandum</button>
         @if (srm(w); as s) {
@@ -278,6 +323,8 @@ export class EngagementCompletion {
   readonly id = routeGuid();
   readonly ws = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/completion` : null), decodeCompletion,
     'Sign in with an authorized internal staff identity assigned to this engagement to view its completion checklist.');
+  readonly programBasis = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/fieldwork` : null), fieldworkBasis,
+    'The applicable workprogramme review set is available only within the authorized engagement scope.');
   readonly cmd = new CommandState(this.api);
   readonly kind = signal('');
   readonly kinds = ['UPLOAD', 'EDIT', 'COMMENT', 'SIGN_OFF', 'FREEZE', 'DENIED'];
@@ -288,13 +335,29 @@ export class EngagementCompletion {
   early = { confirmed: false, rationale: '' };
   readonly reports = REPORTS;
   f = { recommendations: '', risks: '', notes: '', opinion: 'UNMODIFIED', focus: '', basis: '', resolution: '', scanReason: '', scanReviewed: false,
-    statementsReviewed: false, amendment: '', lockKey: '' };
+    statementsReviewed: false, amendment: '', lockKey: '', workprogramRationale: '', workprogramReviewed: false };
 
   base(): string { return `/api/ui/engagements/${this.id()}/completion`; }
   label(t: string): string { return OPINION_LABELS[t] ?? t; }
   srm(w: Completion) { return w.deliverables.filter((d) => d.kind === 'SUMMARY_REVIEW_MEMORANDUM').sort((a, b) => b.version - a.version)[0] ?? null; }
   obtained(w: Completion): number { return w.representations.filter((r) => r.obtained).length; }
   filtered(t: NonNullable<Completion['trail']>) { const k = this.kind(); return k ? t.filter((e) => e.kind === k) : t; }
+  applicableWorkprogrammes(basis: ReturnType<typeof fieldworkBasis>) { return basis.procedures.filter((p) => p.applicabilityStatus === 'APPLICABLE'); }
+  reviewedWorkprogrammes(basis: ReturnType<typeof fieldworkBasis>) { return this.applicableWorkprogrammes(basis).filter((p) => p.status === 'REVIEWED').length; }
+  unreviewedWorkprogrammes(basis: ReturnType<typeof fieldworkBasis>) { return this.applicableWorkprogrammes(basis).filter((p) => p.status !== 'REVIEWED'); }
+  canApproveCurrentWorkprograms(): boolean {
+    const state = this.programBasis.data();
+    return !!state && state.engagementId === this.id() && !!state.program && state.canManageFieldwork &&
+      this.applicableWorkprogrammes(state).length > 0 && this.unreviewedWorkprogrammes(state).length === 0;
+  }
+  async approveWorkprograms(): Promise<void> {
+    const approval = this.ws.data()?.workprogramApproval;
+    if (!approval?.canApprove || approval.isCurrent || !this.f.workprogramReviewed || !this.f.workprogramRationale.trim() || !this.canApproveCurrentWorkprograms()) return;
+    await this.cmd.run(this.base() + '/workprogram-approval', { rationale: this.f.workprogramRationale.trim() },
+      'Manager workprogramme approval submitted. Refreshing the current approval and SRM state from the server.');
+    this.ws.reload();
+    this.programBasis.reload();
+  }
   send(url: string, body: unknown, ok: string): void { void this.cmd.run(url, body, ok).finally(() => this.ws.reload()); }
   readonly signatureCheck = signal<ReturnType<typeof decodeSignatureCheck> | null>(null);
   readonly verifying = signal(false);

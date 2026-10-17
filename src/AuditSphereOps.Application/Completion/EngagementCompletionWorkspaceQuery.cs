@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Reviews;
@@ -25,12 +26,14 @@ public sealed record CompletionRelease(Guid CandidateId, string CandidateStatus,
   Guid? ReleaseCheckpointId, string? ReleaseManifestDigest, bool ReleaseMatchesCandidate, string IssueState);
 public sealed record CompletionFreeze(string State, DateTimeOffset ReportSignedAt, DateTimeOffset DueAt, string ExternalReadOnly, int DaysRemaining,
   IReadOnlyList<CompletionAmendment> Amendments, DateTimeOffset? FrozenAt = null);
+public sealed record CompletionWorkprogramApproval(bool HasApproval, bool IsCurrent, DateTimeOffset? ApprovedAt, bool CanApprove);
 public sealed record EngagementCompletionWorkspace(Guid EngagementId, IReadOnlyList<CompletionGate> Gates, IReadOnlyList<CompletionRepresentation> Representations,
   Guid? PackageId, string PackageStatus, bool PartnerApproved, string EqrStatus, Guid? ReleaseCandidateId, CompletionRelease? Release, bool CanPrepareRelease,
   IReadOnlyList<ConfirmationDashboardRow> Confirmations, IReadOnlyList<DeliverableView> Deliverables, CompletionClearance? Clearance, CompletionOpinion? Opinion,
   IReadOnlyList<OpinionFsliOption> OpinionAreas, IReadOnlyList<CompletionShared> Shared, IReadOnlyList<SignedLetterView> SignedLetters, BundleAssemblyState? Bundles,
   IReadOnlyList<string> OpinionTypes, CompletionFreeze? Freeze, int FreezeDays, IReadOnlyList<ActivityEvent>? Trail, string TrailCoverageNote, IReadOnlyList<DocumentLockView> Locks,
-  HoldingLetterStatus? HoldingLetter = null, ReportSigningStatus? ReportSigning = null);
+  HoldingLetterStatus? HoldingLetter = null, ReportSigningStatus? ReportSigning = null,
+  CompletionWorkprogramApproval? WorkprogramApproval = null);
 
 /// <summary>
 /// Engagement completion projection: gate rows from persisted reviews, representations, EQR and release state, plus
@@ -111,6 +114,19 @@ public static class EngagementCompletionWorkspaceQuery
     var bundles = await AuditDeliverableService.BundleStateAsync(db, actor, engagementId, ct);
     var freeze = await FileFreezeService.GetAsync(db, actor, engagementId, now, ct);
     var trail = await EngagementActivityQuery.GetAsync(db, actor, engagementId, ct);
+    var workprogramApproval = await db.AuditWorkprogramManagerApprovals.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    var currentInputGeneration = Math.Max(1, await db.ClientSafetyStates.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == engagement.PracticeClientId)
+      .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct) ?? 1);
+    var latestProcedureReviewAt = await db.AuditProcedureReviews.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+      .Select(x => (DateTimeOffset?)x.CreatedAt).FirstOrDefaultAsync(ct);
+    var approvalIsCurrent = workprogramApproval is not null && workprogramApproval.InputGeneration == currentInputGeneration &&
+      (latestProcedureReviewAt is null || workprogramApproval.CreatedAt >= latestProcedureReviewAt);
+    var canApproveWorkprograms = await AuditFieldworkService.CanApproveWorkprogramsAsync(db, actor, engagementId, ct);
     return CommandResult<EngagementCompletionWorkspace>.Ok(new(engagementId, gates, representations, package?.Id, package?.Status ?? "—", partnerApproved,
       eqr?.Status ?? "NOT_ASSIGNED", candidate?.Id, release,
       releaseAuthority.Succeeded && package?.Status == AccountingPackageStates.PackageValidated &&
@@ -124,7 +140,8 @@ public static class EngagementCompletionWorkspaceQuery
         freeze.Amendments.Select(a => new CompletionAmendment(a.Id, a.Reason, a.OpenedAt, a.ClosedAt)).ToList(), freeze.FrozenAt),
       FileFreezeService.FreezeDays, trail.Succeeded ? trail.Value : null, EngagementActivityQuery.ExternalCoverageNote,
       await EngagementActivityQuery.LocksAsync(db, actor, engagementId, ct), await HoldingLetterDispatch.StatusAsync(db, actor.FirmId, engagementId, ct),
-      ReportCertificateSigning.Status(signing, now)));
+      ReportCertificateSigning.Status(signing, now), new CompletionWorkprogramApproval(workprogramApproval is not null, approvalIsCurrent,
+        workprogramApproval?.CreatedAt, canApproveWorkprograms)));
   }
 
   private static async Task<CompletionRelease> ReleaseSummaryAsync(IAuditSphereDbContext db, AuditSphereOps.Domain.Completion.ReleaseCandidate candidate, CancellationToken ct)
