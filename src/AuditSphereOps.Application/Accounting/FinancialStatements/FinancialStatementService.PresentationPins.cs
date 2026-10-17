@@ -747,7 +747,7 @@ public static partial class FinancialStatementService
           plan.ClientId == package.ClientId && plan.EngagementId == package.EngagementId &&
           dataset.FirmId == package.FirmId && dataset.ClientId == package.ClientId &&
           dataset.EngagementId == package.EngagementId
-        select new { DatasetId = dataset.Id, dataset.PeriodId, dataset.BookId, dataset.Basis, dataset.Currency })
+        select new { DatasetId = dataset.Id, dataset.PeriodId, dataset.BookId, dataset.Basis, dataset.Currency, dataset.LegalEntityKey })
       .SingleOrDefaultAsync(ct);
     if (baseDatasetId is null || baseDatasetId.PeriodId != package.PeriodId || baseDatasetId.BookId != package.BookId ||
         !string.Equals(baseDatasetId.Basis, package.Basis, StringComparison.OrdinalIgnoreCase) ||
@@ -761,7 +761,8 @@ public static partial class FinancialStatementService
           decision.Decision == "ACCEPTED" && dataset.FirmId == package.FirmId &&
           dataset.ClientId == package.ClientId && dataset.EngagementId == package.EngagementId &&
           dataset.PeriodId == package.PeriodId && dataset.BookId == package.BookId &&
-          dataset.Basis == baseDatasetId.Basis && dataset.Currency == package.Currency
+          dataset.Basis == baseDatasetId.Basis && dataset.Currency == package.Currency &&
+          dataset.LegalEntityKey == baseDatasetId.LegalEntityKey
         orderby decision.CreatedAt descending, decision.Id descending
         select (Guid?)dataset.Id).FirstOrDefaultAsync(ct);
 

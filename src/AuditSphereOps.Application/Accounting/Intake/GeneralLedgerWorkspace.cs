@@ -103,7 +103,8 @@ public static class GeneralLedgerWorkspace
       x.Id == batch.PeriodId && x.FirmId == actor.FirmId && x.ClientId == batch.ClientId, ct);
     if (period is null || !ValidHash(batch.RawFileSha256Hex) || !ValidHash(batch.NormalizedDatasetDigest))
       return CommandResult<GeneralLedgerSourceContext>.Fail(ErrorCodes.GateBlocked, "The reporting period or immutable source identity is unavailable.");
-    var selected = await AccountingSourceAcceptanceService.GetSelectedSourceAsync(db, actor, batch.ClientId, engagementId, AccountingSourceKinds.GeneralLedger, ct);
+    var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor,
+      batch.ClientId, engagementId, batch.PeriodId, ct);
     if (!selected.Succeeded) return CommandResult<GeneralLedgerSourceContext>.Fail(selected.ErrorCode!, selected.Message!);
     var final = await GeneralLedgerQuery.CheckCurrentAsync(db, actor, batch, ct);
     if (!final.Succeeded) return CommandResult<GeneralLedgerSourceContext>.Fail(final.ErrorCode!, final.Message!);

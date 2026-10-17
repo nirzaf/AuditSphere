@@ -54,8 +54,8 @@ public static partial class SourceAcceptanceWorkspace
     var receipt = await db.SourceAcceptanceDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ClientId == source.ClientId && x.EngagementId == source.EngagementId &&
       x.SourceKind == AccountingSourceKinds.GeneralLedger && x.ImportBatchId == id && x.Decision == "ACCEPTED", ct);
-    var selected = await AccountingSourceAcceptanceService.GetSelectedSourceAsync(db, actor,
-      source.ClientId, source.EngagementId, AccountingSourceKinds.GeneralLedger, ct);
+    var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor,
+      source.ClientId, source.EngagementId, source.PeriodId, ct);
     if (!selected.Succeeded) return CommandResult<GeneralLedgerAcceptanceReview>.Fail(selected.ErrorCode!, selected.Message!);
     var write = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, source.ClientId, source.EngagementId, ReviewerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);

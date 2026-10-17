@@ -76,6 +76,92 @@ public sealed class SourceAcceptanceAndComparativesTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task TrialBalanceAcceptance_SelectionRemainsIndependentByPeriodAndBook()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var priorPeriodId = Guid.NewGuid();
+    var currentPeriodId = Guid.NewGuid();
+    var priorBookId = Guid.NewGuid();
+    var currentBookId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.ClientReportingPeriods.AddRange(
+        new ClientReportingPeriod
+        {
+          Id = priorPeriodId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, PeriodCode = "FY2025",
+          StartDate = new DateOnly(2025, 1, 1), EndDate = new DateOnly(2025, 12, 31), Basis = "STATUTORY",
+          Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = fixture.Preparer.Id,
+          CreatedAt = DateTimeOffset.UtcNow
+        },
+        new ClientReportingPeriod
+        {
+          Id = currentPeriodId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, PeriodCode = "FY2026",
+          StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY",
+          Currency = "QAR", Status = AccountingWorkflowStates.Active, CreatedByUserId = fixture.Preparer.Id,
+          CreatedAt = DateTimeOffset.UtcNow
+        });
+      db.ClientReportingBooks.AddRange(
+        new ClientReportingBook
+        {
+          Id = priorBookId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, PeriodId = priorPeriodId,
+          Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
+          Status = AccountingWorkflowStates.Active, CreatedByUserId = fixture.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+        },
+        new ClientReportingBook
+        {
+          Id = currentBookId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, PeriodId = currentPeriodId,
+          Code = "STATUTORY", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
+          Status = AccountingWorkflowStates.Active, CreatedByUserId = fixture.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+        });
+      await db.SaveChangesAsync();
+    }
+
+    var priorDatasetId = await SeedDatasetAsync(pg, fixture, "period-prior", Accepted: true, sealedState: true,
+      periodId: priorPeriodId, bookId: priorBookId, basis: "STATUTORY");
+    var currentDatasetId = await SeedDatasetAsync(pg, fixture, "period-current", Accepted: true, sealedState: true,
+      periodId: currentPeriodId, bookId: currentBookId, basis: "STATUTORY");
+    var replacementDatasetId = await SeedDatasetAsync(pg, fixture, "period-current-v2", Accepted: true, sealedState: true,
+      periodId: currentPeriodId, bookId: currentBookId, basis: "STATUTORY", legalEntityKey: "PERIOD-CURRENT");
+    foreach (var (datasetId, evidence) in new[]
+    {
+      (priorDatasetId, "prior-period-source"), (currentDatasetId, "current-period-source"),
+      (replacementDatasetId, "current-period-replacement")
+    })
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var accepted = await AccountingSourceAcceptanceService.AcceptSourceRevisionAsync(db, reviewer,
+        new AcceptSourceRevisionRequest(fixture.ClientId, fixture.EngagementId,
+          AccountingSourceKinds.TrialBalance, datasetId, null, evidence));
+      Assert.True(accepted.Succeeded, accepted.Message);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var prior = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(db, reviewer,
+        fixture.ClientId, fixture.EngagementId, priorPeriodId, priorBookId, "STATUTORY", "QAR", "PERIOD-PRIOR");
+      var current = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(db, reviewer,
+        fixture.ClientId, fixture.EngagementId, currentPeriodId, currentBookId, "STATUTORY", "QAR", "PERIOD-CURRENT");
+      Assert.True(prior.Succeeded, prior.Message);
+      Assert.True(current.Succeeded, current.Message);
+      Assert.Equal(priorDatasetId, prior.Value!.TrialBalanceDatasetId);
+      Assert.Equal(replacementDatasetId, current.Value!.TrialBalanceDatasetId);
+
+      var unauthorized = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(db,
+        Actor(fixture.Outsider, "AccountingPreparer"), fixture.ClientId, fixture.EngagementId,
+        priorPeriodId, priorBookId, "STATUTORY", "QAR", "PERIOD-PRIOR");
+      Assert.False(unauthorized.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, unauthorized.ErrorCode);
+
+      var priorReview = await SourceAcceptanceWorkspace.GetAsync(db, reviewer, priorDatasetId);
+      Assert.True(priorReview.Succeeded, priorReview.Message);
+      Assert.Equal(priorDatasetId, priorReview.Value!.Selected!.TrialBalanceDatasetId);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task SourceAcceptance_RefusesUnsealedOrUnacceptedSources()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -524,7 +610,8 @@ public sealed class SourceAcceptanceAndComparativesTests
   }
 
   private static async Task<Guid> SeedDatasetAsync(
-    PgTestSchema pg, Fixture fixture, string suffix, bool Accepted, bool sealedState, bool unbalanced = false)
+    PgTestSchema pg, Fixture fixture, string suffix, bool Accepted, bool sealedState, bool unbalanced = false,
+    Guid? periodId = null, Guid? bookId = null, string? basis = null, string? legalEntityKey = null)
   {
     var datasetId = Guid.CreateVersion7();
     var hash = Hashing.Sha256Hex("pass-three-" + suffix);
@@ -534,7 +621,8 @@ public sealed class SourceAcceptanceAndComparativesTests
       db.TrialBalanceDatasets.Add(new TrialBalanceDataset
       {
         Id = datasetId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
-        SourceKind = "Raw", Revision = 1, LegalEntityKey = suffix.ToUpperInvariant(), Currency = "QAR",
+        PeriodId = periodId, BookId = bookId, Basis = basis,
+        SourceKind = "Raw", Revision = 1, LegalEntityKey = legalEntityKey ?? suffix.ToUpperInvariant(), Currency = "QAR",
         RawFileSha256Hex = hash, NormalizedDatasetDigest = hash, Sha256Hex = hash, Balanced = true,
         ValidationStatus = "Pending", ImportState = TrialBalanceImportStates.Loading,
         ControlTotal = 0m, ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = fixture.Preparer.Id
