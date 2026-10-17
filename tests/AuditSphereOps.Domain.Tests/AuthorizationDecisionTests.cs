@@ -111,6 +111,35 @@ public sealed class AuthorizationDecisionTests
     Assert.True(firmWide.Succeeded);
   }
 
+  [Theory]
+  [InlineData("Administrator")]
+  [InlineData("FinanceManager")]
+  public async Task FirmWidePrivilege_CannotBeAssembledFromDifferentScopedGrants(string scopedPrivilegedRole)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    Scope scope;
+    AppUser user;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      scope = await SeedScopeAsync(db, firmId, "MIXED GRANT CLIENT");
+      user = await SeedUserAsync(db, firmId);
+      await GrantAsync(db, firmId, user.Id, "Staff");
+      await GrantAsync(db, firmId, user.Id, scopedPrivilegedRole, scope.ClientId);
+    }
+
+    await using var query = new AuditSphereDbContext(pg.Options);
+    var adapter = new OperationContextAdapter(query);
+    var firmWide = await AuthorizationDecision.AuthorizeAsync(adapter, Actor(user, "Staff", scopedPrivilegedRole),
+      new AuthorizationRequest(firmId, RequiredRoles: [scopedPrivilegedRole], InternalOnly: true, RequireFirmWide: true));
+    Assert.False(firmWide.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, firmWide.ErrorCode);
+
+    var clientScoped = await AuthorizationDecision.AuthorizeAsync(adapter, Actor(user, "Staff", scopedPrivilegedRole),
+      new AuthorizationRequest(firmId, ClientId: scope.ClientId, RequiredRoles: [scopedPrivilegedRole], InternalOnly: true));
+    Assert.True(clientScoped.Succeeded);
+  }
+
   [Fact]
   public async Task FirmWideGrant_CanReadOwnDataset_ThroughCommand()
   {

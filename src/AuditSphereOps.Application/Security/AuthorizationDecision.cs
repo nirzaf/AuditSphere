@@ -117,7 +117,10 @@ public static class AuthorizationDecision
     if (request.RequiredRoles is { Length: > 0 })
     {
       var allowed = new HashSet<string>(request.RequiredRoles, StringComparer.OrdinalIgnoreCase);
-      if (!covering.Any(g => allowed.Contains(g.Role)))
+      var roleCandidates = request.RequireFirmWide
+        ? covering.Where(g => g.ClientId is null && g.EngagementId is null)
+        : covering;
+      if (!roleCandidates.Any(g => allowed.Contains(g.Role)))
         return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     }
 
