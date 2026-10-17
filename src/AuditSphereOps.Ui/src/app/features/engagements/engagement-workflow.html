@@ -158,6 +158,12 @@
         }
         <p><a matButton routerLink="/app/work">Open My work</a></p>
       </section>
+      @if (taskCreationAvailable()) {
+        <audit-workflow-task-create
+          [engagementId]="report.engagementId"
+          [phases]="report.phases"
+          (created)="onWorkflowTaskCreated()" />
+      }
     }
   }
 </section>

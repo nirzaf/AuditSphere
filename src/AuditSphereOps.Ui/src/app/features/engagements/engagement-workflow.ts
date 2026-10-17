@@ -10,6 +10,7 @@ import {
   phaseChecklists, workbenchLinksFor,
 } from './engagement-workflow-contracts';
 import { EngagementReminders } from './engagement-reminders';
+import { WorkflowTaskCreate } from './workflow-task-create';
 
 const PHASE_STATUS_LABELS: Record<string, string> = {
   NOT_STARTED: 'Not started',
@@ -26,7 +27,7 @@ const PHASE_STATUS_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'audit-engagement-workflow',
-  imports: [RouterLink, MatButtonModule, EngagementReminders],
+  imports: [RouterLink, MatButtonModule, EngagementReminders, WorkflowTaskCreate],
   templateUrl: './engagement-workflow.html',
   styleUrl: './engagement-workflow.scss',
 })
@@ -39,6 +40,8 @@ export class EngagementWorkflow {
   readonly checklists = signal<PhaseChecklist[] | null>(null);
   readonly checklistsTruncated = signal(false);
   readonly checklistError = signal('');
+  /** Available only after the feature-gated, engagement-authorized task read succeeds. */
+  readonly taskCreationAvailable = signal(false);
 
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
@@ -55,6 +58,7 @@ export class EngagementWorkflow {
         this.request?.unsubscribe();
         this.taskRequest?.unsubscribe();
         this.checklists.set(null);
+        this.taskCreationAvailable.set(false);
         this.checklistError.set('');
         this.data.set(null);
         this.error.set('');
@@ -101,14 +105,17 @@ export class EngagementWorkflow {
             if (workspace.engagementId.toLowerCase() !== id) throw new Error('Engagement context mismatch');
             this.checklists.set(phaseChecklists(workspace.tasks));
             this.checklistsTruncated.set(workspace.truncated);
+            this.taskCreationAvailable.set(true);
           } catch {
             this.checklists.set(null);
+            this.taskCreationAvailable.set(false);
             this.checklistError.set('Unsupported task checklist response format.');
           }
         },
         error: (err) => {
           if (this.destroyed || generation !== this.session.invalidation()) return;
           this.checklists.set(null);
+          this.taskCreationAvailable.set(false);
           if (err.status === 401) {
             this.session.clear();
             return;
@@ -116,6 +123,10 @@ export class EngagementWorkflow {
           this.checklistError.set(err.status === 403 || err.status === 404 ? '' : 'Phase checklists unavailable.');
         },
       });
+  }
+
+  onWorkflowTaskCreated(): void {
+    this.load();
   }
 
   taskStateLabel(status: string): string {
