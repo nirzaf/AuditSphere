@@ -46,8 +46,7 @@ public sealed class AuditSamplingServiceTests
         new AdoptAuditProgramRequest(scope.EngagementId, program.Value!.ProgramVersionId))).Succeeded);
       var procedure = await db.AuditProcedures.SingleAsync(x =>
         x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-03-06");
-      Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-        new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+      Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, scope.Actor, procedure.Id, null)).Succeeded);
 
       // An approved receivable listing is the source population for the selection.
       var schedule = await AuditFieldworkService.CreateScheduleAsync(db, scope.Actor, new CreateScheduleRequest(
@@ -199,8 +198,7 @@ public sealed class AuditConfirmationBatchTests
         new AdoptAuditProgramRequest(scope.EngagementId, program.Value!.ProgramVersionId))).Succeeded);
       var procedure = await db.AuditProcedures.SingleAsync(x =>
         x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-03-04");
-      Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-        new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+      Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, scope.Actor, procedure.Id, null)).Succeeded);
 
       // A duplicate source record rejects the whole batch: no partial register.
       var duplicate = await AuditConfirmationBatchService.CreateConfirmationBatchAsync(db, scope.Actor,

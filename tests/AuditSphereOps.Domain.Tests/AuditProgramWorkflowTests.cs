@@ -127,7 +127,8 @@ public sealed class AuditProgramWorkflowTests
 
     var procedure = await db.AuditProcedures.SingleAsync(x => x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-08-01");
     var decided = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, null));
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, null,
+        procedure.CurrentApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid()));
     Assert.True(decided.Succeeded);
 
     // Substantive result submission requires the approved planning basis (STE-REM-04): sealed balanced
@@ -187,7 +188,8 @@ public sealed class AuditProgramWorkflowTests
 
     var second = await db.AuditProcedures.SingleAsync(x => x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-08-02");
     var secondDecision = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-      new DecideProcedureApplicabilityRequest(second.Id, AuditApplicabilityStatuses.Applicable, null));
+      new DecideProcedureApplicabilityRequest(second.Id, AuditApplicabilityStatuses.Applicable, null,
+        second.CurrentApplicabilityRevision, second.CurrentDefinitionRevision, Guid.NewGuid()));
     Assert.True(secondDecision.Succeeded);
     await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_safety_states SET input_generation = 2 WHERE id = {scope.ClientId}");
     var stale = await AuditProgramService.SubmitResultAsync(db, scope.Actor,
@@ -316,7 +318,8 @@ public sealed class AuditProgramWorkflowTests
       procedureId = cash.Id;
       Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
         new DecideProcedureApplicabilityRequest(cash.Id, AuditApplicabilityStatuses.Applicable,
-          "Bank confirmations are required for this engagement."))).Succeeded);
+          "Bank confirmations are required for this engagement.", cash.CurrentApplicabilityRevision,
+          cash.CurrentDefinitionRevision, Guid.NewGuid())).Succeeded);
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -377,7 +380,8 @@ public sealed class AuditProgramWorkflowTests
 
     // Make procedure applicable
     Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, "Mandatory cash test"))).Succeeded);
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, "Mandatory cash test",
+        procedure.CurrentApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid())).Succeeded);
 
     // Initial workpaper generation initializes the workpaper and advances procedure to InProgress
     var wpResult = await AuditProgramService.GetOrCreateWorkpaperAsync(db, scope.Actor, procedure.Id);
@@ -506,5 +510,167 @@ public sealed class AuditProgramWorkflowTests
       $"DELETE FROM audit_procedure_definition_revisions WHERE id = {tailoredDefinition.Id}"));
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
       $"UPDATE audit_procedures SET source_wording = 'legacy writer must be rejected' WHERE id = {procedure.Id}"));
+  }
+
+  [Fact(DisplayName = "N/A requires a reason and an independent Partner decision tied to current inputs")]
+  public async Task ApplicabilityProposal_RequiresIndependentCurrentPartnerAndRetainsHistory()
+  {
+    var legacyPending = new AuditProcedure
+    {
+      ApplicabilityStatus = AuditApplicabilityStatuses.NotApplicablePendingReview,
+      CurrentApplicabilityRevision = 0
+    };
+    Assert.Equal(AuditApplicabilityStatuses.NotApplicableUnverified,
+      AuditProgramService.EffectiveApplicabilityStatus(legacyPending, null, null, 1));
+
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var scope = fixture.Primary;
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
+      new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+    Assert.True(published.Succeeded, published.Message);
+    var adopted = await AuditProgramService.AdoptAsync(db, scope.Actor,
+      new AdoptAuditProgramRequest(scope.EngagementId, published.Value!.ProgramVersionId));
+    Assert.True(adopted.Succeeded, adopted.Message);
+
+    var procedure = await db.AuditProcedures.SingleAsync(x => x.EngagementId == scope.EngagementId &&
+      x.SourceProcedureId == "AWP-08-01");
+    var directApproval = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.NotApplicableApproved,
+        "unsupported direct approval", 0, procedure.CurrentDefinitionRevision, Guid.NewGuid()));
+    Assert.False(directApproval.Succeeded);
+    Assert.Empty(await db.AuditProcedureApplicabilityDecisions.ToListAsync());
+
+    var missingReason = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityActions.ProposeNotApplicable,
+        "  ", 0, procedure.CurrentDefinitionRevision, Guid.NewGuid()));
+    Assert.False(missingReason.Succeeded);
+
+    var proposalRequest = new DecideProcedureApplicabilityRequest(procedure.Id,
+      AuditApplicabilityActions.ProposeNotApplicable,
+      "The client does not hold inventory; the procedure is outside this engagement's agreed scope.",
+      procedure.CurrentApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid());
+    var proposal = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor, proposalRequest);
+    Assert.True(proposal.Succeeded, proposal.Message);
+    Assert.Equal(AuditApplicabilityStatuses.NotApplicablePendingReview, proposal.Value!.Status);
+
+    var partnerId = Guid.NewGuid();
+    db.Users.Add(new AppUser
+    {
+      Id = partnerId, FirmId = scope.FirmId, Subject = "independent-na-" + partnerId.ToString("N"),
+      TenantId = "tenant-planning", Email = "independent-na@example.test", DisplayName = "Independent Partner",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = partnerId, Role = "Partner",
+      ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = scope.Actor.UserId
+    });
+    await db.SaveChangesAsync();
+    var partner = new ActorContext(partnerId, scope.FirmId, 1, ["Partner"]);
+
+    var managerId = Guid.NewGuid();
+    db.Users.Add(new AppUser
+    {
+      Id = managerId, FirmId = scope.FirmId, Subject = "na-manager-" + managerId.ToString("N"),
+      TenantId = "tenant-planning", Email = "na-manager@example.test", DisplayName = "Engagement Manager",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = managerId, Role = "Manager",
+      ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = scope.Actor.UserId
+    });
+    await db.SaveChangesAsync();
+    var manager = new ActorContext(managerId, scope.FirmId, 1, ["Manager"]);
+    var wrongRole = await AuditProgramService.DecideApplicabilityAsync(db, manager,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityActions.ApproveNotApplicable,
+        null, proposal.Value.ApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid(),
+        proposal.Value.DecisionId));
+    Assert.False(wrongRole.Succeeded);
+
+    var workspace = await AuditFieldworkWorkspaceQuery.GetAsync(db, partner, scope.EngagementId);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    var queued = Assert.Single(workspace.Value!.Procedures, x => x.Id == procedure.Id);
+    Assert.True(queued.CanApproveNotApplicable);
+    Assert.True(queued.CanReturnNotApplicable);
+    Assert.Equal(proposal.Value.DecisionId, queued.PendingApplicabilityProposalId);
+    Assert.Contains("does not hold inventory", queued.ApplicabilityRationale);
+
+    var selfApproval = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityActions.ApproveNotApplicable,
+        null, proposal.Value.ApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid(),
+        proposal.Value.DecisionId));
+    Assert.False(selfApproval.Succeeded);
+    var missingProposal = await AuditProgramService.DecideApplicabilityAsync(db, partner,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityActions.ApproveNotApplicable,
+        null, proposal.Value.ApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid()));
+    Assert.False(missingProposal.Succeeded);
+
+    var returned = await AuditProgramService.DecideApplicabilityAsync(db, partner,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityActions.ReturnNotApplicable,
+        "The file needs the current inventory schedule before this exclusion can be assessed.",
+        proposal.Value.ApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid(),
+        proposal.Value.DecisionId));
+    Assert.True(returned.Succeeded, returned.Message);
+    Assert.Equal(AuditApplicabilityStatuses.Pending, returned.Value!.Status);
+    Assert.Equal(AuditApplicabilityActions.ReturnNotApplicable, returned.Value.Action);
+    var returnEvidence = await db.AuditProcedureApplicabilityDecisions.AsNoTracking().SingleAsync(x =>
+      x.Id == returned.Value.DecisionId);
+    Assert.Equal(partner.UserId, returnEvidence.ActorUserId);
+    Assert.Equal(proposal.Value.DecisionId, returnEvidence.ProposalDecisionId);
+    Assert.Contains("needs the current inventory schedule", returnEvidence.Rationale);
+
+    var reproposal = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityActions.ProposeNotApplicable,
+        "The accepted inventory schedule confirms there is no inventory balance or activity in the period.",
+        returned.Value.ApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid()));
+    Assert.True(reproposal.Succeeded, reproposal.Message);
+
+    var approvalRequest = new DecideProcedureApplicabilityRequest(procedure.Id,
+      AuditApplicabilityActions.ApproveNotApplicable, null, reproposal.Value!.ApplicabilityRevision,
+      procedure.CurrentDefinitionRevision, Guid.NewGuid(), reproposal.Value.DecisionId);
+    var approval = await AuditProgramService.DecideApplicabilityAsync(db, partner, approvalRequest);
+    Assert.True(approval.Succeeded, approval.Message);
+    Assert.Equal(AuditApplicabilityStatuses.NotApplicableApproved, approval.Value!.Status);
+    var replay = await AuditProgramService.DecideApplicabilityAsync(db, partner, approvalRequest);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(approval.Value.DecisionId, replay.Value!.DecisionId);
+    var changedIntent = await AuditProgramService.DecideApplicabilityAsync(db, partner,
+      approvalRequest with { Decision = AuditApplicabilityActions.ReturnNotApplicable });
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
+    Assert.Equal(4, await db.AuditProcedureApplicabilityDecisions.CountAsync(x => x.AuditProcedureId == procedure.Id));
+
+    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_safety_states SET input_generation = input_generation + 1 WHERE id = {scope.ClientId}");
+    var refreshedProcedure = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
+    var current = await AuditProgramService.CurrentApplicabilityDecisionsAsync(db, scope.FirmId, scope.ClientId,
+      scope.EngagementId, [refreshedProcedure], CancellationToken.None);
+    var proposalRows = await AuditProgramService.ProposalDecisionsAsync(db, scope.FirmId, scope.ClientId,
+      scope.EngagementId, current.Values.ToArray(), CancellationToken.None);
+    Assert.Equal(AuditApplicabilityStatuses.NotApplicableUnverified,
+      AuditProgramService.EffectiveApplicabilityStatus(refreshedProcedure, current[procedure.Id],
+        proposalRows[proposal.Value.DecisionId!.Value], 2));
+    var completion = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db,
+      scope.FirmId, scope.ClientId, scope.EngagementId, CancellationToken.None);
+    Assert.Contains(completion.Value!.Blockers, x => x == $"applicability:{procedure.SourceProcedureId}");
+
+    var staleDefinition = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityActions.Applicable,
+        "Current accepted inventory evidence establishes applicability.", procedure.CurrentApplicabilityRevision,
+        procedure.CurrentDefinitionRevision + 1, Guid.NewGuid()));
+    Assert.False(staleDefinition.Succeeded);
+    var applicable = await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
+      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityActions.Applicable,
+        "Current accepted inventory evidence establishes applicability.", procedure.CurrentApplicabilityRevision,
+        procedure.CurrentDefinitionRevision, Guid.NewGuid()));
+    Assert.True(applicable.Succeeded, applicable.Message);
+    Assert.Equal(AuditApplicabilityStatuses.Applicable, applicable.Value!.Status);
+    Assert.Equal(5, await db.AuditProcedureApplicabilityDecisions.CountAsync(x => x.AuditProcedureId == procedure.Id));
+
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE audit_procedure_applicability_decisions SET rationale = 'tampered' WHERE id = {proposal.Value.DecisionId}"));
   }
 }

@@ -12,7 +12,12 @@ import { SHARED } from '../../core/ui';
 
 const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: nullable(int), sourceSectionTitle: nullable(text), title: text,
   applicabilityStatus: text, status: text, riskId: nullable(guid), workpaperId: nullable(guid), originalWording: nullable(text),
-  effectiveWording: nullable(text), definitionRevision: nullable(nat), definitionProvenance: text });
+  effectiveWording: nullable(text), definitionRevision: nullable(nat), definitionProvenance: text,
+  applicabilityRevision: nat, applicabilityDecisionId: nullable(guid), pendingApplicabilityProposalId: nullable(guid),
+  applicabilityRationale: nullable(text), applicabilityHistory: arr(obj({ id: guid, revision: nat, action: text,
+    rationale: nullable(text), proposalDecisionId: nullable(guid), actorUserId: guid, occurredAt: instant,
+    definitionRevision: nat, inputGeneration: nat }), 20), canProposeNotApplicable: bool,
+  canApproveNotApplicable: bool, canReturnNotApplicable: bool });
 const decodeManagerReview = obj({ engagementId: guid, completionReady: bool, partnerHandoffReady: bool,
   applicableProcedures: nat, proceduresNeedingReview: nat, itemTestsNeedingReview: nat, selectionsNeedingReview: nat,
   unresolvedReviewThreads: nat, openConfirmations: nat, bankReconciliationsNeedingApproval: nat, unevaluatedDifferences: nat,
@@ -456,12 +461,40 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
                     } @else { <small>{{ riskLabel(w, p.riskId) }}</small> }
                   }
                 </td><td>{{ p.status }}</td>
-                <td>@switch (p.applicabilityStatus) {
-                  @case ('PENDING') { <span class="actions">
-                    <button matButton="filled" (click)="decide(p.id, 'APPLICABLE')" [disabled]="cmd.busy()">Applicable</button>
-                    <button matButton="filled" (click)="decide(p.id, 'NA_PENDING_REVIEW')" [disabled]="cmd.busy()">N/A for review</button></span> }
-                  @case ('APPLICABLE') { <small>Execute from source workflow</small> }
-                  @default { <small>Reviewer disposition required</small> } }</td></tr> }</tbody>
+                <td>
+                  <strong>{{ p.applicabilityStatus }}</strong>
+                  @if (p.applicabilityStatus === 'PENDING' || p.applicabilityStatus === 'NA_UNVERIFIED' || p.applicabilityStatus === 'APPLICABLE') {
+                    @if (p.applicabilityStatus === 'PENDING' || p.applicabilityStatus === 'NA_UNVERIFIED') {
+                      <button matButton="filled" (click)="decide(p, 'APPLICABLE')" [disabled]="cmd.busy()">Applicable</button>
+                    } @else { <small>Execute from source workflow</small> }
+                  }
+                  @if (p.canProposeNotApplicable) {
+                    <label [attr.for]="'na-reason-' + p.id">Reason for non-applicability</label>
+                    <textarea [id]="'na-reason-' + p.id" [name]="'na-reason-' + p.id" maxlength="1000"
+                      [ngModel]="applicabilityReason(p.id)" (ngModelChange)="setApplicabilityReason(p.id, $event)"></textarea>
+                    <button matButton="filled" (click)="decide(p, 'PROPOSE_NOT_APPLICABLE')"
+                      [disabled]="cmd.busy() || !applicabilityReason(p.id).trim()">Propose N/A</button>
+                  }
+                  @if (p.canApproveNotApplicable) {
+                    <p><strong>Pending N/A reason:</strong> {{ p.applicabilityRationale }}</p>
+                    <button matButton="filled" (click)="decide(p, 'APPROVE_NOT_APPLICABLE')" [disabled]="cmd.busy()">Approve as Partner</button>
+                    <label [attr.for]="'na-return-' + p.id">Reason to return proposal</label>
+                    <textarea [id]="'na-return-' + p.id" [name]="'na-return-' + p.id" maxlength="1000"
+                      [ngModel]="applicabilityReason(p.id)" (ngModelChange)="setApplicabilityReason(p.id, $event)"></textarea>
+                    <button matButton (click)="decide(p, 'RETURN_NOT_APPLICABLE')"
+                      [disabled]="cmd.busy() || !applicabilityReason(p.id).trim()">Return proposal</button>
+                  }
+                  @if (p.applicabilityStatus === 'NA_UNVERIFIED') {
+                    <p role="status">Historical N/A is unverified against current proposal, Partner and input evidence.</p>
+                  }
+                  @if (p.applicabilityHistory?.length) {
+                    <details><summary>Applicability history (latest 20)</summary>
+                      @for (decision of p.applicabilityHistory; track decision.id) {
+                        <p>Revision {{ decision.revision }} · {{ decision.action }} · {{ decision.occurredAt | date:'medium' }} · {{ decision.actorUserId }}{{ decision.rationale ? ' · ' + decision.rationale : '' }}</p>
+                      }
+                    </details>
+                  }
+                </td></tr> }</tbody>
           </table></div>
         </section>
       }
@@ -473,6 +506,7 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
 })
 export class AuditFieldwork {
   private readonly api = inject(Api);
+  private readonly applicabilityReasons = signal<Record<string, string>>({});
   private readonly route = inject(ActivatedRoute);
   readonly id = routeGuid();
   readonly statementFocus = { line: this.route.snapshot?.queryParamMap.get('line') ?? null, area: this.route.snapshot?.queryParamMap.get('area') ?? null };
@@ -684,7 +718,18 @@ export class AuditFieldwork {
     }, 'Exact published programme adopted.');
   }
   private base(): string { return `/api/ui/engagements/${this.id()}/fieldwork`; }
-  decide(procedureId: string, decision: string): void { void this.send(`/api/ui/procedures/${procedureId}/applicability`, { decision }, 'Recorded.'); }
+  applicabilityReason(procedureId: string): string { return this.applicabilityReasons()[procedureId] ?? ''; }
+  setApplicabilityReason(procedureId: string, value: string): void {
+    this.applicabilityReasons.update(current => ({ ...current, [procedureId]: value }));
+  }
+  decide(procedure: ReturnType<typeof decodeFieldwork>['procedures'][number], decision: string): void {
+    const rationale = this.applicabilityReason(procedure.id).trim();
+    void this.send(`/api/ui/procedures/${procedure.id}/applicability`, {
+      decision, rationale: rationale || null, expectedApplicabilityRevision: procedure.applicabilityRevision,
+      expectedDefinitionRevision: procedure.definitionRevision ?? 0, commandId: globalThis.crypto.randomUUID(),
+      proposalDecisionId: procedure.pendingApplicabilityProposalId,
+    }, 'Applicability decision recorded.');
+  }
   aggregate(w: Fieldwork): void { void this.send(this.base() + '/aggregate', { conclusion: this.aggregateConclusion }, 'Aggregate conclusion recorded.'); }
   async sample(): Promise<void> {
     const input = this.samplingInput();

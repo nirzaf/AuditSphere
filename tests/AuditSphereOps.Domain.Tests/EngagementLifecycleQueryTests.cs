@@ -18,7 +18,7 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class EngagementLifecycleQueryTests
 {
   [Fact]
-  public void CurrentProcedureProjectionUsesTheCurrentRevisionAndTreatsApprovedNotApplicableAsComplete()
+  public void CurrentProcedureProjectionRequiresVerifiedCurrentNotApplicableEvidence()
   {
     var now = DateTimeOffset.UtcNow;
     var notApplicable = new AuditProcedure
@@ -27,7 +27,9 @@ public sealed class EngagementLifecycleQueryTests
       Status = AuditProcedureStatuses.Planned,
       CurrentResultRevision = 0
     };
-    Assert.True(EngagementLifecycleQuery.IsCurrentProcedureSubmittedForReview(notApplicable, null, null));
+    Assert.False(EngagementLifecycleQuery.IsCurrentProcedureSubmittedForReview(notApplicable, null, null));
+    Assert.True(EngagementLifecycleQuery.IsCurrentProcedureSubmittedForReview(notApplicable, null, null,
+      currentNotApplicableApprovalVerified: true));
 
     var applicable = new AuditProcedure
     {

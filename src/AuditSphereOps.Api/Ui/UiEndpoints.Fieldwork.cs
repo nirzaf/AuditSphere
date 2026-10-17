@@ -6,7 +6,8 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
-  public sealed record ApplicabilityInput(string Decision);
+  public sealed record ApplicabilityInput(string Decision, string? Rationale, int ExpectedApplicabilityRevision,
+    int ExpectedDefinitionRevision, Guid CommandId, Guid? ProposalDecisionId);
   public sealed record ProcedureRiskInput(Guid? RiskId);
   public sealed record TailorProcedureInput(string Title, string CustomWording, string? Rationale,
     int ExpectedDefinitionRevision, Guid CommandId);
@@ -55,10 +56,9 @@ public static partial class UiEndpoints
         : CommandAsync(http, (db, actor, ct) => AuditFieldworkWorkspaceQuery.AdoptPublishedAsync(db, actor,
           new AdoptAuditProgramRequest(id, input.ProgramVersionId, input.SourceHash, input.ContentDigest, input.ExpectedAdoptionId), ct)));
     group.MapPost("/procedures/{id:guid}/applicability", (Guid id, ApplicabilityInput i, HttpContext http) =>
-      i.Decision is AuditApplicabilityStatuses.Applicable or AuditApplicabilityStatuses.NotApplicablePendingReview
-        ? CommandAsync(http, (db, actor, ct) => AuditProgramService.DecideApplicabilityAsync(db, actor, new DecideProcedureApplicabilityRequest(id, i.Decision,
-            i.Decision == AuditApplicabilityStatuses.NotApplicablePendingReview ? "Not applicable pending independent review." : null), ct))
-        : Task.FromResult(Invalid("Choose applicable or not applicable pending review.")));
+      CommandAsync(http, (db, actor, ct) => AuditProgramService.DecideApplicabilityAsync(db, actor,
+        new DecideProcedureApplicabilityRequest(id, i.Decision ?? "", i.Rationale, i.ExpectedApplicabilityRevision,
+          i.ExpectedDefinitionRevision, i.CommandId, i.ProposalDecisionId), ct)));
     group.MapPost("/procedures/{id:guid}/risk", (Guid id, ProcedureRiskInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditProgramService.LinkRiskAsync(db, actor, id, i.RiskId, ct)));
     group.MapPost("/engagements/{id:guid}/fieldwork/aggregate", (Guid id, AggregateConclusionInput i, HttpContext http) =>

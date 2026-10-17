@@ -25,8 +25,7 @@ public sealed class AuditFieldworkWorkflowTests
     var adopted = await AuditProgramService.AdoptAsync(db, scope.Actor,
       new AdoptAuditProgramRequest(scope.EngagementId, program.Value!.ProgramVersionId));
     var procedure = await db.AuditProcedures.SingleAsync(x => x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-02-01");
-    Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+    Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, scope.Actor, procedure.Id, null)).Succeeded);
 
     var reviewerId = Guid.NewGuid();
     db.Users.Add(new AppUser

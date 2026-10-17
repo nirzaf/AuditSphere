@@ -90,6 +90,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AuditRisk> AuditRisks { get; }
   DbSet<AuditProcedure> AuditProcedures { get; }
   DbSet<AuditProcedureDefinitionRevision> AuditProcedureDefinitionRevisions { get; }
+  DbSet<AuditProcedureApplicabilityDecision> AuditProcedureApplicabilityDecisions { get; }
   DbSet<AuditProgramVersion> AuditProgramVersions { get; }
   DbSet<AuditProgramProcedure> AuditProgramProcedures { get; }
   DbSet<EngagementAuditProgram> EngagementAuditPrograms { get; }

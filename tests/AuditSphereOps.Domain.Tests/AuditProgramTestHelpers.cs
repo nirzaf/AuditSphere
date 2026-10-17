@@ -11,6 +11,17 @@ internal sealed record PublishAuditProgramRequest(string Version, string SourceH
 
 internal static class AuditProgramTestHelpers
 {
+  internal static async Task<CommandResult<ProcedureApplicabilityResult>> MarkApplicableAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid procedureId, string? rationale = null,
+    CancellationToken ct = default)
+  {
+    var procedure = await db.AuditProcedures.AsNoTracking().SingleAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == procedureId, ct);
+    return await AuditProgramService.DecideApplicabilityAsync(db, actor,
+      new DecideProcedureApplicabilityRequest(procedureId, AuditApplicabilityStatuses.Applicable, rationale,
+        procedure.CurrentApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.NewGuid()), ct);
+  }
+
   internal static async Task<ActorContext> CreateReviewerAsync(IAuditSphereDbContext db, Guid firmId, Guid grantedByUserId)
   {
     var reviewerId = Guid.NewGuid();

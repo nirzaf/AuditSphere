@@ -12,7 +12,12 @@ public sealed record FieldworkProgram(string ProgramCode, string Version, string
 public sealed record FieldworkProcedure(Guid Id, string SourceProcedureId, int? SourceSectionNumber, string? SourceSectionTitle,
   string Title, string ApplicabilityStatus, string Status, Guid? RiskId, Guid? WorkpaperId = null,
   long CurrentResultRevision = 0, string? OriginalWording = null, string? EffectiveWording = null,
-  int? DefinitionRevision = null, string DefinitionProvenance = "UNVERIFIED_LEGACY");
+  int? DefinitionRevision = null, string DefinitionProvenance = "UNVERIFIED_LEGACY",
+  int ApplicabilityRevision = 0, Guid? ApplicabilityDecisionId = null, Guid? PendingApplicabilityProposalId = null,
+  string? ApplicabilityRationale = null, IReadOnlyList<FieldworkApplicabilityHistoryItem>? ApplicabilityHistory = null,
+  bool CanProposeNotApplicable = false, bool CanApproveNotApplicable = false, bool CanReturnNotApplicable = false);
+public sealed record FieldworkApplicabilityHistoryItem(Guid Id, int Revision, string Action, string? Rationale,
+  Guid? ProposalDecisionId, Guid ActorUserId, DateTimeOffset OccurredAt, int DefinitionRevision, long InputGeneration);
 public sealed record FieldworkRiskOption(Guid Id, string Area, string SignificanceDecision, string? Band,
   string? EffectiveBand, decimal? Balance, string? Currency, decimal? TolerableError, decimal? PlanningMateriality,
   Guid? RiskAssessmentId, Guid? MaterialityAssessmentId, Guid? MaterialityCalculationId, Guid? MappingVersionId,
@@ -47,14 +52,16 @@ public static class AuditFieldworkWorkspaceQuery
   private static readonly string[] ReviewRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
   private static readonly string[] SelectionReviewRoles = ["Reviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewParticipantRoles = ["Reviewer", "Senior", "Staff", "Manager", "Partner", "Administrator", "Auditor"];
+  private static readonly string[] PartnerApplicabilityRoles = ["Partner"];
 
   private sealed record WorkspaceAuthorization(Domain.Engagements.Engagement? Engagement, CommandResult Auth,
-    bool CanManageFieldwork, bool CanReviewSelections, bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
+    bool CanManageFieldwork, bool CanApproveApplicability, bool CanReviewSelections, bool CanViewReviewNotes,
+    bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
 
   private static async Task<WorkspaceAuthorization> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
-    if (engagement is null) return new(null, CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."), false, false, false, false, false);
+    if (engagement is null) return new(null, CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."), false, false, false, false, false, false);
 
     async Task<CommandResult> AuthorizeRolesAsync(string[] roles) => await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, roles, true, true), ct);
@@ -62,14 +69,16 @@ public static class AuditFieldworkWorkspaceQuery
     var access = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
         FieldworkRoles.Concat(ReviewParticipantRoles).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), true, true), ct);
-    if (!access.Succeeded) return new(engagement, access, false, false, false, false, false);
+    if (!access.Succeeded) return new(engagement, access, false, false, false, false, false, false);
 
     var canManage = (await AuthorizeRolesAsync(FieldworkRoles)).Succeeded;
+    var canApproveApplicability = (await AuthorizeRolesAsync(PartnerApplicabilityRoles)).Succeeded;
     var canReviewSelections = (await AuthorizeRolesAsync(SelectionReviewRoles)).Succeeded;
     var canViewNotes = (await AuthorizeRolesAsync(ReviewParticipantRoles)).Succeeded;
     var canAddOrResolveNotes = (await AuthorizeRolesAsync(ReviewRoles)).Succeeded;
     var canRespondToNotes = canViewNotes;
-    return new(engagement, CommandResult.Ok(), canManage, canReviewSelections, canViewNotes, canAddOrResolveNotes, canRespondToNotes);
+    return new(engagement, CommandResult.Ok(), canManage, canApproveApplicability,
+      canReviewSelections, canViewNotes, canAddOrResolveNotes, canRespondToNotes);
   }
 
   public static async Task<CommandResult<AuditFieldworkWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
@@ -98,7 +107,8 @@ public static class AuditFieldworkWorkspaceQuery
         .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement!.PracticeClientId && x.EngagementId == engagementId && x.EngagementProgramId == adoption.Id)
         .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId)
         .ToListAsync(ct);
-      procedures = await BuildProcedureViewsAsync(db, actor.FirmId, engagement!.PracticeClientId, engagementId, rows, workpaperMap, ct);
+      procedures = await BuildProcedureViewsAsync(db, actor.FirmId, engagement!.PracticeClientId, engagementId, rows, workpaperMap,
+        authorization.CanManageFieldwork, authorization.CanApproveApplicability, ct);
     }
     else if (authorization.CanViewReviewNotes)
     {
@@ -108,7 +118,8 @@ public static class AuditFieldworkWorkspaceQuery
           db.AuditProcedureResults.Any(r => r.FirmId == actor.FirmId && r.ClientId == engagement.PracticeClientId && r.EngagementId == engagementId && r.AuditProcedureId == x.Id))
         .OrderBy(x => x.SourceSectionNumber).ThenBy(x => x.SourceProcedureId)
         .ToListAsync(ct);
-      procedures = await BuildProcedureViewsAsync(db, actor.FirmId, engagement.PracticeClientId, engagementId, rows, workpaperMap, ct);
+      procedures = await BuildProcedureViewsAsync(db, actor.FirmId, engagement.PracticeClientId, engagementId, rows, workpaperMap,
+        authorization.CanManageFieldwork, authorization.CanApproveApplicability, ct);
     }
 
     IReadOnlyList<FieldworkRiskOption> risks = [];
@@ -186,7 +197,7 @@ public static class AuditFieldworkWorkspaceQuery
 
   private static async Task<List<FieldworkProcedure>> BuildProcedureViewsAsync(IAuditSphereDbContext db,
     Guid firmId, Guid clientId, Guid engagementId, IReadOnlyCollection<AuditProcedure> rows,
-    IReadOnlyDictionary<Guid, Guid> workpaperMap, CancellationToken ct)
+    IReadOnlyDictionary<Guid, Guid> workpaperMap, bool canPropose, bool canApprove, CancellationToken ct)
   {
     if (rows.Count == 0) return [];
     var ids = rows.Select(x => x.Id).ToArray();
@@ -199,15 +210,36 @@ public static class AuditFieldworkWorkspaceQuery
     var sourceIds = rows.Where(x => x.ProgramProcedureId.HasValue).Select(x => x.ProgramProcedureId!.Value).Distinct().ToArray();
     var source = sourceIds.Length == 0 ? [] : await db.AuditProgramProcedures.AsNoTracking()
       .Where(x => x.FirmId == firmId && sourceIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+    var currentDecisions = await AuditProgramService.CurrentApplicabilityDecisionsAsync(db, firmId, clientId, engagementId, rows, ct);
+    var currentList = currentDecisions.Values.ToArray();
+    var proposals = await AuditProgramService.ProposalDecisionsAsync(db, firmId, clientId, engagementId, currentList, ct);
+    var history = await db.AuditProcedureApplicabilityDecisions.AsNoTracking().Where(x =>
+      x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && ids.Contains(x.AuditProcedureId))
+      .GroupBy(x => x.AuditProcedureId).SelectMany(group => group.OrderByDescending(x => x.Revision).Take(20))
+      .ToListAsync(ct);
+    var historyByProcedure = history.GroupBy(x => x.AuditProcedureId).ToDictionary(x => x.Key,
+      x => (IReadOnlyList<FieldworkApplicabilityHistoryItem>)x.OrderBy(y => y.Revision).Select(y =>
+        new FieldworkApplicabilityHistoryItem(y.Id, y.Revision, y.Action, y.Rationale,
+          y.ProposalDecisionId, y.ActorUserId, y.OccurredAt, y.DefinitionRevision, y.InputGeneration)).ToList());
+    var inputGeneration = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == firmId && x.Id == clientId)
+      .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct) ?? 0;
     return rows.Select(row =>
     {
       var definition = definitions.GetValueOrDefault(row.Id);
+      var currentDecision = currentDecisions.GetValueOrDefault(row.Id);
+      var proposal = currentDecision?.ProposalDecisionId is { } proposalId ? proposals.GetValueOrDefault(proposalId) : currentDecision;
+      var applicabilityStatus = AuditProgramService.EffectiveApplicabilityStatus(row, currentDecision, proposal, inputGeneration);
+      var pendingProposalId = applicabilityStatus == AuditApplicabilityStatuses.NotApplicablePendingReview &&
+        AuditProgramService.IsCurrentPendingNotApplicable(row, currentDecision, inputGeneration) ? currentDecision?.Id : null;
       var original = row.ProgramProcedureId is { } sourceId ? source.GetValueOrDefault(sourceId)?.SourceWording : null;
       var provenance = definition is null ? "UNVERIFIED_LEGACY" : definition.IsLegacySnapshot ? "LEGACY_EFFECTIVE_SNAPSHOT" : "AUTHORED_REVISION";
       return new FieldworkProcedure(row.Id, row.SourceProcedureId, row.SourceSectionNumber, row.SourceSectionTitle,
-        definition?.EffectiveTitle ?? row.Title, row.ApplicabilityStatus, row.Status, row.RiskId,
+        definition?.EffectiveTitle ?? row.Title, applicabilityStatus, row.Status, row.RiskId,
         workpaperMap.GetValueOrDefault(row.Id), row.CurrentResultRevision, original,
-        definition?.EffectiveWording ?? row.SourceWording, definition?.Revision, provenance);
+        definition?.EffectiveWording ?? row.SourceWording, definition?.Revision, provenance,
+        row.CurrentApplicabilityRevision, currentDecision?.Id, pendingProposalId, row.ApplicabilityRationale,
+        historyByProcedure.GetValueOrDefault(row.Id, []), canPropose && pendingProposalId is null,
+        canApprove && pendingProposalId is not null, canApprove && pendingProposalId is not null);
     }).ToList();
   }
 

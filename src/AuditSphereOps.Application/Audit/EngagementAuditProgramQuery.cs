@@ -136,17 +136,24 @@ public static class EngagementAuditProgramQuery
       query = query.Where(x => x.SourceSectionNumber == sectionNumber.Value);
 
     var totalCount = await query.CountAsync(ct);
-    var items = await query
+    var rows = await query
       .OrderBy(x => x.SourceSectionNumber ?? 0).ThenBy(x => x.SourceProcedureId)
       .Skip((page - 1) * pageSize).Take(pageSize)
-      .Select(x => new EngagementProcedureView(
-        x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle,
-        db.AuditProgramProcedures.Where(p => p.Id == x.ProgramProcedureId).Select(p => p.Ordinal)
-          .FirstOrDefault(),
-        x.SourceWording ?? string.Empty, x.ApplicabilityStatus, x.ApplicabilityRationale,
-        x.ApplicabilityDecidedByUserId, x.ApplicabilityDecidedAt,
-        x.Status, x.CurrentResultRevision, x.RiskId))
       .ToListAsync(ct);
+    var applicability = rows.Count == 0 ? new Dictionary<Guid, string>() :
+      await AuditProgramService.EffectiveApplicabilityStatusesAsync(db, actor.FirmId,
+        rows[0].ClientId, engagementId, rows, ct);
+    var programProcedureIds = rows.Where(x => x.ProgramProcedureId.HasValue)
+      .Select(x => x.ProgramProcedureId!.Value).Distinct().ToArray();
+    var ordinals = programProcedureIds.Length == 0 ? new Dictionary<Guid, int>() :
+      await db.AuditProgramProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        programProcedureIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Ordinal, ct);
+    var items = rows.Select(x => new EngagementProcedureView(
+      x.Id, x.SourceProcedureId, x.SourceSectionNumber, x.SourceSectionTitle,
+      x.ProgramProcedureId is { } sourceId ? ordinals.GetValueOrDefault(sourceId) : 0,
+      x.SourceWording ?? string.Empty, applicability[x.Id], x.ApplicabilityRationale,
+      x.ApplicabilityDecidedByUserId, x.ApplicabilityDecidedAt,
+      x.Status, x.CurrentResultRevision, x.RiskId)).ToList();
 
     return CommandResult<EngagementProcedurePage>.Ok(new EngagementProcedurePage(
       engagementId, items, totalCount, page, pageSize));
@@ -169,8 +176,10 @@ public static class EngagementAuditProgramQuery
 
     var procedures = await db.AuditProcedures.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
-      .Select(x => new { x.SourceSectionNumber, x.SourceSectionTitle, x.ApplicabilityStatus, x.Status })
       .ToListAsync(ct);
+    var applicability = procedures.Count == 0 ? new Dictionary<Guid, string>() :
+      await AuditProgramService.EffectiveApplicabilityStatusesAsync(db, actor.FirmId,
+        procedures[0].ClientId, engagementId, procedures, ct);
     var program = await db.EngagementAuditPrograms.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
       .Select(x => new { x.Id, x.ProgramVersionId })
@@ -184,10 +193,10 @@ public static class EngagementAuditProgramQuery
       .OrderBy(g => g.Key.SectionNumber)
       .Select(g => new EngagementProgramSectionCoverage(
         g.Key.SectionNumber, g.Key.Title, g.Count(),
-        g.Count(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable),
-        g.Count(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.NotApplicableApproved),
-        g.Count(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.Pending ||
-          x.ApplicabilityStatus == AuditApplicabilityStatuses.NotApplicablePendingReview),
+        g.Count(x => applicability[x.Id] == AuditApplicabilityStatuses.Applicable),
+        g.Count(x => applicability[x.Id] == AuditApplicabilityStatuses.NotApplicableApproved),
+        g.Count(x => applicability[x.Id] is AuditApplicabilityStatuses.Pending or
+          AuditApplicabilityStatuses.NotApplicablePendingReview or AuditApplicabilityStatuses.NotApplicableUnverified),
         g.Count(x => x.Status == AuditProcedureStatuses.Reviewed ||
           x.Status == AuditProcedureStatuses.InReview || x.Status == AuditProcedureStatuses.Submitted),
         g.Count(x => x.Status == AuditProcedureStatuses.Reviewed)))

@@ -30,8 +30,7 @@ public sealed class AuditProcedureSubmissionConcurrencyTests
         (x.SourceProcedureId == "AWP-08-01" || x.SourceProcedureId == "AWP-08-02")).OrderBy(x => x.SourceProcedureId).Select(x => x.Id).ToArrayAsync();
       Assert.Equal(2, procedures.Length);
       foreach (var id in procedures)
-        Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-          new DecideProcedureApplicabilityRequest(id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+        Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, scope.Actor, id, null)).Succeeded);
       var approver = new AppUser { Id = Guid.NewGuid(), FirmId = scope.FirmId, Subject = "parallel-basis-" + Guid.NewGuid().ToString("N"),
         TenantId = "tenant-planning", Email = "parallel-basis@example.test", DisplayName = "Independent basis approver", UserKind = "Staff",
         SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow };

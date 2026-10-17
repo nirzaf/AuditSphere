@@ -233,10 +233,13 @@ public sealed partial class AuditSphereDbContext
     procedure.Property(x => x.SourceWording).HasMaxLength(2000);
     procedure.Property(x => x.ApplicabilityStatus).HasMaxLength(30);
     procedure.Property(x => x.CurrentDefinitionRevision).HasDefaultValue(0);
+    procedure.Property(x => x.CurrentApplicabilityRevision).HasDefaultValue(0);
     procedure.ToTable("audit_procedures", t => t.HasCheckConstraint("ck_audit_procedure_values",
       "length(trim(title)) > 0 AND status IN ('PLANNED','IN_PROGRESS','SUBMITTED','IN_REVIEW','CHANGES_REQUIRED','REVIEWED')" +
       " AND applicability_status IN ('PENDING','APPLICABLE','NA_PENDING_REVIEW','NA_APPROVED')" +
-      " AND current_definition_revision >= 0"));
+      " AND current_definition_revision >= 0 AND current_applicability_revision >= 0" +
+      " AND ((current_applicability_revision = 0 AND current_applicability_decision_id IS NULL)" +
+      " OR (current_applicability_revision > 0 AND current_applicability_decision_id IS NOT NULL))"));
     procedure.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SourceProcedureId })
       .IsUnique().HasDatabaseName("ux_audit_procedure_scope_source");
     ScopeToEngagement(procedure, nameof(AuditProcedure.FirmId), nameof(AuditProcedure.ClientId),
@@ -256,6 +259,46 @@ public sealed partial class AuditSphereDbContext
     procedure.HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ApplicabilityDecidedByUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
+    var applicability = b.Entity<AuditProcedureApplicabilityDecision>();
+    applicability.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.Id })
+      .HasName("AK_audit_procedure_applicability_scope_id");
+    applicability.Property(x => x.Action).HasMaxLength(32);
+    applicability.Property(x => x.Rationale).HasMaxLength(1000);
+    applicability.Property(x => x.RequestDigest).HasMaxLength(64);
+    applicability.Property(x => x.ActorEpoch).IsRequired();
+    applicability.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.Revision }).IsUnique()
+      .HasDatabaseName("ux_audit_procedure_applicability_revision");
+    applicability.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.CommandId }).IsUnique()
+      .HasDatabaseName("ux_audit_procedure_applicability_command");
+    applicability.ToTable("audit_procedure_applicability_decisions", t =>
+      t.HasCheckConstraint("ck_audit_procedure_applicability_values",
+        "revision > 0 AND definition_revision >= 0 AND input_generation > 0 AND actor_epoch > 0 AND" +
+        " action IN ('APPLICABLE','PROPOSE_NOT_APPLICABLE','APPROVE_NOT_APPLICABLE','RETURN_NOT_APPLICABLE') AND" +
+        " length(request_digest) = 64 AND" +
+        " (action NOT IN ('PROPOSE_NOT_APPLICABLE','RETURN_NOT_APPLICABLE') OR length(trim(coalesce(rationale,''))) BETWEEN 1 AND 1000) AND" +
+        " (action NOT IN ('APPROVE_NOT_APPLICABLE','RETURN_NOT_APPLICABLE') OR proposal_decision_id IS NOT NULL)"));
+    ScopeToEngagement(applicability, nameof(AuditProcedureApplicabilityDecision.FirmId),
+      nameof(AuditProcedureApplicabilityDecision.ClientId), nameof(AuditProcedureApplicabilityDecision.EngagementId));
+    applicability.HasOne<AuditProcedure>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    applicability.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    applicability.HasOne<AuditProcedureApplicabilityDecision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.PreviousDecisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_audit_procedure_applicability_previous");
+    applicability.HasOne<AuditProcedureApplicabilityDecision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.ProposalDecisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_audit_procedure_applicability_proposal");
+    procedure.HasOne<AuditProcedureApplicabilityDecision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id, x.CurrentApplicabilityDecisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_audit_procedure_current_applicability_decision");
 
     var definition = b.Entity<AuditProcedureDefinitionRevision>();
     definition.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId, x.Id })

@@ -121,6 +121,9 @@ public sealed class AuditProcedure
   public Guid? ProgramProcedureId { get; set; }
   /// <summary>Current effective definition-history sequence; zero means no proven definition exists.</summary>
   public int CurrentDefinitionRevision { get; set; }
+  /// <summary>Current append-only applicability decision sequence; zero denotes legacy/unproven state.</summary>
+  public int CurrentApplicabilityRevision { get; set; }
+  public Guid? CurrentApplicabilityDecisionId { get; set; }
   public string SourceProcedureId { get; set; } = string.Empty;
   public int? SourceSectionNumber { get; set; }
   public string? SourceSectionTitle { get; set; }
@@ -141,6 +144,15 @@ public static class AuditApplicabilityStatuses
   public const string Applicable = "APPLICABLE";
   public const string NotApplicablePendingReview = "NA_PENDING_REVIEW";
   public const string NotApplicableApproved = "NA_APPROVED";
+  public const string NotApplicableUnverified = "NA_UNVERIFIED";
+}
+
+public static class AuditApplicabilityActions
+{
+  public const string Applicable = "APPLICABLE";
+  public const string ProposeNotApplicable = "PROPOSE_NOT_APPLICABLE";
+  public const string ApproveNotApplicable = "APPROVE_NOT_APPLICABLE";
+  public const string ReturnNotApplicable = "RETURN_NOT_APPLICABLE";
 }
 
 public static class AuditProcedureStatuses

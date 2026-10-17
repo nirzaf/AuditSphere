@@ -93,6 +93,56 @@ public sealed class AuditProgramCommandsApiTests
     Assert.Equal(sourceWording, displayedProcedure.GetProperty("effectiveWording").GetString());
     Assert.Equal("AUTHORED_REVISION", displayedProcedure.GetProperty("definitionProvenance").GetString());
     Assert.Equal(1, displayedProcedure.GetProperty("definitionRevision").GetInt32());
+
+    var procedureId = displayedProcedure.GetProperty("id").GetGuid();
+    var applicabilityRevision = displayedProcedure.GetProperty("applicabilityRevision").GetInt32();
+    var definitionRevision = displayedProcedure.GetProperty("definitionRevision").GetInt32();
+    var applicabilityUrl = $"/api/ui/procedures/{procedureId:D}/applicability";
+    var proposalBody = new
+    {
+      decision = "PROPOSE_NOT_APPLICABLE", rationale = "This synthetic engagement has no inventory population.",
+      expectedApplicabilityRevision = applicabilityRevision, expectedDefinitionRevision = definitionRevision,
+      commandId = Guid.NewGuid(), proposalDecisionId = (Guid?)null
+    };
+    using var proposalResponse = await Post(preparer, preparerCsrf, applicabilityUrl, proposalBody);
+    Assert.Equal(HttpStatusCode.OK, proposalResponse.StatusCode);
+    using var proposalJson = JsonDocument.Parse(await proposalResponse.Content.ReadAsStringAsync());
+    var proposal = proposalJson.RootElement.GetProperty("value");
+    Assert.Equal("NA_PENDING_REVIEW", proposal.GetProperty("status").GetString());
+    Assert.Equal("PROPOSE_NOT_APPLICABLE", proposal.GetProperty("action").GetString());
+    var proposalId = proposal.GetProperty("decisionId").GetGuid();
+    var proposalRevision = proposal.GetProperty("applicabilityRevision").GetInt32();
+
+    var selfApproval = new
+    {
+      decision = "APPROVE_NOT_APPLICABLE", rationale = (string?)null,
+      expectedApplicabilityRevision = proposalRevision, expectedDefinitionRevision = definitionRevision,
+      commandId = Guid.NewGuid(), proposalDecisionId = proposalId
+    };
+    using var selfApprovalResponse = await Post(preparer, preparerCsrf, applicabilityUrl, selfApproval);
+    Assert.Equal(HttpStatusCode.Forbidden, selfApprovalResponse.StatusCode);
+
+    using var reviewerFactory = Factory(pg, f.Reviewer);
+    using var reviewer = reviewerFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var reviewerCsrf = await SignIn(reviewer);
+    using var reviewerWorkspace = await reviewer.GetAsync($"/api/ui/engagements/{f.EngagementId:D}/fieldwork");
+    Assert.Equal(HttpStatusCode.OK, reviewerWorkspace.StatusCode);
+    using var reviewerWorkspaceJson = JsonDocument.Parse(await reviewerWorkspace.Content.ReadAsStringAsync());
+    var pendingView = reviewerWorkspaceJson.RootElement.GetProperty("procedures").EnumerateArray()
+      .Single(x => x.GetProperty("id").GetGuid() == procedureId);
+    Assert.True(pendingView.GetProperty("canApproveNotApplicable").GetBoolean());
+    Assert.Equal(proposalId, pendingView.GetProperty("pendingApplicabilityProposalId").GetGuid());
+    var approvalBody = new
+    {
+      decision = "APPROVE_NOT_APPLICABLE", rationale = (string?)null,
+      expectedApplicabilityRevision = proposalRevision, expectedDefinitionRevision = definitionRevision,
+      commandId = Guid.NewGuid(), proposalDecisionId = proposalId
+    };
+    using var approvalResponse = await Post(reviewer, reviewerCsrf, applicabilityUrl, approvalBody);
+    Assert.Equal(HttpStatusCode.OK, approvalResponse.StatusCode);
+    using var approvalJson = JsonDocument.Parse(await approvalResponse.Content.ReadAsStringAsync());
+    Assert.Equal("NA_APPROVED", approvalJson.RootElement.GetProperty("value").GetProperty("status").GetString());
+
     await using var proof = new AuditSphereDbContext(pg.Options);
     Assert.Single(await proof.AuditProgramVersions.ToListAsync());
     Assert.Equal(165, await proof.AuditProgramProcedures.CountAsync());

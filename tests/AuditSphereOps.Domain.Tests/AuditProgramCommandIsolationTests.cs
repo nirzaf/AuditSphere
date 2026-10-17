@@ -23,6 +23,8 @@ public sealed class AuditProgramCommandIsolationTests
 
     Guid programVersionId;
     Guid procedureId;
+    int applicabilityRevision;
+    int definitionRevision;
     Guid resultId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -65,9 +67,10 @@ public sealed class AuditProgramCommandIsolationTests
         x.FirmId == clientB.FirmId && x.EngagementId == clientB.EngagementId &&
         x.SourceProcedureId == "AWP-08-01");
       procedureId = procedure.Id;
+      applicabilityRevision = procedure.CurrentApplicabilityRevision;
+      definitionRevision = procedure.CurrentDefinitionRevision;
 
-      var decision = await AuditProgramService.DecideApplicabilityAsync(db, clientBActor,
-        new DecideProcedureApplicabilityRequest(procedureId, AuditApplicabilityStatuses.Applicable, null));
+      var decision = await AuditProgramTestHelpers.MarkApplicableAsync(db, clientBActor, procedureId, null);
       Assert.True(decision.Succeeded, decision.Message);
 
       // Legitimate planning approval precedes substantive execution (STE-REM-04): the sibling part B
@@ -103,7 +106,8 @@ public sealed class AuditProgramCommandIsolationTests
 
       var siblingDecision = await AuditProgramService.DecideApplicabilityAsync(db, clientA.Actor,
         new DecideProcedureApplicabilityRequest(procedureId,
-          AuditApplicabilityStatuses.NotApplicablePendingReview, "Attempted sibling mutation."));
+          AuditApplicabilityStatuses.NotApplicablePendingReview, "Attempted sibling mutation.",
+          applicabilityRevision, definitionRevision, Guid.NewGuid()));
       Assert.Equal(ErrorCodes.ScopeDenied, siblingDecision.ErrorCode);
 
       var siblingSubmission = await AuditProgramService.SubmitResultAsync(db, clientA.Actor,

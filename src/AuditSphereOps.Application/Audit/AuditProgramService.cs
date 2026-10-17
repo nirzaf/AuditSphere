@@ -44,13 +44,20 @@ public sealed record EngagementAuditProgramResult(
 public sealed record DecideProcedureApplicabilityRequest(
   Guid AuditProcedureId,
   string Decision,
-  string? Rationale);
+  string? Rationale,
+  int ExpectedApplicabilityRevision = 0,
+  int ExpectedDefinitionRevision = 0,
+  Guid CommandId = default,
+  Guid? ProposalDecisionId = null);
 
 public sealed record ProcedureApplicabilityResult(
   Guid AuditProcedureId,
   string SourceProcedureId,
   string Status,
-  string ProcedureStatus);
+  string ProcedureStatus,
+  Guid? DecisionId = null,
+  int ApplicabilityRevision = 0,
+  string? Action = null);
 
 public sealed record SubmitProcedureResultRequest(
   Guid AuditProcedureId,
@@ -433,50 +440,7 @@ public static partial class AuditProgramService
     ActorContext actor,
     DecideProcedureApplicabilityRequest request,
     CancellationToken ct = default)
-  {
-    ArgumentNullException.ThrowIfNull(db);
-    ArgumentNullException.ThrowIfNull(request);
-    var decision = request.Decision.Trim().ToUpperInvariant();
-    if (decision is not (AuditApplicabilityStatuses.Applicable or
-      AuditApplicabilityStatuses.NotApplicablePendingReview or AuditApplicabilityStatuses.NotApplicableApproved))
-      return CommandResult<ProcedureApplicabilityResult>.Fail(InvalidCode, "Unsupported applicability decision.");
-    if (decision is AuditApplicabilityStatuses.NotApplicablePendingReview or AuditApplicabilityStatuses.NotApplicableApproved &&
-        string.IsNullOrWhiteSpace(request.Rationale))
-      return CommandResult<ProcedureApplicabilityResult>.Fail(InvalidCode, "A not-applicable rationale is required.");
-
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var snapshot = await db.AuditProcedures.AsNoTracking()
-      .SingleOrDefaultAsync(x => x.Id == request.AuditProcedureId && x.FirmId == actor.FirmId, ct);
-    if (snapshot is null)
-      return CommandResult<ProcedureApplicabilityResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId,
-      decision == AuditApplicabilityStatuses.NotApplicableApproved ? ReviewRoles : PlanningRoles);
-    if (scope.Denied is not null)
-      return CommandResult<ProcedureApplicabilityResult>.Fail(scope.Denied, scope.Message);
-
-    if (decision == AuditApplicabilityStatuses.NotApplicableApproved &&
-        !actor.Roles.Any(x => ReviewRoles.Contains(x, StringComparer.OrdinalIgnoreCase)))
-      return CommandResult<ProcedureApplicabilityResult>.Fail(ErrorCodes.ScopeDenied, "A reviewer must approve not-applicable status.");
-
-    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
-      SELECT * FROM audit_procedures
-      WHERE id = {request.AuditProcedureId} AND firm_id = {actor.FirmId}
-      FOR UPDATE
-      """).SingleOrDefaultAsync(ct);
-    if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
-      return CommandResult<ProcedureApplicabilityResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-
-    procedure.ApplicabilityStatus = decision;
-    procedure.ApplicabilityRationale = string.IsNullOrWhiteSpace(request.Rationale) ? null : request.Rationale.Trim();
-    procedure.ApplicabilityDecidedByUserId = actor.UserId;
-    procedure.ApplicabilityDecidedAt = DateTimeOffset.UtcNow;
-    procedure.Status = decision == AuditApplicabilityStatuses.Applicable
-      ? AuditProcedureStatuses.InProgress : AuditProcedureStatuses.Planned;
-    await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
-    return CommandResult<ProcedureApplicabilityResult>.Ok(new(procedure.Id, procedure.SourceProcedureId,
-      procedure.ApplicabilityStatus, procedure.Status));
-  }
+    => await DecideApplicabilityWithHistoryAsync(db, actor, request, ct);
 
   public static async Task<CommandResult> LinkRiskAsync(
     IAuditSphereDbContext db,

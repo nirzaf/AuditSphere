@@ -457,6 +457,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AuditProcedure> AuditProcedures => Set<AuditProcedure>();
 
   public DbSet<AuditProcedureDefinitionRevision> AuditProcedureDefinitionRevisions => Set<AuditProcedureDefinitionRevision>();
+  public DbSet<AuditProcedureApplicabilityDecision> AuditProcedureApplicabilityDecisions => Set<AuditProcedureApplicabilityDecision>();
 
   public DbSet<PopulationVersion> PopulationVersions => Set<PopulationVersion>();
 

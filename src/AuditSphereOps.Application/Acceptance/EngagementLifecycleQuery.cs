@@ -178,6 +178,8 @@ public static class EngagementLifecycleQuery
 
     var procedures = await db.AuditProcedures.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
       x.EngagementId == engagementId).ToListAsync(ct);
+    var applicability = procedures.Count == 0 ? new Dictionary<Guid, string>() :
+      await AuditProgramService.EffectiveApplicabilityStatusesAsync(db, actor.FirmId, client.Id, engagementId, procedures, ct);
     var procedureResults = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
       x.EngagementId == engagementId).ToListAsync(ct);
     var procedureReviews = await db.AuditProcedureReviews.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == client.Id &&
@@ -189,7 +191,8 @@ public static class EngagementLifecycleQuery
       var current = latest is not null && latest.Revision == procedure.CurrentResultRevision ? latest : null;
       var review = current is null ? null : procedureReviews.Where(x => x.AuditProcedureResultId == current.Id && x.ResultRevision == current.Revision)
         .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefault();
-      return (Procedure: procedure, IsSubmitted: IsCurrentProcedureSubmittedForReview(procedure, current, review));
+      return (Procedure: procedure, IsSubmitted: IsCurrentProcedureSubmittedForReview(procedure, current, review,
+        applicability.GetValueOrDefault(procedure.Id) == AuditApplicabilityStatuses.NotApplicableApproved));
     }).ToArray();
     var allSubmittedForReview = procedures.Count > 0 && procedureProgress.All(x => x.IsSubmitted);
 
@@ -234,11 +237,15 @@ public static class EngagementLifecycleQuery
     {
       var fwBlocked = new List<string>();
       if (holds.Count > 0) fwBlocked.AddRange(holds.Select(h => $"Open hold: {h}"));
-      var pendingApplicability = procedures.Count(x => x.ApplicabilityStatus is AuditApplicabilityStatuses.Pending or AuditApplicabilityStatuses.NotApplicablePendingReview);
+      var pendingApplicability = procedures.Count(x => applicability.GetValueOrDefault(x.Id, x.ApplicabilityStatus) is
+        AuditApplicabilityStatuses.Pending or AuditApplicabilityStatuses.NotApplicablePendingReview or
+        AuditApplicabilityStatuses.NotApplicableUnverified);
       if (pendingApplicability > 0) fwBlocked.Add($"{pendingApplicability} procedure applicability decision(s) remain unresolved");
-      var pendingCount = procedureProgress.Count(x => !x.IsSubmitted && x.Procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable);
+      var pendingCount = procedureProgress.Count(x => !x.IsSubmitted &&
+        applicability.GetValueOrDefault(x.Procedure.Id, x.Procedure.ApplicabilityStatus) == AuditApplicabilityStatuses.Applicable);
       if (pendingCount > 0) fwBlocked.Add($"{pendingCount} substantive audit procedure(s) pending execution");
-      var returnedCount = procedureProgress.Count(x => x.Procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable &&
+      var returnedCount = procedureProgress.Count(x =>
+        applicability.GetValueOrDefault(x.Procedure.Id, x.Procedure.ApplicabilityStatus) == AuditApplicabilityStatuses.Applicable &&
         (x.Procedure.Status == AuditProcedureStatuses.ChangesRequired ||
          procedureResults.Any(result => result.AuditProcedureId == x.Procedure.Id && result.Revision == x.Procedure.CurrentResultRevision &&
            result.Status == AuditProcedureResultStatuses.ChangesRequired)));
@@ -321,9 +328,11 @@ public static class EngagementLifecycleQuery
   }
 
   internal static bool IsCurrentProcedureSubmittedForReview(
-    AuditProcedure procedure, AuditProcedureResult? currentResult, AuditProcedureReview? currentReview)
+    AuditProcedure procedure, AuditProcedureResult? currentResult, AuditProcedureReview? currentReview,
+    bool currentNotApplicableApprovalVerified = false)
   {
-    if (procedure.ApplicabilityStatus == AuditApplicabilityStatuses.NotApplicableApproved) return true;
+    if (procedure.ApplicabilityStatus == AuditApplicabilityStatuses.NotApplicableApproved)
+      return currentNotApplicableApprovalVerified;
     if (procedure.ApplicabilityStatus != AuditApplicabilityStatuses.Applicable || currentResult is null ||
         currentResult.Revision != procedure.CurrentResultRevision || procedure.CurrentResultRevision <= 0)
       return false;

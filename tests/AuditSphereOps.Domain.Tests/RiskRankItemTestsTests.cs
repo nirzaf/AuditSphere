@@ -56,8 +56,7 @@ public sealed class RiskRankItemTestsTests
     Assert.True((await AuditProgramService.AdoptAsync(db, scope.Actor, new(scope.EngagementId, published.Value!.ProgramVersionId))).Succeeded);
     var procedureId = await db.AuditProcedures.Where(x => x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-08-01")
       .Select(x => x.Id).SingleAsync();
-    Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-      new DecideProcedureApplicabilityRequest(procedureId, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+    Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, scope.Actor, procedureId, null)).Succeeded);
 
     // A known material FSLI: mapped revenue above PM yields an effective Red basis via a linked risk.
     var revenueRisk = await AuditPlanningService.CreateAuditRiskAsync(db, scope.Actor,

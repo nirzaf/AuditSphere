@@ -35,8 +35,7 @@ public sealed class PlanningGateTests
       new AdoptAuditProgramRequest(scope.EngagementId, published.Value!.ProgramVersionId));
     Assert.True(adopted.Succeeded, adopted.Message);
     var procedure = await db.AuditProcedures.SingleAsync(x => x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-02-01");
-    Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, scope.Actor,
-      new DecideProcedureApplicabilityRequest(procedure.Id, AuditApplicabilityStatuses.Applicable, null))).Succeeded);
+    Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, scope.Actor, procedure.Id, null)).Succeeded);
 
     // Program tailoring and workpaper preparation stay usable before approval (no basis yet).
     var workpaper = await AuditProgramService.GetOrCreateWorkpaperAsync(db, scope.Actor, procedure.Id);
@@ -78,8 +77,7 @@ public sealed class PlanningGateTests
     Assert.True(adopted.Succeeded, adopted.Message);
     var procedureId = await db.AuditProcedures.Where(x => x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-08-01")
       .Select(x => x.Id).SingleAsync();
-    Assert.True((await AuditProgramService.DecideApplicabilityAsync(db, preparer,
-      new DecideProcedureApplicabilityRequest(procedureId, AuditApplicabilityStatuses.Applicable, "Bank population requires item testing"))).Succeeded);
+    Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, preparer, procedureId, "Bank population requires item testing")).Succeeded);
 
     var schedule = await AuditFieldworkService.CreateScheduleAsync(db, preparer, new CreateScheduleRequest(
       scope.EngagementId, "BANK_LISTING", "bank-001", "receipt-pg-bank", new DateTimeOffset(2026, 12, 31, 0, 0, 0, TimeSpan.Zero),

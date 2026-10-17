@@ -32,8 +32,11 @@ public static partial class AuditFieldworkService
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId).ToListAsync(ct);
     if (procedures.Count == 0)
       blockers.Add("audit-program-not-adopted");
-    var applicable = procedures.Where(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable).ToArray();
-    blockers.AddRange(procedures.Where(x => x.ApplicabilityStatus is AuditApplicabilityStatuses.Pending or AuditApplicabilityStatuses.NotApplicablePendingReview)
+    var applicability = await AuditProgramService.EffectiveApplicabilityStatusesAsync(
+      db, firmId, clientId, engagementId, procedures, ct);
+    var applicable = procedures.Where(x => applicability[x.Id] == AuditApplicabilityStatuses.Applicable).ToArray();
+    blockers.AddRange(procedures.Where(x => applicability[x.Id] is AuditApplicabilityStatuses.Pending or
+        AuditApplicabilityStatuses.NotApplicablePendingReview or AuditApplicabilityStatuses.NotApplicableUnverified)
       .Select(x => $"applicability:{x.SourceProcedureId}"));
     var evidence = await EvaluateProcedureEvidenceBatchForAuthorizedScopeAsync(db, firmId, clientId, engagementId, applicable, ct);
     var reviewed = 0;
