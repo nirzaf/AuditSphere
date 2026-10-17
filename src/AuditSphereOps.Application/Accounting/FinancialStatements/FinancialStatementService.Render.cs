@@ -79,7 +79,7 @@ public static partial class FinancialStatementService
       sb.AppendLine($"Closing cash evidence: {string.Join(",", package.ClosingCashEvidenceReferences.Order(StringComparer.Ordinal))}");
       foreach (var cf in cashFlowLines.OrderBy(x => x.Section, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Description, StringComparer.Ordinal))
       {
-        sb.AppendLine($"{cf.Id:D} | {cf.MovementDate:yyyy-MM-dd} | {cf.Section} | {cf.ActivityCode} | {cf.Description} | {cf.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {cf.Currency} | {(cf.IsNonCash ? "NONCASH" : "CASH")} | evidence={string.Join(",", cf.SourceReferences.Order(StringComparer.Ordinal))} | rationale={cf.ClassificationRationale}");
+        sb.AppendLine($"{cf.Id:D} | {cf.MovementDate:yyyy-MM-dd} | {cf.Section} | {cf.CalculationRole ?? "LEGACY"} | {cf.ActivityCode} | {cf.Description} | {cf.Amount.ToString("0.000000", CultureInfo.InvariantCulture)} {cf.Currency} | {(cf.IsNonCash ? "NONCASH" : "CASH")} | evidence={string.Join(",", cf.SourceReferences.Order(StringComparer.Ordinal))} | rationale={cf.ClassificationRationale}");
       }
       sb.AppendLine();
     }

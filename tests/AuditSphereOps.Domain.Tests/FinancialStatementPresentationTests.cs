@@ -369,6 +369,42 @@ public sealed class FinancialStatementPresentationTests
   }
 
   [Fact]
+  public void IndirectCashFlowRoles_IncludeNoncashProfitAddbacksButExcludeNoncashDisclosure()
+  {
+    var schedules = new PresentationSupplementarySchedules(
+      50000m, 165000m,
+      [
+        new("OPERATING", "Profit", 120000m, false, "PROFIT", CalculationRole: CashFlowCalculationRoles.StartingProfitSubtotal),
+        new("OPERATING", "Depreciation", 12000m, true, "DEPRECIATION", CalculationRole: CashFlowCalculationRoles.NoncashProfitAdjustment),
+        new("OPERATING", "Impairment", 3000m, true, "IMPAIRMENT", CalculationRole: CashFlowCalculationRoles.NoncashProfitAdjustment),
+        new("OPERATING", "Gross receivables increase", -30000m, true, "RECEIVABLES", CalculationRole: CashFlowCalculationRoles.OperatingBalanceMovement),
+        new("OPERATING", "Trade payables increase", 15000m, false, "PAYABLES", CalculationRole: CashFlowCalculationRoles.OperatingBalanceMovement),
+        new("OPERATING", "Accrued expenses increase", 5000m, false, "ACCRUALS", CalculationRole: CashFlowCalculationRoles.OperatingBalanceMovement),
+        new("INVESTING", "Equipment paid", -25000m, false, "EQUIPMENT", CalculationRole: CashFlowCalculationRoles.InvestingCashMovement),
+        new("FINANCING", "Net loan proceeds and distributions", 15000m, false, "FINANCING", CalculationRole: CashFlowCalculationRoles.FinancingCashMovement),
+        new("INVESTING", "Equipment acquired on credit", -9000m, true, "NONCASH_PPE", CalculationRole: CashFlowCalculationRoles.NoncashInvestingFinancingDisclosure),
+      ],
+      [], [],
+      CashFlowSourceApproved: true,
+      FxCashAssessment: new(FxCashAssessmentStates.AssessedZero, "synthetic-fx-population", "The synthetic population contains no foreign-currency cash."));
+
+    var result = FinancialStatementPresentationBuilder.Build(Layout(), Current(), Prior(), Notes(), Header(withPrior: true), Manifest(withPrior: true),
+      currentSupplementary: schedules, priorSupplementary: null);
+
+    Assert.True(result.Succeeded, result.Message);
+    var cashFlow = result.Value!.Statements.Single(x => x.Code == "CASH_FLOWS");
+    Assert.Equal(125000m, Amount(Row(result.Value, "CF_OPERATING_TOTAL").Current));
+    Assert.Equal(-25000m, Amount(Row(result.Value, "CF_INVESTING_TOTAL").Current));
+    Assert.Equal(15000m, Amount(Row(result.Value, "CF_FINANCING_TOTAL").Current));
+    Assert.Equal(115000m, Amount(Row(result.Value, "CF_NET_CHANGE").Current));
+    Assert.Equal(165000m, Amount(Row(result.Value, "CF_ENDING_CASH").Current));
+    Assert.Contains(cashFlow.Rows, x => x.Label == "Profit reconciliation — Depreciation" && x.Current == 12000m);
+    Assert.Contains(cashFlow.Rows, x => x.Label == "Operating balance movement — Gross receivables increase" && x.Current == -30000m);
+    Assert.Contains(cashFlow.Rows, x => x.Label.StartsWith("Noncash investing/financing disclosure", StringComparison.Ordinal) && x.Current == -9000m);
+    Assert.Contains(result.Value.Checks, x => x.Code == "CASH_FLOW_BRIDGE" && x.Passed);
+  }
+
+  [Fact]
   public void CompleteComparativeCashAndEquitySchedules_CrossCastForBothPeriods()
   {
     var current = new PresentationSupplementarySchedules(

@@ -390,6 +390,7 @@ public sealed partial class AuditSphereDbContext
     cashFlow.Property(x => x.ActivityCode).HasMaxLength(100);
     cashFlow.Property(x => x.SourceReferences).HasColumnType("text[]").HasDefaultValueSql("ARRAY[]::text[]");
     cashFlow.Property(x => x.ClassificationRationale).HasMaxLength(2000);
+    cashFlow.Property(x => x.CalculationRole).HasMaxLength(50);
     cashFlow.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
       .HasName("ak_financial_package_cash_flow_lines_package_scope_id");
     cashFlow.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.Section, x.Description })
@@ -397,7 +398,14 @@ public sealed partial class AuditSphereDbContext
     cashFlow.ToTable("financial_package_cash_flow_lines", t => t.HasCheckConstraint("ck_financial_package_cash_flow_values",
       "section IN ('OPERATING','INVESTING','FINANCING') AND length(trim(description)) > 0 AND currency ~ '^[A-Z]{3}$' " +
       "AND ((movement_date IS NULL AND activity_code IS NULL AND classification_rationale IS NULL AND cardinality(source_references) = 0) " +
-      "OR (movement_date IS NOT NULL AND length(trim(activity_code)) > 0 AND cardinality(source_references) > 0 AND length(trim(classification_rationale)) > 0))"));
+      "OR (movement_date IS NOT NULL AND length(trim(activity_code)) > 0 AND cardinality(source_references) > 0 AND length(trim(classification_rationale)) > 0)) " +
+      "AND (calculation_role IS NULL OR " +
+      "(calculation_role = 'STARTING_PROFIT_SUBTOTAL' AND section = 'OPERATING' AND NOT is_non_cash) OR " +
+      "(calculation_role = 'NONCASH_PROFIT_ADJUSTMENT' AND section = 'OPERATING' AND is_non_cash) OR " +
+      "(calculation_role = 'OPERATING_BALANCE_MOVEMENT' AND section = 'OPERATING') OR " +
+      "(calculation_role = 'INVESTING_CASH_MOVEMENT' AND section = 'INVESTING' AND NOT is_non_cash) OR " +
+      "(calculation_role = 'FINANCING_CASH_MOVEMENT' AND section = 'FINANCING' AND NOT is_non_cash) OR " +
+      "(calculation_role = 'NONCASH_INVESTING_FINANCING_DISCLOSURE' AND section IN ('INVESTING','FINANCING') AND is_non_cash))"));
     cashFlow.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);

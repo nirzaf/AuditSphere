@@ -40,7 +40,7 @@ describe('Financial Package and Review Queue Contracts', () => {
         { section: 'ASSETS', amount: '500000.00' },
       ],
       cashFlow: [
-        { id: id2, section: 'OPERATING', description: 'Operating cash flow', amount: '50000.00', isNonCash: false, currency: 'QAR',
+        { id: id2, section: 'OPERATING', description: 'Operating cash flow', amount: '50000.00', isNonCash: false, calculationRole: null, currency: 'QAR',
           movementDate: '2026-06-30', activityCode: 'OPERATING_RESULT', sourceReferences: ['gl-batch-1'], classificationRationale: 'Agreed from the accepted general ledger.' },
       ],
       disclosures: [

@@ -282,6 +282,13 @@ public static partial class FinancialStatementService
       Version = "cash-flow-link-digest.v2", PackageId = package.Id, package.CalculationHash, package.Revision, package.Generation,
       Movements = movementFacts, Links = links,
     }));
+    if (movements.Any(x => !string.IsNullOrWhiteSpace(x.CalculationRole)))
+      baseDigest = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+      {
+        Version = "cash-flow-link-digest.v3.calculation-role",
+        Base = baseDigest,
+        Roles = movements.Select(x => new { x.Id, Role = x.CalculationRole?.Trim().ToUpperInvariant() }).ToArray()
+      }));
     if (scheduleAllocations is { Count: > 0 })
       baseDigest = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
       {
@@ -400,7 +407,8 @@ public static partial class FinancialStatementService
     var inputs = movements.Select(line => new CashFlowLineInput(line.Section, line.Description, line.Amount, line.IsNonCash,
       line.MovementDate, line.ActivityCode, line.SourceReferences, line.ClassificationRationale,
       ScheduleSourceAllocations: byMovement.GetValueOrDefault(line.Id, []).Select(x =>
-        new CashFlowScheduleSourceAllocationInput(x.SpecialistScheduleId, x.ComponentCode, x.SignedAmount)).ToArray())).ToArray();
+        new CashFlowScheduleSourceAllocationInput(x.SpecialistScheduleId, x.ComponentCode, x.SignedAmount)).ToArray(),
+      CalculationRole: line.CalculationRole)).ToArray();
     var resolved = await ResolveCashFlowScheduleSourceLinksAsync(db,
       new ActorContext(Guid.Empty, package.FirmId, 1, []), package, package.PeriodId, inputs, ct);
     if (!resolved.Succeeded || resolved.Value!.Count != stored.Count) return false;

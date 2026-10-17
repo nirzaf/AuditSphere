@@ -1155,6 +1155,16 @@
       "ci": "39016636601 queued on this SHA. Full release 39015225622 is on base ad2f0bd; Domain 19/1333 failed, other jobs pending.",
       "open": "CP-12 indirect classification policy/T003; full suites and authenticated browser journey; professional and live-provider acceptance."
     },
+    "cp12IndirectCashFlowRoles": {
+      "recordedAtUtc": "2026-10-17T11:39:41Z",
+      "baseCommit": "4d5f588d46e9e0058d72f6ec7a2fd5593598f231",
+      "status": "PARTIAL",
+      "scope": "Draft typed roles persist and hash-bind indirect cash-flow classifications, validate role/section/noncash consistency, reject mixed explicit/legacy rows, include noncash profit adjustments in the operating bridge, and exclude disclosure-only noncash investing/financing rows. This is not approved methodology.",
+      "checks": "PostgreSQL Domain TypedNonCashProfitAddback 1/1 after mixed-role guard; Domain presentation role test 1/1; Angular financial-package-build.spec.ts 37/37; current API Release build 0 warnings/errors; EF drift clean; Angular production build pass with existing commercial/settings.scss warning. Browser NOT_VERIFIED: 127.0.0.1:4300 refused connection.",
+      "migration": "20261017110415_FinancialPackageCashFlowCalculationRoles generated, not applied.",
+      "blockers": "T029 incomplete; T003 qualified indirect-method and independent-review approval absent; payment roles, complete source-backed movement paths and T033 review remain open.",
+      "notRun": "Full suites deferred to CI/CD; no authenticated browser acceptance, persistent migration or live-provider verification."
+    },
     "r2r07CarryForwardSafety": {
       "codeCommit": "d91a2713",
       "result": "T026 card: focused carry-forward regression PASS 1/1."

@@ -556,8 +556,10 @@ public sealed class FinancialPackageCashFlowLine
   public string Section { get; set; } = string.Empty;
   public string Description { get; set; } = string.Empty;
   public decimal Amount { get; set; }
-  /// <summary>Noncash adjustments and investing/financing items are retained for disclosure and never enter the cash bridge.</summary>
+  /// <summary>Legacy noncash source flag. New indirect schedules use CalculationRole to distinguish add-backs from disclosure-only items.</summary>
   public bool IsNonCash { get; set; }
+  /// <summary>Explicit indirect-method bridge role for new records. Null retains the historical IsNonCash interpretation.</summary>
+  public string? CalculationRole { get; set; }
   /// <summary>Optional only for pre-lineage legacy rows; new package builds require all movement evidence fields.</summary>
   public DateOnly? MovementDate { get; set; }
   public string? ActivityCode { get; set; }
@@ -565,6 +567,37 @@ public sealed class FinancialPackageCashFlowLine
   public string? ClassificationRationale { get; set; }
   public string Currency { get; set; } = string.Empty;
   public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Typed indirect cash-flow roles. These classify draft inputs; they do not constitute professional policy approval.</summary>
+public static class CashFlowCalculationRoles
+{
+  public const string StartingProfitSubtotal = "STARTING_PROFIT_SUBTOTAL";
+  public const string NoncashProfitAdjustment = "NONCASH_PROFIT_ADJUSTMENT";
+  public const string OperatingBalanceMovement = "OPERATING_BALANCE_MOVEMENT";
+  public const string InvestingCashMovement = "INVESTING_CASH_MOVEMENT";
+  public const string FinancingCashMovement = "FINANCING_CASH_MOVEMENT";
+  public const string NoncashInvestingFinancingDisclosure = "NONCASH_INVESTING_FINANCING_DISCLOSURE";
+
+  public static bool IsSupported(string? role) => role?.Trim().ToUpperInvariant() is StartingProfitSubtotal or NoncashProfitAdjustment or
+    OperatingBalanceMovement or InvestingCashMovement or FinancingCashMovement or NoncashInvestingFinancingDisclosure;
+
+  public static bool IsIncludedInCashBridge(string? role, bool legacyIsNonCash) => role?.Trim().ToUpperInvariant() switch
+  {
+    StartingProfitSubtotal or NoncashProfitAdjustment or OperatingBalanceMovement or InvestingCashMovement or FinancingCashMovement => true,
+    NoncashInvestingFinancingDisclosure => false,
+    null => !legacyIsNonCash,
+    _ => false
+  };
+
+  public static bool IsValidForSection(string role, string section) => role.Trim().ToUpperInvariant() switch
+  {
+    StartingProfitSubtotal or NoncashProfitAdjustment or OperatingBalanceMovement => section.Trim().ToUpperInvariant() == "OPERATING",
+    InvestingCashMovement => section.Trim().ToUpperInvariant() == "INVESTING",
+    FinancingCashMovement => section.Trim().ToUpperInvariant() == "FINANCING",
+    NoncashInvestingFinancingDisclosure => section.Trim().ToUpperInvariant() is "INVESTING" or "FINANCING",
+    _ => false
+  };
 }
 
 /// <summary>

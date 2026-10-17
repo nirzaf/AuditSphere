@@ -7227,3 +7227,17 @@ Verification on the working tree based on `445e1d99`: API Release build passed w
 ## Audit planning and finding recovery — 2026-10-16
 
 Planning and finding actions use exact previews, assent and immutable receipts. Finding amendments retain before/after history and scoped authority; snapshots return canonical UTC. Record drafts and library reads have scope fences. Period editors retain request identities on scope cleanup; roll-forward/restatement source parity is verified. Batched evidence and open browser/hosted gates: `status.json` targetedVerification.angularFindingRecovery. Retirement remains NOT_READY; Web retained.
+
+## Moved from the active handoff on 2026-10-17
+
+## AS-PM8 acceptance follow-up
+
+The acceptance migration batch closes direct checklist navigation, command/receipt isolation cases and creation validation/review-reset journeys. Focused verification passed; exact attribution and remaining boundaries are in `status.json` under `targetedVerification.angularMigrationAcceptanceBatch`. Retirement remains NOT_READY.
+
+Consolidation fixtures now use genuinely built packages and composition-bound reviews; sparse translation calculations retain separate approval-denial checks. Rollout-boundary and staffing lost-response timing fixes passed their focused cohorts. The interrupted regression runs lost their process handles and temporary reports, so final commit-pinned release verification is required; workspace-local evidence is retained. Exact candidate, completed results and corrections are recorded in `status.json`.
+
+The refreshed complete Angular suite and production build pass; the existing commercial stylesheet warning remains. UI and retirement source inventories match. Acceptance rows now name the specification’s actual atomic task ranges. The interrupted broad runs do not verify the final checkout; final release verification remains required.
+
+Commit-pinned release verification run [38988587433](https://github.com/nirzaf/AuditSphere/actions/runs/38988587433) targets `512696edfe67ef29bfa2323c3bf4f226b0c13999`: Angular passed 1,288/1,288, Domain passed 1,328/1,328, and build/contracts/publication passed. The API runner received a shutdown signal and exited 143 before uploading test results; that is infrastructure interruption, not a test pass or assertion failure. As supplementary current-source evidence, the six AS-PM8 API classes passed 14/14 locally against isolated loopback `auditsphere_tests`; this does not replace the unfiltered API job. The full Playwright E2E job is still running. AS-PM8 remains PARTIAL until API passes unfiltered CI and E2E completes successfully. Current evidence is also recorded under `targetedVerification.asPm8Atomic.latestReleaseVerification` in `status.json`.
+
+Refreshed Domain 56/56 and API 18/18 at candidate `6944ab95`, including dashboard and UTC start-minute endpoints omitted from the earlier API filter. Evidence is in `status.json`. Full E2E completed: 247 passed, 2 failed (supplier invoice and budget preparation). Their strengthened test follow-up passed 3/3 at `a24af13d`; a full rerun remains required. Full-solution verification remains incomplete after interrupted local runs. AS-PM8 is PARTIAL. Whole-product production acceptance is not established by this package. Acceptance release `6944ab95` is healthy; migration/startup rehearsals and live timer/dashboard checks passed. Temporary SSH access was removed. See the deployment record in `status.json`.
