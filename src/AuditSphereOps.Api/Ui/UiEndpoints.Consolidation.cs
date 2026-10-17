@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Api.HttpBoundary;
 using System.Text.Json.Serialization;
 
 namespace AuditSphereOps.Api.Ui;
@@ -14,6 +15,20 @@ public static partial class UiEndpoints
     string? EvidenceReference);
 
   public sealed record AdvancedScheduleInput(string SourceManifestJson, string InputSnapshotJson);
+
+  public sealed record AddConsolidationOwnershipInput(
+    Guid ParentClientId, Guid ChildClientId, string? EffectiveFrom, string? EffectiveTo,
+    string? OwnershipPercent, string? EconomicInterestPercent, string? ControlAssessment,
+    string? Method, string? EvidenceReference, long ExpectedGroupRevision, bool Reviewed);
+  public sealed record ConsolidationOwnershipCommandHttpResponse(Guid Value);
+
+  private static bool OwnershipPercentage(string? value, out decimal percentage)
+  {
+    percentage = 0;
+    return value is { Length: > 0 and <= 27 } &&
+      System.Text.RegularExpressions.Regex.IsMatch(value, @"^[0-9]{1,20}(?:\.[0-9]{1,6})?$") &&
+      TryDecimal(value, out percentage) && percentage is >= 0 and <= 100;
+  }
 
   public sealed record CreateConsolidationScopeInput(
     Guid GroupId,
@@ -76,6 +91,38 @@ public static partial class UiEndpoints
     // Scope workspace detail & lifecycle
     group.MapGet("/consolidation/scopes/{scopeId:guid}", (Guid scopeId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(db, actor, scopeId, ct)));
+    group.MapGet("/consolidation/scopes/{scopeId:guid}/ownership-interests",
+      (Guid scopeId, HttpContext http, int page = 0, int pageSize = 25, Guid? parentClientId = null, Guid? childClientId = null) =>
+        ReadAsync(http, (db, actor, ct) => ConsolidationOwnershipWorkspaceQuery.GetAsync(
+          db, actor, scopeId, page, pageSize, parentClientId, childClientId, ct)))
+      .Produces<ConsolidationOwnershipWorkspace>()
+      .Produces<ApiError>(StatusCodes.Status400BadRequest)
+      .Produces<ApiError>(StatusCodes.Status403Forbidden)
+      .Produces<ApiError>(StatusCodes.Status409Conflict);
+    group.MapPost("/consolidation/scopes/{scopeId:guid}/ownership-interests",
+      (Guid scopeId, AddConsolidationOwnershipInput? input, HttpContext http) =>
+        CommandAsync(http, (db, actor, ct) =>
+        {
+          if (input is null || !input.Reviewed || input.ExpectedGroupRevision < 1 ||
+              !TryDate(input.EffectiveFrom, out var effectiveFrom) ||
+              input.EffectiveTo is not null && !TryDate(input.EffectiveTo, out _) ||
+              !OwnershipPercentage(input.OwnershipPercent, out var ownership) ||
+              !OwnershipPercentage(input.EconomicInterestPercent, out var economic))
+            return Task.FromResult(CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
+              "Review the exact scope revision, ISO dates and percentage-point strings from 0 to 100 with at most six decimal places."));
+          DateOnly? effectiveTo = input.EffectiveTo is null ? null : DateOnly.ParseExact(input.EffectiveTo, "yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture);
+          return ConsolidationService.AddOwnershipInterestAsync(db, actor,
+            new OwnershipInterestRequest(scopeId, input.ParentClientId, input.ChildClientId,
+              effectiveFrom, effectiveTo, ownership, economic, input.ControlAssessment ?? "", input.Method ?? "",
+              input.EvidenceReference ?? "", input.ExpectedGroupRevision), ct);
+        }))
+      .WithDescription("Appends an immutable ownership relationship to the current authorized draft scope. " +
+        "Existing relationships require a new scope for corrections. Scope and method approvals remain separate.")
+      .Produces<ConsolidationOwnershipCommandHttpResponse>()
+      .Produces<ApiError>(StatusCodes.Status400BadRequest)
+      .Produces<ApiError>(StatusCodes.Status403Forbidden)
+      .Produces<ApiError>(StatusCodes.Status409Conflict);
     group.MapPost("/consolidation/scopes", (CreateConsolidationScopeInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => ConsolidationService.CreateScopeAsync(db, actor,
         new ConsolidationScopeRequest(i.GroupId, i.PeriodId, i.ReportingCurrency, i.Method, i.OpeningBasis,

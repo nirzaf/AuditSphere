@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { SHARED } from '../../core/ui';
+import { ConsolidationOwnership } from './ownership';
 import {
   decodeScopeWorkspace,
   ScopeWorkspace,
@@ -46,7 +47,7 @@ export function formatOwnershipPercent(value: string): string {
 
 @Component({
   selector: 'audit-consolidation-scope-workspace',
-  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, ConsolidationOwnership, ...SHARED],
   template: `
     <nav aria-label="Consolidation location">
       <a routerLink="/app/consolidation">Consolidation</a> / <span>Scope workspace</span>
@@ -93,7 +94,10 @@ export function formatOwnershipPercent(value: string): string {
         <a [routerLink]="[]" fragment="runs">Runs & Reports ({{ w.runs.length }})</a>
         <a [routerLink]="[]" fragment="readiness">Readiness ({{ w.componentReadiness.length }})</a>
         <a [routerLink]="[]" fragment="intercompany">Intercompany ({{ w.intercompanyExceptions.length }})</a>
+        <a [routerLink]="[]" fragment="ownership">Ownership relationships</a>
       </nav>
+
+      <audit-consolidation-ownership [scopeId]="w.scope.id" />
 
       <!-- Component Intake & Approval -->
       <section class="panel" id="components" aria-labelledby="components-heading">

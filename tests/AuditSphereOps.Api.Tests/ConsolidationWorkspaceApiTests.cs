@@ -16,6 +16,213 @@ namespace AuditSphereOps.Api.Tests;
 public sealed class ConsolidationWorkspaceApiTests
 {
   [Fact]
+  public async Task OwnershipWorkspace_PinsExactPercentagePointsAndRefusesCycleStalenessAndUngrantableWrites()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-OWNERSHIP");
+    var fixture = await SeedOwnershipAsync(pg);
+    using var factory = Factory(pg, fixture.Seed.Staff);
+    using var client = factory.CreateClient();
+    var csrf = await SignIn(client);
+    var url = $"/api/ui/consolidation/scopes/{fixture.ScopeId}/ownership-interests";
+    var initial = await Read(client, url + "?page=0&pageSize=1");
+    Assert.True(initial.GetProperty("canAddOwnership").GetBoolean());
+    Assert.Equal(1, initial.GetProperty("groupRevision").GetInt64());
+    Assert.Equal(3, initial.GetProperty("eligibleMembers").GetArrayLength());
+    Assert.DoesNotContain(initial.GetProperty("eligibleMembers").EnumerateArray(),
+      x => x.GetProperty("clientId").GetGuid() == fixture.OutsideClientId);
+    Assert.Contains(initial.GetProperty("eligibleMembers").EnumerateArray(),
+      x => x.GetProperty("clientId").GetGuid() == fixture.FutureClientId &&
+        x.GetProperty("membershipEffectiveFrom").GetString() == "2099-01-01");
+    object Intent(Guid parent, Guid child, long revision = 1) => new
+    {
+      parentClientId = parent, childClientId = child, effectiveFrom = "2026-01-01", effectiveTo = (string?)null,
+      ownershipPercent = "73.123456", economicInterestPercent = "66.500000", controlAssessment = "CONTROLLED",
+      method = "EVIDENCED-METHOD", evidenceReference = "OWNERSHIP-01", expectedGroupRevision = revision, reviewed = true
+    };
+    using var added = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.ChildClientId));
+    Assert.Equal(HttpStatusCode.OK, added.StatusCode);
+    var id = JsonDocument.Parse(await added.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    var saved = await Read(client, url + "?page=0&pageSize=1");
+    Assert.Equal(1, saved.GetProperty("total").GetInt32());
+    var row = saved.GetProperty("interests")[0];
+    Assert.Equal(id, row.GetProperty("id").GetGuid());
+    Assert.Equal(fixture.Seed.ClientId, row.GetProperty("parentClientId").GetGuid());
+    Assert.Equal(fixture.ChildClientId, row.GetProperty("childClientId").GetGuid());
+    Assert.Equal("73.123456", row.GetProperty("ownershipPercent").GetString());
+    Assert.Equal("66.500000", row.GetProperty("economicInterestPercent").GetString());
+    Assert.Equal("2026-01-01", row.GetProperty("effectiveFrom").GetString());
+    Assert.Equal("APPROVED", row.GetProperty("status").GetString());
+    using var cycle = await Post(client, csrf, url, Intent(fixture.ChildClientId, fixture.Seed.ClientId));
+    Assert.Equal(HttpStatusCode.BadRequest, cycle.StatusCode);
+    Assert.Contains("circular", await cycle.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    using var duplicate = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.ChildClientId));
+    Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+    using var stale = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.ChildClientId, 2));
+    Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+    using var outside = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.OutsideClientId));
+    Assert.Equal(HttpStatusCode.BadRequest, outside.StatusCode);
+    using var beforeMembership = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.FutureClientId));
+    Assert.Equal(HttpStatusCode.BadRequest, beforeMembership.StatusCode);
+
+    using var readerFactory = Factory(pg, fixture.Seed.Reviewer);
+    using var reader = readerFactory.CreateClient();
+    var readerCsrf = await SignIn(reader);
+    var readOnly = await Read(reader, url);
+    Assert.False(readOnly.GetProperty("canAddOwnership").GetBoolean());
+    using var deniedWrite = await Post(reader, readerCsrf, url, Intent(fixture.ChildClientId, fixture.Seed.ClientId));
+    Assert.Equal(HttpStatusCode.Forbidden, deniedWrite.StatusCode);
+    using var ungrantedFactory = Factory(pg, fixture.Seed.Admin);
+    using var ungranted = ungrantedFactory.CreateClient();
+    await SignIn(ungranted);
+    using var deniedRead = await ungranted.GetAsync(url);
+    Assert.Equal(HttpStatusCode.Forbidden, deniedRead.StatusCode);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await proof.OwnershipInterestVersions.CountAsync(x => x.ScopeVersionId == fixture.ScopeId));
+  }
+
+  [Fact]
+  public async Task OwnershipCommands_SerializeConcurrentOppositeEdgesBeforeCycleValidation()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-OWNERSHIP-RACE");
+    var fixture = await SeedOwnershipAsync(pg);
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var first = new AuditSphereDbContext(pg.Options);
+    await using var second = new AuditSphereDbContext(pg.Options);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await using var fence = await blocker.Database.BeginTransactionAsync();
+    await blocker.ClientGroups.FromSqlInterpolated(
+      $"SELECT * FROM client_groups WHERE id = {fixture.GroupId} AND firm_id = {fixture.Seed.FirmId} FOR UPDATE").SingleAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    OwnershipInterestRequest Request(Guid parent, Guid child) => new(fixture.ScopeId, parent, child,
+      new DateOnly(2026, 1, 1), null, 73.123456m, 66.500000m, "CONTROLLED", "METHOD", "CONCURRENT-EDGE", 1);
+    var actor = PbcSeed.Actor(fixture.Seed.Staff, "Manager");
+    var firstTask = ConsolidationService.AddOwnershipInterestAsync(first, actor,
+      Request(fixture.Seed.ClientId, fixture.ChildClientId), timeout.Token);
+    var secondTask = ConsolidationService.AddOwnershipInterestAsync(second, actor,
+      Request(fixture.ChildClientId, fixture.Seed.ClientId), timeout.Token);
+    try { await WaitForOwnershipGroupWaitersAsync(observer, 2, timeout.Token); }
+    finally { await fence.RollbackAsync(); }
+    var results = await Task.WhenAll(firstTask, secondTask);
+    Assert.Single(results.Where(x => x.Succeeded));
+    Assert.Single(results.Where(x => !x.Succeeded && x.ErrorCode == ErrorCodes.Accounting.MappingInvalid));
+    Assert.Equal(1, await observer.OwnershipInterestVersions.CountAsync(x => x.ScopeVersionId == fixture.ScopeId));
+  }
+
+  [Fact]
+  public async Task ScopeApproval_RechecksGraphAfterAConcurrentOwnershipWriterReleasesGroupLock()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-OWNERSHIP-APPROVAL-RACE");
+    var fixture = await SeedOwnershipAsync(pg);
+    await using var writer = new AuditSphereDbContext(pg.Options);
+    await using var reviewer = new AuditSphereDbContext(pg.Options);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    writer.GroupAccessGrants.Add(new GroupAccessGrant
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId,
+      UserId = fixture.Seed.Reviewer.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = fixture.Seed.Staff.Id
+    });
+    await writer.SaveChangesAsync();
+    await using var fence = await writer.Database.BeginTransactionAsync();
+    await writer.ClientGroups.FromSqlInterpolated(
+      $"SELECT * FROM client_groups WHERE id = {fixture.GroupId} AND firm_id = {fixture.Seed.FirmId} FOR UPDATE").SingleAsync();
+    writer.OwnershipInterestVersions.Add(new OwnershipInterestVersion
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId, ScopeVersionId = fixture.ScopeId,
+      ParentClientId = fixture.Seed.ClientId, ChildClientId = fixture.ChildClientId,
+      EffectiveFrom = new DateOnly(2026, 1, 1), OwnershipPercent = 73m, EconomicInterestPercent = 66m,
+      ControlAssessment = "CONTROLLED", Method = "METHOD", EvidenceReference = "WRITER-EDGE",
+      Status = AccountingWorkflowStates.Approved, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await writer.SaveChangesAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    var approval = ConsolidationService.ApproveScopeAsync(reviewer, PbcSeed.Actor(fixture.Seed.Reviewer, "AccountingReviewer"),
+      fixture.ScopeId, timeout.Token);
+    try
+    {
+      await WaitForOwnershipGroupWaitersAsync(observer, 1, timeout.Token);
+      await fence.CommitAsync();
+    }
+    finally { if (writer.Database.CurrentTransaction is not null) await fence.RollbackAsync(); }
+    var refused = await approval;
+    Assert.False(refused.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+    Assert.Contains("nested", refused.Message, StringComparison.OrdinalIgnoreCase);
+    Assert.Equal(AccountingWorkflowStates.Draft,
+      await observer.ConsolidationScopeVersions.Where(x => x.Id == fixture.ScopeId).Select(x => x.Status).SingleAsync());
+  }
+
+  private sealed record OwnershipFixture(PbcSeed.Fixture Seed, Guid GroupId, Guid ScopeId, Guid ChildClientId, Guid OutsideClientId, Guid FutureClientId);
+
+  private static async Task<OwnershipFixture> SeedOwnershipAsync(OwnedPostgresDatabase pg)
+  {
+    var seed = await PbcSeed.SeedAsync(pg);
+    var groupId = Guid.CreateVersion7();
+    var scopeId = Guid.CreateVersion7();
+    var childId = Guid.CreateVersion7();
+    var outsideId = Guid.CreateVersion7();
+    var futureId = Guid.CreateVersion7();
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.PracticeClients.AddRange(new PracticeClient
+    {
+      Id = childId, FirmId = seed.FirmId, LegalName = "Synthetic ownership child", CreatedAt = DateTimeOffset.UtcNow
+    }, new PracticeClient
+    {
+      Id = outsideId, FirmId = seed.FirmId, LegalName = "Synthetic outside entity", CreatedAt = DateTimeOffset.UtcNow
+    }, new PracticeClient
+    {
+      Id = futureId, FirmId = seed.FirmId, LegalName = "Synthetic future member", CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.ClientGroups.Add(new ClientGroup
+    {
+      Id = groupId, FirmId = seed.FirmId, Code = "OWNERSHIP-GROUP", Name = "Synthetic ownership group",
+      Revision = 1, CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+    foreach (var (user, role) in new[] { (seed.Staff, "Manager"), (seed.Reviewer, "AccountingPreparer") })
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, UserId = user.Id,
+        Role = role, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = seed.Staff.Id
+      });
+    db.ClientGroupMemberships.Add(new ClientGroupMembership
+    {
+      Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, ClientId = futureId,
+      EffectiveFrom = new DateOnly(2099, 1, 1), Status = AccountingWorkflowStates.Approved,
+      OwnershipPercent = 100m, EconomicInterestPercent = 100m, ControlMethod = "CONTROLLED",
+      EvidenceReference = "FUTURE-MEMBER-EVIDENCE", CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+    foreach (var clientId in new[] { seed.ClientId, childId })
+      db.ClientGroupMemberships.Add(new ClientGroupMembership
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, ClientId = clientId,
+        EffectiveFrom = new DateOnly(2020, 1, 1), Status = AccountingWorkflowStates.Approved,
+        OwnershipPercent = 100m, EconomicInterestPercent = 100m, ControlMethod = "CONTROLLED",
+        EvidenceReference = "MEMBER-EVIDENCE", CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+    db.ConsolidationScopeVersions.Add(new ConsolidationScopeVersion
+    {
+      Id = scopeId, FirmId = seed.FirmId, GroupId = groupId, PeriodId = Guid.CreateVersion7(), Version = 1,
+      GroupRevision = 1, ReportingCurrency = "QAR", Method = ConsolidationCalculator.RestrictedMethod,
+      OpeningBasis = "INITIAL_CONSOLIDATION", Status = AccountingWorkflowStates.Draft,
+      CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    return new(seed, groupId, scopeId, childId, outsideId, futureId);
+  }
+
+  private static async Task WaitForOwnershipGroupWaitersAsync(AuditSphereDbContext observer, int expected, CancellationToken ct)
+  {
+    while (true)
+    {
+      var count = await observer.Database.SqlQueryRaw<int>(
+        "SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() " +
+        "AND wait_event_type='Lock' AND query LIKE '%client_groups%'").SingleAsync(ct);
+      if (count >= expected) return;
+      await Task.Delay(25, ct);
+    }
+  }
+
+  [Fact]
   public async Task ScopeWorkspace_AccessDeniedWithoutGroupGrant()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-DENIED");

@@ -115,20 +115,30 @@ public static partial class ConsolidationService
     IClientAccountingDbContext db, ActorContext actor, Guid scopeVersionId,
     CancellationToken ct = default)
   {
-    var scope = await db.ConsolidationScopeVersions.SingleOrDefaultAsync(x => x.Id == scopeVersionId && x.FirmId == actor.FirmId, ct);
+    var scope = await db.ConsolidationScopeVersions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == scopeVersionId && x.FirmId == actor.FirmId, ct);
     if (scope is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await GroupAuthAsync(db, actor, scope.GroupId, ReviewerRoles, ct);
     if (!auth.Succeeded)
       return auth;
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    // Ownership additions and perimeter changes take the same group then scope locks.
+    var group = await db.ClientGroups.FromSqlInterpolated(
+      $"SELECT * FROM client_groups WHERE id = {scope.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    scope = await db.ConsolidationScopeVersions.FromSqlInterpolated(
+      $"SELECT * FROM consolidation_scope_versions WHERE id = {scopeVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (scope is null || group is null || scope.GroupId != group.Id)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await GroupAuthAsync(db, actor, scope.GroupId, ReviewerRoles, ct);
+    if (!auth.Succeeded) return auth;
     if (scope.Status != AccountingWorkflowStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft perimeter can be approved.");
     if (scope.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
         "Only a separate reviewer can approve a consolidation perimeter.");
-    var currentGroupRevision = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId)
-      .Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
-    if (currentGroupRevision is null || currentGroupRevision.Value != scope.GroupRevision)
+    if (group.Revision != scope.GroupRevision)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
     var ownershipEdges = await db.OwnershipInterestVersions.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
@@ -174,10 +184,14 @@ public static partial class ConsolidationService
           return CommandResult.Fail(ErrorCodes.GateBlocked, "Every foreign component needs the pinned approved translation result.");
       }
     }
-    scope.Status = AccountingWorkflowStates.Approved;
-    scope.ApprovedByUserId = actor.UserId;
-    scope.ApprovedAt = DateTimeOffset.UtcNow;
+    // Reuse a tracked identity if the caller created this scope in the same context.
+    var retained = db.ConsolidationScopeVersions.Local.SingleOrDefault(x => x.Id == scope.Id)
+      ?? db.ConsolidationScopeVersions.Attach(scope).Entity;
+    retained.Status = AccountingWorkflowStates.Approved;
+    retained.ApprovedByUserId = actor.UserId;
+    retained.ApprovedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 }

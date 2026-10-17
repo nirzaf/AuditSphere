@@ -20,7 +20,7 @@ public sealed record OwnershipInterestRequest(
   Guid ScopeVersionId, Guid ParentClientId, Guid ChildClientId,
   DateOnly EffectiveFrom, DateOnly? EffectiveTo, decimal OwnershipPercent,
   decimal EconomicInterestPercent, string ControlAssessment, string Method,
-  string EvidenceReference);
+  string EvidenceReference, long ExpectedGroupRevision = 0);
 
 public sealed record ConsolidationScopeRequest(
   Guid GroupId, Guid PeriodId, string ReportingCurrency, string Method, string OpeningBasis,

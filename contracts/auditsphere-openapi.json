@@ -36025,6 +36025,243 @@
         ]
       }
     },
+    "/api/ui/consolidation/scopes/{scopeId}/ownership-interests": {
+      "get": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "parameters": [
+          {
+            "name": "scopeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 25
+            }
+          },
+          {
+            "name": "parentClientId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "childClientId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsolidationOwnershipWorkspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "description": "Appends an immutable ownership relationship to the current authorized draft scope. Existing relationships require a new scope for corrections. Scope and method approvals remain separate.",
+        "parameters": [
+          {
+            "name": "scopeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AddConsolidationOwnershipInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsolidationOwnershipCommandHttpResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The request has no current AuditSphere session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/consolidation/scopes": {
       "post": {
         "tags": [
@@ -40404,6 +40641,85 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "AddConsolidationOwnershipInput": {
+        "required": [
+          "parentClientId",
+          "childClientId",
+          "effectiveFrom",
+          "effectiveTo",
+          "ownershipPercent",
+          "economicInterestPercent",
+          "controlAssessment",
+          "method",
+          "evidenceReference",
+          "expectedGroupRevision",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "parentClientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "childClientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "effectiveFrom": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ownershipPercent": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "economicInterestPercent": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "controlAssessment": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "method": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evidenceReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedGroupRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "reviewed": {
+            "type": "boolean"
           }
         }
       },
@@ -47067,6 +47383,211 @@
           },
           "description": {
             "type": "string"
+          }
+        }
+      },
+      "ConsolidationOwnershipCommandHttpResponse": {
+        "required": [
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ConsolidationOwnershipMember": {
+        "required": [
+          "clientId",
+          "legalName",
+          "membershipEffectiveFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "legalName": {
+            "type": "string"
+          },
+          "membershipEffectiveFrom": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "ConsolidationOwnershipRow": {
+        "required": [
+          "id",
+          "parentClientId",
+          "parentLegalName",
+          "childClientId",
+          "childLegalName",
+          "effectiveFrom",
+          "effectiveTo",
+          "ownershipPercent",
+          "economicInterestPercent",
+          "controlAssessment",
+          "method",
+          "evidenceReference",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parentClientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parentLegalName": {
+            "type": "string"
+          },
+          "childClientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "childLegalName": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "ownershipPercent": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "economicInterestPercent": {
+            "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
+            "type": "string",
+            "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
+          },
+          "controlAssessment": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "evidenceReference": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ConsolidationOwnershipWorkspace": {
+        "required": [
+          "scopeId",
+          "groupId",
+          "groupName",
+          "scopeVersion",
+          "groupRevision",
+          "currentGroupRevision",
+          "scopeStatus",
+          "scopeMethod",
+          "canAddOwnership",
+          "page",
+          "pageSize",
+          "total",
+          "interests",
+          "eligibleMembers"
+        ],
+        "type": "object",
+        "properties": {
+          "scopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "scopeVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "groupRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "currentGroupRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "scopeStatus": {
+            "type": "string"
+          },
+          "scopeMethod": {
+            "type": "string"
+          },
+          "canAddOwnership": {
+            "type": "boolean"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "interests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsolidationOwnershipRow"
+            }
+          },
+          "eligibleMembers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsolidationOwnershipMember"
+            }
           }
         }
       },

@@ -20,8 +20,11 @@ public static partial class ConsolidationService
     if (request.ScopeVersionId == Guid.Empty || request.ParentClientId == Guid.Empty || request.ChildClientId == Guid.Empty ||
         request.ParentClientId == request.ChildClientId || request.EffectiveTo < request.EffectiveFrom ||
         request.OwnershipPercent is < 0 or > 100 || request.EconomicInterestPercent is < 0 or > 100 ||
+        MoneyPolicy.Normalize(request.OwnershipPercent) != request.OwnershipPercent ||
+        MoneyPolicy.Normalize(request.EconomicInterestPercent) != request.EconomicInterestPercent ||
         string.IsNullOrWhiteSpace(request.ControlAssessment) || string.IsNullOrWhiteSpace(request.Method) ||
-        string.IsNullOrWhiteSpace(request.EvidenceReference))
+        string.IsNullOrWhiteSpace(request.EvidenceReference) || request.ControlAssessment.Length > 100 ||
+        request.Method.Length > 100 || request.EvidenceReference.Length > 2000 || request.ExpectedGroupRevision < 0)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "An ownership interest needs distinct entities, valid dates, percentages, control assessment, method and evidence.");
 
@@ -32,14 +35,28 @@ public static partial class ConsolidationService
     var auth = await GroupAuthAsync(db, actor, scope.GroupId, ["Manager", "Partner", "Administrator"], ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    // Serialize perimeter changes, ownership graph edits and perimeter approval in that order.
+    var group = await db.ClientGroups.FromSqlInterpolated(
+      $"SELECT * FROM client_groups WHERE id = {scope.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    scope = await db.ConsolidationScopeVersions.FromSqlInterpolated(
+      $"SELECT * FROM consolidation_scope_versions WHERE id = {request.ScopeVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (scope is null || group is null || scope.GroupId != group.Id)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await GroupAuthAsync(db, actor, scope.GroupId, ["Manager", "Partner", "Administrator"], ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (scope.Status != AccountingWorkflowStates.Draft)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Ownership can only be changed on a draft consolidation scope.");
-    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+    if (group.Revision != scope.GroupRevision ||
+        request.ExpectedGroupRevision > 0 && group.Revision != request.ExpectedGroupRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
 
     var memberIds = await db.ClientGroupMemberships.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.Status == AccountingWorkflowStates.Approved &&
-      x.EffectiveTo == null).Select(x => x.ClientId).ToHashSetAsync(ct);
+      x.EffectiveTo == null && x.EffectiveFrom <= request.EffectiveFrom).Select(x => x.ClientId).ToHashSetAsync(ct);
     if (!memberIds.Contains(request.ParentClientId) || !memberIds.Contains(request.ChildClientId))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Both ownership entities must be approved members of the group perimeter.");
 
@@ -65,6 +82,7 @@ public static partial class ConsolidationService
     };
     db.OwnershipInterestVersions.Add(ownership);
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(ownership.Id);
   }
 
@@ -75,8 +93,9 @@ public static partial class ConsolidationService
       x => x.Select(y => y.ChildClientId).ToArray());
     var pending = new Stack<Guid>([childClientId]);
     var visited = new HashSet<Guid>();
-    while (pending.TryPop(out var current) && visited.Add(current))
+    while (pending.TryPop(out var current))
     {
+      if (!visited.Add(current)) continue;
       if (current == parentClientId)
         return true;
       if (adjacency.TryGetValue(current, out var children))

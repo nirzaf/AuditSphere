@@ -5,6 +5,7 @@ import { BehaviorSubject } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import { Api } from '../../core/api';
+import { SessionService } from '../../core/session';
 import {
   decodeScopeWorkspace,
   decodeConsolidationJournal,
@@ -75,7 +76,9 @@ describe('Consolidation Scope Workspace Contracts', () => {
     workspaceData = signal<ReturnType<typeof decodeScopeWorkspace> | null>(null);
     resource = { data: workspaceData, loading: signal(false), error: signal(''), reload: vi.fn() };
     api = {
-      resource: vi.fn(() => resource),
+      resource: vi.fn((_url, decoder) => decoder === decodeScopeWorkspace ? resource : {
+        data: signal(null), loading: signal(false), error: signal(''), reload: vi.fn(),
+      }),
       command: vi.fn().mockResolvedValue({ ok: true, value: true }),
     };
     TestBed.configureTestingModule({
@@ -84,6 +87,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { paramMap: params } },
         { provide: Api, useValue: api },
+        { provide: SessionService, useValue: { invalidation: signal(0) } },
       ],
     });
   });
