@@ -797,6 +797,33 @@ public sealed class AuditProgramWorkflowTests
     Assert.Equal(2, await db.AuditProcedureCommandReceipts.CountAsync(x => x.AuditProcedureId == procedure.Id));
     Assert.Equal(1, await db.AuditProcedureReviews.CountAsync(x => x.AuditProcedureId == procedure.Id));
 
+    var programCoverage = await EngagementAuditProgramQuery.GetProgramAsync(db, scope.Actor, scope.EngagementId);
+    Assert.True(programCoverage.Succeeded, programCoverage.Message);
+    var expensesCoverage = programCoverage.Value!.Sections.Single(x => x.SectionNumber == 8);
+    Assert.Equal(1, expensesCoverage.Reviewed);
+    Assert.Equal(1, expensesCoverage.Completed);
+    var areaCoverage = await AuditAreaSummaryQuery.GetAreaSummaryAsync(db, scope.Actor, scope.EngagementId, AuditAreaCodes.Expenses);
+    Assert.True(areaCoverage.Succeeded, areaCoverage.Message);
+    Assert.Equal(1, areaCoverage.Value!.ReviewedProcedureCount);
+    var workspaceCoverage = await AuditFieldworkWorkspaceQuery.GetAsync(db, scope.Actor, scope.EngagementId);
+    Assert.True(workspaceCoverage.Succeeded, workspaceCoverage.Message);
+    Assert.Equal("REVIEWED_CURRENT", workspaceCoverage.Value!.Procedures.Single(x => x.Id == procedure.Id).EvidenceState);
+    var complete = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db,
+      scope.FirmId, scope.ClientId, scope.EngagementId, CancellationToken.None);
+    Assert.DoesNotContain($"procedure:{procedure.SourceProcedureId}:unreviewed", complete.Value!.Blockers);
+
+    await db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE client_safety_states SET input_generation = input_generation + 1 WHERE id = {scope.ClientId}");
+    var staleProgram = await EngagementAuditProgramQuery.GetProgramAsync(db, scope.Actor, scope.EngagementId);
+    Assert.Equal(0, staleProgram.Value!.Sections.Single(x => x.SectionNumber == 8).Reviewed);
+    var staleArea = await AuditAreaSummaryQuery.GetAreaSummaryAsync(db, scope.Actor, scope.EngagementId, AuditAreaCodes.Expenses);
+    Assert.Equal(0, staleArea.Value!.ReviewedProcedureCount);
+    var staleWorkspace = await AuditFieldworkWorkspaceQuery.GetAsync(db, scope.Actor, scope.EngagementId);
+    Assert.Equal("STALE_GENERATION", staleWorkspace.Value!.Procedures.Single(x => x.Id == procedure.Id).EvidenceState);
+    var staleComplete = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db,
+      scope.FirmId, scope.ClientId, scope.EngagementId, CancellationToken.None);
+    Assert.Contains($"procedure:{procedure.SourceProcedureId}:stale-generation", staleComplete.Value!.Blockers);
+
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
       $"UPDATE audit_procedure_command_receipts SET result_status = 'TAMPERED' WHERE id = {receipt.Value.Id}"));
   }

@@ -44,6 +44,7 @@ describe('Audit Fieldwork Contracts', () => {
           canProposeNotApplicable: true,
           canApproveNotApplicable: false,
           canReturnNotApplicable: false,
+          evidenceState: 'REVIEWED_CURRENT',
           status: 'COMPLETED',
           riskId: null,
         },

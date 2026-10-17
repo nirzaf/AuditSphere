@@ -15,7 +15,8 @@ public sealed record FieldworkProcedure(Guid Id, string SourceProcedureId, int? 
   int? DefinitionRevision = null, string DefinitionProvenance = "UNVERIFIED_LEGACY",
   int ApplicabilityRevision = 0, Guid? ApplicabilityDecisionId = null, Guid? PendingApplicabilityProposalId = null,
   string? ApplicabilityRationale = null, IReadOnlyList<FieldworkApplicabilityHistoryItem>? ApplicabilityHistory = null,
-  bool CanProposeNotApplicable = false, bool CanApproveNotApplicable = false, bool CanReturnNotApplicable = false);
+  bool CanProposeNotApplicable = false, bool CanApproveNotApplicable = false, bool CanReturnNotApplicable = false,
+  string EvidenceState = "MISSING_RESULT");
 public sealed record FieldworkApplicabilityHistoryItem(Guid Id, int Revision, string Action, string? Rationale,
   Guid? ProposalDecisionId, Guid ActorUserId, DateTimeOffset OccurredAt, int DefinitionRevision, long InputGeneration);
 public sealed record FieldworkRiskOption(Guid Id, string Area, string SignificanceDecision, string? Band,
@@ -234,6 +235,8 @@ public static class AuditFieldworkWorkspaceQuery
           y.ProposalDecisionId, y.ActorUserId, y.OccurredAt, y.DefinitionRevision, y.InputGeneration)).ToList());
     var inputGeneration = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == firmId && x.Id == clientId)
       .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct) ?? 0;
+    var evidence = await AuditFieldworkService.EvaluateProcedureEvidenceBatchForAuthorizedScopeAsync(db, firmId, clientId,
+      engagementId, rows, ct);
     return rows.Select(row =>
     {
       var definition = definitions.GetValueOrDefault(row.Id);
@@ -250,7 +253,8 @@ public static class AuditFieldworkWorkspaceQuery
         definition?.EffectiveWording ?? row.SourceWording, definition?.Revision, provenance,
         row.CurrentApplicabilityRevision, currentDecision?.Id, pendingProposalId, row.ApplicabilityRationale,
         historyByProcedure.GetValueOrDefault(row.Id, []), canPropose && pendingProposalId is null,
-        canApprove && pendingProposalId is not null, canApprove && pendingProposalId is not null);
+        canApprove && pendingProposalId is not null, canApprove && pendingProposalId is not null,
+        evidence.GetValueOrDefault(row.Id)?.State ?? "MISSING_RESULT");
     }).ToList();
   }
 

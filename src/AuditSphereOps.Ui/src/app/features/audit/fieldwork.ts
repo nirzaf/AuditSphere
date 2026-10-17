@@ -18,7 +18,7 @@ const procedure = obj({ id: guid, sourceProcedureId: text, sourceSectionNumber: 
   applicabilityRationale: nullable(text), applicabilityHistory: arr(obj({ id: guid, revision: nat, action: text,
     rationale: nullable(text), proposalDecisionId: nullable(guid), actorUserId: guid, occurredAt: instant,
     definitionRevision: nat, inputGeneration: nat }), 20), canProposeNotApplicable: bool,
-  canApproveNotApplicable: bool, canReturnNotApplicable: bool });
+  canApproveNotApplicable: bool, canReturnNotApplicable: bool, evidenceState: text });
 const decodeManagerReview = obj({ engagementId: guid, completionReady: bool, partnerHandoffReady: bool,
   applicableProcedures: nat, proceduresNeedingReview: nat, itemTestsNeedingReview: nat, selectionsNeedingReview: nat,
   unresolvedReviewThreads: nat, openConfirmations: nat, bankReconciliationsNeedingApproval: nat, unevaluatedDifferences: nat,
@@ -731,7 +731,7 @@ export class AuditFieldwork {
     });
   }
   count(w: Fieldwork, status: string): number { return w.procedures.filter((p) => p.applicabilityStatus === status).length; }
-  reviewed(w: Fieldwork): number { return w.procedures.filter((p) => p.status === 'REVIEWED').length; }
+  reviewed(w: Fieldwork): number { return w.procedures.filter((p) => p.evidenceState === 'REVIEWED_CURRENT').length; }
   riskSelection(p: Fieldwork['procedures'][number]): string { return this.riskLinkSelections.get(p.id) ?? p.riskId ?? ''; }
   setRiskSelection(procedureId: string, riskId: string): void { this.riskLink.inputChanged(); this.riskLinkSelections.set(procedureId, riskId); }
   riskLabel(w: Fieldwork, riskId: string | null): string {

@@ -68,11 +68,18 @@ public static class AuditAreaSummaryQuery
     if (!auth.Succeeded)
       return CommandResult<AuditAreaSummaryView>.Fail(auth.ErrorCode!, auth.Message!);
 
-    var procedures = await db.AuditProcedures.AsNoTracking()
+    var procedureRows = await db.AuditProcedures.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
         x.SourceSectionNumber == sectionNumber)
-      .Select(x => new AuditAreaProcedureRow(x.Id, x.SourceProcedureId, x.Status, x.ApplicabilityStatus))
       .ToListAsync(ct);
+    var applicability = procedureRows.Count == 0 ? new Dictionary<Guid, string>() :
+      await AuditProgramService.EffectiveApplicabilityStatusesAsync(db, actor.FirmId, engagement.PracticeClientId,
+        engagementId, procedureRows, ct);
+    var evidence = procedureRows.Count == 0 ? new Dictionary<Guid, CurrentProcedureEvidence>() :
+      await AuditFieldworkService.EvaluateProcedureEvidenceBatchForAuthorizedScopeAsync(db, actor.FirmId,
+        engagement.PracticeClientId, engagementId, procedureRows, ct);
+    var procedures = procedureRows.Select(x => new AuditAreaProcedureRow(x.Id, x.SourceProcedureId, x.Status,
+      applicability.GetValueOrDefault(x.Id, x.ApplicabilityStatus))).ToList();
     var assessments = await db.AuditAreaAssessments.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.AreaCode == area)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
@@ -95,7 +102,9 @@ public static class AuditAreaSummaryQuery
     var itemIds = selectionItems.ToArray();
     var tests = await db.AuditItemTests.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
-      .Select(x => new { x.SelectionItemId, x.Result }).ToListAsync(ct);
+      .Select(x => new { x.SelectionItemId, x.Result, x.Revision, x.TestedAt, x.Id }).ToListAsync(ct);
+    var currentTests = tests.GroupBy(x => x.SelectionItemId).Select(g =>
+      g.OrderByDescending(x => x.Revision).ThenByDescending(x => x.TestedAt).ThenByDescending(x => x.Id).First()).ToList();
     var cutOffs = await db.AuditCutOffTestRecords.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId))
       .Select(x => x.IsCutOffException).ToListAsync(ct);
@@ -119,7 +128,9 @@ public static class AuditAreaSummaryQuery
     // types; only approved schedules count as covering the area.
     var areaScheduleTypes = AreaScheduleTypes(sectionNumber);
     var areaSchedules = schedules.Where(x => areaScheduleTypes.Contains(x.ScheduleType)).ToList();
-    var assessedReviewed = assessments.Count > 0 && assessments.All(x => x.Status == AuditAreaAssessmentStatuses.Reviewed);
+    var allCurrentReviewed = procedureRows.Count > 0 && procedureRows.All(x =>
+      evidence.GetValueOrDefault(x.Id)?.Satisfied == true ||
+      applicability.GetValueOrDefault(x.Id) == AuditApplicabilityStatuses.NotApplicableApproved);
     var hasBlockingEvidence = cutOffs.Any(x => x) ||
       matches.Any(x => x != AuditSubsequentMatchStates.Matched) ||
       areaDifferences.Any(x => x.Status != AuditDifferenceStatuses.VerifiedReflected &&
@@ -130,16 +141,16 @@ public static class AuditAreaSummaryQuery
       SectionTitles.TryGetValue(sectionNumber, out var title) ? title : $"Section {sectionNumber}",
       procedures.Count,
       procedures.Count(x => x.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable),
-      procedures.Count(x => x.Status == AuditProcedureStatuses.Reviewed),
+      procedureRows.Count(x => evidence.GetValueOrDefault(x.Id)?.Satisfied == true),
       procedures, assessments,
       areaSchedules.Count, areaSchedules.Count(x => x.Status == AuditScheduleStatuses.Approved),
       selections.Count, selectionItems.Count,
-      tests.Count(x => x.Result != AuditItemTestResults.Pending),
-      tests.Count(x => x.Result is AuditItemTestResults.Exception or AuditItemTestResults.Limitation),
+      currentTests.Count(x => x.Result != AuditItemTestResults.Pending),
+      currentTests.Count(x => x.Result is AuditItemTestResults.Exception or AuditItemTestResults.Limitation),
       cutOffs.Count, cutOffs.Count(x => x),
       matches.Count, matches.Count(x => x == AuditSubsequentMatchStates.Matched),
       confirmations.Count, confirmations.Count(x => x == AuditConfirmationStatuses.Closed),
-      areaDifferences, assessedReviewed, hasBlockingEvidence));
+      areaDifferences, allCurrentReviewed, hasBlockingEvidence));
   }
 
   private static bool SectionTitleMatches(string? accountArea, int sectionNumber) =>

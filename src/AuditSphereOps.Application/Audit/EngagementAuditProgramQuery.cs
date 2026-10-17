@@ -180,6 +180,9 @@ public static class EngagementAuditProgramQuery
     var applicability = procedures.Count == 0 ? new Dictionary<Guid, string>() :
       await AuditProgramService.EffectiveApplicabilityStatusesAsync(db, actor.FirmId,
         procedures[0].ClientId, engagementId, procedures, ct);
+    var evidence = procedures.Count == 0 ? new Dictionary<Guid, CurrentProcedureEvidence>() :
+      await AuditFieldworkService.EvaluateProcedureEvidenceBatchForAuthorizedScopeAsync(db, actor.FirmId,
+        procedures[0].ClientId, engagementId, procedures, ct);
     var program = await db.EngagementAuditPrograms.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
       .Select(x => new { x.Id, x.ProgramVersionId })
@@ -197,9 +200,9 @@ public static class EngagementAuditProgramQuery
         g.Count(x => applicability[x.Id] == AuditApplicabilityStatuses.NotApplicableApproved),
         g.Count(x => applicability[x.Id] is AuditApplicabilityStatuses.Pending or
           AuditApplicabilityStatuses.NotApplicablePendingReview or AuditApplicabilityStatuses.NotApplicableUnverified),
-        g.Count(x => x.Status == AuditProcedureStatuses.Reviewed ||
-          x.Status == AuditProcedureStatuses.InReview || x.Status == AuditProcedureStatuses.Submitted),
-        g.Count(x => x.Status == AuditProcedureStatuses.Reviewed)))
+        g.Count(x => evidence.GetValueOrDefault(x.Id)?.Satisfied == true),
+        g.Count(x => applicability[x.Id] == AuditApplicabilityStatuses.NotApplicableApproved ||
+          evidence.GetValueOrDefault(x.Id)?.Satisfied == true)))
       .ToList();
 
     return CommandResult<EngagementProgramView>.Ok(new EngagementProgramView(
