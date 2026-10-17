@@ -229,7 +229,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `CLIENT-05` | CLIENT | NOT_REVERIFIED |
 | `CLIENT-06` | CLIENT | NOT_REVERIFIED |
 | `RES-01` | RES | PARTIAL: supported range and refusal/recovery verified; broader staffing/capacity acceptance remains |
-| `RES-02` | RES | NOT_REVERIFIED |
+| `RES-02` | RES | PARTIAL: expiry and recording are explicit; administrative verification workflow missing |
 | `RES-03` | RES | NOT_REVERIFIED |
 | `RES-04` | RES | NOT_REVERIFIED |
 | `RES-05` | RES | NOT_REVERIFIED |
@@ -364,3 +364,7 @@ Analytics previously truncated weekly capacity divided by five while the resourc
 ### RES-01 supported planning ranges
 
 Grid reads and allocation writes now share a bounded complete-week range check. Unsupported minimum/maximum dates and week counts outside 1–12 are refused before date arithmetic; requests are no longer silently clamped. Existing staffing/role fences remain intact and invalid allocation requests retain the prior allocation population. The first and last complete representable weeks remain supported. The resource endpoint documents its bad-request response. Focused Domain and API tests passed, and OpenAPI drift passed. The built-in browser refused an unsupported date and recovered the grid after a valid date was submitted. No planning record changed. Broader staffing/capacity acceptance remains open.
+
+### RES-02 certification truthfulness
+
+The current record stores recorder/time and expiry but no administrative verification decision. The resource grid now labels all retained entries Not verified, separately stating expired, not expired or expiry not recorded. The entry form explains that recording/expiry does not establish authenticity or eligibility. Existing resource component checks cover those three states; the focused cohort and Angular build pass. The built-in browser confirms the disclosure, with no console warnings/errors and no qualification records created. An attributable administrative verification workflow remains missing; this is not RES-02 completion.

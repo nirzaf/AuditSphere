@@ -18105,6 +18105,15 @@
       "builds": "Angular PASS (existing SCSS warning); Release API/test builds PASS; OpenAPI regenerated and drift PASS",
       "browser": "NOT_RUN for positive finance journey: synthetic browser identity has no finance role; no role grants changed.",
       "release": "Full current-SHA regression remains CI work."
+    },
+    "completePracticeManagement.firmMonthlyBoundary20261018": {
+      "result": "FOCUSED_PASS",
+      "test": "FirmExpenses_PostThroughTheLedger_AndTheFirmTrialBalanceReconciles",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "Balanced ledger/P&L, 0001-01/9999-12, exactly 1200 months accepted, 1201 and oversized stored spans refused; broad queries with small stored spans pass.",
+      "environment": "Isolated PostgreSQL test schema; Release test build. No production database, UI or contract changes. Full regression deferred to CI."
     }
   }
 }

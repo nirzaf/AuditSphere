@@ -2020,7 +2020,8 @@
       "FIN-06",
       "FIN-07",
       "RES-06",
-      "RES-01"
+      "RES-01",
+      "RES-02"
     ],
     "lastTechnicalSlice": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
     "advanceCashGate": {
@@ -2039,12 +2040,7 @@
     },
     "firmMonthlyBoundary": {
       "result": "FOCUSED_PASS",
-      "test": "FirmExpenses_PostThroughTheLedger_AndTheFirmTrialBalanceReconciles",
-      "passed": 1,
-      "failed": 0,
-      "skipped": 0,
-      "scope": "Balanced ledger/P&L, 0001-01/9999-12, exactly 1200 months accepted, 1201 and oversized stored spans refused; broad queries with small stored spans pass.",
-      "environment": "Isolated PostgreSQL test schema; Release test build. No production database, UI or contract changes. Full regression deferred to CI."
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.firmMonthlyBoundary20261018"
     },
     "expensePaging": {
       "codeCommit": "bf45c6b4e7e4b05c59cbe85c36b2d75b8f3a0ca6",
@@ -2071,6 +2067,12 @@
       "contract": "Regenerated; drift PASS",
       "browser": "Synthetic Resources form: unsupported minimum date refused; valid date restored grid. No planning records mutated.",
       "release": "Broader resource acceptance and full current-SHA CI remain open."
+    },
+    "certificationDisclosure": {
+      "codeCommit": "826ad96cb2d12a72936852631dcb22be3e4acd46",
+      "angular": "resources.spec.ts: 14 PASS; build PASS, existing SCSS warning",
+      "browser": "Disclosure verified; no certification records created.",
+      "remaining": "Administrative verification workflow missing; RES-02 PARTIAL."
     }
   }
 }
