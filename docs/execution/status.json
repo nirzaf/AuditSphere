@@ -2060,19 +2060,22 @@
     "resourceRange": {
       "codeCommit": "b2db659888e34facbb82ff8d237919e6cd6af6cf",
       "result": "FOCUSED_PASS",
-      "domainPassed": 1,
-      "apiPassed": 1,
-      "failed": 0,
-      "scope": "Grid/allocation date bounds, 1\u201312 weeks, supported edge weeks and unchanged allocation population after refusal; HTTP 400 checks.",
-      "contract": "Regenerated; drift PASS",
-      "browser": "Synthetic Resources form: unsupported minimum date refused; valid date restored grid. No planning records mutated.",
-      "release": "Broader resource acceptance and full current-SHA CI remain open."
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#completePracticeManagement.resourceRange20261018"
     },
     "certificationDisclosure": {
       "codeCommit": "826ad96cb2d12a72936852631dcb22be3e4acd46",
       "angular": "resources.spec.ts: 14 PASS; build PASS, existing SCSS warning",
       "browser": "Disclosure verified; no certification records created.",
       "remaining": "Administrative verification workflow missing; RES-02 PARTIAL."
+    },
+    "certificationRules": {
+      "codeCommit": "079642f89bb709fd0bc85ddd72b6c4bac1af1861",
+      "test": "StaffCertificationEvidenceTests",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "Pure source digest and independent/current exact-source applicability only.",
+      "remaining": "Persistence, review UI/API and staffing integration NOT_IMPLEMENTED."
     }
   }
 }

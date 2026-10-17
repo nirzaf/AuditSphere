@@ -18114,6 +18114,17 @@
       "skipped": 0,
       "scope": "Balanced ledger/P&L, 0001-01/9999-12, exactly 1200 months accepted, 1201 and oversized stored spans refused; broad queries with small stored spans pass.",
       "environment": "Isolated PostgreSQL test schema; Release test build. No production database, UI or contract changes. Full regression deferred to CI."
+    },
+    "completePracticeManagement.resourceRange20261018": {
+      "codeCommit": "b2db659888e34facbb82ff8d237919e6cd6af6cf",
+      "result": "FOCUSED_PASS",
+      "domainPassed": 1,
+      "apiPassed": 1,
+      "failed": 0,
+      "scope": "Grid/allocation date bounds, 1\u201312 weeks, supported edge weeks and unchanged allocation population after refusal; HTTP 400 checks.",
+      "contract": "Regenerated; drift PASS",
+      "browser": "Synthetic Resources form: unsupported minimum date refused; valid date restored grid. No planning records mutated.",
+      "release": "Broader resource acceptance and full current-SHA CI remain open."
     }
   }
 }
