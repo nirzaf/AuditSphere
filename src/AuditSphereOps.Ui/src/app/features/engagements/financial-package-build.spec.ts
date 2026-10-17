@@ -432,7 +432,7 @@ describe('financial package build inputs contract', () => {
       mappings: [{ id: mapping, version: 2, datasetId: '66666666-6666-4666-8666-666666666666' }],
       plans: [{ id: plan, baseDatasetId: '66666666-6666-4666-8666-666666666666', resultHash: 'a'.repeat(64) }],
       periods: [{ id: '44444444-4444-4444-8444-444444444444', periodCode: 'FY2026', startDate: '2026-01-01', endDate: '2026-12-31', currency: 'QAR', basis: 'IFRS' }],
-      comparatives: [{ id: '77777777-7777-4777-8777-777777777777', framework: 'IFRS', periodStart: '2025-01-01', periodEnd: '2025-12-31', currency: 'QAR', status: 'VALIDATED' }],
+      comparatives: [{ id: '77777777-7777-4777-8777-777777777777', engagementId: '55555555-5555-4555-8555-555555555555', framework: 'IFRS', periodStart: '2025-01-01', periodEnd: '2025-12-31', currency: 'QAR', basis: 'IFRS', status: 'VALIDATED' }],
     }, 'inputs');
     expect(decoded.mappings[0].version).toBe(2);
     expect(decoded.periods[0].currency).toBe('QAR');
@@ -452,7 +452,7 @@ describe('financial package build inputs contract', () => {
       mappings: [{ id: mapping, version: 2, datasetId: '66666666-6666-4666-8666-666666666666' }],
       plans: [{ id: plan, baseDatasetId: '66666666-6666-4666-8666-666666666666', resultHash: 'a'.repeat(64) }],
       periods: [{ id: '44444444-4444-4444-8444-444444444444', periodCode: 'FY2026', startDate: '2026-01-01', endDate: '2026-12-31', currency: 'QAR', basis: 'IFRS' }],
-      comparatives: [{ id: '77777777-7777-4777-8777-777777777777', framework: 'IFRS', periodStart: '2025-01-01', periodEnd: '2025-12-31', currency: 'QAR', status: 'VALIDATED' }],
+      comparatives: [{ id: '77777777-7777-4777-8777-777777777777', engagementId: '55555555-5555-4555-8555-555555555555', framework: 'IFRS', periodStart: '2025-01-01', periodEnd: '2025-12-31', currency: 'QAR', basis: 'IFRS', status: 'VALIDATED' }],
     };
     for (const value of [
       null,

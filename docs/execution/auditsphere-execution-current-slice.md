@@ -30,6 +30,12 @@ This is partial technical support, not completion of T030 or CP-12. T029 canonic
 
 Partner decisions and release eligibility require the current assigned Engagement Partner and its linked exact engagement-scoped Partner grant. The review queue and financial-package workspace now use the same check before projecting Partner approval as available. The focused PostgreSQL regression passed, including assigned/unassigned positive and negative projections; broader CP-19 signatory, offline-evidence and recovery requirements remain open. Full suites are deferred to CI/CD.
 
+## Task 25 comparative increment — 2026-10-17
+
+Build choices expose validated same-client comparatives only after separate prior-engagement authorization. Cross-engagement builds require an earlier compatible period/book, then recheck grants, context and package revision/hash under the client lock; the snapshot identity enters the build hash. Angular labels engagement and basis.
+
+No local test cases were run per user instruction; test-assembly compilation stopped after the shared compiler exceeded 8 GB. Application Release, Angular production build and `git diff --check` passed (SDK 10.0.401; existing stylesheet budget warning). Task 25 remains partial: approved policy, as-issued/restated choice and full review acceptance remain open pending Task 20.
+
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
 ## CP-10 — period-scoped package freshness — 2026-10-17
