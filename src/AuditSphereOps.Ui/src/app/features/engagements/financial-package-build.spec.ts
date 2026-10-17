@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { SessionService } from '../../core/session';
 import {
   decodeBuildInputs, decodeBuildStatus, emptyBuildForm, emptyFxCashEffect, emptyEquityLine, emptyEquityTransfer, emptyMovement, emptyNoteLine,
-  formatMicro, isTerminalBuildStatus, movementProjection, queueButtonLabel, scheduleBlockers, toBuildRequest, BuildForm,
+  FinancialPackageBuild, formatMicro, isTerminalBuildStatus, movementProjection, queueButtonLabel, scheduleBlockers, toBuildRequest, BuildForm,
 } from './financial-package-build';
 
 const mapping = '11111111-1111-4111-8111-111111111111';
@@ -493,5 +499,105 @@ describe('financial package build status contract', () => {
       { ...completed, completedAt: 'not-a-timestamp' },
       { ...completed, packageId: 'not-a-guid' },
     ]) expect(() => decodeBuildStatus(value, 'build')).toThrow();
+  });
+});
+
+describe('financial package build status polling', () => {
+  const engagementId = '55555555-5555-4555-8555-555555555555';
+  const operationId = '88888888-8888-4888-8888-888888888888';
+  const otherOperationId = '99999999-9999-4999-8999-999999999999';
+  const otherEngagementId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    params = new BehaviorSubject(convertToParamMap({ id: engagementId }));
+    TestBed.configureTestingModule({
+      imports: [FinancialPackageBuild],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
+        { provide: ActivatedRoute, useValue: { paramMap: params } }],
+    });
+    TestBed.inject(SessionService).current.set({ userId: engagementId, firmId: engagementId, generation: '1', staff: true });
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    http.verify({ ignoreCancelled: true });
+    TestBed.resetTestingModule();
+    vi.useRealTimers();
+  });
+
+  function open() {
+    const fixture = TestBed.createComponent(FinancialPackageBuild);
+    fixture.detectChanges();
+    TestBed.tick();
+    http.expectOne(`/api/ui/engagements/${engagementId}/financial-package-inputs`).flush({
+      engagementId, mappings: [], plans: [], periods: [], comparatives: [],
+    });
+    TestBed.tick();
+    return { fixture, component: fixture.componentInstance };
+  }
+
+  it('lets a status read run past the poll interval and stops scheduling after completion', async () => {
+    const { fixture, component } = open();
+    component.queueBuildOperation(operationId);
+    TestBed.tick();
+    const statusUrl = `/api/ui/engagements/${engagementId}/financial-package-builds/${operationId}`;
+    const slowRead = http.expectOne(statusUrl);
+
+    await vi.advanceTimersByTimeAsync(3500);
+    TestBed.tick();
+    http.expectNone(statusUrl);
+    component.refreshBuildStatus();
+    http.expectNone(statusUrl);
+    expect(slowRead.cancelled).toBe(false);
+
+    slowRead.flush({
+      operationId, status: 'COMPLETED', attemptCount: 1, createdAt: '2026-10-14T12:00:00Z',
+      completedAt: '2026-10-14T12:00:05Z', packageId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    });
+    TestBed.tick();
+    expect(component.buildStatus.data()?.status).toBe('COMPLETED');
+    await vi.advanceTimersByTimeAsync(6000);
+    TestBed.tick();
+    http.expectNone(statusUrl);
+    fixture.destroy();
+  });
+
+  it('cancels an in-flight status read when its operation, engagement, or actor binding changes', () => {
+    const { fixture, component } = open();
+    component.queueBuildOperation(operationId);
+    TestBed.tick();
+    const oldOperation = http.expectOne(`/api/ui/engagements/${engagementId}/financial-package-builds/${operationId}`);
+
+    component.queueBuildOperation(otherOperationId);
+    TestBed.tick();
+    expect(oldOperation.cancelled).toBe(true);
+    const otherOperation = http.expectOne(`/api/ui/engagements/${engagementId}/financial-package-builds/${otherOperationId}`);
+
+    params.next(convertToParamMap({ id: otherEngagementId }));
+    TestBed.tick();
+    expect(otherOperation.cancelled).toBe(true);
+    http.expectOne(`/api/ui/engagements/${otherEngagementId}/financial-package-inputs`).flush({
+      engagementId: otherEngagementId, mappings: [], plans: [], periods: [], comparatives: [],
+    });
+    TestBed.tick();
+    expect(component.queued()).toBeNull();
+    http.expectNone((request) => request.url.includes('/financial-package-builds/'));
+    fixture.destroy();
+  });
+
+  it('cancels the operation read and clears its binding after the signed-in actor changes', () => {
+    const { fixture, component } = open();
+    component.queueBuildOperation(operationId);
+    TestBed.tick();
+    const pending = http.expectOne(`/api/ui/engagements/${engagementId}/financial-package-builds/${operationId}`);
+    TestBed.inject(SessionService).current.set({ userId: otherEngagementId, firmId: engagementId, generation: '1', staff: true });
+    TestBed.tick();
+    expect(pending.cancelled).toBe(true);
+    expect(component.queued()).toBeNull();
+    http.expectNone((request) => request.url.includes('/financial-package-builds/'));
+    fixture.destroy();
   });
 });

@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { arr, date, guid, instant, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { SessionService } from '../../core/session';
 import { decodeScheduleSources } from '../accounting/specialist-preparation';
 
 export const decodeBuildInputs = obj({
@@ -657,12 +658,12 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
               <h2>Build in progress</h2>
               <p>Operation <code>{{ id }}</code> is {{ state.status }} (attempt {{ state.attemptCount }}). The worker is processing it; this is not yet a built package.</p>
             }
-            <button matButton="outlined" type="button" (click)="buildStatus.reload()">Refresh build status</button>
+            <button matButton="outlined" type="button" (click)="refreshBuildStatus()">Refresh build status</button>
           } @else {
             <h2>Build queued</h2>
             <p>Operation <code>{{ id }}</code> is queued. The worker builds the package; a queued operation is not a built package.</p>
             @if (buildStatus.error()) { <p role="alert">Build status could not be refreshed. You can retry the status read.</p> }
-            <button matButton="outlined" type="button" (click)="buildStatus.reload()">Refresh build status</button>
+            <button matButton="outlined" type="button" (click)="refreshBuildStatus()">Refresh build status</button>
           }
         </section>
       }
@@ -672,8 +673,10 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
 })
 export class FinancialPackageBuild {
   private readonly api = inject(Api);
+  private readonly session = inject(SessionService);
   private readonly destroyRef = inject(DestroyRef);
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private buildBinding = '';
   readonly id = routeGuid();
   readonly inputs = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/financial-package-inputs` : null),
     decodeBuildInputs, 'The build inputs are not available in your current scope.');
@@ -684,7 +687,7 @@ export class FinancialPackageBuild {
   readonly buildStatus = this.api.resource(() => {
     const operationId = this.queued();
     const engagementId = this.id();
-    return operationId && engagementId
+    return operationId && engagementId && this.buildBinding === this.bindingKey(operationId)
       ? `/api/ui/engagements/${engagementId}/financial-package-builds/${operationId}`
       : null;
   }, decodeBuildStatus, 'The build status is unavailable in your current scope.');
@@ -698,22 +701,71 @@ export class FinancialPackageBuild {
 
   constructor() {
     effect(() => {
+      const operationId = this.queued();
+      const binding = operationId ? this.bindingKey(operationId) : '';
       const status = this.buildStatus.data()?.status;
-      if (!this.queued() || status && TERMINAL_BUILD_STATES.has(status)) this.stopPolling();
-      else this.startPolling();
+      const error = this.buildStatus.error();
+      const loading = this.buildStatus.loading();
+      if (!operationId) { this.stopPolling(); return; }
+      if (this.buildBinding !== binding) {
+        this.stopPolling();
+        this.buildBinding = '';
+        this.queued.set(null);
+        return;
+      }
+      if (status && TERMINAL_BUILD_STATES.has(status) || this.isDefiniteAccessLoss(error)) {
+        this.stopPolling();
+        return;
+      }
+      if (loading) this.stopPolling();
+      else this.schedulePoll();
     });
     this.destroyRef.onDestroy(() => this.stopPolling());
   }
 
-  private startPolling(): void {
+  private bindingKey(operationId: string): string {
+    const actor = this.session.current();
+    return [operationId, this.id() ?? '', actor?.firmId ?? '', actor?.userId ?? '', actor?.generation ?? '', this.session.invalidation()].join(':');
+  }
+
+  private isDefiniteAccessLoss(error: string): boolean {
+    return error === 'Your session ended. Sign in again.' || error === 'The build status is unavailable in your current scope.';
+  }
+
+  private schedulePoll(): void {
     if (this.pollTimer !== null) return;
-    this.pollTimer = setInterval(() => this.buildStatus.reload(), 3000);
+    const operationId = this.queued();
+    const binding = operationId ? this.bindingKey(operationId) : '';
+    if (!operationId || !binding || this.buildBinding !== binding || this.buildStatus.loading()) return;
+    this.pollTimer = setTimeout(() => {
+      this.pollTimer = null;
+      if (this.queued() !== operationId || this.bindingKey(operationId) !== binding || this.buildStatus.loading() ||
+          this.isTerminalBuildStatus(this.buildStatus.data()?.status ?? '') || this.isDefiniteAccessLoss(this.buildStatus.error())) return;
+      this.buildStatus.reload();
+    }, 3000);
   }
 
   private stopPolling(): void {
     if (this.pollTimer === null) return;
-    clearInterval(this.pollTimer);
+    clearTimeout(this.pollTimer);
     this.pollTimer = null;
+  }
+
+  private isTerminalBuildStatus(status: string): boolean {
+    return TERMINAL_BUILD_STATES.has(status as BuildStatus['status']);
+  }
+
+  queueBuildOperation(operationId: string): void {
+    this.stopPolling();
+    this.buildBinding = this.bindingKey(operationId);
+    this.queued.set(operationId);
+  }
+
+  refreshBuildStatus(): void {
+    if (this.buildStatus.loading() || this.isTerminalBuildStatus(this.buildStatus.data()?.status ?? '') ||
+        this.isDefiniteAccessLoss(this.buildStatus.error())) return;
+    this.stopPolling();
+    this.buildStatus.reload();
   }
   readonly sources = this.api.resource(() => {
     const periodId = this.chosenPeriod();
@@ -814,6 +866,6 @@ export class FinancialPackageBuild {
     this.formError.set('');
     const built = toBuildRequest(this.form);
     if ('error' in built) { this.formError.set(built.error); return; }
-    void this.cmd.run<string>('/api/ui/accounting/packages/builds', built.body, 'Package build queued.', (operation) => this.queued.set(operation));
+    void this.cmd.run<string>('/api/ui/accounting/packages/builds', built.body, 'Package build queued.', (operation) => this.queueBuildOperation(operation));
   }
 }
