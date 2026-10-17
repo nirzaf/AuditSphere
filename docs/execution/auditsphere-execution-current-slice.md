@@ -175,6 +175,8 @@ The synthetic browser journey passed 1/1: it completed the worker build, showed 
 
 This remains one CP-11 cash-flow build subpath, not completion of CP-11 or the attached story. The manual-evidenced path, equity/note source lineage, other required source/review paths and remaining CP-11 acceptance are still open. CP-12 is blocked on the approved indirect cash-flow policy reference and qualified interpretation of reviewed assessed-zero FX states; no accounting treatment is inferred here. Full Domain/API/E2E suites were not run locally; the exact-head CI focused cohorts passed.
 
+CP-11 retry fix `60f346d5`: predecessor-bound replay; focused PostgreSQL test 1/1. Exact-SHA release verification pending.
+
 Commit 83d3472d also repairs five Domain tests that failed on the prior master: four package-review fixtures now seed the canonical validation population, and the FX test numbers cross-cast to adjusted cash. The exact-head focused Domain cohort passed 141/141; the full Domain suite has not run on this commit.
 
 ## Accepted GL discovery for schedule preparation — 2026-10-14

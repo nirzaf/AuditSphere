@@ -31,6 +31,10 @@ The current result is **neither 100% complete nor merely waiting for a productio
 
 Evidence: compare metadata, shared evaluator, allocation/review services, manifest, frontend and exact CI definition/results. [H02] [R09] [R10] [R13] [R14] [R20] [R21] [R23] [CI01] [CI02]
 
+### CP-11 follow-up — bind the expected predecessor into review intent (2026-10-17)
+
+Commit `60f346d5` closes a retry-integrity gap in the source-review command: new request hashes bind the expected previous review ID along with decision, reason and reviewed-link digest. Reusing a request ID with a different predecessor now conflicts. Pre-existing v1 requests remain recoverable only when the supplied predecessor matches the predecessor stored with that decision. No migration was needed. The focused PostgreSQL regression `SourceReview_ReplayReturnsOriginalDecisionAndManifest` passed 1/1 on `60f346d5`; it covers exact replay after reload and changed-predecessor conflict. This closes only the expected-predecessor identity gap. Source-kind/provenance, manual-evidence policy, and CP-11/CP-12 acceptance remain open.
+
 ### Revalidation of cash-flow and statement findings — candidate `1ee3c0e7` (2026-10-17)
 
 The following dispositions supersede the baseline descriptions in F-01 through F-04 and F-06 only to the extent stated here. The unfiltered Domain suite and Angular full-spec job passed for this candidate; the unfiltered API and Playwright jobs were still running when this note was prepared. This is not an overall release or production-acceptance verdict.
@@ -101,17 +105,15 @@ Regression coverage includes customer collections and equipment outflows with wr
 
 This closes the original receipt/equipment sign contradiction and the counterparty-membership gap for the exercised accepted-GL contract. It does not approve the activity classification, indirect cash-flow methodology, manual-evidence provenance or assessed-zero states. Those remain open under F-05/CP-12 and CP-11; the synthetic activity codes are not professional policy evidence. Full Domain/API/E2E verification is left to current-SHA CI/CD.
 
-## F-02 — Independent source decisions have no original-intent or expected-review fence
+## F-02 — Source-review request identity and predecessor fencing implemented; provenance remains
 
-**P0 · SOURCE_CONFIRMED contract omission / race verification required · CP-11/CP-19/CP-25.**
+**Original P0 request/replay and post-lock authority gaps CLOSED in code; full source-provenance acceptance remains open · CP-11/CP-19/CP-25.**
 
-`RecordCashFlowSourceReviewAsync` takes package ID, decision and reason but no original request identity, expected review sequence or expected source/allocation manifest. Each successful call creates a new GUID/timestamp and appends a row. Its inspected API path delegates through `CommandAsync`, which resolves the actor and validates antiforgery but does not add an idempotency receipt or enclosing publication transaction. The migration protects updates/deletes, but does not give this command an original-intent uniqueness key. [R10] [R12] [R26]
+`RecordCashFlowSourceReviewAsync` now binds request ID to reviewer, normalized decision, reason, reviewed-link digest and expected previous review ID. It serializes decisions under the client/package/grant lock order, rechecks authority after locking, and appends an immutable decision. Exact retries recover the original decision; reusing the request ID with another payload or predecessor conflicts. Legacy v1 requests remain recoverable only when the supplied predecessor matches the predecessor persisted with the original decision. [R10] [R12] [R26]
 
-A repeated approval request can therefore create another decision rather than recover the original result. Because the presentation manifest includes exact review IDs and timestamps, this can change presentation identity and invalidate a pin even when a retry intended no new professional decision. The pre-write selected-source read is also not serialized with a concurrent source replacement/revocation in this method. These are source-level observations; adverse runtime tests must establish the precise reachable outcomes. [R10] [R13]
+Focused PostgreSQL regressions cover same-intent replay after reload, changed-payload/predecessor conflict, stale digest and predecessor, concurrent approve/return, and revocation while waiting for the package lock. `SourceReview_ReplayReturnsOriginalDecisionAndManifest` passed 1/1 on `60f346d5`. Full unfiltered release verification has not yet run on `60f346d5`; the active `60169c51` run is its parent and does not include this follow-up. [R10] [R13]
 
-**Required correction:** reuse the repository's actor-owned request receipt and expected-revision pattern. Bind package revision/generation, selected current/prior source identities, allocation-manifest digest and expected previous decision. Reauthorize and recheck them under the existing lock order inside the owned decision transaction. Replay of the same intent returns the original decision; a return or reapproval is a distinct reviewed intent. Reject changed payload on the same key. Preserve history.
-
-**Required tests:** lost reply and same-intent replay; same key/different decision; concurrent approve/return; changed accepted source between preview and commit; grant revocation while waiting for the lock; no duplicate review/hash change on recovery. Add appropriate source/actor/scope foreign-key or guarded-reference tests after checking all current configurations, not only the two new migrations.
+**Remaining:** this closes review-command intent/replay fencing, not source-kind completeness. Accepted GL is the implemented source kind. Authorized adjustment/specialist sources, policy-approved manual evidence, reference constraints and source replacement/rework through the full Angular workflow remain incomplete or approval-dependent. Source support review cannot approve cash-flow classification or the final report.
 
 ## F-03 — Period-scoped GL acceptance is implemented; full comparative acceptance remains
 
@@ -622,7 +624,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 1. Keep FinancialScheduleSourceQuery discovery, actual stored allocations, bound source hashes, independent review and the browser picker. Preserve the corrected ledger-sign versus cash-effect contract in F-01; extend it only when another accepted source kind requires distinct projection provenance.
 2. Introduce only missing source-kind/projection/provenance facts: accepted GL, authorized adjustment, reviewed reconciliation/specialist line and policy-permitted manual-evidenced document revision. Preserve original ledger signs and separately validate consumed magnitudes and role-specific contributions.
-3. Add original-intent receipt, expected allocation/source/review manifest and lock/recheck semantics to RecordCashFlowSourceReviewAsync. Same successful intent returns the original decision and does not alter v3.reviewed identity; a genuine new return/reapproval is append-only.
+3. **Review-intent fencing implemented** in `60f346d5`: `RecordCashFlowSourceReviewAsync` binds request ID to decision, reason, link digest and expected previous review ID; it reauthorizes/rechecks under the existing lock order. Exact retries recover the original append-only decision; a changed predecessor or payload conflicts. Remaining source-kind/provenance and submitted/returned schedule-editing work is separate.
 4. Prove all supporting references match the exact scope/period/book/currency and actual immutable source version. Audit current EF/migrations for missing source/actor references, post-creation insertion protection and immutable membership; add only required constraints with legacy handling.
 5. Complete submitted/returned/successor editing with source replacement and explicit independent approval. An uploaded manual workpaper requires verified bytes, method, accountable preparer and reviewer; a text label alone remains insufficient.
 6. Expose saved draft, contribution trace, independent review, conflicts and original-request recovery through the existing API/Angular surfaces. Allocation approval means source support only; it cannot select cash-flow policy or approve the final report.
