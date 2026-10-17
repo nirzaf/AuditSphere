@@ -10,12 +10,12 @@ component mapping alone does not establish behavior parity.
 
 | Legacy source | SHA-256 |
 |---|---|
-| `src/AuditSphereOps.Web/Components/Commercial/FeeAgreementPanel.razor` | `dfccebd75f46b426f0bde2c0a31e5e07514149a8886114e30046edb7b378df65` |
-| `src/AuditSphereOps.Web/Components/Commercial/ProposalWorkflowPanel.razor` | `48ce7b934d125e5a17dbd99f9985b156bfee527f2e2633a6c795ea24bcfec29f` |
-| `src/AuditSphereOps.Web/Components/Commercial/QuotationWorkbench.razor` | `0c67a30b6460eebe193831b2b7220d2f3527cf144ccebfc68ab0295a9376a259` |
-| `src/AuditSphereOps.Web/Components/Pages/CommercialSettings.razor` | `41fe4c7f57d95f08ed4fafe1927995d45e65d3725dab4b9938181125c0c5b4da` |
-| `src/AuditSphereOps.Web/Components/Pages/Leads.razor` | `e467a74d007de30e672b9123489363e4e98a61054ee5ae0b2048d698efa8867c` |
-| `src/AuditSphereOps.Web/Components/Pages/ProposalDetail.razor` | `952220975ed21b7af83b657ce2b307820bad300181b419b1469e8ebeaea55863` |
+| [src/AuditSphereOps.Web/Components/Commercial/FeeAgreementPanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Commercial/FeeAgreementPanel.razor) | `dfccebd75f46b426f0bde2c0a31e5e07514149a8886114e30046edb7b378df65` |
+| [src/AuditSphereOps.Web/Components/Commercial/ProposalWorkflowPanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Commercial/ProposalWorkflowPanel.razor) | `48ce7b934d125e5a17dbd99f9985b156bfee527f2e2633a6c795ea24bcfec29f` |
+| [src/AuditSphereOps.Web/Components/Commercial/QuotationWorkbench.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Commercial/QuotationWorkbench.razor) | `0c67a30b6460eebe193831b2b7220d2f3527cf144ccebfc68ab0295a9376a259` |
+| [src/AuditSphereOps.Web/Components/Pages/CommercialSettings.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/CommercialSettings.razor) | `41fe4c7f57d95f08ed4fafe1927995d45e65d3725dab4b9938181125c0c5b4da` |
+| [src/AuditSphereOps.Web/Components/Pages/Leads.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Leads.razor) | `e467a74d007de30e672b9123489363e4e98a61054ee5ae0b2048d698efa8867c` |
+| [src/AuditSphereOps.Web/Components/Pages/ProposalDetail.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/ProposalDetail.razor) | `952220975ed21b7af83b657ce2b307820bad300181b419b1469e8ebeaea55863` |
 
 ## Behavior and ownership mapping
 

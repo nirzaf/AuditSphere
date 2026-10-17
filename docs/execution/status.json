@@ -253,6 +253,27 @@
       "archivedTo": "docs/execution/status-archive-2026-10.json",
       "key": "targetedVerification.workflowExperiencePrH"
     },
+    "atomicBlazorRetirement": {
+      "result": "PARTIAL",
+      "source": "Owner-authorized retirement of the legacy Blazor rollback/reference host.",
+      "branch": "chore/retire-blazor-host",
+      "baseCommit": "c3905e078b44c84c5ec0ad4bbda6d11894acf42d",
+      "migration": "NONE",
+      "checks": {
+        "releaseBuild": "PASS: 0 warnings, 0 errors",
+        "apiTests": "PASS: 15/15 focused configuration, route-contract and API host tests",
+        "domainTests": "PASS: 3/3 architecture guards",
+        "docsHealth": "PASS",
+        "uiInventory": "PASS: retired source keeps the historical discovery inventory",
+        "retirementInventory": "PASS",
+        "gitDiffCheck": "PASS"
+      },
+      "notDone": [
+        "Review and merge of the removal branch",
+        "Full hosted CI/release verification",
+        "Production rollback/canary and external acceptance"
+      ]
+    },
     "sourceCommit": "61d6630895235789ff4c6622eb09c250f5791aa2",
     "recordedAtUtc": "2026-10-17T06:50:25Z",
     "runs": [

@@ -39,7 +39,6 @@ public sealed class FeeAgreementConfigurationTests
     var root = RepositoryRoot();
     var worker = Read(Path.Combine(root, "src", "AuditSphereOps.Worker", "appsettings.json"));
     Assert.Equal(worker, Read(Path.Combine(root, "src", "AuditSphereOps.Api", "appsettings.json")));
-    Assert.Equal(worker, Read(Path.Combine(root, "src", "AuditSphereOps.Web", "appsettings.json")));
 
     // The reporting host must read the declared value, not fall back to the absent-key default.
     var settings = new Dictionary<string, string?> { ["AutomaticFeeInvoices:Enabled"] = worker.Enabled ? "true" : "false" };

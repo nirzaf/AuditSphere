@@ -11,8 +11,8 @@ the Blazor retirement gate.
 
 | Legacy source | SHA-256 | Destination |
 |---|---|---|
-| `src/AuditSphereOps.Web/Components/Pages/Consolidation.razor` | `5a386619363b0ce4d6cde6c6abbf696d6f5d3b060a749bfb77592ae945cf2647` | US-027 |
-| `src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor` | `f4c9eea3e8c58e73b6882d663f65f160b2dcbeee059450dddc6dde37c3e6edc8` | US-028 |
+| [src/AuditSphereOps.Web/Components/Pages/Consolidation.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Consolidation.razor) | `5a386619363b0ce4d6cde6c6abbf696d6f5d3b060a749bfb77592ae945cf2647` | US-027 |
+| [src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/AdvancedConsolidationWorkflow.razor) | `f4c9eea3e8c58e73b6882d663f65f160b2dcbeee059450dddc6dde37c3e6edc8` | US-028 |
 
 ## Source-to-target behavior
 
@@ -39,5 +39,6 @@ the Blazor retirement gate.
 Both source-action records remain **PARTIAL**. The UTC label and explicit UI recovery gaps have been reconciled against the current implementation; exact run evidence is recorded in `status.json` under `targetedVerification.angularBlazorConsolidationGuardFollowUp`. Still required are field-by-field
 overview assertions, all-role and expired/cross-firm direct API matrices, every advanced workflow
 command's accepted/refused/stale/unknown recovery behavior, explicit paging/load bounds, assistive-technology and wider-locale acceptance, and production-like rollback and
-owner acceptance. The legacy Web project remains a reference/rollback host; retirement stays
+owner acceptance. The legacy Web project is retired on branch `chore/retire-blazor-host` by
+owner decision; this review's parity conclusion is unchanged and the canonical gate remains
 `NOT_READY`.

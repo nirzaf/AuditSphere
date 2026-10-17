@@ -9,9 +9,9 @@ All three legacy artifacts match the pinned discovery hashes:
 
 | Source artifact | SHA-256 |
 |---|---|
-| `src/AuditSphereOps.Web/Components/Pages/Completion.razor` | `b8236df8a8c196db794a970d6bbf88b1dd9335b2bd9cbd7fab55afe8c72b4bfb` |
-| `src/AuditSphereOps.Web/Components/Completion/CompletionDeliverablesPanel.razor` | `484ef2b7744ffb93bb0491dd930a8336c94647d6901dd2e3cf0e78b56a10a1ec` |
-| `src/AuditSphereOps.Web/Components/Completion/FileRecordsPanel.razor` | `6800cc22ec58491bc86172ac377fbcecb52925daca302d9affdf678b5b01b7c0` |
+| [src/AuditSphereOps.Web/Components/Pages/Completion.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Completion.razor) | `b8236df8a8c196db794a970d6bbf88b1dd9335b2bd9cbd7fab55afe8c72b4bfb` |
+| [src/AuditSphereOps.Web/Components/Completion/CompletionDeliverablesPanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Completion/CompletionDeliverablesPanel.razor) | `484ef2b7744ffb93bb0491dd930a8336c94647d6901dd2e3cf0e78b56a10a1ec` |
+| [src/AuditSphereOps.Web/Components/Completion/FileRecordsPanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Completion/FileRecordsPanel.razor) | `6800cc22ec58491bc86172ac377fbcecb52925daca302d9affdf678b5b01b7c0` |
 
 ## Action mapping
 

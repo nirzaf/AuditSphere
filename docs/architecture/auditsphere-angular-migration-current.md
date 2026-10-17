@@ -1,8 +1,8 @@
 # AuditSphere Angular presentation migration
 
-**Status: CURRENT for implemented API/Angular boundaries; local owner-approved route cutover is complete; full migration acceptance remains PARTIAL.**
+**Status: CURRENT for implemented API/Angular boundaries; local owner-approved route cutover is complete; full migration acceptance remains PARTIAL. The owner authorized Blazor retirement on 2026-10-17; the branch removal is prepared for review and is not merged.**
 
-The owner requested implementation of the attached Blazor-to-Angular guide. Angular replaces presentation incrementally. The .NET modular monolith remains the capability, session and database authority. Angular owns canonical API routes. Commit `59387b54` physically removed the Web host before all behavior and operational gates passed; the source and solution project have now been restored from its parent snapshot as a buildable rollback/reference host. The migration removal gate remains `NOT_READY`. Production deployment, canary, assistive-technology and live Microsoft gates remain separate acceptance work.
+The owner requested implementation of the attached Blazor-to-Angular guide. Angular replaces presentation incrementally. The .NET modular monolith remains the capability, session and database authority. Angular owns canonical API routes. Commit `59387b54` physically removed the Web host before all behavior and operational gates passed; the source and solution project were restored from its parent snapshot as a buildable rollback/reference host. On 2026-10-17 the owner authorized retirement despite the removal gate remaining `NOT_READY`; the removal is prepared on branch `chore/retire-blazor-host` for review and is not merged to `master`. The authorization does not establish parity, operational rollback or production acceptance. Sections below describe the state when written; this decision supersedes statements that the host is retained or that removal is blocked. Production deployment, canary, assistive-technology and live Microsoft gates remain separate acceptance work.
 
 ## API and Angular project boundary
 
@@ -821,8 +821,9 @@ It carries the exact source/mapping basis, checks revision and bounds on the ser
 protects text against spreadsheet formulas. It does not issue a financial package, record
 a professional conclusion or grant source/mapping approval. Complete migration acceptance,
 production-like performance and deployment rollback readiness remain open. The local route
-cutover does not establish rollback readiness; the Web rollback source is restored but has not
-passed an operational rollback exercise, and the retirement gate remains `NOT_READY`.
+cutover does not establish rollback readiness; the Web rollback source was restored before the
+owner-authorized branch removal but has not passed an operational rollback exercise, and the
+retirement gate remains `NOT_READY`.
 
 ### Native journal revision lifecycle
 
@@ -853,8 +854,9 @@ The additive action-evidence migration and returned-line guard are exercised onl
 databases. Rollback refuses deletion of retained action evidence. Native creation is described
 below. Native management response is described below. Reflection/application controls, broader
 accounting parity and production-like acceptance remain open. The route cutover does not
-establish rollback readiness; the Web rollback source is restored but has not passed an
-operational rollback exercise, and the retirement gate remains `NOT_READY`. Executed verification lives in `status.json`.
+establish rollback readiness; the Web rollback source was restored before the owner-authorized
+branch removal but has not passed an operational rollback exercise, and the retirement gate
+remains `NOT_READY`. Executed verification lives in `status.json`.
 
 ### Native journal creation
 

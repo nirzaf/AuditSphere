@@ -6,7 +6,7 @@
 ## Source and replacement
 
 The reviewed source is
-`src/AuditSphereOps.Web/Components/Pages/Operations.razor`, route
+[src/AuditSphereOps.Web/Components/Pages/Operations.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Operations.razor), route
 `/app/operations`. Its Angular replacement is `/app/operations` and
 `/ui/app/operations` in `src/AuditSphereOps.Ui/src/app/features/admin/operations.ts`.
 The same-origin API projection and commands are in

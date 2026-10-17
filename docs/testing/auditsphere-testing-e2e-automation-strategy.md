@@ -20,7 +20,7 @@ The API and Playwright projects and the active CI workflow are implemented local
 |---|---|
 | Domain and Application | Deterministic calculations, policies, commands and durable-operation contracts; see [Domain](../../src/AuditSphereOps.Domain) and [Application](../../src/AuditSphereOps.Application). |
 | Infrastructure | EF Core/Npgsql, real PostgreSQL migrations, scoped persistence, provider boundaries and local durable operations; see [Infrastructure](../../src/AuditSphereOps.Infrastructure). |
-| Web | Real Blazor Interactive Server circuits, cookie/OIDC configuration, scoped commands, PBC HTTP transfer endpoints, readiness; does not execute queued provider effects. See [Web startup](../../src/AuditSphereOps.Web/Program.cs). |
+| Legacy Web (retired) | Historical Blazor Interactive Server host, retained only at the pinned source snapshot for migration evidence. The owner authorized removal on 2026-10-17; removal is prepared on branch `chore/retire-blazor-host` for review. It is not a current test host or route owner. |
 | Worker | Claims durable work with firm/group/epoch fencing; calculates/renders packages and executes explicitly allowed local adapters. See [Worker startup](../../src/AuditSphereOps.Worker/Program.cs). |
 | PostgreSQL | Business state, append-only evidence, outbox, leases and migration history. PostgreSQL behavior cannot be replaced with EF InMemory/SQLite for integration assertions. |
 | Local storage | PBC staging, simulated provider effects and content-addressed release checkpoints; defaults are shared temporary roots, so future automated scenarios must override them. |
@@ -95,7 +95,7 @@ These lifecycle controls are proposed; the current browser launcher is not suita
 
 ## 4. Environment configuration
 
-Exact existing application keys are sourced from [Web settings](../../src/AuditSphereOps.Web/appsettings.json), [Web startup](../../src/AuditSphereOps.Web/Program.cs), [Worker settings](../../src/AuditSphereOps.Worker/appsettings.json), and [Worker startup](../../src/AuditSphereOps.Worker/Program.cs). Double underscores below are environment-variable hierarchy separators. Do not inherit local user secrets or launch profiles into CI.
+Exact existing application keys are sourced from [API settings](../../src/AuditSphereOps.Api/appsettings.json), [API startup](../../src/AuditSphereOps.Api/Program.cs), [Worker settings](../../src/AuditSphereOps.Worker/appsettings.json), and [Worker startup](../../src/AuditSphereOps.Worker/Program.cs). Double underscores below are environment-variable hierarchy separators. Do not inherit local user secrets or launch profiles into CI.
 
 | Setting | Development/manual | Test API/E2E | Ordinary CI | Authorized Acceptance |
 |---|---|---|---|---|
@@ -142,7 +142,7 @@ dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release 
   --logger 'trx;LogFileName=full-suite.trx' --results-directory TestResults/local \
   --collect:"XPlat Code Coverage"
 dotnet ef migrations has-pending-model-changes \
-  --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Web \
+  --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api \
   --no-build --configuration Release
 ```
 
@@ -168,7 +168,7 @@ Run EF database update only against an explicitly authorized disposable readines
 ```bash
 export AUDITSPHERE_EF_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=postgres'
 dotnet ef database update --project src/AuditSphereOps.Infrastructure \
-  --startup-project src/AuditSphereOps.Web --no-build --configuration Release
+  --startup-project src/AuditSphereOps.Api --no-build --configuration Release
 ```
 
 The [restore drill](../../scripts/db/restore-drill.sh) is a separate mutating rehearsal, not a prerequisite for reading these docs. It dumps fixed local `auditsphere` into a generated restore DB and compares migrations/checkpoint/accounting/group identities. Scheduled CI must provide an isolated populated **synthetic** `auditsphere` source plus compatible native PG18 tools, and set `AUDITSPHERE_EVIDENCE_FILE` to an artifact path. Its version query does not enforce exact 18.6, and missing tools currently return 1. It was not rerun here. Do not run it against developer data merely to validate examples; local restore is not production RPO/RTO or separate-custody proof.
@@ -247,9 +247,9 @@ jobs:
         run: |
           set -euo pipefail
           dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure \
-            --startup-project src/AuditSphereOps.Web --no-build --configuration Release
+            --startup-project src/AuditSphereOps.Api --no-build --configuration Release
           dotnet ef database update --project src/AuditSphereOps.Infrastructure \
-            --startup-project src/AuditSphereOps.Web --no-build --configuration Release
+            --startup-project src/AuditSphereOps.Api --no-build --configuration Release
       - name: Discover the entire suite
         run: |
           set -euo pipefail
@@ -303,22 +303,22 @@ jobs:
           for report in coverage:
               read_report(report)
           PY
-      - name: Readiness smoke on an owned Web process
+      - name: Readiness smoke on an owned API process
         run: |
           set -euo pipefail
-          dotnet run --project src/AuditSphereOps.Web --no-launch-profile --no-build \
+          dotnet run --project src/AuditSphereOps.Api --no-launch-profile --no-build \
             --no-restore --configuration Release --urls http://127.0.0.1:5099 \
-            > artifacts/baseline/web.log 2>&1 &
-          web_pid=$!
+            > artifacts/baseline/api.log 2>&1 &
+          api_pid=$!
           cleanup() {
-            kill "$web_pid" 2>/dev/null || true
-            wait "$web_pid" 2>/dev/null || true
+            kill "$api_pid" 2>/dev/null || true
+            wait "$api_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
           trap 'exit 130' INT
           trap 'exit 143' TERM
           for attempt in {1..60}; do
-            kill -0 "$web_pid" || exit 1
+            kill -0 "$api_pid" || exit 1
             if curl --fail --silent --max-time 2 http://127.0.0.1:5099/health/ready \
               > artifacts/baseline/readiness.txt; then
               grep -q '^Healthy$' artifacts/baseline/readiness.txt && exit 0

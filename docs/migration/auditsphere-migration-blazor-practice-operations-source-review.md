@@ -11,10 +11,10 @@ behavior parity.
 
 | Legacy source | SHA-256 |
 |---|---|
-| `src/AuditSphereOps.Web/Components/Pages/PracticeTime.razor` | `874c2f2ba3c333aa20f5fefb426273b232b42e082fffe4212552e6aee6d38f17` |
-| `src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor` | `f18185fa9b719b8166a73cefcb1cec8cffdd3341b2d4c6a2901c0359ec7018f9` |
-| `src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor` | `4380115c3ae65676877d0b1949134632e64e171b2f075fa483041b257ef345dd` |
-| `src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor` | `9d272c9e265539b83bb9f963f826c88b3c95fd18d41c20f308e5fd5d18cefa4e` |
+| [src/AuditSphereOps.Web/Components/Pages/PracticeTime.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/PracticeTime.razor) | `874c2f2ba3c333aa20f5fefb426273b232b42e082fffe4212552e6aee6d38f17` |
+| [src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/PracticeAnalytics.razor) | `f18185fa9b719b8166a73cefcb1cec8cffdd3341b2d4c6a2901c0359ec7018f9` |
+| [src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/ProjectProgress.razor) | `4380115c3ae65676877d0b1949134632e64e171b2f075fa483041b257ef345dd` |
+| [src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/TechnicalLibrary.razor) | `9d272c9e265539b83bb9f963f826c88b3c95fd18d41c20f308e5fd5d18cefa4e` |
 
 ## Behavior and ownership mapping
 

@@ -11,8 +11,8 @@ endpoints, and Application-owned queries/services.
 
 | Legacy source | SHA-256 | Angular route and owners |
 | --- | --- | --- |
-| `src/AuditSphereOps.Web/Components/Pages/StatementDrillDown.razor` | `46baaa347796678dcf0db48c7a1df302ede8617f41ab77e79d751dde17b8ed6d` | `/app/engagements/:id/statements` and `/ui/app/...`; `features/engagements/statements.ts`, `statements.html`, `statement-contracts.ts`; `UiEndpoints.Statements.cs` and the Financial Statement workspace/query services |
-| `src/AuditSphereOps.Web/Components/Pages/TrialBalanceIntake.razor` | `9ce8e72f08428d511de9930313692969d75fcfe5cedfb9e641a554f2693cd551` | `/app/engagements/:id/tb-intake` and `/ui/app/...`; `features/engagements/tb-intake.ts`, `tb-upload.ts`, `tb-source.ts`, `currency-review.ts`; trial-balance intake, source, mapping-memory and currency-review API/Application owners |
+| [src/AuditSphereOps.Web/Components/Pages/StatementDrillDown.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/StatementDrillDown.razor) | `46baaa347796678dcf0db48c7a1df302ede8617f41ab77e79d751dde17b8ed6d` | `/app/engagements/:id/statements` and `/ui/app/...`; `features/engagements/statements.ts`, `statements.html`, `statement-contracts.ts`; `UiEndpoints.Statements.cs` and the Financial Statement workspace/query services |
+| [src/AuditSphereOps.Web/Components/Pages/TrialBalanceIntake.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/TrialBalanceIntake.razor) | `9ce8e72f08428d511de9930313692969d75fcfe5cedfb9e641a554f2693cd551` | `/app/engagements/:id/tb-intake` and `/ui/app/...`; `features/engagements/tb-intake.ts`, `tb-upload.ts`, `tb-source.ts`, `currency-review.ts`; trial-balance intake, source, mapping-memory and currency-review API/Application owners |
 
 ## Parity observed
 

@@ -1,6 +1,6 @@
 # AuditSphere Angular UI
 
-`AuditSphereOps.Api` is the ASP.NET Core backend; `AuditSphereOps.Ui` is the Angular frontend. Domain/Application/Infrastructure/Worker remain unchanged in responsibility. Native Angular routes cover practice, accounting, audit, completion, administration and the client portal; broader source-action parity and production acceptance remain open. `AuditSphereOps.Web` is retained in the solution as a buildable rollback/reference host after a premature physical deletion. The retirement decision remains `NOT_READY`; source presence and buildability do not establish operational rollback acceptance.
+`AuditSphereOps.Api` is the ASP.NET Core backend; `AuditSphereOps.Ui` is the Angular frontend. Domain/Application/Infrastructure/Worker remain unchanged in responsibility. Native Angular routes cover practice, accounting, audit, completion, administration and the client portal; broader source-action parity and production acceptance remain open. On 2026-10-17 the owner authorized retirement of the Blazor rollback/reference host; removal is prepared on branch `chore/retire-blazor-host` for review, and `master` retains the host until that review concludes. Retirement authorization does not establish operational rollback or migration acceptance.
 
 ## Build and verify
 
@@ -46,7 +46,7 @@ Supply `Setup:FirmId`, `Setup:InstallationId`, `Setup:BootstrapProofHash`, `Setu
 4. Open Administration → Microsoft 365 → Tenant connection. If the deployment tenant has not been prepared, review its configured identity and prepare the current setup revision. This creates a connection revision requiring Microsoft consent; it does not assert consent or selected-site verification.
 5. Follow the configured Microsoft consent flow and verify each capability separately. Missing deployment credentials, consent or selected-site grants remain blocked.
 
-A lost bootstrap/preparation response requires a fresh sign-in or refresh and review of persisted state before another write. These local tests do not establish live Microsoft authentication/consent acceptance. The API-only test host is not an operator setup route. The separate `AuditSphereOps.Web` rollback/reference project is retained in the solution while migration acceptance remains open.
+A lost bootstrap/preparation response requires a fresh sign-in or refresh and review of persisted state before another write. These local tests do not establish live Microsoft authentication/consent acceptance. The API-only test host is not an operator setup route. The separate Blazor rollback/reference project is retired on branch `chore/retire-blazor-host`; `master` retains it pending review.
 
 ### Optional Microsoft administration
 
@@ -100,13 +100,12 @@ canary or owner acceptance.
 
 ## Legacy Presentation Host Status
 
-`AuditSphereOps.Web` remains in the solution as a buildable Blazor rollback/reference
-host while the canonical readiness gate is `NOT_READY`. The API does not reference it
-and continues to serve the current Angular UI. No production-like rollback exercise
-has been accepted. The Web host is available to isolated `Test` runs. Development
-configuration enables it for local inspection; other environments require the explicit
-`LegacyPresentation:Enabled=true` setting in the approved host configuration. This
-setting permits startup only; it does not prove OIDC callback, route-switch, data
+The owner authorized retirement of the Blazor rollback/reference host on 2026-10-17.
+The removal is prepared on branch `chore/retire-blazor-host` for review; `master`
+retains the host until that review concludes. The removed source remains available
+at commit `c3905e07`. The API does not reference the retired project and continues
+to serve the current Angular UI. No production-like rollback exercise has been
+accepted; owner authorization does not prove OIDC callback, route-switch, data
 compatibility, or production rollback acceptance. The API host remains the normal
 Angular route owner.
 

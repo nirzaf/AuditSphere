@@ -1,6 +1,8 @@
 # AuditSphere — Blazor Retirement Stop-Gate Report
 
-**Recommendation: `NOT_READY`. STOP.** Commit `59387b54` physically removed `src/AuditSphereOps.Web`, Razor UI files, and MudBlazor before the source-by-source behavior audit and removal gates passed. The rollback project/source has now been restored from its parent snapshot and builds in the Release solution. That restores a code path, not an accepted production rollback or completed migration.
+**Recommendation: `NOT_READY`. STOP.** Commit `59387b54` physically removed [src/AuditSphereOps.Web](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web), Razor UI files, and MudBlazor before the source-by-source behavior audit and removal gates passed. The rollback project/source has now been restored from its parent snapshot and builds in the Release solution. That restores a code path, not an accepted production rollback or completed migration.
+
+> **Later owner decision (2026-10-17):** The owner authorized physical retirement of the Blazor rollback/reference host despite this `NOT_READY` recommendation. The removal is prepared on branch `chore/retire-blazor-host` for review and is not merged to `master`; this report remains the historical stop-gate record. The authorization accepts the open parity and rollback risk and does not establish production rollback, parity or external acceptance.
 
 This report is the requested pre-removal report. It records the actual blockers and does not propose or perform a deletion. Current verification is centralized in [`docs/execution/status.json`](../execution/status.json), under `targetedVerification`. The original inventory baseline is preserved in the [execution archive](../execution/status-archive-2026-10.json), under `keys.verification.angularBlazorMigrationBaselineAndFocusedRouteResourceVerification.inventory`; it does not establish current-tree acceptance.
 
@@ -20,10 +22,10 @@ This report is the requested pre-removal report. It records the actual blockers 
 | MudBlazor dependencies | MudBlazor is present only in the restored rollback Web project. It is excluded from API composition and API-only test references. This is not accepted retirement. |
 | Other Blazor dependencies | `AuditSphereOps.Web` is present in the solution as a rollback/reference host, while API.Tests and E2E.Tests do not reference it. Production API composition does not reference Web. |
 | Remaining project references | Current API.Tests and E2E.Tests project files reference Api directly and do not reference Web. The route/source scan and deleted test assertions still need evidence-based replacement or approved retirement. |
-| Remaining Razor files | The restored Razor host and component tree remain in `src/AuditSphereOps.Web` for rollback/reference during open acceptance. |
+| Remaining Razor files | The restored Razor host and component tree remain in [src/AuditSphereOps.Web](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web) for rollback/reference during open acceptance. |
 | Remaining legacy route references | The source route templates and declared Angular/API owners are in the route matrix; selected legacy route references also remain in migration tests and source scanners. |
 | External blockers | Production/canary and rollback acceptance; real assistive-technology walkthrough; wider locale acceptance; live Microsoft 365 consent and selected-resource checks. These remain `BLOCKED_EXTERNAL` where recorded. |
-| Final recommendation | **`NOT_READY` — physical removal occurred prematurely; do not accept retirement.** |
+| Final recommendation | **`NOT_READY` on parity grounds — physical removal occurred prematurely. The owner subsequently authorized removal on 2026-10-17; the branch removal is prepared for review and is not parity or rollback acceptance.** |
 
 ## Evidence boundary
 

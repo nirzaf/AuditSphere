@@ -1,7 +1,7 @@
 # Blazor Client Portal Home Source Review
 
 **Status:** PARTIAL
-**Legacy source:** `src/AuditSphereOps.Web/Components/Pages/ClientPortal.razor`
+**Legacy source:** [src/AuditSphereOps.Web/Components/Pages/ClientPortal.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/ClientPortal.razor)
 **Pinned SHA-256:** `32f612c79034a468ae097e055a9b0554036cc500c28fdaa6036803c69fbe76d1`
 
 ## Replacement and behavior

@@ -2,6 +2,8 @@
 
 **Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
+> **Amendment (2026-10-17):** The owner authorized physical retirement of the Blazor rollback/reference host despite the canonical readiness gate remaining `NOT_READY`. Removal is prepared on branch `chore/retire-blazor-host` for review. This ADR remains the historical decision; its parity and rollback conditions are not claimed as met.
+
 ## Context
 The STE specification header names "Blazor Interactive Server" as the presentation technology. The owner later requested an Angular presentation layer served by `AuditSphereOps.Api`. The Web project was deleted prematurely in `59387b54`, then restored because source-action parity and retirement acceptance were still open (see `docs/architecture/auditsphere-angular-migration-current.md`).
 

@@ -53,7 +53,7 @@ of the earlier revision, not a pass for the correction.
 
 ## Legacy behavior and Angular ownership
 
-The legacy page at `src/AuditSphereOps.Web/Components/Pages/Workpaper.razor`
+The legacy page at [src/AuditSphereOps.Web/Components/Pages/Workpaper.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Workpaper.razor)
 owns `/app/audit/workpapers/{Id:guid}`. It presents workpaper details, the
 planned-procedure link, frozen submission history, a working draft editor, and
 separate submitted-snapshot content. For a working paper it supports save,

@@ -256,7 +256,7 @@ The following findings come from reads at the pinned checkpoint. Reinspect the c
 
 |---|---|---|
 
-| `src/AuditSphereOps.Web/Program.cs` | Tenant-specific OIDC; raw `tid`/`oid` checks; identity-only scopes; configuration currently detects a client secret; live external composition explicitly refuses startup. | Extend the supported authentication/composition path. A flag change alone is not an integration. |
+| `src/AuditSphereOps.Api/ApiHost.Authentication.cs` (current); the retired Web host's Program.cs remains at the pinned source commit | Tenant-specific OIDC; raw `tid`/`oid` checks; identity-only scopes; configuration currently detects a client secret; live external composition explicitly refuses startup. | Extend the supported authentication/composition path. A flag change alone is not an integration. |
 
 | `Application/Microsoft365/Microsoft365OnboardingService.cs` | Hashed bootstrap proof, expiring capability and resumable setup draft; explicitly local-only. | Reuse; bind bootstrap to the approved first administrator and add real verification. |
 
@@ -1084,7 +1084,7 @@ One parent story; split into small dependency-ordered pull requests where needed
 
 ### Expected code touchpoints
 
-- `src/AuditSphereOps.Web/Program.cs` and current authentication/actor resolvers.
+- `src/AuditSphereOps.Api/ApiHost.Authentication.cs` and the current authentication/actor resolvers; the retired Web host's Program.cs remains at the pinned source commit.
 
 - Existing Microsoft 365 setup and administration screens; add/reuse a users/access page.
 
@@ -1306,7 +1306,7 @@ Work in dependency-ordered small branches/PRs. Test local behavior with PostgreS
 
 - [R01 — AGENTS.md](https://github.com/nirzaf/AuditSphere/blob/0f9f10c63c8f5f97aca50546b6f0c36895b5a5e1/AGENTS.md): stack, scope and Graph safety rules.
 
-- [R02 — Web Program.cs](https://github.com/nirzaf/AuditSphere/blob/0f9f10c63c8f5f97aca50546b6f0c36895b5a5e1/src/AuditSphereOps.Web/Program.cs): current OIDC and live-composition boundary.
+- [R02 — retired Web Program.cs](https://github.com/nirzaf/AuditSphere/blob/0f9f10c63c8f5f97aca50546b6f0c36895b5a5e1/src/AuditSphereOps.Web/Program.cs): historical OIDC and live-composition boundary, preserved at a pinned source commit.
 
 - [R03 — Microsoft365OnboardingService.cs](https://github.com/nirzaf/AuditSphere/blob/0f9f10c63c8f5f97aca50546b6f0c36895b5a5e1/src/AuditSphereOps.Application/Microsoft365/Microsoft365OnboardingService.cs): bootstrap and draft service.
 

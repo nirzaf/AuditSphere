@@ -10,9 +10,9 @@ mapping alone does not establish complete behavior parity.
 
 | Legacy source | SHA-256 |
 |---|---|
-| `src/AuditSphereOps.Web/Components/Pages/ResourcePlanning.razor` | `2e6a2c726afddea68a3421ba8eecc120c9f76ed56068777b190103c4a24f2d2d` |
-| `src/AuditSphereOps.Web/Components/Planning/EngagementBudgetPanel.razor` | `393025cf803dcb464e08347b155386ed673e569a959246cb86312448a5ba2171` |
-| `src/AuditSphereOps.Web/Components/Planning/EngagementStaffingPanel.razor` | `d248a8852cc21ef06c7c80cd4e5227ede0e9b1963620ceb9b1208bc236255cea` |
+| [src/AuditSphereOps.Web/Components/Pages/ResourcePlanning.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/ResourcePlanning.razor) | `2e6a2c726afddea68a3421ba8eecc120c9f76ed56068777b190103c4a24f2d2d` |
+| [src/AuditSphereOps.Web/Components/Planning/EngagementBudgetPanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Planning/EngagementBudgetPanel.razor) | `393025cf803dcb464e08347b155386ed673e569a959246cb86312448a5ba2171` |
+| [src/AuditSphereOps.Web/Components/Planning/EngagementStaffingPanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Planning/EngagementStaffingPanel.razor) | `d248a8852cc21ef06c7c80cd4e5227ede0e9b1963620ceb9b1208bc236255cea` |
 
 ## Behavior and ownership mapping
 

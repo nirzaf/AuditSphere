@@ -7,7 +7,7 @@
 
 ## Legacy behavior and Angular ownership
 
-The legacy page at `src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor`
+The legacy page at [src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/ReviewPoint.razor)
 owns `/app/reviews/{Id:guid}`. It shows the target kind and ID, target revision,
 raiser, timestamp, significance and gate status, comment, and links back to the
 engagement and completion checklist. Significant uncleared points are marked as
@@ -90,7 +90,8 @@ that retained component.
 Screen-reader, broader locale, full authorization-program and operational
 retirement acceptance remain separate global gates. They are not inferred from
 this source-row review. The source row remains `PARTIAL` pending current runtime
-evidence; the Web project remains while the canonical gate is `NOT_READY`.
+evidence; the Web project is retired on branch `chore/retire-blazor-host` while the canonical
+parity gate remains `NOT_READY`.
 
 ## Hosted verification attribution
 

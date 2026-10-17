@@ -2,6 +2,8 @@
 
 > **Status: PARTIAL.** This register groups the current migration backlog by business area. Backlog completion is implementation tracking, not proof that every Blazor source action, role rule, error path, and recovery behavior has equivalent Angular/API evidence. The generated source inventory remains discovery-only.
 
+> **Owner decision (2026-10-17):** The owner authorized physical retirement of the Blazor host despite the open parity and operational gates. The removal is prepared on branch `chore/retire-blazor-host` for review and is not merged. Parity conclusions below are unchanged; authorization is not parity or rollback acceptance.
+
 The authoritative story-level state is [`docs/execution/angular-migration-backlog.json`](../execution/angular-migration-backlog.json); observed test and external-gate evidence is in [`docs/execution/status.json`](../execution/status.json). Do not promote a family to `PARITY_VERIFIED` from route presence or a component name.
 
 | Feature family | Representative Blazor sources | Angular/API candidates | Backlog stories | Story state | Source-level parity |

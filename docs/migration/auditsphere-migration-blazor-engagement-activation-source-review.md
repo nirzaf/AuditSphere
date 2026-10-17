@@ -1,13 +1,13 @@
 # Angular migration source review — engagement activation
 
-**Status:** PARTIAL_REVIEWED  
-**Source reviewed against code:** `147ac2a02675b9c65ec43be520c76bc27837a167`  
-**Verification run at repository head:** `836ab6a63b6025761ae36efbdbd387b0ff4a3af1`  
+**Status:** PARTIAL_REVIEWED
+**Source reviewed against code:** `147ac2a02675b9c65ec43be520c76bc27837a167`
+**Verification run at repository head:** `836ab6a63b6025761ae36efbdbd387b0ff4a3af1`
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
 The legacy activation panel hash matches the pinned discovery snapshot:
 
-`src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor`  
+[src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Acceptance/EngagementActivationPanel.razor)
 SHA-256: `bb9e2db0ac4ab10da2a12bd45dddd2f722ae16e17aa685023b15c6902179a40d`
 
 ## Action mapping

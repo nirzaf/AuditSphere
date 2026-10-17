@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 
 
@@ -23,6 +24,11 @@ ALLOWED_DISPOSITIONS = {"PARITY_VERIFIED", "PARTIAL", "INTENTIONALLY_RETIRED"}
 def cell(value: object) -> str:
     text = str(value).replace("|", "\\|").replace("\n", " ").strip()
     return text or "—"
+
+
+def source_link(path: str, commit: str) -> str:
+    """Link retired source to the exact pinned snapshot instead of a live worktree path."""
+    return f"[{path}](https://github.com/nirzaf/AuditSphere/blob/{commit}/{path})"
 
 
 def joined(values: list[str], limit: int = 5) -> str:
@@ -174,6 +180,9 @@ def render() -> str:
     items = source["items"]
     reviews = reviewed_sources(items)
     files, snapshot = source_files(source, items)
+    retired = not WEB.is_dir()
+    link_commit = snapshot if re.fullmatch(r"[0-9a-f]{40}", str(snapshot)) else subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     discovered = {item["source"] for item in items}
     missing = discovered - set(files)
     if missing:
@@ -192,6 +201,7 @@ def render() -> str:
         "## Observed inventory",
         "",
         f"- The non-generated Web file list is enumerated below from `{snapshot}`.",
+        *(["- The Web source is retired at HEAD; artifact links below resolve at the pinned snapshot and are historical evidence, not live files."] if retired else []),
         "- Razor route/action files are listed with their scanner-derived hints.",
         "- Exact source and route totals are maintained in `docs/execution/status.json`.",
         "- Source discovery drift is separately checked by `python3 scripts/ui/inventory.py --check`.",
@@ -218,7 +228,7 @@ def render() -> str:
                 map(
                     cell,
                     [
-                        f"`{item['source']}`",
+                        source_link(str(item["source"]), link_commit),
                         route,
                         feature,
                         actions,
@@ -243,7 +253,7 @@ def render() -> str:
         suffix = Path(path).suffix or "(no extension)"
         review = support_reviews.get(path)
         review_status = f"[`{review['disposition']}`]({review['evidence']})" if review else "`NOT_ANALYZED`"
-        lines.append(f"| `{path}` | {cell(suffix)} | {review_status} |")
+        lines.append(f"| {source_link(path, link_commit)} | {cell(suffix)} | {review_status} |")
 
     lines += [
         "",

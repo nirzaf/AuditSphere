@@ -3,6 +3,15 @@ import json, re, subprocess, hashlib, sys
 from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 items = []
+web_components = root / 'src/AuditSphereOps.Web/Components'
+# The legacy Blazor source was retired by owner decision. Keep the last discovery
+# snapshot as migration evidence instead of rewriting it to an empty inventory.
+if not web_components.is_dir():
+    if '--check' in sys.argv:
+        print('PASS: legacy Blazor source is retired; historical discovery inventory is retained.')
+        raise SystemExit(0)
+    print('Legacy Blazor source is retired; historical discovery inventory is retained.')
+    raise SystemExit(0)
 
 def destination(path, routes):
     name = path.stem.lower()
@@ -45,7 +54,7 @@ def destination(path, routes):
             return {'feature': feature, 'story': story, 'status': 'PROPOSED_PENDING_PARITY_REVIEW'}
     return {'feature': 'shell/shared', 'story': 'US-005', 'status': 'PROPOSED_PENDING_PARITY_REVIEW'}
 
-for path in sorted((root / 'src/AuditSphereOps.Web/Components').rglob('*.razor')):
+for path in sorted(web_components.rglob('*.razor')):
     source = path.read_text()
     routes = re.findall(r'@page\s+"([^"]+)"', source)
     events = sorted(set(re.findall(r'(?:OnClick|OnSubmit|OnValidSubmit|@onclick|@onsubmit)\s*=\s*"([^"]+)"', source)))

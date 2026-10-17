@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Blazor rollback host retirement — owner-authorized branch — 2026-10-17
+
+The owner authorized physical retirement of the Blazor rollback/reference host despite the canonical removal gate remaining `NOT_READY`. Branch `chore/retire-blazor-host` removes the legacy Web project, its solution and release-workflow entries, and the rollback-host-only E2E journey. The API-only owned host no longer exposes a rollback switch. Historical source reviews and the retirement inventory link to the pinned pre-removal commit; the discovery inventory is retained rather than emptied, and the UI inventory gate recognizes the retired source. The branch is prepared for owner review and is not merged; `master` retains the host.
+
+Focused verification on the branch: Release solution build passed with 0 warnings/errors; focused API tests passed 15/15 and Domain architecture guards 3/3; documentation health, filenames, narrative metrics, UI inventory, retirement inventory and `git diff --check` passed. No full suite, hosted CI, deployment, production rollback or external acceptance was run. Evidence is in [`status.json`](status.json#targetedVerification.atomicBlazorRetirement).
+
 ## R2R-07 and CP-11 — 2026-10-17
 
 ## AS-AWP-EXEC Atomic Task 02 — exact engagement programme adoption — 2026-10-17

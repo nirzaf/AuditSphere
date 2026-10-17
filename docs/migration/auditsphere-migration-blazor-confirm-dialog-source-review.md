@@ -2,12 +2,12 @@
 
 **Disposition:** `PARTIAL`
 **Review baseline:** legacy sources at `d29f147c77fd7900afa0e25a99f344fb393ff546`; Angular implementation and browser assertions at `0d819cd9ed95742eb251c4612b07e6f22f9a3c94`.
-**Legacy source SHA-256:** `src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor` — `79b1e95244cb8e172eb3939ad10347d364018305d5b12b2518ae2e80e0ac428d`
+**Legacy source SHA-256:** [src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Shared/ConfirmDialog.razor) — `79b1e95244cb8e172eb3939ad10347d364018305d5b12b2518ae2e80e0ac428d`
 
 | Reviewed caller or implementation | SHA-256 |
 |---|---|
-| `src/AuditSphereOps.Web/Components/Pages/Administration.razor` | `93d7b62102b620d15e6bd89860689dfc251fa98a7e72c45a595662577107241c` |
-| `src/AuditSphereOps.Web/Components/Pages/Leads.razor` | `e467a74d007de30e672b9123489363e4e98a61054ee5ae0b2048d698efa8867c` |
+| [src/AuditSphereOps.Web/Components/Pages/Administration.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Administration.razor) | `93d7b62102b620d15e6bd89860689dfc251fa98a7e72c45a595662577107241c` |
+| [src/AuditSphereOps.Web/Components/Pages/Leads.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Leads.razor) | `e467a74d007de30e672b9123489363e4e98a61054ee5ae0b2048d698efa8867c` |
 | `src/AuditSphereOps.Ui/src/app/features/admin/access.ts` | `fce8d659b1010a5ce544b890fd4581bdcc2b8b788c9293c079f2a47727258683` |
 | `src/AuditSphereOps.Ui/src/app/features/admin/roles.ts` | `a971b5cd295f4275b1d54143a8cc86d23e8e9d74971991527f3b5fc2bc3eb0df` |
 | `src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts` | `e0f50240756468885247790af4ed36c6b442c5a36b52f494fc9ea494235acb2d` |

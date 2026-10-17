@@ -11,23 +11,23 @@ their presence and route mapping do not establish parity by themselves.
 
 | Legacy source | SHA-256 |
 |---|---|
-| `src/AuditSphereOps.Web/Components/Layout/MainLayout.razor` | `3bfa49fb5e1991fc6e32f24ba44484097c0c1036019e7766c0dc2da5f082d663` |
-| `src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor` | `5016cbda804f97cf57febb43b9d8c059b5a0a9e1d7e94ba58f9c88a674867521` |
-| `src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor` | `ec517dfd31b93c4790a1bf676e362d05f3ceecf504766a9f6a3c497d827b9c30` |
-| `src/AuditSphereOps.Web/Components/Layout/PublicLayout.razor` | `76819332873db6735fba463a2d8fec98ca26b4e077ece88e179bd23f2e75ab19` |
-| `src/AuditSphereOps.Web/Components/App.razor` | `9b15055e3dbdb235225ace244e0f0ff7616451e9b847a78d14ac73d96c0b54ea` |
-| `src/AuditSphereOps.Web/Components/Routes.razor` | `87203ede0ed0fdb52dd33059b8e95085d43179e5e6887b123dafc27b99b5d292` |
-| `src/AuditSphereOps.Web/Components/Shared/LoadingState.razor` | `a5cda405100dcb5ec5eddab290506a3bc63ddf432434c67a2f4c4bfba91cef4e` |
-| `src/AuditSphereOps.Web/Components/Shared/PageHeader.razor` | `ae53fabf08ed416a0dcaf287376046de39ce5736a8677330b94d88db89d798d7` |
-| `src/AuditSphereOps.Web/Components/Shared/ProjectTaskStatusBar.razor` | `6d78374875819654cbb36f4c07ba491d1e9a352dc6a09dbf9cc380fe76118891` |
-| `src/AuditSphereOps.Web/Components/Shared/ScopeBanner.razor` | `3517a177c62266e90f59208148a9551455b8c3c8ace361da9e98d771efb40a51` |
-| `src/AuditSphereOps.Web/Components/Shared/SessionAccessBoundary.razor` | `f7b2181e42bb7fb5f67d85a92c3ba894e301bb9c615a3b9ba6d469cdad6030a0` |
-| `src/AuditSphereOps.Web/Components/Shared/StatusChip.razor` | `f23989470db216701963b8d7f3e027228f9c28102948b082dfcbb22120b10807` |
-| `src/AuditSphereOps.Web/Components/Layout/GlobalSearch.razor` | `33bbe3e18bb30eec51dc9acd076a56d33b207b705256e7a81958cfc0deea9d55` |
-| `src/AuditSphereOps.Web/Components/Pages/Home.razor` | `f7cf54fa3538c2049f3c3a2d23452de8cda47cda00bebfbd3a35a32cedc5d38b` |
-| `src/AuditSphereOps.Web/Components/Pages/Portfolio.razor` | `f7771250c924cfe077b5d32413484d0dbaa6c5bfe459651463f6f192d63cb136` |
-| `src/AuditSphereOps.Web/Components/Pages/ClientDetail.razor` | `d5489584493ee4c169312c112ea47d8d561dd07bc88b3299484a72eca3117c96` |
-| `src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor` | `dd2c5f09ed6ef2b4e2edcae8f20aa7d81eb04bd60de5f1669ba9d8906ab55f36` |
+| [src/AuditSphereOps.Web/Components/Layout/MainLayout.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Layout/MainLayout.razor) | `3bfa49fb5e1991fc6e32f24ba44484097c0c1036019e7766c0dc2da5f082d663` |
+| [src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Layout/AccountingNavigation.razor) | `5016cbda804f97cf57febb43b9d8c059b5a0a9e1d7e94ba58f9c88a674867521` |
+| [src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Layout/ClientLayout.razor) | `ec517dfd31b93c4790a1bf676e362d05f3ceecf504766a9f6a3c497d827b9c30` |
+| [src/AuditSphereOps.Web/Components/Layout/PublicLayout.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Layout/PublicLayout.razor) | `76819332873db6735fba463a2d8fec98ca26b4e077ece88e179bd23f2e75ab19` |
+| [src/AuditSphereOps.Web/Components/App.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/App.razor) | `9b15055e3dbdb235225ace244e0f0ff7616451e9b847a78d14ac73d96c0b54ea` |
+| [src/AuditSphereOps.Web/Components/Routes.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Routes.razor) | `87203ede0ed0fdb52dd33059b8e95085d43179e5e6887b123dafc27b99b5d292` |
+| [src/AuditSphereOps.Web/Components/Shared/LoadingState.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Shared/LoadingState.razor) | `a5cda405100dcb5ec5eddab290506a3bc63ddf432434c67a2f4c4bfba91cef4e` |
+| [src/AuditSphereOps.Web/Components/Shared/PageHeader.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Shared/PageHeader.razor) | `ae53fabf08ed416a0dcaf287376046de39ce5736a8677330b94d88db89d798d7` |
+| [src/AuditSphereOps.Web/Components/Shared/ProjectTaskStatusBar.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Shared/ProjectTaskStatusBar.razor) | `6d78374875819654cbb36f4c07ba491d1e9a352dc6a09dbf9cc380fe76118891` |
+| [src/AuditSphereOps.Web/Components/Shared/ScopeBanner.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Shared/ScopeBanner.razor) | `3517a177c62266e90f59208148a9551455b8c3c8ace361da9e98d771efb40a51` |
+| [src/AuditSphereOps.Web/Components/Shared/SessionAccessBoundary.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Shared/SessionAccessBoundary.razor) | `f7b2181e42bb7fb5f67d85a92c3ba894e301bb9c615a3b9ba6d469cdad6030a0` |
+| [src/AuditSphereOps.Web/Components/Shared/StatusChip.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Shared/StatusChip.razor) | `f23989470db216701963b8d7f3e027228f9c28102948b082dfcbb22120b10807` |
+| [src/AuditSphereOps.Web/Components/Layout/GlobalSearch.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Layout/GlobalSearch.razor) | `33bbe3e18bb30eec51dc9acd076a56d33b207b705256e7a81958cfc0deea9d55` |
+| [src/AuditSphereOps.Web/Components/Pages/Home.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Home.razor) | `f7cf54fa3538c2049f3c3a2d23452de8cda47cda00bebfbd3a35a32cedc5d38b` |
+| [src/AuditSphereOps.Web/Components/Pages/Portfolio.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/Portfolio.razor) | `f7771250c924cfe077b5d32413484d0dbaa6c5bfe459651463f6f192d63cb136` |
+| [src/AuditSphereOps.Web/Components/Pages/ClientDetail.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/ClientDetail.razor) | `d5489584493ee4c169312c112ea47d8d561dd07bc88b3299484a72eca3117c96` |
+| [src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Pages/EngagementDetail.razor) | `dd2c5f09ed6ef2b4e2edcae8f20aa7d81eb04bd60de5f1669ba9d8906ab55f36` |
 
 ## Behavior and ownership mapping
 

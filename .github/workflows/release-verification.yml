@@ -258,10 +258,6 @@ jobs:
           bash scripts/release/run-verification-step.sh "Release build ($TEST_PROJECT_KEY)" \
             dotnet build "$TEST_PROJECT" --no-restore --configuration Release --maxcpucount:1
           if [ "$TEST_PROJECT_KEY" = e2e ]; then
-            bash scripts/release/run-verification-step.sh "Restore legacy rollback host used by E2E" \
-              dotnet restore src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --locked-mode
-            bash scripts/release/run-verification-step.sh "Build legacy rollback host used by E2E" \
-              dotnet build src/AuditSphereOps.Web/AuditSphereOps.Web.csproj --no-restore --configuration Release --maxcpucount:1
             bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
               pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
           fi

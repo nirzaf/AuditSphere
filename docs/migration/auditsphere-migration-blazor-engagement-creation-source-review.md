@@ -1,13 +1,13 @@
 # Angular migration source review — blocked engagement creation
 
-**Status:** PARTIAL_REVIEWED  
-**Source reviewed against code:** `147ac2a02675b9c65ec43be520c76bc27837a167`  
-**Verification run at repository head:** `1b95c2de849fb0b75d208136647bb2cae119a331`  
+**Status:** PARTIAL_REVIEWED
+**Source reviewed against code:** `147ac2a02675b9c65ec43be520c76bc27837a167`
+**Verification run at repository head:** `1b95c2de849fb0b75d208136647bb2cae119a331`
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
 The legacy creation panel hash matches the pinned discovery snapshot:
 
-`src/AuditSphereOps.Web/Components/Acceptance/EngagementCreatePanel.razor`  
+[src/AuditSphereOps.Web/Components/Acceptance/EngagementCreatePanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Acceptance/EngagementCreatePanel.razor)
 SHA-256: `f36a652b19a33a7fa013020d78708b562e584271e07ddbb18b7ce880ca72e7e6`
 
 ## Action mapping

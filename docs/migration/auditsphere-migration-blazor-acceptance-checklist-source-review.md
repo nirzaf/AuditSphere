@@ -1,6 +1,6 @@
 # Angular migration source review — acceptance checklist
 
-**Status:** PARTIAL_REVIEWED  
+**Status:** PARTIAL_REVIEWED
 **Reviewed against code:** `4cce7cbd794a1ac08b1e80ae0a3282dd3df733ce`
 **Pinned discovery snapshot:** `eb94ae5073558ec7192ddb5dfd4e24cecd7c4b39`
 
@@ -8,7 +8,7 @@ This review compares the legacy `AcceptanceChecklistPanel.razor` user actions
 with the current Angular/API/Application path. Its source hash matches the
 pinned discovery snapshot:
 
-`src/AuditSphereOps.Web/Components/Acceptance/AcceptanceChecklistPanel.razor`  
+[src/AuditSphereOps.Web/Components/Acceptance/AcceptanceChecklistPanel.razor](https://github.com/nirzaf/AuditSphere/blob/c3905e078b44c84c5ec0ad4bbda6d11894acf42d/src/AuditSphereOps.Web/Components/Acceptance/AcceptanceChecklistPanel.razor)
 SHA-256: `9daa133edad9512b70188a3c119bafa2a8333bdce60cc8cedec62837f71b6b59`
 
 ## Action mapping

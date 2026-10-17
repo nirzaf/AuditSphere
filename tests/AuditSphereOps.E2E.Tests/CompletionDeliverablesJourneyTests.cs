@@ -23,10 +23,6 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class CompletionDeliverablesJourneyTests
 {
   [Fact]
-  [Trait("CaseId", "AS-STE-COMPLETION-01")]
-  public Task PartnerClearsDecidesAndIssues_ClientReviewsInThePortal() => RunReleaseJourneyAsync(canonicalAngular: false);
-
-  [Fact]
   [Trait("CaseId", "AS-STE-COMPLETION-ANGULAR")]
   public Task AngularPartnerReleasesBundle_ClientDownloads_AndRequiredSigningRejectsReplay() => RunReleaseJourneyAsync(canonicalAngular: true);
 
@@ -42,7 +38,7 @@ public sealed class CompletionDeliverablesJourneyTests
         ["ReportSigning__Required"] = required ? "true" : "false",
         ["ReportSigning__CertificatePath"] = "", ["ReportSigning__PrivateKeyPath"] = ""
       };
-      return canonicalAngular ? host.StartApiForIdentityAsync(user, settings) : host.StartRollbackForIdentityAsync(user, settings);
+      return host.StartApiForIdentityAsync(user, settings);
     }
     var f = host.Fixture;
     var partner = PbcSeed.User(f.FirmId, "Staff"); partner.DisplayName = "Pat Partner";
