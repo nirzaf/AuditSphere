@@ -21,7 +21,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Task queue source lineage
 
-Queue rows now expose retained source keys and exact template identities in all layouts. Focused lineage/component checks, builds and manual-source browser inspection passed; template browser and responsive acceptance remain open. See execution ledger.
+Queue rows now expose retained source keys and exact template identities in all layouts. Cards also retain FSLI/mapping, PBC and reviewer context plus task activity. Focused lineage/component checks, builds and manual-source browser inspection passed; template browser and responsive acceptance remain open. See execution ledger.
 
 ## Queue prerequisite presentation
 

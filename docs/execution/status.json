@@ -2047,11 +2047,11 @@
     },
     "queueSourceLineage": {
       "result": "FOCUSED_PASS",
-      "behavior": "Queue exposes retained source key and exact template revision/step IDs; no reconstructed lineage.",
+      "behavior": "All layouts retain source/template, FSLI/mapping, PBC link, review comment/context and activity entry point.",
       "angular": "work-queue.spec.ts: 18 passed, 0 failed; build PASS, existing SCSS warning",
       "domain": "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing: 1 passed, 0 failed, 0 skipped on isolated PostgreSQL test schema",
       "build": "OpenApiEmitter/API Release: zero warnings/errors",
-      "browser": "Synthetic retained source displayed in list/board/calendar; warning/error console capture empty. Template-source browser and responsive acceptance NOT_VERIFIED.",
+      "browser": "Synthetic source in all layouts; board opens retained create/assign/dependency activity; calendar retains it. Console empty. Live review/PBC and responsive acceptance NOT_VERIFIED.",
       "fullRegression": "NOT_RUN on this slice; CI required"
     }
   }

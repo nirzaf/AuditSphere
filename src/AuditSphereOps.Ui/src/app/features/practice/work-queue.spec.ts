@@ -159,7 +159,7 @@ describe('workflow queue assignment filters', () => {
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
-        .flush({ view: 'MY_TASKS', tasks: [{ ...task, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId }], hasMore: false, nextCursor: null, summary: summary() });
+        .flush({ view: 'MY_TASKS', tasks: [{ ...task, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId, mappingVersionId: task.engagementId, fsliCode: 'CASH', pbcRequestId: task.taskId, pbcState: 'SENT', reviewState: 'CHANGES_REQUIRED', reviewComment: 'Reconcile the retained cash evidence' }], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
       TestBed.tick();
       for (const display of ['LIST', 'BOARD', 'CALENDAR'] as const) {
@@ -170,6 +170,12 @@ describe('workflow queue assignment filters', () => {
         expect(host.textContent).toContain('Source: MANUAL:fixture');
         expect(host.textContent).toContain('template revision ' + task.taskId);
         expect(host.textContent).toContain('step ' + task.clientId);
+        expect(host.textContent).toContain('FSLI CASH');
+        expect(host.textContent).toContain('mapping ' + task.engagementId);
+        expect(host.textContent).toContain('Reviewer: Reconcile the retained cash evidence');
+        expect(host.textContent).toContain('current audit result needs resubmission');
+        expect(host.querySelector('a[href$="/pbc"]')?.textContent).toContain('PBC request');
+        expect([...host.querySelectorAll('button')].some(button => button.textContent?.includes('View activity'))).toBe(true);
         expect(host.textContent).toContain(task.title);
       }
       http.verify({ ignoreCancelled: true });
