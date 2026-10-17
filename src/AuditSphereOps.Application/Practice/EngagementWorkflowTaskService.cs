@@ -114,8 +114,9 @@ public static class EngagementWorkflowTaskService
         grant.RevokedAt == null && (grant.ExpiresAt == null || grant.ExpiresAt > now) &&
         (grant.EngagementId == engagement.Id ||
           (grant.EngagementId == null && (grant.ClientId == null || grant.ClientId == engagement.PracticeClientId)))
-      select new WorkflowTaskAssigneeOption(user.Id, user.DisplayName))
-      .Distinct().OrderBy(x => x.DisplayName).ThenBy(x => x.UserId).Take(200).ToListAsync(ct);
+      select new { UserId = user.Id, user.DisplayName })
+      .Distinct().OrderBy(x => x.DisplayName).ThenBy(x => x.UserId).Take(200)
+      .Select(x => new WorkflowTaskAssigneeOption(x.UserId, x.DisplayName)).ToListAsync(ct);
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
         PracticeTimeService.ApprovalRoles, InternalOnly: true), ct);

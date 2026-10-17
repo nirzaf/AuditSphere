@@ -411,7 +411,11 @@ public sealed partial class ClientAccountingTests
       Assert.True(otherActorCommand.Succeeded);
       Assert.False(otherActorCommand.Value!.Found);
       var otherClientCommand = await ClientOpenItemAllocationWorkflow.FindCommandAsync(db, maker, scope.ClientB, allocate.CommandId, "SUBMIT");
-      Assert.False(otherClientCommand.Succeeded);
+      // An authorized sibling client gets the same absent receipt as an unknown intent.
+      // Do not disclose that the command exists in another client or return its payload.
+      Assert.True(otherClientCommand.Succeeded, otherClientCommand.Message);
+      Assert.False(otherClientCommand.Value!.Found);
+      Assert.Null(otherClientCommand.Value.Receipt);
       var pending = await ClientOpenItemAllocationWorkflow.PendingAsync(db, reviewer, scope.ClientA);
       Assert.True(pending.Succeeded, pending.Message); Assert.Single(pending.Value!);
       var review = await ClientOpenItemAllocationWorkflow.ReviewPreviewAsync(db, reviewer, scope.ClientA, allocationSubmissionId);

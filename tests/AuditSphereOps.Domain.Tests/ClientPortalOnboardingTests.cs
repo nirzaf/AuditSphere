@@ -228,8 +228,12 @@ public sealed class ClientPortalOnboardingTests
     var requestId = await SentRequestAsync(pg, f, f.Client.Id);
     var otherRequestId = await SentRequestAsync(pg, f, other.Id);
     var occurred = DateTimeOffset.Parse("2026-10-01T00:00:00Z");
+    string[] originalMessages;
     await using (var seed = new AuditSphereDbContext(pg.Options))
     {
+      originalMessages = await seed.PbcCommunications.AsNoTracking()
+        .Where(x => x.PbcRequestId == requestId).OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)
+        .Select(x => x.Body).ToArrayAsync();
       seed.PbcCommunications.AddRange(Enumerable.Range(0, 31).Select(index => new PbcCommunication
       {
         Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
@@ -267,7 +271,15 @@ public sealed class ClientPortalOnboardingTests
     Assert.Equal("Message 20", page.Value.Conversation[0].Body);
     Assert.Equal("Message 29", page.Value.Conversation[^1].Body);
     Assert.True(page.Value.HasMoreUploads);
-    Assert.False(page.Value.HasMoreConversation);
+    Assert.True(page.Value.HasMoreConversation);
+    var last = await ClientPortalWorkspaceQuery.RequestHistoryAsync(db, actor, requestId,
+      uploadPage: 3, conversationPage: 3, pageSize: 10);
+    Assert.True(last.Succeeded, last.Message);
+    Assert.Single(last.Value!.Uploads);
+    Assert.Equal("upload-00.pdf", last.Value.Uploads[0].FileName);
+    Assert.Equal(new[] { "Message 30" }.Concat(originalMessages), last.Value.Conversation.Select(x => x.Body));
+    Assert.False(last.Value.HasMoreUploads);
+    Assert.False(last.Value.HasMoreConversation);
     Assert.Equal(ErrorCodes.ScopeDenied,
       (await ClientPortalWorkspaceQuery.RequestHistoryAsync(db, actor, otherRequestId, 0, 0, 10)).ErrorCode);
     Assert.Equal(ErrorCodes.ScopeDenied,
