@@ -14,7 +14,7 @@ function completeForm(): BuildForm {
     periodStart: '2026-01-01', periodEnd: '2026-12-31', templateVersion: 'build-v1', cashBeginning: '0', cashEnding: '100',
     cashAccountCodes: '1000', openingEvidence: 'opening-bank', closingEvidence: 'closing-bank',
     movements: [{ ...emptyMovement(), description: 'Cash receipts', amount: '100', movementDate: '2026-06-30', activityCode: 'CASH_RECEIPTS',
-      sourceReferences: 'gl-1, gl-2', rationale: 'Agreed to ledger.', allocations: [{ generalLedgerLineId: line, signedAmount: '-100' }] }],
+      sourceReferences: 'gl-1, gl-2', rationale: 'Agreed to ledger.', allocations: [{ generalLedgerLineId: line, signedAmount: '-100' }], scheduleAllocations: [] }],
     disclosures: [{ code: 'CASH_POLICY', response: 'Face value.', notApplicable: false, rationale: '' }],
   };
 }
@@ -313,6 +313,24 @@ describe('cash-flow contribution projection (F-01)', () => {
     const form = fullForm();
     form.movements[0].allocations[0].signedAmount = '12,5';
     expect(movementProjection(form.movements[0])).toBeNull();
+  });
+
+  it('builds noncash movement lineage from an exact approved asset schedule component only', () => {
+    const form = fullForm();
+    form.movements[0] = { ...form.movements[0], isNonCash: true, amount: '25', allocations: [],
+      scheduleAllocations: [{ specialistScheduleId: line, componentCode: 'DEPRECIATION', signedAmount: '25' }] };
+    const built = toBuildRequest(form);
+    expect('body' in built).toBe(true);
+    const movement = (built as { body: any }).body.supplementaryInformation.cashFlowLines[0];
+    expect(movement.sourceAllocations).toBeNull();
+    expect(movement.scheduleSourceAllocations).toEqual([{ specialistScheduleId: line, componentCode: 'DEPRECIATION', signedAmount: '25' }]);
+    expect(movementProjection(form.movements[0])).toBe('25');
+
+    form.movements[0].isNonCash = false;
+    expect(toBuildRequest(form)).toEqual({ error: 'Movement 1: specialist schedule sources can only support a noncash movement.' });
+    form.movements[0].isNonCash = true;
+    form.movements[0].allocations = [{ generalLedgerLineId: '44444444-4444-4444-8444-444444444444', signedAmount: '25' }];
+    expect(toBuildRequest(form)).toEqual({ error: 'Movement 1: use accepted general-ledger lines or specialist schedule sources, not both.' });
   });
 });
 

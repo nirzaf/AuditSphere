@@ -35,9 +35,10 @@ export function isTerminalBuildStatus(status: BuildStatus['status']): boolean {
 }
 
 export interface AllocationForm { generalLedgerLineId: string; signedAmount: string }
+export interface ScheduleAllocationForm { specialistScheduleId: string; componentCode: 'DEPRECIATION' | 'IMPAIRMENT'; signedAmount: string }
 export interface MovementForm {
   section: string; description: string; amount: string; isNonCash: boolean; movementDate: string; activityCode: string;
-  sourceReferences: string; rationale: string; allocations: AllocationForm[];
+  sourceReferences: string; rationale: string; allocations: AllocationForm[]; scheduleAllocations: ScheduleAllocationForm[];
 }
 export interface DisclosureForm { code: string; response: string; notApplicable: boolean; rationale: string }
 /** One equity rollforward row. Its field names are the server's EquityLineInput names, so the request is not renamed. */
@@ -87,7 +88,7 @@ function toMicro(amount: string): bigint {
 
 const absMicro = (value: bigint): bigint => (value < 0n ? -value : value);
 
-function sumContributions(allocations: readonly AllocationForm[]): bigint {
+function sumContributions(allocations: readonly { signedAmount: string }[]): bigint {
   return allocations.reduce((sum, a) => sum + toMicro(a.signedAmount), 0n);
 }
 
@@ -106,8 +107,9 @@ export function projectedContribution(allocations: readonly AllocationForm[], is
  * The server's shape rule: projected contributions may not exceed the movement amount or run against its sign. Inputs must already be
  * valid.
  */
-function contributionsOverdrawn(allocations: readonly AllocationForm[], amount: string, isNonCash: boolean): boolean {
-  const total = projectedContribution(allocations, isNonCash);
+function contributionsOverdrawn(allocations: readonly { signedAmount: string }[], amount: string, isNonCash: boolean): boolean {
+  const ledger = sumContributions(allocations);
+  const total = isNonCash ? ledger : -ledger;
   if (total === 0n) return false;
   const target = toMicro(amount);
   return absMicro(total) > absMicro(target) || (total < 0n) !== (target < 0n);
@@ -124,8 +126,10 @@ export function formatMicro(units: bigint): string {
 
 /** The projected statement effect of a movement's valid links, or null while any link or amount is not yet a valid value. */
 export function movementProjection(m: MovementForm): string | null {
-  if (!m.allocations.length || m.allocations.some((a) => !AMOUNT.test(a.signedAmount))) return null;
-  return formatMicro(projectedContribution(m.allocations, m.isNonCash));
+  const values = [...m.allocations, ...m.scheduleAllocations];
+  if (!values.length || values.some((a) => !AMOUNT.test(a.signedAmount))) return null;
+  const total = sumContributions(values);
+  return formatMicro(m.isNonCash ? total : -total);
 }
 
 export function emptyBuildForm(): BuildForm {
@@ -138,7 +142,7 @@ export function emptyBuildForm(): BuildForm {
 
 export function emptyMovement(): MovementForm {
   return { section: 'OPERATING', description: '', amount: '', isNonCash: false, movementDate: '', activityCode: '', sourceReferences: '',
-    rationale: '', allocations: [] };
+    rationale: '', allocations: [], scheduleAllocations: [] };
 }
 
 export function emptyEquityLine(): EquityLineForm {
@@ -188,9 +192,21 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
       if (!GUID.test(a.generalLedgerLineId)) return { error: `${at}: a source line is not valid.` };
       if (!AMOUNT.test(a.signedAmount) || Number(a.signedAmount) === 0) return { error: `${at}: a source contribution needs a non-zero amount.` };
     }
+    if (m.allocations.length && m.scheduleAllocations.length)
+      return { error: `${at}: use accepted general-ledger lines or specialist schedule sources, not both.` };
+    if (m.scheduleAllocations.length && !m.isNonCash)
+      return { error: `${at}: specialist schedule sources can only support a noncash movement.` };
+    for (const a of m.scheduleAllocations) {
+      if (!GUID.test(a.specialistScheduleId) || !['DEPRECIATION', 'IMPAIRMENT'].includes(a.componentCode))
+        return { error: `${at}: choose a valid approved asset schedule component.` };
+      if (!AMOUNT.test(a.signedAmount) || !/[1-9]/.test(a.signedAmount) || a.signedAmount.startsWith('-'))
+        return { error: `${at}: a specialist component contribution must be a positive amount.` };
+    }
+    if (new Set(m.scheduleAllocations.map((a) => `${a.specialistScheduleId.toLowerCase()}:${a.componentCode}`)).size !== m.scheduleAllocations.length)
+      return { error: `${at}: a specialist schedule component can contribute to a movement only once.` };
     if (new Set(m.allocations.map((a) => a.generalLedgerLineId.toLowerCase())).size !== m.allocations.length)
       return { error: `${at}: a source line can contribute to a movement only once.` };
-    if (m.allocations.length && contributionsOverdrawn(m.allocations, m.amount, m.isNonCash))
+    if ((m.allocations.length || m.scheduleAllocations.length) && contributionsOverdrawn([...m.allocations, ...m.scheduleAllocations], m.amount, m.isNonCash))
       return { error: `${at}: source contributions exceed the movement amount or run against its sign.` };
   }
   for (const d of form.disclosures) {
@@ -281,6 +297,9 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
           sourceAllocations: m.allocations.length
             ? m.allocations.map((a) => ({ generalLedgerLineId: a.generalLedgerLineId, signedAmount: a.signedAmount }))
             : null,
+          scheduleSourceAllocations: m.scheduleAllocations.length
+            ? m.scheduleAllocations.map((a) => ({ specialistScheduleId: a.specialistScheduleId, componentCode: a.componentCode, signedAmount: a.signedAmount }))
+            : null,
         })),
         disclosures: form.disclosures.map((d) => ({ code: d.code.trim(), response: d.notApplicable ? '' : d.response.trim(),
           notApplicable: d.notApplicable, rationale: d.notApplicable ? d.rationale.trim() : null })),
@@ -334,11 +353,16 @@ export function scheduleBlockers(form: BuildForm): string[] {
   if (form.movements.length === 0) open.push('Cash-flow movements: none entered. Add at least one movement.');
   for (const [index, m] of form.movements.entries()) {
     const at = `Cash-flow source lineage: movement ${index + 1}`;
-    if (m.allocations.length === 0) {
+    if (m.allocations.length === 0 && m.scheduleAllocations.length === 0) {
       open.push(`${at} is not linked to accepted general-ledger lines, so it stays a draft without lineage.`);
     } else if (!AMOUNT.test(m.amount) || m.allocations.some((a) => !GUID.test(a.generalLedgerLineId) || !AMOUNT.test(a.signedAmount))) {
       open.push(`${at} has a link or amount that is not a valid value yet.`);
-    } else if (projectedContribution(m.allocations, m.isNonCash) !== toMicro(m.amount)) {
+    } else if (m.allocations.length && m.scheduleAllocations.length) {
+      open.push(`${at} mixes accepted ledger and specialist schedule sources; split the movement by source type.`);
+    } else if (m.scheduleAllocations.length && !m.isNonCash) {
+      open.push(`${at} uses specialist schedule sources for a cash movement; mark it noncash or link accepted ledger lines.`);
+    } else if (m.scheduleAllocations.some((a) => !GUID.test(a.specialistScheduleId) || !AMOUNT.test(a.signedAmount) || a.signedAmount.startsWith('-')) ||
+      (m.allocations.length ? projectedContribution(m.allocations, m.isNonCash) : sumContributions(m.scheduleAllocations)) !== toMicro(m.amount)) {
       open.push(`${at} has linked lines that do not total the movement amount, so it is not source-resolved.`);
     }
   }
@@ -437,6 +461,14 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
                 <p><small>Projected statement effect of these ledger amounts: <span class="number">{{ effect }}</span> ({{ m.isNonCash ? 'noncash role keeps the ledger sign' : 'cash role reverses the ledger sign' }}). The server recomputes this when the build runs.</small></p>
               }
             }
+            @if (m.scheduleAllocations.length) {
+              <h4>Approved asset schedule sources</h4>
+              <ul>@for (a of m.scheduleAllocations; track $index; let j = $index) {
+                <li>{{ a.componentCode }} · <code>{{ a.specialistScheduleId }}</code> · {{ a.signedAmount }}
+                  <button matButton type="button" (click)="m.scheduleAllocations.splice(j, 1)">Remove</button></li>
+              }</ul>
+              @if (projection(m); as effect) { <p><small>Projected noncash effect from exact approved schedule components: <span class="number">{{ effect }}</span>. The server rechecks the retained schedule and client generation when the build runs.</small></p> }
+            }
             <button matButton="outlined" type="button" (click)="openMovementSources(i)">{{ pickerFor() === i ? 'Hide source lines' : 'Choose source lines' }}</button>
             <button matButton type="button" (click)="form.movements.splice(i, 1)">Remove movement</button>
           </fieldset>
@@ -459,6 +491,19 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
                 <button matButton="outlined" type="button" [disabled]="sourcePage() <= 1" (click)="sourcePage.set(sourcePage() - 1)">Previous lines</button>
                 <button matButton="outlined" type="button" [disabled]="!page.hasMore" (click)="sourcePage.set(sourcePage() + 1)">Next lines</button>
               </p>
+              @if (pickerFor() !== null && page.specialistSources.length) {
+                <h4>Current independently approved asset schedule components</h4>
+                <p><small>These source amounts are available for noncash movements only. The package build revalidates the schedule revision, approval and client input generation.</small></p>
+                @if (!form.movements[pickerFor()!]?.isNonCash) { <p role="status">Mark the selected movement as noncash to add an approved asset schedule component.</p> }
+                <div class="table-scroll"><table>
+                  <caption>Approved asset schedule components</caption>
+                  <thead><tr><th scope="col">Component</th><th scope="col">Schedule revision</th><th scope="col" class="number">Amount</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+                  <tbody>@for (source of page.specialistSources; track source.scheduleId + ':' + source.componentCode) {
+                    <tr><td>{{ source.componentCode }}</td><td>{{ source.revision }} · <code>{{ source.scheduleId }}</code></td><td class="number">{{ source.signedAmount }} {{ source.currency }}</td>
+                      <td><button matButton="outlined" type="button" [disabled]="!form.movements[pickerFor()!]?.isNonCash || !!form.movements[pickerFor()!]?.allocations.length"
+                        (click)="addSelectedScheduleSource(source.scheduleId, source.componentCode, source.signedAmount)">Add to movement {{ (pickerFor()! + 1) }}</button></td></tr>
+                  }</tbody></table></div>
+              }
             }
           </section>
         }
@@ -688,6 +733,15 @@ export class FinancialPackageBuild {
     if (movement !== null) this.addSource(movement, lineId, signedAmount);
   }
 
+  addSelectedScheduleSource(scheduleId: string, componentCode: string, signedAmount: string): void {
+    const movement = this.pickerFor();
+    const row = movement === null ? null : this.form.movements[movement];
+    if (!row || row.allocations.length || !row.isNonCash ||
+        (componentCode !== 'DEPRECIATION' && componentCode !== 'IMPAIRMENT') ||
+        row.scheduleAllocations.some(x => x.specialistScheduleId === scheduleId && x.componentCode === componentCode)) return;
+    row.scheduleAllocations.push({ specialistScheduleId: scheduleId, componentCode, signedAmount });
+  }
+
   noteAllocationIssue(row: NoteLineForm): string | null {
     if (!row.allocations.length) return null;
     if (!AMOUNT.test(row.amount) || row.allocations.some((allocation) => !GUID.test(allocation.generalLedgerLineId) ||
@@ -730,7 +784,7 @@ export class FinancialPackageBuild {
 
   addSource(movement: number, lineId: string, signedAmount: string): void {
     const m = this.form.movements[movement];
-    if (!m || m.allocations.some((a) => a.generalLedgerLineId === lineId)) return;
+    if (!m || m.scheduleAllocations.length || m.allocations.some((a) => a.generalLedgerLineId === lineId)) return;
     m.allocations.push({ generalLedgerLineId: lineId, signedAmount });
   }
 

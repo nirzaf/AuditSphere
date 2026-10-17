@@ -33,7 +33,8 @@ public static partial class FinancialStatementService
   public const int MaxCashFlowSourceReviewEntries = 50;
 
   private sealed record CashFlowLineage(IReadOnlyList<FinancialPackageCashFlowLine> Lines,
-    IReadOnlyList<FinancialPackageCashFlowAllocation> Allocations, IReadOnlyList<bool> Resolved, Guid? CurrentBatchId)
+    IReadOnlyList<FinancialPackageCashFlowAllocation> Allocations,
+    IReadOnlyList<FinancialPackageCashFlowScheduleAllocation> ScheduleAllocations, IReadOnlyList<bool> Resolved, Guid? CurrentBatchId)
   {
     public int Movements => Lines.Count;
     public bool AllResolved => Movements > 0 && Resolved.All(x => x);
@@ -107,11 +108,12 @@ public static partial class FinancialStatementService
     var current = lineage.Value!;
     if (current.Allocations.Count == 0)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "This package has no source-linked cash-flow movements to review.");
-    if (current.Allocations.Any(x => x.CreatedByUserId == Guid.Empty))
+    if (current.Allocations.Any(x => x.CreatedByUserId == Guid.Empty) || current.ScheduleAllocations.Any(x => x.CreatedByUserId == Guid.Empty))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A source link has no recorded preparer. Rebuild the package before review.");
-    if (current.Allocations.Any(x => x.CreatedByUserId == actor.UserId))
+    if (current.Allocations.Any(x => x.CreatedByUserId == actor.UserId) || current.ScheduleAllocations.Any(x => x.CreatedByUserId == actor.UserId))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The preparer cannot review the source links they resolved.");
-    if (current.Allocations.Any(x => current.Lines.All(line => line.Id != x.CashFlowLineId)))
+    if (current.Allocations.Any(x => current.Lines.All(line => line.Id != x.CashFlowLineId)) ||
+        current.ScheduleAllocations.Any(x => current.Lines.All(line => line.Id != x.CashFlowLineId)))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A source link points at a movement that is no longer on this package. Rebuild the package before review.");
 
     // The reviewer decides on the latest decision and the links they saw. Anything else is stale.
@@ -124,10 +126,13 @@ public static partial class FinancialStatementService
     var fxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == locked.Id).ToListAsync(ct);
     var fxAssessmentMatches = FxAssessmentMatchesPersisted(locked, fxAssessment, fxEffects);
-    var linkDigest = CashFlowLinkDigest(locked, current.Lines, current.Allocations, fxAssessment, fxEffects);
+    var linkDigest = CashFlowLinkDigest(locked, current.Lines, current.Allocations, fxAssessment, fxEffects, current.ScheduleAllocations);
     if (!string.Equals(linkDigest, digest, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
         "The source links changed after this review was loaded. Reload the review before deciding.");
+    if (current.CurrentBatchId is not Guid sourceBatchId)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "An accepted general ledger for this reporting period is required before recording a source-link decision.");
 
     if (normalized == "APPROVED")
     {
@@ -146,7 +151,7 @@ public static partial class FinancialStatementService
     var review = new FinancialPackageCashFlowSourceReview
     {
       Id = Guid.CreateVersion7(), FirmId = locked.FirmId, ClientId = locked.ClientId, EngagementId = locked.EngagementId,
-      FinancialPackageId = locked.Id, Decision = normalized, Reason = text, SourceImportBatchId = current.Allocations[0].SourceImportBatchId,
+      FinancialPackageId = locked.Id, Decision = normalized, Reason = text, SourceImportBatchId = sourceBatchId,
       ReviewedByUserId = actor.UserId, ReviewedAt = DateTimeOffset.UtcNow, RequestId = requestId, RequestHash = intentHash,
       LinkDigest = linkDigest, PreviousReviewId = expectedPreviousReviewId
     };
@@ -189,15 +194,17 @@ public static partial class FinancialStatementService
     var fxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
     var fxAssessmentMatches = FxAssessmentMatchesPersisted(package, fxAssessment, fxEffects);
-    var currentDigest = CashFlowLinkDigest(package, current.Lines, current.Allocations, fxAssessment, fxEffects);
+    var currentDigest = CashFlowLinkDigest(package, current.Lines, current.Allocations, fxAssessment, fxEffects, current.ScheduleAllocations);
     // Approval also requires the persisted lineage result: the build recorded every cash event as explained. A resolved-looking link alone is not enough.
     var lineagePassed = await LineageValidatedAsync(db, package.FirmId, package.Id, ct);
     var approved = fxAssessmentMatches && lineagePassed && current.AllResolved && current.CurrentBatchId is Guid batch && latest is { Decision: "APPROVED" } &&
       latest.SourceImportBatchId == batch && current.Allocations.All(x => x.SourceImportBatchId == batch) && latest.LinkDigest == currentDigest;
-    var canReview = fxAssessmentMatches && reviewAuth.Succeeded && current.Allocations.Count > 0 &&
-      current.Allocations.All(x => x.CreatedByUserId != Guid.Empty && x.CreatedByUserId != actor.UserId);
+    var sourceLinkCount = current.Allocations.Count + current.ScheduleAllocations.Count;
+    var canReview = fxAssessmentMatches && reviewAuth.Succeeded && sourceLinkCount > 0 &&
+      current.Allocations.All(x => x.CreatedByUserId != Guid.Empty && x.CreatedByUserId != actor.UserId) &&
+      current.ScheduleAllocations.All(x => x.CreatedByUserId != Guid.Empty && x.CreatedByUserId != actor.UserId);
     return CommandResult<CashFlowSourceReviewState>.Ok(new CashFlowSourceReviewState(package.Id, current.Movements,
-      current.Resolved.Count(x => x), current.Allocations.Count, current.CurrentBatchId, approved, canReview,
+      current.Resolved.Count(x => x), sourceLinkCount, current.CurrentBatchId, approved, canReview,
       reviews.Select(x => new CashFlowSourceReviewEntry(x.Id, x.Decision, x.Reason, x.ReviewedByUserId, x.ReviewedAt, x.SourceImportBatchId)).ToArray(),
       currentDigest, latest?.Id, fxAssessment?.State, fxAssessment?.EvidenceReference, fxAssessment?.Rationale, fxAssessmentMatches));
   }
@@ -211,18 +218,25 @@ public static partial class FinancialStatementService
     var allocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking().Where(x =>
       x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
       x.FinancialPackageId == package.Id).ToListAsync(ct);
+    var scheduleAllocations = await db.FinancialPackageCashFlowScheduleAllocations.AsNoTracking().Where(x =>
+      x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId &&
+      x.FinancialPackageId == package.Id).ToListAsync(ct);
     var fxAssessment = await db.FinancialPackageFxAssessments.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == package.FirmId && x.FinancialPackageId == package.Id, ct);
     var fxEffects = await db.FinancialPackageFxEffects.AsNoTracking()
       .Where(x => x.FirmId == package.FirmId && x.FinancialPackageId == package.Id).ToListAsync(ct);
     if (!FxAssessmentMatchesPersisted(package, fxAssessment, fxEffects)) return false;
-    if (movements.Count == 0 && allocations.Count == 0) return false;
-    if (allocations.Count == 0 || allocations.Any(x => x.CreatedByUserId == Guid.Empty || x.Currency != package.Currency)) return false;
+    if (movements.Count == 0 && allocations.Count == 0 && scheduleAllocations.Count == 0) return false;
+    if (allocations.Any(x => x.CreatedByUserId == Guid.Empty || x.Currency != package.Currency) ||
+        scheduleAllocations.Any(x => x.CreatedByUserId == Guid.Empty || x.Currency != package.Currency)) return false;
     if (!await LineageValidatedAsync(db, package.FirmId, package.Id, ct)) return false;
     var movementIndexes = movements.Select((line, index) => (line.Id, index)).ToDictionary(x => x.Id, x => x.index);
     if (allocations.Any(x => !movementIndexes.ContainsKey(x.CashFlowLineId)) ||
+        scheduleAllocations.Any(x => !movementIndexes.ContainsKey(x.CashFlowLineId)) ||
         !ResolvedCashFlowMovements(movements.Select(x => (x.Amount, x.IsNonCash)).ToArray(),
-          allocations.Select(x => (movementIndexes[x.CashFlowLineId], x.SignedAmount, true))).All(x => x)) return false;
+          allocations.Select(x => (movementIndexes[x.CashFlowLineId], x.SignedAmount, true))
+            .Concat(scheduleAllocations.Select(x => (movementIndexes[x.CashFlowLineId], x.SignedAmount, true)))).All(x => x)) return false;
+    if (!await ScheduleAllocationsAreCurrentAsync(db, package, movements, scheduleAllocations, ct)) return false;
 
     if (package.PeriodId is not Guid periodId) return false;
     // The accepted ledger is the one for this package's period. Another period's acceptance never changes this package's approval.
@@ -238,8 +252,8 @@ public static partial class FinancialStatementService
           x.Status == "SEALED" && x.NormalizedDatasetDigest == accepted.SourceIdentityHash, ct)) return false;
     var latest = await LatestCashFlowSourceReviewAsync(db, package.FirmId, package.Id, ct);
     return latest is { Decision: "APPROVED" } && latest.SourceImportBatchId == accepted.ImportBatchId &&
-      allocations.All(x => x.CreatedByUserId != latest.ReviewedByUserId) &&
-      latest.LinkDigest == CashFlowLinkDigest(package, movements, allocations, fxAssessment, fxEffects);
+      allocations.All(x => x.CreatedByUserId != latest.ReviewedByUserId) && scheduleAllocations.All(x => x.CreatedByUserId != latest.ReviewedByUserId) &&
+      latest.LinkDigest == CashFlowLinkDigest(package, movements, allocations, fxAssessment, fxEffects, scheduleAllocations);
   }
 
   /// <summary>
@@ -248,7 +262,8 @@ public static partial class FinancialStatementService
   /// </summary>
   internal static string CashFlowLinkDigest(FinancialPackage package, IReadOnlyList<FinancialPackageCashFlowLine> movements,
     IReadOnlyList<FinancialPackageCashFlowAllocation> allocations, FinancialPackageFxAssessment? fxAssessment = null,
-    IReadOnlyList<FinancialPackageFxEffect>? fxEffects = null)
+    IReadOnlyList<FinancialPackageFxEffect>? fxEffects = null,
+    IReadOnlyList<FinancialPackageCashFlowScheduleAllocation>? scheduleAllocations = null)
   {
     var position = movements.Select((line, index) => (line.Id, index)).ToDictionary(x => x.Id, x => x.index);
     // The movement facts are part of what the reviewer decides on: a changed amount, section or classification changes the digest.
@@ -267,6 +282,17 @@ public static partial class FinancialStatementService
       Version = "cash-flow-link-digest.v2", PackageId = package.Id, package.CalculationHash, package.Revision, package.Generation,
       Movements = movementFacts, Links = links,
     }));
+    if (scheduleAllocations is { Count: > 0 })
+      baseDigest = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+      {
+        Version = "cash-flow-link-digest.v4.specialist-schedules", Base = baseDigest,
+        ScheduleLinks = scheduleAllocations.OrderBy(x => position.GetValueOrDefault(x.CashFlowLineId, -1))
+          .ThenBy(x => x.SpecialistScheduleId).ThenBy(x => x.ComponentCode, StringComparer.Ordinal).Select(x => new
+          {
+            Movement = position.GetValueOrDefault(x.CashFlowLineId, -1), x.SpecialistScheduleId, x.ComponentCode,
+            x.SourceScheduleHash, SignedAmount = MoneyPolicy.Normalize(x.SignedAmount), x.Currency, x.CreatedByUserId
+          }).ToArray()
+      }));
     if (fxAssessment is null && fxEffects is not { Count: > 0 }) return baseDigest;
     return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
@@ -346,16 +372,41 @@ public static partial class FinancialStatementService
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).OrderBy(x => x.Id).ToListAsync(ct);
     var allocations = await db.FinancialPackageCashFlowAllocations.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).OrderBy(x => x.Id).ToListAsync(ct);
+    var scheduleAllocations = await db.FinancialPackageCashFlowScheduleAllocations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.FinancialPackageId == package.Id).OrderBy(x => x.Id).ToListAsync(ct);
     // Stored links were proven explained when the package was built. LineageValidatedAsync fences that result before a stored link counts.
     var resolved = ResolvedCashFlowMovements(movements.Select(x => (x.Amount, x.IsNonCash)).ToArray(),
       movements.Select((line, index) => (line, index)).SelectMany(x => allocations
-        .Where(a => a.CashFlowLineId == x.line.Id).Select(a => (MovementIndex: x.index, LedgerSignedAmount: a.SignedAmount, PopulationComplete: true))));
+        .Where(a => a.CashFlowLineId == x.line.Id).Select(a => (MovementIndex: x.index, LedgerSignedAmount: a.SignedAmount, PopulationComplete: true)))
+        .Concat(movements.Select((line, index) => (line, index)).SelectMany(x => scheduleAllocations
+          .Where(a => a.CashFlowLineId == x.line.Id).Select(a => (MovementIndex: x.index, LedgerSignedAmount: a.SignedAmount, PopulationComplete: true)))));
+    if (!await ScheduleAllocationsAreCurrentAsync(db, package, movements, scheduleAllocations, ct))
+      resolved = movements.Select(_ => false).ToArray();
     if (package.PeriodId is not Guid periodId)
       return CommandResult<CashFlowLineage>.Fail(ErrorCodes.GateBlocked, "This package has no reporting period, so its source cannot be selected.");
     var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, package.ClientId,
       package.EngagementId, periodId, ct);
     if (!selected.Succeeded)
       return CommandResult<CashFlowLineage>.Fail(selected.ErrorCode!, selected.Message!);
-    return CommandResult<CashFlowLineage>.Ok(new CashFlowLineage(movements, allocations, resolved, selected.Value?.ImportBatchId));
+    return CommandResult<CashFlowLineage>.Ok(new CashFlowLineage(movements, allocations, scheduleAllocations, resolved, selected.Value?.ImportBatchId));
+  }
+
+  private static async Task<bool> ScheduleAllocationsAreCurrentAsync(IClientAccountingDbContext db, FinancialPackage package,
+    IReadOnlyList<FinancialPackageCashFlowLine> movements, IReadOnlyList<FinancialPackageCashFlowScheduleAllocation> stored,
+    CancellationToken ct)
+  {
+    if (stored.Count == 0) return true;
+    var byMovement = stored.GroupBy(x => x.CashFlowLineId).ToDictionary(x => x.Key, x => x.ToArray());
+    var inputs = movements.Select(line => new CashFlowLineInput(line.Section, line.Description, line.Amount, line.IsNonCash,
+      line.MovementDate, line.ActivityCode, line.SourceReferences, line.ClassificationRationale,
+      ScheduleSourceAllocations: byMovement.GetValueOrDefault(line.Id, []).Select(x =>
+        new CashFlowScheduleSourceAllocationInput(x.SpecialistScheduleId, x.ComponentCode, x.SignedAmount)).ToArray())).ToArray();
+    var resolved = await ResolveCashFlowScheduleSourceLinksAsync(db,
+      new ActorContext(Guid.Empty, package.FirmId, 1, []), package, package.PeriodId, inputs, ct);
+    if (!resolved.Succeeded || resolved.Value!.Count != stored.Count) return false;
+    var retained = stored.ToDictionary(x => (x.CashFlowLineId, x.SpecialistScheduleId, x.ComponentCode));
+    return resolved.Value.All(x => retained.TryGetValue(
+      (movements[x.MovementIndex].Id, x.SpecialistScheduleId, x.ComponentCode), out var old) &&
+      old.SourceScheduleHash == x.SourceScheduleHash && old.SignedAmount == x.SignedAmount && old.Currency == x.Currency);
   }
 }

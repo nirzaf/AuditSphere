@@ -38941,6 +38941,40 @@
             "items": {
               "$ref": "#/components/schemas/CashFlowSourceAllocationInput"
             }
+          },
+          "scheduleSourceAllocations": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CashFlowScheduleSourceAllocationInput"
+            }
+          }
+        }
+      },
+      "CashFlowScheduleSourceAllocationInput": {
+        "required": [
+          "specialistScheduleId",
+          "componentCode",
+          "signedAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "specialistScheduleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "componentCode": {
+            "type": "string"
+          },
+          "signedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
           }
         }
       },

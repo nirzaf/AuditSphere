@@ -54,6 +54,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<FinancialPackageValidation> FinancialPackageValidations { get; }
   DbSet<FinancialPackageCashFlowLine> FinancialPackageCashFlowLines { get; }
   DbSet<FinancialPackageCashFlowAllocation> FinancialPackageCashFlowAllocations { get; }
+  DbSet<FinancialPackageCashFlowScheduleAllocation> FinancialPackageCashFlowScheduleAllocations { get; }
   DbSet<FinancialPackageCashFlowMembershipSeal> FinancialPackageCashFlowMembershipSeals { get; }
   DbSet<FinancialPackageCashFlowSourceReview> FinancialPackageCashFlowSourceReviews { get; }
   DbSet<FinancialStatementContentReview> FinancialStatementContentReviews { get; }

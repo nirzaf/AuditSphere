@@ -395,13 +395,23 @@ public static partial class FinancialStatementService
           SourceLineHash = link.SourceLineHash, SignedAmount = link.SignedAmount, Currency = link.Currency,
           CreatedByUserId = actor.UserId, CreatedAt = package.CreatedAt
         });
+      foreach (var link in sourceLinks.Value.ScheduleLinks)
+        db.FinancialPackageCashFlowScheduleAllocations.Add(new FinancialPackageCashFlowScheduleAllocation
+        {
+          Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
+          EngagementId = package.EngagementId, FinancialPackageId = package.Id,
+          CashFlowLineId = movements[link.MovementIndex].Id, SpecialistScheduleId = link.SpecialistScheduleId,
+          ComponentCode = link.ComponentCode, SourceScheduleHash = link.SourceScheduleHash,
+          SignedAmount = link.SignedAmount, Currency = link.Currency, CreatedByUserId = actor.UserId, CreatedAt = package.CreatedAt
+        });
       // A new schedule always receives an explicit lineage result. Missing links remain
       // a persisted draft; historical packages are not backfilled or reclassified.
       if (request.SupplementaryInformation.CashFlowLines.Count > 0)
       {
         var resolvedMovements = ResolvedCashFlowMovements(
           request.SupplementaryInformation.CashFlowLines.Select(x => (MoneyPolicy.Normalize(x.Amount), x.IsNonCash)).ToArray(),
-          sourceLinks.Value!.Links.Select(x => (x.MovementIndex, x.SignedAmount, x.PopulationComplete)));
+          sourceLinks.Value!.Links.Select(x => (x.MovementIndex, x.SignedAmount, x.PopulationComplete))
+            .Concat(sourceLinks.Value.ScheduleLinks.Select(x => (x.MovementIndex, x.SignedAmount, true))));
         var unresolved = resolvedMovements.Count(x => !x);
         // Lineage also fails when a cash event in the accepted period ledger is not explained by any movement, linked or not.
         var unexplained = sourceLinks.Value!.UnexplainedCashEvents;
@@ -410,7 +420,7 @@ public static partial class FinancialStatementService
             ? "Every cash-flow movement is fully allocated, and every cash event in the accepted general ledger is explained."
             : unexplained > 0
               ? $"{unexplained} cash event(s) in the accepted general ledger are not explained by any cash-flow movement."
-              : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted general-ledger lines.");
+              : $"{unresolved} cash-flow movement(s) are not fully allocated to accepted source records.");
       }
       var persistedFxEffects = (request.SupplementaryInformation.FxCashEffects ?? []).Select(fxEffect => new FinancialPackageFxEffect
         {

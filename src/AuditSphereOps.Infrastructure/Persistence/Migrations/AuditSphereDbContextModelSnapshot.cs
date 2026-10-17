@@ -7773,6 +7773,89 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("financial_package_cash_flow_membership_seals");
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowScheduleAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CashFlowLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cash_flow_line_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ComponentCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("component_code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FinancialPackageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("financial_package_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<decimal>("SignedAmount")
+                        .HasColumnType("numeric(19,6)")
+                        .HasColumnName("signed_amount");
+
+                    b.Property<string>("SourceScheduleHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("source_schedule_hash")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("SpecialistScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("specialist_schedule_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "CreatedByUserId");
+
+                    b.HasIndex("FirmId", "SpecialistScheduleId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SpecialistScheduleId");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "CashFlowLineId")
+                        .HasDatabaseName("IX_financial_package_cash_flow_schedule_allocations_firm_id_c~1");
+
+                    b.HasIndex("FirmId", "FinancialPackageId", "SpecialistScheduleId", "ComponentCode")
+                        .IsUnique()
+                        .HasDatabaseName("ux_financial_package_cash_schedule_allocation_source");
+
+                    b.ToTable("financial_package_cash_flow_schedule_allocations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_financial_package_cash_schedule_allocation_values", "component_code IN ('DEPRECIATION','IMPAIRMENT') AND signed_amount > 0 AND currency ~ '^[A-Z]{3}$' AND source_schedule_hash ~ '^[a-f0-9]{64}$'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -30916,6 +30999,40 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowScheduleAllocation", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "CreatedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_schedule_alloc_creator");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackage", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.SpecialistAccountingSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SpecialistScheduleId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_schedule_alloc_schedule_scoped");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowLine", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "CashFlowLineId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cash_schedule_alloc_movement_scoped");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", b =>

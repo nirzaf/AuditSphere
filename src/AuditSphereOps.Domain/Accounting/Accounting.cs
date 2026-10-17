@@ -591,6 +591,27 @@ public sealed class FinancialPackageCashFlowAllocation
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>
+/// A cash-flow movement contribution from one exact, independently approved specialist schedule component.
+/// The source identity and amount are sealed with the package; this records provenance, not cash-flow policy approval.
+/// </summary>
+public sealed class FinancialPackageCashFlowScheduleAllocation
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public Guid EngagementId { get; set; }
+  public Guid FinancialPackageId { get; set; }
+  public Guid CashFlowLineId { get; set; }
+  public Guid SpecialistScheduleId { get; set; }
+  public string ComponentCode { get; set; } = string.Empty;
+  public string SourceScheduleHash { get; set; } = string.Empty;
+  public decimal SignedAmount { get; set; }
+  public string Currency { get; set; } = string.Empty;
+  public Guid CreatedByUserId { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
 /// <summary>Append-only marker closing source-allocation membership after the package build transaction.</summary>
 public sealed class FinancialPackageCashFlowMembershipSeal
 {

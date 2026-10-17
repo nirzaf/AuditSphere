@@ -427,6 +427,32 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var scheduleAllocation = b.Entity<FinancialPackageCashFlowScheduleAllocation>();
+    scheduleAllocation.Property(x => x.ComponentCode).HasMaxLength(30);
+    scheduleAllocation.Property(x => x.SourceScheduleHash).HasMaxLength(64).IsFixedLength();
+    scheduleAllocation.Property(x => x.Currency).HasMaxLength(3);
+    scheduleAllocation.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.SpecialistScheduleId, x.ComponentCode })
+      .IsUnique().HasDatabaseName("ux_financial_package_cash_schedule_allocation_source");
+    scheduleAllocation.HasIndex(x => new { x.FirmId, x.SpecialistScheduleId });
+    scheduleAllocation.ToTable("financial_package_cash_flow_schedule_allocations", t => t.HasCheckConstraint(
+      "ck_financial_package_cash_schedule_allocation_values",
+      "component_code IN ('DEPRECIATION','IMPAIRMENT') AND signed_amount > 0 AND currency ~ '^[A-Z]{3}$' AND source_schedule_hash ~ '^[a-f0-9]{64}$'"));
+    scheduleAllocation.HasOne<FinancialPackageCashFlowLine>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.CashFlowLineId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_cash_schedule_alloc_movement_scoped");
+    scheduleAllocation.HasOne<SpecialistAccountingSchedule>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.SpecialistScheduleId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_cash_schedule_alloc_schedule_scoped");
+    scheduleAllocation.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict)
+      .HasConstraintName("fk_cash_schedule_alloc_creator");
+    scheduleAllocation.HasOne<FinancialPackage>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var cashFlowMembershipSeal = b.Entity<FinancialPackageCashFlowMembershipSeal>();
     cashFlowMembershipSeal.HasKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasName("pk_financial_package_cash_flow_membership_seals");

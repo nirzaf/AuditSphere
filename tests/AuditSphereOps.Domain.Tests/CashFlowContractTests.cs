@@ -1291,6 +1291,109 @@ public sealed class CashFlowContractTests
     Assert.Contains("ck_financial_package_cash_source_review_intent", (await partial).ToString(), StringComparison.Ordinal);
   }
 
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ApprovedAssetScheduleSource_IsDiscoveredSealedAndIndependentlyReviewed()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var preparer = Actor(fixture.Preparer, "AccountingPreparer");
+    var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
+    var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
+    var scheduleId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var currentGeneration = await db.ClientSafetyStates.Where(x => x.FirmId == fixture.FirmId && x.Id == fixture.ClientId)
+        .Select(x => x.InputGeneration).SingleAsync();
+      db.SpecialistAccountingSchedules.Add(new SpecialistAccountingSchedule
+      {
+        Id = scheduleId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        PeriodId = fixture.PeriodId, InputGeneration = currentGeneration, Revision = 1, Area = "ASSETS", MethodologyVersion = "asset-v1",
+        OpeningAmount = 100m, AdditionsAmount = 20m, DisposalsAmount = 0m, DepreciationAmount = 25m, ImpairmentAmount = 0m,
+        InterestAmount = 0m, CurrentPortion = 0m, NonCurrentPortion = 0m, CapitalMovement = 0m, Dividends = 0m,
+        TaxPaid = 0m, ManagementAmount = 95m, CalculatedAmount = 95m, ClosingAmount = 95m, Difference = 0m,
+        DepreciationMethod = "STRAIGHT_LINE", UsefulLifeMonths = 120, AssumptionsHash = new string('a', 64),
+        EvidenceReference = "synthetic-asset-register", Status = AccountingWorkflowStates.Approved,
+        CreatedByUserId = fixture.Preparer.Id, ReviewedByUserId = fixture.Reviewer.Id, CreatedAt = now, ReviewedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var retained = await db.SpecialistAccountingSchedules.SingleAsync(x => x.Id == scheduleId);
+      Assert.Equal(25m, retained.DepreciationAmount);
+      Assert.Equal(AccountingWorkflowStates.Approved, retained.Status);
+      Assert.NotNull(retained.ReviewedAt);
+      Assert.NotEqual(retained.CreatedByUserId, retained.ReviewedByUserId);
+      Assert.Null(AccountingAnalysisService.ValidateRetainedSpecialist(retained));
+      Assert.Equal("ASSETS", retained.Area);
+      var currentSafety = await db.ClientSafetyStates.SingleAsync(x => x.Id == fixture.ClientId);
+      Assert.Equal(retained.InputGeneration, currentSafety.InputGeneration);
+      var accepted = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, preparer,
+        fixture.ClientId, fixture.EngagementId, fixture.PeriodId);
+      Assert.True(accepted.Succeeded, accepted.Message);
+      Assert.Equal(currentSafety.InputGeneration, accepted.Value!.InputGeneration);
+      var latestAssetId = await db.SpecialistAccountingSchedules.AsNoTracking().Where(x => x.FirmId == fixture.FirmId &&
+        x.ClientId == fixture.ClientId && x.EngagementId == fixture.EngagementId && x.PeriodId == fixture.PeriodId && x.Area == "ASSETS")
+        .OrderByDescending(x => x.Revision).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+        .Select(x => (Guid?)x.Id).FirstOrDefaultAsync();
+      Assert.Equal(scheduleId, latestAssetId);
+
+      var discovered = await FinancialScheduleSourceQuery.GetAsync(db, preparer, fixture.EngagementId, fixture.PeriodId);
+      Assert.True(discovered.Succeeded, discovered.Message);
+      var component = Assert.Single(discovered.Value!.SpecialistSources);
+      Assert.Equal(scheduleId, component.ScheduleId);
+      Assert.Equal("DEPRECIATION", component.ComponentCode);
+      Assert.Equal("25", component.SignedAmount);
+      Assert.Matches("^[a-f0-9]{64}$", component.ScheduleHash);
+
+      var request = new BuildFinancialPackageRequest(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", "schedule-source-v1")
+      {
+        SupplementaryInformation = new FinancialSupplementaryInformation(0m, 100m,
+          [new CashFlowLineInput("OPERATING", "Cash receipts", 100m, MovementDate: new DateOnly(2026, 6, 30),
+             ActivityCode: "CASH_RECEIPTS", SourceReferences: ["synthetic-bank-ledger"],
+             ClassificationRationale: "Receipt agreed to the synthetic bank ledger.",
+             SourceAllocations: [new CashFlowSourceAllocationInput(source.Receivable, -100m)]),
+           new CashFlowLineInput("OPERATING", "Depreciation adjustment", 25m, IsNonCash: true,
+             MovementDate: new DateOnly(2026, 6, 30), ActivityCode: "NON_CASH_ADJUSTMENT", SourceReferences: ["synthetic-asset-register"],
+             ClassificationRationale: "Noncash adjustment linked to the approved asset schedule.",
+             ScheduleSourceAllocations: [new CashFlowScheduleSourceAllocationInput(scheduleId, "DEPRECIATION", 25m)])],
+          [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
+           new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
+          [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
+          CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement"], ClosingCashEvidenceReferences: ["closing-bank-statement"],
+          FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population", "No FX effect."))
+      };
+      var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
+      Assert.True(built.Succeeded, built.Message);
+      Assert.Equal(AccountingPackageStates.PackageValidated, built.Value!.Status);
+      var link = await db.FinancialPackageCashFlowScheduleAllocations.SingleAsync(x => x.FinancialPackageId == built.Value.PackageId);
+      Assert.Equal(scheduleId, link.SpecialistScheduleId);
+      Assert.Equal(component.ScheduleHash, link.SourceScheduleHash);
+      Assert.Equal(25m, link.SignedAmount);
+      Assert.Equal(fixture.Preparer.Id, link.CreatedByUserId);
+
+      var reviewState = await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, built.Value.PackageId);
+      Assert.True(reviewState.Succeeded, reviewState.Message);
+      var approved = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, built.Value.PackageId,
+        "APPROVED", null, Guid.NewGuid(), reviewState.Value!.LinkDigest, reviewState.Value.LatestReviewId);
+      Assert.True(approved.Succeeded, approved.Message);
+      Assert.True(await FinancialStatementService.CashFlowSourceApprovedAsync(db, await db.FinancialPackages.SingleAsync(x => x.Id == built.Value.PackageId), default));
+
+      db.FinancialPackageCashFlowScheduleAllocations.Add(new FinancialPackageCashFlowScheduleAllocation
+      {
+        Id = Guid.NewGuid(), FirmId = fixture.FirmId, ClientId = fixture.ClientId, EngagementId = fixture.EngagementId,
+        FinancialPackageId = built.Value.PackageId, CashFlowLineId = link.CashFlowLineId, SpecialistScheduleId = scheduleId,
+        ComponentCode = "IMPAIRMENT", SourceScheduleHash = component.ScheduleHash, SignedAmount = 1m, Currency = "QAR",
+        CreatedByUserId = fixture.Preparer.Id, CreatedAt = now
+      });
+      await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+  }
+
   private static async Task<Guid> BuildCompletePackageAsync(PgTestSchema pg, Guid planId, Guid mappingId, ActorContext preparer,
     CashFlowSourceSeed.Source source, string template, string periodStart = "2026-01-01", string periodEnd = "2026-12-31",
     DateOnly? movementDate = null, FinancialComparativeInput? comparative = null)
