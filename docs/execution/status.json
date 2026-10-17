@@ -2023,7 +2023,7 @@
       "RES-01",
       "RES-02"
     ],
-    "lastTechnicalSlice": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
+    "lastTechnicalSlice": "3be940ea5777f439e243ff5bf5ebe5f69bd27e3d",
     "advanceCashGate": {
       "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
       "result": "FOCUSED_INCREMENTAL_PASS",
@@ -2066,12 +2066,14 @@
       "codeCommit": "079642f89bb709fd0bc85ddd72b6c4bac1af1861"
     },
     "certificationReview": {
+      "codeCommit": "3be940ea5777f439e243ff5bf5ebe5f69bd27e3d",
+      "uiCommit": "602c3c00",
       "publicationCommit": "6a81a4f7",
       "persistenceCommit": "96bcd99a",
       "result": "PARTIAL",
-      "verification": "API 1 PASS; Angular 15 PASS; API/emitter and Angular builds PASS. Browser VERIFIED then REVOKED revisions 1/2, console clean. Scoped-manager Domain/publication cohort 1 PASS.",
-      "remaining": "Staffing integration, concurrency/revocation race and full current-SHA CI acceptance.",
-      "browserDatabase": "auditsphere_browser only: review migration applied, one synthetic qualification reviewed then withdrawn; no real certification asserted."
+      "verification": "Staffing Domain 9 PASS; timeline rerun 1 PASS after composite-ID fixture fix; Angular activity 5 PASS, review 15 PASS; E2E project build PASS. Browser revoked candidate no longer Certified; console clean.",
+      "remaining": "Deterministic review-revocation/assignment race, broader resource and full current-SHA CI acceptance.",
+      "browserDatabase": "auditsphere_browser only; synthetic qualification reviewed then withdrawn; no real qualification or staffing grant asserted."
     }
   }
 }

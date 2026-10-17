@@ -113,7 +113,7 @@ The [product crosswalk](docs/execution/auditsphere-execution-tracker-practice-ma
 | ☐ Partially pending | Practice & commercial | Leads, client profiles/contacts, quotes, pricing, proposals, fee agreements and activation | Complete commercial acceptance, approved layouts/policy and provider delivery evidence. |
 | ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, templates, dependencies, queues, list/board/calendar | Required-task graph, recurrence/automation, lifecycle and current browser acceptance. |
 | ☐ Partially pending | Client collaboration | First sign-in, scoped PBC requests/uploads, comments, financial-package review | Shared write-gate acceptance, exact accepted evidence sets and document/delivery lifecycle. |
-| ☐ Partially pending | People & time | Staffing, resource grid, availability, allocations, time, budgets, rates and utilization | Certification review UI/API and staffing integration; broader resource/time acceptance. |
+| ☐ Partially pending | People & time | Staffing, resource grid, availability, allocations, time, budgets, rates and utilization | Review-revocation/assignment race and broader resource/time acceptance. |
 | ☐ Partially pending | Firm finance | Protected billing, receipt allocations, expenses, firm ledger, aging, WIP and profitability | Full financial workflow acceptance; firm pricing and end-of-service professional configuration. |
 | ☐ Partially pending | Client accounting — modules 20–23 | Setup, charts, periods, TB/GL, mappings, adjustments, reconciliations and specialist schedules | Complete source/review/correction workflows and professionally approved fixtures. |
 | ☐ Partially pending | Financial reporting — modules 24–25 | Statements, comparatives, cash/equity schedules, disclosures, package builds and PDF/DOCX/XLSX | Approved indirect classifications, complete source-backed schedules/composition and release acceptance. |
@@ -140,8 +140,8 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | ☑ Completed | Firm expense paging and exact-record recovery | Broader finance workflow acceptance remains open. |
 | ☑ Completed | Monthly P&L date/range boundaries | Complete reporting and export acceptance remains open. |
 | ☑ Completed | Resource range validation and capacity remainder calculation | Complete staffing/resource acceptance remains open. |
-| ☑ Completed | Certification disclosure separating verification from expiry | Review integration and staffing eligibility remain open. |
-| ☑ Completed | Exact-source certification rules, append-only persistence and Application review workspace | API/UI integration, concurrency and current release acceptance remain open. |
+| ☑ Completed | Certification disclosure separating verification from expiry | Broader resource and concurrency acceptance remain open. |
+| ☑ Completed | Exact-source certification rules, append-only persistence and Application review workspace | UI/API and staffing integration have focused checks; concurrency and current release acceptance remain open. |
 
 ### Available screens and feature roadmap
 

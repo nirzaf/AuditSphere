@@ -18150,6 +18150,14 @@
       "cohort": "CapacityDeductsLeaveOnASundayButNotOnTheWeekend; Analytics_MissingCostRateKeepsChargeOutValueAndZeroCapacityDoesNotInventUtilization",
       "scope": "Pure and isolated PostgreSQL: 2401 weekly minutes retained; Sunday leave leaves 1920 in grid/analytics; full leave removes all capacity; final supported date succeeds.",
       "deferred": "Positive browser and full current-SHA CI acceptance NOT_VERIFIED."
+    },
+    "certificationReviewBeforeStaffing20261018": {
+      "publicationCommit": "6a81a4f7",
+      "persistenceCommit": "96bcd99a",
+      "result": "PARTIAL",
+      "verification": "API 1 PASS; Angular 15 PASS; API/emitter and Angular builds PASS. Browser VERIFIED then REVOKED revisions 1/2, console clean. Scoped-manager Domain/publication cohort 1 PASS.",
+      "remaining": "Staffing integration, concurrency/revocation race and full current-SHA CI acceptance.",
+      "browserDatabase": "auditsphere_browser only: review migration applied, one synthetic qualification reviewed then withdrawn; no real certification asserted."
     }
   }
 }
