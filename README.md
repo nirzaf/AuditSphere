@@ -2,389 +2,104 @@
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18.6-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![EF Core](https://img.shields.io/badge/EF%20Core-10.0-0078D4?logo=nuget&logoColor=white)](https://learn.microsoft.com/ef/core/)
 [![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)](src/AuditSphereOps.Ui/auditsphere-angular-development.md)
-[![Tests](https://img.shields.io/badge/Tests-PostgreSQL--backed-brightgreen)](tests)
-[![Migrations](https://img.shields.io/badge/Migrations-EF%20Core-blue)](src/AuditSphereOps.Infrastructure/Persistence/Migrations)
-![License](https://img.shields.io/badge/License-Informational-lightgrey)
+[![EF Core](https://img.shields.io/badge/EF%20Core-10.0-0078D4?logo=nuget&logoColor=white)](https://learn.microsoft.com/ef/core/)
 
-**AuditSphereOps** is a professional audit, accounting, and assurance operations platform — an enterprise **.NET 10 modular monolith** for accounting practices, CPA firms, audit engagements, and multi-entity group consolidation. It governs the full engagement lifecycle: lead qualification, proposals, client acceptance, practice time and billing, trial-balance/GL intake, financial statement production, audit fieldwork, review, controlled package signing/release, records retention, and multi-currency consolidation.
+**AuditSphereOps** is a professional audit, accounting, and assurance platform — a **.NET 10 modular monolith** (ASP.NET Core API + Angular 22) for CPA firms: engagement lifecycle, practice billing, trial-balance/GL intake, financial-statement production, audit fieldwork and review, controlled package release, records retention, and multi-currency group consolidation.
 
-> **Status: Specification-Driven Modular Monolith.** Implemented and verified locally (per [`docs/execution/status.json`](docs/execution/status.json), the single authority for test counts, verified SHA, migration count, and external blockers, against PostgreSQL 18.6): core domain modules and practice management; period/book/basis-bound trial-balance intake with deterministic sealing, safe legacy period/chart backfill, and sealed GL source-bound schedule control totals; bounded resumable GL intake with service-date lineage and opening/movement completeness; client-scoped accounting dimensions, chart/taxonomy hierarchy controls, and QAR setup defaults; deterministic calculators and governed workflows (journal-risk indicators, exact-journal difference-impact classification, governed difference correction states, audit planning, bank reconciliation proofs, source-bound reconciliation-item aging, analytical-review replay lineage, valuation differences linked to scoped adjustments, typed specialist schedules with explicit asset-schedule methodology); package production and release control (exact-byte reviewed artifacts, deterministic formula-free XLSX/DOCX exports, package-bound release candidates, archive lineage, governed financial-package review decisions, authorized review queues, client-safe management views, durable GL/package processing, context-bound adjustment journals, queued-operation cancellation, recovery quarantine, provider safety fences, source-bound accounting-evidence freshness); versioned FX ranges and approved rate-rule enforcement with deterministic advanced-consolidation safety cores; stale-route re-authorization hardening across staff and client workbenches; Angular 22 staff/client workbenches (canonical presentation served by the API) with a whole-application responsive sweep and scoped staff navigation search that re-authorizes every hit against its destination route's decision; a source-backed administrator project progress tracker; guarded Microsoft tenant consent sessions; a least-privilege M365 tenant administration boundary; and bounded read-only Microsoft directory search. Production external gates (Entra OIDC, selected-resource SharePoint/Graph, live release checkpoint) require live infrastructure and remain `BLOCKED_EXTERNAL`, never fake-passed. Purview and eSignature provider integrations are out of product scope: exact uploaded signed-document evidence, SHA-256 identities, human decisions, and release manifests are preserved without claiming provider acceptance.
+> **Status:** implemented and verified locally against PostgreSQL 18.6. [`docs/execution/status.json`](docs/execution/status.json) is the sole authority for test counts, verified SHA, and migration count. Angular is the canonical UI (Blazor host retired, see [removal gate](docs/migration/auditsphere-migration-blazor-removal-readiness.md)); migration acceptance is `NOT_READY`. Live Entra/Graph/release gates are `BLOCKED_EXTERNAL` — never fake-passed. Purview/eSignature providers are out of scope.
 
-## API backend and Angular UI
+## Financial boundaries
 
-The owner-directed migration separates `src/AuditSphereOps.Api` (ASP.NET Core HTTP backend) from `src/AuditSphereOps.Ui` (Angular frontend), preserving the Domain/Application/Infrastructure/Worker boundaries. **Migration acceptance remains `NOT_READY`.** On 2026-10-17 the owner authorized retirement of the Blazor rollback/reference host despite that gate; the removal was merged to `master` as `e7ebe27c`, so the host is absent from the current tree. The removed source remains available in Git history at the pre-removal commit `c3905e07`. The API serves Angular as the canonical route owner. The authorization does not establish source-action parity, production rollback, or operational acceptance. See the [canonical removal gate](docs/migration/auditsphere-migration-blazor-removal-readiness.md).
+Three isolated domains — enforced in Domain, services, and database. Import-first platform, not an operational client ERP (no payroll execution, payment initiation, or external tax filing).
 
-Start/build/publish instructions are in the [Angular development guide](src/AuditSphereOps.Ui/auditsphere-angular-development.md); the [migration architecture](docs/architecture/auditsphere-angular-migration-current.md) records security and acceptance boundaries.
+1. **Firm books** (`Practice/FirmLedger`) — billing, WIP time, invoices, receipts, immutable firm ledger.
+2. **Client workspace** (`Accounting/`) — TB/GL imports, charts, mappings, adjustments, reconciliations, statements, client FX remeasurement.
+3. **Group consolidation** (`Consolidation/`) — approved component packs, eliminations, FX translation. Never mutates component books.
 
----
+## Architecture
 
-## Table of Contents
-
-- [Project Objectives](#project-objectives)
-- [Three Strict Financial Boundaries](#three-strict-financial-boundaries)
-- [Architecture & Data Flow](#architecture--data-flow)
-- [Record-to-Report (R2R) Modules (20–26)](#record-to-report-r2r-modules-2026)
-- [Web Workbenches & Navigation Directory](#web-workbenches--navigation-directory)
-- [Key Engineering Invariants](#key-engineering-invariants)
-- [Technology Baseline](#technology-baseline)
-- [Solution Layout](#solution-layout)
-- [Getting Started](#getting-started)
-- [Local Database Setup (No Admin, Docker-Free)](#local-database-setup-no-admin-docker-free)
-- [Build, Migrate, Test & Benchmark](#build-migrate-test--benchmark)
-- [Durable Operations & Worker Architecture](#durable-operations--worker-architecture)
-- [Verification & Evidence Discipline](#verification--evidence-discipline)
-- [Implementation Roadmap & External Gates](#implementation-roadmap--external-gates)
-- [Documentation & Specifications](#documentation--specifications)
-- [Contributing](#contributing)
-
----
-
-## Project Objectives
-
-1. **Complete Professional Lifecycle, Not a Scaffold:** Dependency-ordered vertical slices with working screens, commands, persistence, scoped authorization, append-only audit evidence, automated tests, documents, and operating procedures.
-2. **Dual-Scope Professional Capability:** Both **Client Accounting Services (CAS / Record-to-Report)** and **Financial-Statement Assurance Audits** in one unified workspace.
-3. **Exact-Version Approvals and Release Safety:** Synchronous release-safe generation; version-bound document approvals; durable operations with at-most-once external effects, reconciliation, and recovery quarantine.
-4. **Native Practice Management:** CRM (leads, proposals, acceptance), staff time budgets, billing artifacts (invoices, credit notes, receipts, allocations), and an immutable firm ledger — without becoming an operational client ERP.
-5. **Microsoft 365 Dependencies & Preserved Evidence:** Entra ID (identity) and Graph + SharePoint Online (selected-resource documents) remain fenced external boundaries; the Purview/eSignature scope rule from the status note above applies.
-6. **Honest Evidence:** Every claim maps to executed test evidence in `docs/execution/status.json`; external blockers are recorded as blocked, never simulated.
-
----
-
-## Three Strict Financial Boundaries
-
-Absolute isolation is enforced between three accounting domains — in the Domain model, services, and database. This is an **import-first** preparation, audit, and consolidation platform, **not** an operational client ERP: client sales/purchase/inventory order processing, payroll execution, and payment initiation are excluded.
-
-1. **Firm's Own Books (`Practice/FirmLedger`):** Client billing, WIP time tracking and rate cards, invoices, credit notes, receipts, and an immutable double-entry firm general ledger with closed-period locks and balance integrity.
-2. **Client Accounting Workspace (`Accounting/`):** Client-owned source TB/GL imports, client charts of accounts, approved taxonomy mappings, proposed/agreed adjustments, reconciliation proofs, specialist schedules, audit fieldwork evidence, draft/validated entity financial statement packages, and client FX remeasurement of foreign-currency GL balances within reporting periods (using approved rates and policies).
-3. **Group Consolidation Workspace (`Consolidation/`):** Approved component packages, consolidation perimeter definitions, intercompany 1-to-1 matching and elimination journals, and foreign currency translation of component statements (CTA reserves). Client FX remeasurement stays in the Client Accounting Workspace. **Never** mutates component client books.
-
----
-
-## Architecture & Data Flow
-
-AuditSphereOps is structured as a **clean-architecture modular monolith** with an ASP.NET Core API backend and Angular UI. The legacy Blazor host was retired by owner decision and the removal was merged to `master` as `e7ebe27c`; the current tree contains only Angular. Migration acceptance remains `NOT_READY` until the canonical gate is satisfied:
-
-```
-   ┌───────────────────────────────────────────────┐
-   │                   BROWSERS                    │
-   │ staff Angular (/ui/app/*) · client Angular    │
-   │       (/ui/portal) · authorized files         │
-   └────────────────────┬──────────────────────────┘
-                        │ same-origin HTTPS / authorized API
-┌───────────────────────▼──────────────────────────────┐
-│                  AuditSphereOps.Api                  │
-│      ASP.NET Core API · Angular presentation        │
-│    Angular workbenches /ui/app · /ui/portal          │
-│      route/refresh re-authorization · composes       │
-│     Application commands & queries · no business     │
-│           mutations through the DbContext            │
-│     health probes (/health/live, /health/ready)      │
-└───────────────────────┬──────────────────────────────┘
-                        │ scoped commands & queries (RoleGrant-checked)
-                        ▼
-┌───────────────────────▼──────────────────────────────┐   ┌───────────────────────┐
-│              AuditSphereOps.Application              │──▶│ AuditSphereOps.Domain │
-│     ActorContext · RoleGrant scope authorization     │   │     Pure models &     │
-│      (FIRM_WIDE · CLIENT · ENGAGEMENT · GROUP)       │   │ invariants grouped by │
-│   Capability services · durable operation handlers   │   │      capability:      │
-│   Pure calculators (statements, FX, eliminations)    │   │ Practice · Accounting │
-│             OpenXML & PDFsharp renderers             │   │ Consolidation · Audit │
-│                                                      │   │ Reviews · Completion  │
-│                                                      │   │ Documents · Security  │
-│                                                      │   │   (no EF · no I/O ·   │
-│                                                      │   │      no clocks)       │
-└───────────────────────┬──────────────────────────────┘   └───────────────────────┘
-                        │ persists via Infrastructure · writes the durable outbox
-                        ▼
-┌───────────────────────▼──────────────────────────────┐   ┌───────────────────────┐
-│            AuditSphereOps.Infrastructure             │   │ AuditSphereOps.Worker │
-│    EF Core 10 · Npgsql 10 · AuditSphereDbContext     │◀──│BackgroundService host │
-│             (capability partial classes)             │   │   groups: general ·   │
-│              numeric(19,6) money policy              │   │ processing · records  │
-│          append-only triggers & constraints          │   │                       │
-│    PostgreSQL migrations · PostgresOperationStore    │   │FOR UPDATE SKIP LOCKED │
-│                   (durable outbox)                   │   │operation claims · 60 s│
-│                                                      │   │lease · 20 s renewal · │
-│                                                      │   │ 5 attempts · backoff  │
-│                                                      │   │   RESULT_UNCERTAIN    │
-│                                                      │   │  recovery quarantine  │
-└───────────────────────┬──────────────────────────────┘   └───────────────────────┘
-                        │
-                        ▼
-┌───────────────────────▼──────────────────────────────┐
-│                   POSTGRESQL 18.6                    │
-│   dev loopback 127.0.0.1:5433 · EF Core migrations   │
-│      uniquely-named disposable per-test schemas      │
-│           (no InMemory provider fallback)            │
-└──────────────────────────────────────────────────────┘
-
- EXTERNAL GATED BOUNDARIES — fail-closed, BLOCKED_EXTERNAL until live infrastructure:
-   Entra OIDC sign-in (database session-epoch-bound cookies) · SharePoint/Graph
-   documents on Sites.Selected + exact per-site grants · read-only Graph directory
-   reader (User.Read.All) behind its separate consent gate · SHA-256 signed-document
-   evidence and release manifests · Purview/eSignature providers: out of product scope
-
- THREE STRICT FINANCIAL BOUNDARIES — isolated in Domain, services, and database:
-   Firm's own books (Practice/FirmLedger) ≠ Client accounting (Accounting/) ≠
-   Group consolidation (Consolidation/) — consolidation consumes approved component
-   packs only and never mutates component client books
+```text
+Angular UI → ASP.NET Core API → Application (static capability services, RoleGrant auth)
+                                        → Domain (pure) + Infrastructure (EF Core) → PostgreSQL 18.6
+                                                        ↘ Worker (durable outbox: SKIP LOCKED claims, leases, quarantine)
 ```
 
-Project reference direction (enforced by the architecture guard tests):
+Reference direction: `Domain → nothing; Application → Domain; Infrastructure → Application, Domain; Api/Worker → all`. Details: [current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) · [code map](docs/architecture/auditsphere-architecture-code-map.md). Routes: `src/AuditSphereOps.Ui/src/app/app.routes.ts`.
 
-```
-  Domain         → nothing (pure)
-  Application    → Domain
-  Infrastructure → Application, Domain
-  Api            → Application, Infrastructure, Domain
-  Worker         → Application, Infrastructure, Domain
-```
+## Record-to-Report modules (20–26)
 
-### Domain Modules
+Native R2R lifecycle under [`docs/task_breakdown`](docs/task_breakdown/auditsphere-r2r-index-task-breakdown.md):
 
-- **Security:** `ActorContext`, `RoleGrant` resolution, scoped authorization policies, permission checks.
-- **Practice:** CRM, leads, proposals, client acceptance, time, fee budgets, billing, invoices, receipts, firm ledger.
-- **Acceptance:** Risk assessments, QAR setup defaults, independence confirmations, acceptance sign-offs.
-- **Engagements:** Setup, periods, assigned staff teams, scope governance.
-- **Accounting:** Client profiles, charts of accounts, trial balances, GLs, adjustment journals, specialist schedules, financial statements, currency rates and policies, client FX remeasurement.
-- **Consolidation:** Group perimeters, component packages, FX translation, eliminations.
-- **Audit:** Fieldwork, programs, procedures, workpapers, sampling, journal-risk indicators, bank reconciliations, differences.
-- **Reviews:** Stage-bound package reviews, partner review decisions, review point governance.
-- **Completion:** Representation letters, audit sign-offs, controlled package release handoffs.
-- **Documents & Records:** Document metadata, upload/download fences, M365 onboarding, exact signed-document evidence, SHA-256 identities, immutable archive manifests.
+| Module | Scope |
+|---|---|
+| **20 — Workspace setup** | Client profiles, fiscal calendars, reporting periods, books, versioned charts, dimensions, taxonomy overlays. |
+| **21 — TB & GL intake** | Streaming CSV/XLSX intake, deterministic sealing, resumable GL batches, opening/movement completeness. |
+| **22 — Adjustments** | Draft journals, revision guards, dual-role decisions, reviewer-gated posting with separation of duties. |
+| **23 — Reconciliations & schedules** | Bank/AR-AP proofs, ECL matrix, NRV valuations, specialist schedules (PPE, loans, equity, tax, cash). |
+| **24 — Statements & taxonomy** | Chart-to-taxonomy mapping reviews, deterministic statement calculators. |
+| **25 — Package assembly** | Versioned packs, durable worker builds, exact-byte formula-free XLSX/PDF artifacts, review decisions. |
+| **26 — Consolidation & FX** | Perimeter scope, component pins, intercompany matching/elimination, IAS 21 translation. |
 
----
+## Stack & layout
 
-## Record-to-Report (R2R) Modules (20–26)
+.NET 10 / C# 14 · EF Core 10 + Npgsql · PostgreSQL 18.6 (local port `5433`) · Angular 22 + Material/CDK · OpenXML + PDFsharp/MigraDoc · xUnit + Playwright.
 
-Native, production-grade implementations for the R2R lifecycle defined under `docs/task_breakdown`:
-
-| Module | Scope & Core Capabilities | Key Services & APIs |
-|---|---|---|
-| **Module 20: Accounting Workspace, Setup & Profiles** | Client accounting profiles with concurrency-fenced revisions, fiscal calendars, reporting periods, books, multi-tier chart of accounts versioning, hierarchy navigation with parent resolution and direct child counts, dimension definitions, and taxonomy overlays. | `ClientAccountingService`<br>• `ReviseProfileAsync`<br>• `GetChartRevisionAccountsAsync`<br>• `CreateChartOfAccountsDraftAsync` |
-| **Module 21: Trial Balance Intake & GL Completeness** | Safe streaming CSV/XLSX intake, deterministic sealing, paged source row queries with prefix filtering, RFC 4180 CSV exports with CSV injection protection (`=`, `+`, `-`, `@`), bounded resumable GL batches with chunk digests, and GL opening/movement completeness bridges. | `TrialBalanceDatasetQuery`<br>`TrialBalanceImportService`<br>• `GetTrialBalanceRowsAsync`<br>• `ExportTrialBalanceCsvAsync`<br>• `IngestTrialBalanceAsync` |
-| **Module 22: Adjustments & Journal Governance** | Draft journals with arbitrary balanced lines, revision concurrency guards, in-place draft updates, audit/client origins, dual-role management decisions, reversal drafts, CSV instruction exports, and reviewer-gated posting with separation of duties. | `AdjustmentJournalService`<br>• `UpdateDraftAsync`<br>• `PostJournalAsync`<br>• `RecordManagementDecisionAsync` |
-| **Module 23: Reconciliations, ECL & Specialist Schedules** | Source-bound bank and AR/AP aging reconciliations, transparent proof calculations with item summation and residual checks, correction journal linking, ECL provision matrix assessments, lower-of-cost-and-NRV inventory valuations, and specialist schedules (PPE, payroll, loans, equity, tax, cash forecast). | `AccountingAnalysisService`<br>• `CalculateReconciliationProofAsync`<br>• `LinkReconciliationCorrectionAsync`<br>• `AssessEclProvisionAsync` |
-| **Module 24: Financial Statements & Taxonomy Alignment** | Versioned chart-to-taxonomy mapping drafts and reviews, multi-tier allocation validation, approved taxonomy enforcement, and pure deterministic financial statement calculators. | `FinancialStatementService`<br>`FinancialStatementCalculator`<br>• `CalculateFinancialStatements`<br>• `ApproveMappingRevisionAsync` |
-| **Module 25: Financial Package Assembly & Rendering** | Versioned financial packages, durable outbox worker builds, exact-byte rendered HTML/PDF artifacts, OpenXML formula-free/macro-free XLSX workbooks, and immutable partner review decisions. | `FinancialStatementService`<br>`PackageRenderingService`<br>• `EnqueuePackageCalculationAsync`<br>• `RecordReviewDecisionAsync` |
-| **Module 26: Group Consolidation & Multi-Currency** | Perimeter membership, draft scope versions, component pins and replacements, intercompany 1-to-1 matching and eliminations, foreign operation currency translation with rate policies and historical rate rules, and consolidated reporting. | `ConsolidationService`<br>`CurrencyTranslationService`<br>• `ReplaceComponentAsync`<br>• `TranslateForeignOperationAsync` |
-
----
-
-## Web Workbenches & Navigation Directory
-
-The table below lists native workspace routes in AuditSphere. Angular routes use `/ui` plus the same route or canonical routes directly (`/app/...`). The explicit route catalogue in `src/AuditSphereOps.Ui/src/app/app.routes.ts` owns all application navigation.
-
-| Route | Workbench | Description |
-|---|---|---|
-| `/app` | **Portfolio Overview** | Scoped engagement portfolio, client index, search, activity counters. |
-| `/app/practice/leads` | **Practice Leads** | CRM pipeline, lead qualification, opportunity conversion. |
-| `/app/practice/time` | **Practice Time** | Time tracking on assigned tasks, rate snapshots, independent manager approval. |
-| `/app/finance` | **Practice Finance** | Firm billing, invoicing, credit notes, receipts, firm ledger. |
-| `/app/accounting` | **Accounting Workspace** | Client profiles, reporting periods, books, setup status. |
-| `/app/accounting/evidence` | **Evidence Queue** | Engagement-scoped evidence tracker, source-bound links, procedure bindings. |
-| `/app/accounting/mappings` | **COA & Taxonomy Mappings** | Chart versioning, account hierarchy, mapping workbenches. |
-| `/app/accounting/journals` | **Adjustment Journals** | Context-bound journals, draft updates, balance checks, posting workflows. |
-| `/app/accounting/differences` | **Audit Differences** | Absolute/signed difference summaries, journal-impact payloads, resolution status. |
-| `/app/accounting/rollforward` | **Period Roll-forward** | Opening-balance roll-forward, chart revisions, prior-period mapping lineage. |
-| `/app/accounting/reviews` | **Package Reviews** | Multi-stage review queue (management, accounting, partner). |
-| `/app/accounting/restatements` | **Period Restatements** | Retrospective restatement drafts, version comparison, restatement journals. |
-| `/app/accounting/remeasurement` | **FX Remeasurement** (client accounting) | Client foreign-currency GL remeasurement workpapers within reporting periods, source-evidence-linked, with draft autosave and independent approval. |
-| `/app/consolidation` | **Group Consolidation** | Perimeter management, component pins/replacements, elimination journals. |
-| `/app/operations` | **Durable Operations** | Live monitor for operations, leases, retries, manual cancellations. |
-| `/app/administration` | **Administration** | Firm-wide configuration, user roles, security policies, preferences. |
-| `/app/administration/microsoft365` | **M365 Tenant Administration** | Least-privilege tenant administration boundary: guarded consent session status, bounded read-only directory search, capability verification (live consent remains externally gated). |
-| `/app/administration/microsoft365/tenant-connection` | **M365 Tenant Connection** | Selected-site connection test, tenant summary and read-only current-verification bar for enabled Microsoft permission checks. |
-| `/app/administration/project-progress` | **Project Progress** | Administrator-only tracker: four-state bars and completed-card percentages derived from published task cards; unmeasured areas shown as untracked, never zero. |
-| `/app/audit/library` | **Audit Program Library** | Versioned programs with procedure counts and per-version readback. |
-| `/setup/microsoft365` | **M365 Setup** | Bootstrap-claim onboarding draft (Entra/SharePoint verification externally gated). |
-| `/auth/access-not-assigned` | **Access Not Assigned** | Boundary page for authenticated users without an applicable role grant. |
-| `/portal` | **Client Portal** | Restricted portal: PBC uploads, review status, draft representations. |
-| `/health/live`, `/health/ready` | **Health & Readiness** | Health probes with live Npgsql database connectivity verification. |
-
----
-
-## Key Engineering Invariants
-
-- **Exact Money Arithmetic:** `numeric(19,6)` in PostgreSQL and C# `decimal`. Zero floating-point drift, zero silent rounding.
-- **Append-Only Evidence:** Sealed datasets, posted billing history, approved mappings, applied journals, issued packages, and audit evidence cannot be rewritten or deleted — enforced by PostgreSQL triggers (`trial_balance_rows` sealed trigger, `materiality_approvals` protection) and check constraints.
-- **Durable Outbox with Exactly-Once Discipline:** `SKIP LOCKED` worker claims with leases (60 s lease, 20 s renewal, 5 attempts, persisted exponential backoff), immutable request/attempt records, and `RESULT_UNCERTAIN` recovery quarantine.
-- **Scope-Checked Authorization Everywhere:** Every command, query, and API call enforces an explicit `RoleGrant` scope (`FIRM_WIDE`, `CLIENT`, `ENGAGEMENT`, `GROUP`); an engagement-only grant never widens to sibling clients or engagements. Shell navigation search results are re-authorized per hit against the destination route's decision.
-- **Least-Privilege Microsoft Graph:** Tenant-wide scopes are never requested. The approved core exception is a read-only directory reader (`User.Read.All`) behind its separately consented gate; document access stays on `Sites.Selected` with exact per-site grants; optional mutations remain disabled pending separate gates (see [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](docs/architecture/auditsphere-m365-tenant-administration-permissions.md)).
-- **Pure Calculation Engines:** Statement calculations, eliminations, translations, and remeasurements are pure deterministic functions — no EF Core, network, system clocks, or non-deterministic IDs.
-- **Document & Export Integrity:** OpenXML spreadsheets are formula-free and macro-free; PDFs use PDFsharp/MigraDoc with OFL Noto Sans and byte-stable layout; CSV exports neutralize formulas (`=`, `+`, `-`, `@`).
-- **Fail-Closed Methodology:** Missing exchange rates, unsupported valuation methods, unapproved perimeters, or stale source inputs fail closed and block release — never defaulting to zero or arbitrary assumptions.
-- **No Autonomous Audit Opinions:** The platform computes differences, evaluates risk indicators, and enforces gates; human practitioners make professional conclusions and sign-offs.
-- **Never-Fake External Effects:** `ExternalEffects.Enabled=false` locally; simulation handlers exist for tests only (`AllowSimulationAdapters=true`). Live gates stay `BLOCKED_EXTERNAL` without live infrastructure; the Purview/eSignature out-of-scope rule applies as stated above.
-
----
-
-## Technology Baseline
-
-| Component | Choice / Version | Purpose |
-|---|---|---|
-| **Runtime & SDK** | .NET 10 (`global.json` pin `10.0.300`, `rollForward=disable`) | Core runtime and compilation toolchain |
-| **Language** | C# 14 | Strict nullability and pattern matching |
-| **HTTP Backend** | ASP.NET Core API (.NET 10) | Authorized capability contracts, cookie/OIDC, consent, files and health |
-| **Frontend** | Angular 22 with Material/CDK | Separate staff and client presentation workspace |
-| **Rollback UI (retired)** | Blazor Interactive Server with MudBlazor 9.10.0, formerly `AuditSphereOps.Web` (source pinned at `c3905e07`) | Removed by owner decision; the retirement was merged to `master` as `e7ebe27c`. No rollback or parity acceptance is claimed |
-| **ORM & Data Provider** | Entity Framework Core 10.0.12 + Npgsql 10.0.0 | PostgreSQL persistence |
-| **Database Engine** | PostgreSQL 18.6 | User-local development on port `5433`; managed cloud in prod |
-| **Document Processing** | DocumentFormat.OpenXml & PDFsharp / MigraDoc | Byte-stable, formula-free document generation |
-| **Test Frameworks** | xUnit, Microsoft.Playwright | PostgreSQL-backed integration, API, and E2E browser tests |
-
----
-
-## Solution Layout
-
-```
-AuditSphere/
-├── src/
-│   ├── AuditSphereOps.Domain/          # Pure domain models, entities, business invariants
-│   ├── AuditSphereOps.Application/     # ActorContext, scope authorization, calculators, renderers, orchestrators
-│   ├── AuditSphereOps.Infrastructure/  # EF Core DbContext, mappings, migrations, provider adapters
-│   ├── AuditSphereOps.Api/             # ASP.NET Core API host, authenticated contracts, files and health
-│   ├── AuditSphereOps.Ui/              # Angular frontend, Material/CDK, lazy staff/client routes
-│   └── AuditSphereOps.Worker/          # Durable-operation worker (general, processing, records)
-├── tests/
-│   ├── AuditSphereOps.Domain.Tests/    # PostgreSQL-backed domain, integration & architecture guard tests
-│   ├── AuditSphereOps.Api.Tests/       # HTTP API & transfer security tests
-│   └── AuditSphereOps.E2E.Tests/       # Playwright journeys & grant revocation tests
-├── docs/
-│   ├── auditsphere-docs-index.md       # Central documentation index and authority hierarchy
-│   ├── requirements/                   # Current STE functional requirements and specification sources
-│   ├── architecture/                   # Current architecture authority, code map, naming policy
-│   ├── task_breakdown/                 # R2R task breakdowns (Modules 20–26)
-│   ├── testing/                        # E2E automation strategy, test case catalog, scope/tenant-admin acceptance cases
-│   └── execution/                      # status.json + current-slice/pending-tasks ledgers
-├── scripts/db/                         # Database lifecycle (start, stop, status, restore-drill)
-├── global.json                         # SDK version pin (10.0.300, rollForward=disable)
-└── Directory.Packages.props            # Central Package Management (CPM)
+```text
+src/AuditSphereOps.{Domain,Application,Infrastructure,Api,Ui,Worker}/
+tests/AuditSphereOps.{Domain,Api,E2E}.Tests/   docs/ (index · requirements · architecture · task_breakdown · testing · execution)
+scripts/db/  global.json  Directory.Packages.props
 ```
 
----
-
-## Getting Started
-
-### Prerequisites
-
-- **.NET SDK 10.0.300** (`global.json` enforces the exact SDK version)
-- **Node.js** matching `src/AuditSphereOps.Ui/.nvmrc` and its supported npm version
-- **PostgreSQL 18.6** accessible locally on port `5433`
-- **PowerShell** (Windows) or **Zsh / Bash** (macOS / Linux)
+## Quickstart
 
 ```bash
-dotnet --version    # Expected output: 10.0.300
-dotnet tool restore # Restores the pinned local dotnet-ef tool
+dotnet --version            # expect 10.0.300
+dotnet tool restore         # pinned dotnet-ef
+# Node version per src/AuditSphereOps.Ui/.nvmrc; UI guide: src/AuditSphereOps.Ui/auditsphere-angular-development.md
 ```
-
----
-
-## Local Database Setup (No Admin, Docker-Free)
-
-A user-local PostgreSQL 18.6 development cluster runs on port **5433** with trust authentication on loopback (`127.0.0.1`). Defaults: databases `auditsphere` and `auditsphere_tests`.
-
-### macOS (Homebrew)
 
 ```bash
-pg_ctl -D /opt/homebrew/var/postgresql@18 -o "-p 5433" start   # Start the cluster
-pg_ctl -D /opt/homebrew/var/postgresql@18 status               # Check cluster status
-scripts/db/restore-drill.sh                                    # Restore drill
+# macOS (Homebrew) — user-local cluster on :5433, trust auth on loopback
+pg_ctl -D /opt/homebrew/var/postgresql@18 -o "-p 5433" start
+scripts/db/restore-drill.sh
+# Windows — scripts\db\status.ps1 (ensure DBs) · start.ps1 · stop.ps1
 ```
-
-### Windows (PowerShell)
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\db\status.ps1   # Status + ensure dev databases
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\db\start.ps1    # Idempotent cluster start
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\db\stop.ps1     # Fast cluster shutdown
-```
-
-*Configuration Overrides:* `PGSQL_HOME`, `PGSQL_DATA`, `PGSQL_PORT`, `AUDITSPHERE_TEST_CONNECTION`. The scripts automatically validate the PostgreSQL major version.
-
----
-
-## Build, Migrate, Test & Benchmark
-
-Development uses one focused verification cohort after a coherent change, as defined in `AGENTS.md` and [the testing strategy](docs/testing/auditsphere-testing-strategy-definition-of-done-current.md). Install dependencies only for a fresh environment or changed lockfiles. Build the affected project when compilation risk warrants; check EF model drift after model/migration changes and OpenAPI drift after contract changes. Do not run full suites locally.
 
 ```bash
 ./scripts/agent-check --list
-./scripts/agent-check <capability>        # prerequisites only
-./scripts/agent-check <capability> --run  # selected cohort only
+./scripts/agent-check <capability> --run   # focused cohort only; full suites run in CI
 ```
 
-The fast `ci.yml` gate runs Angular build/specs, Release compilation, database-free guards, EF/OpenAPI drift and documentation checks. Complete unfiltered Domain, API, PostgreSQL/browser and Angular regressions run in `release-verification.yml` on an immutable SHA. Require that current-SHA release evidence for a release; fast CI alone proves neither full regression acceptance nor live Microsoft readiness. Full-suite commands belong to that workflow, not the normal local edit loop.
+Per-test isolation: uniquely named disposable PostgreSQL schemas on `auditsphere_tests`; no InMemory fallback. Full regressions run in `release-verification.yml` on an immutable SHA — never locally after each edit.
 
-### Database Test Isolation
+## Invariants
 
-The suite connects to `127.0.0.1:5433` / `auditsphere_tests`. Every test provisions a **uniquely named disposable PostgreSQL schema**, applies all migrations, asserts, and drops the schema. **No InMemory provider fallback** — every query and trigger runs against genuine PostgreSQL.
+- **Scoped auth everywhere** — `FIRM_WIDE · CLIENT · ENGAGEMENT · GROUP` RoleGrants on every command/query/route; Angular `can*` flags are presentation only.
+- **Append-only evidence** — sealed datasets, posted journals, approvals, and releases enforced by Postgres triggers/constraints.
+- **Exact money** — `numeric(19,6)` + C# `decimal`; pure deterministic calculators (no EF, clocks, or I/O).
+- **Fail closed** — missing rates, unapproved perimeters, or stale evidence block release; humans make all audit opinions.
+- **Least-privilege M365** — `Sites.Selected` + per-site grants; no tenant-wide scopes ([permission boundary](docs/architecture/auditsphere-m365-tenant-administration-permissions.md)).
+- **Zero-warning Release builds**; `docs/execution/status.json` + current-slice handoff record only observed facts.
 
----
+## Roadmap & external gates
 
-## Durable Operations & Worker Architecture
+Local cores (domain, ledger, intake, packages, records) are `LOCAL_VERIFIED`; live auth/documents/checkpoints, recovery, observability, and independent review need production infrastructure and stay `BLOCKED_EXTERNAL`. Work packages P0–P10: [pending tasks](docs/execution/auditsphere-execution-pending-tasks.md).
 
-Long-running work runs through the outbox pattern in `AuditSphereOps.Worker`:
+## Docs
 
-- **Operation Types:** GL completeness bridge, financial package builds, exact-byte rendering, PBC evidence transfer and reconciliation, archive bundle assembly.
-- **Deployment Roles:** `general` (orchestration, notifications, standard background work) · `processing` (GL digestion, TB sealing, statement calculation) · `records` (archive bundle assembly and document package rendering; Purview is out of product scope).
-- **Fault Recovery:** Leases via PostgreSQL `FOR UPDATE SKIP LOCKED`; expired leases are reclaimed after 60 seconds; tasks failing after 5 attempts enter a quarantined disposition for human review.
+Start at [`docs/auditsphere-docs-index.md`](docs/auditsphere-docs-index.md), then [`AGENTS.md`](AGENTS.md).
 
----
-
-## Verification & Evidence Discipline
-
-- **`docs/execution/status.json`** — single source of truth: specification SHA-256, baseline commit, active slice, verified test evidence, external blockers, permitted actions.
-- **`docs/execution/auditsphere-execution-current-slice.md`** — active vertical slice, verified local state, operational runbook.
-- **Zero-Warning Tolerance** — Release builds under .NET 10 must report `0 Warning(s)` and `0 Error(s)`.
-
----
-
-## Implementation Roadmap & External Gates
-
-Dependency-ordered work packages (P0–P10 per [docs/execution/auditsphere-execution-pending-tasks.md](docs/execution/auditsphere-execution-pending-tasks.md)):
-
-| Phase | Gate / Objective | Status |
-|---|---|---|
-| **P0** | Core Domain & Ledger Foundation — modular monolith, Practice/Accounting/Consolidation cores | `LOCAL_VERIFIED` |
-| **P1** | Live Entra OIDC Authentication — requires live Entra ID tenant registration | `BLOCKED_EXTERNAL` |
-| **P2** | Live SharePoint/Graph Documents — requires live M365 tenant, selected-resource scopes | `BLOCKED_EXTERNAL` |
-| **P3** | External Release Checkpoint Store — requires production cryptographic checkpoint infrastructure | `BLOCKED_EXTERNAL` |
-| **P4** | Records Retention & Manifest Lineage — exact uploaded document evidence, SHA-256 identities, immutable archive manifests | `LOCAL_VERIFIED` |
-| **P5** | Document Signing Evidence Lineage — uploaded signed-document evidence and human decisions (no external eSignature provider claim) | `LOCAL_VERIFIED` |
-| **P6** | Records / Archive Residual Hardening — immutable archive schema, lineage manifests, structured exports | `LOCAL_VERIFIED` |
-| **P7** | Cross-Store Recovery (RPO/RTO) — requires multi-region cloud backup infrastructure | `BLOCKED_EXTERNAL` |
-| **P8** | Production Observability & Secrets — requires Azure Key Vault and production OpenTelemetry collector | `BLOCKED_EXTERNAL` |
-| **P9** | Independent Review Governance — requires independent partner sign-off and branch protections | `BLOCKED_EXTERNAL` |
-| **P10** | Real-Tenant Acceptance (§47) — full operational pilot on customer-authorized tenant | `BLOCKED_EXTERNAL` |
-
----
-
-## Documentation & Specifications
-
-Authority hierarchy and full reading guide: **[`docs/auditsphere-docs-index.md`](docs/auditsphere-docs-index.md)**.
-
-| Document | Description |
+| Doc | Why |
 |---|---|
-| [Current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) | Implementation architecture and engineering boundaries. |
-| [docs/requirements/auditsphere-accounting-module-requirements-current.md](docs/requirements/auditsphere-accounting-module-requirements-current.md) | **STE Functional Requirements** — current commercial, audit lifecycle and firm operations contract. |
-| [docs/architecture/auditsphere-architecture-current-architecture.md](docs/architecture/auditsphere-architecture-current-architecture.md) | **Current Architecture** — monolith structure, boundaries, dependency guards. |
-| [docs/architecture/auditsphere-architecture-code-map.md](docs/architecture/auditsphere-architecture-code-map.md) | **Architecture Code Map** — capability map and documentation authority index. |
-| [docs/architecture/auditsphere-architecture-document-naming-policy.md](docs/architecture/auditsphere-architecture-document-naming-policy.md) | **Document Naming Policy** — naming conventions for repository documentation. |
-| [docs/architecture/auditsphere-m365-tenant-administration-permissions.md](docs/architecture/auditsphere-m365-tenant-administration-permissions.md) | **M365 Tenant Administration Permission Boundary** — least-privilege Graph capabilities, consent gates, scope prohibitions. |
-| [docs/task_breakdown/](docs/task_breakdown) | **R2R Task Breakdown** — task definitions for Modules 20–26. |
-| [docs/execution/status.json](docs/execution/status.json) | **Execution Ledger** — machine-readable progress and verification evidence. |
-| [docs/execution/auditsphere-execution-current-slice.md](docs/execution/auditsphere-execution-current-slice.md) | **Active Slice Runbook** — verified local state, tested SHA, execution notes. |
-| [AGENTS.md](AGENTS.md) | **Engineering Instructions & Invariants** — boundaries, safety rules, development guidelines. |
-
----
+| [STE requirements](docs/requirements/auditsphere-accounting-module-requirements-current.md) | Commercial/audit-lifecycle contract. |
+| [Current architecture](docs/architecture/auditsphere-architecture-current-architecture.md) | Binding monolith structure and guards. |
+| [Testing strategy](docs/testing/auditsphere-testing-strategy-definition-of-done-current.md) | Local-vs-CI verification rules. |
+| [status.json](docs/execution/status.json) | Machine-readable progress and evidence. |
+| [Current slice](docs/execution/auditsphere-execution-current-slice.md) | Active runbook and verified state. |
 
 ## Contributing
 
-1. **Consult the Spec First:** Review the current STE requirements, `docs/architecture/auditsphere-architecture-current-architecture.md` and `AGENTS.md` before changes.
-2. **One Vertical Slice at a Time:** Smallest coherent slice in dependency order; never weaken an existing authorization check or mandatory security control.
-3. **Prove with Evidence:** `0 Warning(s)` Release builds and targeted tests against the local PostgreSQL 18.6 cluster; migrations must preserve append-only history.
-4. **Honest Recording:** Update `docs/execution/status.json` and `docs/execution/auditsphere-execution-current-slice.md` with observed facts only; never record an external gate as passed without live evidence.
-5. **Respect Architecture Prohibitions:** Never introduce MediatR, Frappe, ERPNext, Python backends, React frontends, message brokers, or autonomous audit decision engines.
+1. Read the STE requirements, current architecture, and `AGENTS.md` first.
+2. One coherent vertical slice at a time; never weaken auth, ledger, or append-only controls.
+3. Prove with targeted tests on local PostgreSQL (`0 Warning(s)`); record only observed facts. Never add MediatR, second ERPs, brokers, microservices, or autonomous audit-opinion engines.
