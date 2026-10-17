@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "5f8f374b2e9106163e9b8f5a44150fafcf0aca0c",
+  "sourceCommit": "8b0c3303b35f23f9a51360821db20c2eea449c0a",
   "coverage": "Source discovery only; dynamic actions, scope and parity tests require manual review.",
   "items": [
     {
@@ -1514,7 +1514,7 @@
     },
     {
       "source": "src/AuditSphereOps.Web/Components/Pages/AuditFieldwork.razor",
-      "sourceSha256": "a73e2301efa3fad7c4cb553edd166f8a73ea61ec792b66dbc81a245626d843a6",
+      "sourceSha256": "f70d5bf2a214e011fb003ab65aa3f4a7306764c8a3963bcbde13cdfc6de32b96",
       "routes": [
         "/app/engagements/{EngagementId:guid}/audit-fieldwork"
       ],
@@ -1548,10 +1548,10 @@
         "EvaluateCompletionAsync",
         "FirstOrDefaultAsync",
         "GetDifferenceSummariesAsync",
+        "GetOptionsAsync",
         "LoadAsync",
         "OnParametersSetAsync",
         "PublishAndAdoptAsync",
-        "PublishAsync",
         "RecordAggregateAssessmentAsync",
         "RecordAreaAssessmentAsync",
         "ResolveAsync",
