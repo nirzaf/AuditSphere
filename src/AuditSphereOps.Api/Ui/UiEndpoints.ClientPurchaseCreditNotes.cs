@@ -28,7 +28,10 @@ public static partial class UiEndpoints
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       var status = result.ErrorCode == "scope.denied" ? 403 : result.ErrorCode == "command.receipt-not-found" ? 404 : 400;
       return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: status);
-    }).Produces<ClientPurchaseCreditReceipt>();
+    }).Produces<ClientPurchaseCreditReceipt>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status404NotFound);
 
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-credit-notes", async (Guid clientId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -39,7 +42,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseCreditNoteWorkflow.GetCreditsAsync(db, actor, clientId, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<IReadOnlyList<ClientPurchaseCreditNoteView>>();
+    }).Produces<IReadOnlyList<ClientPurchaseCreditNoteView>>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/purchase-credit-notes/preview", async (Guid clientId,
       PurchaseCreditPreviewHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
@@ -54,7 +59,9 @@ public static partial class UiEndpoints
       var request = ToRequest(input);
       var result = await ClientPurchaseCreditNoteWorkflow.PreviewAsync(db, actor, clientId, request, http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseCreditPreview>();
+    }).Produces<ClientPurchaseCreditPreview>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/purchase-credit-notes", async (Guid clientId,
       PurchaseCreditSubmitHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
@@ -70,7 +77,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseCreditNoteWorkflow.SubmitAsync(db, actor, clientId,
         new(input.CommandId, ToRequest(input.Credit), input.PreviewDigest), http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseCreditReceipt>();
+    }).Produces<ClientPurchaseCreditReceipt>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-credit-note-submissions/{submissionId:guid}/preview", async (Guid clientId,
       Guid submissionId, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -81,7 +90,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseCreditNoteWorkflow.PreviewReviewAsync(db, actor, clientId, submissionId, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseCreditReviewPreview>();
+    }).Produces<ClientPurchaseCreditReviewPreview>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/purchase-credit-note-reviews", async (Guid clientId,
       PurchaseCreditReviewHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
@@ -95,7 +106,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseCreditNoteWorkflow.ReviewAsync(db, actor, clientId,
         new(input.CommandId, input.SubmissionId, input.Decision, input.Reason, input.DuplicateResolutionReason, input.PreviewDigest), http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseCreditReceipt>();
+    }).Produces<ClientPurchaseCreditReceipt>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
   }
 
   private static ClientPurchaseCreditPreviewRequest ToRequest(PurchaseCreditPreviewHttpInput input) =>

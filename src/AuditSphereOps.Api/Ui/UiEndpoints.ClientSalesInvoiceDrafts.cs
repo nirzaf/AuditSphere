@@ -36,7 +36,9 @@ public static partial class UiEndpoints
         new(input.CommandId, input.InvoiceId, revision, input.DraftReference, input.SourceReference, input.PeriodId, input.CustomerId,
           document, accounting, supply, due, input.Currency, input.Policy, lines, input.EvidenceReference), http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    }).Produces<ClientSalesInvoiceDraftView>();
+    }).Produces<ClientSalesInvoiceDraftView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
     group.MapGet("/accounting/clients/{clientId:guid}/sales-invoice-drafts/{invoiceId:guid}", async (Guid clientId, Guid invoiceId, string? revision,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) => {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -47,7 +49,9 @@ public static partial class UiEndpoints
       var result = await ClientSalesInvoiceDraftWorkspace.GetAsync(db, actor, clientId, invoiceId, number, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
-    }).Produces<ClientSalesInvoiceDraftView>();
+    }).Produces<ClientSalesInvoiceDraftView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
     group.MapGet("/accounting/clients/{clientId:guid}/sales-invoice-draft-requests/{commandId:guid}", async (Guid clientId, Guid commandId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) => {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
@@ -56,6 +60,9 @@ public static partial class UiEndpoints
       var result = await ClientSalesInvoiceDraftWorkspace.GetByCommandAsync(db, actor, clientId, commandId, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "command.receipt-not-found" ? 404 : result.ErrorCode == "scope.denied" ? 403 : 400);
-    }).Produces<ClientSalesInvoiceDraftView>();
+    }).Produces<ClientSalesInvoiceDraftView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status404NotFound);
   }
 }

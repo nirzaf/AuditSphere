@@ -249,6 +249,11 @@ public sealed class OpenApiContractTests
     Assert.False(approved.TryGetProperty("content", out _));
     var missingReceipt = Body(Response(prefix + "/operational-posting-receipts/{commandId}", "get", "404"));
     Assert.True(missingReceipt.GetProperty("properties").TryGetProperty("code", out _));
+    var creditLookup = Body(Response(prefix + "/sales-credit-note-requests/{commandId}", "get", "404"));
+    Assert.True(creditLookup.GetProperty("properties").TryGetProperty("code", out _));
+    var purchaseDrafts = Body(Response(prefix + "/purchase-invoice-drafts", "get"));
+    Assert.True(purchaseDrafts.GetProperty("properties").TryGetProperty("page", out _));
+    Assert.True(purchaseDrafts.GetProperty("properties").TryGetProperty("total", out _));
   }
 
   [Fact]

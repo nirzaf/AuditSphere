@@ -31,7 +31,9 @@ public static partial class UiEndpoints
         input.ReceiptDate, input.DocumentDate, input.AccountingDate, input.SupplyDate, input.DueDate, input.Currency,
         input.Policy, input.Lines, input.StatedNet, input.StatedTax, input.StatedGross, input.SourceReceiptId, input.EvidenceReference), http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseInvoiceDraftView>();
+    }).Produces<ClientPurchaseInvoiceDraftView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-invoice-drafts/{invoiceId:guid}", async (Guid clientId, Guid invoiceId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -42,7 +44,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseInvoiceWorkflow.GetDraftAsync(db, actor, clientId, invoiceId, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseInvoiceDraftView>();
+    }).Produces<ClientPurchaseInvoiceDraftView>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-invoice-drafts", async (Guid clientId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory,
@@ -54,7 +58,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseInvoiceWorkflow.ListDraftsAsync(db, actor, clientId, page, pageSize, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseInvoiceDraftPage>();
+    }).Produces<ClientPurchaseInvoiceDraftPage>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-invoice-requests/{commandId:guid}", async (Guid clientId,
       Guid commandId, string? kind, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -71,7 +77,10 @@ public static partial class UiEndpoints
         "scope.denied" => 403,
         _ => 400
       });
-    }).Produces<ClientPurchaseInvoiceCommandOutcome>();
+    }).Produces<ClientPurchaseInvoiceCommandOutcome>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status404NotFound);
 
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-invoices", async (Guid clientId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -82,7 +91,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseInvoiceWorkflow.GetInvoicesAsync(db, actor, clientId, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<IReadOnlyList<ClientPurchaseInvoiceView>>();
+    }).Produces<IReadOnlyList<ClientPurchaseInvoiceView>>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/purchase-invoices/{invoiceId:guid}/preview", async (Guid clientId, Guid invoiceId,
       PurchaseSubmitHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -94,7 +105,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseInvoiceWorkflow.PreviewAsync(db, actor, clientId,
         new(input.CommandId, invoiceId, input.ExpectedDraftRevision, input.PayableRoleId, input.PreviewDigest), http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseInvoicePreview>();
+    }).Produces<ClientPurchaseInvoicePreview>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/purchase-invoices/{invoiceId:guid}/submit", async (Guid clientId, Guid invoiceId,
       PurchaseSubmitHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -107,7 +120,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseInvoiceWorkflow.SubmitAsync(db, actor, clientId,
         new(input.CommandId, invoiceId, input.ExpectedDraftRevision, input.PayableRoleId, input.PreviewDigest), http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseInvoiceReceipt>();
+    }).Produces<ClientPurchaseInvoiceReceipt>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-invoice-submissions/{submissionId:guid}/preview", async (Guid clientId, Guid submissionId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -118,7 +133,9 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseInvoiceWorkflow.PreviewReviewAsync(db, actor, clientId, submissionId, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseInvoiceReviewPreview>();
+    }).Produces<ClientPurchaseInvoiceReviewPreview>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
 
     group.MapPost("/accounting/clients/{clientId:guid}/purchase-invoice-reviews", async (Guid clientId, PurchaseReviewHttpInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -131,6 +148,8 @@ public static partial class UiEndpoints
       var result = await ClientPurchaseInvoiceWorkflow.ReviewAsync(db, actor, clientId,
         new(input.CommandId, input.SubmissionId, input.Decision, input.Reason, input.DuplicateResolutionReason, input.PreviewDigest), http.RequestAborted);
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
-    }).Produces<ClientPurchaseInvoiceReceipt>();
+    }).Produces<ClientPurchaseInvoiceReceipt>()
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
   }
 }

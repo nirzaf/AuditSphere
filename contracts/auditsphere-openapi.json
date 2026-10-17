@@ -7883,6 +7883,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -7964,6 +7984,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -8028,6 +8068,36 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -8088,6 +8158,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientSalesInvoiceLifecycleView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -8162,6 +8252,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientSalesInvoicePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -8250,6 +8360,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -8324,6 +8454,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -8385,6 +8535,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientSalesInvoiceCommandReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -8471,6 +8641,36 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -8534,6 +8734,26 @@
                   "items": {
                     "$ref": "#/components/schemas/ClientSalesCreditNoteView"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -8606,6 +8826,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientSalesCreditCommandReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -8694,6 +8934,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -8768,6 +9028,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -8829,6 +9109,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientSalesCreditCommandReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -8915,6 +9215,36 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -8976,6 +9306,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientPurchaseInvoiceDraftView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -9069,6 +9419,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -9129,6 +9499,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientPurchaseInvoiceDraftView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -9204,6 +9594,36 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -9258,6 +9678,26 @@
                   "items": {
                     "$ref": "#/components/schemas/ClientPurchaseInvoiceView"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -9332,6 +9772,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientPurchaseInvoicePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -9420,6 +9880,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -9494,6 +9974,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -9555,6 +10055,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientPurchaseInvoiceReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -9641,6 +10161,36 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -9695,6 +10245,26 @@
                   "items": {
                     "$ref": "#/components/schemas/ClientPurchaseCreditNoteView"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -9758,6 +10328,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientPurchaseCreditReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
@@ -9837,6 +10427,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -9911,6 +10521,26 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "The request has no current AuditSphere session.",
             "content": {
@@ -9972,6 +10602,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientPurchaseCreditReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }
