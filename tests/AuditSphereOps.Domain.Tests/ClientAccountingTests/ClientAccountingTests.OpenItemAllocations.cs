@@ -42,6 +42,14 @@ public sealed partial class ClientAccountingTests
     var seed = await SeedSalesWorkflow(pg, scope);
     var maker = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var clientBPreparer = User(scope.FirmId, "client-b-settlement-preparer");
+    await using (var grants = new AuditSphereDbContext(pg.Options))
+    {
+      grants.Users.Add(clientBPreparer);
+      grants.RoleGrants.Add(Grant(scope.FirmId, clientBPreparer, "AccountingPreparer", scope.ClientB));
+      await grants.SaveChangesAsync();
+    }
+    var clientBActor = Actor(clientBPreparer, "AccountingPreparer");
     Guid invoiceItemId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -83,7 +91,15 @@ public sealed partial class ClientAccountingTests
       Assert.True(otherActorLookup.Succeeded, otherActorLookup.Message);
       Assert.False(otherActorLookup.Value!.Found);
       var otherClientLookup = await ClientOperationalLedgerWorkspace.FindSettlementByCommandAsync(db, maker, scope.ClientB, request.CommandId);
-      Assert.False(otherClientLookup.Succeeded);
+      // This maker has a firm-wide grant: client B is readable, but client A's command must not leak into it.
+      Assert.True(otherClientLookup.Succeeded, otherClientLookup.Message);
+      Assert.False(otherClientLookup.Value!.Found);
+      Assert.Equal(scope.ClientB, otherClientLookup.Value.ClientId);
+      Assert.Null(otherClientLookup.Value.Receipt);
+      Assert.Null(otherClientLookup.Value.IntentHash);
+      var wrongScopeLookup = await ClientOperationalLedgerWorkspace.FindSettlementByCommandAsync(db,
+        clientBActor, scope.ClientA, request.CommandId);
+      Assert.False(wrongScopeLookup.Succeeded);
       var journal = await ClientOperationalLedgerWorkspace.GetAsync(db, maker, scope.ClientA, created.Value.JournalId);
       Assert.True(journal.Succeeded, journal.Message);
       Assert.Equal("DRAFT", journal.Value!.Status);
@@ -154,7 +170,7 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(maker.UserId, original.CreatedByUserId);
       Assert.Equal(reviewer.UserId, original.ApprovedByUserId);
       Assert.False((await ClientOpenItemAllocationHistoryQuery.GetAsync(db,
-        maker with { ClientId = scope.ClientB }, scope.ClientA)).Succeeded);
+        clientBActor, scope.ClientA)).Succeeded);
       var reversal = new ClientOpenItemAllocationRequest(Guid.CreateVersion7(), "SALES_RECEIPT", receipt.OpenItemId,
         "UNALLOCATE", "BANK-REF-001-U", "Correct part of the approved allocation",
         [new(1, "SALES_INVOICE", invoiceItemId, 7m, original.AllocationLineId)], "");
