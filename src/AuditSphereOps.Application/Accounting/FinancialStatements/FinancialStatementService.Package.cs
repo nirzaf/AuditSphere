@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -234,6 +235,10 @@ public static partial class FinancialStatementService
       ComparativeEvidenceReference = request.SupplementaryInformation?.Comparative?.EvidenceReference.Trim(),
       CreatedAt = DateTimeOffset.UtcNow
     };
+    var noteRows = request.SupplementaryInformation?.NoteLines ?? [];
+    var noteSourceLinks = await ResolveNoteSourceLinksAsync(typedAccounting, actor, package, dataset.PeriodId, noteRows, ct);
+    if (!noteSourceLinks.Succeeded)
+      return CommandResult<FinancialPackageBuildResult>.Fail(noteSourceLinks.ErrorCode!, noteSourceLinks.Message!);
     db.FinancialPackages.Add(package);
     foreach (var line in packageLines)
       db.FinancialPackageLines.Add(new FinancialPackageLine
@@ -336,15 +341,20 @@ public static partial class FinancialStatementService
     {
       AddValidation(db, package, "NOTE_TO_FACE_TOTALS", true,
         "Structured note amounts cross-cast to the mapped face destinations.");
-      foreach (var line in requestedNotes)
+      for (var index = 0; index < requestedNotes.Count; index++)
+      {
+        var line = requestedNotes[index];
         typedAccounting!.FinancialPackageNoteLines.Add(new FinancialPackageNoteLine
         {
           Id = Guid.CreateVersion7(), FirmId = package.FirmId, ClientId = package.ClientId,
           EngagementId = package.EngagementId, FinancialPackageId = package.Id,
           NoteCode = line.NoteCode.Trim().ToUpperInvariant(), FaceDestinationCode = line.FaceDestinationCode.Trim(),
           Amount = MoneyPolicy.Normalize(line.Amount), Currency = package.Currency,
-          EvidenceReference = line.EvidenceReference.Trim(), CreatedAt = package.CreatedAt
+          EvidenceReference = line.EvidenceReference.Trim(),
+          SourceLineageJson = JsonSerializer.Serialize(noteSourceLinks.Value!.GetValueOrDefault(index, (IReadOnlyList<ResolvedNoteSource>)[])),
+          CreatedAt = package.CreatedAt
         });
+      }
     }
     else
       AddValidation(db, package, "NOTE_TO_FACE_TOTALS", true,

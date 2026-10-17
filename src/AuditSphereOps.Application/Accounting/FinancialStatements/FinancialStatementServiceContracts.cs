@@ -100,7 +100,14 @@ public sealed record EquityComponentTransferInput(
 
 public sealed record FinancialComparativeInput(Guid PackageId, string Basis, string EvidenceReference);
 
-public sealed record NoteLineInput(string NoteCode, string FaceDestinationCode, decimal Amount, string EvidenceReference);
+public sealed record NoteLineInput(string NoteCode, string FaceDestinationCode, decimal Amount, string EvidenceReference,
+  IReadOnlyList<NoteSourceAllocationInput>? SourceAllocations = null);
+
+/// <summary>Signed contribution from one accepted general-ledger line to a numeric note amount.</summary>
+public sealed record NoteSourceAllocationInput(Guid GeneralLedgerLineId, decimal SignedAmount);
+
+internal sealed record ResolvedNoteSource(Guid GeneralLedgerLineId, Guid GeneralLedgerTransactionId, Guid SourceImportBatchId,
+  string SourceIdentityHash, string SourceLineHash, string AccountCode, DateOnly PostingDate, decimal SignedAmount, string Currency);
 
 public sealed record FinancialPackageBuildResult(
   Guid PackageId,

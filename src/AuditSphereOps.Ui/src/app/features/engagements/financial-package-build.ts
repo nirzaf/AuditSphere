@@ -49,7 +49,7 @@ export interface EquityTransferForm {
   transferReference: string; sourceLineCode: string; destinationLineCode: string; amount: string; evidenceReference: string;
 }
 /** One numeric note line. The server calls the statement destination `faceDestinationCode`. */
-export interface NoteLineForm { noteCode: string; faceDestinationCode: string; amount: string; evidenceReference: string }
+export interface NoteLineForm { noteCode: string; faceDestinationCode: string; amount: string; evidenceReference: string; allocations: AllocationForm[] }
 /** One foreign-exchange effect on cash, with its evidence. */
 export interface FxCashEffectForm { currencyPair: string; amount: string; evidenceReference: string }
 export interface BuildForm {
@@ -149,7 +149,7 @@ export function emptyEquityTransfer(): EquityTransferForm {
 }
 
 export function emptyNoteLine(): NoteLineForm {
-  return { noteCode: '', faceDestinationCode: '', amount: '', evidenceReference: '' };
+  return { noteCode: '', faceDestinationCode: '', amount: '', evidenceReference: '', allocations: [] };
 }
 
 export function emptyFxCashEffect(): FxCashEffectForm {
@@ -239,6 +239,15 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
     noteIdentities.add(identity);
     if (!AMOUNT.test(row.amount)) return { error: `${at}: enter an amount with at most six decimals.` };
     if (!row.evidenceReference.trim() || row.evidenceReference.trim().length > 2000) return { error: `${at}: enter an evidence reference.` };
+    for (const allocation of row.allocations) {
+      if (!GUID.test(allocation.generalLedgerLineId)) return { error: `${at}: a source line is not valid.` };
+      if (!AMOUNT.test(allocation.signedAmount) || toMicro(allocation.signedAmount) === 0n)
+        return { error: `${at}: a source contribution needs a non-zero amount with at most six decimals.` };
+    }
+    if (new Set(row.allocations.map((allocation) => allocation.generalLedgerLineId.toLowerCase())).size !== row.allocations.length)
+      return { error: `${at}: a source line can contribute to a note only once.` };
+    if (row.allocations.length && sumContributions(row.allocations) !== toMicro(row.amount))
+      return { error: `${at}: source contributions must total the note amount exactly.` };
   }
   for (const [index, row] of form.fxCashEffects.entries()) {
     const at = `FX cash effect ${index + 1}`;
@@ -277,7 +286,9 @@ export function toBuildRequest(form: BuildForm): { body: unknown } | { error: st
         })) : null,
         noteLines: form.noteLines.length ? form.noteLines.map((row) => ({
           noteCode: row.noteCode.trim(), faceDestinationCode: row.faceDestinationCode.trim(), amount: row.amount,
-          evidenceReference: row.evidenceReference.trim(),
+          evidenceReference: row.evidenceReference.trim(), sourceAllocations: row.allocations.length
+            ? row.allocations.map((allocation) => ({ generalLedgerLineId: allocation.generalLedgerLineId, signedAmount: allocation.signedAmount }))
+            : null,
         })) : null,
         fxCashEffects: form.fxCashEffects.length ? form.fxCashEffects.map((row) => ({
           currencyPair: row.currencyPair.trim(), amount: row.amount, evidenceReference: row.evidenceReference.trim(),
@@ -311,6 +322,16 @@ export function scheduleBlockers(form: BuildForm): string[] {
     } else if (projectedContribution(m.allocations, m.isNonCash) !== toMicro(m.amount)) {
       open.push(`${at} has linked lines that do not total the movement amount, so it is not source-resolved.`);
     }
+  }
+  for (const [index, row] of form.noteLines.entries()) {
+    if (!row.allocations.length) continue;
+    const at = `Note source attribution: note line ${index + 1}`;
+    if (!AMOUNT.test(row.amount) || row.allocations.some((allocation) => !GUID.test(allocation.generalLedgerLineId) ||
+      !AMOUNT.test(allocation.signedAmount) || toMicro(allocation.signedAmount) === 0n) ||
+      new Set(row.allocations.map((allocation) => allocation.generalLedgerLineId.toLowerCase())).size !== row.allocations.length)
+      open.push(`${at} has a link or amount that is not a valid value yet.`);
+    else if (sumContributions(row.allocations) !== toMicro(row.amount))
+      open.push(`${at} has linked lines that do not total the note amount, so it is not source-resolved.`);
   }
   if (form.disclosures.length === 0)
     open.push('Disclosures: none entered. Add at least one disclosure response, or a rationale when not applicable.');
@@ -397,13 +418,13 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
                 <p><small>Projected statement effect of these ledger amounts: <span class="number">{{ effect }}</span> ({{ m.isNonCash ? 'noncash role keeps the ledger sign' : 'cash role reverses the ledger sign' }}). The server recomputes this when the build runs.</small></p>
               }
             }
-            <button matButton="outlined" type="button" (click)="pickerFor.set(i)">{{ pickerFor() === i ? 'Hide source lines' : 'Choose source lines' }}</button>
+            <button matButton="outlined" type="button" (click)="openMovementSources(i)">{{ pickerFor() === i ? 'Hide source lines' : 'Choose source lines' }}</button>
             <button matButton type="button" (click)="form.movements.splice(i, 1)">Remove movement</button>
           </fieldset>
         }
         <button matButton="outlined" type="button" (click)="form.movements.push(newMovement())">Add movement</button>
 
-        @if (pickerFor() !== null && form.periodId) {
+        @if ((pickerFor() !== null || notePickerFor() !== null) && form.periodId) {
           <section aria-label="Accepted source lines" class="panel">
             <h3>Accepted general-ledger lines for the period</h3>
             <audit-state [loading]="sources.loading()" [error]="sources.error()" label="the accepted source lines" />
@@ -413,7 +434,7 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
                 <thead><tr><th scope="col">Date</th><th scope="col">Journal</th><th scope="col">Account</th><th scope="col" class="number">Signed amount</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
                 <tbody>@for (line of page.lines; track line.lineId) {
                   <tr><td>{{ line.postingDate }}</td><td>{{ line.journal }}</td><td>{{ line.accountCode }}</td><td class="number">{{ line.signedAmount }} {{ line.currency }}</td>
-                    <td><button matButton="outlined" type="button" (click)="addSource(pickerFor()!, line.lineId, line.signedAmount)">Add to movement {{ pickerFor()! + 1 }}</button></td></tr>
+                    <td><button matButton="outlined" type="button" (click)="addSelectedSource(line.lineId, line.signedAmount)">{{ notePickerFor() !== null ? 'Add to note ' + (notePickerFor()! + 1) : 'Add to movement ' + (pickerFor()! + 1) }}</button></td></tr>
                 } @empty { <tr><td colspan="5">No accepted general-ledger lines in this period on this page.</td></tr> }</tbody></table></div>
               <p class="actions">
                 <button matButton="outlined" type="button" [disabled]="sourcePage() <= 1" (click)="sourcePage.set(sourcePage() - 1)">Previous lines</button>
@@ -466,6 +487,19 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
             <label>Face destination code <input [name]="'nlFace' + i" [(ngModel)]="row.faceDestinationCode" maxlength="100" /></label>
             <label>Note amount <input [name]="'nlAmount' + i" [(ngModel)]="row.amount" inputmode="decimal" /></label>
             <label>Note evidence reference <input [name]="'nlEvidence' + i" [(ngModel)]="row.evidenceReference" maxlength="2000" /></label>
+            <h3>Source attribution (optional)</h3>
+            <p><small>Accepted general-ledger links evidence provenance only; they do not approve the note content.</small></p>
+            @if (row.allocations.length) {
+              <ul>
+                @for (allocation of row.allocations; track $index; let j = $index) {
+                  <li><code>{{ allocation.generalLedgerLineId }}</code>
+                    <label>Signed contribution <input [name]="'nlAlloc' + i + '-' + j" [(ngModel)]="allocation.signedAmount" inputmode="decimal" /></label>
+                    <button matButton type="button" (click)="row.allocations.splice(j, 1)">Remove source link</button></li>
+                }
+              </ul>
+              @if (noteAllocationIssue(row); as issue) { <p role="alert">{{ issue }}</p> }
+            }
+            <button matButton="outlined" type="button" (click)="openNoteSources(i)">{{ notePickerFor() === i ? 'Hide source lines' : 'Choose accepted source lines' }}</button>
             <button matButton type="button" (click)="form.noteLines.splice(i, 1)">Remove note line {{ i + 1 }}</button>
           </fieldset>
         }
@@ -560,6 +594,7 @@ export class FinancialPackageBuild {
       : null;
   }, decodeBuildStatus, 'The build status is unavailable in your current scope.');
   readonly pickerFor = signal<number | null>(null);
+  readonly notePickerFor = signal<number | null>(null);
   readonly sourcePage = signal(1);
   /** The period the source picker reads. A signal, so changing the period reloads the lines. */
   readonly chosenPeriod = signal('');
@@ -587,7 +622,7 @@ export class FinancialPackageBuild {
   }
   readonly sources = this.api.resource(() => {
     const periodId = this.chosenPeriod();
-    return this.id() && periodId && this.pickerFor() !== null
+    return this.id() && periodId && (this.pickerFor() !== null || this.notePickerFor() !== null)
       ? `/api/ui/engagements/${this.id()}/specialist-preparation/source-lines?periodId=${periodId}&page=${this.sourcePage()}`
       : null;
   }, decodeScheduleSources, 'The accepted general-ledger lines are unavailable in your current scope.');
@@ -599,6 +634,41 @@ export class FinancialPackageBuild {
   newEquityTransfer(): EquityTransferForm { return emptyEquityTransfer(); }
   newNoteLine(): NoteLineForm { return emptyNoteLine(); }
   newFxCashEffect(): FxCashEffectForm { return emptyFxCashEffect(); }
+
+  openMovementSources(movement: number): void {
+    this.notePickerFor.set(null);
+    this.pickerFor.set(this.pickerFor() === movement ? null : movement);
+    this.sourcePage.set(1);
+  }
+
+  openNoteSources(note: number): void {
+    this.pickerFor.set(null);
+    this.notePickerFor.set(this.notePickerFor() === note ? null : note);
+    this.sourcePage.set(1);
+  }
+
+  addSelectedSource(lineId: string, signedAmount: string): void {
+    const note = this.notePickerFor();
+    if (note !== null) {
+      const row = this.form.noteLines[note];
+      if (row && !row.allocations.some((allocation) => allocation.generalLedgerLineId === lineId))
+        row.allocations.push({ generalLedgerLineId: lineId, signedAmount });
+      return;
+    }
+    const movement = this.pickerFor();
+    if (movement !== null) this.addSource(movement, lineId, signedAmount);
+  }
+
+  noteAllocationIssue(row: NoteLineForm): string | null {
+    if (!row.allocations.length) return null;
+    if (!AMOUNT.test(row.amount) || row.allocations.some((allocation) => !GUID.test(allocation.generalLedgerLineId) ||
+      !AMOUNT.test(allocation.signedAmount) || toMicro(allocation.signedAmount) === 0n))
+      return 'Enter valid note and signed contribution amounts with at most six decimals.';
+    if (new Set(row.allocations.map((allocation) => allocation.generalLedgerLineId.toLowerCase())).size !== row.allocations.length)
+      return 'A general-ledger line can be linked to this note only once.';
+    return sumContributions(row.allocations) === toMicro(row.amount)
+      ? null : 'Signed source contributions must total the note amount exactly.';
+  }
 
   /** The open schedules and lineage gaps for the current form. Recomputed on each check, so it follows every edit. */
   blockers(): string[] { return scheduleBlockers(this.form); }

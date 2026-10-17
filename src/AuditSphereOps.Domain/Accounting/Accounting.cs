@@ -710,6 +710,8 @@ public sealed class FinancialPackageNoteLine
   public decimal Amount { get; set; }
   public string Currency { get; set; } = string.Empty;
   public string EvidenceReference { get; set; } = string.Empty;
+  /// <summary>Immutable, server-resolved accepted-GL source contributions. Empty means no typed source lineage was supplied.</summary>
+  public string SourceLineageJson { get; set; } = "[]";
   public DateTimeOffset CreatedAt { get; set; }
 }
 

@@ -302,10 +302,20 @@ public static partial class FinancialStatementService
       Disclosures = disclosures.Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Code, StringComparer.Ordinal)
         .ThenBy(x => x.Id).Select(x => new { x.Id, x.Code, x.Response, x.NotApplicable, x.Rationale }).ToArray()
     }).ToArray();
-    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    var baseHash = Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
       Version = "auditsphere.statement-note-source-manifest.v1",
       Packages = packages
+    }));
+    // Conditional so older packages with no typed note links keep their prior presentation identity.
+    var sourceLinkedNotes = noteLines.Where(x => packageIds.Contains(x.FinancialPackageId) && x.SourceLineageJson != "[]")
+      .OrderBy(x => x.FinancialPackageId).ThenBy(x => x.NoteCode, StringComparer.Ordinal)
+      .ThenBy(x => x.FaceDestinationCode, StringComparer.Ordinal).ThenBy(x => x.Id).ToArray();
+    return sourceLinkedNotes.Length == 0 ? baseHash : Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "auditsphere.statement-note-source-manifest.v2.accepted-gl-lineage",
+      Base = baseHash,
+      SourceLinkedNotes = sourceLinkedNotes.Select(x => new { x.Id, x.FinancialPackageId, x.SourceLineageJson }).ToArray()
     }));
   }
 

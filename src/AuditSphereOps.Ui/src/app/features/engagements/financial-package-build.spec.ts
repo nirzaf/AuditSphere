@@ -164,7 +164,7 @@ describe('equity, numeric note and FX schedules', () => {
       ociAmount: '-0.000001', capitalMovementAmount: '0', dividendsAmount: '100', closingAmount: '1150.499999',
       evidenceReference: 'equity statement',
     }]);
-    expect(body.noteLines).toEqual([{ noteCode: 'rev-1', faceDestinationCode: 'REV', amount: '-12.500000', evidenceReference: 'revenue note' }]);
+    expect(body.noteLines).toEqual([{ noteCode: 'rev-1', faceDestinationCode: 'REV', amount: '-12.500000', evidenceReference: 'revenue note', sourceAllocations: null }]);
     expect(body.fxCashEffects).toEqual([{ currencyPair: 'QAR/USD', amount: '0.250000', evidenceReference: 'rate table' }]);
   });
 
@@ -178,6 +178,20 @@ describe('equity, numeric note and FX schedules', () => {
     expect(none.equityLines).toBeNull();
     expect(none.noteLines).toBeNull();
     expect(none.fxCashEffects).toBeNull();
+  });
+
+  it('serializes optional note provenance and requires exact signed allocation totals', () => {
+    const form = fullForm();
+    form.noteLines[0].allocations = [
+      { generalLedgerLineId: line, signedAmount: '-7.5' },
+      { generalLedgerLineId: '44444444-4444-4444-8444-444444444444', signedAmount: '-5' },
+    ];
+    const body = (toBuildRequest(form) as { body: any }).body.supplementaryInformation;
+    expect(body.noteLines[0].sourceAllocations).toEqual(form.noteLines[0].allocations);
+
+    form.noteLines[0].allocations[1].signedAmount = '-4.999999';
+    expect(toBuildRequest(form)).toEqual({ error: 'Note line 1: source contributions must total the note amount exactly.' });
+    expect(scheduleBlockers(form).some((blocker) => blocker.includes('do not total the note amount'))).toBe(true);
   });
 
   it('refuses each malformed equity amount before it reaches the worker', () => {

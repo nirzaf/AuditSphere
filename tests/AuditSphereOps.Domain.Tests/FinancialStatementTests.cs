@@ -311,35 +311,73 @@ public sealed class FinancialStatementTests
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "No commitments were identified in the supplied management information.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 90m, "equity-schedule-1"),
          new EquityLineInput("RESERVE", "General reserve", 0m, 0m, 0m, 0m, 0m, 10m, "reserve-schedule-1")],
-        NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-schedule-1")],
+        NoteLines: [new NoteLineInput("CASH_NOTE", "CASH", 100m, "note-schedule-1"),
+          new NoteLineInput("REVENUE_NOTE", "REVENUE", -100m, "revenue-note-schedule-1",
+            [new NoteSourceAllocationInput(source.Receivable, -100m)])],
         CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-cash-template-v2"], ClosingCashEvidenceReferences: ["closing-cash-template-v2"],
         EquityTransfers: [new EquityComponentTransferInput("TRANSFER-001", "RETAINED_EARNINGS", "RESERVE", 10m, "reserve-transfer-approval")])
     };
+    var wrongScopeNote = completeRequest with
+    {
+      SupplementaryInformation = completeRequest.SupplementaryInformation! with
+      {
+        NoteLines = [new NoteLineInput("REVENUE_NOTE", "REVENUE", -100m, "revenue-note-schedule-1",
+          [new NoteSourceAllocationInput(Guid.NewGuid(), -100m)])]
+      }
+    };
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var complete = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, completeRequest);
-      Assert.True(complete.Succeeded);
-      Assert.Equal(AccountingPackageStates.PackageValidated, complete.Value!.Status);
-      Assert.NotEqual(first.CalculationHash, complete.Value.CalculationHash);
-      Assert.Equal(1, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
-      Assert.Equal(2, await db.FinancialPackageDisclosures.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
-      Assert.Equal(2, await db.FinancialPackageEquityLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
-      var transfer = await db.FinancialPackageEquityTransfers.SingleAsync(x => x.FinancialPackageId == complete.Value.PackageId);
+      var refused = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, wrongScopeNote);
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+    }
+    Guid completePackageId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var queued = await FinancialStatementService.EnqueueFinancialPackageBuildAsync(db, preparer,
+        completeRequest, operationStore, operationHandler);
+      Assert.True(queued.Succeeded, queued.Message);
+      operationId = queued.Value;
+    }
+    Assert.True(await worker.ProcessNextAsync());
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var operation = await db.DurableOperations.SingleAsync(x => x.Id == operationId);
+      Assert.Equal(OperationState.COMPLETED, operation.Status);
+      completePackageId = Guid.Parse(operation.ResultIdentity!);
+      var completePackage = await db.FinancialPackages.SingleAsync(x => x.Id == completePackageId);
+      Assert.Equal(AccountingPackageStates.PackageValidated, completePackage.Status);
+      Assert.NotEqual(first.CalculationHash, completePackage.CalculationHash);
+      Assert.Equal(1, await db.FinancialPackageCashFlowLines.CountAsync(x => x.FinancialPackageId == completePackageId));
+      Assert.Equal(2, await db.FinancialPackageDisclosures.CountAsync(x => x.FinancialPackageId == completePackageId));
+      Assert.Equal(2, await db.FinancialPackageEquityLines.CountAsync(x => x.FinancialPackageId == completePackageId));
+      var transfer = await db.FinancialPackageEquityTransfers.SingleAsync(x => x.FinancialPackageId == completePackageId);
       Assert.Equal("RETAINED_EARNINGS", transfer.SourceLineCode);
       Assert.Equal("RESERVE", transfer.DestinationLineCode);
       Assert.Equal(10m, transfer.Amount);
       Assert.Equal("reserve-transfer-approval", transfer.EvidenceReference);
-      Assert.Equal(1, await db.FinancialPackageNoteLines.CountAsync(x => x.FinancialPackageId == complete.Value.PackageId));
+      var savedNotes = await db.FinancialPackageNoteLines.Where(x => x.FinancialPackageId == completePackageId).ToListAsync();
+      Assert.Equal(2, savedNotes.Count);
+      var linkedNote = savedNotes.Single(x => x.NoteCode == "REVENUE_NOTE");
+      using (var lineage = JsonDocument.Parse(linkedNote.SourceLineageJson))
+      {
+        var link = Assert.Single(lineage.RootElement.EnumerateArray());
+        Assert.Equal(source.Receivable, link.GetProperty("GeneralLedgerLineId").GetGuid());
+        Assert.Equal(source.BatchId, link.GetProperty("SourceImportBatchId").GetGuid());
+        Assert.Matches("^[a-f0-9]{64}$", link.GetProperty("SourceLineHash").GetString());
+      }
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE financial_package_note_lines SET source_lineage_json = '[]'::jsonb WHERE id = {linkedNote.Id}"));
       var historicalPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == first.PackageId);
       Assert.Equal(request.TemplateVersion, historicalPackage.TemplateVersion);
       Assert.Equal(FinancialStatementCalculator.CalculationEngineVersion, historicalPackage.CalculationEngineVersion);
       Assert.Equal(first.CalculationHash, historicalPackage.CalculationHash);
-      var currentPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == complete.Value.PackageId);
+      var currentPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == completePackageId);
       Assert.Equal(completeRequest.TemplateVersion, currentPackage.TemplateVersion);
       Assert.Equal(FinancialStatementCalculator.CalculationEngineVersion, currentPackage.CalculationEngineVersion);
-      Assert.NotEqual(historicalPackage.Id, complete.Value.PackageId);
+      Assert.NotEqual(historicalPackage.Id, completePackageId);
       var checks = await db.FinancialPackageValidations.AsNoTracking()
-        .Where(x => x.FinancialPackageId == complete.Value.PackageId).ToListAsync();
+        .Where(x => x.FinancialPackageId == completePackageId).ToListAsync();
       Assert.All(checks.Where(x => x.Code is "CASH_FLOW_RECONCILED" or "DISCLOSURES_COMPLETE" or "SUPPLEMENTARY_INFORMATION"), x => Assert.True(x.Passed));
       Assert.Contains(checks, x => x.Code == "STATEMENT_CROSS_CAST" && x.Passed);
       Assert.Contains(checks, x => x.Code == "ACCOUNTING_EQUATION" && x.Passed);
@@ -348,10 +386,10 @@ public sealed class FinancialStatementTests
       Assert.Contains(checks, x => x.Code == "COMPARATIVE_CONSISTENCY" && x.Passed);
       Assert.Contains(checks, x => x.Code == "NOTE_TO_FACE_TOTALS" && x.Passed);
 
-      var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == complete.Value.PackageId).Select(x => x.Id).SingleAsync();
+      var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == completePackageId).Select(x => x.Id).SingleAsync();
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE financial_package_cash_flow_lines SET amount = amount + 1 WHERE id = {cashFlowLineId}"));
-      var equityLineId = await db.FinancialPackageEquityLines.Where(x => x.FinancialPackageId == complete.Value.PackageId && x.LineCode == "RETAINED_EARNINGS")
+      var equityLineId = await db.FinancialPackageEquityLines.Where(x => x.FinancialPackageId == completePackageId && x.LineCode == "RETAINED_EARNINGS")
         .Select(x => x.Id).SingleAsync();
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE financial_package_equity_lines SET closing_amount = closing_amount + 1 WHERE id = {equityLineId}"));

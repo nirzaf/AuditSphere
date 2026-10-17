@@ -575,10 +575,12 @@ public sealed partial class AuditSphereDbContext
     noteLine.Property(x => x.FaceDestinationCode).HasMaxLength(100);
     noteLine.Property(x => x.Currency).HasMaxLength(3);
     noteLine.Property(x => x.EvidenceReference).HasMaxLength(2000);
+    noteLine.Property(x => x.SourceLineageJson).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
     noteLine.HasIndex(x => new { x.FirmId, x.FinancialPackageId, x.NoteCode, x.FaceDestinationCode })
       .IsUnique().HasDatabaseName("ux_financial_package_note_line_identity");
     noteLine.ToTable("financial_package_note_lines", t => t.HasCheckConstraint("ck_financial_package_note_line_values",
-      "length(trim(note_code)) > 0 AND length(trim(face_destination_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0"));
+      "length(trim(note_code)) > 0 AND length(trim(face_destination_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND " +
+      "length(trim(evidence_reference)) > 0 AND jsonb_typeof(source_lineage_json) = 'array'"));
     noteLine.HasOne<FinancialPackage>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.FinancialPackageId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);

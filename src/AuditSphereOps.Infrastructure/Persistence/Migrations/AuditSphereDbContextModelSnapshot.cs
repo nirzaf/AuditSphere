@@ -632,7 +632,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_accounting_capability_acceptance_stage");
 
-                    b.ToTable("accounting_capability_acceptances", (string)null);
+                    b.ToTable("accounting_capability_acceptances");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AccountingCapabilityProfile", b =>
@@ -1167,7 +1167,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "ReconciliationId");
 
-                    b.ToTable("accounting_reconciliation_items", (string)null);
+                    b.ToTable("accounting_reconciliation_items");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AccountingReconciliationPreparation", b =>
@@ -1795,7 +1795,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("JournalId");
 
-                    b.ToTable("adjustment_lines", (string)null);
+                    b.ToTable("adjustment_lines");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.AdjustmentPlan", b =>
@@ -7756,7 +7756,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasKey("FirmId", "ClientId", "EngagementId", "FinancialPackageId")
                         .HasName("pk_financial_package_cash_flow_membership_seals");
 
-                    b.ToTable("financial_package_cash_flow_membership_seals", (string)null);
+                    b.ToTable("financial_package_cash_flow_membership_seals");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.FinancialPackageCashFlowSourceReview", b =>
@@ -8288,6 +8288,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("note_code");
 
+                    b.Property<string>("SourceLineageJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("source_lineage_json")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "FinancialPackageId");
@@ -8298,7 +8305,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("financial_package_note_lines", null, t =>
                         {
-                            t.HasCheckConstraint("ck_financial_package_note_line_values", "length(trim(note_code)) > 0 AND length(trim(face_destination_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0");
+                            t.HasCheckConstraint("ck_financial_package_note_line_values", "length(trim(note_code)) > 0 AND length(trim(face_destination_code)) > 0 AND currency ~ '^[A-Z]{3}$' AND length(trim(evidence_reference)) > 0 AND jsonb_typeof(source_lineage_json) = 'array'");
                         });
                 });
 
@@ -9566,7 +9573,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "ImportBatchId");
 
-                    b.ToTable("general_ledger_transactions", (string)null);
+                    b.ToTable("general_ledger_transactions");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.GroupAccessGrant", b =>
@@ -9614,7 +9621,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_group_access_grant");
 
-                    b.ToTable("group_access_grants", (string)null);
+                    b.ToTable("group_access_grants");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.IntercompanyMatch", b =>
@@ -10686,7 +10693,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "TaxonomyVersionId", "ParentNodeId");
 
-                    b.ToTable("reporting_taxonomy_nodes", (string)null);
+                    b.ToTable("reporting_taxonomy_nodes");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ReportingTaxonomyVersion", b =>
@@ -10913,7 +10920,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_source_account_alias");
 
-                    b.ToTable("source_account_aliases", (string)null);
+                    b.ToTable("source_account_aliases");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.SourceImportBatch", b =>
@@ -12170,7 +12177,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "DatasetId", "Severity")
                         .HasDatabaseName("ix_tb_validation_issues");
 
-                    b.ToTable("trial_balance_validation_issues", (string)null);
+                    b.ToTable("trial_balance_validation_issues");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ValuationPreparation", b =>
@@ -17965,7 +17972,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("OperationId", "Token")
                         .IsUnique();
 
-                    b.ToTable("operation_attempts", (string)null);
+                    b.ToTable("operation_attempts");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperationEvent", b =>
@@ -18001,7 +18008,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperationId", "OccurredAt");
 
-                    b.ToTable("operation_events", (string)null);
+                    b.ToTable("operation_events");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Completion.OperatorCommandEvent", b =>
