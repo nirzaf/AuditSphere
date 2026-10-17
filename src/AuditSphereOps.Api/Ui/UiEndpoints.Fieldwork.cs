@@ -13,6 +13,15 @@ public static partial class UiEndpoints
     int ExpectedDefinitionRevision, Guid CommandId);
   public sealed record SubmitProcedureResultInput(long? ExpectedInputGeneration, string WorkPerformed, string? StructuredResultJson, string[]? EvidenceReferences, string Conclusion);
   public sealed record ReviewProcedureResultInput(string Decision, string? Comment);
+  public sealed record ProcedureCommandInput(Guid RequestId, string Action, int ExpectedDefinitionRevision,
+    long ExpectedInputGeneration, long ExpectedResultRevision, Guid? ResultId, string? WorkPerformed,
+    string? StructuredResultJson, string[]? EvidenceReferences, string? Conclusion, string? Decision,
+    string? Comment, bool Reviewed, string? ExpectedRequestHash);
+
+  private static ProcedureCommandRequest ProcedureCommand(ProcedureCommandInput input) => new(
+    input.RequestId, input.Action ?? "", input.ExpectedDefinitionRevision, input.ExpectedInputGeneration,
+    input.ExpectedResultRevision, input.ResultId, input.WorkPerformed, input.StructuredResultJson,
+    input.EvidenceReferences, input.Conclusion, input.Decision, input.Comment, input.Reviewed, input.ExpectedRequestHash);
   public sealed record AggregateConclusionInput(string Conclusion);
   public sealed record SamplingInput(Guid ProcedureId, Guid ScheduleId, string Method, string? Interval, string? KeyItemThreshold, int? SampleSize, int? Seed,
     string Rationale, string[]? AttributeFields = null, string? ExpectedPreviewDigest = null);
@@ -44,12 +53,21 @@ public static partial class UiEndpoints
         new TailorProcedureRequest(id, i.Title ?? "", i.CustomWording ?? "", i.Rationale, i.ExpectedDefinitionRevision, i.CommandId), ct)));
     group.MapPost("/procedures/{id:guid}/workpaper", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditProgramService.GetOrCreateWorkpaperAsync(db, actor, id, ct)));
+    // Legacy direct mutation routes fail closed. Every submission/review must use the exact
+    // preview, assent and receipt path below so a lost response can recover its original outcome.
     group.MapPost("/procedures/{id:guid}/results", (Guid id, SubmitProcedureResultInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditProgramService.SubmitResultAsync(db, actor, new SubmitProcedureResultRequest(id, i.ExpectedInputGeneration ?? 1, i.WorkPerformed ?? "", i.StructuredResultJson ?? "{}", i.EvidenceReferences ?? [], i.Conclusion ?? ""), ct)));
+      Task.FromResult(Invalid("Use the procedure command preview and actions routes; direct result writes are no longer accepted.")));
     group.MapPost("/procedure-results/{id:guid}/review", (Guid id, ReviewProcedureResultInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditProgramService.ReviewResultAsync(db, actor,
-        new ReviewProcedureResultRequest(id, i.Decision ?? "", i.Comment), ct,
-        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"))));
+      Task.FromResult(Invalid("Use the procedure command preview and actions routes; direct review writes are no longer accepted.")));
+    group.MapGet("/procedures/{id:guid}/commands/state", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.StateAsync(db, actor, id, ct)));
+    group.MapPost("/procedures/{id:guid}/commands/preview", (Guid id, ProcedureCommandInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.PreviewAsync(db, actor, id, ProcedureCommand(i), ct)));
+    group.MapPost("/procedures/{id:guid}/commands/actions", (Guid id, ProcedureCommandInput i, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.ExecuteAsync(db, actor, id, ProcedureCommand(i),
+        http.RequestServices.GetRequiredService<IConfiguration>().GetValue<bool>("WorkflowExperience:Enabled"), ct)));
+    group.MapGet("/procedures/{id:guid}/commands/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditProcedureCommandWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)));
     group.MapPost("/engagements/{id:guid}/fieldwork/program", (Guid id, AdoptProgramInput input, HttpContext http) =>
       string.IsNullOrWhiteSpace(input.SourceHash) || string.IsNullOrWhiteSpace(input.ContentDigest)
         ? Task.FromResult(Invalid("Refresh and submit the exact published programme source and content identities."))

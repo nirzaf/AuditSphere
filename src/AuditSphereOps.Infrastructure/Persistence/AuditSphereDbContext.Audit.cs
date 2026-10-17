@@ -396,6 +396,33 @@ public sealed partial class AuditSphereDbContext
       .HasForeignKey(x => new { x.FirmId, x.ReviewerUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
+    var procedureCommandReceipt = b.Entity<AuditProcedureCommandReceipt>();
+    procedureCommandReceipt.Property(x => x.SourceProcedureId).HasMaxLength(100);
+    procedureCommandReceipt.Property(x => x.Action).HasMaxLength(30);
+    procedureCommandReceipt.Property(x => x.RequestHash).HasMaxLength(64);
+    procedureCommandReceipt.Property(x => x.ResultStatus).HasMaxLength(30);
+    procedureCommandReceipt.Property(x => x.Decision).HasMaxLength(30);
+    procedureCommandReceipt.HasIndex(x => new { x.FirmId, x.ActorUserId, x.RequestId }).IsUnique()
+      .HasDatabaseName("ux_audit_procedure_command_request");
+    procedureCommandReceipt.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.CommittedAt })
+      .HasDatabaseName("ix_audit_procedure_command_procedure_committed");
+    procedureCommandReceipt.ToTable("audit_procedure_command_receipts", t => t.HasCheckConstraint(
+      "ck_audit_procedure_command_receipt_values",
+      "action IN ('SUBMIT_RESULT','REVIEW_RESULT') AND actor_epoch > 0 AND definition_revision >= 0" +
+      " AND input_generation > 0 AND expected_result_revision >= 0 AND result_revision > 0" +
+      " AND length(request_hash) = 64 AND result_id IS NOT NULL" +
+      " AND ((action = 'SUBMIT_RESULT' AND decision IS NULL AND review_id IS NULL)" +
+      " OR (action = 'REVIEW_RESULT' AND review_id IS NOT NULL AND decision IN ('REVIEWED','CHANGES_REQUIRED')))"));
+    ScopeToEngagement(procedureCommandReceipt, nameof(AuditProcedureCommandReceipt.FirmId),
+      nameof(AuditProcedureCommandReceipt.ClientId), nameof(AuditProcedureCommandReceipt.EngagementId));
+    procedureCommandReceipt.HasOne<AuditProcedure>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId })
+      .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict);
+    procedureCommandReceipt.HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+
     var workprogramApproval = b.Entity<AuditWorkprogramManagerApproval>();
     workprogramApproval.HasAlternateKey(x => new { x.FirmId, x.Id })
       .HasName("AK_audit_workprogram_manager_approvals_firm_id_id");

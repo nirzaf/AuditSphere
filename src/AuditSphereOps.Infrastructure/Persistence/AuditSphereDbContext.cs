@@ -478,6 +478,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AuditProcedureResult> AuditProcedureResults => Set<AuditProcedureResult>();
 
   public DbSet<AuditProcedureReview> AuditProcedureReviews => Set<AuditProcedureReview>();
+  public DbSet<AuditProcedureCommandReceipt> AuditProcedureCommandReceipts => Set<AuditProcedureCommandReceipt>();
 
   public DbSet<AuditSchedule> AuditSchedules => Set<AuditSchedule>();
 

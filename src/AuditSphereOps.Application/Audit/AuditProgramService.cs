@@ -555,10 +555,15 @@ public static partial class AuditProgramService
     IAuditSphereDbContext db,
     ActorContext actor,
     SubmitProcedureResultRequest request,
-    CancellationToken ct = default)
+    CancellationToken ct = default,
+    ProcedureCommandContext? command = null)
   {
     ArgumentNullException.ThrowIfNull(db);
     ArgumentNullException.ThrowIfNull(request);
+    if (command is not null && (command.Action != ProcedureCommandActions.SubmitResult || !ProcedureCommandHash(command.RequestHash) ||
+        !command.Reviewed || command.ActorEpoch != actor.SessionEpoch))
+      return CommandResult<ProcedureResultValue>.Fail(InvalidCode,
+        "Provide the exact reviewed procedure command identity.");
     if (request.ExpectedInputGeneration < 1 || string.IsNullOrWhiteSpace(request.WorkPerformed) ||
         string.IsNullOrWhiteSpace(request.Conclusion) || request.EvidenceReferences is null)
       return CommandResult<ProcedureResultValue>.Fail(InvalidCode, "A generation, work performed, evidence and conclusion are required.");
@@ -591,6 +596,30 @@ public static partial class AuditProgramService
     """).SingleOrDefaultAsync(ct);
     if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (command is not null)
+    {
+      await AuditProcedureCommandWorkspace.BarrierAsync(db, actor, command.RequestId, true, ct);
+      var replay = await db.AuditProcedureCommandReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ActorUserId == actor.UserId && x.RequestId == command.RequestId, ct);
+      if (replay is not null)
+      {
+        if (replay.ActorEpoch != actor.SessionEpoch)
+          return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GenerationStale,
+            "This request belongs to a previous session lifetime.");
+        if (replay.AuditProcedureId != procedure.Id || replay.Action != command.Action || replay.RequestHash != command.RequestHash)
+          return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.IdempotencyConflict,
+            "Changed intent cannot reuse this request identity.");
+        if (replay.ResultId is null) return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.IdempotencyConflict,
+          "The retained receipt has no original result.");
+        await tx.CommitAsync(ct);
+        return CommandResult<ProcedureResultValue>.Ok(new(replay.ResultId.Value, replay.AuditProcedureId,
+          replay.WorkpaperId ?? Guid.Empty, replay.ResultRevision, replay.ResultStatus ?? AuditProcedureResultStatuses.Submitted));
+      }
+      if (procedure.CurrentDefinitionRevision != command.ExpectedDefinitionRevision ||
+          procedure.CurrentResultRevision != command.ExpectedResultRevision)
+        return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GenerationStale,
+          "The procedure definition or result revision changed; refresh the exact command state before submitting.");
+    }
     if (procedure.ApplicabilityStatus != AuditApplicabilityStatuses.Applicable)
       return CommandResult<ProcedureResultValue>.Fail(ErrorCodes.GateBlocked,
         "Only an explicitly applicable procedure can receive test results.");
@@ -717,6 +746,16 @@ public static partial class AuditProgramService
     procedure.Status = AuditProcedureStatuses.Submitted;
     var publicationActor=actor.UserId.ToString();var publicationEpoch=actor.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture);var publicationPaper=workpaper.Id.ToString();
     await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('audit.workpaper_action','PROCEDURE_SUBMIT',true),set_config('audit.workpaper_actor_id',{publicationActor},true),set_config('audit.workpaper_actor_epoch',{publicationEpoch},true),set_config('audit.workpaper_procedure_paper',{publicationPaper},true)",ct);
+    if (command is not null)
+      db.AuditProcedureCommandReceipts.Add(new AuditProcedureCommandReceipt
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = procedure.EngagementId,
+        AuditProcedureId = procedure.Id, SourceProcedureId = procedure.SourceProcedureId, Action = command.Action,
+        RequestHash = command.RequestHash, ActorUserId = actor.UserId, ActorEpoch = actor.SessionEpoch,
+        RequestId = command.RequestId, DefinitionRevision = procedure.CurrentDefinitionRevision, InputGeneration = generation,
+        ExpectedResultRevision = command.ExpectedResultRevision, ResultId = result.Id, WorkpaperId = workpaper.Id,
+        ResultRevision = revision, ResultStatus = result.Status, CommittedAt = DateTimeOffset.UtcNow
+      });
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<ProcedureResultValue>.Ok(new(result.Id, procedure.Id, workpaper.Id, revision, result.Status));
@@ -727,10 +766,15 @@ public static partial class AuditProgramService
     ActorContext actor,
     ReviewProcedureResultRequest request,
     CancellationToken ct = default,
-    bool createWorkflowReworkTask = false)
+    bool createWorkflowReworkTask = false,
+    ProcedureCommandContext? command = null)
   {
     ArgumentNullException.ThrowIfNull(db);
     ArgumentNullException.ThrowIfNull(request);
+    if (command is not null && (command.Action != ProcedureCommandActions.ReviewResult || !ProcedureCommandHash(command.RequestHash) ||
+        !command.Reviewed || command.ActorEpoch != actor.SessionEpoch))
+      return CommandResult<ProcedureReviewValue>.Fail(InvalidCode,
+        "Provide the exact reviewed procedure command identity.");
     var decision = request.Decision.Trim().ToUpperInvariant();
     if (decision is not (AuditProcedureReviewDecisions.Reviewed or AuditProcedureReviewDecisions.ChangesRequired))
       return CommandResult<ProcedureReviewValue>.Fail(InvalidCode, "Unsupported review decision.");
@@ -769,6 +813,31 @@ public static partial class AuditProgramService
       """).SingleOrDefaultAsync(ct);
     if (result is null || result.AuditProcedureId != procedure.Id || result.EngagementId != procedure.EngagementId || result.ClientId != scope.ClientId)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (command is not null)
+    {
+      await AuditProcedureCommandWorkspace.BarrierAsync(db, actor, command.RequestId, true, ct);
+      var replay = await db.AuditProcedureCommandReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ActorUserId == actor.UserId && x.RequestId == command.RequestId, ct);
+      if (replay is not null)
+      {
+        if (replay.ActorEpoch != actor.SessionEpoch)
+          return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GenerationStale,
+            "This request belongs to a previous session lifetime.");
+        if (replay.AuditProcedureId != procedure.Id || replay.Action != command.Action || replay.RequestHash != command.RequestHash)
+          return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.IdempotencyConflict,
+            "Changed intent cannot reuse this request identity.");
+        if (replay.ResultId is null || replay.Decision is null)
+          return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.IdempotencyConflict,
+            "The retained receipt has no original review outcome.");
+        await tx.CommitAsync(ct);
+        return CommandResult<ProcedureReviewValue>.Ok(new(replay.ResultId.Value, replay.AuditProcedureId,
+          replay.ResultRevision, replay.Decision));
+      }
+      if (procedure.CurrentDefinitionRevision != command.ExpectedDefinitionRevision ||
+          result.Revision != command.ExpectedResultRevision)
+        return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GenerationStale,
+          "The procedure definition or result revision changed; refresh the exact command state before reviewing.");
+    }
     if (procedure.ProgramProcedureId is not null)
     {
       var currentDefinition = await db.AuditProcedureDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -833,7 +902,7 @@ public static partial class AuditProgramService
     if (decision == AuditProcedureReviewDecisions.Reviewed && await ReviewNotesService.OpenCountAsync(db, scope.FirmId, procedure.Id, ct) is > 0 and var open)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.GateBlocked, $"{open} review note(s) are still open; resolve them before approving.");
 
-    db.AuditProcedureReviews.Add(new AuditProcedureReview
+    var review = new AuditProcedureReview
     {
       Id = Guid.CreateVersion7(),
       FirmId = scope.FirmId,
@@ -846,7 +915,8 @@ public static partial class AuditProgramService
       Comment = string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim(),
       ReviewerUserId = actor.UserId,
       CreatedAt = DateTimeOffset.UtcNow
-    });
+    };
+    db.AuditProcedureReviews.Add(review);
     result.Status = decision == AuditProcedureReviewDecisions.Reviewed
       ? AuditProcedureResultStatuses.Reviewed : AuditProcedureResultStatuses.ChangesRequired;
     result.ReviewedByUserId = actor.UserId;
@@ -864,6 +934,18 @@ public static partial class AuditProgramService
     }
     if (decision == AuditProcedureReviewDecisions.Reviewed)
       await AuditSphereOps.Application.Completion.AuditDeliverableService.CompileAfterFinalReviewAsync(db, actor, result.EngagementId, ct);
+    if (command is not null)
+      db.AuditProcedureCommandReceipts.Add(new AuditProcedureCommandReceipt
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = result.EngagementId,
+        AuditProcedureId = procedure.Id, SourceProcedureId = procedure.SourceProcedureId, Action = command.Action,
+        RequestHash = command.RequestHash, ActorUserId = actor.UserId, ActorEpoch = actor.SessionEpoch,
+        RequestId = command.RequestId, DefinitionRevision = procedure.CurrentDefinitionRevision, InputGeneration = generation,
+        ExpectedResultRevision = command.ExpectedResultRevision, ResultId = result.Id, WorkpaperId = result.WorkpaperId,
+        ReviewId = review.Id, ResultRevision = result.Revision, ResultStatus = result.Status, Decision = decision,
+        CommittedAt = DateTimeOffset.UtcNow
+      });
+    await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<ProcedureReviewValue>.Ok(new(result.Id, result.AuditProcedureId, result.Revision, decision));
   }
@@ -901,4 +983,7 @@ public static partial class AuditProgramService
       return false;
     return !ProcedureRiskBandEvaluator.HasReservedBasisProperty(json);
   }
+
+  private static bool ProcedureCommandHash(string? value) =>
+    value is { Length: 64 } && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 }

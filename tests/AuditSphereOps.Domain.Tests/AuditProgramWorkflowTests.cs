@@ -674,4 +674,104 @@ public sealed class AuditProgramWorkflowTests
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
       $"UPDATE audit_procedure_applicability_decisions SET rationale = 'tampered' WHERE id = {proposal.Value.DecisionId}"));
   }
+
+  [Fact(DisplayName = "Procedure command receipts recover one exact submit and review outcome")]
+  public async Task ProcedureCommand_ExactPreviewAndReceiptRecoverOriginalOutcome()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PlanningSeed.CreateAsync(pg, role: "Partner");
+    var scope = fixture.Primary;
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var published = await AuditProgramTestHelpers.PublishAsync(db, scope.Actor,
+      new PublishAuditProgramRequest("2026.1", AuditProgramCatalog.SourceHash));
+    Assert.True(published.Succeeded, published.Message);
+    var adopted = await AuditProgramService.AdoptAsync(db, scope.Actor,
+      new AdoptAuditProgramRequest(scope.EngagementId, published.Value!.ProgramVersionId));
+    Assert.True(adopted.Succeeded, adopted.Message);
+    var procedure = await db.AuditProcedures.SingleAsync(x =>
+      x.EngagementId == scope.EngagementId && x.SourceProcedureId == "AWP-08-01");
+    Assert.True((await AuditProgramTestHelpers.MarkApplicableAsync(db, scope.Actor, procedure.Id)).Succeeded);
+
+    var basisApproverId = Guid.NewGuid();
+    db.Users.Add(new AppUser
+    {
+      Id = basisApproverId, FirmId = scope.FirmId, Subject = "command-basis-" + basisApproverId.ToString("N"),
+      TenantId = "tenant-planning", Email = "command-basis@example.test", DisplayName = "Command Basis Approver",
+      UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = basisApproverId, Role = "Partner",
+      ClientId = scope.ClientId, EngagementId = scope.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
+      GrantedByUserId = basisApproverId
+    });
+    await db.SaveChangesAsync();
+    await PlanningBasisSeed.EstablishAsync(db, scope.FirmId, scope.ClientId, scope.EngagementId, scope.Actor,
+      new ActorContext(basisApproverId, scope.FirmId, 1, ["Partner"]));
+
+    var state = await AuditProcedureCommandWorkspace.StateAsync(db, scope.Actor, procedure.Id);
+    Assert.True(state.Succeeded, state.Message);
+    var basis = state.Value!.Basis;
+    Assert.True(basis.CanSubmit);
+
+    var request = new ProcedureCommandRequest(Guid.NewGuid(), ProcedureCommandActions.SubmitResult,
+      basis.DefinitionRevision, basis.InputGeneration, basis.CurrentResultRevision, null,
+      "Agreed the bank listing to the ledger.", "{\"result\":\"PASS\"}", ["source:bank-list-1"],
+      "No exception noted.", null, null, false, null);
+    var preview = await AuditProcedureCommandWorkspace.PreviewAsync(db, scope.Actor, procedure.Id, request);
+    Assert.True(preview.Succeeded, preview.Message);
+    var action = request with { Reviewed = true, ExpectedRequestHash = preview.Value!.RequestHash };
+    var receipt = await AuditProcedureCommandWorkspace.ExecuteAsync(db, scope.Actor, procedure.Id, action);
+    Assert.True(receipt.Succeeded, receipt.Message);
+    Assert.Equal(ProcedureCommandActions.SubmitResult, receipt.Value!.Action);
+    Assert.Equal(1, receipt.Value.ResultRevision);
+    Assert.NotNull(receipt.Value.ResultId);
+
+    var replay = await AuditProcedureCommandWorkspace.ExecuteAsync(db, scope.Actor, procedure.Id, action);
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(receipt.Value.Id, replay.Value!.Id);
+    Assert.Equal(receipt.Value.ResultId, replay.Value.ResultId);
+    Assert.Equal(1, await db.AuditProcedureCommandReceipts.CountAsync(x => x.AuditProcedureId == procedure.Id));
+
+    var changed = await AuditProcedureCommandWorkspace.ExecuteAsync(db, scope.Actor, procedure.Id,
+      action with { Conclusion = "Different conclusion on the same request identity." });
+    Assert.False(changed.Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changed.ErrorCode);
+
+    var lookup = await AuditProcedureCommandWorkspace.LookupAsync(db, scope.Actor, procedure.Id,
+      receipt.Value.RequestId, receipt.Value.RequestHash);
+    Assert.True(lookup.Succeeded, lookup.Message);
+    Assert.True(lookup.Value!.Found);
+    Assert.Equal(receipt.Value.Id, lookup.Value.Receipt!.Id);
+    var wrongHash = await AuditProcedureCommandWorkspace.LookupAsync(db, scope.Actor, procedure.Id,
+      receipt.Value.RequestId, new string('0', 64));
+    Assert.False(wrongHash.Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, wrongHash.ErrorCode);
+
+    var reviewer = await AuditProgramTestHelpers.CreateReviewerAsync(db, scope.FirmId, scope.Actor.UserId);
+    var reviewState = await AuditProcedureCommandWorkspace.StateAsync(db, reviewer, procedure.Id);
+    Assert.True(reviewState.Succeeded, reviewState.Message);
+    Assert.True(reviewState.Value!.Basis.CanReview);
+    var reviewRequest = new ProcedureCommandRequest(Guid.NewGuid(), ProcedureCommandActions.ReviewResult,
+      reviewState.Value.Basis.DefinitionRevision, reviewState.Value.Basis.InputGeneration,
+      reviewState.Value.Basis.LatestResultRevision, reviewState.Value.Basis.LatestResultId,
+      null, null, null, null, AuditProcedureReviewDecisions.Reviewed, "Evidence and conclusion agree.", false, null);
+    var reviewPreview = await AuditProcedureCommandWorkspace.PreviewAsync(db, reviewer, procedure.Id, reviewRequest);
+    Assert.True(reviewPreview.Succeeded, reviewPreview.Message);
+    var reviewAction = reviewRequest with { Reviewed = true, ExpectedRequestHash = reviewPreview.Value!.RequestHash };
+    var reviewReceipt = await AuditProcedureCommandWorkspace.ExecuteAsync(db, reviewer, procedure.Id, reviewAction);
+    Assert.True(reviewReceipt.Succeeded, reviewReceipt.Message);
+    Assert.Equal(ProcedureCommandActions.ReviewResult, reviewReceipt.Value!.Action);
+    Assert.Equal(AuditProcedureReviewDecisions.Reviewed, reviewReceipt.Value.Decision);
+    Assert.NotNull(reviewReceipt.Value.ReviewId);
+    var reviewReplay = await AuditProcedureCommandWorkspace.ExecuteAsync(db, reviewer, procedure.Id, reviewAction);
+    Assert.True(reviewReplay.Succeeded, reviewReplay.Message);
+    Assert.Equal(reviewReceipt.Value.Id, reviewReplay.Value!.Id);
+    Assert.Equal(2, await db.AuditProcedureCommandReceipts.CountAsync(x => x.AuditProcedureId == procedure.Id));
+    Assert.Equal(1, await db.AuditProcedureReviews.CountAsync(x => x.AuditProcedureId == procedure.Id));
+
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE audit_procedure_command_receipts SET result_status = 'TAMPERED' WHERE id = {receipt.Value.Id}"));
+  }
+
 }
