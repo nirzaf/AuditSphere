@@ -10,7 +10,13 @@ capability; public APIs are stable across parts. Verified project state lives on
 
 `docs/execution/status.json`.
 
-> **Blazor retirement note (2026-10-17):** The legacy Blazor host (`AuditSphereOps.Web`, its `Web/Components/Pages` screens and MudBlazor) was retired and merged to `master` as `e7ebe27c`; no `.razor` file remains in the current tree. Every `.razor` or `Web/` entry below is historical lineage preserved only at the pinned pre-removal commit `c3905e07`, not a current UI target. The canonical presentation is Angular under `src/AuditSphereOps.Ui`, served by `src/AuditSphereOps.Api`.
+> **Blazor retirement note (2026-10-17):** The legacy Blazor host (`AuditSphereOps.Web`, its `Web/Components/Pages` screens and MudBlazor) was physically retired and merged to `master` as `e7ebe27c`; no `.razor` file remains in the current tree. Every `.razor` or `Web/` entry below is historical lineage preserved only at the pinned pre-removal commit `c3905e07`, not a current UI target or evidence of parity. The canonical presentation is Angular under `src/AuditSphereOps.Ui`, served by `src/AuditSphereOps.Api`.
+
+## Current presentation ownership
+
+- **HTTP host and contracts:** `src/AuditSphereOps.Api/` owns authenticated `/api/ui/*` endpoints, session and consent boundaries, protected file transports, health checks, and serving the Angular build. Route ownership is explicit in `src/AuditSphereOps.Api/Ui/AngularRouteOwnership.cs` and the SPA route catalogue.
+- **Presentation:** `src/AuditSphereOps.Ui/src/app/` owns the Angular staff and client-portal routes and workspaces. Angular calls the same-origin API; it does not own authorization or business-state authority.
+- **Historical screen references:** old Blazor screen names below are retained only to trace the pre-removal implementation at `c3905e07`. They are not current files, route owners, rollback hosts, or proof that a current Angular workspace has matching behavior. Where current API/Angular files are listed, those paths identify current implementation locations without asserting feature parity.
 
 ## Reviewed accounting period maintenance
 
@@ -52,7 +58,8 @@ Posted movement lines exclude opening balances and imported GL; the official nat
 
 - Persistence: `Infrastructure/Persistence/AuditSphereDbContext.ClientAccounting.cs`, `.ClientAccountingSchedules.cs`
 
-- UI: `Web/Components/Pages/AccountingWorkspace.razor`, `AccountingPeriod.razor`, `PeriodRollforward.razor`, `PeriodRestatements.razor`
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Accounting.cs`, `UiEndpoints.PeriodMaintenance.cs`; `src/AuditSphereOps.Ui/src/app/features/accounting/workspace.ts`, `period.ts`, `rollforward.ts`, `restatements.ts`.
+- Historical Blazor screens (pinned pre-removal source only): `Web/Components/Pages/AccountingWorkspace.razor`, `AccountingPeriod.razor`, `PeriodRollforward.razor`, `PeriodRestatements.razor`.
 
 - Tests: `tests/.../ClientAccountingTests/ClientAccountingTests.{Profiles,PeriodClose,ChartAndTaxonomy}.cs`
 
@@ -74,7 +81,8 @@ clients. This setup does not itself provide native journal posting.
 
 - Persistence: `AuditSphereDbContext.Accounting.cs`
 
-- API/UI: `Api/Ui/UiEndpoints.GeneralLedger.cs`, `Ui/src/app/features/accounting/gl-completeness*`, `Ui/src/app/features/engagements/general-ledger*`; legacy rollback `AccountingRecords.razor`
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.GeneralLedger.cs`; `src/AuditSphereOps.Ui/src/app/features/accounting/gl-completeness.ts` and `src/AuditSphereOps.Ui/src/app/features/engagements/general-ledger.ts`.
+- Historical Blazor screen (pinned pre-removal source only): `AccountingRecords.razor`.
 
 - Tests: `ClientAccountingTests.GeneralLedger.cs`, `TrialBalanceCalculatorTests.cs`, `TrialBalanceWorkerTests.cs`, `TrialBalanceXlsxImporterTests.cs`, `SourceAcceptanceAndComparativesTests.cs`, `GeneralLedgerCompletenessApiTests.cs`, `AngularGeneralLedgerCompletenessJourneyTests.cs`
 
@@ -88,7 +96,8 @@ account-exact; source acceptance binds sealed sources and bumps generation.
 
 - Persistence: `AuditSphereDbContext.AdjustmentBridge.cs`, `AuditSphereDbContext.AdjustmentPlanActions.cs`; retained native command evidence: `Domain/Accounting/AdjustmentPlanAction.cs`
 
-- UI: `Journals.razor`, `CurrencyRemeasurement.razor`
+- Current Angular workspaces: `src/AuditSphereOps.Ui/src/app/features/accounting/journal.ts`, `journal-management.ts`, and `remeasurement.ts`.
+- Historical Blazor screens (pinned pre-removal source only): `Journals.razor`, `CurrencyRemeasurement.razor`.
 
 - Tests: `AccountingRecordsApprovalTests.cs` (journal submit/return/resubmit, duplicate reversal), `ClientAccountingTests.Currency.cs`
 
@@ -96,7 +105,8 @@ account-exact; source acceptance binds sealed sources and bumps generation.
 
 - Application: `Application/Accounting/Analysis/AccountingAnalysisService.{Reconciliation,Valuations,AnalyticalReview,JournalRisk,Evidence,Authorization}.cs`; native scoped inspection: `Application/Accounting/ReconciliationWorkspaceQuery.cs`, `Application/Accounting/AccountingAnalysisReviewQuery{,.Retained}.cs`; native reviewed commands: `Application/Accounting/AccountingEvidenceWorkspace{,.Procedures}.cs`, `Application/Accounting/ValuationPreparationWorkspace.cs`; retained receipts: `Domain/Accounting/AccountingEvidenceAction.cs`, `Domain/Accounting/ValuationPreparation.cs` and their matching Infrastructure persistence configurations
 
-- UI: `AccountingEvidence.razor`, `Finding.razor`; native queue/detail: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/analysis-review.ts`; reviewed action/preparation forms and receipt recovery: `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-actions{.ts,.html}`, `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-action-contracts.ts`, `src/AuditSphereOps.Ui/src/app/features/accounting/valuation-preparation{.ts,.html}`, `src/AuditSphereOps.Ui/src/app/features/accounting/valuation-preparation-contracts.ts`
+- Current Angular workspaces: native queue/detail in `src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts`, `reconciliation.ts`, and `analysis-review.ts`; reviewed action/preparation forms and receipt recovery in `src/AuditSphereOps.Ui/src/app/features/accounting/evidence-actions{.ts,.html}`, `evidence-action-contracts.ts`, `valuation-preparation{.ts,.html}`, and `valuation-preparation-contracts.ts`.
+- Historical Blazor screens (pinned pre-removal source only): `AccountingEvidence.razor`, `Finding.razor`.
 
 - Tests: `ClientAccountingTests.{Reconciliations,Analysis}.cs`, `SourceAcceptanceAndComparativesTests.cs`, `ValuationPreparationApiTests.cs`, `AngularValuationPreparationJourneyTests.cs`
 
@@ -112,7 +122,8 @@ blocked when the client generation changes; journal risk is deterministic, never
 
 - Persistence: `AuditSphereDbContext.FinancialStatements.cs`
 
-- UI: Angular financial package build in `Ui/src/app/features/engagements/financial-package-build.ts`; statement preview/export in `features/accounting/presentation.ts`; legacy reference screens are `Mapping.razor`, `FinancialPackage.razor`, `FinancialPackageReviews.razor`, `ClientFinancialPackage.razor`, `Release.razor`
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Packages.cs`, `UiEndpoints.Statements.cs`, `UiEndpoints.MappingDrafts.cs`; Angular mapping/review/package workspaces in `src/AuditSphereOps.Ui/src/app/features/accounting/mapping.ts`, `mapping-approval.ts`, `package.ts`, `presentation.ts`, and `src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts`.
+- Historical Blazor screens (pinned pre-removal source only): `Mapping.razor`, `FinancialPackage.razor`, `FinancialPackageReviews.razor`, `ClientFinancialPackage.razor`, `Release.razor`.
 
 - Tests: `ClientAccountingTests.FinancialPackages.cs`
 
@@ -140,7 +151,7 @@ Authority is rechecked after the locks are held. A command never takes the packa
 
 - Persistence: `AuditSphereDbContext.Consolidation.cs` (rate sets, policies, translation results)
 
-- UI: `Consolidation.razor` (TranslationBridge area), `CurrencyRemeasurement.razor`
+- Historical Blazor screens (pinned pre-removal source only): `Consolidation.razor` (TranslationBridge area), `CurrencyRemeasurement.razor`.
 
 - Tests: `tests/.../LineTranslationTests.cs`, `ClientAccountingTests/ClientAccountingTests.Currency.cs`
 
@@ -162,11 +173,11 @@ unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
 - Persistence: `AuditSphereDbContext.Consolidation.cs`
 
-- Legacy/reference UI: `Consolidation.razor`, `AdvancedConsolidationWorkflow.razor`
+- Historical Blazor screens (pinned pre-removal source only): `Consolidation.razor`, `AdvancedConsolidationWorkflow.razor`.
 
-- Angular UI: `AuditSphereOps.Ui/src/app/features/consolidation/overview.ts`, `advanced.ts`
+- Current Angular UI: `src/AuditSphereOps.Ui/src/app/features/consolidation/overview.ts` and `src/AuditSphereOps.Ui/src/app/features/consolidation/advanced.ts`
 
-- API/Application: `AuditSphereOps.Api/Ui/UiEndpoints.Consolidation.cs`, `ConsolidationOverviewQuery`, `AdvancedConsolidationWorkspaceQuery`, and the `ConsolidationService` partials
+- Current API/Application: `src/AuditSphereOps.Api/Ui/UiEndpoints.Consolidation.cs`, `ConsolidationOverviewQuery`, `AdvancedConsolidationWorkspaceQuery`, and the `ConsolidationService` partials. These file locations do not certify parity with the historical screens above.
 
 - Tests: `ClientAccountingTests/ClientAccountingTests.{Consolidation,AdvancedConsolidation,ExternalComponents,Currency}.cs`, `ProfilesChartsAndConsolidationTests.cs`, `ConsolidationWorkspaceApiTests`, `AngularAdvancedConsolidationAuthorizationJourneyTests`, `SiblingClientIsolationJourneyTests`
 
@@ -193,7 +204,8 @@ replay/approval/readback); the group-report export/archive leg is a declared M37
 
 - Persistence: `AuditSphereDbContext.Audit.cs`, `.Fieldwork.cs`
 
-- Angular: `features/audit/plan.ts`, `fieldwork.ts`, `records.ts` and `library.ts`; API `Ui/UiEndpoints.AuditPlan.cs`, `UiEndpoints.Fieldwork.cs` and audit record endpoints. The retired `AuditPlan.razor`, `AuditFieldwork.razor`, `AuditPopulation.razor` and `AuditProgramLibraryPage.razor` were removed with the Blazor host and are preserved only at the pinned pre-removal commit.
+- Current Angular/API: `src/AuditSphereOps.Ui/src/app/features/audit/plan.ts`, `fieldwork.ts`, `records.ts` and `library.ts`; `src/AuditSphereOps.Api/Ui/UiEndpoints.AuditPlan.cs`, `UiEndpoints.Fieldwork.cs` and audit record endpoints. These current paths do not assert source-action parity.
+- Historical Blazor screens (pinned pre-removal source only): `AuditPlan.razor`, `AuditFieldwork.razor`, `AuditPopulation.razor` and `AuditProgramLibraryPage.razor`.
 - Exact population/finding projections: `Application/Audit/AuditRecordQueries.cs`; both reauthorize after composing details. Angular record decoders bind the returned identity to the route and finding drafts clear on route/session transitions.
 
 - Tests: `tests/.../AuditFieldwork*` and audit sections of `SourceAcceptanceAndComparativesTests.cs`
@@ -204,7 +216,8 @@ replay/approval/readback); the group-report export/archive leg is a declared M37
 
 - Persistence: `AuditSphereDbContext.Reviews.cs`, `.Completion.cs`, `.ScopedEvidence.cs`
 
-- UI: `ReviewPoint.razor`, `Completion.razor`, `Workpaper.razor`
+- Current Angular/API workspaces: `src/AuditSphereOps.Ui/src/app/features/audit/completion.ts` and `src/AuditSphereOps.Ui/src/app/features/audit/workpaper.ts`; `src/AuditSphereOps.Api/Ui/UiEndpoints.Completion.cs`, `UiEndpoints.AuditRecords.cs` and `UiEndpoints.Fieldwork.cs`.
+- Historical Blazor screens (pinned pre-removal source only): `ReviewPoint.razor`, `Completion.razor`, `Workpaper.razor`.
 
 - Tests: `tests/.../` review/completion suites, `AccountingRecordsApprovalTests.cs`
 
@@ -214,7 +227,8 @@ replay/approval/readback); the group-report export/archive leg is a declared M37
 
 - Persistence: `AuditSphereDbContext.Documents.cs`, `.Pbc.cs`
 
-- UI: `PbcRequests.razor`, `ClientPbcRequest.razor`, `RecordsArchive.razor`, `ClientPortal.razor`
+- Current Angular/API entry points: `src/AuditSphereOps.Ui/src/app/features/engagements/pbc.ts`, `src/AuditSphereOps.Ui/src/app/features/portal/documents.ts`, `request.ts`, `home.ts` and `src/AuditSphereOps.Ui/src/app/features/audit/records.ts`; `src/AuditSphereOps.Api/Ui/UiEndpoints.Pbc.cs` and `UiEndpoints.Portal.cs`. This mapping identifies current files only and does not assert parity.
+- Historical Blazor screens (pinned pre-removal source only): `PbcRequests.razor`, `ClientPbcRequest.razor`, `RecordsArchive.razor`, `ClientPortal.razor`.
 
 - Tests: `tests/.../` document/PBC suites
 
@@ -235,7 +249,8 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 - Persistence: `AuditSphereDbContext.Practice.cs`
 
-- UI: legacy `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`; native Angular invoice actions and term/reversal review in `AuditSphereOps.Ui/src/app/features/finance/invoice.ts`, plus the firm-fee ageing report/export in `AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts`, through `Api/UiEndpoints.Finance.cs`
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Portfolio.cs`, `UiEndpoints.Finance.cs`, `UiEndpoints.Time.cs`; Angular client/lead workspaces in `src/AuditSphereOps.Ui/src/app/features/clients/client.ts` and `src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts`, and invoice actions/term/reversal review and firm-fee ageing/export in `src/AuditSphereOps.Ui/src/app/features/finance/invoice.ts` and `src/AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts`.
+- Historical Blazor screens (pinned pre-removal source only): `Leads.razor`, `Portfolio.razor`, `ClientDetail.razor`, `Finance.razor`, `InvoiceDetail.razor`, `PracticeTime.razor`.
 
 - Statement presentation (FSR first slice): pure builder and checks in `Application/Accounting/FinancialStatementPresentation.cs`; renderers in `FinancialStatementPresentationRenderer.cs`; database-bound read and export in `Application/Accounting/FinancialStatements/FinancialStatementService.Presentation.cs`; endpoints in `Api/Ui/UiEndpoints.Packages.cs`; Angular `features/accounting/presentation.ts`; tests `FinancialStatementPresentationTests` and `FinancialStatementTests.StatementPresentation_*`. Equity cross-casts preserve signed control totals for current and comparative periods; opposite-magnitude schedules fail while valid deficits remain supported.
 - Report certificate signing (ADR-0016): signer policy and PDF signature verifier in `Application/Completion/ReportCertificateSigning.cs`; signing paths in `AuditDeliverableRenderer.cs` and `AuditDeliverableService.cs` (`SignIndependentReportAsync`, `VerifyReportSignatureAsync`) and `AuditDeliverableService.Bundle.cs`; certificate source `Infrastructure/Providers/PemReportSigningCredentialSource.cs` (`ReportSigning:*` settings); Angular `features/audit/completion.ts`; `ReportCertificateSigningTests`, `AuditDeliverablesTests`
@@ -253,7 +268,8 @@ accounting or consolidation workspaces.
 - Domain: `Domain/Practice/Commercial.cs` — `QuotationVersion`, `CommercialApprovalRule`, `QuotationApproval`, `FirmCommercialProfile`, `CommercialDocument`, `EngagementFeeAgreement`, `FeeMilestone`, `CommercialNotification`
 - Application: `Application/Practice/QuotationCalculator.cs` (pure fee model: rate × hours → complexity → risk premium → discount), `CommercialApprovalMatrix.cs` (pure rule evaluation with a documented fail-safe default), `QuotationService.cs` (versioning, submit, matrix approvals, rule administration, approved-rate options), `CommercialDocumentRenderer.cs` + `CommercialDocumentService.cs` (branded Quotation, Engagement Letter and receipt as DOCX with template/profile version and SHA-256), `FeeAgreementService.cs` (50% advance and balance milestones over the existing `BillingService` review/post/receipt path), `CommercialMailDeliveryHandler.cs` (isolated `mail` worker delivery of the receipt email). `PracticeCrmService.ApproveProposalAsync` gates internal review on an approved, fee-matching quotation.
 - Persistence: `AuditSphereDbContext.Commercial.cs`, migration `CommercialQuotationsAndFeeAgreements` (check constraints and append-only/field-restricted triggers)
-- UI: `Components/Commercial/QuotationWorkbench.razor`, `FeeAgreementPanel.razor`, `ProposalWorkflowPanel.razor` (hosted by `ProposalDetail.razor`), `Pages/CommercialSettings.razor`; authorized download endpoint `/api/commercial/documents/{id}/download` in `Web/Program.cs`
+- Current API/Angular: commercial contracts in `src/AuditSphereOps.Api/Ui/UiEndpoints.Commercial.cs`, `UiEndpoints.Quotation.cs`, `UiEndpoints.FeeAgreement.cs`, `UiEndpoints.CommercialDocuments.cs` and `UiEndpoints.CommercialSettings.cs`; Angular workspaces in `src/AuditSphereOps.Ui/src/app/features/commercial/quotation.ts`, `src/AuditSphereOps.Ui/src/app/features/commercial/proposal.ts`, `fee-agreement.ts`, `documents.ts` and `settings.ts`.
+- Historical Blazor screens and host endpoint (pinned pre-removal source only): `Components/Commercial/QuotationWorkbench.razor`, `FeeAgreementPanel.razor`, `ProposalWorkflowPanel.razor`, `ProposalDetail.razor`, `Pages/CommercialSettings.razor` and `Web/Program.cs`. Their presence here is not evidence of parity.
 - Tests: `QuotationCalculatorTests.cs`, `CommercialWorkflowTests.cs`, `tests/.../CommercialJourneyTests.cs`
 
 ## Acceptance paths, activation and engagement workspace provisioning
@@ -261,7 +277,7 @@ accounting or consolidation workspaces.
 - Assessment command publication: `AcceptanceCommandAuthority.cs` establishes firm/client/actor lock order and post-wait authority checks. `AcceptanceChecklistService.cs` and `AcceptanceDecisionService.cs` join a reviewed caller transaction without committing it; the caller must roll back on failure. `AcceptanceChecklistTests` covers rollback and actor revocation during each command lock wait. The immutable request receipt owner and typed forms remain separate migration work.
 
 - Native assessment detail: `Application/Acceptance/AssessmentWorkspaceQuery.cs` publishes a current-authority, client-serialized profile, exact selected decision and persisted progress projection through `Api/Ui/UiEndpoints.Routes.cs`. `AssessmentRouteQuery.cs` preserves legacy decision selection. Angular `features/acceptance/checklist.ts` distinguishes historical and engagement-specific records from the editable current client evaluation, fences late replies and binds Partner assent to the reviewed intent. Tests: `AcceptanceChecklistTests`, `AssessmentWorkspaceApiTests`, `AngularAssessmentParityJourneyTests` and `assessment-workspace.spec.ts`.
-- Reviewed assessment backend: `Application/Acceptance/AssessmentCommandWorkspace.cs` composes the five existing commands with exact preview, explicit assent, actor-owned request receipts and serialized recovery through `Api/Ui/UiEndpoints.Acceptance.cs`. `Domain/Acceptance/AssessmentCommandReceipt.cs`, `AuditSphereDbContext.AssessmentReceipts.cs` and the receipt migration own append-only persistence, result/publication checks and retained-evidence rollback refusal. Tests: `AcceptanceChecklistTests.Receipts.cs` and `AssessmentCommandReceiptApiTests`. Angular `assessment-command-editor.ts` owns typed Signal Forms; `assessment-command-contracts.ts` validates exact preview/receipt contracts. `checklist.ts` binds fresh assent, retains references only, fences unknown outcomes and composes authorized receipt recovery. `assessment-navigation-dialog.ts` protects unsaved notes. Tests: `assessment-command.spec.ts` and both host modes of `AngularAssessmentParityJourneyTests`. Decisions can additionally target an exact client-owned engagement; preview exposes its period and the receipt retains that target. The `EngagementScopedAssessmentReceipts` migration extends only the exact-result publication guard. `AcceptanceChecklistTests.EngagementDecision.cs` and `AngularScopedAssessmentDecisionJourneyTests` cover this path. Broader assessment parity remains pending.
+- Reviewed assessment backend: `Application/Acceptance/AssessmentCommandWorkspace.cs` composes the five existing commands with exact preview, explicit assent, actor-owned request receipts and serialized recovery through `Api/Ui/UiEndpoints.Acceptance.cs`. `Domain/Acceptance/AssessmentCommandReceipt.cs`, `AuditSphereDbContext.AssessmentReceipts.cs` and the receipt migration own append-only persistence, result/publication checks and retained-evidence rollback refusal. Tests: `AcceptanceChecklistTests.Receipts.cs` and `AssessmentCommandReceiptApiTests`. Angular `assessment-command-editor.ts` owns typed Signal Forms; `assessment-command-contracts.ts` validates exact preview/receipt contracts. `checklist.ts` binds fresh assent, retains references only, fences unknown outcomes and composes authorized receipt recovery. `assessment-navigation-dialog.ts` protects unsaved notes. Tests: `assessment-command.spec.ts` and both Angular route modes in `AngularAssessmentParityJourneyTests`. Decisions can additionally target an exact client-owned engagement; preview exposes its period and the receipt retains that target. The `EngagementScopedAssessmentReceipts` migration extends only the exact-result publication guard. `AcceptanceChecklistTests.EngagementDecision.cs` and `AngularScopedAssessmentDecisionJourneyTests` cover this path. Broader assessment parity remains pending.
 
 - Native reviewed blocked creation: `Application/Acceptance/EngagementCreationWorkspace.cs` composes `EngagementLifecycleService.Creation.cs` inside an owned transaction; `EngagementPeriodConflictQuery.cs` checks same-client/service period overlaps in preview and under the creation safety lock while retaining exact retry recovery. `Api/Ui/UiEndpoints.EngagementCreation.cs` owns exact client context/preview/confirmation/receipt routes. Angular `features/clients/engagement-create*` owns Signal Forms review, bounded tab fields and unknown-result recovery. `Domain/Engagements/EngagementCreation.cs` and `NativeEngagementCreationReview` preserve immutable actor-owned request evidence and a deferred exact blocked-publication guard. Tests: `EngagementCreationReviewTests`, `EngagementCreationReviewApiTests`, `AngularEngagementCreationJourneyTests`, `engagement-create.spec.ts`. Migration and observed acceptance boundaries live only in `status.json`. `AnnualEngagementPreparationWorkspace.cs` proposes a contiguous next annual period from a client-owned source, separates copied references from fresh work, and validates the exact source under the creation lock. Source identity is retained in the existing immutable creation receipt. An optional reviewed annual template revision is also retained without changing legacy receipt JSON when absent. A single current revision from the source plan is suggested; the new task-plan screen preselects that exact revision only while published, and never replaces an unavailable reference automatically. Annual references include active contacts valid at next-period start and approved exact-source-period mapping identities, guarded by the accounting workbench read policy; no contact authority, mapping allocations or approvals are copied. Angular annual preparation uses the same reviewed creation screen and the existing preview/execute/recovery endpoints; the suggestion GET is `/api/ui/clients/{id}/annual-engagement/{sourceEngagementId}`. Tests: `AnnualEngagementPreparationTests`, `RelationshipManagerAnnualPreparationTests`, `AngularAnnualEngagementJourneyTests`. RelationshipManager client/firm grants can create blocked shells and read client summaries; engagement-only grants cannot widen to that parent scope. Professional engagement reads and Partner acceptance/activation remain separate. The `RelationshipManagerEngagementCreationReceipts` migration updates only the exact-publication role guard. Confirmed annual receipts hand off to the new engagement’s explicitly loaded task-plan panel, where an authorized coordinator separately reviews the current template, schedule and staffing before pinning tasks. They also link to the exact engagement in the existing assessment workspace (`?engagementId=`). The scope-checked read, reviewed continuance generation, fixed-scope Partner editor and engagement-period preview fence preserve fresh answers and immutable prior decisions.
 - Native reviewed activation: `Application/Acceptance/EngagementActivationWorkspace.cs` composes `EngagementLifecycleService.cs`; `Api/Ui/UiEndpoints.EngagementActivation.cs` owns exact Partner context/preview/confirmation/receipt routes; Angular `features/engagements/activation*` owns Signal Forms assent, tab request recovery and lifetime fences. `NativeEngagementActivationReview` adds nullable request metadata to existing immutable evidence, a unique request identity and a deferred publication guard. Tests: `EngagementActivationReviewTests`, `EngagementActivationReviewApiTests`, `AngularEngagementActivationJourneyTests` and `activation.spec.ts`. Observed execution and migration boundaries live only in `status.json`.
@@ -269,8 +285,9 @@ accounting or consolidation workspaces.
 - Domain: `Domain/Acceptance/Acceptance.cs` (paths, evidence reference, generation, adverse-answer metadata), `Domain/Engagements/Engagements.cs` (`EngagementActivation`)
 - Application: `Application/Acceptance/AcceptanceRules.cs` (pure gate rules), `AcceptanceChecklistService.cs` (path-derived checklist), `AcceptanceDecisionService.cs` (records path and prior decision), `EngagementLifecycleService.Creation.cs` (client-serialized blocked draft creation with current authority checks), `EngagementLifecycleService.cs` (Partner-only activation); `EngagementRiskEvidence.cs` selects the exact recurring-period risk decision consistently for readiness, lifecycle, activation and commercial letters, retaining client-level first-period compatibility; `Application/Documents/EngagementWorkspaceProvisioning.cs` (`ProvisionEngagementWorkspace.v1` handler and discovery in the isolated `pbc` live group; exact `/Client/Year/01–05` tree when the approved client template has no `engagements` node, otherwise the legacy layout; binding and capability evidence through `PbcRepositoryProvisioning.ApplyEngagementBindingAsync`); `Microsoft365ConfigurationService.SteManifest` and the Setup page "Load STE layout" action
 - Persistence: migration `AcceptancePathsEvidenceAndActivation`
-- UI: `Components/Acceptance/{AcceptanceChecklistPanel,EngagementActivationPanel,EngagementCreatePanel}.razor`
-- Client portal onboarding: `Domain/Documents/ClientPortal.cs` (`ClientPortalFirstSignIn`, `PbcRequestDelegation`, `ClientPortalIntent`), `Application/Documents/ClientPortalService.cs` (identity-path-derived first-sign-in gate used by `PbcService` uploads, primary-contact delegation, participant request query, portal intent view), `PracticeCrmService.RecordPortalIntentAsync` (conversion trigger) and `EngagementLifecycleService.ActivateAsync` (ready to invite); persistence `AuditSphereDbContext.ClientPortal.cs`, migration `ClientPortalOnboardingAndDelegation`; UI `Pages/ClientPortal.razor` (first sign-in), `Pages/ClientPbcRequest.razor` (drop zone, in-browser SHA-256 via `wwwroot/pbc-upload.js`, progress, delegation), `Pages/ClientDetail.razor` (portal intent)
+- Current Angular/API: assessment in `src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts`; engagement creation and activation in `src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.ts` and `src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts`; current HTTP contracts are in `src/AuditSphereOps.Api/Ui/UiEndpoints.Acceptance.cs`, `UiEndpoints.EngagementCreation.cs` and `UiEndpoints.EngagementActivation.cs`.
+- Historical Blazor panels (pinned pre-removal source only): `Components/Acceptance/{AcceptanceChecklistPanel,EngagementActivationPanel,EngagementCreatePanel}.razor`.
+- Client portal onboarding: `Domain/Documents/ClientPortal.cs` (`ClientPortalFirstSignIn`, `PbcRequestDelegation`, `ClientPortalIntent`), `Application/Documents/ClientPortalService.cs` (identity-path-derived first-sign-in gate used by `PbcService` uploads, primary-contact delegation, participant request query, portal intent view), `PracticeCrmService.RecordPortalIntentAsync` (conversion trigger) and `EngagementLifecycleService.ActivateAsync` (ready to invite); persistence `AuditSphereDbContext.ClientPortal.cs`, migration `ClientPortalOnboardingAndDelegation`. Current Angular portal entry points include `src/AuditSphereOps.Ui/src/app/features/portal/home.ts`, `documents.ts` and `request.ts`; current API contracts are in `src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs` and `UiEndpoints.Pbc.cs`. Historical Blazor screens and upload script (`Pages/ClientPortal.razor`, `Pages/ClientPbcRequest.razor`, `Pages/ClientDetail.razor`, `wwwroot/pbc-upload.js`) are preserved only at the pinned pre-removal commit and do not establish parity.
 - Tests: `AcceptanceChecklistTests.cs`, `EngagementWorkspaceProvisioningTests.cs`, `ClientPortalOnboardingTests.cs`, `tests/.../AcceptanceJourneyTests.cs`, `tests/.../ClientPortalOnboardingJourneyTests.cs`, `tests/.../AngularPbcStaffJourneyTests.cs`
 
 ## Resource planning, staffing, materiality engine and risk routing
@@ -278,7 +295,8 @@ accounting or consolidation workspaces.
 - Domain: `Domain/Practice/ResourcePlanning.cs` (`StaffingLevels` with explicit role mapping, `EngagementStaffAssignment`, `StaffProfile`, `StaffCertification`, `StaffAvailability`, `StaffAllocation`, `BudgetPhases`), phase/risk-area on `WorkTask`, `TimeEntry`, `BudgetLine`; `Domain/Audit/MaterialityAndRiskBands.cs` (`MaterialityCalculation`, `RiskBandAssessment`, `RiskPartnerClearance`, `RiskOwnerAssignment`)
 - Application: `Practice/StaffingService.cs`, `Practice/ResourcePlanningService.cs` + pure `ResourceGridCalculator.cs`, `PracticeTimeService.GetBudgetBreakdownAsync`; `Audit/MaterialityCalculator.cs` (pure PM/TE/SAD and `RiskBandRules`), `Audit/MaterialityEngineService.cs` (benchmark derivation from the current approved mapping, staleness used by `ApproveMaterialityAssessmentAsync`, SAD evaluation and completion), `Audit/RiskBandService.cs` (bands, owner levels, Partner review, completion blockers)
 - Persistence: `AuditSphereDbContext.ResourcePlanning.cs`, migration `ResourcePlanningMaterialityEngineAndRiskBands` (band rule check, significance trigger, append-only evidence triggers, phase checks)
-- UI: `Components/Planning/{EngagementStaffingPanel,EngagementBudgetPanel,MaterialityEnginePanel,RiskRoutingPanel}.razor` (hosted by `EngagementDetail.razor` and `AuditPlan.razor`), `Pages/ResourcePlanning.razor` (`/app/practice/resources`)
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Resources.cs`, `UiEndpoints.StaffingChange.cs`, `UiEndpoints.BudgetPreparation.cs` and `UiEndpoints.BudgetApproval.cs`; Angular `src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts` and `src/AuditSphereOps.Ui/src/app/features/practice/resources.ts`. The native resource editor and reviewed receipts are described below; these locations do not assert parity for every planning action.
+- Historical Blazor screens (pinned pre-removal source only): `Components/Planning/{EngagementStaffingPanel,EngagementBudgetPanel,MaterialityEnginePanel,RiskRoutingPanel}.razor`, hosted by `EngagementDetail.razor` and `AuditPlan.razor`, and `Pages/ResourcePlanning.razor`.
 - Angular: `features/practice/resources.ts` and `resources.html` compose the API planning workspace; `resource-editor.ts` owns typed Signal Forms, persisted-profile editing and bounded validation. `resource-navigation-dialog.ts` protects memory-only edits. `planning-command-contracts.ts` decodes exact previews and receipts. `ResourcePlanningCommandWorkspace.cs` and `ResourcePlanningService.Authority.cs` enforce reviewed publication, current authorization and replay/recovery. `ResourcePlanningReceipt.cs`, `AuditSphereDbContext.ResourcePlanningReceipts.cs` and migration `NativeResourcePlanningReceipts` retain atomic immutable evidence. Tests include `PlanningResourcesAndMaterialityTests.Receipts.cs` and `ResourcePlanningReceiptApiTests.cs`.
 - Tests: `PlanningResourcesAndMaterialityTests.cs`, `tests/.../PlanningAndResourcesJourneyTests.cs`, `AngularResourcePlanningJourneyTests.cs`, `features/practice/resources.spec.ts`
 
@@ -291,7 +309,8 @@ accounting or consolidation workspaces.
 - Domain: `Domain/Audit/FieldworkConnections.cs` (`AuditSamplingRun`, `ProcedureEvidenceLink`, `PhysicalEvidenceItem`/`Movement`, `ProcedurePhysicalLink`, `AdHocProcedureInsertion`/`Revision`)
 - Application fieldwork: `Audit/Fieldwork/AuditFieldworkService.Connections.cs` (sampling run and re-performance, evidence picker, physical index, ad hoc steps, analytical-review and going-concern completion blockers wired into `EvaluateCompletionAsync`)
 - Persistence: `AuditSphereDbContext.FieldworkConnections.cs`, migration `FieldworkConnectionsSamplingEvidenceAndPhysicalIndex`
-- UI: `Pages/TrialBalanceIntake.razor` (`/app/engagements/{id}/tb-intake`), `Pages/StatementDrillDown.razor` (`/app/engagements/{id}/statements`), `Components/Fieldwork/FieldworkToolsPanel.razor` (hosted by `AuditFieldwork.razor`)
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Intake.cs`, `UiEndpoints.Statements.cs` and `UiEndpoints.Fieldwork.cs`; Angular `src/AuditSphereOps.Ui/src/app/features/engagements/tb-intake.ts`, `src/AuditSphereOps.Ui/src/app/features/engagements/statements.ts` and `src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts`. Current paths do not assert parity for every historical action.
+- Historical Blazor screens (pinned pre-removal source only): `Pages/TrialBalanceIntake.razor`, `Pages/StatementDrillDown.razor`, `Components/Fieldwork/FieldworkToolsPanel.razor` and `AuditFieldwork.razor`.
 - Tests: `FieldworkConnectionsTests.cs`, `tests/.../FieldworkConnectionsJourneyTests.cs`
 - Attribute-strata sampling: `Domain/Audit/AuditSamplingEngine.cs` validates reviewer-selected account/currency/direction/month attributes and produces deterministic strata; `Application/Audit/AuditSamplingService.cs` previews and persists the exact selection with source digest, ordering policy, fields and engine version; `Audit/Fieldwork/AuditFieldworkService.Connections.cs` commits the selection and run atomically and fences replay against source changes. `Application/Audit/AuditFieldworkWorkspaceQuery.cs` publishes authorized review/execution capabilities; `Api/Ui/UiEndpoints.Fieldwork.cs` exposes preview, run, sample-set and item-review commands. Angular `features/audit/fieldwork.ts` renders selected attributes, exact preview rows/strata, explicit sample review, item-test evidence and a separate reviewer decision. Migration `AttributeStrataSamplingPreview` retains the added provenance.
 - Sampling verification: `AuditSamplingEngineTests.cs`, `FieldworkConnectionsTests.cs`, `AuditSamplingSelectionIsolationTests.cs`, `AngularAttributeSamplingExecutionJourneyTests.cs` and `features/audit/fieldwork.spec.ts` cover engine validation, scoped persistence, independent review, execution, item-level evidence and second-person review. The journey does not assert statistical sufficiency; wider completion-story acceptance remains in `docs/execution/status.json`.
@@ -309,7 +328,8 @@ accounting or consolidation workspaces.
 - Domain: `Domain/Practice/FirmOperations.cs` (`TechnicalLibraryDocument`/`Version`, `StaffCostRate`, `FirmExpense`)
 - Application: `Practice/FirmOperationsServices.cs` (`TechnicalLibraryService` — also feeding `GlobalSearchQuery`; `PracticeAnalyticsQuery`; `FirmExpenseService` over `LedgerService` journals and the firm trial balance)
 - Persistence: `AuditSphereDbContext.FirmOperations.cs`, migration `TechnicalLibraryAnalyticsAndFirmExpenses` (published-version immutability, append-only cost rates)
-- UI: `Pages/TechnicalLibrary.razor` (`/app/library`, `/app/library/{id}`), `Pages/PracticeAnalytics.razor` (`/app/practice/analytics`), `Pages/FirmBooks.razor` (`/app/finance/books`)
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.PracticeInsights.cs` and `UiEndpoints.FirmBooks.cs`; Angular `src/AuditSphereOps.Ui/src/app/features/library/library.ts`, `src/AuditSphereOps.Ui/src/app/features/practice/analytics.ts` and `src/AuditSphereOps.Ui/src/app/features/finance/books.ts`. This identifies current files and routes only; it does not assert parity with the former library screens.
+- Historical Blazor screens (pinned pre-removal source only): `Pages/TechnicalLibrary.razor`, `Pages/PracticeAnalytics.razor` and `Pages/FirmBooks.razor`.
 - Tests: `FirmOperationsTests.cs`, `tests/.../FirmOperationsJourneyTests.cs`
 
 ## Microsoft 365 setup, security and administration
@@ -318,14 +338,16 @@ accounting or consolidation workspaces.
 
 - Persistence: `AuditSphereDbContext.Security.cs`, `.Microsoft365.cs`; dedicated certificate and Graph directory reader, `GraphCapabilityCredential.cs`, `GraphTenantAdministrationProviders.cs`, `GraphTenantConsentVerifier.cs` and the Development/Test-only `SimulatedMicrosoftTenant.cs` in `Infrastructure/Providers/`
 
-- API/Angular: `Api/Ui/UiEndpoints.Microsoft365.cs`, `.TenantOperations.cs`, `.SelectedResources.cs`; `Ui/src/app/features/admin/tenant.ts`, `sharepoint.ts`, `provisioning.ts`, `groups.ts`, `operation-recovery.ts`; API owns consent/authentication callback composition. Retired presentation: `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor` and `Components/Administration/*` were removed with the Blazor host and are preserved only at the pinned pre-removal commit.
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Microsoft365.cs`, `UiEndpoints.TenantOperations.cs`, `UiEndpoints.SelectedResources.cs`; `src/AuditSphereOps.Ui/src/app/features/admin/tenant.ts`, `src/AuditSphereOps.Ui/src/app/features/admin/sharepoint.ts`, `provisioning.ts`, `groups.ts` and `operation-recovery.ts`. The API owns consent/authentication callback composition.
+- Historical Blazor screens (pinned pre-removal source only): `Microsoft365Setup.razor`, `TenantConnection.razor`, `Administration.razor` and `Components/Administration/*`.
 
 - Tests: `tests/.../` Microsoft 365 and security suites
 
 ## Staff navigation search
 
 - Application: `Application/Search/GlobalSearchQuery.cs` — bounded search over clients, engagements, PBC requests, leads, invoices and staff pages. Candidates are prefiltered by the actor's grants for each result kind, then every hit is re-authorized with the decision its destination route applies (`AuthorizationDecision`, `BillingService.CanOpenInvoiceAsync`). Not a document, evidence or email search.
-- UI: `Components/Layout/GlobalSearch.razor` in the staff top bar (`MainLayout.razor`); `wwwroot/search-shortcut.js` (`/` shortcut outside editable controls and dialogs); styles in `wwwroot/enterprise-ui.css`.
+- Current API/Angular: global search route in `src/AuditSphereOps.Api/Ui/UiEndpoints.cs`; `src/AuditSphereOps.Ui/src/app/features/search/search.ts` and the current Angular shell/navigation files.
+- Historical Blazor implementation (pinned pre-removal source only): `Components/Layout/GlobalSearch.razor`, `MainLayout.razor`, `wwwroot/search-shortcut.js` and `wwwroot/enterprise-ui.css`.
 - Tests: `tests/AuditSphereOps.Domain.Tests/GlobalSearchQueryTests.cs`, `tests/AuditSphereOps.E2E.Tests/GlobalSearchJourneyTests.cs`
 
 ## Operations — durable work, worker host
@@ -334,7 +356,8 @@ accounting or consolidation workspaces.
 
 - Persistence: `AuditSphereDbContext.Operations.cs`
 
-- UI: `Operations.razor`
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Operations.cs` and `src/AuditSphereOps.Ui/src/app/features/admin/operations.ts`.
+- Historical Blazor screen (pinned pre-removal source only): `Operations.razor`.
 
 - Worker: `src/AuditSphereOps.Worker/` (`BackgroundService` hosts)
 
@@ -371,17 +394,18 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Application: `Documents/ClientSharePointSites.cs` owns standing administrator authorization, the fixed UTC rollout boundary, discovery, durable operation lifecycle, immutable identity decisions and separate site/member projections. `Documents/PbcRepositoryProvisioning.cs` applies the configured/saved cutoff before any shared-site fallback; invalid or mismatched boundaries block, even before the client-sites worker persists the cutoff.
 - Domain: `Microsoft365/ClientSharePointSite.cs`, `Microsoft365/ClientSiteWorkerHeartbeat.cs`; EF mapping: `AuditSphereDbContext.ClientSharePointSites.cs`.
 - Infrastructure: `Providers/SharePointClientSiteProvider.cs`; enabled-by-default isolated Acceptance `client-sites` worker with a read-only, dedicated credential mount. Missing rollout/configuration/consent remains visible as blocked; the `pbc` worker stays Sites.Selected.
-- Web: `Administration/ClientSharePointSitesPanel.razor`, with explicit site-wide Full Control warning in `Planning/EngagementStaffingPanel.razor`.
+- Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.SelectedResources.cs` and `UiEndpoints.WorkspaceProvisioning.cs`; Angular `src/AuditSphereOps.Ui/src/app/features/admin/sharepoint.ts` and `src/AuditSphereOps.Ui/src/app/features/engagements/planning.ts`.
+- Historical Blazor panels (pinned pre-removal source only): `Administration/ClientSharePointSitesPanel.razor` and `Planning/EngagementStaffingPanel.razor`.
 - Tests: `ClientSharePointSitesTests`, `SharePointClientSiteProviderTests`, `ClientSharePointSitesJourneyTests`.
 - Permission and configuration authority: [client-site decision](auditsphere-client-sharepoint-sites-current.md).
 - Requirement coverage and unclosed gaps: [STE coverage](../execution/auditsphere-ste-specification-coverage-current.md).
 
 ### STE reporting and commercial extensions
 
-- `Practice/CommercialDocumentService.Tender.cs` assembles reviewed five-chapter proposals; `CommercialSettings.razor` versions firm chapters and `QuotationWorkbench.razor` captures the assigned team CVs, timeline and explicit review.
+- `Practice/CommercialDocumentService.Tender.cs` assembles reviewed five-chapter proposals; current Angular commercial settings and quotation workspaces are `src/AuditSphereOps.Ui/src/app/features/commercial/settings.ts` and `src/AuditSphereOps.Ui/src/app/features/commercial/quotation.ts`. Historical Blazor references (pinned pre-removal source only): `CommercialSettings.razor` and `QuotationWorkbench.razor`.
 - `Audit/AuditProgramService.cs` serializes the final review transition; `Completion/AuditDeliverableService.cs` automatically compiles the SRM and preserves separate Partner clearance/opinion/signing decisions.
 - `Completion/AuditDeliverableRenderer.cs` renders the signed report PDF with a validated registered PNG specimen. The renderer also embeds the exact versioned approved firm-seal image; neither PNG image asserts certificate-backed signing.
-- `Practice/ContractContributionCalculator.cs` is the pure contracted-fee-minus-standard-time-value calculator; `FirmOperationsServices.cs` and `PracticeAnalytics.razor` expose it separately from actual staff-cost metrics.
+- `Practice/ContractContributionCalculator.cs` is the pure contracted-fee-minus-standard-time-value calculator; `FirmOperationsServices.cs` and current Angular `src/AuditSphereOps.Ui/src/app/features/practice/analytics.ts` expose it separately from actual staff-cost metrics. `PracticeAnalytics.razor` is a historical screen reference at the pinned pre-removal commit only.
 - Verification sources: `CommercialWorkflowTests`, `AuditDeliverablesTests`, `ContractContributionCalculatorTests` and their commercial/completion journeys. Remaining specification gaps are recorded in the execution coverage matrix.
 
 ### STE signed representations, five-part bundles and standing invoice drafts
@@ -396,7 +420,7 @@ For the complete documentation index, authority hierarchy, current requirements,
 ## Protected open-session presentation
 
 - Retired Web (historical): `Components/Shared/SessionAccessBoundary.razor` is preserved at the pre-removal commit only. The current boundary is Angular `core/session.ts` plus the API's `TrustedActorResolver`; it rechecks identity, disabled state, expiry and session epoch and does not replace Application command/query authorization.
-- Verification: `PassiveSessionRevocationJourneyTests` covers both shells, disabled identities and stale epochs without navigation or clicks.
+- Verification: `PassiveSessionRevocationJourneyTests` covers staff and client Angular routes, disabled identities and stale epochs without navigation or clicks.
 - Systematic sampling: `Domain/Audit/AuditSamplingEngine.cs` adds seeded equal-row-spacing selection, including zero-value rows. `AuditFieldworkService.Connections.cs` stores order-bound source identity and a distinct engine version; the Angular fieldwork page supplies sample size/seed and the existing immutable calculation log. Migration `SystematicAuditSampling` extends the allowed-method constraint. Existing sampling engines and stored source digests retain their contracts.
 - **Procedure execution and evidence:** `Application/Audit/AuditProcedureCommandWorkspace.cs` and `AuditProcedureCommandContracts.cs` own state, preview, action, receipt and recovery; `AuditProgramService.cs` enforces exact definition/result/input fencing and writes `AuditProcedureCommandReceipt`; `AuditProgramService.Evidence.cs` resolves stored link, physical and manual evidence into an immutable server snapshot; `AuditProcedureSupportMap.cs` is navigation-only. API routes: `UiEndpoints.Fieldwork.cs` `/procedures/{id}/commands/{state,preview,actions,receipts}`; direct `/results` and `/review` writes fail closed. Migrations: `20261017141659_AuditProcedureCommandReceipts`, `20261017142359_AuditProcedureCommandEvidenceDigest`. Angular: `features/audit/fieldwork.ts` procedure panel and `fieldwork.spec.ts`; tests: `AuditProgramWorkflowTests.ProcedureCommand_ExactPreviewAndReceiptRecoverOriginalOutcome`, `AuditProcedureSupportMapTests`.
 - **Current-evidence progress:** `AuditFieldworkService.ProcedureEvidence.cs` is the shared batch evaluator used by `EngagementAuditProgramQuery`, `AuditAreaSummaryQuery`, `AuditFieldworkWorkspaceQuery` and completion; raw submitted/returned or historical reviewed rows are not treated as current reviewed work.
@@ -406,14 +430,14 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Application: `Practice/PortfolioQuery{,.Scope,.Workspace}.cs` (bounded current-grant clients, summary, recent records and formula-safe scoped export under one rechecked scope snapshot).
 - API host: `src/AuditSphereOps.Api/ApiHost.{Authentication,AuthenticationEndpoints,DocumentEndpoints,Persistence,Providers,Health,Observability}.cs`; `Authentication/TrustedActorResolver.cs`, consent composition and production Data Protection.
 - HTTP contracts: `src/AuditSphereOps.Api/Ui/UiEndpoints.*.cs` (trusted session, CSRF-protected commands, exact financial strings and explicit SPA routes).
-- Route cutover: `Api/Ui/AngularRouteOwnership.cs`, `UiEndpoints.cs`, authentication/setup/consent composition and Angular `core/navigation.ts` preserve deployment-owned canonical or preview bases and optional retained fingerprinted assets; `CanonicalAngularHostTests`, `AngularNavigationJourneyTests` and `AngularPortfolioJourneyTests` cover local ownership, rollback and protected session boundaries.
+- Route cutover: `src/AuditSphereOps.Api/Ui/AngularRouteOwnership.cs`, `UiEndpoints.cs`, authentication/setup/consent composition and Angular `src/AuditSphereOps.Ui/src/app/core/navigation.ts` preserve deployment-owned canonical or preview bases and optional retained fingerprinted assets; `CanonicalAngularHostTests`, `AngularNavigationJourneyTests` and `AngularPortfolioJourneyTests` cover local ownership, asset fallback and protected session boundaries. This route behavior is distinct from the retired Blazor rollback host.
 - Retired Web host: `Program.cs` and `Authentication/CurrentActorResolver.cs` remain in Git history at the pre-removal commit as migration evidence. The owner-authorized removal was merged to `master` as `e7ebe27c`; the host is absent from the current tree.
 - Client portal queries: `Application/Documents/ClientPortalWorkspaceQuery.cs`, `ClientPortalReviewQuery.cs`, `ClientPortalReviewCommands.cs`.
 - Administration: `Application/Microsoft365/TenantAdministrationWorkspaceQuery.cs` (safe saved tenant label and mail/records draft state projection, separate from verified capabilities), existing tenant/directory providers, and `Security/RoleAssignmentReviewDigest.cs` for current-access review fencing.
 - Native portal/admin: `src/AuditSphereOps.Ui/src/app/features/{portal,admin}/`; standalone API contract tests and Angular browser journeys.
 - Angular: `src/AuditSphereOps.Ui/src/app/core/session.ts` and `features/portfolio/portfolio.ts`.
-- Responsive shell: `Ui/src/app/app.{ts,html,scss}` and `core/workspace-navigation{,-dialog,-icon}.ts`, `navigation.ts` and `navigation-icons.ts`; `app-navigation.spec.ts` and `AngularShellNavigationJourneyTests.cs` cover owner/load fencing, keyboard focus, resize, revocation and client navigation isolation. `AngularRoutingContractTests.cs` checks legacy/native route disposition.
-- Portfolio API/presentation: `Api/Ui/UiEndpoints.Portfolio.cs`, `Ui/src/app/features/portfolio/portfolio{,-contracts,.html,.scss}` and identity-owned return parameters in `features/clients/client.ts`.
+- Responsive shell: `src/AuditSphereOps.Ui/src/app/app.{ts,html,scss}` and `core/workspace-navigation{,-dialog,-icon}.ts`, `navigation.ts` and `navigation-icons.ts`; `app-navigation.spec.ts` and `AngularShellNavigationJourneyTests.cs` cover owner/load fencing, keyboard focus, resize, revocation and client navigation isolation. `AngularRoutingContractTests.cs` checks legacy/native route disposition.
+- Portfolio API/presentation: `src/AuditSphereOps.Api/Ui/UiEndpoints.Portfolio.cs`, `src/AuditSphereOps.Ui/src/app/features/portfolio/portfolio{,-contracts,.html,.scss}` and identity-owned return parameters in `src/AuditSphereOps.Ui/src/app/features/clients/client.ts`.
 - Tests: `PortfolioQueryTests`, `PortfolioWorkspaceTests`, `PortfolioWorkspaceApiTests`, `UiContractTests`, `AngularPortfolioJourneyTests`, Angular component/decoder tests. `PortfolioWorkspaceSeed` supplies synthetic read-side records without professional release acceptance.
 - Authority: [migration ownership and remaining scope](auditsphere-angular-migration-current.md).
 
@@ -544,7 +568,7 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Domain evidence: `Practice/BudgetPreparation.cs`.
 - Application: `Practice/BudgetPreparationWorkspace.cs` composes `PracticeTimeService.ReviseBudgetAsync` inside the guarded publication transaction; approval remains independent.
 - API: `Ui/UiEndpoints.BudgetPreparation.cs` provides preview, confirmed preparation and actor-owned request receipt lookup.
-- UI: `features/engagements/planning.ts` and `budget-preparation-contracts.ts` provide exact review, tab references and explicit reconciliation.
+- Angular UI: `features/engagements/planning.ts` and `budget-preparation-contracts.ts` provide exact review, tab references and explicit reconciliation.
 - Persistence: `AuditSphereDbContext.BudgetPreparations.cs` and `NativeBudgetPreparationReview` retain immutable exact publication evidence and rollback fences.
 - Verification: `BudgetPreparationReviewTests`, `BudgetPreparationReviewApiTests`, `AngularBudgetPreparationJourneyTests` and planning component tests.
 
@@ -553,7 +577,7 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Domain: `Practice/BudgetApproval.cs` retains immutable actor-owned approval evidence.
 - Application: `Practice/BudgetApprovalWorkspace.cs` owns exact review, guarded approval and receipt lookup; `PracticeTimeService` retains independent approval authority.
 - API: `Ui/UiEndpoints.BudgetApproval.cs` exposes authenticated preview, confirmation and receipt recovery.
-- UI: `features/engagements/planning.ts` and `budget-approval-contracts.ts` bind confirmation and reconcile unknown outcomes without resending writes.
+- Angular UI: `features/engagements/planning.ts` and `budget-approval-contracts.ts` bind confirmation and reconcile unknown outcomes without resending writes.
 - Persistence: `AuditSphereDbContext.BudgetApprovals.cs` and the native approval migration enforce append-only evidence and deferred approved-budget linkage.
 - Verification: `BudgetApprovalReviewTests`, `BudgetApprovalReviewApiTests`, `AngularBudgetApprovalJourneyTests` and planning component tests.
 

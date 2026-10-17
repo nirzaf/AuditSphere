@@ -12,6 +12,8 @@
 
 **Historical Blazor tasks:** T010 and any Blazor-first wording predate ADR-0002 and the 2026-10-17 retirement (merged as `e7ebe27c`). Do not recreate the Web host; implement the Angular/API equivalent only where the current code map shows a gap.
 
+**Operative presentation amendment:** section 5 boilerplate in the task cards and module contracts that still names `.Web`, circuits, Razor, EditContext or EventCallback is retained source-era guidance, not current implementation instructions. Its isolation, validation, dirty-state and recovery requirements apply through the existing Angular signals/forms, same-origin API and Application services. Use the [current code map](../architecture/auditsphere-architecture-code-map.md) and [Angular conventions](../architecture/auditsphere-angular-conventions-current.md) for actual owners; do not restore Blazor, add MediatR/bUnit or create a parallel UI. Approved ADRs supersede only their explicit scope.
+
 **Source repository baseline:** `master@ba1a3ec23335b40667b679e4f0cd5f66b9e723b9` — a historical reference, not a freshly verified head
 
 **Target solution:** `nirzaf/AuditSphere` / `AuditSphereOps.slnx`
@@ -42,7 +44,7 @@ These are separate layers and must not be merged into one module implementation.
 
 1. Extract the complete ZIP, preserving folders and relative links. Open **`auditsphere-r2r-index-task-breakdown.md`** in an editor with Markdown navigation.
 
-2. Start at **T001**. Obtain owner approval and inspect the actual current repository before changing implementation. None of the tasks is pre-approved by the act of generating this pack.
+2. Inspect **T001** and the actual current repository before changing implementation; use its recorded completion rather than repeating the scope approval. The owner's current delegation covers reversible documentation and compliant routine engineering choices. Task generation supplies no professional approval, independent review, merge/deployment authority or permission for external effects.
 
 3. Open the next eligible task; read its hard dependencies, required shared/module references, exact owned requests and verification checks. Reuse existing functionality instead of creating duplicate models/services.
 

@@ -1,10 +1,26 @@
 # AuditSphere — Agent Context Index
 
-**Status: CURRENT** (pack prepared 2026-10-08 against `master` at merge `e0afe18`).
+**Status: CURRENT for navigation pointers only.** The dated pack snapshot below was
+prepared 2026-10-08 against `master` at merge `e0afe18`; its slot states, counts and
+application instructions are historical evidence, not current repository state.
 **Purpose:** the ordered set of inputs an AI coding agent needs for this repository, mapped to the file that fills each slot, so agents load a small, correct context instead of the whole `docs/` tree.
-**Authority:** navigation only. It does not override `AGENTS.md`, the current architecture or the STE requirements.
+**Authority:** navigation only. Current authority is `AGENTS.md`, the central [documentation index](../auditsphere-docs-index.md), current architecture and requirements, the [ADR register](adr/auditsphere-architecture-index-adr-register-current.md), and the current [testing strategy and Definition of Done](../testing/auditsphere-testing-strategy-definition-of-done-current.md). This file does not approve requirements, proposed decisions or test claims.
 
-## 1. Layered loading rule
+## 1. Current reading pointers
+
+Use the repository's current authority order and task-specific reading rules in [`AGENTS.md`](../../AGENTS.md) and the [documentation index](../auditsphere-docs-index.md). In particular:
+
+1. Read `AGENTS.md`, then the central documentation index.
+2. For implementation boundaries, use the [current architecture](auditsphere-architecture-current-architecture.md), the [code map](auditsphere-architecture-code-map.md), and the relevant `CURRENT` or `APPROVED` requirement.
+3. For decisions, use the [current ADR register](adr/auditsphere-architecture-index-adr-register-current.md) and each linked ADR's own status. Do not infer current approvals from the historical snapshot below or rename a proposed ADR based on this guide.
+4. For test selection and completion claims, use [`AGENTS.md` §4](../../AGENTS.md) and the [current testing strategy](../testing/auditsphere-testing-strategy-definition-of-done-current.md). Test suites have been restored; the old test-absence finding below records only the 2026-10-08 baseline.
+5. For backlog ownership and current execution evidence, use the task board and `docs/execution/status.json` as directed by `AGENTS.md`; historical counts and commit references in this file are not current verification.
+
+## 2. Historical 2026-10-08 pack snapshot
+
+The following layered loading rule, slot states, context hazards and pack-application instructions are preserved as a record of the pack prepared at `e0afe18`. They are not operative instructions. Use §1 and the linked current authorities above for today's work.
+
+### Layered loading rule
 
 | Layer | Loaded | Slots |
 | --- | --- | --- |
@@ -16,7 +32,7 @@
 
 An agent should normally hold slot 8, one story from slot 11, and the two to four files that story names. Nothing else is required up front.
 
-## 2. Slot map
+### Slot map at the historical snapshot
 
 | # | Slot | Authoritative file(s) | State |
 | --- | --- | --- | --- |
@@ -35,9 +51,9 @@ An agent should normally hold slot 8, one story from slot 11, and the two to fou
 | 13 | Task prompt | [Agent task prompt guide](../execution/auditsphere-execution-guide-agent-task-prompt-current.md) | **New** template plus a filled example. |
 | — | Spec verification | [STE v2.1 gap verification](../execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md) | **New.** Requirement-by-requirement check against current code, separate from the earlier coverage table whose verification sources were test files. Also carries the v2.2 workflow-experience delta. |
 
-## 3. Context hazards found (2026-10-08, `e0afe18`)
+## 3. Historical context hazards (recorded 2026-10-08 at `e0afe18`)
 
-These are measured, not estimated. Each one degrades agent accuracy; stories STE-NXT-001 and STE-NXT-002 address them.
+These measurements describe repository state at `e0afe18`; current resolution status is governed by the sources linked in §1. At that time, STE-NXT-001 and STE-NXT-002 were assigned to address the listed hazards.
 
 | Hazard | Evidence | Effect on an agent |
 | --- | --- | --- |
@@ -48,10 +64,12 @@ These are measured, not estimated. Each one degrades agent accuracy; stories STE
 | Stale test citations | The code map names 132 distinct `*Tests` classes; the STE coverage table cites 17 as verification sources. None existed at `e0afe18`, before STE-NXT-001 restored the suites. Re-check each citation before you rely on it. | Coverage claims look verified when their evidence is gone. |
 | Decisions without records | Entra sign-in replacing emailed passwords, lifecycle as a derived projection, Full Control site staffing, PNG credentials, test removal, and reporting-context identity — recorded in the current ADR register through ADR-0015. | Agents "fix" deliberate deviations back to the spec wording. |
 
-## 4. Applying this pack
+## 4. Historical pack application record (non-operative)
+
+The numbered steps below record the one-time 2026-10-08 pack application workflow. Do not rerun them as current setup or approval instructions; the root instructions, documentation index, ADR register and testing strategy linked in §1 supersede this checklist.
 
 1. Copy the contents of the pack's `repo/` folder to the repository root. `AGENTS.md` is a replacement; every other file is new.
 2. Apply the `CLAUDE.md` allowance before committing it, or omit `CLAUDE.md`: both `scripts/docs/validate-markdown-documentation.py` and `scripts/docs/validate-markdown-filenames.py` reject root files other than `README.md` and `AGENTS.md`. Add `"CLAUDE.md"` to `CONVENTIONAL_EXCEPTIONS` in both scripts and list it in §2 of the naming policy. The pack includes this as `patches/0001-allow-claude-md-root-file.patch` (apply with `git apply` from the repository root).
 3. Add the new files to `docs/auditsphere-docs-index.md` (one line each under the matching section) and point step 5 of "Start here" at the `jq` query in `AGENTS.md` §6 rather than at the whole `status.json`.
 4. Run the four docs checks in `AGENTS.md` §3. The pack was checked with them; see [the application record](../execution/auditsphere-execution-report-agent-pack-application-historical.md).
-5. Owner review: confirm or correct each `PROPOSED` ADR, then rename its suffix to `-approved`.
+5. Historical note: the pack requested owner review of then-`PROPOSED` ADRs. Current ADR decisions and statuses are maintained only in the [ADR register](adr/auditsphere-architecture-index-adr-register-current.md); do not treat this old request as an open approval list or rename ADR files based on this snapshot.

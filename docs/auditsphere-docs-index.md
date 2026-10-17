@@ -41,7 +41,7 @@ When starting work in this repository, follow this deterministic reading sequenc
 
 4. **[`docs/architecture/auditsphere-architecture-code-map.md`](architecture/auditsphere-architecture-code-map.md):** Capability-to-file directory mapping business capabilities to Domain, Application, Infrastructure, UI, and Tests.
 
-5. **Execution ledger ([`docs/execution/status.json`](execution/status.json)):** Query it with the `jq` command in [`AGENTS.md`](../AGENTS.md) §6 instead of reading the whole file. It is the single source of truth for verified commit SHA, test counts, migration counts, active slice and external blockers.
+5. **Execution ledger ([`docs/execution/status.json`](execution/status.json)):** Query only relevant fields, for example `jq '{active, externalGates}' docs/execution/status.json`, instead of reading the whole file. It is the single source of truth for verified commit SHA, test counts, migration counts, active slice and external blockers. Per-slice observations never make an earlier full-suite result current.
 
 6. **[`docs/execution/auditsphere-execution-current-slice.md`](execution/auditsphere-execution-current-slice.md):** Compact handoff of recent completed slices and next eligible actions.
 
@@ -91,6 +91,8 @@ When two documents appear to conflict or contain differing detail, precedence is
 
 ### Key Authority Distinctions
 
+- **Approved ADRs govern explicit deviations:** apply only the scope recorded in the [ADR register](architecture/adr/auditsphere-architecture-index-adr-register-current.md). A later ADR does not approve unrelated methodology, tenant actions or production acceptance. Reversible documentation corrections and compliant routine engineering choices use the owner's delegation in `AGENTS.md`; qualified professional and external gates remain separate.
+
 - **Architecture Wins over Proposed Detail:** Historical blueprints or task cards mentioning MediatR, bUnit, or microservices are superseded by the current modular monolith architecture.
 
 - **Evidence Proves Execution, Not Architecture:** Execution logs prove what ran locally; they do not alter requirement or architecture definitions.
@@ -115,7 +117,7 @@ When two documents appear to conflict or contain differing detail, precedence is
 
 | [`docs/architecture/auditsphere-architecture-document-naming-policy.md`](architecture/auditsphere-architecture-document-naming-policy.md) | Standard markdown naming rules (`auditsphere-<area>-<document-type>-<subject>[-<id>][-<status>].md`) and uniqueness rules. | `CURRENT` |
 
-| [`docs/architecture/adr/auditsphere-architecture-index-adr-register-current.md`](architecture/adr/auditsphere-architecture-index-adr-register-current.md) | ADR register: approved architecture and implementation decisions through ADR-0015; ADR-0008 is superseded; professional and live-provider gates remain separate. | `CURRENT` (register) |
+| [`docs/architecture/adr/auditsphere-architecture-index-adr-register-current.md`](architecture/adr/auditsphere-architecture-index-adr-register-current.md) | ADR register: operative decisions through ADR-0018, including firm X.509 PDF signing, STE v2.2 definitions and practice-reporting bases; ADR-0008 is superseded; professional and live-provider gates remain separate. | `CURRENT` (register) |
 | [`docs/architecture/auditsphere-architecture-contract-data-model-current.md`](architecture/auditsphere-architecture-contract-data-model-current.md) | Data model index: storage conventions, model partials by specification module, schema change procedure. | `CURRENT` |
 | [`docs/architecture/auditsphere-architecture-policy-non-functional-requirements-current.md`](architecture/auditsphere-architecture-policy-non-functional-requirements-current.md) | Non-functional requirements: enforced limits, rate budgets and open targets (P7, P8). | `CURRENT` |
 | [`docs/architecture/auditsphere-architecture-index-agent-context-current.md`](architecture/auditsphere-architecture-index-agent-context-current.md) | Agent context slots in loading order, context hazards and the pack apply steps. | `CURRENT` |
@@ -154,7 +156,7 @@ These documents describe planned features, prototype gap closures, or onboarding
 | [`docs/execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md`](execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md) | Disposition of each PM story and candidate gap against the code, with the basis for each. | `CURRENT` |
 | [`docs/execution/auditsphere-execution-tracker-technical-spikes-proposed.md`](execution/auditsphere-execution-tracker-technical-spikes-proposed.md) | Time-boxed technical spikes SPK-01 to SPK-04. | `PROPOSED` |
 | [`docs/execution/auditsphere-execution-report-spk-01-archive-immutability-proposed.md`](execution/auditsphere-execution-report-spk-01-archive-immutability-proposed.md) | SPK-01 finding: four ways to protect the ISA 230 archive, compared, with a recommendation. | `PROPOSED` |
-| [`docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md`](execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md) | SPK-03 methodology note on normalized profit before tax, with a worked example, for the owner's decision (STE-NXT-010). | `PROPOSED` |
+| [`docs/execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md`](execution/auditsphere-audit-report-normalized-pbt-spk-03-proposed.md) | SPK-03 proposal retained for rationale. STE-NXT-010's decision is closed by ADR-0011: mapped PBT excluding tax, without normalization. A future normalization policy needs a separate approved story. | `PROPOSED` (retained rationale) |
 | [`docs/task_breakdown/source/auditsphere-implementation-spec-atomic-gap-remediation-proposed.md`](task_breakdown/source/auditsphere-implementation-spec-atomic-gap-remediation-proposed.md) | 43-task atomic gap-remediation specification over the supplied gap report. Several tasks require owner decisions or live acceptance; the plan is not implementation or acceptance authority. | `PROPOSED` |
 
 ---
@@ -226,6 +228,7 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 | [`docs/execution/auditsphere-execution-current-slice.md`](execution/auditsphere-execution-current-slice.md) | **Active Slice Handoff** — summary of the active vertical slice, recent changes, local verification state, and next actions. | `CURRENT` |
 
 | [`docs/execution/auditsphere-execution-pending-tasks.md`](execution/auditsphere-execution-pending-tasks.md) | **Pending Backlog** — open local tasks, unresolved decisions, debt, and blocked external gates (P1–P10). | `CURRENT` |
+| [Documentation reconciliation](execution/auditsphere-execution-report-documentation-reconciliation-current.md) | Current instruction conflicts, controlling ADRs, delegated engineering resolutions and the proposed D1 terminal-policy review packet. Does not approve professional policy or external acceptance. | `CURRENT` (reconciliation; D1 proposal unapproved) |
 | [`docs/execution/auditsphere-execution-audit-production-readiness-gap-closure-current.md`](execution/auditsphere-execution-audit-production-readiness-gap-closure-current.md) | **Production-readiness audit and gap-closure register** — findings, residual CP stories and production gates. **NOT COMPLETE**; not a completion certificate or current-SHA verification. | `PARTIAL` |
 
 | [`docs/execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md`](execution/auditsphere-execution-tracker-ste-v21-gap-verification-current.md) | Requirement-by-requirement verification of the STE v2.1 specification against current code, plus the v2.2 workflow-experience delta. | `CURRENT` |

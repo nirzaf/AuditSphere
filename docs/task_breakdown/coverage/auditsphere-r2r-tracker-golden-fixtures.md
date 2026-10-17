@@ -2,6 +2,8 @@
 
 [Master index](../auditsphere-r2r-index-task-breakdown.md)
 
+**Evidence boundary:** each numerical status below retains its recorded fixture evidence; it is not a current-SHA regression result or policy approval. GOLD-R2R-07 has explicit named test citations; the other seven rows are `NOT_RUN` in this ledger and need a current per-fixture requirement → assertion → run map. Do not infer absence of equivalent tests from an unmapped row. All eight exact fixture inputs/expected outcomes still require T003's named qualified methodology owner and independent review; do not change their numbers to match implementation.
+
 | Policy approval | Numerical status | Fixture ID | Inputs | Expected outcome | Evidence |
 |---|---|---|---|---|---|
 | NOT_APPROVED | NOT_RUN | <a id="gold-r2r-01"></a>GOLD-R2R-01 | Signed raw rows: Cash 10,000; AR 3,000; Equipment 5,000; AP −4,000; Share capital −10,000; Revenue −8,000; Expense 4,000. AJE: Dr depreciation expense 100, Cr accumulated depreciation 100. | Raw signed total 0; delta total 0; adjusted signed total 0. Raw assets 18,000/profit 4,000; adjusted assets 17,900/profit 3,900/equity 13,900/liabilities 4,000. Raw rows unchanged. | |

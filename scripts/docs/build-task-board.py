@@ -67,6 +67,7 @@ def load_cards():
             'title': heading.group(2).strip(),
             'status': meta['status'],
             'depends_on': re.findall(r'T\d{3}', meta.get('depends_on', '')),
+            'blocked_reason': meta.get('blocked_reason', ''),
         }
     return cards
 
@@ -100,8 +101,14 @@ def main():
     for card_id in sorted(cards):
         card = cards[card_id]
         blockers = [f'{d} ({cards[d]["status"]})' for d in card['depends_on'] if cards[d]['status'] != 'COMPLETED']
+        if card['status'] == 'BLOCKED':
+            for dependency in re.findall(r'T\d{3}', card['blocked_reason']):
+                if dependency in cards and cards[dependency]['status'] != 'COMPLETED':
+                    blocker = f'{dependency} ({cards[dependency]["status"]})'
+                    if blocker not in blockers:
+                        blockers.append(blocker)
         rows.append({'id': card_id, 'family': card['family'], 'title': card['title'], 'record': card['status'],
-                     'deps': blockers, 'state': card['status']})
+                     'deps': blockers, 'state': card['status'], 'blocked_reason': card['blocked_reason']})
     for story_id, story in list(nxt.items()) + list(gap.items()):
         family = 'STE-NXT' if story_id.startswith('STE-NXT') else 'STE-GAP'
         rows.append({'id': story_id, 'family': family, 'title': story['title'], 'record': story['status'],
@@ -154,6 +161,10 @@ def main():
         '',
         'The [supplied implementation backlog](auditsphere-execution-user-stories-ste-v22-implementation-backlog-proposed.md) adds local story/decision IDs and an acceptance matrix. Read its integration notes and existing ADRs before selecting a card. `TASK-01` dependency amendments have focused evidence in [status.json](status.json); the broader card remains partial. Template/plan regression evidence also proves that completed operational tasks do not satisfy professional or lifecycle gates. `REL-01` has focused signature-policy replay and retained Web journey evidence; correspondence lineage/bounds checks also passed. Comment bounds, injected races and the canonical Angular journey also passed. Exact ZIP contents and corruption-read denials are covered; release-identity adverse cases and full acceptance remain open. Baseline claims are not current completion evidence.',
         '',
+        'The API/Angular bidirectional parity backlog uses a separate [implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md). Its `T` identifiers do not replace the R2R identifiers below; code presence and functional acceptance are recorded separately.',
+        '',
+        'The [documentation reconciliation](auditsphere-execution-report-documentation-reconciliation-current.md) applies approved ADRs and delegated engineering defaults without duplicate approvals. Remaining OWNER_DECISION entries retain qualified professional policy; code/evidence and external gates remain separate. AS-AWP-EXEC Task 10 remains BLOCKED_DECISION; D1-DRAFT-01 is PROPOSED, NOT APPROVED and does not waive terminal procedures. No card status or independent review is changed by that report.',
+        '',
         '## 1. Summary',
         '',
         '| Code verdict | Items |',
@@ -182,6 +193,8 @@ def main():
             blocked.append('live evidence')
         if row['state'] == 'COMPLETED':
             action = 'None; completed'
+        elif row['state'] == 'BLOCKED':
+            action = 'Blocked: ' + clip(row.get('blocked_reason') or 'Complete the listed dependency and approval exits before starting')
         else:
             action = NEXT_ACTION[row['verdict']]
         verdict = row['verdict'] if row['state'] != 'COMPLETED' or row['verdict'] in ('COMPLETE', 'NOT_AUDITED') else 'superseded: ' + row['verdict']

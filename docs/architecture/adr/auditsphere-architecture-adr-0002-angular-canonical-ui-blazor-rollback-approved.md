@@ -10,14 +10,14 @@ The STE specification header names "Blazor Interactive Server" as the presentati
 ## Decision
 - `AuditSphereOps.Ui` (Angular 22, Material/CDK) owns canonical routes: staff under `/ui/app`, client portal under `/ui/portal`.
 - `AuditSphereOps.Api` owns authorized contracts, authentication/consent and protected file transports; Angular calls same-origin `/api/ui/*` only.
-- `AuditSphereOps.Web` stays buildable as a rollback/reference host, enabled for Development and Test, otherwise only with `LegacyPresentation:Enabled=true`. It is excluded from API composition.
-- Retirement follows discover → inventory → map → compare → close gaps → verify → cut over → observe → remove, with the canonical readiness gate deciding.
+- **Historical instruction, superseded by the 2026-10-17 retirement amendment:** `AuditSphereOps.Web` stays buildable as a rollback/reference host, enabled for Development and Test, otherwise only with `LegacyPresentation:Enabled=true`. It is excluded from API composition. The host is now retired; do not recreate it.
+- **Historical removal condition, superseded by the owner's 2026-10-17 physical-retirement decision:** retirement follows discover → inventory → map → compare → close gaps → verify → cut over → observe → remove, with the canonical readiness gate deciding. The owner authorized removal despite `NOT_READY`; parity and operational rollback acceptance remain open.
 
 ## Alternatives considered
 - Keep Blazor as the product UI: rejected by the owner.
 - Delete Web as soon as Angular routes exist: tried and reverted; route existence is not parity.
 
 ## Consequences
-- New screens are built in Angular only. Razor pages change only to keep rollback working.
+- New screens are built in Angular only. The earlier instruction to change Razor pages only to keep rollback working is historical and superseded by the retirement amendment.
 - The specification header is stale on this point; the requirements copy should cite this ADR.
 - Parity work is tracked in `docs/migration/` and the `angular-*-parity.json` files.

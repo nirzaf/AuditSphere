@@ -14,7 +14,7 @@ Change a limit only in its source constant or configuration key, and update this
 | Security headers | `nosniff`, `no-referrer`, `X-Frame-Options: DENY`, strict CSP with hashed inline scripts | `Api/HttpBoundary/SecurityHeadersMiddleware` | Enforced |
 | Error bodies | `{ code, message, correlationId }`; never SQL, stack traces, tokens or internal paths | `Api/HttpBoundary/ApiError.cs` | Enforced |
 | Microsoft permissions | One app identity per capability, exactly one role, off by default, consent-verified | `docs/architecture/auditsphere-m365-tenant-administration-permissions.md` | Enforced locally; live `BLOCKED_EXTERNAL` |
-| Secrets | .NET user secrets in development; approved secret store in production | `AGENTS.md` §8 | Production custody Open (P8) |
+| Secrets | .NET user secrets in development; production custody requires P8 approval/evidence; never log or commit secrets | [API development boundary](auditsphere-angular-migration-current.md#api-and-angular-project-boundary); [P8 custody gate](../execution/auditsphere-execution-pending-tasks.md); `AGENTS.md` §6 (no logging/committing secrets) | Production custody Open (P8); no production secret store is selected here |
 
 ## 2. Request rate limits (per authenticated identity, configurable under `HttpBoundary:RateLimit`)
 
@@ -58,19 +58,21 @@ These are request or aggregate bounds. None limits how many clients, engagements
 | Immutability | Append-only history via database triggers and check constraints | Enforced |
 | Determinism | Pure calculators: no clock, network, EF Core or random IDs | Enforced by convention; no automated check |
 | Fail-closed inputs | Missing FX rate, stale source, unapproved perimeter block approval | Enforced |
-| Archive lock | Local read-only no later than 60 days after report signature; earlier by Partner lock | Enforced locally; SharePoint read-only `BLOCKED_EXTERNAL` (ADR-0006) |
+| Archive lock | Local read-only no later than 60 days after report signature; earlier by Partner lock. Issued bytes and manifests belong to the authoritative release/archive store; SharePoint is a secondary copy. | Local controls implemented; ADR-0009's separate read-only library design is approved. Provider protection remains `BLOCKED_EXTERNAL` until exact hashes, reconciled grants and staff-denial evidence are observed; never claim write-once or administrator-proof immutability. |
 | Materiality rounding | Within ±5 % of computed PM/TE/SAD; database check constraint | Enforced |
 
 ## 5. Availability, performance and recovery — Open
 
 | Requirement | Current evidence | State |
 | --- | --- | --- |
-| Interactive latency (p95 per endpoint class) | No target recorded; a small local PostgreSQL concurrency sample exists in `status.json` | **Open (P8)** — owner to set targets |
-| Concurrent users | Local 15-user sample only | **Open (P8)** |
+| Interactive latency (p95 per endpoint class) | No target recorded; historical application-query sample is in `docs/execution/status-archive-2026-10.json` under `keys.verification.p8bProvisionalStaffQueryBaseline`, not an HTTP p95 measurement | **Open (P8)** — operations owner to set targets |
+| Concurrent users | Bounded historical application-query sample only; no accepted browser/session workload or production capacity target | **Open (P8)** — operations owner to define workload and acceptance targets |
 | RPO / RTO | Local restore drill (`scripts/db/restore-drill.sh`, `docs/operations/auditsphere-operations-runbook-restore-drill.md`) | **Open (P7)** — custodially separate rehearsal required |
 | Observability | Telemetry guide `docs/operations/auditsphere-operations-guide-telemetry.md`; correlation IDs on errors | Collector and alerts **Open (P8)** |
-| Browser support, accessibility, locale | Not specified | **Open** — the Angular migration lists assistive-technology and locale gates as open |
+| Browser support, accessibility, locale | Angular conventions require WCAG 2.2 AA text/control contrast and reduced-motion handling; automated checks and migration evidence are bounded | **Open acceptance** — supported browser/locale matrix and independent assistive-technology walkthrough remain required; existing conventions are not blanket accessibility certification |
 
 ## 6. Hosting constraints
 
-Single modular monolith plus workers on one PostgreSQL; no Kubernetes, microservices or message brokers (`AGENTS.md` §5). Infrastructure as code under `infra/` is a compiled, not deployed, baseline.
+Single modular monolith plus workers on one PostgreSQL; no Kubernetes, microservices or message brokers (`AGENTS.md` §6). `infra/` contains operator configuration; deployed environments and their actual verification belong in `status.json` and the canonical operator Wiki. Configuration presence does not prove deployment or production acceptance.
+
+Production p95, recovery, capacity and residency targets need the operations/records owners' recorded workload, environment and acceptance rule. Existing request bounds remain the engineering default; they are not service-level targets or professional methodology. No new limit, provider, secret-store choice or deployment is authorized by this reconciliation. See the [reconciliation report](../execution/auditsphere-execution-report-documentation-reconciliation-current.md) for owners and evidence exits.
