@@ -1,11 +1,3 @@
-## Operations — 2026-10-16
-
-`e4686058` pushed; release CI run 38946802126 active.
-
-## Audit planning and finding recovery — 2026-10-16
-
-Planning and finding actions use exact previews, assent and immutable receipts. Finding amendments retain before/after history and scoped authority; snapshots return canonical UTC. Record drafts and library reads have scope fences. Period editors retain request identities on scope cleanup; roll-forward/restatement source parity is verified. Batched evidence and open browser/hosted gates: `status.json` targetedVerification.angularFindingRecovery. Retirement remains NOT_READY; Web retained.
-
 
 # AuditSphereOps — Current State & Active Slice Handoff
 
@@ -24,7 +16,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## R2R-07 carry-forward safety — 2026-10-17
 
-`d91a2713` rejects settled items and wrong-period books; carry inserts are atomic. `ReconciliationRevision_CreatesSuccessorAndCarryForward` passed 1/1 (38 s). T026 remains blocked on T025; details are in its card.
+`2873144a` adds scoped, idempotent correction-journal ID/revision links and proof-v2 binding without changing settlement state. `ReconciliationProof_CalculatesResidualAndLinksCorrectionJournal` passed 1/1; API Release build, Angular reconciliation specs 5/5, EF drift and OpenAPI drift passed. Migration `20261017083726_ReconciliationCorrectionJournalLink` is generated, not applied. T025 is BLOCKED/PARTIAL on T024; T026 remains BLOCKED/PARTIAL on T025. Details and remaining proof-policy work are in the task cards. Full suites deferred to CI/CD.
 
 ## CP-19 Partner authority and capability projection — 2026-10-17
 

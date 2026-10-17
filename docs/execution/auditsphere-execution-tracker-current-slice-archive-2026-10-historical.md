@@ -7218,3 +7218,12 @@ WF-14 now persists append-only `Operational Task` activity for workflow-task cre
 The staff work queue now has a per-task activity panel. This increment covers only operational task events and labels them `Operational Task`. Template publication already has its own append-only decision records; template/reminder/automation events are not yet projected into a unified timeline. Reopened/rejected tasks and due-date changes have no activity coverage here. Client-wait metrics, other source labels, broader analytics pagination/performance evidence, and remaining WF-14 stories remain open. Additive migrations `20261012060111_WorkflowTaskActivity` and `20261012061421_WorkflowTaskActivityBindingGuard` have not been applied to a persistent database.
 
 Verification on the working tree based on `445e1d99`: API Release build passed with 0 errors and two offline `NU1900` warnings; the focused PostgreSQL workflow-task activity regression passed 1/1, covering create/assign/reassign/complete, idempotent replay, timeline paging, foreign-scope and revoked-grant denials, database update/delete rejection, and mismatched task/binding insert rejection; the Angular activity contract spec passed 3/3; the development server compiled; EF model drift reported no pending changes; OpenAPI drift passed. The production Angular build aborted with exit 134 and no diagnostics. The built-in browser showed the staff sign-in guard because the local API/session was unavailable, so authenticated activity rendering was not observed. No full suite or persistent database migration was run. Exact evidence is in `status.json` under `targetedVerification.workflowTaskActivity`.
+
+
+## Operations — 2026-10-16
+
+`e4686058` pushed; release CI run 38946802126 active.
+
+## Audit planning and finding recovery — 2026-10-16
+
+Planning and finding actions use exact previews, assent and immutable receipts. Finding amendments retain before/after history and scoped authority; snapshots return canonical UTC. Record drafts and library reads have scope fences. Period editors retain request identities on scope cleanup; roll-forward/restatement source parity is verified. Batched evidence and open browser/hosted gates: `status.json` targetedVerification.angularFindingRecovery. Retirement remains NOT_READY; Web retained.
