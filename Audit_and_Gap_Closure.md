@@ -582,7 +582,7 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 ## CP-10 — Comparatives, opening continuity, period close and restatement
 
-**Priority:** P0. **Current disposition:** PARTIAL; period-specific GL/TB acceptance and review-workspace selection, current/prior face-statement and one numeric note amount from two packages, and a dual-package comparative pin are regression-covered. TB selection is scoped by period/book/basis/currency/entity; same-scope replacement updates only that selection, while another period retains its accepted source. Replacing the accepted TB stales the current-period presentation pin/read while the prior-period pin remains current. Full note policy/source verification, release/as-issued retention, restatement, opening continuity and professional acceptance remain open.
+**Priority:** P0. **Current disposition:** PARTIAL; period-specific GL/TB acceptance and review-workspace selection, current/prior face-statement and one numeric note amount from two packages, and a dual-package comparative pin are regression-covered. TB selection is scoped by period/book/basis/currency/entity; same-scope replacement updates only that selection, while another period retains its accepted source. Replacing the accepted TB stales the current-period presentation pin/read while the prior-period pin remains current. Period close now refuses a rolled-forward period until its exact linked opening bridge is reviewer-approved; a focused PostgreSQL regression covers refusal before approval and close after approval. Full note policy/source verification, release/as-issued retention, restatement, broader opening continuity and professional acceptance remain open.
 
 **Dependencies:** CP-09/CP-11; approved prior-snapshot authorization and restatement policy.
 
@@ -596,10 +596,10 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 2. Reuse period/restatement facilities and exact package references. Implement the approved narrow cross-engagement reporting-snapshot handoff for the same entity; permission to consume a prior approved report is not permission to inspect its entire raw audit file.
 3. Pin as-issued/reclassified/restated-error/policy-transition/estimate-change treatment and qualified evidence. Preserve the selected original and require explicit successor selection rather than swapping to the newest prior record.
 4. Reconcile current opening balances to approved prior closing values and any authorized bridge. Normal opening continuity, professional annual acceptance and disclosure restatement are separate decisions.
-5. Complete close and roll-forward with current required reviews, original-intent receipts and signed profit-transfer convention. Reopening an accounting period must not reopen a terminal frozen audit archive.
+5. Continue close and roll-forward verification for current required reviews, original-intent receipts and signed profit-transfer convention. The period close command now requires the linked prior-period bridge to be approved by a reviewer (and blocks any existing unapproved bridge); broader source continuity and profit-transfer convention remain open. Reopening an accounting period must not reopen a terminal frozen audit archive.
 6. Keep missing comparatives unavailable and profile-blocking unless an explicitly permitted reviewed exception exists. Complete comparative monetary and note schedules, not only the face-statement column.
 
-**Required focused verification:** Two distinct prior/current GL batches remain reviewable; actual restatement stales only the relevant pending consumers; unauthorized historic evidence stays protected.
+**Required focused verification:** Two distinct prior/current GL batches remain reviewable; actual restatement stales only the relevant pending consumers; unauthorized historic evidence stays protected. `PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence` also proves a rolled-forward period cannot close before approval of its opening bridge and can close after that independent approval.
 
 ### Retained acceptance criteria
 
