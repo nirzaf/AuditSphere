@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { decodeCashFlowSourceReview, decodePackage, latestCompositionDecisionId, packageReviewIntentFor, packageReviewRequestFor,
   readPendingSourceIntent, sourceIntentFor, sourceReviewRequestFor, writePendingSourceIntent } from './package';
 import { decodeReviewQueue } from './reviews';
@@ -149,13 +149,22 @@ describe('Cash-flow source review contract (CP-11)', () => {
     const originalDigest = 'a'.repeat(64);
     const changedDigest = 'b'.repeat(64);
     const first = sourceIntentFor(null, 'APPROVED', null, originalDigest, id1, id2);
-    writePendingSourceIntent(id1, first);
+    expect(writePendingSourceIntent(id1, first)).toBe(true);
     const replay = sourceIntentFor(readPendingSourceIntent(id1), 'APPROVED', null, changedDigest, null, id1);
     writePendingSourceIntent(id1, null);
 
     expect(replay.requestId).toBe(id2);
     expect(sourceReviewRequestFor(replay)).toEqual({ decision: 'APPROVED', reason: null, requestId: id2,
       expectedLinkDigest: originalDigest, expectedPreviousReviewId: id1 });
+  });
+
+  it('refuses to claim a pending intent is durable when session storage fails', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage blocked'); });
+    try {
+      expect(writePendingSourceIntent(id1, sourceIntentFor(null, 'APPROVED', null, 'a'.repeat(64), null, id2))).toBe(false);
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   it('starts a new intent when the reviewer changes the decision or reason', () => {

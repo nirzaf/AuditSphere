@@ -1,4 +1,4 @@
-import { Component, inject, linkedSignal, signal } from '@angular/core';
+import { Component, effect, inject, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -99,12 +99,13 @@ export function readPendingSourceIntent(packageId: string): PendingSourceIntent 
   }
 }
 
-export function writePendingSourceIntent(packageId: string, intent: PendingSourceIntent | null): void {
+export function writePendingSourceIntent(packageId: string, intent: PendingSourceIntent | null): boolean {
   try {
     if (intent) globalThis.sessionStorage?.setItem(pendingSourceIntentKey(packageId), JSON.stringify(intent));
     else globalThis.sessionStorage?.removeItem(pendingSourceIntentKey(packageId));
+    return !!globalThis.sessionStorage;
   } catch {
-    // Storage is unavailable (private window or blocked site data); the in-flight request still carries its identity.
+    return false;
   }
 }
 
@@ -242,6 +243,13 @@ export class FinancialPackage {
     decodeCashFlowSourceReview, 'The cash-flow source review is not available in the current firm scope.');
   sourceDecision = 'APPROVED';
   sourceReason = '';
+  private readonly restorePendingSourceIntent = effect(() => {
+    const packageId = this.id();
+    if (!packageId) return;
+    const intent = readPendingSourceIntent(packageId);
+    this.sourceDecision = intent?.decision ?? 'APPROVED';
+    this.sourceReason = intent?.reason ?? '';
+  });
   readonly downloading = signal(false);
   readonly selectedComposition = linkedSignal({
     source: this.id,
@@ -257,7 +265,11 @@ export class FinancialPackage {
     // The original intent is kept until the server answers, so a lost reply followed by a reload retries the same decision.
     const reason = this.sourceReason || null;
     const intent = sourceIntentFor(readPendingSourceIntent(id), this.sourceDecision, reason, state.linkDigest, state.latestReviewId, crypto.randomUUID());
-    writePendingSourceIntent(id, intent);
+    if (!writePendingSourceIntent(id, intent)) {
+      this.cmd.failed.set(true);
+      this.cmd.message.set('This browser cannot save the review request needed for safe recovery. Enable session storage and retry; no decision was sent.');
+      return;
+    }
     void this.cmd.run(`/api/ui/accounting/packages/${id}/cash-flow-source-review`, sourceReviewRequestFor(intent),
       'Source decision recorded against the current accepted ledger.',
       () => { this.sourceReason = ''; writePendingSourceIntent(id, null); })

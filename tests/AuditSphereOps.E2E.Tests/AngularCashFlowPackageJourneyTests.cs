@@ -3,6 +3,7 @@ using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
+using System.Text.Json;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -107,12 +108,49 @@ public sealed class AngularCashFlowPackageJourneyTests
     await using var reviewerContext = await browser.NewContextAsync();
     var reviewerPage = await reviewerContext.NewPageAsync();
     reviewerPage.PageError += (_, error) => errors.Add(error);
+    var sourceReviewRequests = new List<(string RequestId, string Decision, string? Reason, string LinkDigest, string? PreviousReviewId)>();
+    var dropFirstSourceReviewResponse = true;
+    var firstSourceReviewResponseDropped = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    await reviewerPage.RouteAsync("**/cash-flow-source-review", async route =>
+    {
+      if (!string.Equals(route.Request.Method, "POST", StringComparison.OrdinalIgnoreCase))
+      {
+        await route.ContinueAsync();
+        return;
+      }
+
+      using var request = JsonDocument.Parse(route.Request.PostData ?? throw new InvalidOperationException("Source review request body was empty."));
+      var body = request.RootElement;
+      sourceReviewRequests.Add((body.GetProperty("requestId").GetString()!, body.GetProperty("decision").GetString()!,
+        body.GetProperty("reason").ValueKind == JsonValueKind.Null ? null : body.GetProperty("reason").GetString(),
+        body.GetProperty("expectedLinkDigest").GetString()!,
+        body.GetProperty("expectedPreviousReviewId").ValueKind == JsonValueKind.Null ? null : body.GetProperty("expectedPreviousReviewId").GetString()));
+
+      if (dropFirstSourceReviewResponse)
+      {
+        dropFirstSourceReviewResponse = false;
+        var response = await route.FetchAsync();
+        Assert.Equal(200, response.Status);
+        await route.AbortAsync("failed");
+        firstSourceReviewResponseDropped.TrySetResult(true);
+        return;
+      }
+
+      await route.ContinueAsync();
+    });
     await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(packageRoute));
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
       new() { Name = "Cash-flow source review", Exact = true })).ToBeVisibleAsync();
-    await reviewerPage.GetByLabel("Reason", new() { Exact = true }).FillAsync("Independent review of the exact source allocation and accepted batch.");
+    var reviewReason = "Independent review of the exact source allocation and accepted batch.";
+    await reviewerPage.GetByLabel("Reason", new() { Exact = true }).FillAsync(reviewReason);
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Record source decision", Exact = true }).ClickAsync();
+    await firstSourceReviewResponseDropped.Task.WaitAsync(TimeSpan.FromSeconds(30));
+    await reviewerPage.ReloadAsync();
+    await Assertions.Expect(reviewerPage.GetByLabel("Reason", new() { Exact = true })).ToHaveValueAsync(reviewReason);
     await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Record source decision", Exact = true }).ClickAsync();
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Status).Filter(new() { HasText = "Approved by an independent reviewer" })).ToBeVisibleAsync();
+    Assert.Equal(2, sourceReviewRequests.Count);
+    Assert.Equal(sourceReviewRequests[0], sourceReviewRequests[1]);
 
     await using (var db = host.CreateDbContext())
     {
