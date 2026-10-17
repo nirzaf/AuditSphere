@@ -201,21 +201,9 @@
       "key": "keys.targetedVerification.angularBlazorConsolidationGuardFollowUp"
     },
     "angularMigrationAcceptanceCrossFirmIsolation": {
-      "recordedAtUtc": "2026-10-15T15:15:05Z",
-      "sourceCommit": "cf7c88e08c98512908569a450a2d9ebd1ec9f381",
       "result": "PASS",
-      "passed": 1,
-      "failed": 0,
-      "total": 1,
-      "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release -m:1 --filter FullyQualifiedName~AngularAcceptanceCrossFirmIsolationJourneyTests",
-      "database": "PostgreSQL 18.6 loopback; OwnedHost disposable synthetic database",
-      "coverage": "Real foreign-firm client/engagement versus guessed IDs: opaque matching 403 reads for assessment, creation and activation; direct Angular routes omit the private marker.",
-      "fullSolutionAttempt": {
-        "sourceCommit": "5d63f9e507fa2e1c7e865722613bde08c0380067",
-        "result": "CANCELLED_NO_VERDICT",
-        "reason": "API test host remained CPU and memory intensive; cancelled after about 12 minutes."
-      },
-      "scopeStatus": "PARTIAL"
+      "scopeStatus": "PARTIAL",
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceCrossFirmIsolation"
     },
     "ste22F07LifecycleProjection": {
       "recordedAtUtc": "2026-10-15T09:36:53Z",
@@ -750,76 +738,24 @@
       "implementationCommit": "48e9f2059662d0712f2d1b23d5616b4e8494dad4"
     },
     "angularMigrationAdminRevocationFencing": {
-      "recordedAtUtc": "2026-10-15T15:26:27Z",
-      "sourceCommit": "779646b1c2219d2329f892f74b248276c645c4c4",
       "result": "PASS",
-      "passed": 3,
-      "failed": 0,
-      "total": 3,
-      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --configuration Release --maxcpucount:1 --filter FullyQualifiedName~RoleAdministrationTests",
-      "database": "PostgreSQL 18.6 loopback; PgTestSchema disposable synthetic database in auditsphere_tests",
-      "coverage": "All three role-administration tests pass. Deterministically revoking an Administrator while a role-revocation command waits on the firm lock denies the stale actor and leaves the target grant and revocation evidence unchanged.",
-      "scopeStatus": "PARTIAL"
+      "scopeStatus": "PARTIAL",
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdminRevocationFencing"
     },
     "angularMigrationAccessNotAssignedBrowser": {
-      "recordedAtUtc": "2026-10-15T15:31:47Z",
-      "sourceCommit": "b3ddfa8c339b5b83f7c16d5f4939a641298eab19",
       "result": "PASS",
-      "passed": 1,
-      "failed": 0,
-      "total": 1,
-      "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~ParameterlessRoutesRenderAndPreserveRoleSpecificShells",
-      "database": "PostgreSQL 18.6 loopback; OwnedHost disposable synthetic database in auditsphere_tests",
-      "coverage": "The server-owned access-denial route returns HTTP 403 with Cache-Control no-store, generic access text and only a sign-out link. This did not exercise a live Entra callback or unmapped Microsoft identity.",
-      "scopeStatus": "PARTIAL"
+      "scopeStatus": "PARTIAL",
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAccessNotAssignedBrowser"
     },
     "angularMigrationAdminGroupRevocationFencing": {
-      "recordedAtUtc": "2026-10-15T15:39:15Z",
-      "sourceCommit": "1f19d07d179060b8f59e702ce0149e14768fd772",
       "result": "PASS",
-      "passed": 9,
-      "failed": 0,
-      "total": 9,
-      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter FullyQualifiedName~RoleAssignmentTests",
-      "database": "PostgreSQL 18.6 loopback; TenantAdministrationFixture disposable schema in auditsphere_tests",
-      "coverage": "Group-grant revocation waits on the firm safety row and reauthorizes the acting Administrator. The deterministic lock-wait regression revokes the acting Administrator and advances the session epoch before releasing the lock, then confirms no group-grant revocation, target session-epoch change or revocation event occurred.",
-      "scopeStatus": "PARTIAL"
+      "scopeStatus": "PARTIAL",
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdminGroupRevocationFencing"
     },
     "angularMigrationAdministrationReviewFreshnessCi": {
-      "recordedAtUtc": "2026-10-15T18:16:06Z",
-      "sourceCommit": "8959f6e7a17456acbc5cba4f1e2b3fc469fc54b8",
       "result": "PASS",
-      "passed": 19,
-      "failed": 0,
-      "total": 19,
-      "suites": {
-        "angular": {
-          "specFiles": 132,
-          "passed": 773,
-          "failed": 0
-        },
-        "domain": {
-          "passed": 150,
-          "failed": 0
-        },
-        "api": {
-          "passed": 8,
-          "failed": 0
-        },
-        "e2e": {
-          "passed": 19,
-          "failed": 0
-        },
-        "efModelDrift": "PASS",
-        "openApiDrift": "PASS",
-        "docsHealth": "PASS",
-        "gitGuardian": "PASS"
-      },
-      "command": "GitHub Actions run 38781204290; Release build, focused PostgreSQL Domain/API cohorts, focused Playwright E2E cohort, EF model drift, OpenAPI drift and documentation/security checks",
-      "database": "PostgreSQL 18.6; isolated synthetic OwnedHost fixtures",
-      "coverage": "The filtered browser cohort verifies administration role-review invalidation after reason, expiry and role edits; exact guest binding; simulated reviewed user provisioning and unknown-result reconciliation; and managed-group allowlist, add/remove and retirement. Provider behavior is simulated. This focused cohort is not full Angular migration parity, the unfiltered solution regression, live Microsoft acceptance or production acceptance.",
-      "runUrl": "https://github.com/nirzaf/AuditSphere/actions/runs/38781204290",
-      "scopeStatus": "PARTIAL"
+      "scopeStatus": "PARTIAL",
+      "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAdministrationReviewFreshnessCi"
     },
     "asPm8Atomic": {
       "sourceCommit": "6e4d8682fa4886223422990f010f6d40e8729fe6",
@@ -1226,6 +1162,14 @@
     "cp11ReviewCapabilityProjection": {
       "codeCommit": "ffa9bd99",
       "result": "SourceReviewCanReview_RequiresCurrentScopedReviewGrant: PASS 1/1."
+    },
+    "cp19CompletionCapabilityProjection": {
+      "recordedAtUtc": "2026-10-17T08:58:52Z",
+      "codeCommit": "16b101dab51b7f603b2b134e76dfe6ac3083f40b",
+      "status": "PARTIAL",
+      "checks": "CompletionCapabilitiesRequireCurrentScopedPartnerGrant: PASS 1/1 on PostgreSQL; stale Partner session label with current Auditor grant exposes neither opinion controls nor release-preparation capability.",
+      "ci": "Full release verification run 39018621884 targets prior SHA 08c0aecae9b3da5fc715660b17ed1692c0a1883c; current-SHA CI pending.",
+      "open": "Full CP-19 workflow, current-SHA CI, client signatory/capacity evidence and professional acceptance remain open."
     }
   },
   "externalGates": [
