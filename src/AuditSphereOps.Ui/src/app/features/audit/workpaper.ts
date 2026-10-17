@@ -69,8 +69,8 @@ const AUTOSAVE_MS = 750;
           @empty { <tr><td colspan="3">No submission has been frozen for this workpaper yet.</td></tr> }</tbody></table></div></section>
       @if (w.status === 'WORKING') {
         <section class="panel"><h2>Working content</h2>
-          <label>Work performed <textarea name="work" rows="5" [(ngModel)]="work" (ngModelChange)="changed()" [readonly]="busy() || conflict() || uncertain() && !freshSaveAwaitingFirstResponse()" required></textarea></label>
-          <label>Conclusion <textarea name="conclusion" rows="3" [(ngModel)]="conclusion" (ngModelChange)="changed()" [readonly]="busy() || conflict() || uncertain() && !freshSaveAwaitingFirstResponse()" required></textarea></label>
+          <label>Work performed <textarea name="work" rows="5" [(ngModel)]="work" (ngModelChange)="changed()" [readonly]="busy() || conflict() || uncertain() && !retryReadyForSave() && !freshSaveAwaitingFirstResponse()" required></textarea></label>
+          <label>Conclusion <textarea name="conclusion" rows="3" [(ngModel)]="conclusion" (ngModelChange)="changed()" [readonly]="busy() || conflict() || uncertain() && !retryReadyForSave() && !freshSaveAwaitingFirstResponse()" required></textarea></label>
           <p class="actions">
             <button matButton="outlined" (click)="save()" [disabled]="busy() || conflict() || uncertain() || saving()">Save draft</button>
             <button matButton="outlined" (click)="discard()" [disabled]="busy() || conflict() || uncertain() || saving() || !state || state.draftRevision === '0'">Discard draft</button>
@@ -147,6 +147,8 @@ export class WorkpaperEditor {
   readonly conflict = this.flow.conflict;
   readonly uncertain = this.flow.uncertain;
   readonly retryReady = this.flow.absent;
+  readonly retryReadyForSave = computed(() => this.flow.absent() && this.flow.pending().length === 1 &&
+    this.flow.pending()[0]?.action === 'SAVE_DRAFT' && this.flow.pending()[0]?.workpaperId === this.id());
   readonly status = signal('Unsaved changes');
   readonly message = signal('');
   readonly failed = signal(false);

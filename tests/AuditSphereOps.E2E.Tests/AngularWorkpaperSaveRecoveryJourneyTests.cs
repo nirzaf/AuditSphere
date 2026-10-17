@@ -72,7 +72,8 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
       .ToBeVisibleAsync();
     await dialog.GetByRole(AriaRole.Button, new() { Name = "Discard edits and continue", Exact = true }).ClickAsync();
     await ConfirmReviewedAction(page, "DISCARD_DRAFT");
-    await Assertions.Expect(page.GetByText("This record changed since you loaded it. Refresh and review the current revision.", new() { Exact = true }))
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Alert).GetByText(
+      "This record changed since you loaded it. Refresh and review the current revision.", new() { Exact = true }))
       .ToBeVisibleAsync();
     Assert.Contains($"/app/audit/workpapers/{workpaperId:D}", page.Url, StringComparison.Ordinal);
     await using (var proof = host.CreateDbContext())
@@ -310,11 +311,11 @@ public sealed class AngularWorkpaperSaveRecoveryJourneyTests
   }
 
   [Fact]
-  [Trait("CaseId", "AS-PAR-002-ANGULAR-WORKPAPER-INFLIGHT-SAVE-STAY-01")]
+  [Trait("CaseId", "AS-PAR-002-WP-INFLIGHT-01")]
   public async Task InFlightSaveThenStayPersistsNewerEditsOnceWithoutNavigating()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,
-      caseId: "AS-PAR-002-ANGULAR-WORKPAPER-INFLIGHT-SAVE-STAY-01");
+      caseId: "AS-PAR-002-WP-INFLIGHT-01");
     var f = host.Fixture;
     var staff = PbcSeed.Actor(f.Staff, "Staff");
     Guid workpaperId;

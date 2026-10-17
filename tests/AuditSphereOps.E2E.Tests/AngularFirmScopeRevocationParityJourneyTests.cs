@@ -98,11 +98,12 @@ public sealed class AngularFirmScopeRevocationParityJourneyTests
     await Assertions.Expect(operationsPage.GetByRole(AriaRole.Heading, new() { Name = "Operations", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(operationsPage.GetByRole(AriaRole.Region, new() { Name = "Firm operating mode", Exact = true })).ToContainTextAsync("LOCAL_ONLY");
     await Assertions.Expect(operationsPage.Locator("p[role='status']")).ToContainTextAsync("1 need attention");
-    await operationsPage.GetByText(operationKind, new() { Exact = true }).WaitForAsync();
+    var operationRow = operationsPage.GetByRole(AriaRole.Row).Filter(new() { HasText = operationKind });
+    await Assertions.Expect(operationRow).ToHaveCountAsync(1);
     foreach (var width in new[] { 320, 390, 760, 1024, 1440, 1920 })
     {
       await operationsPage.SetViewportSizeAsync(width, 900);
-      await Assertions.Expect(operationsPage.GetByText(operationKind, new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(operationRow).ToContainTextAsync(operationKind);
       Assert.True(await operationsPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
         $"Operations document overflows at {width}px.");
     }

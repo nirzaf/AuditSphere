@@ -495,6 +495,13 @@ export class AuditFieldwork {
       untracked(() => { ++this.reviewRequest; this.review.set(null); this.reviewError.set(''); });
     });
     effect(() => {
+      const workspace = this.ws.data();
+      untracked(() => {
+        if (workspace && this.e.procedure && workspace.procedures.some(p => p.id === this.e.procedure))
+          void this.selectProcedure(this.e.procedure);
+      });
+    });
+    effect(() => {
       this.id(); this.riskLinkSession.current(); this.riskLinkSession.invalidation();
       untracked(() => { this.riskLinkSelections.clear(); this.riskLinkBases.clear(); });
     });

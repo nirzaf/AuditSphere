@@ -66,7 +66,7 @@ public sealed class AngularOperationsCommandJourneyTests
       case "LIFT_QUARANTINE":
         await page.GetByRole(AriaRole.Button, new() { Name = "Lift recovery quarantine", Exact = true }).ClickAsync(); break;
       default:
-        await page.GetByLabel("Reconciliation findings", new() { Exact = true }).FillAsync(findings);
+        await page.GetByLabel("Findings for restart approval", new() { Exact = true }).FillAsync(findings);
         await page.GetByRole(AriaRole.Button, new() { Name = "Preview recovery restart approval", Exact = true }).ClickAsync(); break;
     }
     var preview = page.GetByRole(AriaRole.Region, new() { Name = "Exact operator command preview", Exact = true });

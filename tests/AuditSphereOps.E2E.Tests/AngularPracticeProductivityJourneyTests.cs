@@ -69,13 +69,12 @@ public sealed class AngularPracticeProductivityJourneyTests
         mutations.Add(request.Url);
     };
 
-    var queueResponseTask = page.WaitForResponseAsync(response => response.Ok &&
-      response.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal));
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp%2Fwork");
+    var (queueResponse, queueResponseBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && request.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal),
+      async () => await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp%2Fwork"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "My work", Exact = true })).ToBeVisibleAsync();
-    var queueResponse = await queueResponseTask;
-    using var queueBody = JsonDocument.Parse(await queueResponse.TextAsync());
+    using var queueBody = JsonDocument.Parse(queueResponseBody);
     var apiDueCount = queueBody.RootElement.GetProperty("summary").GetProperty("counts").EnumerateArray()
       .Single(row => row.GetProperty("view").GetString() == "DUE_TODAY")
       .GetProperty("count").GetString();
@@ -108,24 +107,24 @@ public sealed class AngularPracticeProductivityJourneyTests
       await Assertions.Expect(card).ToHaveAttributeAsync("aria-pressed", "true");
     }
 
-    var dueViewResponseTask = page.WaitForResponseAsync(response => response.Request.Method == "GET" && response.Ok &&
-      response.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
-      response.Url.Contains("view=DUE_TODAY", StringComparison.Ordinal));
-    await dueToday.ClickAsync();
-    var dueViewResponse = await dueViewResponseTask;
-    using (var dueViewBody = JsonDocument.Parse(await dueViewResponse.TextAsync()))
+    var (_, dueViewResponseBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" &&
+        request.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
+        request.Url.Contains("view=DUE_TODAY", StringComparison.Ordinal),
+      () => dueToday.ClickAsync());
+    using (var dueViewBody = JsonDocument.Parse(dueViewResponseBody))
       Assert.Contains(dueViewBody.RootElement.GetProperty("tasks").EnumerateArray(), row =>
         row.GetProperty("taskId").GetGuid() == taskId);
     var adminTaskRow = page.Locator("tbody tr").Filter(new() { HasText = title });
     await Assertions.Expect(adminTaskRow).ToHaveCountAsync(1);
     await Assertions.Expect(page.Locator("tbody tr").Filter(new() { HasText = "AS-PM8 SIBLING TASK MUST STAY HIDDEN" }))
       .ToHaveCountAsync(1);
-    var myTasksResponseTask = page.WaitForResponseAsync(response => response.Request.Method == "GET" && response.Ok &&
-      response.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
-      response.Url.Contains("view=MY_TASKS", StringComparison.Ordinal));
-    await page.Locator("button.summary-card").Filter(new() { HasText = "My tasks" }).ClickAsync();
-    var myTasksResponse = await myTasksResponseTask;
-    using (var myTasksBody = JsonDocument.Parse(await myTasksResponse.TextAsync()))
+    var (_, myTasksResponseBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" &&
+        request.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
+        request.Url.Contains("view=MY_TASKS", StringComparison.Ordinal),
+      () => page.Locator("button.summary-card").Filter(new() { HasText = "My tasks" }).ClickAsync());
+    using (var myTasksBody = JsonDocument.Parse(myTasksResponseBody))
       Assert.Contains(myTasksBody.RootElement.GetProperty("tasks").EnumerateArray(), row =>
         row.GetProperty("taskId").GetGuid() == taskId);
     await Assertions.Expect(page.Locator("tbody tr").Filter(new() { HasText = title })).ToHaveCountAsync(1);

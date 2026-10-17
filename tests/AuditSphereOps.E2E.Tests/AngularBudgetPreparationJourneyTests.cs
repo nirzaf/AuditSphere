@@ -15,13 +15,16 @@ public sealed class AngularBudgetPreparationJourneyTests
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()});
     using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);await using var context=await browser.NewContextAsync();var page=await context.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
     var path=(canonical?"":"/ui")+"/app/engagements/"+f.EngagementId;
-    var planningRead = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
-      response.Url.EndsWith($"/api/ui/engagements/{f.EngagementId}/planning", StringComparison.Ordinal));
-    await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
-    await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
-    var planningResponse = await planningRead;
-    Assert.Equal(200, planningResponse.Status);
-    using var planningDocument = JsonDocument.Parse(await planningResponse.TextAsync());
+    var (planningResponse, planningResponseBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" &&
+        request.Url.Contains($"/api/ui/engagements/{f.EngagementId}/planning", StringComparison.Ordinal),
+      async () =>
+      {
+        await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
+        await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+      });
+    Assert.Equal(200, planningResponse);
+    using var planningDocument = JsonDocument.Parse(planningResponseBody);
     Assert.True(planningDocument.RootElement.GetProperty("canPrepareBudget").GetBoolean(),
       "The synthetic client Manager must have current budget-preparation authority before this journey begins.");
     var planning=page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
