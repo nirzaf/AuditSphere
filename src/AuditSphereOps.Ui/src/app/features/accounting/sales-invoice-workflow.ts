@@ -77,17 +77,34 @@ interface CreditManifest { reason: string; sourceBasis: string; originalTaxTreat
 interface CreditPreview { creditNoteId: string; invoiceId: string; creditNoteReference: string; currency: string; totalCredit: string; digest: string; originalAmount: string; previouslyCredited: string; remainingCreditLimit: string; lines: CreditPostingLine[]; manifest: CreditManifest }
 interface CreditReview { creditNoteId: string; invoiceId: string; submissionId: string; journalId: string; journalRevision: string; digest: string; canPost: boolean; postingBlock: string | null; manifest: CreditManifest }
 interface CreditCommandReceipt { commandId: string; creditNoteId: string; invoiceId: string; submissionId: string; kind: 'SUBMIT' | 'REVIEW'; actorUserId: string; intentHash: string; outcome: 'SUBMITTED' | 'POSTED' | 'RETURNED'; decisionId: string | null }
-interface PendingCreditCommand { client: string; invoice: string; creditNoteId: string; submissionId: string | null; actor: string; kind: 'SUBMIT' | 'REVIEW'; body: Record<string, unknown> }
+interface CreditRecoveryReference { version: 1; firm: string; client: string; invoice: string; creditNoteId: string; submissionId: string | null; actor: string; commandId: string; kind: 'SUBMIT' | 'REVIEW'; outcome: CreditCommandReceipt['outcome']; previewDigest: string }
+interface PendingCreditCommand extends CreditRecoveryReference { body: Record<string, unknown> | null }
+const creditRecoveryKey = (firm: string, client: string, invoice: string, actor: string) => `auditsphere.sales-credit-command.v1:${firm}:${client}:${invoice}:${actor}`;
+function decodeCreditRecoveryReference(value: unknown, firm: string, client: string, invoice: string, actor: string): CreditRecoveryReference {
+  if (!object(value)) throw new Error('Invalid recovery reference');
+  const ref = value as unknown as CreditRecoveryReference;
+  if (ref.version !== 1 || ref.firm !== firm || ref.client !== client || ref.invoice !== invoice || ref.actor !== actor ||
+      ![ref.firm, ref.client, ref.invoice, ref.actor, ref.creditNoteId, ref.commandId].every(uuid) ||
+      typeof ref.previewDigest !== 'string' || !hash.test(ref.previewDigest) ||
+      (ref.kind === 'SUBMIT' ? ref.submissionId !== null || ref.outcome !== 'SUBMITTED' :
+        ref.kind !== 'REVIEW' || !uuid(ref.submissionId) || !['POSTED', 'RETURNED'].includes(ref.outcome)) ||
+      Object.keys(value).some(key => !['version', 'firm', 'client', 'invoice', 'creditNoteId', 'submissionId', 'actor', 'commandId', 'kind', 'outcome', 'previewDigest'].includes(key)))
+    throw new Error('Invalid scoped recovery reference');
+  return ref;
+}
 
 @Component({ selector: 'audit-sales-credit-note-workflow', imports: [FormsModule, MatButtonModule], template: `<section aria-label="Client sales credit notes">
   <h5>Sales credit notes</h5><p>Credit notes are separate untaxed client records. VAT and tax modules remain optional. Posting creates an unapplied customer credit; it does not issue a refund or settle cash.</p>
-  <button matButton type="button" [disabled]="busy() || !!pending()" (click)="refresh()">Refresh credit-note history</button>
+  <button matButton type="button" [disabled]="busy() || !!pending() || recoveryStorageBlocked()" (click)="refresh()">Refresh credit-note history</button>
   @if (error()) { <p role="alert">{{ error() }}</p> }
+  @if (recoveryStorageBlocked()) { <p role="alert">Credit-note recovery storage could not be validated. New credit-note actions remain blocked until the original outcome can be reconciled.</p> }
   @if (pending(); as command) {
     <p role="status">Credit-note {{ command.kind.toLowerCase() }} outcome is unconfirmed. The original command is locked. Recover it before another action.</p>
-    <p>Original request: {{ command.body['commandId'] }}</p>
+    <p>Original request: {{ command.commandId }}</p>
     <button matButton type="button" [disabled]="busy()" (click)="recover()">Recover original command</button>
-    @if (retryAvailable()) {
+    @if (!command.body) { <p>The original financial request was not stored in this browser. Check its retained outcome; it cannot be reconstructed for retry after reload.</p> }
+    @if (receipt()) { <button matButton type="button" [disabled]="busy()" (click)="acknowledgeOutcome()">Acknowledge confirmed credit-note outcome</button> }
+    @if (retryAvailable() && command.body) {
       <label><input type="checkbox" [ngModel]="retryAssent()" (ngModelChange)="retryAssent.set($event)" /> I confirmed the actor-owned lookup found no outcome and want to retry this exact request.</label>
       <button matButton type="button" [disabled]="busy() || !retryAssent()" (click)="retryOriginal()">Retry unchanged request</button>
     }
@@ -96,10 +113,10 @@ interface PendingCreditCommand { client: string; invoice: string; creditNoteId: 
   @if (preview(); as p) { <p>Exact credit preview: {{ p.totalCredit }} {{ p.currency }} · Original {{ p.originalAmount }} · Previously credited {{ p.previouslyCredited }} · Remaining limit {{ p.remainingCreditLimit }}</p>
     <table><caption>Proposed reversing client-ledger lines</caption><thead><tr><th>Original line</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead><tbody>@for (line of p.lines; track line.lineNumber) { <tr><td>{{ line.originalLineNumber || 'Receivable' }}</td><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table>
     <p>Review line amounts, invoice, reason, date, source explanation and accounting effect before submission.</p>
-    <label><input type="checkbox" [ngModel]="assent()" (ngModelChange)="assent.set($event)" /> I reviewed this positive credit and its effect on the original client invoice.</label>
-    <button matButton type="button" [disabled]="busy() || !!pending() || !assent()" (click)="submit()">Submit credit note for independent review</button>
+    <label><input type="checkbox" [disabled]="busy() || !!pending() || recoveryStorageBlocked()" [ngModel]="assent()" (ngModelChange)="assent.set($event)" /> I reviewed this positive credit and its effect on the original client invoice.</label>
+    <button matButton type="button" [disabled]="busy() || !!pending() || recoveryStorageBlocked() || !assent()" (click)="submit()">Submit credit note for independent review</button>
   }
-  @if (lifecycle()?.makerId === userId() && !preview() && !pending()) {
+  @if (lifecycle()?.makerId === userId() && !preview() && !pending() && !recoveryStorageBlocked()) {
     <form #form="ngForm" (ngSubmit)="form.valid && previewCredit()"><fieldset [disabled]="busy()"><legend>Prepare a credit against the posted invoice</legend>
       <label>Credit note reference <input name="reference" [(ngModel)]="reference" required maxlength="100" /></label>
       <label>Posting date <input name="postingDate" type="date" [(ngModel)]="postingDate" required /></label>
@@ -116,13 +133,13 @@ interface PendingCreditCommand { client: string; invoice: string; creditNoteId: 
     <article><h6>{{ row.creditNoteReference }} · {{ row.state }}</h6><p>{{ row.amount }} {{ row.currency }} · {{ row.reason }} · {{ row.postingDate }}</p>
       @if (row.unappliedCustomerCredit) { <p>Posted as an unapplied customer credit. Allocate it to an eligible open receivable below when approved.</p> }
       @if (row.state === 'SUBMITTED' && row.makerId !== userId()) {
-        <button matButton type="button" [disabled]="busy() || !!pending()" (click)="previewReview(row)">Review credit note</button>
+        <button matButton type="button" [disabled]="busy() || !!pending() || recoveryStorageBlocked()" (click)="previewReview(row)">Review credit note</button>
         @if (activeReview()?.submissionId === row.submissionId) { <p>Submitted credit {{ row.amount }} {{ row.currency }} · {{ activeReview()?.canPost ? 'Ready for review' : activeReview()?.postingBlock }}</p>
           <p>Original invoice {{ activeReview()?.invoiceId }} · Untaxed treatment {{ activeReview()?.manifest?.originalTaxTreatment }} · Source: {{ activeReview()?.manifest?.sourceBasis }}</p>
           <table><caption>Credit note journal lines</caption><thead><tr><th>Original line</th><th>Account</th><th>Debit</th><th>Credit</th></tr></thead><tbody>@for (line of activeReview()?.manifest?.lines ?? []; track line.lineNumber) { <tr><td>{{ line.originalLineNumber || 'Receivable' }}</td><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.debit }}</td><td>{{ line.credit }}</td></tr> }</tbody></table>
-          <label>Independent review reason <textarea [(ngModel)]="reviewReason" maxlength="2000"></textarea></label>
-          <button matButton type="button" [disabled]="busy() || !!pending() || !reviewReason.trim() || !activeReview()?.canPost" (click)="review(row, 'APPROVE')">Approve and post credit</button>
-          <button matButton type="button" [disabled]="busy() || !!pending() || !reviewReason.trim()" (click)="review(row, 'RETURN')">Return credit note</button>
+          <label>Independent review reason <textarea [disabled]="busy() || !!pending() || recoveryStorageBlocked()" [(ngModel)]="reviewReason" maxlength="2000"></textarea></label>
+          <button matButton type="button" [disabled]="busy() || !!pending() || recoveryStorageBlocked() || !reviewReason.trim() || !activeReview()?.canPost" (click)="review(row, 'APPROVE')">Approve and post credit</button>
+          <button matButton type="button" [disabled]="busy() || !!pending() || recoveryStorageBlocked() || !reviewReason.trim()" (click)="review(row, 'RETURN')">Return credit note</button>
         }
       }
       @if (row.decision) { <p>Decision {{ row.decision }} · {{ row.decisionReason }}</p> }
@@ -135,17 +152,52 @@ export class SalesCreditNoteWorkflow {
   readonly busy = signal(false); readonly error = signal(''); readonly preview = signal<CreditPreview | null>(null); readonly rows = signal<CreditRow[]>([]);
   readonly activeReview = signal<CreditReview | null>(null); readonly assent = signal(false);
   readonly pending = signal<PendingCreditCommand | null>(null); readonly retryAvailable = signal(false); readonly retryAssent = signal(false); readonly receipt = signal<CreditCommandReceipt | null>(null);
+  readonly recoveryStorageBlocked = signal(false);
   readonly userId = () => this.session.current()?.userId ?? ''; readonly currency = () => this.lifecycle()?.currency ?? '';
   reference = ''; reason = ''; sourceBasis = ''; postingDate = new Date().toISOString().slice(0, 10); reviewReason = ''; amounts: Record<number, string> = {};
   private body: Record<string, unknown> | null = null;
   private operationVersion = 0; private operation?: Subscription;
   constructor() { effect(() => { this.clientId(); this.invoiceId(); this.session.invalidation(); this.session.current();
-    untracked(() => { this.operation?.unsubscribe(); ++this.operationVersion; this.busy.set(false); this.pending.set(null); this.retryAvailable.set(false); this.retryAssent.set(false); this.receipt.set(null); this.preview.set(null); this.body = null; this.activeReview.set(null); this.rows.set([]); }); });
+    untracked(() => { this.operation?.unsubscribe(); ++this.operationVersion; this.busy.set(false); this.pending.set(null); this.retryAvailable.set(false); this.retryAssent.set(false); this.receipt.set(null); this.preview.set(null); this.body = null; this.activeReview.set(null); this.rows.set([]); this.assent.set(false); this.reference = ''; this.reason = ''; this.sourceBasis = ''; this.reviewReason = ''; this.amounts = {}; this.restoreRecovery(); }); });
     effect(() => { const lifecycle = this.lifecycle(); untracked(() => { if (lifecycle?.posted) this.refresh(); else this.rows.set([]); }); });
     inject(DestroyRef).onDestroy(() => this.operation?.unsubscribe()); }
   private base(): string { return `/api/ui/accounting/clients/${this.clientId()}/sales-invoices/${this.invoiceId()}/credit-notes`; }
-  private valid(p: PendingCreditCommand, generation: number, request: number): boolean { return p.client === this.clientId() && p.invoice === this.invoiceId() && p.actor === this.userId() && generation === this.session.invalidation() && request === this.operationVersion; }
-  refresh(): void { if (this.busy() || this.pending() || !this.lifecycle()?.posted) return; const request = ++this.operationVersion; this.busy.set(true); this.operation = this.http.get<CreditRow[]>(this.base()).pipe(timeout(15000)).subscribe({ next: rows => { if (request !== this.operationVersion) return; this.rows.set(rows); this.busy.set(false); }, error: () => { if (request !== this.operationVersion) return; this.busy.set(false); this.error.set('Credit-note history could not be refreshed.'); } }); }
+  private contextKey(): string { const actor = this.session.current(); return [actor?.firmId, actor?.userId, actor?.generation, this.session.invalidation(), this.clientId(), this.invoiceId()].join(':'); }
+  private valid(p: PendingCreditCommand, generation: number, request: number): boolean { return p.firm === this.session.current()?.firmId && p.client === this.clientId() && p.invoice === this.invoiceId() && p.actor === this.userId() && generation === this.session.invalidation() && request === this.operationVersion; }
+  private restoreRecovery(): void {
+    this.recoveryStorageBlocked.set(false); this.error.set('');
+    const firm = this.session.current()?.firmId ?? '', client = this.clientId(), invoice = this.invoiceId(), actor = this.userId();
+    if (![firm, client, invoice, actor].every(uuid)) return;
+    try {
+      const raw = globalThis.sessionStorage?.getItem(creditRecoveryKey(firm, client, invoice, actor));
+      if (!raw) return;
+      const reference = decodeCreditRecoveryReference(JSON.parse(raw), firm, client, invoice, actor);
+      this.pending.set({ ...reference, body: null }); this.recover();
+    } catch { this.recoveryStorageBlocked.set(true); this.error.set('The original credit-note recovery reference is unavailable or invalid. Reconcile it before starting another command.'); }
+  }
+  private retainRecovery(pending: PendingCreditCommand): boolean {
+    const { body: _body, ...reference } = pending;
+    try {
+      decodeCreditRecoveryReference(reference, pending.firm, pending.client, pending.invoice, pending.actor);
+      const storage = globalThis.sessionStorage, serialized = JSON.stringify(reference);
+      if (!storage) throw new Error('Recovery storage unavailable');
+      const key = creditRecoveryKey(pending.firm, pending.client, pending.invoice, pending.actor);
+      storage.setItem(key, serialized);
+      if (storage.getItem(key) !== serialized) throw new Error('Recovery reference was not retained');
+    } catch { this.recoveryStorageBlocked.set(true); this.error.set('The browser could not retain a safe recovery reference, so the credit-note command was not sent.'); return false; }
+    this.pending.set(pending); this.receipt.set(null); return true;
+  }
+  private clearRecovery(pending: PendingCreditCommand): boolean {
+    try {
+      const storage = globalThis.sessionStorage;
+      if (!storage) throw new Error('Recovery storage unavailable');
+      const key = creditRecoveryKey(pending.firm, pending.client, pending.invoice, pending.actor);
+      storage.removeItem(key);
+      if (storage.getItem(key) !== null) throw new Error('Recovery reference was not cleared');
+      return true;
+    } catch { this.error.set('The matching outcome is retained, but the browser could not clear its recovery fence. Check and acknowledge it again.'); return false; }
+  }
+  refresh(): void { if (this.busy() || this.pending() || this.recoveryStorageBlocked() || !this.lifecycle()?.posted) return; const request = ++this.operationVersion; this.busy.set(true); this.operation = this.http.get<CreditRow[]>(this.base()).pipe(timeout(15000)).subscribe({ next: rows => { if (request !== this.operationVersion) return; this.rows.set(rows); this.busy.set(false); }, error: () => { if (request !== this.operationVersion) return; this.busy.set(false); this.error.set('Credit-note history could not be refreshed.'); } }); }
   private request(): Record<string, unknown> | null {
     const lifecycle = this.lifecycle(); if (!lifecycle?.posted || !this.reference.trim() || !this.reason.trim() || !this.sourceBasis.trim()) return null;
     const lines = lifecycle.sourceLines.map(line => ({ originalLineNumber: line.lineNumber, amount: (this.amounts[line.lineNumber] ?? '').trim() })).filter(line => line.amount !== '' && Number(line.amount) > 0);
@@ -153,43 +205,48 @@ export class SalesCreditNoteWorkflow {
     return { creditNoteId: crypto.randomUUID(), creditNoteReference: this.reference.trim(), periodId: lifecycle.periodId,
       postingDate: this.postingDate, reason: this.reason.trim(), sourceReceiptId: null, sourceBasis: this.sourceBasis.trim(), lines };
   }
-  previewCredit(): void { const credit = this.request(); if (!credit || this.busy() || this.pending()) { this.error.set('Enter a positive exact amount for at least one original line.'); return; }
+  previewCredit(): void { if (this.busy() || this.pending() || this.recoveryStorageBlocked()) return; const credit = this.request(); if (!credit) { this.error.set('Enter a positive exact amount for at least one original line.'); return; }
+    const context = this.contextKey(), request = ++this.operationVersion;
     this.busy.set(true); this.error.set(''); this.body = credit;
-    this.http.post<CreditPreview>(`${this.base()}/preview`, { ...credit, previewDigest: '', reviewed: false }).pipe(timeout(20000)).subscribe({
-      next: p => { this.preview.set(p); this.assent.set(false); this.busy.set(false); }, error: () => { this.busy.set(false); this.error.set('Credit preview failed or timed out. Refresh invoice and history before trying again.'); this.body = null; } }); }
-  submit(): void { const p = this.preview(), credit = this.body; if (!p || !credit || this.busy() || this.pending() || !this.assent() || p.creditNoteId !== credit['creditNoteId'] || p.invoiceId !== this.invoiceId()) return;
+    this.operation = this.http.post<CreditPreview>(`${this.base()}/preview`, { ...credit, previewDigest: '', reviewed: false }).pipe(timeout(20000)).subscribe({
+      next: p => { if (context !== this.contextKey() || request !== this.operationVersion) return; this.preview.set(p); this.assent.set(false); this.busy.set(false); }, error: () => { if (context !== this.contextKey() || request !== this.operationVersion) return; this.busy.set(false); this.error.set('Credit preview failed or timed out. Refresh invoice and history before trying again.'); this.body = null; } }); }
+  submit(): void { const p = this.preview(), credit = this.body; if (!p || !credit || this.busy() || this.pending() || this.recoveryStorageBlocked() || !this.assent() || p.creditNoteId !== credit['creditNoteId'] || p.invoiceId !== this.invoiceId()) return;
     const body = { commandId: crypto.randomUUID(), ...credit, previewDigest: p.digest, reviewed: true };
-    this.pending.set({ client: this.clientId(), invoice: this.invoiceId(), creditNoteId: p.creditNoteId, submissionId: null, actor: this.userId(), kind: 'SUBMIT', body }); this.sendPending(true); }
-  previewReview(row: CreditRow): void { this.busy.set(true); this.http.get<CreditReview>(`/api/ui/accounting/clients/${this.clientId()}/sales-credit-note-submissions/${row.submissionId}/preview`).pipe(timeout(15000)).subscribe({
-    next: value => { this.activeReview.set(value); this.reviewReason = ''; this.busy.set(false); }, error: () => { this.busy.set(false); this.error.set('Submitted credit-note review is unavailable.'); } }); }
-  review(row: CreditRow, decision: 'APPROVE' | 'RETURN'): void { const p = this.activeReview(); if (!p || this.busy() || this.pending() || !this.reviewReason.trim() || p.submissionId !== row.submissionId || p.creditNoteId !== row.creditNoteId || p.invoiceId !== this.invoiceId() || decision === 'APPROVE' && !p.canPost) return;
+    if (this.retainRecovery({ version: 1, firm: this.session.current()?.firmId ?? '', client: this.clientId(), invoice: this.invoiceId(), creditNoteId: p.creditNoteId, submissionId: null, actor: this.userId(), commandId: body.commandId, kind: 'SUBMIT', outcome: 'SUBMITTED', previewDigest: p.digest, body })) this.sendPending(true); }
+  previewReview(row: CreditRow): void { if (this.busy() || this.pending() || this.recoveryStorageBlocked()) return; const context = this.contextKey(), request = ++this.operationVersion; this.busy.set(true); this.operation = this.http.get<CreditReview>(`/api/ui/accounting/clients/${this.clientId()}/sales-credit-note-submissions/${row.submissionId}/preview`).pipe(timeout(15000)).subscribe({
+    next: value => { if (context !== this.contextKey() || request !== this.operationVersion) return; this.activeReview.set(value); this.reviewReason = ''; this.busy.set(false); }, error: () => { if (context !== this.contextKey() || request !== this.operationVersion) return; this.busy.set(false); this.error.set('Submitted credit-note review is unavailable.'); } }); }
+  review(row: CreditRow, decision: 'APPROVE' | 'RETURN'): void { const p = this.activeReview(); if (!p || this.busy() || this.pending() || this.recoveryStorageBlocked() || !this.reviewReason.trim() || p.submissionId !== row.submissionId || p.creditNoteId !== row.creditNoteId || p.invoiceId !== this.invoiceId() || decision === 'APPROVE' && !p.canPost) return;
     const body = { commandId: crypto.randomUUID(), submissionId: row.submissionId, decision, reason: this.reviewReason.trim(), previewDigest: p.digest, reviewed: true };
-    this.pending.set({ client: this.clientId(), invoice: this.invoiceId(), creditNoteId: row.creditNoteId, submissionId: row.submissionId, actor: this.userId(), kind: 'REVIEW', body }); this.sendPending(true); }
-  private sendPending(initial = false): void { const p = this.pending(); if (!p || this.busy() || p.client !== this.clientId() || p.invoice !== this.invoiceId() || p.actor !== this.userId() || !initial && (!this.retryAvailable() || !this.retryAssent())) return;
+    if (this.retainRecovery({ version: 1, firm: this.session.current()?.firmId ?? '', client: this.clientId(), invoice: this.invoiceId(), creditNoteId: row.creditNoteId, submissionId: row.submissionId, actor: this.userId(), commandId: body.commandId, kind: 'REVIEW', outcome: decision === 'APPROVE' ? 'POSTED' : 'RETURNED', previewDigest: p.digest, body })) this.sendPending(true); }
+  private sendPending(initial = false): void { const p = this.pending(); if (!p || !p.body || this.busy() || p.firm !== this.session.current()?.firmId || p.client !== this.clientId() || p.invoice !== this.invoiceId() || p.actor !== this.userId() || !initial && (!this.retryAvailable() || !this.retryAssent())) return;
     const generation = this.session.invalidation(), request = ++this.operationVersion; this.busy.set(true); this.retryAvailable.set(false); this.retryAssent.set(false); this.assent.set(false); this.error.set('');
     const path = p.kind === 'SUBMIT' ? `/sales-invoices/${p.invoice}/credit-notes` : '/sales-credit-note-reviews';
     this.operation = this.http.post<unknown>(`/api/ui/accounting/clients/${p.client}${path}`, p.body).pipe(timeout(20000)).subscribe({
       next: value => this.accept(value, p, generation, request),
       error: e => { if (!this.valid(p, generation, request)) return; this.busy.set(false); if (e.status === 401) this.session.clear();
-        if (e.status === 400 || e.status === 403) { this.pending.set(null); this.retryAvailable.set(false); this.error.set('Credit-note command was refused. Refresh history and review current authority and source context.'); }
+        if ((e.status === 400 || e.status === 403) && this.clearRecovery(p)) { this.pending.set(null); this.retryAvailable.set(false); this.error.set('Credit-note command was refused. Refresh history and review current authority and source context.'); }
         else this.error.set('Credit-note command outcome is unconfirmed. Recover the original request before another action.'); }
     }); }
-  recover(): void { const p = this.pending(); if (!p || this.busy() || p.client !== this.clientId() || p.invoice !== this.invoiceId() || p.actor !== this.userId()) return;
+  recover(): void { const p = this.pending(); if (!p || this.busy() || p.firm !== this.session.current()?.firmId || p.client !== this.clientId() || p.invoice !== this.invoiceId() || p.actor !== this.userId()) return;
     const generation = this.session.invalidation(), request = ++this.operationVersion; this.busy.set(true); this.retryAvailable.set(false); this.retryAssent.set(false);
-    this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${p.client}/sales-credit-note-requests/${p.body['commandId']}`, { params: { kind: p.kind } }).pipe(timeout(15000)).subscribe({
-      next: value => this.accept(value, p, generation, request), error: e => { if (!this.valid(p, generation, request)) return; this.busy.set(false); if (e.status === 401) this.session.clear();
-        if (e.status === 404) { this.retryAvailable.set(true); this.error.set('The actor-owned lookup found no original outcome. Review and explicitly retry only the unchanged request.'); }
+    this.operation = this.http.get<unknown>(`/api/ui/accounting/clients/${p.client}/sales-credit-note-requests/${p.commandId}`, { params: { kind: p.kind } }).pipe(timeout(15000)).subscribe({
+      next: value => this.accept(value, p, generation, request, true), error: e => { if (!this.valid(p, generation, request)) return; this.busy.set(false); if (e.status === 401) this.session.clear();
+        if (e.status === 404) { this.retryAvailable.set(!!p.body); this.error.set(p.body ? 'No original outcome is recorded yet. The command remains unresolved; explicitly retry only the unchanged request.' : 'No original outcome is recorded yet. The recovery fence remains; the original financial request is unavailable for retry after reload.'); }
         else this.error.set('Recovery unavailable. The original command remains locked; do not submit a replacement.'); }
     }); }
   retryOriginal(): void { this.sendPending(); }
-  private accept(value: unknown, p: PendingCreditCommand, generation: number, request: number): void { if (!this.valid(p, generation, request)) return; this.busy.set(false);
-    try { const r = decodeCreditReceipt(value, p); this.receipt.set(r); this.pending.set(null); this.retryAvailable.set(false); this.retryAssent.set(false); this.preview.set(null); this.body = null; this.activeReview.set(null); this.refresh(); }
+  acknowledgeOutcome(): void { const p = this.pending(), receipt = this.receipt(); if (!p || !receipt || p.firm !== this.session.current()?.firmId || p.client !== this.clientId() || p.invoice !== this.invoiceId() || p.actor !== this.userId() || this.busy()) return;
+    try { decodeCreditReceipt(receipt, p); } catch { return; }
+    if (!this.clearRecovery(p)) return;
+    this.pending.set(null); this.retryAvailable.set(false); this.retryAssent.set(false); this.preview.set(null); this.body = null; this.activeReview.set(null); this.error.set(''); this.refresh();
+  }
+  private accept(value: unknown, p: PendingCreditCommand, generation: number, request: number, fromLookup = false): void { if (!this.valid(p, generation, request)) return; this.busy.set(false);
+    try { const r = decodeCreditReceipt(value, p); this.receipt.set(r); this.retryAvailable.set(false); this.retryAssent.set(false); this.error.set(''); if (!fromLookup) this.acknowledgeOutcome(); }
     catch { this.error.set('Credit-note response did not match the original command. Recover it before another action.'); } }
 }
 function decodeCreditReceipt(value: unknown, pending: PendingCreditCommand): CreditCommandReceipt {
   if (!object(value)) throw new Error('Missing credit-note receipt'); const r = value as unknown as CreditCommandReceipt;
-  const outcome = pending.kind === 'SUBMIT' ? 'SUBMITTED' : pending.body['decision'] === 'APPROVE' ? 'POSTED' : 'RETURNED';
-  if (r.commandId !== pending.body['commandId'] || r.creditNoteId !== pending.creditNoteId || r.invoiceId !== pending.invoice || r.actorUserId !== pending.actor || r.kind !== pending.kind || r.outcome !== outcome ||
+  if (r.commandId !== pending.commandId || r.creditNoteId !== pending.creditNoteId || r.invoiceId !== pending.invoice || r.actorUserId !== pending.actor || r.kind !== pending.kind || r.outcome !== pending.outcome ||
       r.submissionId !== (pending.kind === 'REVIEW' ? pending.submissionId : r.submissionId) || !uuid(r.submissionId) || typeof r.intentHash !== 'string' || !hash.test(r.intentHash) ||
       (pending.kind === 'REVIEW' ? !uuid(r.decisionId) : r.decisionId !== null)) throw new Error('Credit-note receipt does not match original intent');
   return r;

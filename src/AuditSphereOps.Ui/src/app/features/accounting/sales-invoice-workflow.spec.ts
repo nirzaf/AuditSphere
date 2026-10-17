@@ -136,13 +136,13 @@ describe('Client sales credit-note command recovery', () => {
   const creditLifecycle = { ...posted, sourceLines: [{ lineNumber: 1, description: 'Service', accountCode: '4000', amount: '250.000000' }] };
   const creditPreview = { creditNoteId: creditNote, invoiceId: invoice, creditNoteReference: 'CN-1', currency: 'QAR', totalCredit: '25.000000', digest: 'f'.repeat(64), originalAmount: '250.000000', previouslyCredited: '0', remainingCreditLimit: '250.000000', lines: [], manifest: { reason: 'Correction', sourceBasis: 'Approved evidence', originalTaxTreatment: 'UNTAXED', lines: [] } };
   const submittedCredit = { creditNoteId: creditNote, creditNoteReference: 'CN-1', submissionId: creditSubmission, state: 'SUBMITTED', currency: 'QAR', amount: '25.000000', postingDate: '2026-10-17', reason: 'Correction', makerId: maker, decision: null, decisionReason: null, unappliedCustomerCredit: false, journalId: null };
-  beforeEach(() => { TestBed.configureTestingModule({ imports: [SalesCreditNoteWorkflow], providers: [provideHttpClient(), provideHttpClientTesting()] }); http = TestBed.inject(HttpTestingController); });
-  afterEach(() => { http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); });
-  function setup(actor = maker) {
+  beforeEach(() => { sessionStorage.clear(); TestBed.configureTestingModule({ imports: [SalesCreditNoteWorkflow], providers: [provideHttpClient(), provideHttpClientTesting()] }); http = TestBed.inject(HttpTestingController); });
+  afterEach(() => { try { http.verify({ ignoreCancelled: true }); } finally { TestBed.resetTestingModule(); sessionStorage.clear(); } });
+  function setup(actor = maker, expectHistory = true) {
     TestBed.inject(SessionService).current.set({ userId: actor, firmId: client, generation: '1', staff: true });
     const fixture = TestBed.createComponent(SalesCreditNoteWorkflow); fixture.componentRef.setInput('clientId', client); fixture.componentRef.setInput('invoiceId', invoice); fixture.componentRef.setInput('lifecycle', creditLifecycle); fixture.detectChanges();
-    http.expectOne(creditBase).flush([]);
-    return { c: fixture.componentInstance };
+    if (expectHistory) http.expectOne(creditBase).flush([]);
+    return { c: fixture.componentInstance, fixture };
   }
   function beginSubmission(c: SalesCreditNoteWorkflow) {
     c.reference = 'CN-1'; c.reason = 'Correction'; c.sourceBasis = 'Approved evidence'; c.amounts[1] = '25.000000'; c.previewCredit();
@@ -158,6 +158,7 @@ describe('Client sales credit-note command recovery', () => {
   it('recovers a committed submission from the actor-owned lookup without posting again', () => {
     const { c } = setup(), body = beginSubmission(c); c.recover();
     http.expectOne(`${base}/sales-credit-note-requests/${body['commandId']}?kind=SUBMIT`).flush(creditReceipt(body, 'SUBMIT'));
+    expect(c.pending()).not.toBeNull(); c.acknowledgeOutcome();
     http.expectOne(creditBase).flush([submittedCredit]);
     expect(c.pending()).toBeNull(); expect(c.receipt()?.outcome).toBe('SUBMITTED'); expect(c.rows()[0].submissionId).toBe(creditSubmission); http.expectNone(creditBase, 'no duplicate submission POST');
   });
@@ -174,7 +175,47 @@ describe('Client sales credit-note command recovery', () => {
     c.reviewReason = 'Independently checked'; c.review(submittedCredit, 'APPROVE'); const command = http.expectOne(`${base}/sales-credit-note-reviews`), body = structuredClone(command.request.body); command.error(new ProgressEvent('lost'));
     c.recover(); http.expectOne(`${base}/sales-credit-note-requests/${body['commandId']}?kind=REVIEW`).flush({}, { status: 503, statusText: 'Unavailable' });
     expect(c.pending()?.body).toEqual(body); expect(c.retryAvailable()).toBe(false); c.retryAssent.set(true); c.retryOriginal(); http.expectNone(`${base}/sales-credit-note-reviews`);
-    c.recover(); http.expectOne(`${base}/sales-credit-note-requests/${body['commandId']}?kind=REVIEW`).flush(creditReceipt(body, 'REVIEW', reviewer)); http.expectOne(creditBase).flush([]);
+    c.recover(); http.expectOne(`${base}/sales-credit-note-requests/${body['commandId']}?kind=REVIEW`).flush(creditReceipt(body, 'REVIEW', reviewer));
+    expect(c.pending()).not.toBeNull(); c.acknowledgeOutcome(); http.expectOne(creditBase).flush([]);
     expect(c.pending()).toBeNull(); expect(c.receipt()?.outcome).toBe('POSTED');
+  });
+  it('restores only a safe reference after reload and keeps absent or mismatched outcomes fenced', () => {
+    const first = setup(), body = beginSubmission(first.c);
+    const key = `auditsphere.sales-credit-command.v1:${client}:${client}:${invoice}:${maker}`;
+    const retained = JSON.parse(sessionStorage.getItem(key)!);
+    expect(retained).toEqual({ version: 1, firm: client, client, invoice, actor: maker, commandId: body['commandId'],
+      creditNoteId: body['creditNoteId'], submissionId: null, kind: 'SUBMIT', outcome: 'SUBMITTED', previewDigest: creditPreview.digest });
+    expect(JSON.stringify(retained)).not.toContain('Correction');
+    expect(retained.body).toBeUndefined(); expect(retained.reviewed).toBeUndefined(); expect(retained.lines).toBeUndefined();
+    first.fixture.destroy();
+
+    const { c } = setup(maker, false);
+    expect(c.pending()?.body).toBeNull();
+    http.expectOne(`${base}/sales-credit-note-requests/${body['commandId']}?kind=SUBMIT`).flush(creditReceipt(body, 'SUBMIT', reviewer));
+    expect(c.receipt()).toBeNull(); expect(c.pending()?.commandId).toBe(body['commandId']);
+    c.recover(); http.expectOne(`${base}/sales-credit-note-requests/${body['commandId']}?kind=SUBMIT`).flush({}, { status: 404, statusText: 'Not found' });
+    expect(c.retryAvailable()).toBe(false); expect(sessionStorage.getItem(key)).not.toBeNull();
+    const newIdentity = vi.spyOn(crypto, 'randomUUID');
+    c.reference = 'CN-NEW'; c.reason = 'Another credit'; c.sourceBasis = 'Another source'; c.amounts[1] = '10';
+    c.previewCredit(); c.retryAssent.set(true); c.retryOriginal();
+    expect(newIdentity).not.toHaveBeenCalled(); http.expectNone(creditBase); http.expectNone(`${creditBase}/preview`);
+    c.recover(); http.expectOne(`${base}/sales-credit-note-requests/${body['commandId']}?kind=SUBMIT`).flush(creditReceipt(body, 'SUBMIT'));
+    expect(c.pending()).not.toBeNull(); expect(sessionStorage.getItem(key)).not.toBeNull();
+    c.acknowledgeOutcome(); http.expectOne(creditBase).flush([submittedCredit]);
+    expect(c.pending()).toBeNull(); expect(sessionStorage.getItem(key)).toBeNull();
+  });
+  it('restores review outcome identity without retaining the original reviewer reason or assent', () => {
+    const first = setup(reviewer); first.c.rows.set([submittedCredit]); first.c.previewReview(submittedCredit);
+    http.expectOne(`${base}/sales-credit-note-submissions/${creditSubmission}/preview`).flush({ creditNoteId: creditNote, invoiceId: invoice, submissionId: creditSubmission, journalId: journal, journalRevision: '3', digest: 'e'.repeat(64), canPost: true, postingBlock: null, manifest: { reason: 'Correction', sourceBasis: 'Approved evidence', originalTaxTreatment: 'UNTAXED', lines: [] } });
+    first.c.reviewReason = 'Correct the evidence reference'; first.c.review(submittedCredit, 'RETURN');
+    const request = http.expectOne(`${base}/sales-credit-note-reviews`), body = structuredClone(request.request.body);
+    request.error(new ProgressEvent('lost')); first.fixture.destroy();
+    const key = `auditsphere.sales-credit-command.v1:${client}:${client}:${invoice}:${reviewer}`;
+    expect(sessionStorage.getItem(key)).not.toContain('Correct the evidence reference');
+    const { c } = setup(reviewer, false);
+    expect(c.pending()?.body).toBeNull(); expect(c.reviewReason).toBe(''); expect(c.assent()).toBe(false);
+    http.expectOne(`${base}/sales-credit-note-requests/${body['commandId']}?kind=REVIEW`).flush(creditReceipt(body, 'REVIEW', reviewer));
+    expect(c.receipt()?.outcome).toBe('RETURNED'); c.acknowledgeOutcome(); http.expectOne(creditBase).flush([]);
+    expect(c.pending()).toBeNull(); expect(sessionStorage.getItem(key)).toBeNull();
   });
 });
