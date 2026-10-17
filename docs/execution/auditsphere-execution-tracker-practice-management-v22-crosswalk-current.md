@@ -240,7 +240,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `FIN-04` | FIN | NOT_REVERIFIED |
 | `FIN-05` | FIN | NOT_REVERIFIED |
 | `FIN-06` | FIN | PARTIAL: balanced ledger/monthly P&L focused regression passes including date boundaries; full acceptance remains |
-| `FIN-07` | FIN | NOT_REVERIFIED |
+| `FIN-07` | FIN | PARTIAL: monthly size boundary verified; broader currency/export acceptance remains |
 | `FIN-08` | FIN | NOT_REVERIFIED |
 | `ACC-01` | ACC | NOT_REVERIFIED |
 | `ACC-02` | ACC | NOT_REVERIFIED |
@@ -348,3 +348,7 @@ Board/calendar cards now retain the FSLI, full mapping identity, PBC navigation,
 Existing firm reporting derives operating revenue/expense from posted firm ledger lines, excludes year-end closing/opening activity from monthly P&L and uses a nullable prior-year comparator when that period is absent. Valid year-0001 and December-9999 periods exposed date arithmetic exceptions. The projection now omits the nonexistent prior year and stops before advancing past its last month. The existing balanced-expense/ledger regression covers both supported boundaries without changing normal-period arithmetic. FIN-06 full acceptance and production data remain separate.
 
 Verification: the existing balanced-expense/ledger/monthly-P&L regression passed with both supported date boundaries. No full local suite, schema, API contract, client ledger or production data change. FIN-03 ageing source and its as-of regression were inspected but not rerun in this slice; that inspection alone is not criterion acceptance.
+
+### FIN-07 monthly report size contract
+
+The UI decoder accepts at most 1,200 monthly P&L rows. The backend now checks the actual first-to-last stored reporting month span before materializing activity and returns `finance.report-limit` above that boundary. Requested dates alone do not trigger refusal: a broad date query with only two stored reporting months still succeeds. Screen and CSV export share the same query. No partial/truncated financial report is returned. The existing ledger regression checks exactly 1,200 months, 1,201 months and an oversized stored span. The existing focused ledger regression passed with all boundary assertions; broader FIN-07 source/export and browser-error acceptance remain open.

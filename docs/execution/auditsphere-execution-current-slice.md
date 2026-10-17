@@ -21,7 +21,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Firm monthly date boundaries
 
-Monthly P&L safely handles supported year-0001 and December-9999 periods, preserving null missing comparatives. The existing balanced-ledger regression passes; full acceptance remains open. Exact results are in the execution ledger.
+Monthly P&L safely handles supported year-0001 and December-9999 periods, preserving null missing comparatives. Monthly series above the existing 1,200-row UI boundary are refused before activity calculation. The existing balanced-ledger regression passes; full acceptance remains open. Exact results are in the execution ledger.
 
 ## Task queue source lineage
 

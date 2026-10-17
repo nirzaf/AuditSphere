@@ -2017,7 +2017,8 @@
       "WF-03",
       "WF-06",
       "FIN-03",
-      "FIN-06"
+      "FIN-06",
+      "FIN-07"
     ],
     "lastTechnicalSlice": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
     "advanceCashGate": {
@@ -2053,7 +2054,7 @@
       "passed": 1,
       "failed": 0,
       "skipped": 0,
-      "scope": "Balanced expense/posted ledger/monthly P&L plus supported 0001-01 and 9999-12 report boundaries; missing prior year remains null.",
+      "scope": "Balanced ledger/P&L, 0001-01/9999-12, exactly 1200 months accepted, 1201 and oversized stored spans refused; broad queries with small stored spans pass.",
       "environment": "Isolated PostgreSQL test schema; Release test build. No production database, UI or contract changes. Full regression deferred to CI."
     }
   }

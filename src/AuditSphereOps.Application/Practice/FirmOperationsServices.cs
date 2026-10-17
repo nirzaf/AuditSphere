@@ -667,6 +667,7 @@ public static class FirmExpenseService
   /// </summary>
   public const int TrialBalanceActivityPageSize = 100;
   public const int MaxTrialBalanceExportActivityRows = 5000;
+  public const int MaxMonthlyProfitLossMonths = 1200;
 
   public static async Task<CommandResult<FirmTrialBalanceView>> TrialBalanceAsync(IClientAccountingDbContext db, ActorContext actor,
     string fromPeriod, string toPeriod, CancellationToken ct = default, int activityPage = 1, bool includeAllActivities = false)
@@ -676,6 +677,19 @@ public static class FirmExpenseService
     var auth = await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers, "Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<FirmTrialBalanceView>.Fail(auth.ErrorCode!, auth.Message!);
     var periods = await db.FirmPeriods.AsNoTracking().Where(x => x.FirmId == actor.FirmId && string.Compare(x.PeriodCode, toPeriod) <= 0).ToListAsync(ct);
+    // Match the existing Angular monthly-series boundary before materializing financial activity.
+    // Wide requested ranges are safe when the actual stored reporting span is small.
+    var reportingPeriods = periods.Where(p => string.CompareOrdinal(p.PeriodCode, fromPeriod) >= 0)
+      .Select(p => p.PeriodCode).OrderBy(code => code, StringComparer.Ordinal).ToArray();
+    if (reportingPeriods.Length > 0)
+    {
+      var firstMonth = DateOnly.ParseExact(reportingPeriods[0] + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
+      var lastMonth = DateOnly.ParseExact(reportingPeriods[^1] + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
+      var monthCount = (lastMonth.Year - firstMonth.Year) * 12 + lastMonth.Month - firstMonth.Month + 1;
+      if (monthCount > MaxMonthlyProfitLossMonths)
+        return CommandResult<FirmTrialBalanceView>.Fail("finance.report-limit",
+          $"The monthly report exceeds {MaxMonthlyProfitLossMonths} months. Choose a narrower period range.");
+    }
     var openingIds = periods.Where(p => string.CompareOrdinal(p.PeriodCode, fromPeriod) < 0).Select(p => p.Id).ToHashSet();
     var periodIds = periods.Select(p => p.Id).ToArray();
     var lines = await (from line in db.FirmPostingLines.AsNoTracking()

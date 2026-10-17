@@ -492,6 +492,18 @@ public sealed partial class FirmOperationsTests
         Assert.Equal(0m, edgeMonth.Profit);
         Assert.Null(edgeMonth.PriorYearProfit);
       }
+      var oversizedSeries = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "0001-01", "9999-12");
+      Assert.False(oversizedSeries.Succeeded);
+      Assert.Equal("finance.report-limit", oversizedSeries.ErrorCode);
+      Assert.Contains("narrower period range", oversizedSeries.Message);
+      foreach (var periodCode in new[] { "1000-01", "1099-12", "1100-01" })
+        db.FirmPeriods.Add(new FirmPeriod { Id = Guid.NewGuid(), FirmId = w.FirmId, PeriodCode = periodCode });
+      await db.SaveChangesAsync();
+      var exactSeriesLimit = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "1000-01", "1099-12");
+      Assert.True(exactSeriesLimit.Succeeded, exactSeriesLimit.Message);
+      Assert.Equal(1200, exactSeriesLimit.Value!.MonthlyProfitLoss.Count);
+      var oneMonthTooMany = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "1000-01", "1100-01");
+      Assert.Equal("finance.report-limit", oneMonthTooMany.ErrorCode);
       var listed = await FirmExpenseService.ListAsync(db, reviewer);
       Assert.All(listed, x => Assert.Equal(FirmExpenseStates.Posted, x.Status));
 
