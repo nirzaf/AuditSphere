@@ -98,9 +98,13 @@ public static class EngagementCompletionWorkspaceQuery
     var opinion = await AuditDeliverableService.CurrentOpinionAsync(db, actor, engagementId, ct);
     // Opinion selection/signing controls are Engagement-Partner capabilities for this engagement;
     // other readers see the current facts without the Partner-only command surface (STE-REM-05, R01/STE).
-    var isEngagementPartner = await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+    var partnerAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId, ["Partner"], InternalOnly: true), ct);
+    var isEngagementPartner = partnerAuth.Succeeded && await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
       x.EngagementId == engagementId && x.UserId == actor.UserId && x.RevokedAt == null &&
-      x.StaffingLevel == Domain.Practice.StaffingLevels.EngagementPartner, ct) && actor.Roles.Contains("Partner");
+      x.StaffingLevel == Domain.Practice.StaffingLevels.EngagementPartner, ct);
+    var releaseAuthority = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId, ["Administrator", "Partner"], InternalOnly: true), ct);
     var opinionTypes = isEngagementPartner ? AuditOpinionTypes.All : [];
     var shared = (await AuditDeliverableService.SharedAsync(db, actor, engagementId, ct)).Select(s => new CompletionShared(s.Title,
       s.Comments.Where(c => c.ResolvedAt is null).Select(c => new CompletionComment(c.Id, c.Body)).ToList())).Where(s => s.OpenComments.Count > 0).ToList();
@@ -109,7 +113,7 @@ public static class EngagementCompletionWorkspaceQuery
     var trail = await EngagementActivityQuery.GetAsync(db, actor, engagementId, ct);
     return CommandResult<EngagementCompletionWorkspace>.Ok(new(engagementId, gates, representations, package?.Id, package?.Status ?? "—", partnerApproved,
       eqr?.Status ?? "NOT_ASSIGNED", candidate?.Id, release,
-      actor.Roles.Any(x => x is "Administrator" or "Partner") && package?.Status == AccountingPackageStates.PackageValidated &&
+      releaseAuthority.Succeeded && package?.Status == AccountingPackageStates.PackageValidated &&
         gates.Where(g => g.Name.StartsWith("Package ", StringComparison.Ordinal)).All(g => g.Status == FinancialPackageReviewDecisions.Approved) && package is not null,
       dashboard.Succeeded ? dashboard.Value! : [], await AuditDeliverableService.ListAsync(db, actor, engagementId, ct),
       clearance is null ? null : new CompletionClearance(clearance.ClearedAt),

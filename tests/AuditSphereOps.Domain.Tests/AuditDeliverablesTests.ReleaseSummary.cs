@@ -1,5 +1,8 @@
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,5 +37,36 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(release.CheckpointReadBackMatchesManifest);
     Assert.True(release.ReleaseMatchesCandidate);
     Assert.Equal(storedRelease.ReleasedAt, release.ReleasedAt);
+  }
+
+  [Fact]
+  public async Task CompletionCapabilitiesRequireCurrentScopedPartnerGrant()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
+      new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var partner = w.U["partner"];
+    var now = DateTimeOffset.UtcNow;
+    await db.RoleGrants.Where(x => x.FirmId == w.FirmId && x.UserId == partner.Id && x.Role == "Partner" && x.RevokedAt == null)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, now));
+    partner = await db.Users.SingleAsync(x => x.Id == partner.Id);
+    partner.SessionEpoch++;
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = partner.Id, Role = "Auditor", GrantedAt = now,
+      GrantedByUserId = partner.Id
+    });
+    await db.SaveChangesAsync();
+
+    // The session has been refreshed, but retains the stale Partner label alongside its valid Auditor read grant.
+    var actor = new ActorContext(partner.Id, w.FirmId, partner.SessionEpoch, ["Partner", "Auditor"]);
+    var workspace = await EngagementCompletionWorkspaceQuery.GetAsync(db, actor, w.EngagementId, now);
+
+    Assert.True(workspace.Succeeded, workspace.Message);
+    Assert.Empty(workspace.Value!.OpinionTypes);
+    Assert.False(workspace.Value.CanPrepareRelease);
   }
 }
