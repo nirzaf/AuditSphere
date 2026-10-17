@@ -277,6 +277,19 @@ public sealed partial class ClientAccountingTests
         new GroupAccessGrant { Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Preparer.Id,
           Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id });
       db.RoleGrants.Add(Grant(scope.FirmId, scope.Preparer, "Partner"));
+      var clientBPartnerGrant = new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = scope.Partner.Id, Role = "Partner",
+        ClientId = scope.ClientB, EngagementId = scope.EngagementB, GrantedAt = DateTimeOffset.UtcNow,
+        GrantedByUserId = scope.Reviewer.Id, Reason = "Synthetic Engagement Partner fixture for client B"
+      };
+      db.RoleGrants.Add(clientBPartnerGrant);
+      db.EngagementStaffAssignments.Add(new EngagementStaffAssignment
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientB, EngagementId = scope.EngagementB,
+        UserId = scope.Partner.Id, StaffingLevel = StaffingLevels.EngagementPartner,
+        RoleGrantId = clientBPartnerGrant.Id, AssignedByUserId = scope.Reviewer.Id, AssignedAt = DateTimeOffset.UtcNow
+      });
       await db.SaveChangesAsync();
 
       rateSetId = (await CurrencyTranslationService.CreateRateSetAsync(db, reviewer,
@@ -488,6 +501,16 @@ public sealed partial class ClientAccountingTests
         Id = Guid.NewGuid(), FirmId = scope.FirmId, GroupId = groupId, UserId = scope.Partner.Id,
         Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id
       });
+      var rateApproverUser = User(scope.FirmId, "gold7-rate-approver");
+      db.Users.Add(rateApproverUser);
+      db.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = rateApproverUser.Id, Role = "Partner",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id,
+        Reason = "Synthetic firm-wide FX policy approval fixture"
+      });
+      await db.SaveChangesAsync();
+      var rateApprover = Actor(rateApproverUser, "Partner");
 
       rateSetId = (await CurrencyTranslationService.CreateRateSetAsync(db, reviewer,
         new ExchangeRateSetRequest("FX-RATES-GOLD7", "Central Bank", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), 1))).Value;
@@ -499,11 +522,11 @@ public sealed partial class ClientAccountingTests
         new ExchangeRateInput("USD", "QAR", rateDate, "HISTORICAL", 3.5m, "DIRECT"))).Succeeded);
       Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
         new ExchangeRateInput("USD", "QAR", rateDate, "AVERAGE", 3.6m, "DIRECT"))).Succeeded);
-      Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, methodOwner, rateSetId)).Succeeded);
+      Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, rateApprover, rateSetId)).Succeeded);
 
       policyId = (await CurrencyTranslationService.CreatePolicyAsync(db, reviewer,
         new TranslationPolicyRequest("FX-POL-GOLD7", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
-      Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
+      Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, rateApprover, policyId)).Succeeded);
 
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
         new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
@@ -625,6 +648,16 @@ public sealed partial class ClientAccountingTests
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "Partner");
     var partner = Actor(scope.Partner, "Partner");
+    var rateApproverUser = User(scope.FirmId, $"rate-approver-{suffix}");
+    db.Users.Add(rateApproverUser);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, UserId = rateApproverUser.Id, Role = "Partner",
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = scope.Reviewer.Id,
+      Reason = "Synthetic firm-wide FX policy approval fixture"
+    });
+    await db.SaveChangesAsync();
+    var rateApprover = Actor(rateApproverUser, "Partner");
 
     var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
       new ClientGroupRequest($"GROUP-{suffix}", $"Consolidation Group for {suffix}"))).Value;
@@ -646,11 +679,11 @@ public sealed partial class ClientAccountingTests
     foreach (var (rateType, rate) in rates)
       Assert.True((await CurrencyTranslationService.AddRateAsync(db, reviewer, rateSetId,
         new ExchangeRateInput("USD", "QAR", rateDate, rateType, rate, "DIRECT"))).Succeeded);
-    Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, partner, rateSetId)).Succeeded);
+    Assert.True((await CurrencyTranslationService.ApproveRateSetAsync(db, rateApprover, rateSetId)).Succeeded);
 
     var policyId = (await CurrencyTranslationService.CreatePolicyAsync(db, reviewer,
       new TranslationPolicyRequest($"FX-POL-{suffix}", functionalCurrency, "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
-    Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, partner, policyId)).Succeeded);
+    Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, rateApprover, policyId)).Succeeded);
 
     var scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
       new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,

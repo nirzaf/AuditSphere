@@ -216,7 +216,7 @@ public sealed partial class ClientAccountingTests
         new(packageId, stage, FinancialPackageReviewDecisions.Approved, mode, "currency-" + stage,
           "Reviewed exact currency composition.", candidate.Value.RevisionId, null,
           composition.Value!.Id, composition.Value.ManifestDigest));
-      Assert.True(decision.Succeeded, decision.Message);
+      Assert.True(decision.Succeeded, $"{stage}: {decision.Message}");
     }
     Assert.True((await FinancialPackageReviewService.RequireCurrentAsync(db, Actor(scope.Partner, "Partner"), packageId, true)).Succeeded);
     var decisions = await db.FinancialPackageReviewDecisions.AsNoTracking().Where(x => x.FinancialPackageId == packageId).ToListAsync();
