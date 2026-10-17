@@ -55,10 +55,27 @@ const samplingPreviewDecoder = obj({ previewDigest: text, sourceDigest: text, ou
     cumulativeAbsoluteAmount: dec }), 100000),
   strata: nullable(arr(obj({ stratumKey: text, populationCount: nat, slots: nat, selectedCount: nat }), 10000)) }) });
 export const decodeProcedureReview = obj({ procedureId: guid,
-  currentResult: nullable(obj({ id: guid, revision: nat, workPerformed: text, conclusion: nullable(text) })),
+  currentResult: nullable(obj({ id: guid, revision: nat, workPerformed: text, conclusion: nullable(text),
+    submittedEvidenceJson: nullable(text), evidenceDigest: nullable(text), evidenceReferencesJson: nullable(text) })),
   notes: arr(obj({ noteId: guid, resultRevision: nat, field: text, excerpt: text, startOffset: int, body: text, authorName: text, createdAt: instant, open: bool,
     events: arr(obj({ id: guid, kind: text, body: text, createdAt: instant }), 500) }), 500),
-  evidence: arr(obj({ linkId: guid, uploadIntentId: guid, fileName: text, contentSha256: text, note: nullable(text), linkedAt: instant }), 1000) });
+  evidence: arr(obj({ linkId: guid, uploadIntentId: guid, fileName: text, contentSha256: text, note: nullable(text), linkedAt: instant }), 1000),
+  physicalEvidence: arr(obj({ linkId: guid, itemId: guid, fileIndex: text, boxReference: text, description: text,
+    currentLocation: text, linkedAt: instant }), 1000) });
+const procedureCommandBasis = obj({ procedureId: guid, sourceProcedureId: text, title: text, applicabilityStatus: text,
+  procedureStatus: text, definitionRevision: nat, inputGeneration: nat, currentResultRevision: nat,
+  latestResultId: nullable(guid), latestResultRevision: nat, latestResultStatus: nullable(text),
+  latestReviewId: nullable(guid), latestReviewDecision: nullable(text), canSubmit: bool, canReview: bool,
+  blockers: arr(text, 100) });
+export const decodeProcedureCommandState = obj({ basis: procedureCommandBasis, stateHash: text });
+export const decodeProcedureCommandPreview = obj({ requestId: guid, requestHash: text, action: text,
+  basis: procedureCommandBasis, canProceed: bool, blockers: arr(text, 100) });
+export const decodeProcedureCommandReceipt = obj({ id: guid, procedureId: guid, sourceProcedureId: text, action: text,
+  actorUserId: guid, actorEpoch: nat, requestId: guid, requestHash: text, definitionRevision: nat,
+  inputGeneration: nat, expectedResultRevision: nat, resultId: nullable(guid), workpaperId: nullable(guid),
+  reviewId: nullable(guid), resultRevision: nat, resultStatus: nullable(text), decision: nullable(text),
+  evidenceDigest: nullable(text), committedAt: instant });
+export const decodeProcedureCommandLookup = obj({ found: bool, receipt: nullable(decodeProcedureCommandReceipt) });
 type Fieldwork = ReturnType<typeof decodeFieldwork>;
 type SamplingPreview = ReturnType<typeof samplingPreviewDecoder>;
 export const decodeSampleSet = obj({ selectionId: guid, procedureId: guid, method: text, rationale: text, status: text,
@@ -488,6 +505,9 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
                   @if (p.applicabilityStatus === 'NA_UNVERIFIED') {
                     <p role="status">Historical N/A is unverified against current proposal, Partner and input evidence.</p>
                   }
+                  @if (w.canManageFieldwork || w.canViewReviewNotes) {
+                    <button matButton (click)="openProcedure(p)">Open procedure</button>
+                  }
                   @if (p.applicabilityHistory?.length) {
                     <details><summary>Applicability history (latest 20)</summary>
                       @for (decision of p.applicabilityHistory; track decision.id) {
@@ -498,6 +518,92 @@ export function focusRisks<T extends { destinationCode: string | null }>(risks: 
                 </td></tr> }</tbody>
           </table></div>
         </section>
+
+        @if (procedureSelectedId()) {
+          <section class="panel" aria-labelledby="procedure-command-heading">
+            <h2 id="procedure-command-heading">Procedure execution and review</h2>
+            @if (procedureCommandState(); as state) {
+              <p><strong>{{ state.basis.sourceProcedureId }} · {{ state.basis.title }}</strong></p>
+              <p>Applicability {{ state.basis.applicabilityStatus }} · procedure {{ state.basis.procedureStatus }} · definition revision {{ state.basis.definitionRevision }} · input generation {{ state.basis.inputGeneration }}</p>
+              @if (selectedProcedure(w); as selected) {
+                <details><summary>Source and effective instructions</summary>
+                  <p><strong>Original source:</strong> {{ selected.originalWording ?? 'Retained ad-hoc wording only.' }}</p>
+                  <p><strong>Effective instructions:</strong> {{ selected.effectiveWording ?? selected.title }}</p>
+                  <p><strong>Definition provenance:</strong> {{ selected.definitionProvenance }}{{ selected.definitionRevision ? ' · revision ' + selected.definitionRevision : '' }}</p>
+                </details>
+              }
+              @if (state.basis.blockers.length) {
+                <div role="alert" class="error"><p>Current blockers:</p><ul>@for (b of state.basis.blockers; track b) { <li>{{ b }}</li> }</ul></div>
+              }
+              @if (review(); as r) {
+                @if (r.currentResult; as result) {
+                  <div class="facts"><h3>Frozen submitted result</h3>
+                    <p><strong>Work performed:</strong> {{ result.workPerformed }}</p>
+                    <p><strong>Conclusion:</strong> {{ result.conclusion }}</p>
+                    <p><strong>Evidence digest:</strong> <code>{{ result.evidenceDigest ?? 'legacy/unverified' }}</code></p>
+                    @if (result.submittedEvidenceJson) { <details><summary>Evidence snapshot considered at submission</summary><pre>{{ result.submittedEvidenceJson }}</pre></details> }
+                    @if (r.evidence.length || r.physicalEvidence.length) {
+                      <details><summary>Current linked evidence (not the submitted snapshot)</summary>
+                        @for (e of r.evidence; track e.linkId) { <p>{{ e.fileName }} · {{ e.contentSha256 }}</p> }
+                        @for (phys of r.physicalEvidence; track phys.linkId) { <p>{{ phys.fileIndex }} · {{ phys.boxReference }} · {{ phys.currentLocation }}</p> }
+                      </details>
+                    }
+                  </div>
+                }
+              }
+              @if (state.basis.canSubmit) {
+                <form (submit)="$event.preventDefault(); prepareProcedureCommand('SUBMIT_RESULT')">
+                  <h3>Record performed work</h3>
+                  <label>Work performed <textarea name="procedure-work" [(ngModel)]="procedureWork" (ngModelChange)="procedureInputChanged()" maxlength="100000" rows="4" required></textarea></label>
+                  <label>Conclusion <textarea name="procedure-conclusion" [(ngModel)]="procedureConclusion" (ngModelChange)="procedureInputChanged()" maxlength="20000" rows="3" required></textarea></label>
+                  <fieldset><legend>Evidence actually considered</legend>
+                    @if (!(review()?.evidence?.length) && !(review()?.physicalEvidence?.length)) { <p>Link received PBC evidence or a physical file in the evidence controls first, or record a complete manual reference below.</p> }
+                    @for (e of review()?.evidence ?? []; track e.linkId) {
+                      <label><input type="checkbox" [checked]="procedureSelectedLinks.has(e.linkId)" (change)="toggleProcedureLink(e.linkId, $any($event.target).checked)" /> {{ e.fileName }} · {{ e.contentSha256 }}</label>
+                    }
+                    @for (phys of review()?.physicalEvidence ?? []; track phys.linkId) {
+                      <label><input type="checkbox" [checked]="procedureSelectedPhysical.has(phys.linkId)" (change)="toggleProcedurePhysical(phys.linkId, $any($event.target).checked)" /> {{ phys.fileIndex }} · {{ phys.boxReference }} · {{ phys.currentLocation }}</label>
+                    }
+                    <label>Manual reference <input name="manual-reference" [(ngModel)]="procedureManualReference" (ngModelChange)="procedureInputChanged()" maxlength="500" /></label>
+                    <label>What was observed <textarea name="manual-observation" [(ngModel)]="procedureObservation" (ngModelChange)="procedureInputChanged()" maxlength="4000" rows="3"></textarea></label>
+                    <label>Legacy free-text references (one per line) <textarea name="legacy-references" [(ngModel)]="procedureLegacyReferences" (ngModelChange)="procedureInputChanged()" rows="2"></textarea></label>
+                  </fieldset>
+                  <button matButton="filled" type="submit" [disabled]="procedureCommandBusy() || !procedureWork.trim() || !procedureConclusion.trim()">Preview exact submission</button>
+                </form>
+              }
+              @if (state.basis.canReview) {
+                <section aria-labelledby="procedure-review-action-heading">
+                  <h3 id="procedure-review-action-heading">Independent review</h3>
+                  @if (review()?.currentResult; as result) { <p>Reviewing result revision {{ result.revision }}. The submitted snapshot above is the evidence considered.</p> }
+                  <label>Decision <select name="procedure-decision" [(ngModel)]="procedureDecision" (ngModelChange)="procedureInputChanged()">
+                    <option value="REVIEWED">Reviewed</option><option value="CHANGES_REQUIRED">Changes required</option></select></label>
+                  <label>Review comment (required when returning) <textarea name="procedure-comment" [(ngModel)]="procedureComment" (ngModelChange)="procedureInputChanged()" maxlength="20000" rows="3"></textarea></label>
+                  <button matButton="filled" (click)="prepareProcedureCommand('REVIEW_RESULT')" [disabled]="procedureCommandBusy() || (procedureDecision === 'CHANGES_REQUIRED' && !procedureComment.trim())">Preview exact review</button>
+                </section>
+              }
+              @if (procedureCommandPreview(); as preview) {
+                <section class="panel" aria-labelledby="procedure-preview-heading">
+                  <h3 id="procedure-preview-heading">Exact command preview</h3>
+                  <p>{{ preview.action === 'SUBMIT_RESULT' ? 'Submit this exact work and evidence snapshot.' : 'Record this exact independent review.' }}</p>
+                  <p>Request SHA-256 <code>{{ preview.requestHash }}</code></p>
+                  <p>Basis: definition revision {{ preview.basis.definitionRevision }} · input generation {{ preview.basis.inputGeneration }} · current result revision {{ preview.basis.currentResultRevision }}</p>
+                  @if (preview.blockers.length) { <ul role="alert">@for (b of preview.blockers; track b) { <li>{{ b }}</li> }</ul> }
+                  <label><input type="checkbox" [(ngModel)]="procedureAssent" /> I reviewed this exact procedure, work, evidence and basis.</label>
+                  <button matButton="filled" (click)="executeProcedureCommand()" [disabled]="procedureCommandBusy() || !procedureAssent || !preview.canProceed">Record exact outcome</button>
+                </section>
+              }
+              @if (procedureCommandReceipt(); as receipt) {
+                <p role="status">Recorded {{ receipt.action }} · request <code>{{ receipt.requestId }}</code> · result revision {{ receipt.resultRevision }} · {{ receipt.committedAt | date:'medium' }}{{ receipt.evidenceDigest ? ' · evidence ' + receipt.evidenceDigest : '' }}</p>
+              }
+              @if (procedureUnknown(); as pending) {
+                <p role="alert">The outcome is unknown. Keep request <code>{{ pending.requestId }}</code> and check the retained receipt; do not resend a new identity.</p>
+                <button matButton (click)="recoverProcedureCommand()" [disabled]="procedureCommandBusy()">Check original outcome</button>
+              }
+              @if (procedureCommandError()) { <p role="alert" class="error-text">{{ procedureCommandError() }}</p> }
+            } @else if (procedureCommandBusy()) { <p role="status">Loading exact procedure state…</p> }
+            @else { <p role="alert">{{ procedureCommandError() || 'Procedure command state is unavailable.' }}</p> }
+          </section>
+        }
       }
       }
     }
@@ -529,6 +635,24 @@ export class AuditFieldwork {
   readonly toolTab = signal(0);
   readonly review = signal<ReturnType<typeof decodeProcedureReview> | null>(null);
   readonly reviewError = signal('');
+  readonly procedureSelectedId = signal('');
+  readonly procedureCommandState = signal<ReturnType<typeof decodeProcedureCommandState> | null>(null);
+  readonly procedureCommandPreview = signal<ReturnType<typeof decodeProcedureCommandPreview> | null>(null);
+  readonly procedureCommandReceipt = signal<ReturnType<typeof decodeProcedureCommandReceipt> | null>(null);
+  readonly procedureCommandError = signal('');
+  readonly procedureCommandBusy = signal(false);
+  readonly procedureUnknown = signal<{ requestId: string; requestHash: string } | null>(null);
+  procedureWork = '';
+  procedureConclusion = '';
+  procedureDecision = 'REVIEWED';
+  procedureComment = '';
+  procedureManualReference = '';
+  procedureObservation = '';
+  procedureLegacyReferences = '';
+  procedureAssent = false;
+  procedureSelectedLinks = new Set<string>();
+  procedureSelectedPhysical = new Set<string>();
+  private procedurePendingRequest: Record<string, unknown> | null = null;
   private reviewRequest = 0;
   private reviewDestroyed = false;
   private readonly reviewLifetime = inject(DestroyRef);
@@ -868,6 +992,143 @@ export class AuditFieldwork {
       this.review.set(review);
     } catch (e) { if (current()) this.reviewError.set((e as Error).message); }
   }
+
+  async openProcedure(procedure: ReturnType<typeof decodeFieldwork>['procedures'][number]): Promise<void> {
+    this.e.procedure = procedure.id;
+    this.procedureSelectedId.set(procedure.id);
+    this.procedureCommandState.set(null);
+    this.procedureCommandPreview.set(null);
+    this.procedureCommandReceipt.set(null);
+    this.procedureCommandError.set('');
+    this.procedureUnknown.set(null);
+    this.procedureAssent = false;
+    this.procedureWork = '';
+    this.procedureConclusion = '';
+    this.procedureDecision = 'REVIEWED';
+    this.procedureComment = '';
+    this.procedureManualReference = '';
+    this.procedureObservation = '';
+    this.procedureLegacyReferences = '';
+    this.procedureSelectedLinks.clear();
+    this.procedureSelectedPhysical.clear();
+    this.procedurePendingRequest = null;
+    await this.loadProcedureCommandState(procedure.id);
+    await this.selectProcedure(procedure.id);
+  }
+  selectedProcedure(w: Fieldwork) { return w.procedures.find(p => p.id === this.procedureSelectedId()); }
+  procedureInputChanged(): void {
+    this.procedureCommandPreview.set(null);
+    this.procedureAssent = false;
+    this.procedurePendingRequest = null;
+  }
+  toggleProcedureLink(linkId: string, checked: boolean): void {
+    if (checked) this.procedureSelectedLinks.add(linkId); else this.procedureSelectedLinks.delete(linkId);
+    this.procedureInputChanged();
+  }
+  toggleProcedurePhysical(linkId: string, checked: boolean): void {
+    if (checked) this.procedureSelectedPhysical.add(linkId); else this.procedureSelectedPhysical.delete(linkId);
+    this.procedureInputChanged();
+  }
+  private async loadProcedureCommandState(procedureId: string): Promise<void> {
+    try {
+      const state = await this.api.get(`/api/ui/procedures/${procedureId}/commands/state`, decodeProcedureCommandState);
+      if (this.procedureSelectedId() === procedureId) this.procedureCommandState.set(state);
+    } catch (e) {
+      if (this.procedureSelectedId() === procedureId) this.procedureCommandError.set((e as Error).message);
+    }
+  }
+  private procedureEvidenceSelections(): unknown[] {
+    const selections: Record<string, unknown>[] = [];
+    for (const linkId of this.procedureSelectedLinks) selections.push({ kind: 'STORED_LINK', linkId });
+    for (const physicalLinkId of this.procedureSelectedPhysical) selections.push({ kind: 'PHYSICAL_LINK', physicalLinkId });
+    if (this.procedureManualReference.trim() || this.procedureObservation.trim())
+      selections.push({ kind: 'MANUAL_REFERENCE', manualReference: this.procedureManualReference.trim(),
+        observation: this.procedureObservation.trim() });
+    return selections;
+  }
+  private procedureActionRequest(action: string): Record<string, unknown> | null {
+    const state = this.procedureCommandState();
+    if (!state) return null;
+    const basis = state.basis, review = action === 'REVIEW_RESULT';
+    return {
+      requestId: globalThis.crypto.randomUUID(), action,
+      expectedDefinitionRevision: basis.definitionRevision, expectedInputGeneration: basis.inputGeneration,
+      expectedResultRevision: review ? basis.latestResultRevision : basis.currentResultRevision,
+      resultId: review ? basis.latestResultId : null,
+      workPerformed: review ? null : this.procedureWork.trim(),
+      structuredResultJson: review ? null : '{}',
+      evidenceReferences: review ? null : this.procedureLegacyReferences.split('\n').map(x => x.trim()).filter(x => x),
+      conclusion: review ? null : this.procedureConclusion.trim(),
+      decision: review ? this.procedureDecision : null,
+      comment: review ? (this.procedureComment.trim() || null) : null,
+      evidenceSelections: review ? null : this.procedureEvidenceSelections(),
+      reviewed: false, expectedRequestHash: null,
+    };
+  }
+  async prepareProcedureCommand(action: string): Promise<void> {
+    const procedureId = this.procedureSelectedId();
+    if (!procedureId || this.procedureCommandBusy()) return;
+    const request = this.procedureActionRequest(action);
+    if (!request) return;
+    this.procedureCommandBusy.set(true);
+    this.procedureCommandError.set('');
+    this.procedureCommandPreview.set(null);
+    this.procedureAssent = false;
+    try {
+      const outcome = await this.api.command(`/api/ui/procedures/${procedureId}/commands/preview`, request);
+      if (!outcome.ok) { this.procedurePendingRequest = null; this.procedureCommandError.set(outcome.message); return; }
+      this.procedurePendingRequest = request;
+      this.procedureCommandPreview.set(decode(decodeProcedureCommandPreview, outcome.value));
+    } catch {
+      this.procedureCommandError.set('The procedure command preview could not be verified. Refresh and review again.');
+    } finally { this.procedureCommandBusy.set(false); }
+  }
+  async executeProcedureCommand(): Promise<void> {
+    const procedureId = this.procedureSelectedId(), preview = this.procedureCommandPreview(), request = this.procedurePendingRequest;
+    if (!procedureId || !preview || !request || !this.procedureAssent || this.procedureCommandBusy()) return;
+    this.procedureCommandBusy.set(true);
+    this.procedureCommandError.set('');
+    try {
+      const outcome = await this.api.command(`/api/ui/procedures/${procedureId}/commands/actions`,
+        { ...request, reviewed: true, expectedRequestHash: preview.requestHash });
+      if (outcome.ok) {
+        this.procedureCommandReceipt.set(decode(decodeProcedureCommandReceipt, outcome.value));
+        this.procedureCommandPreview.set(null);
+        this.procedureAssent = false;
+        this.procedurePendingRequest = null;
+        this.ws.reload();
+        await this.loadProcedureCommandState(procedureId);
+        await this.selectProcedure(procedureId);
+      } else if (outcome.unknown) {
+        this.procedureUnknown.set({ requestId: request['requestId'] as string, requestHash: preview.requestHash });
+        this.procedureCommandError.set(outcome.message);
+      } else {
+        this.procedureCommandError.set(outcome.message);
+      }
+    } catch {
+      this.procedureCommandError.set('The outcome could not be verified. Retain the request identity and recover it before retrying.');
+    } finally { this.procedureCommandBusy.set(false); }
+  }
+  async recoverProcedureCommand(): Promise<void> {
+    const procedureId = this.procedureSelectedId(), pending = this.procedureUnknown();
+    if (!procedureId || !pending) return;
+    this.procedureCommandBusy.set(true);
+    this.procedureCommandError.set('');
+    try {
+      const lookup = await this.api.get(`/api/ui/procedures/${procedureId}/commands/receipts/${pending.requestId}?requestHash=${pending.requestHash}`, decodeProcedureCommandLookup);
+      if (lookup.found && lookup.receipt) {
+        this.procedureCommandReceipt.set(lookup.receipt);
+        this.procedureUnknown.set(null);
+        this.ws.reload();
+        await this.loadProcedureCommandState(procedureId);
+        await this.selectProcedure(procedureId);
+      } else {
+        this.procedureCommandError.set('The original outcome is not retained yet. Do not resend a new identity; refresh and reconcile persisted state.');
+      }
+    } catch (e) { this.procedureCommandError.set((e as Error).message); }
+    finally { this.procedureCommandBusy.set(false); }
+  }
+
   private refreshReview = () => { void this.selectProcedure(this.e.procedure); };
   linkEvidence(): void {
     if (!this.e.procedure || !this.e.upload) return this.invalid('Choose a procedure and a received upload.');

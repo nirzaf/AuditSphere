@@ -40,7 +40,10 @@ public sealed record AuditFieldworkWorkspace(Guid EngagementId, int CatalogProce
   bool CanReviewSelections, bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
 public sealed record FieldworkResultView(Guid Id, long Revision, string WorkPerformed, string? Conclusion,
   string? SubmittedEvidenceJson = null, string? EvidenceDigest = null, string? EvidenceReferencesJson = null);
-public sealed record ProcedureReviewWorkspace(Guid ProcedureId, FieldworkResultView? CurrentResult, IReadOnlyList<ReviewNoteView> Notes, IReadOnlyList<ProcedureEvidenceView> Evidence);
+public sealed record PhysicalEvidenceLinkView(Guid LinkId, Guid ItemId, string FileIndex, string BoxReference,
+  string Description, string CurrentLocation, DateTimeOffset LinkedAt);
+public sealed record ProcedureReviewWorkspace(Guid ProcedureId, FieldworkResultView? CurrentResult, IReadOnlyList<ReviewNoteView> Notes,
+  IReadOnlyList<ProcedureEvidenceView> Evidence, IReadOnlyList<PhysicalEvidenceLinkView> PhysicalEvidence);
 
 /// <summary>
 /// Engagement-scoped fieldwork control-center projection (programme coverage, differences, sampling log, evidence
@@ -264,8 +267,16 @@ public static class AuditFieldworkWorkspaceQuery
     var result = resultRow is null ? null : new FieldworkResultView(resultRow.Id, resultRow.Revision, resultRow.WorkPerformed,
       resultRow.Conclusion, AuditProgramService.SubmittedEvidence(resultRow.StructuredResultJson),
       AuditProgramService.SubmittedEvidenceDigest(resultRow.StructuredResultJson), resultRow.EvidenceReferencesJson);
+    var physical = await (from link in db.ProcedurePhysicalLinks.AsNoTracking()
+      join item in db.PhysicalEvidenceItems.AsNoTracking()
+        on new { link.FirmId, link.ClientId, link.EngagementId, Id = link.PhysicalEvidenceItemId }
+        equals new { item.FirmId, item.ClientId, item.EngagementId, item.Id }
+      where link.FirmId == actor.FirmId && link.ProcedureId == procedureId
+      orderby link.LinkedAt
+      select new PhysicalEvidenceLinkView(link.Id, item.Id, item.FileIndex, item.BoxReference, item.Description,
+        item.CurrentLocation, link.LinkedAt)).ToListAsync(ct);
     return CommandResult<ProcedureReviewWorkspace>.Ok(new(procedureId, result, await ReviewNotesService.ListAsync(db, actor, procedureId, ct),
-      await AuditFieldworkService.ProcedureEvidenceAsync(db, actor, procedureId, ct)));
+      await AuditFieldworkService.ProcedureEvidenceAsync(db, actor, procedureId, ct), physical));
   }
 
   public static Task<CommandResult<EngagementAuditProgramResult>> AdoptPublishedAsync(

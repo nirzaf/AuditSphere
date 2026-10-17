@@ -6,7 +6,7 @@ import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { TabDrafts } from '../../core/tab-drafts';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AuditFieldwork, decodeFieldwork, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, focusRisks } from './fieldwork';
+import { AuditFieldwork, decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, focusRisks } from './fieldwork';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -223,6 +223,7 @@ describe('Audit Fieldwork Contracts', () => {
           linkedAt: '2026-10-02T09:00:00Z',
         },
       ],
+      physicalEvidence: [],
     };
 
     const decoded = decodeProcedureReview(raw, 'procedureReview');
@@ -232,6 +233,26 @@ describe('Audit Fieldwork Contracts', () => {
     expect(decoded.notes[0].open).toBe(true);
     expect(decoded.notes[0].events.length).toBe(1);
     expect(decoded.evidence[0].fileName).toBe('sales_listing.xlsx');
+  });
+
+  it('decodes exact procedure command state, preview, receipt and lookup', () => {
+    const basis = { procedureId: id2, sourceProcedureId: 'AWP-08-01', title: 'Cash confirmation', applicabilityStatus: 'APPLICABLE',
+      procedureStatus: 'IN_PROGRESS', definitionRevision: 1, inputGeneration: 2, currentResultRevision: 0,
+      latestResultId: null, latestResultRevision: 0, latestResultStatus: null, latestReviewId: null,
+      latestReviewDecision: null, canSubmit: true, canReview: false, blockers: [] };
+    const state = decodeProcedureCommandState({ basis, stateHash: hash64 }, 'state');
+    expect(state.basis.definitionRevision).toBe(1);
+    const preview = decodeProcedureCommandPreview({ requestId: id1, requestHash: hash64, action: 'SUBMIT_RESULT',
+      basis, canProceed: true, blockers: [] }, 'preview');
+    expect(preview.action).toBe('SUBMIT_RESULT');
+    const receipt = decodeProcedureCommandReceipt({ id: id3, procedureId: id2, sourceProcedureId: 'AWP-08-01',
+      action: 'SUBMIT_RESULT', actorUserId: id1, actorEpoch: 1, requestId: id1, requestHash: hash64,
+      definitionRevision: 1, inputGeneration: 2, expectedResultRevision: 0, resultId: id2, workpaperId: id3,
+      reviewId: null, resultRevision: 1, resultStatus: 'SUBMITTED', decision: null, evidenceDigest: hash64,
+      committedAt: '2026-10-02T09:00:00Z' }, 'receipt');
+    expect(receipt.resultRevision).toBe(1);
+    const lookup = decodeProcedureCommandLookup({ found: true, receipt }, 'lookup');
+    expect(lookup.receipt?.evidenceDigest).toBe(hash64);
   });
 
   it('rejects invalid fieldwork payloads', () => {
@@ -265,6 +286,81 @@ describe('statement focus (STE-NXT-013)', () => {
   });
 });
 
+
+
+describe('Procedure execution and review workspace', () => {
+  afterEach(() => TestBed.resetTestingModule());
+  const basis = { procedureId: id2, sourceProcedureId: 'AWP-08-01', title: 'Cash confirmation',
+    applicabilityStatus: 'APPLICABLE', procedureStatus: 'IN_PROGRESS', definitionRevision: 1,
+    inputGeneration: 2, currentResultRevision: 0, latestResultId: null, latestResultRevision: 0,
+    latestResultStatus: null, latestReviewId: null, latestReviewDecision: null, canSubmit: true,
+    canReview: false, blockers: [] };
+  const state = { basis, stateHash: hash64 };
+  const preview = { requestId: id1, requestHash: hash64, action: 'SUBMIT_RESULT', basis, canProceed: true, blockers: [] };
+  const receipt = { id: id3, procedureId: id2, sourceProcedureId: 'AWP-08-01', action: 'SUBMIT_RESULT',
+    actorUserId: id1, actorEpoch: 1, requestId: id1, requestHash: hash64, definitionRevision: 1,
+    inputGeneration: 2, expectedResultRevision: 0, resultId: id2, workpaperId: id3, reviewId: null,
+    resultRevision: 1, resultStatus: 'SUBMITTED', decision: null, evidenceDigest: hash64,
+    committedAt: '2026-10-02T09:00:00Z' };
+  function open() {
+    const workspace = signal({ engagementId: id1, canManageFieldwork: true, canViewReviewNotes: true, aggregate: null,
+      risks: [], procedures: [{ id: id2, riskId: null }] });
+    const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })),
+      command: vi.fn(), get: vi.fn() };
+    TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api },
+      { provide: SessionService, useValue: { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) } },
+      { provide: TabDrafts, useValue: { readPendingRequest: () => ({ state: 'absent' }) } }, { provide: Router, useValue: { events: new Subject() } },
+      { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
+    const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api };
+  }
+  it('requires preview and fresh assent, then recovers an unknown outcome from its exact receipt', async () => {
+    const { page, workspace, api } = open();
+    api.get.mockResolvedValueOnce(state)
+      .mockResolvedValueOnce({ procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
+    await page.openProcedure(workspace().procedures[0] as Parameters<AuditFieldwork['openProcedure']>[0]);
+    expect(page.procedureCommandState()?.basis.canSubmit).toBe(true);
+
+    page.procedureWork = 'Agreed the bank listing to the ledger.';
+    page.procedureConclusion = 'No exception noted.';
+    api.command.mockImplementationOnce((_url: string, body: unknown) =>
+      ({ ok: true, value: { ...preview, requestId: (body as { requestId: string }).requestId } }));
+    await page.prepareProcedureCommand('SUBMIT_RESULT');
+    expect(page.procedureCommandPreview()?.requestHash).toBe(hash64);
+    const previewRequestId = page.procedureCommandPreview()!.requestId;
+    expect(api.command.mock.calls[0][1]).toMatchObject({ action: 'SUBMIT_RESULT', reviewed: false });
+
+    await page.executeProcedureCommand();
+    expect(api.command).toHaveBeenCalledTimes(1);
+    expect(page.procedureCommandReceipt()).toBeNull();
+
+    page.procedureAssent = true;
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', message: 'unknown', status: 0 });
+    await page.executeProcedureCommand();
+    expect(api.command).toHaveBeenCalledTimes(2);
+    expect(api.command.mock.calls[1][1]).toMatchObject({ reviewed: true, expectedRequestHash: hash64 });
+    expect(page.procedureUnknown()?.requestId).toBe(previewRequestId);
+
+    api.get.mockResolvedValueOnce({ found: true, receipt });
+    await page.recoverProcedureCommand();
+    expect(page.procedureCommandReceipt()?.id).toBe(receipt.id);
+    expect(page.procedureUnknown()).toBeNull();
+  });
+  it('clears the preview when material inputs change after preview', async () => {
+    const { page, workspace, api } = open();
+    api.get.mockResolvedValueOnce(state)
+      .mockResolvedValueOnce({ procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
+    await page.openProcedure(workspace().procedures[0] as Parameters<AuditFieldwork['openProcedure']>[0]);
+    page.procedureWork = 'Work.';
+    page.procedureConclusion = 'Conclusion.';
+    api.command.mockResolvedValueOnce({ ok: true, value: preview });
+    await page.prepareProcedureCommand('SUBMIT_RESULT');
+    page.procedureAssent = true;
+    page.procedureConclusion = 'Changed conclusion.';
+    page.procedureInputChanged();
+    expect(page.procedureCommandPreview()).toBeNull();
+    expect(page.procedureAssent).toBe(false);
+  });
+});
 
 describe('Procedure risk link reviewed preparation', () => {
   afterEach(() => TestBed.resetTestingModule());
