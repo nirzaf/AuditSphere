@@ -229,9 +229,13 @@ describe('Invoice exact read and allocation pagination', () => {
 
     c.termsReviewForm.patchValue({ reason: 'Verified exact terms.', reviewed: true });
     expect(c.termsReviewForm.controls.reviewed.value).toBe(true);
+    c.termsForm.patchValue({ dueDate: '2026-12-31', basis: 'CONTRACTUAL_DUE_DATE', termsDescription: 'NET 30',
+      evidenceReference: 'ENGAGEMENT-REV-1', reviewed: true });
     c.invoice.reload(); TestBed.tick();
     http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush({ ...payload, paymentTerms: [{ ...payload.paymentTerms[0], id: id(402), revision: 2 }] }); TestBed.tick();
     expect(c.termsReviewForm.controls.reviewed.value).toBe(false);
     expect(c.termsReviewForm.controls.reason.value).toBe('');
+    expect(c.termsForm.controls.reviewed.value).toBe(false);
+    expect(c.termsForm.controls.termsDescription.value).toBe('NET 30');
   });
 });

@@ -342,6 +342,7 @@ export class InvoiceDetail {
         const currentTermsRevisionId = current?.paymentTerms[0]?.id ?? '';
         if (currentTermsRevisionId !== this.termsReviewRevisionId) {
           this.termsReviewRevisionId = currentTermsRevisionId;
+          this.termsForm.controls.reviewed.setValue(false);
           this.termsReviewForm.reset({ reason: '', reviewed: false });
         }
         this.allocationPageIndex.set(0);
