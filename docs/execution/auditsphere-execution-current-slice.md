@@ -19,6 +19,12 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Current allocated-cash gate and retained settlement history
+
+Advance-dependent activation, lifecycle, portal eligibility, balance drafting and bundle gates now share a current-settlement predicate. A stored PAID marker alone is insufficient: the invoice must be posted and match client/currency/amount, with sufficient current net cash after approved reversals. Credit-adjusted balance settlement retains its existing policy. Staff reads project the current unpaid state while original paid milestone fields and receipt bytes remain immutable. Settlement publication reacquires the existing firm fence before checking cash and first publishing PAID evidence. No database trigger was weakened.
+
+The focused commercial/reversal/activation cohort and the corrected split-receipt case have incremental passing evidence; exact code identity and limitations are in `status.json` under `completePracticeManagement.advanceCashGate`. Current-source full regression and the browser financial journey remain acceptance work. Continue the complete-product criterion inventory and the original parity backlog; this is not full product acceptance.
+
 ## Complete practice-management inventory and parity regression repair
 
 The supplied complete-product specification is preserved under requirements and linked to the existing PM crosswalk. PMCOMP-00 remains in progress: discovery anchors and explicit unverified rows prevent existing code from being mistaken for completed product acceptance. Current NFR targets and professional/live gates remain open.
@@ -310,17 +316,5 @@ The focused .NET, Angular and owned browser batch passed after correcting synthe
 ## Agent capability evidence and pilot comparison — 2026-10-13
 
 The existing [capability runner](../testing/auditsphere-testing-guide-agent-capability-checks-current.md) maps acceptance to named checks, exposes synthetic actors/states and omitted evidence, parses sanitized assertion/request-ID context, and detects HTML/SCSS/new-file changes. Explicit browser execution builds the current UI first; reports cannot overwrite source or prior evidence. Matching-cohort comparisons retain missing measurements instead of inventing gains. Focused UI/browser, authorization/API and calculator pilots passed; source hashes, the resolved socket-denial attempt and limitations are under `targetedVerification.agentCapabilityRunner` in [status.json](status.json). Comparative productivity measurements, broader release checks and external/professional acceptance remain open.
-
-## Reviewed annual template reference — 2026-10-13
-
-Annual preparation suggests the current published revision of a prior plan’s template. The optional choice is retained in the exact creation preview and immutable receipt, then preselected in the new engagement’s task-plan screen only while current. An archived/superseded reference blocks new creation; the plan still requires separate staffing/schedule review and assent. Prior plans are unchanged. A CI-discovered assessment receipt timestamp mismatch is corrected by returning the persisted row on first publication. Evidence is under `targetedVerification.workflowAnnualTemplateReference` in [status.json](status.json). Nonstandard calendars, populated-mapping browser acceptance and wider workflow/release gates remain open.
-
-## Annual checklist handoff — 2026-10-13
-
-Annual receipts now open the exact new engagement in the existing client assessment. The query confirms client ownership, shows whether a fresh evaluation is needed, and retains parent-client authorization. Opening a continuance review still requires reviewed assent; delta answers start empty and the Partner decision editor fixes the exact engagement and service. Period/revision changes invalidate scoped decision previews under a shared engagement lock. Prior decisions and answers remain history; activation stays separate. Evidence is under `targetedVerification.workflowAnnualChecklistHandoff` in [status.json](status.json). Template preselection, populated-mapping browser acceptance, nonstandard calendars and broader acceptance remain open.
-
-## Annual reference metadata — 2026-10-13
-
-Annual preparation suggests active client contacts valid at the next-period start and approved mappings from the exact prior engagement and period. Accounting metadata requires source-engagement accounting read authority; RelationshipManagers receive a restricted state. References are bounded and never copy allocations, routing, access, consent or approvals. Evidence is under `targetedVerification.workflowAnnualReferenceMetadata` in [status.json](status.json). Fresh-checklist orchestration and broader acceptance remain open.
 
 Earlier workflow analytics, FX and release/rework increment notes are retained verbatim in the [historical current-slice archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).

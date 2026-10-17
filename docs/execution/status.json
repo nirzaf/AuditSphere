@@ -1909,54 +1909,6 @@
       "openApiDrift": "PASS: final emitter matches committed contract",
       "angularBuild": "PASS: existing commercial/settings.scss size warning remains",
       "remainingDisplayLimit": "RESOLVED in T031 working-tree slice: components and readiness use bounded 100-row pages; exact selected-component lookup is independent of current page.",
-      "pagingSlice": {
-        "sourceBase": "8758a8f9a2b8269633079cc861f95052f4fd3ee0",
-        "sourceState": "COMMITTED",
-        "domain": {
-          "result": "PASS",
-          "passed": 4,
-          "failed": 0,
-          "scope": "501 readiness/component records across six pages; exact off-page component lookup; mixed scoped grant denials and firm-wide positive"
-        },
-        "angular": {
-          "result": "PASS",
-          "passed": 62,
-          "files": 4,
-          "scope": "scope workspace, component correction, portal request, financial-package build"
-        },
-        "api": {
-          "result": "PASS",
-          "passed": 12,
-          "scope": "scope paging and OpenAPI contract cohort; separate portal history recheck recorded below"
-        },
-        "portalPackageHistory": {
-          "result": "PASS",
-          "passed": 1
-        },
-        "portalRequestHistory": {
-          "result": "PASS",
-          "passed": 1,
-          "scope": "bounded middle/final pages retain all 31 messages plus request/acknowledgement; foreign request and invalid page denied"
-        },
-        "angularBuild": "PASS; existing commercial settings stylesheet budget warning",
-        "openApiDrift": "PASS",
-        "browser": {
-          "result": "FOCUSED_SMOKE_PASS",
-          "environment": "localhost:5029; auditsphere_browser; external effects disabled",
-          "observed": [
-            "Component and readiness counts/page controls rendered",
-            "Exact selected component retained evidence loaded",
-            "No console warning/error entries"
-          ],
-          "notVerified": [
-            "Multi-page browser fixture",
-            "Full maker/checker workflow",
-            "Responsive acceptance",
-            "Live provider acceptance"
-          ]
-        },
-        "testedCodeCommit": "270c9c9184f942e5b3677dd376018600a1aa64e1"
-      },
       "matchingOptionsSlice": {
         "sourceBase": "270c9c9184f942e5b3677dd376018600a1aa64e1",
         "sourceState": "COMMITTED",
@@ -2035,7 +1987,8 @@
           "ApprovedClientCreditAllocationDerivesBalancesAndSupportsAuditedUnallocation"
         ],
         "notes": "SQL-translatable bounded assignee projection; final portal history continuation asserted; authorized sibling command lookup proves absent/null receipt rather than disclosing foreign intent. No suite skipped or full local run."
-      }
+      },
+      "pagingHistory": "status-archive-2026-10.json: apiAngularParity.localVerification.pagingSlice20261018"
     }
   },
   "completePracticeManagement": {
@@ -2055,8 +2008,29 @@
       "NFR-06",
       "NFR-08",
       "UAT-15",
-      "CRM-03"
+      "CRM-03",
+      "COM-03",
+      "FIN-02",
+      "WF-01",
+      "UX-01"
     ],
-    "lastTechnicalSlice": "3dc3b50cd4a0eb6af59fc3748bf546d83aaff920"
+    "lastTechnicalSlice": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
+    "advanceCashGate": {
+      "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
+      "result": "FOCUSED_INCREMENTAL_PASS",
+      "cohort": {
+        "passed": 5,
+        "failed": 1,
+        "scope": "Commercial fee lifecycle and reversal race; receivables reversal/as-of; four advance activation cases"
+      },
+      "failedCaseRecheck": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "20,000 fee: 4,000 then separate 6,000 receipt allocation; fixture corrected to respect unique receipt/invoice allocation identity"
+      },
+      "evidenceBoundary": "Only the failed test was rerun after its fixture correction. Exact-SHA full regression and browser financial journey remain CI/acceptance work.",
+      "preserved": "Immutable paid milestone, original receipt/paid date and issued receipt bytes; no migration or provider action",
+      "behavior": "Current posted same-client/currency invoice and net cash are required; approved reversals affect current gates; credits cannot satisfy cash advance; settlement publication rechecks under the existing firm fence."
+    }
   }
 }

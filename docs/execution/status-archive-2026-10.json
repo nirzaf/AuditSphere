@@ -15281,7 +15281,7 @@
         "ci": {
           "runId": 39033648749,
           "headSha": "8b0c3303b35f23f9a51360821db20c2eea449c0a",
-          "observed": "CI for 8b0c3303 was superseded/cancelled. Follow-up fa60da52 passed Docs · Health and Angular, but failed .NET Release at OpenAPI contract drift; Task 03 regenerates the contract from the freshly built API."
+          "observed": "CI for 8b0c3303 was superseded/cancelled. Follow-up fa60da52 passed Docs \u00b7 Health and Angular, but failed .NET Release at OpenAPI contract drift; Task 03 regenerates the contract from the freshly built API."
         },
         "builtInBrowser": "NOT RUN: no authenticated local synthetic engagement fixture was available; no deployment was performed.",
         "notDone": [
@@ -18008,6 +18008,54 @@
         "skipped": 0,
         "scope": "Group workflow, readiness boundary, translation/intercompany queries, external components and advanced schedules/execution"
       }
+    },
+    "apiAngularParity.localVerification.pagingSlice20261018": {
+      "sourceBase": "8758a8f9a2b8269633079cc861f95052f4fd3ee0",
+      "sourceState": "COMMITTED",
+      "domain": {
+        "result": "PASS",
+        "passed": 4,
+        "failed": 0,
+        "scope": "501 readiness/component records across six pages; exact off-page component lookup; mixed scoped grant denials and firm-wide positive"
+      },
+      "angular": {
+        "result": "PASS",
+        "passed": 62,
+        "files": 4,
+        "scope": "scope workspace, component correction, portal request, financial-package build"
+      },
+      "api": {
+        "result": "PASS",
+        "passed": 12,
+        "scope": "scope paging and OpenAPI contract cohort; separate portal history recheck recorded below"
+      },
+      "portalPackageHistory": {
+        "result": "PASS",
+        "passed": 1
+      },
+      "portalRequestHistory": {
+        "result": "PASS",
+        "passed": 1,
+        "scope": "bounded middle/final pages retain all 31 messages plus request/acknowledgement; foreign request and invalid page denied"
+      },
+      "angularBuild": "PASS; existing commercial settings stylesheet budget warning",
+      "openApiDrift": "PASS",
+      "browser": {
+        "result": "FOCUSED_SMOKE_PASS",
+        "environment": "localhost:5029; auditsphere_browser; external effects disabled",
+        "observed": [
+          "Component and readiness counts/page controls rendered",
+          "Exact selected component retained evidence loaded",
+          "No console warning/error entries"
+        ],
+        "notVerified": [
+          "Multi-page browser fixture",
+          "Full maker/checker workflow",
+          "Responsive acceptance",
+          "Live provider acceptance"
+        ]
+      },
+      "testedCodeCommit": "270c9c9184f942e5b3677dd376018600a1aa64e1"
     }
   }
 }

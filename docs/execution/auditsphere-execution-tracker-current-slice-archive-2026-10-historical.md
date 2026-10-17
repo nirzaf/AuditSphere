@@ -7271,3 +7271,17 @@ When `WorkflowExperience:Enabled` is true, an authorized `ChangesRequired` revie
 The two focused PostgreSQL regression tests passed 2/2, including the returned-work blocker, stable redaction, linked task, prior-preparer assignment and duplicate-review refusal. The API Release build, Angular production build, EF model-drift check and OpenAPI contract drift check passed; the .NET build emitted two `NU1900` vulnerability-feed warnings because NuGet was unreachable. The built-in browser could not load the local fieldwork route because the local Angular server was no longer listening; the existing local tab reached only the staff sign-in guard. No authenticated browser journey or full suite was run. Exact commands and results are in `status.json` under `targetedVerification.workflowManagerReviewPrF`.
 
 This is a partial workflow increment. The canonical lifecycle stage does not regress to Fieldwork on rework; the summary flag does not change lifecycle gates; procedure-level assignment/resubmission restrictions and task notifications remain open. Queue filters for rework and waiting-for-client, evidence dependency evaluators, Kanban/calendar views, and task-plan authoring remain open. The workflow feature stays default-off; no live or professional acceptance is claimed.
+
+## Annual preparation snapshots moved from the compact handoff
+
+## Reviewed annual template reference — 2026-10-13
+
+Annual preparation suggests the current published revision of a prior plan’s template. The optional choice is retained in the exact creation preview and immutable receipt, then preselected in the new engagement’s task-plan screen only while current. An archived/superseded reference blocks new creation; the plan still requires separate staffing/schedule review and assent. Prior plans are unchanged. A CI-discovered assessment receipt timestamp mismatch is corrected by returning the persisted row on first publication. Evidence is under `targetedVerification.workflowAnnualTemplateReference` in [status.json](status.json). Nonstandard calendars, populated-mapping browser acceptance and wider workflow/release gates remain open.
+
+## Annual checklist handoff — 2026-10-13
+
+Annual receipts now open the exact new engagement in the existing client assessment. The query confirms client ownership, shows whether a fresh evaluation is needed, and retains parent-client authorization. Opening a continuance review still requires reviewed assent; delta answers start empty and the Partner decision editor fixes the exact engagement and service. Period/revision changes invalidate scoped decision previews under a shared engagement lock. Prior decisions and answers remain history; activation stays separate. Evidence is under `targetedVerification.workflowAnnualChecklistHandoff` in [status.json](status.json). Template preselection, populated-mapping browser acceptance, nonstandard calendars and broader acceptance remain open.
+
+## Annual reference metadata — 2026-10-13
+
+Annual preparation suggests active client contacts valid at the next-period start and approved mappings from the exact prior engagement and period. Accounting metadata requires source-engagement accounting read authority; RelationshipManagers receive a restricted state. References are bounded and never copy allocations, routing, access, consent or approvals. Evidence is under `targetedVerification.workflowAnnualReferenceMetadata` in [status.json](status.json). Fresh-checklist orchestration and broader acceptance remain open.

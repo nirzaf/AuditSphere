@@ -210,11 +210,11 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `CRM-05` | CRM | PARTIAL |
 | `COM-01` | COM | NOT_REVERIFIED |
 | `COM-02` | COM | NOT_REVERIFIED |
-| `COM-03` | COM | NOT_REVERIFIED |
+| `COM-03` | COM | PARTIAL |
 | `COM-04` | COM | NOT_REVERIFIED |
 | `COM-05` | COM | NOT_REVERIFIED |
 | `COM-06` | COM | NOT_REVERIFIED |
-| `WF-01` | WF | NOT_REVERIFIED |
+| `WF-01` | WF | PARTIAL |
 | `WF-02` | WF | NOT_REVERIFIED |
 | `WF-03` | WF | NOT_REVERIFIED |
 | `WF-04` | WF | NOT_REVERIFIED |
@@ -235,7 +235,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `RES-05` | RES | NOT_REVERIFIED |
 | `RES-06` | RES | NOT_REVERIFIED |
 | `FIN-01` | FIN | NOT_REVERIFIED |
-| `FIN-02` | FIN | NOT_REVERIFIED |
+| `FIN-02` | FIN | PARTIAL |
 | `FIN-03` | FIN | NOT_REVERIFIED |
 | `FIN-04` | FIN | NOT_REVERIFIED |
 | `FIN-05` | FIN | NOT_REVERIFIED |
@@ -257,7 +257,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `AUD-06` | AUD | NOT_REVERIFIED |
 | `AUD-07` | AUD | NOT_REVERIFIED |
 | `AUD-08` | AUD | NOT_REVERIFIED |
-| `UX-01` | UX | NOT_REVERIFIED |
+| `UX-01` | UX | PARTIAL |
 | `UX-02` | UX | NOT_REVERIFIED |
 | `UX-03` | UX | NOT_REVERIFIED |
 | `UX-04` | UX | NOT_REVERIFIED |
@@ -304,3 +304,21 @@ D1 and DEC-01 through DEC-10 require their specified human or live evidence wher
 - **UAT-15 / PM-14:** production-like recovery, live exact-site readback, certificate/checkpoint and independent operator evidence are required separately. Local fixture tests do not close this gate.
 
 Next local inventory slice: inspect the protected audit commercial activation fixture and task-plan/service-profile boundaries, then reconcile the remaining criterion bodies and original task aliases. Preserve the original broader parity work and its exact-source release runs.
+
+### COM-03 / FIN-02 residual micro-spec: reversal settlement truth
+
+- Existing behavior: fee payment marks a milestone PAID only after full allocation; approved receipt-allocation reversal reduces effective applied cash but leaves that mutable settlement projection PAID. Activation/readiness consumes that projection. This is an existing approved audit advance invariant, independent of proposed monthly fee policies.
+- Required change: preserve the database-enforced immutable PAID milestone, receipt pointer and paid date. Require a posted, same-client/currency invoice and current net allocations alongside the retained PAID marker; subtract independently approved reversals. A paid flag alone is never proof of current settlement. Use one shared predicate for activation, onboarding, portal eligibility, downstream billing and bundle gates. The untracked staff read projects INVOICED while currently short; no stored history moves backwards. Pending/rejected reversals change nothing. An initial backward-update prototype was refused by the existing trigger and removed; the trigger is preserved.
+- Paths: `FeeAgreementService.Settlement.cs`, the existing settlement writer and its downstream gate readers; extend `CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach`; run the existing receivables reversal cohort too. No schema, provider, fee-policy or autonomous posting change.
+- Independent arithmetic: a fully allocated advance of 12,500 less an approved 100 reversal is 12,400 applied and 100 outstanding. New actual 100 allocation can restore paid state; replay cannot subtract twice. The existing illustrative 20,000/4,000/6,000 complete-product journey remains separate acceptance work.
+- Acceptance: pending/rejected preserve current settlement; approved reversal makes readiness unpaid while stored PAID evidence remains intact; original source documents remain byte-identical; same review replay is idempotent; authorized new payment restores current settlement. A controlled firm-lock race queues reversal before a replay holding stale paid evidence; replay must observe the reversed balance.
+
+Settlement publication also reacquires the existing firm fence after receipt allocation and rechecks current authority and cash before its first historical PAID transition. Later receipts never replace the original immutable settlement identity. Credits remain AR adjustments, not cash satisfying the mandatory advance. The regression distinguishes a zero AR balance after credit from an outstanding cash advance.
+
+### Additional criterion inspection
+
+- **COM-03 / FIN-02:** the existing commercial workflow has actual invoice review/posting, split cash allocations, replay/conflict bounds and retained payment vouchers. The current residual is the reversal-adjusted settlement predicate described above; the stored milestone is deliberately historical. The supplied QAR 20,000 / 4,000 / 6,000 complete-product journey and all service-policy decisions remain unverified.
+- **WF-01 / PMCOMP-01/06:** `EngagementWorkflowPlanService.TemplatesAsync` offers only published, unarchived matching-service-route revisions. Preview refuses a different route. `EngagementWorkflowPlanTests.PlanPinsPublishedTemplateAndSchedule_AndRecoversRetryWithoutDuplicateTasks` is the existing starting cohort. A reviewed service-profile/cadence/template policy is not established by route matching alone; do not enable a new monthly profile from this source inspection.
+- **UX-01 / PMCOMP-02 / PM-01:** `EngagementWorkflowWorkspaceQuery.GetAsync` projects the authorized lifecycle, seven display phases, blockers, responsible users and a canonical internal next-action link. The phase is read-only. It remains an audit-lifecycle projection; approved accounting-only completion and role-specific next-action acceptance remain separate work.
+
+The shared activation fixture now supplies actual posted invoice, receipt and allocation inputs instead of random financial IDs. A focused negative/positive activation scenario uses the specified QAR 20,000 fee and QAR 4,000 then QAR 6,000 allocations; it does not claim the entire lead-to-release UAT journey.
