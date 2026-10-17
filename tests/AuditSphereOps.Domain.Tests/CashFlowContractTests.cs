@@ -745,6 +745,12 @@ public sealed class CashFlowContractTests
         Assert.Equal(expectedCurrent, row.Current);
         Assert.Equal(expectedPrior, row.Prior);
       }
+      var comparativeCashNote = Assert.Single(comparativePresentation.Value.Notes!, x => x.Code == "CASH_POLICY");
+      var cashNoteAmount = Assert.Single(comparativeCashNote.Amounts);
+      Assert.Equal(100m, cashNoteAmount.Current);
+      Assert.Equal(100m, cashNoteAmount.Comparative);
+      Assert.Equal("cash-note-two-periods-v1", cashNoteAmount.CurrentEvidenceReference);
+      Assert.Equal("cash-note-two-periods-prior-v1", cashNoteAmount.ComparativeEvidenceReference);
 
       var currentPin = await FinancialStatementService.PinPresentationAsync(db, preparer, packageId, layoutId);
       Assert.True(currentPin.Succeeded, currentPin.Message);
@@ -1021,7 +1027,8 @@ public sealed class CashFlowContractTests
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
         Comparative: comparative, CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"],
-        ClosingCashEvidenceReferences: ["closing-bank-statement-1"])
+        ClosingCashEvidenceReferences: ["closing-bank-statement-1"],
+        NoteLines: [new NoteLineInput("CASH_POLICY", "CASH", 100m, "cash-note-" + template)])
     };
     var built = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, request);
     Assert.True(built.Succeeded, built.Message);
