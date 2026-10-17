@@ -635,6 +635,8 @@ Focused verification at `d991ddc6` passed: Release solution build; 42 PostgreSQL
 
 **Angular source-review recovery failure handling added (2026-10-17):** when the API confirms a stale review was not recorded but browser storage refuses to remove its obsolete retry intent, the page now disables further source-review submissions and explains that no new decision was sent. Failure to persist an intent still prevents the initial dispatch. The focused `package.spec.ts` passes 13/13, including both cases; the Angular production build passes with the existing commercial stylesheet-budget warning. These are component-level browser-runtime tests, not authenticated built-in-browser acceptance. CP-11 source-kind completeness, schedule editing and professional acceptance remain open.
 
+**Scoped review-capability projection fixed (2026-10-17, master `ffa9bd99`):** `GetCashFlowSourceReviewAsync` now derives `CanReview` from current scoped authorization, matching the authoritative command rather than trusting session role labels. The PostgreSQL regression `SourceReviewCanReview_RequiresCurrentScopedReviewGrant` passed 1/1: a reviewer with stale review-role claims but retained preparer read access is not offered review. Source-kind provenance, schedule editing, authenticated browser acceptance and professional approval remain open.
+
 **Required focused verification:** Correct balanced source events work; wrong signs, no-cash journals, overconsumption, cross-scope references, self-review, source races and duplicate decision intents are detected without changing history.
 
 ### Retained acceptance criteria

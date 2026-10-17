@@ -1221,7 +1221,11 @@
     },
     "r2r07CarryForwardSafety": {
       "codeCommit": "d91a2713",
-      "result": "ReconciliationRevision_CreatesSuccessorAndCarryForward: PASS 1/1 (38 s). Full suites deferred to CI/CD."
+      "result": "T026 card: focused carry-forward regression PASS 1/1."
+    },
+    "cp11ReviewCapabilityProjection": {
+      "codeCommit": "ffa9bd99",
+      "result": "SourceReviewCanReview_RequiresCurrentScopedReviewGrant: PASS 1/1."
     }
   },
   "externalGates": [

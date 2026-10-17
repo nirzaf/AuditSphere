@@ -14,9 +14,9 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## R2R-07 carry-forward safety — 2026-10-17
+## R2R-07 and CP-11 — 2026-10-17
 
-`2873144a` adds scoped, idempotent correction-journal ID/revision links and proof-v2 binding without changing settlement state. `ReconciliationProof_CalculatesResidualAndLinksCorrectionJournal` passed 1/1; API Release build, Angular reconciliation specs 5/5, EF drift and OpenAPI drift passed. Migration `20261017083726_ReconciliationCorrectionJournalLink` is generated, not applied. T025 is BLOCKED/PARTIAL on T024; T026 remains BLOCKED/PARTIAL on T025. Details and remaining proof-policy work are in the task cards. Full suites deferred to CI/CD.
+`2873144a` adds scoped correction-journal revision links; its PostgreSQL test passed 1/1, with build, Angular 5/5, EF and OpenAPI checks passing. Migration is generated, not applied. `ffa9bd99` makes cash-flow review availability use current scoped authorization; `SourceReviewCanReview_RequiresCurrentScopedReviewGrant` passed 1/1. T025/T026 remain BLOCKED/PARTIAL on T024/T025. Indirect-method policy and source-provenance work remain open; full suites run in CI/CD.
 
 ## CP-19 Partner authority and capability projection — 2026-10-17
 
