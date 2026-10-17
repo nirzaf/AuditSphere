@@ -83,7 +83,8 @@ public static partial class FinancialStatementService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     // The same original intent recovers the stored decision. The same identity with a different payload is a conflict, never an overwrite.
-    var intentHash = ReviewIntentHash(normalized, text, digest);
+    var intentHash = ReviewIntentHash(normalized, text, digest, expectedPreviousReviewId);
+    var legacyIntentHash = LegacyReviewIntentHash(normalized, text, digest);
     var recorded = await db.FinancialPackageCashFlowSourceReviews.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.FinancialPackageId == packageId && x.RequestId == requestId, ct);
     if (recorded is not null)
@@ -91,7 +92,10 @@ public static partial class FinancialStatementService
       // A request identity belongs to the reviewer who recorded it. Another reviewer presenting it is refused, not given that decision.
       if (recorded.ReviewedByUserId != actor.UserId)
         return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This request was already used by another reviewer.");
-      return recorded.RequestHash == intentHash
+      // Existing decisions were written before the predecessor was included in the intent hash.
+      // They remain recoverable only when the caller repeats the predecessor persisted with that decision.
+      return recorded.RequestHash == intentHash ||
+             (recorded.RequestHash == legacyIntentHash && recorded.PreviousReviewId == expectedPreviousReviewId)
         ? CommandResult<Guid>.Ok(recorded.Id)
         : CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "This request was already used for a different source decision.");
     }
@@ -241,7 +245,14 @@ public static partial class FinancialStatementService
     }));
   }
 
-  private static string ReviewIntentHash(string decision, string reason, string linkDigest) =>
+  private static string ReviewIntentHash(string decision, string reason, string linkDigest, Guid? expectedPreviousReviewId) =>
+    Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      Version = "cash-flow-source-review-intent.v2", Decision = decision, Reason = reason, LinkDigest = linkDigest,
+      ExpectedPreviousReviewId = expectedPreviousReviewId,
+    }));
+
+  private static string LegacyReviewIntentHash(string decision, string reason, string linkDigest) =>
     Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
     {
       Version = "cash-flow-source-review-intent.v1", Decision = decision, Reason = reason, LinkDigest = linkDigest,

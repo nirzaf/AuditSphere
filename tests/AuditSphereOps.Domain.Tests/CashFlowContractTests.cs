@@ -912,12 +912,17 @@ public sealed class CashFlowContractTests
     Assert.Equal(first.Value, replay.Value);
     Assert.Equal(1, await db.FinancialPackageCashFlowSourceReviews.CountAsync(x => x.FinancialPackageId == packageId));
 
-    // A retry after a reload, which now sees this approval as the latest decision, still returns the stored decision.
+    // A retry after reload must retain the predecessor from the original request, even though the latest decision has advanced.
     var reloaded = (await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, packageId)).Value!;
     Assert.Equal(first.Value, reloaded.LatestReviewId);
     var afterReload = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId, "APPROVED", null,
-      intent, reloaded.LinkDigest, reloaded.LatestReviewId);
+      intent, before.LinkDigest, before.LatestReviewId);
     Assert.Equal(first.Value, afterReload.Value);
+
+    // Reusing the request ID while claiming a different predecessor is a different intent and must conflict.
+    var changedPredecessor = await FinancialStatementService.RecordCashFlowSourceReviewAsync(db, reviewer, packageId,
+      "APPROVED", null, intent, reloaded.LinkDigest, reloaded.LatestReviewId);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changedPredecessor.ErrorCode);
 
     // Another reviewer presenting this identity is refused and gets none of the stored decision.
     var otherReviewer = User(fixture.FirmId, "second-reviewer");
