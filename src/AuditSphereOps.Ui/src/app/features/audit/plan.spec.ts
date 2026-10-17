@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SessionService } from '../../core/session';
@@ -10,7 +10,11 @@ import { AuditPlan, decodePlan } from './plan';
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
 const id3 = '33333333-3333-4333-8333-333333333333';
+const id4 = '44444444-4444-4444-8444-444444444444';
 const hash64 = 'b'.repeat(64);
+const fieldworkPayload = { engagementId: id1, canManageFieldwork: true, procedures: [
+  { id: id4, sourceProcedureId: 'AWP-01-01', title: 'Inspect revenue evidence', applicabilityStatus: 'APPLICABLE', status: 'PLANNED', workpaperId: null },
+] };
 
 /** A complete audit-plan payload as the API returns it for a Manager with a draft calculation. */
 const planPayload = {
@@ -223,8 +227,8 @@ describe('Practical rounding form (STE 3.2)', () => {
     TestBed.resetTestingModule();
   });
 
-  /** Renders the audit plan for a staff session and answers its single plan request with the given payload. */
-  function render(payload: object) {
+  /** Renders the audit plan and answers its two scoped workspace reads. */
+  function render(payload: object, fieldwork: object = fieldworkPayload) {
     const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
     TestBed.configureTestingModule({
       imports: [AuditPlan],
@@ -240,9 +244,60 @@ describe('Practical rounding form (STE 3.2)', () => {
     const f = TestBed.createComponent(AuditPlan);
     f.detectChanges();
     http.expectOne(`/api/ui/engagements/${id1}/audit-plan`).flush(payload);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(fieldwork);
     f.detectChanges();
     return f;
   }
+
+  it('creates or opens the authorized procedure workpaper and navigates to the existing editor', async () => {
+    const f = render(planPayload);
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const button = Array.from((f.nativeElement as HTMLElement).querySelectorAll('button'))
+      .find((candidate) => candidate.textContent?.includes('Create WORKING workpaper')) as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    button.click();
+    http.expectOne({ method: 'POST', url: `/api/ui/procedures/${id4}/workpaper` }).flush({ value: id2 });
+    await f.whenStable();
+    expect(navigate).toHaveBeenCalledWith(['/app/audit/workpapers', id2]);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ ...fieldworkPayload, procedures: [
+      { ...fieldworkPayload.procedures[0], workpaperId: id2 },
+    ] });
+  });
+
+  it('re-reads the scoped association before retrying an uncertain create/open', async () => {
+    const f = render(planPayload);
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const host = f.nativeElement as HTMLElement;
+    (Array.from(host.querySelectorAll('button')).find((candidate) => candidate.textContent?.includes('Create WORKING workpaper')) as HTMLButtonElement).click();
+    http.expectOne({ method: 'POST', url: `/api/ui/procedures/${id4}/workpaper` }).flush({ message: 'Unknown' }, { status: 503, statusText: 'Unavailable' });
+    await f.whenStable();
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(fieldworkPayload);
+    await f.whenStable();
+    const retry = Array.from(host.querySelectorAll('button')).find((candidate) => candidate.textContent?.includes('Recheck, then retry')) as HTMLButtonElement;
+    expect(retry).toBeTruthy();
+    expect(f.componentInstance.workpaperUncertainProcedureId()).toBe(id4);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(f.componentInstance.workpaperBusy()).toBe(false);
+    const retrying = f.componentInstance.recoverWorkpaper(fieldworkPayload.procedures[0]);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(fieldworkPayload);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    http.expectOne({ method: 'POST', url: `/api/ui/procedures/${id4}/workpaper` }).flush({ value: id2 });
+    await retrying;
+    expect(navigate).toHaveBeenCalledWith(['/app/audit/workpapers', id2]);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ ...fieldworkPayload, procedures: [
+      { ...fieldworkPayload.procedures[0], workpaperId: id2 },
+    ] });
+  });
+
+  it('does not offer workpaper creation when the procedure read lacks management authority', () => {
+    const denied = render(planPayload, { ...fieldworkPayload, canManageFieldwork: false });
+    expect((denied.nativeElement as HTMLElement).textContent).not.toContain('Create WORKING workpaper');
+    TestBed.inject(HttpTestingController).expectNone((request) => request.method === 'POST' && request.url.includes('/workpaper'));
+  });
 
   it('shows the rounding form to a Manager, prefilled with the computed thresholds', async () => {
     const f = render({ ...planPayload, canApplyPracticalRounding: true });

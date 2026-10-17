@@ -1,10 +1,10 @@
-import { ChangeDetectorRef, Component, computed, effect, inject, untracked } from '@angular/core';
+import { ChangeDetectorRef, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { SessionService } from '../../core/session';
-import { arr, bool, dec, decimalInput, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, decode, decimalInput, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
 import { PlanningCommandState } from './planning-command-state';
 import { PlanningCommandReview } from './planning-command-review';
 import { SHARED } from '../../core/ui';
@@ -33,6 +33,8 @@ const milestonePlan = obj({
   adjustmentReason: nullable(text), warningOverrideReason: nullable(text), warnings: arr(text, 50),
   revision: nat, scheduledByUserId: guid, scheduledAt: instant, canConfigure: bool
 });
+const workpaperProcedure = obj({ id: guid, sourceProcedureId: text, title: text, applicabilityStatus: text, status: text, workpaperId: nullable(guid) });
+const workpaperFieldwork = obj({ engagementId: guid, canManageFieldwork: bool, procedures: arr(workpaperProcedure, 5000) });
 export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: bool, materiality: nullable(materiality), canApproveMateriality: bool,
   risks: arr(obj({ id: guid, accountArea: text, description: text, assertion: text, severity: text, status: text }), 2000),
   populations: arr(obj({ id: guid, purpose: text, assertion: text, rowCount: nat, monetaryControlTotal: dec, currency: text, status: text }), 2000),
@@ -285,6 +287,33 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
         <h2 id="workpapers-heading">Audit workpapers (§21.1)</h2>
         <ul>@for (w of p.workpapers; track w.id) { <li>{{ w.index }} — {{ w.title }} <small>Status: {{ w.status }} · Revision {{ w.revision }}</small> <a [routerLink]="['/app/audit/workpapers', w.id]">Open</a></li> }
           @empty { <li>No workpapers created for this audit plan yet.</li> }</ul>
+        <h3>Procedure working papers</h3>
+        <audit-state [loading]="fieldwork.loading()" [error]="fieldwork.error()" label="authorized procedures" />
+        @if (workpaperMessage() && workpaperUncertainProcedureId() === null) { <p role="alert">{{ workpaperMessage() }}</p> }
+        @if (fieldwork.data(); as fw) {
+          @if (fw.canManageFieldwork) {
+            <ul aria-label="Authorized procedures and working papers">
+              @for (procedure of fw.procedures; track procedure.id) {
+                <li>
+                  <strong>{{ procedure.sourceProcedureId }} — {{ procedure.title }}</strong>
+                  <small>Applicability: {{ procedure.applicabilityStatus }} · Procedure: {{ procedure.status }} · Paper: {{ paperState(procedure.workpaperId, p) }}</small>
+                  @if (procedure.applicabilityStatus === 'APPLICABLE' && !p.professionalWorkBlocked) {
+                    <button matButton="outlined" type="button" (click)="openWorkpaper(procedure)"
+                      [disabled]="workpaperBusy() || (workpaperUncertainProcedureId() !== null && workpaperUncertainProcedureId() !== procedure.id)">
+                      {{ procedure.workpaperId ? 'Open workpaper' : 'Create WORKING workpaper' }}
+                    </button>
+                    @if (workpaperUncertainProcedureId() === procedure.id) {
+                      <p role="alert">{{ workpaperMessage() }}</p>
+                      <button matButton type="button" (click)="recoverWorkpaper(procedure)" [disabled]="workpaperBusy()">Recheck, then retry if no paper exists</button>
+                    }
+                  }
+                </li>
+              } @empty { <li>No authorized procedures are available in this engagement.</li> }
+            </ul>
+          } @else {
+            <p role="status">Your current access does not permit creating a procedure workpaper.</p>
+          }
+        }
       </section>
     }
     <audit-planning-command-review [flow]="planning" />
@@ -293,11 +322,17 @@ interface RowInput { likelihood: number; magnitude: number; fraud: boolean; crit
 })
 export class AuditPlan {
   private readonly api = inject(Api);
+  private readonly router = inject(Router);
   private readonly changeDetector = inject(ChangeDetectorRef);
   readonly session = inject(SessionService);
   readonly id = routeGuid();
   readonly plan = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/audit-plan` : null), decodePlan,
     'Sign in with an authorized internal staff identity assigned to this engagement to view its audit plan.');
+  readonly fieldwork = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/fieldwork` : null), workpaperFieldwork,
+    'No authorized procedure context is available for this engagement.');
+  readonly workpaperBusy = signal(false);
+  readonly workpaperUncertainProcedureId = signal<string | null>(null);
+  readonly workpaperMessage = signal('');
   readonly cmd = new CommandState(this.api);
   readonly planning = new PlanningCommandState(() => this.id(), () => this.plan.data(),
     () => !!this.plan.data() && !this.plan.loading() && !this.plan.error() && !this.plan.data()!.professionalWorkBlocked,
@@ -360,6 +395,92 @@ export class AuditPlan {
       adjustmentReason: this.milestone.adjustment.trim() || null,
       warningOverrideReason: this.milestone.override.trim() || null,
     }, 'Statutory milestones and archive deadline recorded.');
+  }
+
+  paperState(workpaperId: string | null, plan: Plan): string {
+    if (!workpaperId) return 'Not created';
+    return plan.workpapers.find((paper) => paper.id === workpaperId)?.status ?? 'Existing linked paper';
+  }
+
+  async openWorkpaper(procedure: ReturnType<typeof workpaperProcedure>): Promise<void> {
+    const fw = this.fieldwork.data();
+    const plan = this.plan.data();
+    if (this.workpaperBusy() || !fw?.canManageFieldwork || !plan || plan.professionalWorkBlocked ||
+        procedure.applicabilityStatus !== 'APPLICABLE' || !fw.procedures.some((item) => item.id === procedure.id)) return;
+    if (this.workpaperUncertainProcedureId() === procedure.id) return this.recoverWorkpaper(procedure);
+    this.workpaperBusy.set(true);
+    this.workpaperMessage.set('');
+    try {
+      await this.createOrOpenWorkpaper(procedure);
+    } finally {
+      this.workpaperBusy.set(false);
+    }
+  }
+
+  async recoverWorkpaper(procedure: ReturnType<typeof workpaperProcedure>): Promise<void> {
+    const engagementId = this.id();
+    if (this.workpaperBusy() || this.workpaperUncertainProcedureId() !== procedure.id || !engagementId) return;
+    this.workpaperBusy.set(true);
+    this.workpaperMessage.set('Checking the current authorized procedure/workpaper association…');
+    try {
+      const current = await this.api.get(`/api/ui/engagements/${engagementId}/fieldwork`, workpaperFieldwork);
+      if (current.engagementId !== engagementId || !current.canManageFieldwork) {
+        this.workpaperMessage.set('The procedure context is no longer authorized. Refresh the plan before continuing.');
+        return;
+      }
+      const refreshed = current.procedures.find((item) => item.id === procedure.id);
+      if (!refreshed || refreshed.applicabilityStatus !== 'APPLICABLE') {
+        this.workpaperMessage.set('The procedure is no longer available as applicable. Refresh and review its current state.');
+        return;
+      }
+      if (refreshed.workpaperId) {
+        this.workpaperUncertainProcedureId.set(null);
+        this.fieldwork.reload();
+        await this.router.navigate(['/app/audit/workpapers', refreshed.workpaperId]);
+        return;
+      }
+      await this.createOrOpenWorkpaper(refreshed);
+    } catch (error) {
+      this.workpaperMessage.set((error as Error).message || 'The current paper association could not be verified. No retry was sent.');
+    } finally {
+      this.workpaperBusy.set(false);
+    }
+  }
+
+  private async createOrOpenWorkpaper(procedure: ReturnType<typeof workpaperProcedure>): Promise<void> {
+    const result = await this.api.command<unknown>(`/api/ui/procedures/${procedure.id}/workpaper`, {});
+    if (result.ok) {
+      let workpaperId: string;
+      try { workpaperId = decode(guid, result.value); }
+      catch {
+        this.workpaperMessage.set('The server returned an unsupported workpaper identity. Refresh the procedure state before continuing.');
+        return;
+      }
+      this.workpaperUncertainProcedureId.set(null);
+      this.fieldwork.reload();
+      await this.router.navigate(['/app/audit/workpapers', workpaperId]);
+      return;
+    }
+    if (!result.unknown) {
+      this.workpaperMessage.set(result.message);
+      return;
+    }
+    this.workpaperUncertainProcedureId.set(procedure.id);
+    this.workpaperMessage.set('The create/open outcome is unknown. Checking the saved procedure association before any retry.');
+    try {
+      const current = await this.api.get(`/api/ui/engagements/${this.id()}/fieldwork`, workpaperFieldwork);
+      const associated = current.engagementId === this.id() && current.canManageFieldwork
+        ? current.procedures.find((item) => item.id === procedure.id)?.workpaperId ?? null : null;
+      if (associated) {
+        this.workpaperUncertainProcedureId.set(null);
+        this.fieldwork.reload();
+        await this.router.navigate(['/app/audit/workpapers', associated]);
+        return;
+      }
+      this.workpaperMessage.set('No paper association is visible yet. Recheck before an explicit idempotent retry.');
+    } catch {
+      this.workpaperMessage.set('The saved association could not be checked. No retry was sent; recheck when the service is available.');
+    }
   }
 
   option(p: Plan): string {
