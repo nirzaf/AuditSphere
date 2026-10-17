@@ -18056,6 +18056,23 @@
         ]
       },
       "testedCodeCommit": "270c9c9184f942e5b3677dd376018600a1aa64e1"
+    },
+    "completePracticeManagement.advanceCashGate20261018": {
+      "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
+      "result": "FOCUSED_INCREMENTAL_PASS",
+      "cohort": {
+        "passed": 5,
+        "failed": 1,
+        "scope": "Commercial fee lifecycle and reversal race; receivables reversal/as-of; four advance activation cases"
+      },
+      "failedCaseRecheck": {
+        "passed": 1,
+        "failed": 0,
+        "scope": "20,000 fee: 4,000 then separate 6,000 receipt allocation; fixture corrected to respect unique receipt/invoice allocation identity"
+      },
+      "evidenceBoundary": "Only the failed test was rerun after its fixture correction. Exact-SHA full regression and browser financial journey remain CI/acceptance work.",
+      "preserved": "Immutable paid milestone, original receipt/paid date and issued receipt bytes; no migration or provider action",
+      "behavior": "Current posted same-client/currency invoice and net cash are required; approved reversals affect current gates; credits cannot satisfy cash advance; settlement publication rechecks under the existing firm fence."
     }
   }
 }

@@ -736,13 +736,15 @@ public static class FirmExpenseService
       static DateOnly Month(string code) => DateOnly.ParseExact(code + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
       static string Code(DateOnly month) => month.ToString("yyyy-MM", CultureInfo.InvariantCulture);
       var last = Month(monthsInRange[^1]);
-      for (var month = Month(monthsInRange[0]); month <= last; month = month.AddMonths(1))
+      for (var month = Month(monthsInRange[0]); ; month = month.AddMonths(1))
       {
         var current = activityByMonth.GetValueOrDefault(Code(month));
-        var priorCode = Code(month.AddYears(-1));
-        (decimal Revenue, decimal Expenses)? prior = knownMonths.Contains(priorCode) ? activityByMonth.GetValueOrDefault(priorCode) : null;
+        var priorCode = month.Year > 1 ? Code(month.AddYears(-1)) : null;
+        (decimal Revenue, decimal Expenses)? prior = priorCode is not null && knownMonths.Contains(priorCode) ? activityByMonth.GetValueOrDefault(priorCode) : null;
         monthlyProfitLoss.Add(new(Code(month), current.Revenue, current.Expenses, current.Revenue - current.Expenses,
           prior?.Revenue, prior?.Expenses, prior is null ? null : prior.Value.Revenue - prior.Value.Expenses));
+        // Stop before advancing beyond the final representable month.
+        if (month == last) break;
       }
     }
     var revenueAndExpenseAccountIds = revenueAccountIds.Concat(expenseAccountIds).ToArray();

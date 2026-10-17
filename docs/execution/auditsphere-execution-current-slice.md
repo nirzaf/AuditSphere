@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Firm monthly date boundaries
+
+Monthly P&L safely handles supported year-0001 and December-9999 periods, preserving null missing comparatives. The existing balanced-ledger regression passes; full acceptance remains open. Exact results are in the execution ledger.
+
 ## Task queue source lineage
 
 Queue rows now expose retained source keys and exact template identities in all layouts. Cards also retain FSLI/mapping, PBC and reviewer context plus task activity. Focused lineage/component checks, builds and manual-source browser inspection passed; template browser and responsive acceptance remain open. See execution ledger.

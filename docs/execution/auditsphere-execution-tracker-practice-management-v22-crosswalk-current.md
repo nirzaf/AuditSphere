@@ -215,11 +215,11 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `COM-05` | COM | NOT_REVERIFIED |
 | `COM-06` | COM | NOT_REVERIFIED |
 | `WF-01` | WF | PARTIAL |
-| `WF-02` | WF | NOT_REVERIFIED |
-| `WF-03` | WF | NOT_REVERIFIED |
+| `WF-02` | WF | PARTIAL: queue layout/context browser verified; graph acceptance remains |
+| `WF-03` | WF | PARTIAL: retained source and review context exposed; broader required-task acceptance remains |
 | `WF-04` | WF | NOT_REVERIFIED |
 | `WF-05` | WF | NOT_REVERIFIED |
-| `WF-06` | WF | NOT_REVERIFIED |
+| `WF-06` | WF | PARTIAL: prerequisite blocking/clearing verified; broader queue acceptance remains |
 | `WF-07` | WF | NOT_REVERIFIED |
 | `WF-08` | WF | NOT_REVERIFIED |
 | `CLIENT-01` | CLIENT | NOT_REVERIFIED |
@@ -239,7 +239,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `FIN-03` | FIN | NOT_REVERIFIED |
 | `FIN-04` | FIN | NOT_REVERIFIED |
 | `FIN-05` | FIN | NOT_REVERIFIED |
-| `FIN-06` | FIN | NOT_REVERIFIED |
+| `FIN-06` | FIN | PARTIAL: balanced ledger/monthly P&L focused regression passes including date boundaries; full acceptance remains |
 | `FIN-07` | FIN | NOT_REVERIFIED |
 | `FIN-08` | FIN | NOT_REVERIFIED |
 | `ACC-01` | ACC | NOT_REVERIFIED |
@@ -342,3 +342,9 @@ Focused verification: existing scoped PostgreSQL task-lineage test passes; the q
 ### WF-02/03 review context across layouts
 
 Board/calendar cards now retain the FSLI, full mapping identity, PBC navigation, reviewer comment and resubmission explanation previously shown only in the list, plus the existing task-activity action. The focused component case checks those facts in every layout. Browser verification opened actual synthetic create/assign/dependency history from the board and retained that panel when switching to calendar. No console warnings/errors were captured. Existing component cohort and Angular build pass; live PBC/review fixtures and responsive acceptance remain unverified. No backend state or professional decision changes.
+
+### FIN-06 monthly reporting boundary correction
+
+Existing firm reporting derives operating revenue/expense from posted firm ledger lines, excludes year-end closing/opening activity from monthly P&L and uses a nullable prior-year comparator when that period is absent. Valid year-0001 and December-9999 periods exposed date arithmetic exceptions. The projection now omits the nonexistent prior year and stops before advancing past its last month. The existing balanced-expense/ledger regression covers both supported boundaries without changing normal-period arithmetic. FIN-06 full acceptance and production data remain separate.
+
+Verification: the existing balanced-expense/ledger/monthly-P&L regression passed with both supported date boundaries. No full local suite, schema, API contract, client ledger or production data change. FIN-03 ageing source and its as-of regression were inspected but not rerun in this slice; that inspection alone is not criterion acceptance.

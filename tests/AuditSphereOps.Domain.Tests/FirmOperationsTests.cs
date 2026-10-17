@@ -480,6 +480,18 @@ public sealed partial class FirmOperationsTests
       Assert.True(januaryExport.Succeeded, januaryExport.Message);
       Assert.Contains("'=HYPERLINK", januaryExport.Value!.Csv);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.TrialBalanceAsync(db, w.A("staff", "Staff"), "2026-02", "2026-02")).ErrorCode);
+      // Both accepted DateOnly boundaries must remain reportable without inventing a prior year.
+      foreach (var edgePeriod in new[] { "0001-01", "9999-12" })
+      {
+        db.FirmPeriods.Add(new FirmPeriod { Id = Guid.NewGuid(), FirmId = w.FirmId, PeriodCode = edgePeriod });
+        await db.SaveChangesAsync();
+        var edgeReport = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), edgePeriod, edgePeriod);
+        Assert.True(edgeReport.Succeeded, edgeReport.Message);
+        var edgeMonth = Assert.Single(edgeReport.Value!.MonthlyProfitLoss);
+        Assert.Equal(edgePeriod, edgeMonth.PeriodCode);
+        Assert.Equal(0m, edgeMonth.Profit);
+        Assert.Null(edgeMonth.PriorYearProfit);
+      }
       var listed = await FirmExpenseService.ListAsync(db, reviewer);
       Assert.All(listed, x => Assert.Equal(FirmExpenseStates.Posted, x.Status));
 
