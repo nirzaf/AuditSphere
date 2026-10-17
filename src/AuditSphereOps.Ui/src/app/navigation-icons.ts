@@ -1,5 +1,7 @@
 /** Lucide outline paths retrieved with Better Icons; its license notice ships in public/licenses. */
 export const NAV_ICON_PATHS = {
+  'panel-left-close': ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z', 'M9 3v18m7-6l-3-3l3-3'],
+  'panel-left-open': ['M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z', 'M9 3v18m5-12l3 3l-3 3'],
   'activity': [
     'M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2',
   ],
