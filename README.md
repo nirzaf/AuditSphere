@@ -100,9 +100,144 @@ Per-test isolation: uniquely named disposable PostgreSQL schemas on `auditsphere
 - **Least-privilege M365** — `Sites.Selected` + per-site grants; no tenant-wide scopes ([permission boundary](docs/architecture/auditsphere-m365-tenant-administration-permissions.md)).
 - **Zero-warning Release builds**; `docs/execution/status.json` + current-slice handoff record only observed facts.
 
-## Roadmap & external gates
+## Product roadmap and feature checklist
 
-Local cores (domain, ledger, intake, packages, records) are `LOCAL_VERIFIED`; live auth/documents/checkpoints, recovery, observability, and independent review need production infrastructure and stay `BLOCKED_EXTERNAL`. Work packages P0–P10: [pending tasks](docs/execution/auditsphere-execution-pending-tasks.md).
+This is a navigation and implementation roadmap, not a production-readiness certificate. **☑ Completed** means the named bounded slice has recorded implementation/verification evidence; **☐ Partially pending** means implementation exists but integration, current acceptance or an approval remains; **☐ Pending** means the named remaining deliverable is not closed. An unchecked feature is not necessarily absent. Historical checks do not establish current whole-product acceptance.
+
+The [product crosswalk](docs/execution/auditsphere-execution-tracker-practice-management-v22-crosswalk-current.md), [API/Angular parity tracker](docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md), [task board](docs/execution/auditsphere-execution-index-task-board-current.md) and [evidence ledger](docs/execution/status.json) own detailed criteria, dependencies and verification. Requirement IDs in different backlogs are distinct. README does not override their acceptance gates.
+
+### Modules and remaining delivery
+
+| Checklist | Module / capability | Available implementation | Remaining work |
+| --- | --- | --- | --- |
+| ☐ Partially pending | Practice & commercial | Leads, client profiles/contacts, quotes, pricing, proposals, fee agreements and activation | Complete commercial acceptance, approved layouts/policy and provider delivery evidence. |
+| ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, templates, dependencies, queues, list/board/calendar | Required-task graph, recurrence/automation, lifecycle and current browser acceptance. |
+| ☐ Partially pending | Client collaboration | First sign-in, scoped PBC requests/uploads, comments, financial-package review | Shared write-gate acceptance, exact accepted evidence sets and document/delivery lifecycle. |
+| ☐ Partially pending | People & time | Staffing, resource grid, availability, allocations, time, budgets, rates and utilization | Certification review UI/API and staffing integration; broader resource/time acceptance. |
+| ☐ Partially pending | Firm finance | Protected billing, receipt allocations, expenses, firm ledger, aging, WIP and profitability | Full financial workflow acceptance; firm pricing and end-of-service professional configuration. |
+| ☐ Partially pending | Client accounting — modules 20–23 | Setup, charts, periods, TB/GL, mappings, adjustments, reconciliations and specialist schedules | Complete source/review/correction workflows and professionally approved fixtures. |
+| ☐ Partially pending | Financial reporting — modules 24–25 | Statements, comparatives, cash/equity schedules, disclosures, package builds and PDF/DOCX/XLSX | Approved indirect classifications, complete source-backed schedules/composition and release acceptance. |
+| ☐ Partially pending | Group consolidation — module 26 | Groups/scopes, ownership, component packs, intercompany matching, eliminations and FX | Current authorization/concurrency/browser acceptance and approved methodology. |
+| ☐ Partially pending | Audit planning & execution | Programs, materiality/risk, procedures, sampling, confirmations, workpapers and review | Qualified methodology decisions, terminal evidence mapping and complete review journeys. |
+| ☐ Partially pending | Completion, release & records | SRM/readiness, human decisions, report artifacts, sealing, signing hooks and archive lineage | Signing/legal policy, authoritative-store/provider acceptance and independent release review. |
+| ☐ Partially pending | Administration & security | Initial setup, users/grants, tenant capabilities, search, operations and progress | Whole-application isolation/revocation acceptance and operator readiness. |
+| ☐ Partially pending | Microsoft 365 & client sites | Isolated identities/workers, selected-resource verification and per-client provisioning | Approved rollout, exact-site/staff reconciliation and live production acceptance. |
+| ☐ Partially pending | Knowledge library | Technical pages and reusable audit-program library | Current authorization, authoring and workflow acceptance. |
+| ☐ Partially pending | Platform & durable operations | ASP.NET Core API, Angular, PostgreSQL, retries, idempotency and reconciliation | Current-SHA full CI, recovery/capacity/observability and deployment acceptance. |
+| ☐ Pending | Professional acceptance | Human review gates are retained | Named qualified methodology owner and independent reviewer approve applicable policies/fixtures. |
+| ☐ Pending | Production acceptance | Acceptance deployment and earlier live evidence are recorded separately | Applicable live identity/provider checks, custody, restore/RPO/RTO and independent sign-off. |
+
+### Completed bounded slices
+
+These checkmarks apply only to the stated slice; the parent module remains partial where listed above. Evidence is retained in the linked ledger/crosswalk and migration records.
+
+| Checklist | Completed slice | Acceptance limit |
+| --- | --- | --- |
+| ☑ Completed | Canonical Angular host and removal of the legacy Blazor host | Whole-application migration/parity acceptance remains partial. |
+| ☑ Completed | Sidebar expand/compact icon control beside the brand | Both states browser-checked; does not establish every responsive route. |
+| ☑ Completed | Work-queue prerequisite blocking/clearing and source/review context | Broader task graph and operational acceptance remain open. |
+| ☑ Completed | Advance cash gate based on current net allocations | Complete commercial/receipt acceptance remains open. |
+| ☑ Completed | Firm expense paging and exact-record recovery | Broader finance workflow acceptance remains open. |
+| ☑ Completed | Monthly P&L date/range boundaries | Complete reporting and export acceptance remains open. |
+| ☑ Completed | Resource range validation and capacity remainder calculation | Complete staffing/resource acceptance remains open. |
+| ☑ Completed | Certification disclosure separating verification from expiry | Review integration and staffing eligibility remain open. |
+| ☑ Completed | Exact-source certification rules, append-only persistence and Application review workspace | API/UI integration, concurrency and current release acceptance remain open. |
+
+### Available screens and feature roadmap
+
+Inventory follows the current [Angular route registry](src/AuditSphereOps.Ui/src/app/app.routes.ts); aliases sharing one component are consolidated. Each feature links to its implementation. All rows remain **Partially pending** at full-feature acceptance level until their owning tracker proves closure. This table does not imply that every sub-action has an API/UI adapter.
+
+| Checklist | Module | Available feature | Remaining acceptance |
+| --- | --- | --- | --- |
+| ☐ Partially pending | Administration & operations | [Administration](src/AuditSphereOps.Ui/src/app/features/admin/overview.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Administration & operations | [Initial administrator setup](src/AuditSphereOps.Ui/src/app/features/admin/bootstrap.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Administration & operations | [Microsoft tenant connection](src/AuditSphereOps.Ui/src/app/features/admin/tenant.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Administration & operations | [Operations](src/AuditSphereOps.Ui/src/app/features/admin/operations.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Administration & operations | [Project task progress](src/AuditSphereOps.Ui/src/app/features/admin/progress.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Administration & operations | [Users & Access](src/AuditSphereOps.Ui/src/app/features/admin/access.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Audit fieldwork](src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Audit plan](src/AuditSphereOps.Ui/src/app/features/audit/plan.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Audit program library](src/AuditSphereOps.Ui/src/app/features/audit/library.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Confirmations](src/AuditSphereOps.Ui/src/app/features/audit/confirmations.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Engagement completion](src/AuditSphereOps.Ui/src/app/features/audit/completion.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Finding](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Population](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Records archive](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Release candidate](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Review point](src/AuditSphereOps.Ui/src/app/features/audit/records.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Audit & records | [Workpaper](src/AuditSphereOps.Ui/src/app/features/audit/workpaper.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Accounting](src/AuditSphereOps.Ui/src/app/features/accounting/workspace.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Accounting evidence](src/AuditSphereOps.Ui/src/app/features/accounting/evidence.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Accounting mapping](src/AuditSphereOps.Ui/src/app/features/accounting/mapping.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Accounting period](src/AuditSphereOps.Ui/src/app/features/accounting/period.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Adjustment journal](src/AuditSphereOps.Ui/src/app/features/accounting/journal.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Adjustment journals](src/AuditSphereOps.Ui/src/app/features/accounting/records.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Adjustment plan eligibility](src/AuditSphereOps.Ui/src/app/features/accounting/adjustment-plans.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Adjustment plan review](src/AuditSphereOps.Ui/src/app/features/accounting/adjustment-plans.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Analysis evidence](src/AuditSphereOps.Ui/src/app/features/accounting/analysis-review.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Audit differences](src/AuditSphereOps.Ui/src/app/features/accounting/records.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Build financial package](src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Currency remeasurement](src/AuditSphereOps.Ui/src/app/features/accounting/remeasurement.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [FX rates & policies](src/AuditSphereOps.Ui/src/app/features/accounting/currency-configuration.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Finalize adjustment plan](src/AuditSphereOps.Ui/src/app/features/accounting/plan-command.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Financial statement package](src/AuditSphereOps.Ui/src/app/features/accounting/package.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Financial statements](src/AuditSphereOps.Ui/src/app/features/engagements/statements.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [General ledger](src/AuditSphereOps.Ui/src/app/features/engagements/general-ledger.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [General ledger completeness](src/AuditSphereOps.Ui/src/app/features/accounting/gl-completeness.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [General ledger source acceptance](src/AuditSphereOps.Ui/src/app/features/accounting/source-acceptance.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [General ledger upload](src/AuditSphereOps.Ui/src/app/features/engagements/gl-upload.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Independent mapping review](src/AuditSphereOps.Ui/src/app/features/accounting/mapping-approval.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Journal management evidence](src/AuditSphereOps.Ui/src/app/features/accounting/journal-management.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Mappings](src/AuditSphereOps.Ui/src/app/features/accounting/records.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Package reviews](src/AuditSphereOps.Ui/src/app/features/accounting/reviews.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Period restatements](src/AuditSphereOps.Ui/src/app/features/accounting/restatements.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Period roll-forward](src/AuditSphereOps.Ui/src/app/features/accounting/rollforward.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Prepare adjustment plan](src/AuditSphereOps.Ui/src/app/features/accounting/plan-command.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Prepare analytical review](src/AuditSphereOps.Ui/src/app/features/accounting/analytical-preparation.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Prepare journal](src/AuditSphereOps.Ui/src/app/features/accounting/journal-create.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Prepare mapping version](src/AuditSphereOps.Ui/src/app/features/accounting/mapping-draft.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Prepare reconciliation](src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation-create.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Prepare specialist schedule](src/AuditSphereOps.Ui/src/app/features/accounting/specialist-preparation.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Prepare valuation](src/AuditSphereOps.Ui/src/app/features/accounting/valuation-preparation.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Reconciliation evidence](src/AuditSphereOps.Ui/src/app/features/accounting/reconciliation.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Review accounting evidence](src/AuditSphereOps.Ui/src/app/features/accounting/evidence-actions.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Source acceptance](src/AuditSphereOps.Ui/src/app/features/accounting/source-acceptance.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client accounting & reporting | [Trial balance intake](src/AuditSphereOps.Ui/src/app/features/engagements/tb-intake.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client portal | [Client portal](src/AuditSphereOps.Ui/src/app/features/portal/home.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client portal | [Document request](src/AuditSphereOps.Ui/src/app/features/portal/request.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client portal | [Journal management response](src/AuditSphereOps.Ui/src/app/features/accounting/journal-management.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Client portal | [Management review](src/AuditSphereOps.Ui/src/app/features/portal/package.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Firm finance | [End-of-service provision](src/AuditSphereOps.Ui/src/app/features/finance/end-of-service.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Firm finance | [Firm books](src/AuditSphereOps.Ui/src/app/features/finance/books.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Firm finance | [Firm ledger](src/AuditSphereOps.Ui/src/app/features/finance/ledger.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Firm finance | [Firm receivables ageing](src/AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Firm finance | [Invoice](src/AuditSphereOps.Ui/src/app/features/finance/invoice.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Group consolidation | [Advanced consolidation](src/AuditSphereOps.Ui/src/app/features/consolidation/advanced.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Group consolidation | [Consolidation scope workspace](src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Group consolidation | [Group consolidation](src/AuditSphereOps.Ui/src/app/features/consolidation/overview.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Knowledge library | [Technical library](src/AuditSphereOps.Ui/src/app/features/library/library.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | People & time | [Charge-out rates](src/AuditSphereOps.Ui/src/app/features/practice/rate-cards.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | People & time | [Resource planning](src/AuditSphereOps.Ui/src/app/features/practice/resources.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | People & time | [Time & work records](src/AuditSphereOps.Ui/src/app/features/practice/time.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Acceptance](src/AuditSphereOps.Ui/src/app/features/acceptance/checklist.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Add client contact](src/AuditSphereOps.Ui/src/app/features/clients/contact-create.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Client acceptance](src/AuditSphereOps.Ui/src/app/features/acceptance/assessment-route.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Client profile](src/AuditSphereOps.Ui/src/app/features/clients/client.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Commercial settings](src/AuditSphereOps.Ui/src/app/features/commercial/settings.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Convert prospect](src/AuditSphereOps.Ui/src/app/features/commercial/client-conversion.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Create blocked engagement](src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Engagement](src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Leads](src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Opportunities](src/AuditSphereOps.Ui/src/app/features/commercial/opportunities.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [PBC requests](src/AuditSphereOps.Ui/src/app/features/engagements/pbc.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Portfolio](src/AuditSphereOps.Ui/src/app/features/portfolio/portfolio.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Practice analytics](src/AuditSphereOps.Ui/src/app/features/practice/analytics.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Proposal](src/AuditSphereOps.Ui/src/app/features/commercial/proposal.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Review activation](src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Workflow & tasks | [My work](src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Workflow & tasks | [Workflow templates](src/AuditSphereOps.Ui/src/app/features/practice/workflow-templates.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+
+Purview/eSignature provider integrations, payment initiation and payroll execution remain outside approved scope; they are not pending roadmap commitments.
 
 ## Docs
 
