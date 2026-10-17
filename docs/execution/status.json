@@ -4,7 +4,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "ca0ae1481fa5d8daf532cdef3c4cb6c0ed3b2395",
+  "headCommit": "6f405cc226474fda26a4206126438fff9901db28",
   "verifiedCommit": "12e51e6031605245c22df8331d7ca12f345dbf36",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1219,22 +1219,22 @@
       ]
     },
     "cp10PeriodScopedPackageFreshness": {
-      "recordedAtUtc": "2026-10-17T06:01:00Z",
-      "codeCommit": "ca0ae1481fa5d8daf532cdef3c4cb6c0ed3b2395",
+      "recordedAtUtc": "2026-10-17T06:15:00Z",
+      "codeCommit": "6f405cc226474fda26a4206126438fff9901db28",
       "status": "PARTIAL",
       "verified": {
-        "focusedTests": "4/4 across package-freshness slices; current/prior comparative presentation regression passed 1/1 on ca0ae148.",
-        "periodBehavior": "Separate current/prior packages keep their accepted GL reviews. Each displayed face-statement amount matches its package line; the pin binds the prior package ID/hash. Current GL replacement invalidates only current review and pending pin.",
-        "approvalReleaseBehavior": "Package approval/release remains applicable across unrelated client generation changes.",
-        "commit": "ca0ae148 pushed to origin/master."
+        "focusedTests": "5/5 focused invocations across incremental slices; latest comparative case 1/1 on 6f405cc2.",
+        "periodBehavior": "Period reviews stay separate; displayed statement values and one comparative note/reference pair match selected packages. Pin binds prior package ID/hash; new current GL stales only current review and draft.",
+        "approvalReleaseBehavior": "Approval/release survives unrelated client generation changes.",
+        "commit": "6f405cc2 pushed to master."
       },
       "notRun": [
-        "Full suites for the latest code SHA are not yet complete; no full suite was run locally.",
-        "Comparative notes/release/as-issued retention, same-period TB replacement, restatement/reselection, opening continuity, cross-engagement denial and professional/live acceptance."
+        "Full suites pending CI/CD; none run locally.",
+        "Full note/professional verification, comparative release/as-issued retention, TB replacement, restatement, opening continuity, cross-engagement denial and live acceptance."
       ],
       "open": [
-        "Comparative note schedules, release/as-issued retention, same-period TB replacement, restatement/reselection and opening continuity.",
-        "Cross-engagement denial, prior-approval noninheritance and professional annual acceptance."
+        "Full note policy/source verification; release/as-issued retention; TB replacement; restatement/reselection; opening continuity.",
+        "Cross-engagement denial, approval noninheritance and professional acceptance."
       ]
     }
   },
