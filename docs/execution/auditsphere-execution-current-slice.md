@@ -24,6 +24,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 > **Archive:** earlier slice sections, moved verbatim on 2026-10-08 and 2026-10-15, are in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are history, not current authority; the ledger is [`status.json`](status.json).
 
+## CP-13 — signed equity component transfers — 2026-10-17
+
+Commit `8ea17226cd2caaad973730c42a2232dc00dcdfa7` adds paired, append-only transfers between distinct equity components to the financial-package build, with server validation, hash binding, component rollforwards, linked presentation/export rows, archive evidence and Angular input. The migration is generated but not applied. Focused Domain tests passed (24/24 before the final label assertion edit; final presentation test 1/1 after it); the Angular builder spec passed 31/31, production build passed with the existing commercial-settings style-budget warning, and EF model drift is clean. No authenticated browser record flow or full suite was run. CP-13 remains PARTIAL: accepted-source lineage, professional reserve/profit/distribution policy, opening/no-movement cases and professional acceptance are still open. Exact evidence is in `targetedVerification.cp13EquityComponentTransfers` in `status.json`.
+
 ## Angular accounting maintenance recovery
 
 Roll-forward, restatement submission and independent approval now share exact previews and append-only receipts. Request recovery retains only identity and hash; missing lookup never silently clears uncertainty. Publication locks and final authorization checks protect client/session boundaries. The approval preview exposes the submitted package pair and evidence. Period-record handoffs are reauthorized after projection. Batched evidence is under `targetedVerification.angularAccountingMaintenanceRecovery` in `status.json`; the migration is generated, not deployed. Accounting parity and Blazor retirement remain incomplete.
