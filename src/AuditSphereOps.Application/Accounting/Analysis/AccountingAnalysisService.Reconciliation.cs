@@ -429,6 +429,10 @@ public static partial class AccountingAnalysisService
     if (targetPeriod.StartDate <= source.AsOfDate)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "The carry-forward target period must start after the source reconciliation as-of date.");
+    if (targetBookId is { } selectedTargetBookId && !await db.ClientReportingBooks.AsNoTracking().AnyAsync(x =>
+        x.Id == selectedTargetBookId && x.FirmId == actor.FirmId && x.ClientId == source.ClientId && x.PeriodId == targetPeriod.Id, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied,
+        "The target reporting book must belong to the selected client and target period.");
 
     var sourceItems = await db.AccountingReconciliationItems.AsNoTracking()
       .Where(x => x.ReconciliationId == source.Id && x.FirmId == actor.FirmId &&
@@ -437,6 +441,12 @@ public static partial class AccountingAnalysisService
     if (sourceItems.Count != selectedItemIds.Count)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied,
         "One or more selected items do not belong to the source reconciliation.");
+    if (sourceItems.Any(x => x.SettlementDate is not null || !string.IsNullOrWhiteSpace(x.SettlementReference) ||
+        x.Disposition.Trim().ToUpperInvariant() is not ("OPEN" or "CARRIED_FORWARD")))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
+        "Only outstanding, unsettled items can be carried forward.");
+
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
 
     var carry = new AccountingReconciliation
     {
@@ -450,7 +460,6 @@ public static partial class AccountingAnalysisService
       InputGeneration = 1, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.AccountingReconciliations.Add(carry);
-    await db.SaveChangesAsync(ct);
 
     foreach (var item in sourceItems)
     {
@@ -467,6 +476,7 @@ public static partial class AccountingAnalysisService
       });
     }
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult<Guid>.Ok(carry.Id);
   }
 }

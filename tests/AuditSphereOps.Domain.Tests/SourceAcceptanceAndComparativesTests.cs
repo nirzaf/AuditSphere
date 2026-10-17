@@ -342,7 +342,8 @@ public sealed class SourceAcceptanceAndComparativesTests
       Assert.True((await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, originalId,
         [
           new ReconciliationItemInput("ITEM-R1", 50m, "QAR", new DateOnly(2026, 12, 31), "timing", "ev-r1", "OPEN"),
-          new ReconciliationItemInput("ITEM-R2", -50m, "QAR", new DateOnly(2026, 12, 31), "timing", "ev-r2", "OPEN")
+          new ReconciliationItemInput("ITEM-R2", -50m, "QAR", new DateOnly(2026, 12, 31), "timing", "ev-r2", "SETTLED",
+            SettlementDate: new DateOnly(2026, 12, 31), SettlementReference: "settlement-r2")
         ])).Succeeded);
 
       // Revision: successor starts as Draft with a bumped revision and supersession link.
@@ -365,15 +366,27 @@ public sealed class SourceAcceptanceAndComparativesTests
       nextPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
         new ReportingPeriodRequest(fixture.ClientId, "2027", new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31),
           "STATUTORY", "QAR"))).Value;
-      var itemIds = await db.AccountingReconciliationItems.AsNoTracking()
-        .Where(x => x.ReconciliationId == originalId).Select(x => x.Id).ToListAsync();
+      var items = await db.AccountingReconciliationItems.AsNoTracking()
+        .Where(x => x.ReconciliationId == originalId).ToListAsync();
+      var settledId = Assert.Single(items, x => x.StableItemId == "ITEM-R2").Id;
+      var carryCountBefore = await db.AccountingReconciliations.CountAsync(x => x.SupersedesReconciliationId == originalId);
+      var settledResult = await AccountingAnalysisService.CarryForwardReconciliationItemsAsync(db, preparer, originalId,
+        nextPeriodId, null, [settledId], "settled-carry-forward-evidence");
+      Assert.False(settledResult.Succeeded);
+      Assert.Equal(carryCountBefore, await db.AccountingReconciliations.CountAsync(x => x.SupersedesReconciliationId == originalId));
+
+      var openId = Assert.Single(items, x => x.StableItemId == "ITEM-R1").Id;
+      var wrongBook = await AccountingAnalysisService.CarryForwardReconciliationItemsAsync(db, preparer, originalId,
+        nextPeriodId, bookId, [openId], "wrong-period-book-evidence");
+      Assert.False(wrongBook.Succeeded);
       carriedId = (await AccountingAnalysisService.CarryForwardReconciliationItemsAsync(db, preparer, originalId,
-        nextPeriodId, null, itemIds, "carry-forward-evidence-1")).Value;
+        nextPeriodId, null, [openId], "carry-forward-evidence-1")).Value;
       var carried = await db.AccountingReconciliations.SingleAsync(x => x.Id == carriedId);
       Assert.Equal(AccountingWorkflowStates.Draft, carried.Status);
       Assert.Equal(nextPeriodId, carried.PeriodId);
       var carriedItems = await db.AccountingReconciliationItems.Where(x => x.ReconciliationId == carriedId).ToListAsync();
-      Assert.Equal(2, carriedItems.Count);
+      Assert.Single(carriedItems);
+      Assert.Equal("ITEM-R1", carriedItems[0].StableItemId);
       Assert.Equal("CARRIED_FORWARD", carriedItems[0].Disposition);
       Assert.Equal(0m, carried.SourceTotal);
     }
