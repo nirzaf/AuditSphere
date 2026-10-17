@@ -125,6 +125,7 @@ describe('workflow queue assignment filters', () => {
   const task = {
     taskId: '22222222-2222-4222-8222-222222222222', clientId: '33333333-3333-4333-8333-333333333333', clientName: 'Client A',
     engagementId: '44444444-4444-4444-8444-444444444444', engagementServiceRoute: 'AUDIT', engagementPeriod: 'FY2026',
+    sourceKey: 'MANUAL:fixture', templateRevisionId: null, templateStepId: null,
     title: 'Prepare lead schedule', phase: 'FIELDWORK', ordinal: 1, taskStatus: 'OPEN',
     assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
@@ -158,7 +159,7 @@ describe('workflow queue assignment filters', () => {
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
-        .flush({ view: 'MY_TASKS', tasks: [{ ...task, unmetTaskDependencies: 1 }], hasMore: false, nextCursor: null, summary: summary() });
+        .flush({ view: 'MY_TASKS', tasks: [{ ...task, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId }], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
       TestBed.tick();
       for (const display of ['LIST', 'BOARD', 'CALENDAR'] as const) {
@@ -166,6 +167,9 @@ describe('workflow queue assignment filters', () => {
         const labels = host.querySelectorAll('.prerequisite-status');
         expect(labels.length).toBe(1);
         expect(labels[0].textContent).toContain('Prerequisites: blocked');
+        expect(host.textContent).toContain('Source: MANUAL:fixture');
+        expect(host.textContent).toContain('template revision ' + task.taskId);
+        expect(host.textContent).toContain('step ' + task.clientId);
         expect(host.textContent).toContain(task.title);
       }
       http.verify({ ignoreCancelled: true });

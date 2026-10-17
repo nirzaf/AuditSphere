@@ -147,6 +147,10 @@ public sealed class EngagementWorkflowTaskTests
       Assert.True(secondPage.Succeeded, secondPage.Message);
       Assert.False(secondPage.Value!.HasMore);
       Assert.Equal(taskA, Assert.Single(secondPage.Value.Tasks).TaskId);
+      var retainedSource = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == taskA);
+      Assert.Equal(retainedSource.SourceKey, secondPage.Value.Tasks[0].SourceKey);
+      Assert.Equal(retainedSource.TemplateRevisionId, secondPage.Value.Tasks[0].TemplateRevisionId);
+      Assert.Equal(retainedSource.TemplateStepId, secondPage.Value.Tasks[0].TemplateStepId);
       var assigned = await WorkflowTaskQueueQuery.GetAsync(db, staffAActor,
         new WorkflowTaskQueueRequest("TEAM", AssigneeUserId: staffA.Id));
       Assert.True(assigned.Succeeded, assigned.Message);

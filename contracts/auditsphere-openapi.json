@@ -138531,6 +138531,24 @@
             ],
             "format": "int32",
             "default": 0
+          },
+          "sourceKey": {
+            "type": "string",
+            "default": ""
+          },
+          "templateRevisionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "templateStepId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

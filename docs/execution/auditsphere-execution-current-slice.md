@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Task queue source lineage
+
+Queue rows now expose retained source keys and exact template identities in all layouts. Focused lineage/component checks, builds and manual-source browser inspection passed; template browser and responsive acceptance remain open. See execution ledger.
+
 ## Queue prerequisite presentation
 
 The queue now displays a separate blocked prerequisite label consistently in list, board and calendar views using existing server prerequisite facts. Missing viewer permission alone is not a blocker; completed history stays unchanged. Focused component checks and Angular/API builds passed; exact evidence is in `status.json`. Follow-up repaired omitted safety rows in the synthetic seed while preserving application guards. Browser creation, assignment, reviewed dependency, blocked display in all three layouts and clearing after predecessor completion now pass. Responsive and broader WF-06 acceptance remain unverified.
