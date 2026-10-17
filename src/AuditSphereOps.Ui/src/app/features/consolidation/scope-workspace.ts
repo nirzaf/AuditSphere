@@ -18,6 +18,32 @@ interface NewJournalLine {
   description: string;
 }
 
+const CONSOLIDATION_SCALE = 1_000_000n;
+const MAX_NUMERIC_19_6 = BigInt('9'.repeat(19));
+const MAX_OWNERSHIP_PERCENT_SCALED = 100n * CONSOLIDATION_SCALE;
+
+function parseConsolidationAmount(value: string): bigint | null {
+  const input = value.trim();
+  const parts = /^(\d+)(?:\.(\d{1,6}))?$/.exec(input);
+  if (!parts || input.length > 64) return null;
+  const scaled = BigInt(parts[1]) * CONSOLIDATION_SCALE + BigInt((parts[2] ?? '').padEnd(6, '0') || '0');
+  return scaled <= MAX_NUMERIC_19_6 ? scaled : null;
+}
+
+function formatScaledAmount(value: bigint): string {
+  return `${value / CONSOLIDATION_SCALE}.${(value % CONSOLIDATION_SCALE).toString().padStart(6, '0')}`;
+}
+
+/** Ownership is already expressed in percentage points by the API; preserve the value and append its unit. */
+export function formatOwnershipPercent(value: string): string {
+  const scaled = parseConsolidationAmount(value);
+  if (scaled === null || scaled > MAX_OWNERSHIP_PERCENT_SCALED) return '—';
+  const [whole, fraction = ''] = value.trim().split('.');
+  const normalizedWhole = whole.replace(/^0+(?=\d)/, '') || '0';
+  const normalizedFraction = fraction.replace(/0+$/, '');
+  return `${normalizedWhole}${normalizedFraction ? `.${normalizedFraction}` : ''}%`;
+}
+
 @Component({
   selector: 'audit-consolidation-scope-workspace',
   imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
@@ -51,7 +77,7 @@ interface NewJournalLine {
           <dt>Perimeter status</dt><dd><audit-status [value]="w.scope.status" /></dd>
         </dl>
 
-        @if (w.scope.status === 'Draft' && w.canReview) {
+        @if (w.scope.status === 'DRAFT' && w.canReview) {
           <div class="actions" style="margin-top: 1rem;">
             <button matButton="filled" (click)="approveScope(w.scope.id)" [disabled]="cmd.busy()">
               Approve perimeter
@@ -74,7 +100,7 @@ interface NewJournalLine {
         <h2 id="components-heading">Components & Intake</h2>
         <p><small>Consolidation operates strictly on approved, validated component financial packages. Preparers cannot approve their own submissions.</small></p>
 
-        @if (w.scope.status === 'Draft' && w.canPrepare && w.eligiblePackages.length > 0) {
+        @if (w.scope.status === 'DRAFT' && w.canPrepare && w.eligiblePackages.length > 0) {
           <fieldset class="panel" style="margin: 1rem 0;">
             <legend><strong>Submit component from eligible package</strong></legend>
             <div class="inline-form">
@@ -92,7 +118,10 @@ interface NewJournalLine {
 
               <label>
                 Ownership % *
-                <input type="number" [(ngModel)]="ownershipPercent" name="ownershipPercent" min="0" max="100" step="0.01" />
+                <input type="text" inputmode="decimal" [(ngModel)]="ownershipPercent" name="ownershipPercent" maxlength="64" />
+                @if (!isValidOwnershipPercent(ownershipPercent)) {
+                  <small class="error-text" role="alert">Enter an ownership percentage from 0 to 100 with at most six decimal places.</small>
+                }
               </label>
 
               <label>
@@ -104,7 +133,7 @@ interface NewJournalLine {
                 </select>
               </label>
 
-              <button matButton="filled" (click)="submitComponent(w)" [disabled]="cmd.busy() || !selectedPackageId">
+              <button matButton="filled" (click)="submitComponent(w)" [disabled]="cmd.busy() || !selectedPackageId || !isValidOwnershipPercent(ownershipPercent)">
                 Submit component
               </button>
             </div>
@@ -132,7 +161,7 @@ interface NewJournalLine {
                     <small>Digest: {{ c.packageHash.slice(0, 12) }}…</small>
                   </td>
                   <td><code>{{ c.currency }}</code></td>
-                  <td>{{ c.ownershipPercent | percent }}</td>
+                  <td>{{ ownershipPercentDisplay(c.ownershipPercent) }}</td>
                   <td>{{ c.controlMethod }}</td>
                   <td>{{ c.periodBasis }}</td>
                   <td><audit-status [value]="c.status" /></td>
@@ -203,10 +232,10 @@ interface NewJournalLine {
                   <tbody>
                     @for (line of journalLines(); track $index) {
                       <tr>
-                        <td><input type="text" [(ngModel)]="line.taxonomyCode" placeholder="e.g. BS-100" /></td>
-                        <td><input type="number" [(ngModel)]="line.debit" min="0" step="0.01" style="width: 8rem;" /></td>
-                        <td><input type="number" [(ngModel)]="line.credit" min="0" step="0.01" style="width: 8rem;" /></td>
-                        <td><input type="text" [(ngModel)]="line.description" placeholder="Line memo" /></td>
+                        <td><input type="text" [ngModel]="line.taxonomyCode" (ngModelChange)="updateJournalLine($index, 'taxonomyCode', $event)" placeholder="e.g. BS-100" /></td>
+                        <td><input type="text" inputmode="decimal" maxlength="64" [ngModel]="line.debit" (ngModelChange)="updateJournalLine($index, 'debit', $event)" style="width: 8rem;" /></td>
+                        <td><input type="text" inputmode="decimal" maxlength="64" [ngModel]="line.credit" (ngModelChange)="updateJournalLine($index, 'credit', $event)" style="width: 8rem;" /></td>
+                        <td><input type="text" [ngModel]="line.description" (ngModelChange)="updateJournalLine($index, 'description', $event)" placeholder="Line memo" /></td>
                         <td>
                           @if (journalLines().length > 2) {
                             <button type="button" (click)="removeJournalLine($index)">Remove</button>
@@ -221,7 +250,9 @@ interface NewJournalLine {
                       <th class="number">{{ totalDebits() }}</th>
                       <th class="number">{{ totalCredits() }}</th>
                       <th colspan="2">
-                        @if (isJournalBalanced()) {
+                        @if (!journalAmountsValid()) {
+                          <span class="error-text" role="alert">Enter non-negative decimal amounts within numeric(19,6), with no more than six decimal places.</span>
+                        } @else if (isJournalBalanced()) {
                           <span style="color: #127236; font-weight: 600;">✓ Balanced</span>
                         } @else {
                           <span class="error-text">Out of balance (Diff: {{ journalDifference() }})</span>
@@ -272,8 +303,8 @@ interface NewJournalLine {
                   </td>
                   <td><code>{{ j.journalType }}</code></td>
                   <td><code>{{ j.currency }}</code></td>
-                  <td class="number">{{ j.totalDebits | money }}</td>
-                  <td class="number">{{ j.totalCreditsAbs | money }}</td>
+                  <td class="number">{{ j.totalDebits | money:6 }}</td>
+                  <td class="number">{{ j.totalCreditsAbs | money:6 }}</td>
                   <td><audit-status [value]="j.status" /></td>
                   <td>
                     <details>
@@ -281,7 +312,7 @@ interface NewJournalLine {
                       <ul>
                         @for (l of j.lines; track l.id) {
                           <li>
-                            <code>{{ l.taxonomyCode }}</code>: Dr {{ l.debit | money }} / Cr {{ l.credit | money }}
+                            <code>{{ l.taxonomyCode }}</code>: Dr {{ l.debit | money:6 }} / Cr {{ l.credit | money:6 }}
                             @if (l.description) { — {{ l.description }} }
                           </li>
                         }
@@ -289,7 +320,7 @@ interface NewJournalLine {
                     </details>
                   </td>
                   <td>
-                    @if (j.status === 'Submitted' && w.canReview && j.createdByUserId !== w.currentUserId) {
+                    @if (j.status === 'SUBMITTED' && w.canReview && j.createdByUserId !== w.currentUserId) {
                       <div class="actions">
                         <button matButton="filled" (click)="approveJournal(j.id)" [disabled]="cmd.busy()">
                           Approve
@@ -298,7 +329,7 @@ interface NewJournalLine {
                           Return
                         </button>
                       </div>
-                    } @else if (j.status === 'Submitted' && j.createdByUserId === w.currentUserId) {
+                    } @else if (j.status === 'SUBMITTED' && j.createdByUserId === w.currentUserId) {
                       <small>Maker/checker: independent review required</small>
                     } @else if (j.status === 'Returned' && w.canPrepare) {
                       <button matButton="filled" (click)="resubmitJournal(j.id)" [disabled]="cmd.busy()">
@@ -322,7 +353,7 @@ interface NewJournalLine {
         <h2 id="runs-heading">Consolidation runs & reports</h2>
         <p><small>Consolidation executes over approved components and approved journals. Runs require maker/checker review before generating authoritative reports.</small></p>
 
-        @if (w.canPrepare && w.scope.status === 'Approved') {
+        @if (w.canPrepare && w.scope.status === 'APPROVED') {
           <div class="actions" style="margin-bottom: 1rem;">
             <button matButton="filled" (click)="runConsolidation(w.scope.id)" [disabled]="cmd.busy()">
               Calculate consolidation run
@@ -351,11 +382,11 @@ interface NewJournalLine {
                   <td class="number">{{ r.signedTotal | money }}</td>
                   <td><audit-status [value]="r.status" /></td>
                   <td>
-                    @if (r.status === 'VERIFIED' && w.canReview && r.createdByUserId !== w.currentUserId) {
+                    @if (r.status === 'SUBMITTED' && w.canReview && r.createdByUserId !== w.currentUserId) {
                       <button matButton="filled" (click)="approveRun(r.id)" [disabled]="cmd.busy()">
                         Approve run
                       </button>
-                    } @else if (r.status === 'VERIFIED' && r.createdByUserId === w.currentUserId) {
+                    } @else if (r.status === 'SUBMITTED' && r.createdByUserId === w.currentUserId) {
                       <small>Maker/checker: independent review required</small>
                     } @else if (r.status === 'APPROVED') {
                       <small>Approved {{ r.approvedAt ? r.approvedAt.slice(0, 10) : '' }}</small>
@@ -500,7 +531,7 @@ export class ConsolidationScopeWorkspace {
 
   // Component Submission Form State
   selectedPackageId = '';
-  ownershipPercent = 100;
+  ownershipPercent = '100';
   controlMethod = 'CONTROLLED';
 
   // Journal Creation Form State
@@ -513,33 +544,50 @@ export class ConsolidationScopeWorkspace {
     { taxonomyCode: '', debit: '0.00', credit: '0.00', description: '' },
   ]);
 
+  private readonly journalTotals = computed(() => {
+    let debit = 0n;
+    let credit = 0n;
+    for (const line of this.journalLines()) {
+      const lineDebit = parseConsolidationAmount(line.debit);
+      const lineCredit = parseConsolidationAmount(line.credit);
+      if (lineDebit === null || lineCredit === null) return null;
+      debit += lineDebit;
+      credit += lineCredit;
+      if (debit > MAX_NUMERIC_19_6 || credit > MAX_NUMERIC_19_6) return null;
+    }
+    return { debit, credit };
+  });
+
+  readonly journalAmountsValid = computed(() => this.journalTotals() !== null);
   readonly totalDebits = computed(() => {
-    let sum = 0;
-    for (const l of this.journalLines()) {
-      sum += parseFloat(l.debit) || 0;
-    }
-    return sum.toFixed(2);
+    const totals = this.journalTotals();
+    return totals ? formatScaledAmount(totals.debit) : '—';
   });
-
   readonly totalCredits = computed(() => {
-    let sum = 0;
-    for (const l of this.journalLines()) {
-      sum += parseFloat(l.credit) || 0;
-    }
-    return sum.toFixed(2);
+    const totals = this.journalTotals();
+    return totals ? formatScaledAmount(totals.credit) : '—';
   });
-
   readonly isJournalBalanced = computed(() => {
-    const dr = Math.round((parseFloat(this.totalDebits()) || 0) * 100);
-    const cr = Math.round((parseFloat(this.totalCredits()) || 0) * 100);
-    return dr > 0 && dr === cr;
+    const totals = this.journalTotals();
+    return totals !== null && totals.debit > 0n && totals.debit === totals.credit;
+  });
+  readonly journalDifference = computed(() => {
+    const totals = this.journalTotals();
+    return totals ? formatScaledAmount(totals.debit >= totals.credit ? totals.debit - totals.credit : totals.credit - totals.debit) : '—';
   });
 
-  readonly journalDifference = computed(() => {
-    const dr = parseFloat(this.totalDebits()) || 0;
-    const cr = parseFloat(this.totalCredits()) || 0;
-    return Math.abs(dr - cr).toFixed(2);
-  });
+  isValidOwnershipPercent(value: string): boolean {
+    const scaled = parseConsolidationAmount(value);
+    return scaled !== null && scaled <= MAX_OWNERSHIP_PERCENT_SCALED;
+  }
+
+  ownershipPercentDisplay(value: string): string {
+    return formatOwnershipPercent(value);
+  }
+
+  updateJournalLine(index: number, field: keyof NewJournalLine, value: string): void {
+    this.journalLines.update((lines) => lines.map((line, i) => i === index ? { ...line, [field]: value } : line));
+  }
 
   addJournalLine(): void {
     this.journalLines.update((lines) => [
@@ -559,7 +607,8 @@ export class ConsolidationScopeWorkspace {
 
   submitComponent(w: ScopeWorkspace): void {
     const pkg = w.eligiblePackages.find((p) => p.packageId === this.selectedPackageId);
-    if (!pkg) return;
+    const ownershipPercent = this.ownershipPercent.trim();
+    if (!pkg || !this.isValidOwnershipPercent(ownershipPercent)) return;
 
     void this.cmd.run(
       `/api/ui/consolidation/scopes/${w.scope.id}/components`,
@@ -567,7 +616,7 @@ export class ConsolidationScopeWorkspace {
         clientId: pkg.clientId,
         engagementId: pkg.engagementId,
         packageId: pkg.packageId,
-        ownershipPercent: this.ownershipPercent,
+        ownershipPercent,
         controlMethod: this.controlMethod,
         periodBasis: pkg.periodBasis,
         taxonomyVersion: pkg.taxonomyVersion,
@@ -576,7 +625,7 @@ export class ConsolidationScopeWorkspace {
       'Component submitted for independent review.',
       () => {
         this.selectedPackageId = '';
-        this.ownershipPercent = 100;
+        this.ownershipPercent = '100';
       },
     ).finally(() => this.ws.reload());
   }
@@ -587,10 +636,13 @@ export class ConsolidationScopeWorkspace {
   }
 
   createJournal(scopeId: string): void {
+    const totals = this.journalTotals();
+    if (!totals || totals.debit <= 0n || totals.debit !== totals.credit) return;
     const lines = this.journalLines().map((l) => ({
+      intercompanyMatchId: null,
       taxonomyCode: l.taxonomyCode.trim(),
-      debit: parseFloat(l.debit) || 0,
-      credit: parseFloat(l.credit) || 0,
+      debit: l.debit.trim(),
+      credit: l.credit.trim(),
       description: l.description.trim(),
     }));
 

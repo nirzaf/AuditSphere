@@ -1,4 +1,12 @@
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
+
+const scopeStatus = oneOf('DRAFT', 'APPROVED');
+const componentStatus = oneOf('SUBMITTED', 'APPROVED');
+const journalStatus = oneOf('DRAFT', 'SUBMITTED', 'APPROVED', 'Returned');
+const runStatus = oneOf('SUBMITTED', 'APPROVED');
+const reportState = oneOf('ADVANCED_PROFILE', 'NO_RUN', 'REVIEW_REQUIRED', 'STALE', 'CURRENT_APPROVED');
+const componentReadinessState = oneOf('NONE', 'DRAFT', 'SUBMITTED', 'APPROVED');
+const intercompanyStatus = oneOf('DRAFT', 'SUBMITTED', 'APPROVED');
 
 export const decodeScopeSummary = obj({
   id: guid,
@@ -10,7 +18,7 @@ export const decodeScopeSummary = obj({
   periodId: guid,
   reportingCurrency: text,
   method: text,
-  status: text,
+  status: scopeStatus,
   openingBasis: text,
   isAdvanced: bool,
 });
@@ -29,7 +37,7 @@ export const decodeConsolidationComponent = obj({
   currency: text,
   ownershipPercent: dec,
   controlMethod: text,
-  status: text,
+  status: componentStatus,
   submittedByUserId: guid,
   submittedAt: instant,
   approvedByUserId: nullable(guid),
@@ -65,7 +73,7 @@ export const decodeConsolidationJournal = obj({
   totalDebits: dec,
   totalCreditsAbs: dec,
   evidenceReference: text,
-  status: text,
+  status: journalStatus,
   returnReason: nullable(text),
   createdByUserId: guid,
   createdAt: instant,
@@ -79,7 +87,7 @@ export const decodeConsolidationRun = obj({
   engineVersion: text,
   runHash: text,
   signedTotal: dec,
-  status: text,
+  status: runStatus,
   createdByUserId: guid,
   createdAt: instant,
   approvedByUserId: nullable(guid),
@@ -99,7 +107,7 @@ export const decodeConsolidationReportLine = obj({
 export const decodeConsolidationReport = obj({
   scopeVersionId: guid,
   runId: nullable(guid),
-  state: text,
+  state: reportState,
   approvedAt: nullable(instant),
   lines: arr(decodeConsolidationReportLine, 20000),
 });
@@ -107,7 +115,7 @@ export const decodeConsolidationReport = obj({
 export const decodeComponentReadiness = obj({
   clientId: guid,
   memberName: text,
-  componentState: text,
+  componentState: componentReadinessState,
   componentId: nullable(guid),
   currency: text,
   periodBasis: text,
@@ -131,7 +139,7 @@ export const decodeIntercompanyException = obj({
   matchedAmount: dec,
   difference: dec,
   differenceReason: text,
-  status: text,
+  status: intercompanyStatus,
   outsidePerimeterReview: bool,
   evidenceReference: text,
 });
