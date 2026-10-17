@@ -709,6 +709,12 @@ public sealed class AuditProgramWorkflowTests
     await PlanningBasisSeed.EstablishAsync(db, scope.FirmId, scope.ClientId, scope.EngagementId, scope.Actor,
       new ActorContext(basisApproverId, scope.FirmId, 1, ["Partner"]));
 
+    var physical = await AuditFieldworkService.RegisterPhysicalItemAsync(db, scope.Actor, scope.EngagementId,
+      "X-1", "Box 3", "Signed stock count sheets", "Client warehouse");
+    Assert.True(physical.Succeeded, physical.Message);
+    var physicalLink = await AuditFieldworkService.LinkPhysicalItemAsync(db, scope.Actor, procedure.Id, physical.Value);
+    Assert.True(physicalLink.Succeeded, physicalLink.Message);
+
     var state = await AuditProcedureCommandWorkspace.StateAsync(db, scope.Actor, procedure.Id);
     Assert.True(state.Succeeded, state.Message);
     var basis = state.Value!.Basis;
@@ -717,7 +723,13 @@ public sealed class AuditProgramWorkflowTests
     var request = new ProcedureCommandRequest(Guid.NewGuid(), ProcedureCommandActions.SubmitResult,
       basis.DefinitionRevision, basis.InputGeneration, basis.CurrentResultRevision, null,
       "Agreed the bank listing to the ledger.", "{\"result\":\"PASS\"}", ["source:bank-list-1"],
-      "No exception noted.", null, null, false, null);
+      "No exception noted.", null, null, false, null,
+      [
+        new ProcedureEvidenceSelection(ProcedureEvidenceSelectionKinds.PhysicalLink, PhysicalLinkId: physicalLink.Value),
+        new ProcedureEvidenceSelection(ProcedureEvidenceSelectionKinds.ManualReference,
+          ManualReference: "Bank confirmation call 2026-10-17",
+          Observation: "Called the bank relationship manager; the confirmed balance agreed to the listing.")
+      ]);
     var preview = await AuditProcedureCommandWorkspace.PreviewAsync(db, scope.Actor, procedure.Id, request);
     Assert.True(preview.Succeeded, preview.Message);
     var action = request with { Reviewed = true, ExpectedRequestHash = preview.Value!.RequestHash };
@@ -726,6 +738,21 @@ public sealed class AuditProgramWorkflowTests
     Assert.Equal(ProcedureCommandActions.SubmitResult, receipt.Value!.Action);
     Assert.Equal(1, receipt.Value.ResultRevision);
     Assert.NotNull(receipt.Value.ResultId);
+    Assert.Equal(64, receipt.Value.EvidenceDigest!.Length);
+
+    Assert.True((await AuditFieldworkService.MovePhysicalItemAsync(db, scope.Actor, physical.Value,
+      "Firm archive room", "Returned after fieldwork")).Succeeded);
+    var submitted = await AuditFieldworkWorkspaceQuery.ProcedureAsync(db, scope.Actor, procedure.Id);
+    Assert.True(submitted.Succeeded, submitted.Message);
+    Assert.Contains("Client warehouse", submitted.Value!.CurrentResult!.SubmittedEvidenceJson);
+    Assert.Contains("Bank confirmation call 2026-10-17", submitted.Value.CurrentResult.SubmittedEvidenceJson);
+    Assert.DoesNotContain("Firm archive room", submitted.Value.CurrentResult.SubmittedEvidenceJson);
+    Assert.Equal(receipt.Value.EvidenceDigest, submitted.Value.CurrentResult.EvidenceDigest);
+
+    var malformedEvidence = await AuditProcedureCommandWorkspace.PreviewAsync(db, scope.Actor, procedure.Id,
+      request with { EvidenceSelections = [new ProcedureEvidenceSelection(ProcedureEvidenceSelectionKinds.ManualReference,
+        ManualReference: "Incomplete observation")] });
+    Assert.False(malformedEvidence.Succeeded);
 
     var replay = await AuditProcedureCommandWorkspace.ExecuteAsync(db, scope.Actor, procedure.Id, action);
     Assert.True(replay.Succeeded, replay.Message);

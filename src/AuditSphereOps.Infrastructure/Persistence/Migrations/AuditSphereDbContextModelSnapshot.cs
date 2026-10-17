@@ -14209,6 +14209,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("engagement_id");
 
+                    b.Property<string>("EvidenceDigest")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("evidence_digest");
+
                     b.Property<long>("ExpectedResultRevision")
                         .HasColumnType("bigint")
                         .HasColumnName("expected_result_revision");

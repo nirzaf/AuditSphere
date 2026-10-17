@@ -35,6 +35,20 @@ public sealed record ProcedureCommandBasis(
 
 public sealed record ProcedureCommandState(ProcedureCommandBasis Basis, string StateHash);
 
+public static class ProcedureEvidenceSelectionKinds
+{
+  public const string StoredLink = "STORED_LINK";
+  public const string PhysicalLink = "PHYSICAL_LINK";
+  public const string ManualReference = "MANUAL_REFERENCE";
+}
+
+public sealed record ProcedureEvidenceSelection(
+  string Kind,
+  Guid? LinkId = null,
+  Guid? PhysicalLinkId = null,
+  string? ManualReference = null,
+  string? Observation = null);
+
 public sealed record ProcedureCommandRequest(
   Guid RequestId,
   string Action,
@@ -49,7 +63,8 @@ public sealed record ProcedureCommandRequest(
   string? Decision,
   string? Comment,
   bool Reviewed,
-  string? ExpectedRequestHash);
+  string? ExpectedRequestHash,
+  IReadOnlyList<ProcedureEvidenceSelection>? EvidenceSelections = null);
 
 public sealed record ProcedureCommandPreview(
   Guid RequestId,
@@ -77,6 +92,7 @@ public sealed record ProcedureCommandReceiptView(
   long ResultRevision,
   string? ResultStatus,
   string? Decision,
+  string? EvidenceDigest,
   DateTimeOffset CommittedAt);
 
 public sealed record ProcedureCommandLookup(bool Found, ProcedureCommandReceiptView? Receipt);

@@ -65,7 +65,8 @@ public sealed record SubmitProcedureResultRequest(
   string WorkPerformed,
   string StructuredResultJson,
   IReadOnlyList<string> EvidenceReferences,
-  string Conclusion);
+  string Conclusion,
+  IReadOnlyList<ProcedureEvidenceSelection>? EvidenceSelections = null);
 
 public sealed record ProcedureResultValue(
   Guid AuditProcedureResultId,
@@ -682,7 +683,12 @@ public static partial class AuditProgramService
       }
     }
 
+    var evidence = await ResolveEvidenceSnapshotAsync(db, actor, scope.FirmId, scope.ClientId, procedure.EngagementId,
+      procedure.Id, request.EvidenceSelections, request.EvidenceReferences, ct);
+    if (!evidence.Succeeded)
+      return CommandResult<ProcedureResultValue>.Fail(evidence.ErrorCode!, evidence.Message!);
     var structuredResult = ProcedureRiskBandEvaluator.WithCapturedBasis(request.StructuredResultJson, effectiveRisk.Value);
+    structuredResult = WithEvidenceSnapshot(structuredResult, evidence.Value!.Json);
     if (Encoding.UTF8.GetByteCount(structuredResult) > ProcedureRiskBandEvaluator.MaximumStructuredResultBytes)
       return CommandResult<ProcedureResultValue>.Fail(InvalidCode,
         "Structured result is too large to retain with its required planning basis.");
@@ -754,7 +760,8 @@ public static partial class AuditProgramService
         RequestHash = command.RequestHash, ActorUserId = actor.UserId, ActorEpoch = actor.SessionEpoch,
         RequestId = command.RequestId, DefinitionRevision = procedure.CurrentDefinitionRevision, InputGeneration = generation,
         ExpectedResultRevision = command.ExpectedResultRevision, ResultId = result.Id, WorkpaperId = workpaper.Id,
-        ResultRevision = revision, ResultStatus = result.Status, CommittedAt = DateTimeOffset.UtcNow
+        ResultRevision = revision, ResultStatus = result.Status, EvidenceDigest = SubmittedEvidenceDigest(structuredResult),
+        CommittedAt = DateTimeOffset.UtcNow
       });
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -943,7 +950,7 @@ public static partial class AuditProgramService
         RequestId = command.RequestId, DefinitionRevision = procedure.CurrentDefinitionRevision, InputGeneration = generation,
         ExpectedResultRevision = command.ExpectedResultRevision, ResultId = result.Id, WorkpaperId = result.WorkpaperId,
         ReviewId = review.Id, ResultRevision = result.Revision, ResultStatus = result.Status, Decision = decision,
-        CommittedAt = DateTimeOffset.UtcNow
+        EvidenceDigest = SubmittedEvidenceDigest(result.StructuredResultJson), CommittedAt = DateTimeOffset.UtcNow
       });
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
@@ -981,7 +988,7 @@ public static partial class AuditProgramService
   {
     if (string.IsNullOrWhiteSpace(json) || Encoding.UTF8.GetByteCount(json) > ProcedureRiskBandEvaluator.MaximumStructuredResultBytes)
       return false;
-    return !ProcedureRiskBandEvaluator.HasReservedBasisProperty(json);
+    return !ProcedureRiskBandEvaluator.HasReservedBasisProperty(json) && !HasReservedEvidenceProperty(json);
   }
 
   private static bool ProcedureCommandHash(string? value) =>

@@ -38,10 +38,13 @@ public static class AuditProcedureCommandWorkspace
           request.EvidenceReferences.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > MaximumEvidence) ||
           !TryValidateObject(request.StructuredResultJson!))
         return null;
+      var selections = CanonicalSelections(request.EvidenceSelections);
+      if (selections is null) return null;
       return request with
       {
         Action = action, WorkPerformed = request.WorkPerformed!.Trim(), StructuredResultJson = request.StructuredResultJson!.Trim(),
-        EvidenceReferences = request.EvidenceReferences.Select(x => x.Trim()).ToArray(), Conclusion = request.Conclusion!.Trim()
+        EvidenceReferences = request.EvidenceReferences.Select(x => x.Trim()).ToArray(), Conclusion = request.Conclusion!.Trim(),
+        EvidenceSelections = selections
       };
     }
     if (action == ProcedureCommandActions.ReviewResult)
@@ -60,6 +63,38 @@ public static class AuditProcedureCommandWorkspace
     return null;
   }
 
+  private static IReadOnlyList<ProcedureEvidenceSelection>? CanonicalSelections(
+    IReadOnlyList<ProcedureEvidenceSelection>? values)
+  {
+    var list = values ?? [];
+    if (list.Count > 50) return null;
+    var seen = new HashSet<string>(StringComparer.Ordinal);
+    var result = new List<ProcedureEvidenceSelection>();
+    foreach (var selection in list)
+    {
+      if (selection is null) return null;
+      var kind = selection.Kind?.Trim().ToUpperInvariant();
+      if (kind == ProcedureEvidenceSelectionKinds.StoredLink &&
+          selection.LinkId is { } linkId && linkId != Guid.Empty &&
+          selection.PhysicalLinkId is null && selection.ManualReference is null && selection.Observation is null &&
+          seen.Add("L:" + linkId))
+        result.Add(new(ProcedureEvidenceSelectionKinds.StoredLink, LinkId: linkId));
+      else if (kind == ProcedureEvidenceSelectionKinds.PhysicalLink &&
+               selection.PhysicalLinkId is { } physicalLinkId && physicalLinkId != Guid.Empty &&
+               selection.LinkId is null && selection.ManualReference is null && selection.Observation is null &&
+               seen.Add("P:" + physicalLinkId))
+        result.Add(new(ProcedureEvidenceSelectionKinds.PhysicalLink, PhysicalLinkId: physicalLinkId));
+      else if (kind == ProcedureEvidenceSelectionKinds.ManualReference &&
+               Text(selection.ManualReference, 500) && Text(selection.Observation, 4000) &&
+               selection.LinkId is null && selection.PhysicalLinkId is null &&
+               seen.Add("M:" + selection.ManualReference!.Trim() + "|" + selection.Observation!.Trim()))
+        result.Add(new(ProcedureEvidenceSelectionKinds.ManualReference,
+          ManualReference: selection.ManualReference!.Trim(), Observation: selection.Observation!.Trim()));
+      else return null;
+    }
+    return result;
+  }
+
   private static bool TryValidateObject(string json)
   {
     if (string.IsNullOrWhiteSpace(json) || Encoding.UTF8.GetByteCount(json) > ProcedureRiskBandEvaluator.MaximumStructuredResultBytes) return false;
@@ -76,7 +111,8 @@ public static class AuditProcedureCommandWorkspace
     {
       Version = 1, actor.FirmId, actor.UserId, actor.SessionEpoch, ProcedureId = procedureId, request.RequestId, request.Action,
       request.ExpectedDefinitionRevision, request.ExpectedInputGeneration, request.ExpectedResultRevision, request.ResultId,
-      request.WorkPerformed, request.StructuredResultJson, request.EvidenceReferences, request.Conclusion, request.Decision, request.Comment
+      request.WorkPerformed, request.StructuredResultJson, request.EvidenceReferences, request.Conclusion, request.Decision, request.Comment,
+      request.EvidenceSelections
     }));
 
   private static async Task<CommandResult> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, AuditProcedure procedure,
@@ -230,7 +266,8 @@ public static class AuditProcedureCommandWorkspace
     {
       var submitted = await AuditProgramService.SubmitResultAsync(db, actor,
         new SubmitProcedureResultRequest(procedureId, canonical.ExpectedInputGeneration, canonical.WorkPerformed!,
-          canonical.StructuredResultJson!, canonical.EvidenceReferences!, canonical.Conclusion!), ct, command);
+          canonical.StructuredResultJson!, canonical.EvidenceReferences!, canonical.Conclusion!,
+          canonical.EvidenceSelections), ct, command);
       result = submitted.Succeeded ? CommandResult.Ok() : CommandResult.Fail(submitted.ErrorCode!, submitted.Message!);
     }
     else
@@ -252,5 +289,5 @@ public static class AuditProcedureCommandWorkspace
     receipt.Id, receipt.AuditProcedureId, receipt.SourceProcedureId, receipt.Action, receipt.ActorUserId, receipt.ActorEpoch,
     receipt.RequestId, receipt.RequestHash, receipt.DefinitionRevision, receipt.InputGeneration, receipt.ExpectedResultRevision,
     receipt.ResultId, receipt.WorkpaperId, receipt.ReviewId, receipt.ResultRevision, receipt.ResultStatus, receipt.Decision,
-    receipt.CommittedAt.ToUniversalTime());
+    receipt.EvidenceDigest, receipt.CommittedAt.ToUniversalTime());
 }

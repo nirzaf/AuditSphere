@@ -402,6 +402,7 @@ public sealed partial class AuditSphereDbContext
     procedureCommandReceipt.Property(x => x.RequestHash).HasMaxLength(64);
     procedureCommandReceipt.Property(x => x.ResultStatus).HasMaxLength(30);
     procedureCommandReceipt.Property(x => x.Decision).HasMaxLength(30);
+    procedureCommandReceipt.Property(x => x.EvidenceDigest).HasMaxLength(64);
     procedureCommandReceipt.HasIndex(x => new { x.FirmId, x.ActorUserId, x.RequestId }).IsUnique()
       .HasDatabaseName("ux_audit_procedure_command_request");
     procedureCommandReceipt.HasIndex(x => new { x.FirmId, x.AuditProcedureId, x.CommittedAt })

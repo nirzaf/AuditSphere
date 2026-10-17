@@ -38,7 +38,8 @@ public sealed record AuditFieldworkWorkspace(Guid EngagementId, int CatalogProce
   IReadOnlyList<FieldworkSchedule> Schedules, IReadOnlyList<string> SamplingMethods, IReadOnlyList<FieldworkSamplingRun> SamplingRuns,
   IReadOnlyList<EvidenceCandidate> EvidenceCandidates, IReadOnlyList<FieldworkPhysicalItem> PhysicalItems, bool CanManageFieldwork,
   bool CanReviewSelections, bool CanViewReviewNotes, bool CanAddOrResolveReviewNotes, bool CanRespondToReviewNotes);
-public sealed record FieldworkResultView(Guid Id, long Revision, string WorkPerformed, string? Conclusion);
+public sealed record FieldworkResultView(Guid Id, long Revision, string WorkPerformed, string? Conclusion,
+  string? SubmittedEvidenceJson = null, string? EvidenceDigest = null, string? EvidenceReferencesJson = null);
 public sealed record ProcedureReviewWorkspace(Guid ProcedureId, FieldworkResultView? CurrentResult, IReadOnlyList<ReviewNoteView> Notes, IReadOnlyList<ProcedureEvidenceView> Evidence);
 
 /// <summary>
@@ -258,8 +259,11 @@ public static class AuditFieldworkWorkspaceQuery
     var authorization = await AuthorizeAsync(db, actor, procedure.EngagementId, ct);
     if (!authorization.Auth.Succeeded || !authorization.CanViewReviewNotes)
       return CommandResult<ProcedureReviewWorkspace>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var result = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.AuditProcedureId == procedureId)
-      .OrderByDescending(x => x.Revision).Select(x => new FieldworkResultView(x.Id, x.Revision, x.WorkPerformed, x.Conclusion)).FirstOrDefaultAsync(ct);
+    var resultRow = await db.AuditProcedureResults.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.AuditProcedureId == procedureId)
+      .OrderByDescending(x => x.Revision).Select(x => new { x.Id, x.Revision, x.WorkPerformed, x.Conclusion, x.StructuredResultJson, x.EvidenceReferencesJson }).FirstOrDefaultAsync(ct);
+    var result = resultRow is null ? null : new FieldworkResultView(resultRow.Id, resultRow.Revision, resultRow.WorkPerformed,
+      resultRow.Conclusion, AuditProgramService.SubmittedEvidence(resultRow.StructuredResultJson),
+      AuditProgramService.SubmittedEvidenceDigest(resultRow.StructuredResultJson), resultRow.EvidenceReferencesJson);
     return CommandResult<ProcedureReviewWorkspace>.Ok(new(procedureId, result, await ReviewNotesService.ListAsync(db, actor, procedureId, ct),
       await AuditFieldworkService.ProcedureEvidenceAsync(db, actor, procedureId, ct)));
   }

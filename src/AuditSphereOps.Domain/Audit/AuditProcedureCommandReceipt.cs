@@ -23,5 +23,6 @@ public sealed class AuditProcedureCommandReceipt
   public long ResultRevision { get; set; }
   public string? ResultStatus { get; set; }
   public string? Decision { get; set; }
+  public string? EvidenceDigest { get; set; }
   public DateTimeOffset CommittedAt { get; set; }
 }
