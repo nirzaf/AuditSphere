@@ -11,6 +11,35 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class StaffCertificationReviewPersistenceTests
 {
   [Fact]
+  public async Task PublicationRequiresIndependentAuthorityAndExactSourceHeadAndRetryIntent()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var source = new StaffCertification { Id = Guid.NewGuid(), FirmId = seed.FirmId, UserId = seed.Staff.Id,
+      Name = "Synthetic qualification", RecordedByUserId = seed.Reviewer.Id, RecordedAt = DateTimeOffset.UtcNow.AddDays(-1) };
+    db.StaffCertifications.Add(source); await db.SaveChangesAsync();
+    var intent = new AuditSphereOps.Application.Practice.ReviewStaffCertificationRequest(source.Id, Guid.NewGuid(),
+      StaffCertificationEvidence.SourceDigest(source), 0, "VERIFIED", "Synthetic evidence", "Independent review");
+    var actor = PbcSeed.Actor(seed.Admin, "Administrator");
+    var first = await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db, actor, intent);
+    Assert.True(first.Succeeded, first.Message);
+    var retry = await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db, actor, intent);
+    Assert.True(retry.Succeeded, retry.Message); Assert.Equal(first.Value, retry.Value);
+    Assert.False((await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db, actor,
+      intent with { Reason = "Changed intent" })).Succeeded);
+    Assert.False((await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db, actor,
+      intent with { RequestId = Guid.NewGuid() })).Succeeded);
+    Assert.False((await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db,
+      PbcSeed.Actor(seed.Reviewer, "Reviewer"), intent with { RequestId = Guid.NewGuid(), ExpectedRevision = 1 })).Succeeded);
+    var withdrawn = await AuditSphereOps.Application.Practice.ResourcePlanningService.ReviewCertificationAsync(db, actor,
+      intent with { RequestId = Guid.NewGuid(), ExpectedRevision = 1, Decision = "REVOKED", EvidenceReference = "", Reason = "Withdrawn" });
+    Assert.True(withdrawn.Succeeded, withdrawn.Message);
+    var rows = await db.StaffCertificationReviews.AsNoTracking().OrderBy(x => x.Revision).ToListAsync();
+    Assert.Equal(2, rows.Count); Assert.Equal("VERIFIED", rows[0].Decision); Assert.Equal("REVOKED", rows[1].Decision);
+  }
+
+  [Fact]
   public async Task DecisionsRetainExactSourcesAndRejectMutationStaleHeadsAndDuplicateRequests()
   {
     await using var pg = await PgTestSchema.CreateAsync();
