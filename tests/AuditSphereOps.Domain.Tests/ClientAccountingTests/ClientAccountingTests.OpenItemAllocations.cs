@@ -76,7 +76,7 @@ public sealed partial class ClientAccountingTests
       Assert.True(lookup.Succeeded, lookup.Message);
       Assert.True(lookup.Value!.Found);
       Assert.Equal(maker.UserId, lookup.Value.ActorUserId);
-      Assert.Equal(preview.Value.IntentHash, lookup.Value.IntentHash);
+      Assert.Equal(ClientOperationalLedgerWorkspace.SettlementIntentHash(maker, request, preview.Value.Digest), lookup.Value.IntentHash);
       Assert.Equal(created.Value.JournalId, lookup.Value.Receipt!.JournalId);
       Assert.Equal("DRAFT", lookup.Value.Receipt.Outcome);
       var otherActorLookup = await ClientOperationalLedgerWorkspace.FindSettlementByCommandAsync(db, reviewer, scope.ClientA, request.CommandId);

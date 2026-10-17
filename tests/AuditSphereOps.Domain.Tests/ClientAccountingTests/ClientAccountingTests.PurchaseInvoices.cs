@@ -71,7 +71,7 @@ public sealed partial class ClientAccountingTests
       Assert.True(posted.Succeeded, posted.Message);
       var reviewOutcome = await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, reviewer, scope.ClientA, approveCommandId, "REVIEW");
       Assert.True(reviewOutcome.Succeeded, reviewOutcome.Message); Assert.Equal("POSTED", reviewOutcome.Value!.Outcome);
-      Assert.Equal(posted.Value.IntentHash, reviewOutcome.Value.PostingReceipt!.IntentHash);
+      Assert.Equal(posted.Value!.IntentHash, reviewOutcome.Value.PostingReceipt!.IntentHash);
       Assert.Equal(posted.Value.SubmissionId, reviewOutcome.Value.SubmissionId);
       Assert.False((await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, maker, scope.ClientA, approveCommandId, "REVIEW")).Succeeded);
       Assert.False((await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, reviewer, scope.ClientB, approveCommandId, "REVIEW")).Succeeded);

@@ -251,7 +251,7 @@ function decodeAllocationCommandLookup(value: unknown): AllocationCommandLookup 
           <p>Original {{ line.originalAmount }} · reversed {{ line.reversedAmount }} · reversible {{ line.reversibleAmount }} {{ line.currency }}.</p>
           <p>Original reference {{ line.reference }} · {{ line.reason }} · approved {{ line.approvedAt }}. Retained line <code>{{ line.allocationLineId }}</code> · evidence hash <code>{{ line.manifestHash }}</code>.</p>
           <button matButton type="button" [disabled]="busy() || historyBusy() || hasUnresolvedSubmission() || !h.bookkeepingActive || !lineReversible(line)" (click)="selectUnallocation(line)">Prepare unallocation of this line</button>
-        } @empty { <p>No approved original allocations on this page.</p> }
+        </article> } @empty { <p>No approved original allocations on this page.</p> }
         <nav aria-label="Approved allocation pages"><button matButton type="button" [disabled]="busy() || historyBusy() || hasUnresolvedSubmission() || h.page === 0" (click)="loadAllocationHistory(h.page - 1)">Previous approved allocations</button>
           <button matButton type="button" [disabled]="busy() || historyBusy() || hasUnresolvedSubmission() || (h.page + 1) * h.pageSize >= h.total" (click)="loadAllocationHistory(h.page + 1)">Next approved allocations</button></nav>
       }
