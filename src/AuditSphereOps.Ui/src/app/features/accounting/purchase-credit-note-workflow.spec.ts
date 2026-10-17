@@ -185,4 +185,25 @@ describe('Purchase credit command recovery', () => {
     expect(c.supplierPage()).toBe(0); expect(c.supplierTotal()).toBe(1); expect(c.suppliers().map(item => item.id)).toEqual([supplier]);
     fixture.destroy();
   });
+  it('keeps supplier identity and history readable while failed or inactive authority blocks a fresh credit preview', () => {
+    const fixture = create(), c = fixture.componentInstance;
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush(supplierPage(client, 0, 1, [supplierRow(supplier)]));
+    c.selectSupplier(supplier); c.periodId = period; c.payableRoleId = apRole; c.reference = 'CN-AUTH';
+    c.reason = 'Returned supplies'; c.sourceBasis = 'Supplier credit document'; c.lines = [{ originalLineNumber: '', accountCode: '6000', amount: '12.50' }];
+    c.prepareAssent = true; expect(c.canUseSupplier()).toBe(true);
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).error(new ProgressEvent('network failure'));
+    expect(c.canUseSupplier()).toBe(false); expect(c.selectedSupplier()?.id).toBe(supplier); expect(c.prepareAssent).toBe(false);
+    c.previewCredit(); http.expectNone(`${base}/purchase-credit-notes/preview`);
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush({ ...supplierPage(client, 0, 1, [supplierRow(supplier)]), bookkeepingActive: false });
+    expect(c.canUseSupplier()).toBe(false); expect(c.supplierId).toBe(supplier);
+    c.previewCredit(); http.expectNone(`${base}/purchase-credit-notes/preview`);
+    c.refresh(); http.expectOne(`${base}/purchase-credit-notes`).flush([]);
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush(supplierPage(client, 0, 1, [supplierRow(supplier)]));
+    expect(c.canUseSupplier()).toBe(true); expect(c.prepareAssent).toBe(false);
+    fixture.destroy();
+  });
 });

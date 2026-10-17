@@ -129,6 +129,7 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
   <p>Capture the supplier document against this client’s own expense or asset accounts and AP control. Untaxed purchases work without the optional tax module; tax-bearing purchases remain separately gated.</p>
   <button matButton type="button" [disabled]="busy() || draftsBusy()" (click)="refresh()">Refresh supplier invoice history</button>
   @if (error()) { <p role="alert">{{ error() }}</p> }
+  @if (suppliers() !== null && !supplierBusy() && !supplierError() && !supplierBookkeepingActive()) { <p role="status">Bookkeeping service is inactive. Saved purchase history and recovery remain available; new purchase preparation is blocked.</p> }
   @if (draftsError()) { <p role="alert">{{ draftsError() }}</p> }
   @if (pendingCommand() || pendingRecoveryBlocked()) {
     <section aria-label="Unresolved purchase command" role="status">
@@ -160,7 +161,7 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
       @if (supplierError()) { <p role="alert">{{ supplierError() }}</p> }
       @if (supplierBusy()) { <p role="status">Loading client suppliers…</p> }
       @if (suppliers() !== null && supplierTotal() === 0 && !supplierBusy()) { <p>No suppliers are available for this client.</p> }
-      <label>Supplier <select name="supplier" [(ngModel)]="supplierId" (ngModelChange)="selectSupplier($event)" required><option value="">Choose supplier</option>@for (supplier of supplierOptions(); track supplier.id) { <option [value]="supplier.id">{{ supplier.displayName }}</option> }</select></label>
+      <label>Supplier <select name="supplier" [ngModel]="supplierId" (ngModelChange)="selectSupplier($event)" required><option value="">Choose supplier</option>@for (supplier of supplierOptions(); track supplier.id) { <option [value]="supplier.id">{{ supplier.displayName }}</option> }</select></label>
       <nav aria-label="Supplier pages">
         <button matButton type="button" [disabled]="supplierBusy() || supplierPage() === 0" (click)="loadSuppliers(supplierPage() - 1)">Previous suppliers</button>
         <span>Supplier page {{ supplierPage() + 1 }} of {{ supplierPageCount() }} · {{ supplierTotal() }} suppliers · {{ supplierPageSize }} per page</span>
@@ -189,7 +190,7 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
       <label>Supplier-stated gross <input name="statedGross" inputmode="decimal" [(ngModel)]="statedGross" (ngModelChange)="draftChanged()" required /></label>
       <p>Totals must match the exact untaxed calculation. Unsupported tax treatment or a material discrepancy blocks posting. Receipt and document dates remain separate, including late-arriving evidence.</p>
       <label><input type="checkbox" [ngModel]="draftAssent()" (ngModelChange)="draftAssent.set($event)" name="draftAssent" /> I checked this supplier, client, document dates, coding, supplier-stated totals and evidence reference.</label>
-      <button matButton type="submit" [disabled]="!draftAssent() || busy() || hasPendingCommand() || form.invalid">{{ draft() ? 'Save purchase draft revision' : 'Save client purchase draft' }}</button>
+      <button matButton type="submit" [disabled]="!canUseSupplier() || !draftAssent() || busy() || hasPendingCommand() || form.invalid">{{ draft() ? 'Save purchase draft revision' : 'Save client purchase draft' }}</button>
       @if (revisionConflict() && draft()) { <p role="alert">The saved revision changed before this edit was accepted.</p><button matButton type="button" [disabled]="busy()" (click)="reloadCurrentDraft()">Reload the latest saved revision</button> }
       @if (draft()) { <button matButton type="button" [disabled]="busy() || hasPendingCommand()" (click)="cancelEdit()">Cancel draft revision</button> }
       @if (!draft()) { <button matButton type="button" [disabled]="busy() || hasPendingCommand()" (click)="startNewDraft()">Clear new purchase form</button> }
@@ -205,7 +206,7 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
       @if (d.snapshot.possibleDuplicateCount) { <p role="status">Possible same-supplier invoice duplicate warning. A reviewer must record a reason to resolve a legitimate duplicate.</p> }
       <table><caption>Captured client purchase lines</caption><thead><tr><th>Account</th><th>Description</th><th>Net</th><th>Tax</th><th>Gross</th></tr></thead><tbody>@for (line of d.snapshot.lines; track line.lineNumber) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.net }}</td><td>{{ line.tax }}</td><td>{{ line.gross }}</td></tr> }</tbody></table>
       <button matButton type="button" [disabled]="busy() || d.createdByUserId !== userId()" (click)="editDraft()">Revise saved purchase draft</button>
-      <button matButton type="button" [disabled]="busy()" (click)="previewDraft()">Preview AP posting</button>
+      <button matButton type="button" [disabled]="busy() || !canUseSupplier()" (click)="previewDraft()">Preview AP posting</button>
       <button matButton type="button" [disabled]="busy()" (click)="startNewDraft()">Start a separate purchase draft</button>
       @if (preview(); as p) { <p>Exact server preview: {{ p.net }} net + {{ p.tax }} tax = {{ p.gross }} {{ p.currency }}. Late arrival: {{ p.lateArrival ? 'Yes' : 'No' }}.</p>
         @for (warning of p.duplicateWarnings; track warning) { <p role="alert">Possible duplicate: {{ warning }}</p> }
@@ -238,7 +239,7 @@ export class PurchaseInvoiceWorkflow {
   readonly clientId = input.required<string>(); readonly currency = input.required<string>(); readonly periods = input.required<Period[]>();
   private readonly http = inject(HttpClient); private readonly session = inject(SessionService);
   readonly busy = signal(false); readonly error = signal(''); readonly suppliers = signal<ReturnType<typeof decodeCounterparties>['counterparties'] | null>(null);
-  readonly supplierBusy = signal(false); readonly supplierError = signal(''); readonly supplierPage = signal(0); readonly supplierTotal = signal(0);
+  readonly supplierBusy = signal(false); readonly supplierError = signal(''); readonly supplierPage = signal(0); readonly supplierTotal = signal(0); readonly supplierBookkeepingActive = signal(false);
   readonly selectedSupplier = signal<{ id: string; displayName: string } | null>(null);
   readonly draft = signal<PurchaseDraft | null>(null); readonly preview = signal<PurchasePreview | null>(null); readonly rows = signal<PurchaseRow[]>([]); readonly activeReview = signal<PurchaseReview | null>(null);
   readonly editing = signal(true); readonly returnReason = signal<string | null>(null); readonly revisionConflict = signal(false); readonly formDirty = signal(false);
@@ -251,12 +252,12 @@ export class PurchaseInvoiceWorkflow {
   documentDate = ''; accountingDate = ''; supplyDate = ''; dueDate = ''; precision = '2'; midpoint = 'AWAY_FROM_ZERO';
   statedNet = ''; statedTax = '0'; statedGross = ''; lines: PurchaseLineInput[] = [{ accountCode: '', description: '', quantity: '1', unitPrice: '', discount: '0' }];
   reviewReason = ''; duplicateReason = ''; private requestId = 0; private operation?: Subscription; private previewRequest: Record<string, unknown> | null = null;
-  private draftRequestId = 0; private draftOperation?: Subscription; private supplierRequestId = 0; private supplierOperation?: Subscription; private supplierLoaded = false;
+  private draftRequestId = 0; private draftOperation?: Subscription; private supplierRequestId = 0; private supplierOperation?: Subscription; private supplierLoaded = false; private supplierScope = '';
   constructor() {
-    effect(() => { this.clientId(); this.currency(); this.session.invalidation(); untracked(() => {
+    effect(() => { this.clientId(); this.currency(); this.session.invalidation(); this.session.current(); untracked(() => {
       this.operation?.unsubscribe(); this.draftOperation?.unsubscribe(); this.supplierOperation?.unsubscribe(); ++this.requestId; ++this.draftRequestId; ++this.supplierRequestId;
       this.busy.set(false); this.draftsBusy.set(false); this.draft.set(null); this.preview.set(null); this.rows.set([]); this.activeReview.set(null);
-      this.draftRows.set([]); this.draftPage.set(0); this.draftHasMore.set(false); this.draftsError.set(''); this.suppliers.set(null); this.selectedSupplier.set(null); this.supplierPage.set(0); this.supplierTotal.set(0); this.supplierBusy.set(false); this.supplierError.set(''); this.supplierLoaded = false; this.pendingDraftSave.set(null);
+      this.draftRows.set([]); this.draftPage.set(0); this.draftHasMore.set(false); this.draftsError.set(''); this.suppliers.set(null); this.selectedSupplier.set(null); this.supplierPage.set(0); this.supplierTotal.set(0); this.supplierBusy.set(false); this.supplierError.set(''); this.supplierBookkeepingActive.set(false); this.supplierScope = ''; this.supplierLoaded = false; this.pendingDraftSave.set(null);
       this.pendingSubmit.set(null); this.pendingReview.set(null); this.pendingRecoveryBlocked.set(false);
       this.returnReason.set(null); this.revisionConflict.set(false); this.editing.set(true); this.reset();
       this.restorePendingCommand();
@@ -314,6 +315,9 @@ export class PurchaseInvoiceWorkflow {
   }
   supplierPageCount(): number { return Math.max(1, Math.ceil(this.supplierTotal() / this.supplierPageSize)); }
   supplierHasNext(): boolean { return this.supplierPage() + 1 < this.supplierPageCount(); }
+  private supplierContext(): string { const actor = this.session.current(); return [actor?.firmId, actor?.userId, actor?.generation, this.session.invalidation(), this.clientId()].join(':'); }
+  canUseSupplier(): boolean { return this.supplierBookkeepingActive() && !this.supplierBusy() && !this.supplierError() && this.supplierScope === this.supplierContext() && this.supplierOptions().some(item => item.id === this.supplierId); }
+  private invalidateSupplierPreparation(): void { this.preview.set(null); this.previewRequest = null; this.draftAssent.set(false); this.submitAssent.set(false); }
   selectSupplier(id: string): void {
     if (id === this.supplierId) return;
     this.supplierId = id;
@@ -324,23 +328,25 @@ export class PurchaseInvoiceWorkflow {
   loadSuppliers(page = 0): void {
     const lastPage = Math.max(0, Math.ceil(this.supplierTotal() / this.supplierPageSize) - 1);
     if (!Number.isInteger(page) || page < 0 || page > 1_000 || (page > lastPage && (this.suppliers() !== null || page !== 0))) return;
-    const request = ++this.supplierRequestId, generation = this.session.invalidation(), client = this.clientId();
-    this.supplierOperation?.unsubscribe(); this.supplierBusy.set(true); this.supplierError.set('');
+    const request = ++this.supplierRequestId, generation = this.session.invalidation(), client = this.clientId(), scope = this.supplierContext();
+    this.supplierOperation?.unsubscribe(); this.supplierBusy.set(true); this.supplierError.set(''); this.supplierBookkeepingActive.set(false);
     this.supplierOperation = this.http.get<unknown>(`${this.base()}/counterparties`, { params: { role: 'SUPPLIER', page: String(page), pageSize: String(this.supplierPageSize) } }).pipe(timeout(15000)).subscribe({
       next: value => {
-        if (request !== this.supplierRequestId || generation !== this.session.invalidation() || client !== this.clientId()) return;
+        if (request !== this.supplierRequestId || generation !== this.session.invalidation() || client !== this.clientId() || scope !== this.supplierContext()) return;
         this.supplierBusy.set(false);
         try {
           const result = decodeCounterparties(value, client, 'SUPPLIER', page);
           if (page * this.supplierPageSize >= result.total && page !== 0) throw new Error('Supplier page is beyond the current result set');
           const items = result.counterparties.filter(item => item.role === 'SUPPLIER' || item.role === 'BOTH');
           this.suppliers.set(items); this.supplierPage.set(page); this.supplierTotal.set(result.total);
+          this.supplierBookkeepingActive.set(result.bookkeepingActive); this.supplierScope = scope;
+          if (!result.bookkeepingActive) this.invalidateSupplierPreparation();
           const selected = items.find(item => item.id === this.supplierId);
           if (selected) this.selectedSupplier.set({ id: selected.id, displayName: selected.displayName });
           if (page === 0 && !this.supplierLoaded) { this.supplierLoaded = true; this.refresh(); }
-        } catch { this.supplierError.set('Client suppliers could not be validated.'); }
+        } catch { this.invalidateSupplierPreparation(); this.supplierError.set('Client suppliers could not be validated. Refresh before preparing another purchase.'); }
       },
-      error: () => { if (request === this.supplierRequestId && generation === this.session.invalidation() && client === this.clientId()) { this.supplierBusy.set(false); this.supplierError.set('Client suppliers are unavailable; the displayed page was not replaced.'); } }
+      error: () => { if (request === this.supplierRequestId && generation === this.session.invalidation() && client === this.clientId() && scope === this.supplierContext()) { this.supplierBusy.set(false); this.invalidateSupplierPreparation(); this.supplierError.set('Client suppliers are unavailable; the displayed page was not replaced. Refresh before preparing another purchase.'); } }
     });
   }
   loadDrafts(page = 0): void {
@@ -425,7 +431,7 @@ export class PurchaseInvoiceWorkflow {
   }
   saveDraft(): void {
     const current = this.draft();
-    if (this.busy() || this.hasPendingCommand() || !this.draftAssent() || !guid(this.periodId) || !guid(this.supplierId) || !guid(this.apRoleId) ||
+    if (this.busy() || this.hasPendingCommand() || !this.canUseSupplier() || !this.draftAssent() || !guid(this.periodId) || !guid(this.supplierId) || !guid(this.apRoleId) ||
         !datePattern.test(this.receiptDate) || !datePattern.test(this.documentDate) || !datePattern.test(this.accountingDate) || !datePattern.test(this.supplyDate) || !datePattern.test(this.dueDate) ||
         !/^[0-6]$/.test(this.precision) || !['TO_EVEN', 'AWAY_FROM_ZERO'].includes(this.midpoint) || this.lines.length < 1 || this.lines.length > 99 ||
         this.lines.some(l => !amountPattern.test(l.quantity) || !amountPattern.test(l.unitPrice) || !amountPattern.test(l.discount)) ||
@@ -550,7 +556,7 @@ export class PurchaseInvoiceWorkflow {
     });
   }
   private submitBody(): Record<string, unknown> | null { const d = this.draft(); if (!d || !guid(this.apRoleId)) return null; return { commandId: crypto.randomUUID(), expectedDraftRevision: d.revision, payableRoleId: this.apRoleId, previewDigest: '' }; }
-  previewDraft(): void { const d = this.draft(), body = this.submitBody(); if (!d || !body || this.busy() || this.hasPendingCommand()) return; this.busy.set(true); this.previewRequest = body;
+  previewDraft(): void { if (!this.canUseSupplier() || this.busy() || this.hasPendingCommand()) return; const d = this.draft(), body = this.submitBody(); if (!d || !body || d.supplierId !== this.supplierId) return; this.busy.set(true); this.previewRequest = body;
     this.operation = this.http.post<PurchasePreview>(`${this.base()}/purchase-invoices/${d.invoiceId}/preview`, body).pipe(timeout(20000)).subscribe({ next: p => { this.busy.set(false); this.preview.set(p); this.submitAssent.set(false); this.error.set(''); }, error: () => { this.busy.set(false); this.error.set('Purchase posting preview failed. Refresh the draft and current AP role.'); this.previewRequest = null; this.submitAssent.set(false); } }); }
   submit(): void { const d = this.draft(), p = this.preview(), b = this.previewRequest; if (!d || !p || !b || this.busy() || this.hasPendingCommand() || !this.submitAssent()) return;
     const body = { ...b, previewDigest: p.digest, reviewed: true };

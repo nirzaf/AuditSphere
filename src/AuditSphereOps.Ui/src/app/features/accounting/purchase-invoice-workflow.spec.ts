@@ -165,6 +165,9 @@ describe('Client purchase draft lifecycle', () => {
     const save = http.expectOne(`${base}/purchase-invoice-drafts`), exactBody = save.request.body;
     save.error(new ProgressEvent('network failure'));
     expect(c.pendingDraftSave()).not.toBeNull();
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush({ ...supplierList(client, 0, 1, [supplierRow]), bookkeepingActive: false });
+    expect(c.pendingDraftSave()?.body).toEqual(exactBody); expect(c.hasPendingCommand()).toBe(true);
     first.destroy();
 
     const recovered = open(), next = recovered.componentInstance;
@@ -264,6 +267,26 @@ describe('Client purchase draft lifecycle', () => {
     expect(obsolete.cancelled).toBe(true);
     latest.flush(supplierList(client, 0, 1, [supplierRecord(supplier)]));
     expect(c.supplierPage()).toBe(0); expect(c.supplierTotal()).toBe(1); expect(c.suppliers()?.map(item => item.id)).toEqual([supplier]);
+    fixture.destroy();
+  });
+  it('retains the selected supplier after a failed read but blocks preparation until current active authority is verified', () => {
+    const fixture = open(), c = fixture.componentInstance;
+    c.selectSupplier(supplier); c.draft.set(savedDraft('1', 'Supplier evidence')); c.apRoleId = account;
+    c.periodId = period; c.receiptDate = '2026-01-20'; c.documentDate = '2026-01-10'; c.accountingDate = '2026-01-20'; c.supplyDate = '2026-01-10'; c.dueDate = '2026-02-10';
+    c.lines = [{ accountCode: '6000', description: 'Supplies', quantity: '1', unitPrice: '100', discount: '0' }];
+    c.draftAssent.set(true); expect(c.canUseSupplier()).toBe(true);
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).error(new ProgressEvent('network failure'));
+    expect(c.selectedSupplier()?.id).toBe(supplier); expect(c.canUseSupplier()).toBe(false); expect(c.draftAssent()).toBe(false);
+    c.draftAssent.set(true); c.saveDraft(); c.previewDraft();
+    http.expectNone(`${base}/purchase-invoice-drafts`); http.expectNone(`${base}/purchase-invoices/${invoice}/preview`);
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush({ ...supplierList(client, 0, 1, [supplierRow]), bookkeepingActive: false });
+    expect(c.canUseSupplier()).toBe(false); expect(c.draft()).not.toBeNull(); expect(c.selectedSupplier()?.id).toBe(supplier);
+    c.refresh(); http.expectOne(`${base}/purchase-invoices`).flush([]);
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush(supplierList(client, 0, 1, [supplierRow]));
+    expect(c.canUseSupplier()).toBe(true); expect(c.draftAssent()).toBe(false);
     fixture.destroy();
   });
 });
