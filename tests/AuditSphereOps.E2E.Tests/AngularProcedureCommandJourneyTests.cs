@@ -146,6 +146,12 @@ public sealed class AngularProcedureCommandJourneyTests
       var result = await proof.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.AuditProcedureId == procedureId);
       Assert.Equal(AuditProcedureResultStatuses.ChangesRequired, result.Status);
       Assert.Equal(f.Staff.Id, result.PreparedByUserId);
+      using var submitted = JsonDocument.Parse(result.StructuredResultJson);
+      var evidence = submitted.RootElement.GetProperty(AuditProgramService.EvidenceSnapshotProperty)
+        .GetProperty("selections").EnumerateArray().Single();
+      Assert.Equal("BANK-REC-SYNTHETIC-01", evidence.GetProperty("manualReference").GetString());
+      Assert.Equal("The closing balance and reconciling items agree to the synthetic schedule.",
+        evidence.GetProperty("observation").GetString());
       var reviewRecord = await proof.AuditProcedureReviews.AsNoTracking().SingleAsync(x => x.AuditProcedureResultId == result.Id);
       Assert.Equal(AuditProcedureReviewDecisions.ChangesRequired, reviewRecord.Decision);
       Assert.Equal(f.Reviewer.Id, reviewRecord.ReviewerUserId);

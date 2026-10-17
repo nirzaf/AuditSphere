@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Api.Ui;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -191,23 +192,14 @@ public sealed class AuditProgramCommandsApiTests
     Assert.Equal("AWP-01-01", basis.GetProperty("sourceProcedureId").GetString());
     Assert.True(basis.GetProperty("canSubmit").GetBoolean());
     var requestId = Guid.NewGuid();
-    var request = new
-    {
-      requestId,
-      action = ProcedureCommandActions.SubmitResult,
-      expectedDefinitionRevision = basis.GetProperty("definitionRevision").GetInt32(),
-      expectedInputGeneration = basis.GetProperty("inputGeneration").GetInt64(),
-      expectedResultRevision = basis.GetProperty("currentResultRevision").GetInt64(),
-      resultId = (Guid?)null,
-      workPerformed = "Inspected the synthetic company registration record against the entity profile.",
-      structuredResultJson = "{\"observation\":\"name and registration number agree\"}",
-      evidenceReferences = new[] { "manual:synthetic-registration-record" },
-      conclusion = "The inspected registration particulars agree.",
-      decision = (string?)null,
-      comment = (string?)null,
-      reviewed = false,
-      expectedRequestHash = (string?)null
-    };
+    var request = new UiEndpoints.ProcedureCommandInput(requestId, ProcedureCommandActions.SubmitResult,
+      basis.GetProperty("definitionRevision").GetInt32(), basis.GetProperty("inputGeneration").GetInt64(),
+      basis.GetProperty("currentResultRevision").GetInt64(), null,
+      "Inspected the synthetic company registration record against the entity profile.",
+      "{\"observation\":\"name and registration number agree\"}", ["manual:synthetic-registration-record"],
+      "The inspected registration particulars agree.", null, null, false, null,
+      [new ProcedureEvidenceSelection(ProcedureEvidenceSelectionKinds.ManualReference,
+        ManualReference: "SYNTHETIC-REGISTRATION-01", Observation: "The name and registration number agree to the entity profile.")]);
     using var previewResponse = await Post(client, csrf, root + "/preview", request);
     Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
     using var previewJson = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
@@ -219,12 +211,12 @@ public sealed class AuditProgramCommandsApiTests
 
     using var unassented = await Post(client, csrf, root + "/actions", request with
     {
-      reviewed = false,
-      expectedRequestHash = requestHash
+      Reviewed = false,
+      ExpectedRequestHash = requestHash
     });
     Assert.Equal(HttpStatusCode.BadRequest, unassented.StatusCode);
 
-    var action = request with { reviewed = true, expectedRequestHash = requestHash };
+    var action = request with { Reviewed = true, ExpectedRequestHash = requestHash };
     using var response = await Post(client, csrf, root + "/actions", action);
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     using var responseJson = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -246,7 +238,13 @@ public sealed class AuditProgramCommandsApiTests
     Assert.Equal(receiptId, lookup.GetProperty("receipt").GetProperty("id").GetGuid());
 
     await using var proof = new AuditSphereDbContext(pg.Options);
-    Assert.Single(await proof.AuditProcedureResults.Where(x => x.AuditProcedureId == procedureId).ToListAsync());
+    var savedResult = await proof.AuditProcedureResults.SingleAsync(x => x.AuditProcedureId == procedureId);
+    using var structured = JsonDocument.Parse(savedResult.StructuredResultJson);
+    var evidenceSnapshot = structured.RootElement.GetProperty(AuditProgramService.EvidenceSnapshotProperty);
+    var selectedEvidence = Assert.Single(evidenceSnapshot.GetProperty("selections").EnumerateArray());
+    Assert.Equal("SYNTHETIC-REGISTRATION-01", selectedEvidence.GetProperty("manualReference").GetString());
+    Assert.Equal("The name and registration number agree to the entity profile.",
+      selectedEvidence.GetProperty("observation").GetString());
     Assert.Single(await proof.AuditProcedureCommandReceipts.Where(x => x.AuditProcedureId == procedureId).ToListAsync());
     Assert.Single(await proof.WorkpaperSubmissions.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
   }

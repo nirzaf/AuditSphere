@@ -16,12 +16,14 @@ public static partial class UiEndpoints
   public sealed record ProcedureCommandInput(Guid RequestId, string Action, int ExpectedDefinitionRevision,
     long ExpectedInputGeneration, long ExpectedResultRevision, Guid? ResultId, string? WorkPerformed,
     string? StructuredResultJson, string[]? EvidenceReferences, string? Conclusion, string? Decision,
-    string? Comment, bool Reviewed, string? ExpectedRequestHash);
+    string? Comment, bool Reviewed, string? ExpectedRequestHash,
+    IReadOnlyList<ProcedureEvidenceSelection>? EvidenceSelections = null);
 
   private static ProcedureCommandRequest ProcedureCommand(ProcedureCommandInput input) => new(
     input.RequestId, input.Action ?? "", input.ExpectedDefinitionRevision, input.ExpectedInputGeneration,
     input.ExpectedResultRevision, input.ResultId, input.WorkPerformed, input.StructuredResultJson,
-    input.EvidenceReferences, input.Conclusion, input.Decision, input.Comment, input.Reviewed, input.ExpectedRequestHash);
+    input.EvidenceReferences, input.Conclusion, input.Decision, input.Comment, input.Reviewed, input.ExpectedRequestHash,
+    input.EvidenceSelections);
   public sealed record AggregateConclusionInput(string Conclusion);
   public sealed record SamplingInput(Guid ProcedureId, Guid ScheduleId, string Method, string? Interval, string? KeyItemThreshold, int? SampleSize, int? Seed,
     string Rationale, string[]? AttributeFields = null, string? ExpectedPreviewDigest = null);
