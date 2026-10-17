@@ -79,8 +79,7 @@
                 }
                 @for (c of r.certifications; track c.name) {
                   <small [class.error-text]="!c.current"
-                    >{{ c.name }}{{ c.expiresOn ? ' (to ' + c.expiresOn + ')' : ''
-                    }}{{ c.current ? '' : ' expired' }}</small
+                    >{{ c.name }} · Not verified · {{ c.expiresOn ? (c.current ? 'Not expired' : 'Expired') + ' · expires ' + c.expiresOn : 'Expiry not recorded' }}</small
                   >
                 }
               </td>
@@ -169,6 +168,7 @@
       </section>
       <section class="panel" aria-labelledby="certification-heading">
         <h2 id="certification-heading">Certification</h2>
+        <p>Certification entries are unverified records. Expiry dates do not establish authenticity or professional eligibility.</p>
         <audit-resource-editor
           kind="certification"
           [users]="v.grid.rows"

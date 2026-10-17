@@ -24,7 +24,11 @@ const workspace = {
         name: 'Synthetic planner',
         department: 'Tax',
         skills: ['IFRS'],
-        certifications: [],
+        certifications: [
+          { name: 'Synthetic current qualification', expiresOn: '2099-12-31', current: true },
+          { name: 'Synthetic expired qualification', expiresOn: '2000-01-01', current: false },
+          { name: 'Synthetic undated qualification', expiresOn: null, current: true },
+        ],
         weeklyCapacityMinutes: 1200,
         targetUtilizationPercent: '75.000000',
         hasProfile: true,
@@ -114,6 +118,9 @@ describe('Resource planning forms', () => {
     const f = setup();
     const text = f.nativeElement.textContent;
     expect(text).toContain('Over-allocated');
+    expect(text).toContain('Synthetic current qualification · Not verified · Not expired');
+    expect(text).toContain('Synthetic expired qualification · Not verified · Expired');
+    expect(text).toContain('Synthetic undated qualification · Not verified · Expiry not recorded');
     expect(text).toContain('approved actual 10 h');
     // Utilization is stated on approved billable time, beside all approved hours.
     expect(text).toContain('billable 8 h, 50% utilised');
