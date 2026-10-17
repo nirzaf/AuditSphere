@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
+import { guidPattern } from '../../core/contracts';
 import { arr, bool, dec, guid, instant, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { StatementPresentation } from './presentation';
@@ -17,12 +18,26 @@ export const decodePackage = obj({ id: guid, engagementId: guid, comparativePack
   reviews: arr(obj({ stage: text, decision: text, evidenceMode: text, evidenceReference: text, packageHash: text, decidedAt: instant,
     presentationRevisionId: nullable(guid), compositionId: nullable(guid), compositionManifestDigest: nullable(sha256), id: guid }), 500),
   artifact: nullable(obj({ artifactSha256Hex: text, byteCount: nat, renderedText: text })), canReview: bool, reviewStages: arr(text, 10), reviewDecisions: arr(text, 10) });
-/** The original intent of a source decision, kept until the server answers. */
-export interface PendingSourceIntent { requestId: string; decision: string; reason: string | null; }
+/** The original request and concurrency fence, kept until the server confirms or refuses it as stale. */
+export interface PendingSourceIntent {
+  requestId: string;
+  decision: string;
+  reason: string | null;
+  expectedLinkDigest: string;
+  expectedPreviousReviewId: string | null;
+}
 
-/** A retry keeps the pending identity while the decision and reason are unchanged; a different decision gets a new identity. */
-export function sourceIntentFor(pending: PendingSourceIntent | null, decision: string, reason: string | null, newRequestId: string): PendingSourceIntent {
-  return pending && pending.decision === decision && pending.reason === reason ? pending : { requestId: newRequestId, decision, reason };
+/** Unknown-outcome retries retain the original fence; a changed decision or reason starts a new request. */
+export function sourceIntentFor(pending: PendingSourceIntent | null, decision: string, reason: string | null,
+  expectedLinkDigest: string, expectedPreviousReviewId: string | null, newRequestId: string): PendingSourceIntent {
+  return pending && pending.decision === decision && pending.reason === reason
+    ? pending
+    : { requestId: newRequestId, decision, reason, expectedLinkDigest, expectedPreviousReviewId };
+}
+
+export function sourceReviewRequestFor(intent: PendingSourceIntent): Record<string, unknown> {
+  return { decision: intent.decision, reason: intent.reason, requestId: intent.requestId,
+    expectedLinkDigest: intent.expectedLinkDigest, expectedPreviousReviewId: intent.expectedPreviousReviewId };
 }
 
 const pendingSourceIntentKey = (packageId: string): string => `auditsphere.cash-flow-source-intent.${packageId}`;
@@ -74,7 +89,11 @@ export function readPendingSourceIntent(packageId: string): PendingSourceIntent 
     const raw = globalThis.sessionStorage?.getItem(pendingSourceIntentKey(packageId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PendingSourceIntent>;
-    return typeof parsed.requestId === 'string' && typeof parsed.decision === 'string' ? parsed as PendingSourceIntent : null;
+    return typeof parsed.requestId === 'string' && guidPattern.test(parsed.requestId) &&
+      (parsed.decision === 'APPROVED' || parsed.decision === 'RETURNED') && (parsed.reason === null || typeof parsed.reason === 'string') &&
+      typeof parsed.expectedLinkDigest === 'string' && /^[a-f0-9]{64}$/i.test(parsed.expectedLinkDigest) &&
+      (parsed.expectedPreviousReviewId === null || typeof parsed.expectedPreviousReviewId === 'string' && guidPattern.test(parsed.expectedPreviousReviewId))
+      ? parsed as PendingSourceIntent : null;
   } catch {
     return null;
   }
@@ -237,12 +256,15 @@ export class FinancialPackage {
     if (!state) return;
     // The original intent is kept until the server answers, so a lost reply followed by a reload retries the same decision.
     const reason = this.sourceReason || null;
-    const intent = sourceIntentFor(readPendingSourceIntent(id), this.sourceDecision, reason, crypto.randomUUID());
+    const intent = sourceIntentFor(readPendingSourceIntent(id), this.sourceDecision, reason, state.linkDigest, state.latestReviewId, crypto.randomUUID());
     writePendingSourceIntent(id, intent);
-    void this.cmd.run(`/api/ui/accounting/packages/${id}/cash-flow-source-review`, { decision: this.sourceDecision,
-      reason, requestId: intent.requestId, expectedLinkDigest: state.linkDigest, expectedPreviousReviewId: state.latestReviewId },
+    void this.cmd.run(`/api/ui/accounting/packages/${id}/cash-flow-source-review`, sourceReviewRequestFor(intent),
       'Source decision recorded against the current accepted ledger.',
       () => { this.sourceReason = ''; writePendingSourceIntent(id, null); })
+      .then((accepted) => {
+        // A known stale refusal was not committed; clear its now-obsolete fence so the refreshed state can form a new intent.
+        if (!accepted && !this.cmd.uncertain() && this.cmd.code() === 'revision.stale') writePendingSourceIntent(id, null);
+      })
       .finally(() => { this.sourceReview.reload(); this.pkg.reload(); });
   }
   private pendingReview: PendingPackageReview | null = null;

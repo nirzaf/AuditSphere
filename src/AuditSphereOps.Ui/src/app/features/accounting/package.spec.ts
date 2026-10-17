@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { decodeCashFlowSourceReview, decodePackage, latestCompositionDecisionId, packageReviewIntentFor, packageReviewRequestFor, sourceIntentFor } from './package';
+import { decodeCashFlowSourceReview, decodePackage, latestCompositionDecisionId, packageReviewIntentFor, packageReviewRequestFor,
+  readPendingSourceIntent, sourceIntentFor, sourceReviewRequestFor, writePendingSourceIntent } from './package';
 import { decodeReviewQueue } from './reviews';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
+const id3 = '33333333-3333-4333-8333-333333333333';
 const hash64 = 'a'.repeat(64);
 
 describe('Financial Package and Review Queue Contracts', () => {
@@ -143,10 +145,29 @@ describe('Financial Package and Review Queue Contracts', () => {
 });
 
 describe('Cash-flow source review contract (CP-11)', () => {
-  it('keeps the original intent for a retry and gives a changed decision a new identity', () => {
-    const first = sourceIntentFor(null, 'APPROVED', null, id1);
-    expect(sourceIntentFor(first, 'APPROVED', null, id2).requestId).toBe(id1);
-    expect(sourceIntentFor(first, 'RETURNED', 'Re-check support.', id2).requestId).toBe(id2);
+  it('replays a saved decision with its original digest and predecessor after reload', () => {
+    const originalDigest = 'a'.repeat(64);
+    const changedDigest = 'b'.repeat(64);
+    const first = sourceIntentFor(null, 'APPROVED', null, originalDigest, id1, id2);
+    writePendingSourceIntent(id1, first);
+    const replay = sourceIntentFor(readPendingSourceIntent(id1), 'APPROVED', null, changedDigest, null, id1);
+    writePendingSourceIntent(id1, null);
+
+    expect(replay.requestId).toBe(id2);
+    expect(sourceReviewRequestFor(replay)).toEqual({ decision: 'APPROVED', reason: null, requestId: id2,
+      expectedLinkDigest: originalDigest, expectedPreviousReviewId: id1 });
+  });
+
+  it('starts a new intent when the reviewer changes the decision or reason', () => {
+    const first = sourceIntentFor(null, 'APPROVED', null, 'a'.repeat(64), null, id1);
+    const changedDecision = sourceIntentFor(first, 'RETURNED', null, 'b'.repeat(64), id2, id2);
+    const changedReason = sourceIntentFor(first, 'APPROVED', 'Re-check support.', 'b'.repeat(64), id2, id3);
+
+    expect(changedDecision.requestId).toBe(id2);
+    expect(changedDecision.expectedLinkDigest).toBe('b'.repeat(64));
+    expect(changedDecision.expectedPreviousReviewId).toBe(id2);
+    expect(changedReason.requestId).toBe(id3);
+    expect(changedReason.reason).toBe('Re-check support.');
   });
 
   const review = {
