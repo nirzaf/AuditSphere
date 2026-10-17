@@ -1220,27 +1220,8 @@
       "open": "CP-12 indirect classification policy/T003; full suites and authenticated browser journey; professional and live-provider acceptance."
     },
     "r2r07CarryForwardSafety": {
-      "recordedAtUtc": "2026-10-17T08:23:51Z",
       "codeCommit": "d91a2713",
-      "status": "FOCUSED_REGRESSION_PASS",
-      "domainTest": {
-        "passed": 1,
-        "failed": 0,
-        "skipped": 0,
-        "name": "ReconciliationRevision_CreatesSuccessorAndCarryForward",
-        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ReconciliationRevision_CreatesSuccessorAndCarryForward'",
-        "duration": "38 s"
-      },
-      "scope": "Carry-forward rejects settled items and target reporting books outside the selected client and period; carry header and item inserts are atomic.",
-      "notRun": [
-        "Full .NET, API, Angular and Playwright suites are deferred to CI/CD.",
-        "T025 correction-aware proof and handoff, T026 review/rework lifecycle and export remain open."
-      ],
-      "fastCi": {
-        "workflow": "AuditSphereOps CI",
-        "status": "IN_PROGRESS",
-        "headSha": "d91a2713"
-      }
+      "result": "ReconciliationRevision_CreatesSuccessorAndCarryForward: PASS 1/1 (38 s). Full suites deferred to CI/CD."
     }
   },
   "externalGates": [

@@ -147,7 +147,7 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 |---|---|
 | Inspected baseline and reused symbols | `AccountingAnalysisService.CarryForwardReconciliationItemsAsync`; existing `AccountingReconciliation` / `AccountingReconciliationItem` append-only records and existing revision regression |
 | Code commit / schema / deployed build if applicable | `d91a271356cca1a3933aac46ddb59e71d60851d1`; no schema change |
-| Requirement → assertion → command/run → observed result | Settled-item and wrong-period-book carry attempts rejected; valid outstanding item carried without copied approval; `ReconciliationRevision_CreatesSuccessorAndCarryForward` passed 1/1 |
+| Requirement → assertion → command/run → observed result | Settled-item and wrong-period-book carry attempts rejected; valid outstanding item carried without copied approval; `ReconciliationRevision_CreatesSuccessorAndCarryForward` passed 1/1 in 38 s. `dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ReconciliationRevision_CreatesSuccessorAndCarryForward'` |
 | Policy / scope approval reference | Not recorded |
 | Known limitations / exact blocker | T025 proof/correction handoff is NOT_STARTED; T026 reviewed rework lifecycle and export are unimplemented or unaudited; no task-level completion claimed |
 | Exported contract / manifest / artifact references for consumers | Not recorded |

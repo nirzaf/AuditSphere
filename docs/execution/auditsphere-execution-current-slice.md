@@ -22,9 +22,9 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## R2R-07 reconciliation carry-forward safety — 2026-10-17
+## R2R-07 carry-forward safety — 2026-10-17
 
-Commit `d91a2713` rejects carrying settled reconciliation items and rejects a target reporting book outside the selected client and target period. The carry reconciliation and copied items now save in one transaction. The focused PostgreSQL regression `ReconciliationRevision_CreatesSuccessorAndCarryForward` passed 1/1. T026 remains PARTIAL: T025 proof/correction handoff is still NOT_STARTED, and reviewed rework lifecycle and export remain open. Full suites are deferred to CI/CD. Evidence: `targetedVerification.r2r07CarryForwardSafety` in `status.json`.
+`d91a2713` rejects settled items and wrong-period books; carry inserts are atomic. `ReconciliationRevision_CreatesSuccessorAndCarryForward` passed 1/1 (38 s). T026 remains blocked on T025; details are in its card.
 
 ## CP-19 Partner authority and capability projection — 2026-10-17
 
