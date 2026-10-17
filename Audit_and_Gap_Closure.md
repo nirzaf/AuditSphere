@@ -172,13 +172,13 @@ This closes the F-08 composition-to-review/release/bundle wiring. F-08 remains *
 
 **Remaining correction:** complete professional and output-profile approval, validate that the required formats contain matching approved content and references, and exercise malformed/clipped/missing-output refusals. Resolve the selected composition through final signing/delivery without substituting the legacy PDF. Preserve canonical text in the evidence chain and retain its historical approval meaning. A changed banner, note, layout or report date creates new bytes and requires the appropriate successor/review before issue.
 
-## F-09 — Partner-stage role contract needs an explicit policy-aligned denial test
+## F-09 — Administrator cannot substitute for Partner authority; assignment and signatory gaps remain
 
-**P0 authority review · SOURCE_CONFIRMED allowlist / reachability verification required · CP-01/CP-19.**
+**Administrator-elevation counterexample RESOLVED in current source · CP-01/CP-19; broader acceptance remains PARTIAL.**
 
-`FinancialPackageReviewService` includes `Administrator` in `PartnerRoles`. The parent story and ADR register require Partner-only actions not to derive professional authority from administrator access. This is a source-level policy/allowlist discrepancy, not a demonstrated production bypass; verify the entire command/assignment/authorization/database path with an administrator-only actor. [R18] [R02] [U01]
+The earlier statement that `Administrator` was included in `PartnerRoles` is incorrect for the current tree. `FinancialPackageReviewService` keeps `AccountingRoles` separate from `PartnerRoles = ["Partner"]` and selects the Partner-only allowlist for `PartnerApproval`. `AuthorizationDecision` checks the grant against the exact engagement. `FinancialPackageGateTests.PackageDecisions_RequireStageOrderAndDistinctPersons` rejects an administrator-only Partner decision and a person switching roles across stages; `PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement` rejects a Partner grant on another engagement and a revoked grant, while accepting an administrator who also has a current Partner grant on this exact engagement; `LegacyPartnerRowRecordedByAdministrator_DoesNotSatisfyReleaseGate` rejects an unsupported historical Partner row. These are existing PostgreSQL-backed tests; no new test execution is claimed here. [R18] [R02] [U01]
 
-**Required correction where reachable:** require the applicable deciding Engagement Partner authority for professional Partner decisions, while preserving legitimate administration and historical reads. Do not simply remove all administrator access from unrelated configuration or review tasks. Test wrong Partner, unassigned Partner, administrator-only, multi-role self-approval and revoked assignment. Offline management evidence also needs actual signatory/capacity and verified capture identities, not staff impersonation through a mode field.
+This proves the specific role-elevation and engagement-scope controls, not that the deciding Partner is the person formally assigned to the engagement under a separate staffing record. CP-19's assignment-aware authority/independence acceptance remains open. Offline management approval also remains incomplete until actual signatory capacity and verified capture identities are evidenced; a mode field alone is insufficient.
 
 ## F-10 — Commercial identity, routing and broader practice completion still need closure
 
