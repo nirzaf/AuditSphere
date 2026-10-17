@@ -228,7 +228,7 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 | `CLIENT-04` | CLIENT | NOT_REVERIFIED |
 | `CLIENT-05` | CLIENT | NOT_REVERIFIED |
 | `CLIENT-06` | CLIENT | NOT_REVERIFIED |
-| `RES-01` | RES | NOT_REVERIFIED |
+| `RES-01` | RES | PARTIAL: supported range and refusal/recovery verified; broader staffing/capacity acceptance remains |
 | `RES-02` | RES | NOT_REVERIFIED |
 | `RES-03` | RES | NOT_REVERIFIED |
 | `RES-04` | RES | NOT_REVERIFIED |
@@ -360,3 +360,7 @@ The firm-books workspace previously stopped at 200 expenses and recovery searche
 ### RES-06 weekly capacity reconciliation
 
 Analytics previously truncated weekly capacity divided by five while the resource grid retained the full weekly total. Both now use the existing resource calculator’s shared daily allocation: whole minutes divide across working days and remainder minutes go to the earliest working days (Sunday first). A 2,401-minute week is 481 + 480 + 480 + 480 + 480; a full 481-minute Sunday absence leaves 1,920 in both views. Full-week leave removes the entire configured capacity. Approved billable minutes remain the utilization numerator; non-billable actual effort stays separate. The bounded analytics day loop also avoids advancing beyond the last supported date. Both focused pure/PostgreSQL tests passed. Positive browser and full current-SHA CI acceptance remain unverified; no personnel audience or professional policy changes.
+
+### RES-01 supported planning ranges
+
+Grid reads and allocation writes now share a bounded complete-week range check. Unsupported minimum/maximum dates and week counts outside 1–12 are refused before date arithmetic; requests are no longer silently clamped. Existing staffing/role fences remain intact and invalid allocation requests retain the prior allocation population. The first and last complete representable weeks remain supported. The resource endpoint documents its bad-request response. Focused Domain and API tests passed, and OpenAPI drift passed. The built-in browser refused an unsupported date and recovered the grid after a valid date was submitted. No planning record changed. Broader staffing/capacity acceptance remains open.
