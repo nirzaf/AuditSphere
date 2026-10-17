@@ -72,6 +72,11 @@ public sealed partial class ClientAccountingTests
       var submitted = await ClientPurchaseCreditNoteWorkflow.SubmitAsync(db, maker, scope.ClientA,
         new(Guid.CreateVersion7(), credit, preview.Value.Digest));
       Assert.True(submitted.Succeeded, submitted.Message);
+      var submitReceipt = await ClientPurchaseCreditNoteWorkflow.GetCommandAsync(db, maker, scope.ClientA, submitted.Value!.CommandId, "SUBMIT");
+      Assert.True(submitReceipt.Succeeded, submitReceipt.Message);
+      Assert.Equal(submitted.Value, submitReceipt.Value);
+      Assert.False((await ClientPurchaseCreditNoteWorkflow.GetCommandAsync(db, reviewer, scope.ClientA, submitted.Value.CommandId, "SUBMIT")).Succeeded);
+      Assert.False((await ClientPurchaseCreditNoteWorkflow.GetCommandAsync(db, maker, scope.ClientA, Guid.CreateVersion7(), "SUBMIT")).Succeeded);
       Assert.Empty(await db.ClientPurchaseCreditNoteOpenItems.ToListAsync());
       var review = await ClientPurchaseCreditNoteWorkflow.PreviewReviewAsync(db, reviewer, scope.ClientA, submitted.Value!.SubmissionId);
       Assert.True(review.Succeeded, review.Message); Assert.True(review.Value!.CanPost);
@@ -80,6 +85,10 @@ public sealed partial class ClientAccountingTests
       var posted = await ClientPurchaseCreditNoteWorkflow.ReviewAsync(db, reviewer, scope.ClientA,
         new(Guid.CreateVersion7(), submitted.Value.SubmissionId, "APPROVE", "Reviewed supplier credit and linked purchase", "", review.Value.Digest));
       Assert.True(posted.Succeeded, posted.Message);
+      var reviewReceipt = await ClientPurchaseCreditNoteWorkflow.GetCommandAsync(db, reviewer, scope.ClientA, posted.Value!.CommandId, "REVIEW");
+      Assert.True(reviewReceipt.Succeeded, reviewReceipt.Message);
+      Assert.Equal(posted.Value, reviewReceipt.Value);
+      Assert.False((await ClientPurchaseCreditNoteWorkflow.GetCommandAsync(db, maker, scope.ClientA, posted.Value.CommandId, "REVIEW")).Succeeded);
       var debit = await db.ClientPurchaseCreditNoteOpenItems.SingleAsync(x => x.SubmissionId == submitted.Value.SubmissionId);
       Assert.Equal("DEBIT", debit.Direction); Assert.Equal(40m, debit.OriginalAmount); Assert.Equal(invoiceId, debit.OriginalInvoiceId);
       var journalLines = await db.ClientOperationalJournalLines.Where(x => x.JournalId == debit.JournalId).ToListAsync();

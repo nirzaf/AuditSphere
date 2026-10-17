@@ -18,6 +18,18 @@ public static partial class UiEndpoints
 
   private static void MapClientPurchaseCreditNoteEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/accounting/clients/{clientId:guid}/purchase-credit-note-requests/{commandId:guid}", async (Guid clientId,
+      Guid commandId, string kind, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientPurchaseCreditNoteWorkflow.GetCommandAsync(db, actor, clientId, commandId, kind, http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      var status = result.ErrorCode == "scope.denied" ? 403 : result.ErrorCode == "command.receipt-not-found" ? 404 : 400;
+      return result.Succeeded ? Results.Ok(result.Value) : Results.Json(new { code = result.ErrorCode }, statusCode: status);
+    }).Produces<ClientPurchaseCreditReceipt>();
+
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-credit-notes", async (Guid clientId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

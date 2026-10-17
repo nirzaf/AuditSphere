@@ -346,6 +346,40 @@ public static class ClientPurchaseCreditNoteWorkflow
     return CommandResult<IReadOnlyList<ClientPurchaseCreditNoteView>>.Ok(rows.Select(x => { decisions.TryGetValue(x.Id, out var d); return new ClientPurchaseCreditNoteView(x.CreditNoteId, x.CreditNoteReference, x.OriginalInvoiceId, x.Id, d is null ? "SUBMITTED" : d.Decision == "APPROVE" ? "POSTED" : "RETURNED", x.Currency, Exact(x.Amount), x.PostingDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.Reason, x.CreatedByUserId, d?.Decision, d?.Reason, d?.DuplicateResolutionReason, opens.Contains(x.Id), x.JournalId.ToString()); }).ToArray());
   }
 
+  public static async Task<CommandResult<ClientPurchaseCreditReceipt>> GetCommandAsync(IClientAccountingDbContext db,
+    ActorContext actor, Guid clientId, Guid commandId, string kind, CancellationToken ct = default)
+  {
+    if (commandId == Guid.Empty || kind is not ("SUBMIT" or "REVIEW"))
+      return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.Accounting.MappingInvalid, "Choose the exact supplier-credit command kind.");
+    if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    ClientPurchaseCreditReceipt? receipt = null;
+    if (kind == "SUBMIT")
+    {
+      var row = await db.ClientPurchaseCreditNoteSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == commandId, ct);
+      if (row is not null) receipt = Receipt(row);
+    }
+    else
+    {
+      var row = await db.ClientPurchaseCreditNoteDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == clientId && x.ActorUserId == actor.UserId && x.CommandId == commandId, ct);
+      if (row is not null)
+      {
+        var submission = await db.ClientPurchaseCreditNoteSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+          x.ClientId == clientId && x.Id == row.SubmissionId, ct);
+        if (submission is not null) receipt = Receipt(row, submission);
+      }
+    }
+
+    if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return receipt is null
+      ? CommandResult<ClientPurchaseCreditReceipt>.Fail("command.receipt-not-found", "No supplier-credit outcome was found for this actor and request.")
+      : CommandResult<ClientPurchaseCreditReceipt>.Ok(receipt);
+  }
+
   private static ClientPurchaseCreditReceipt Receipt(ClientPurchaseCreditNoteSubmission s) => new(s.CommandId, s.CreditNoteId, s.Id, "SUBMIT", s.CreatedByUserId, s.IntentHash, "SUBMITTED", null);
   private static ClientPurchaseCreditReceipt Receipt(ClientPurchaseCreditNoteDecision d, ClientPurchaseCreditNoteSubmission s) => new(d.CommandId, s.CreditNoteId, s.Id, "REVIEW", d.ActorUserId, d.IntentHash, d.Decision == "APPROVE" ? "POSTED" : "RETURNED", d.Id);
 }
