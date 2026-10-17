@@ -17,7 +17,7 @@ type ExpenseAction = { expenseId: string; action: 'submit'; target: null } |
 type ExpenseActionReconciliation = 'APPLIED' | 'UNCHANGED' | 'UNVERIFIABLE' | null;
 export const decodeBooks = obj({
   accounts: arr(obj({ id: guid, code: text, name: text, accountType: text })),
-  expenses: arr(expense, 200), categories: arr(text, 20), canPrepare: bool, canReview: bool, maxEvidenceBytes: nat, maxReviewCommentLength: nat,
+  expensePage: nat, hasMoreExpenses: bool, expenses: arr(expense, 200), categories: arr(text, 20), canPrepare: bool, canReview: bool, maxEvidenceBytes: nat, maxReviewCommentLength: nat,
 });
 const tbRow = obj({ accountId: guid, code: text, name: text, accountType: text, openingDebit: dec, openingCredit: dec,
   movementDebit: dec, movementCredit: dec, closingDebit: dec, closingCredit: dec });
@@ -128,6 +128,11 @@ export class FirmExpenseRejectionDialog {
             } @empty { <tr><td colspan="7">No firm expenses recorded yet.</td></tr> }
           </tbody>
         </table></div>
+        <nav aria-label="Firm expense pages">
+          <button matButton type="button" (click)="expensePage.set(b.expensePage - 1)" [disabled]="b.expensePage <= 1 || cmd.busy() || cmd.uncertain()">Previous expenses</button>
+          <span>Expense page {{ b.expensePage }}</span>
+          <button matButton type="button" (click)="expensePage.set(b.expensePage + 1)" [disabled]="!b.hasMoreExpenses || cmd.busy() || cmd.uncertain()">Next expenses</button>
+        </nav>
       </section>
       <section class="panel" aria-labelledby="ftb-heading">
         <h2 id="ftb-heading">Firm trial balance</h2>
@@ -233,7 +238,8 @@ export class FirmBooks {
   private readonly tabDrafts = inject(TabDrafts);
   private readonly session = inject(SessionService);
   private readonly dialog = inject(MatDialog);
-  readonly books = this.api.resource(() => '/api/ui/finance/books', decodeBooks, 'Firm books require a firm-wide finance assignment.');
+  readonly expensePage = signal(1);
+  readonly books = this.api.resource(() => this.expensePage() === 1 ? '/api/ui/finance/books' : `/api/ui/finance/books?expensePage=${this.expensePage()}`, decodeBooks, 'Firm books require a firm-wide finance assignment.');
   readonly cmd = new CommandState(this.api);
   readonly pendingPostId = signal<string | null>(null);
   readonly pendingExpenseAction = signal<ExpenseAction | null>(null);
@@ -537,7 +543,7 @@ export class FirmBooks {
     this.expenseActionVerificationMessage.set('');
     this.unchangedExpenseStatus.set('');
     try {
-      const persisted = await this.api.get('/api/ui/finance/books', decodeBooks);
+      const persisted = await this.api.get(`/api/ui/finance/books?expenseId=${pending.expenseId}`, decodeBooks);
       const target = persisted.expenses.find(expense => expense.id === pending.expenseId);
       if (!target) {
         this.expenseActionReconciliation.set('UNVERIFIABLE');
@@ -588,7 +594,7 @@ export class FirmBooks {
     this.verifyingPost.set(true);
     this.postVerificationMessage.set('');
     try {
-      const persisted = await this.api.get('/api/ui/finance/books', decodeBooks);
+      const persisted = await this.api.get(`/api/ui/finance/books?expenseId=${id}`, decodeBooks);
       const target = persisted.expenses.find(expense => expense.id === id);
       const status = target?.status === 'POSTED' ? 'POSTED' : target?.status === 'APPROVED' ? 'APPROVED' : 'UNVERIFIABLE';
       this.postReconciliation.set(status);

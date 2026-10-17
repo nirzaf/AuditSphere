@@ -22418,6 +22418,28 @@
         "tags": [
           "AuditSphereOps.Api"
         ],
+        "parameters": [
+          {
+            "name": "expensePage",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "expenseId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "responses": {
           "503": {
             "description": "Service Unavailable",
@@ -22435,6 +22457,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FirmBooksWorkspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
                 }
               }
             }
@@ -109664,6 +109696,19 @@
               "string"
             ],
             "format": "int32"
+          },
+          "expensePage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32",
+            "default": 1
+          },
+          "hasMoreExpenses": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

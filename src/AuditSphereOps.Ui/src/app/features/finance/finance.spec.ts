@@ -173,12 +173,14 @@ describe('Finance & Firm Ledger Contracts', () => {
       canPrepare: true,
       canReview: true,
       maxEvidenceBytes: 10485760,
-      maxReviewCommentLength: 1000,
+      maxReviewCommentLength: 1000, expensePage: 1, hasMoreExpenses: true,
     };
 
     const decoded = decodeBooks(raw, 'books');
     expect(decoded.accounts.length).toBe(1);
     expect(decoded.expenses[0].payee).toBe('Office Depot');
+    expect(decoded.expensePage).toBe(1);
+    expect(decoded.hasMoreExpenses).toBe(true);
     expect(decoded.categories.length).toBe(3);
   });
 

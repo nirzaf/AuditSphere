@@ -110,6 +110,12 @@ public sealed class UiWorkbenchContractTests
 
     var books = await admin.GetFromJsonAsync<JsonElement>("/api/ui/finance/books");
     Assert.True(books.GetProperty("canPrepare").GetBoolean());
+    Assert.Equal(1, books.GetProperty("expensePage").GetInt32());
+    Assert.False(books.GetProperty("hasMoreExpenses").GetBoolean());
+    Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/ui/finance/books?expensePage=0")).StatusCode);
+    var emptyExpensePage = await admin.GetFromJsonAsync<JsonElement>("/api/ui/finance/books?expensePage=2");
+    Assert.Equal(2, emptyExpensePage.GetProperty("expensePage").GetInt32());
+    Assert.Empty(emptyExpensePage.GetProperty("expenses").EnumerateArray());
     MultipartFormDataContent Expense()
     {
       var form = new MultipartFormDataContent

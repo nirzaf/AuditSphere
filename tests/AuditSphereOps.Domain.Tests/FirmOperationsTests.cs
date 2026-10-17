@@ -522,6 +522,32 @@ public sealed partial class FirmOperationsTests
       var rejected = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == returned.Value);
       Assert.Equal(FirmExpenseStates.Rejected, rejected.Status);
       Assert.Equal("Missing receipt date.", rejected.ReviewComment);
+      var fixtureBytes = "%PDF synthetic paging"u8.ToArray();
+      for (var i = 0; i < 201; i++)
+        db.FirmExpenses.Add(new FirmExpense { Id = Guid.NewGuid(), FirmId = w.FirmId,
+          ExpenseDate = new DateOnly(2027, 1, 1), Category = FirmExpenseCategories.Other,
+          Payee = $"Synthetic paging {i}", Description = "Paging fixture", Amount = 1m, Currency = "QAR",
+          ExpenseAccountId = rent, PaymentAccountId = cash, PreparedByUserId = finance.UserId,
+          EvidenceFileName = "paging.pdf", EvidenceContentType = "application/pdf", EvidenceContent = fixtureBytes,
+          EvidenceSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(fixtureBytes)).ToLowerInvariant(),
+          CreatedAt = DateTimeOffset.Parse("2027-01-01T00:00:00Z") });
+      await db.SaveChangesAsync();
+      var firstExpenses = await FirmBooksWorkspaceQuery.GetAsync(db, reviewer);
+      var secondExpenses = await FirmBooksWorkspaceQuery.GetAsync(db, reviewer, expensePage: 2);
+      Assert.True(firstExpenses.Succeeded, firstExpenses.Message);
+      Assert.True(secondExpenses.Succeeded, secondExpenses.Message);
+      Assert.Equal(200, firstExpenses.Value!.Expenses.Count);
+      Assert.True(firstExpenses.Value.HasMoreExpenses);
+      Assert.False(secondExpenses.Value!.HasMoreExpenses);
+      Assert.Empty(firstExpenses.Value.Expenses.Select(x => x.Id).Intersect(secondExpenses.Value.Expenses.Select(x => x.Id)));
+      Assert.Equal(await db.FirmExpenses.CountAsync(x => x.FirmId == w.FirmId), firstExpenses.Value.Expenses.Count + secondExpenses.Value.Expenses.Count);
+      Assert.DoesNotContain(firstExpenses.Value.Expenses, x => x.Id == returned.Value);
+      var exactOlder = await FirmBooksWorkspaceQuery.GetAsync(db, reviewer, expenseId: returned.Value);
+      Assert.Equal(returned.Value, Assert.Single(exactOlder.Value!.Expenses).Id);
+      Assert.Empty((await FirmBooksWorkspaceQuery.GetAsync(db, reviewer, expenseId: Guid.NewGuid())).Value!.Expenses);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await FirmBooksWorkspaceQuery.GetAsync(db, w.A("staff", "Staff"), expenseId: returned.Value)).ErrorCode);
+      Assert.Equal("finance.page-invalid", (await FirmBooksWorkspaceQuery.GetAsync(db, reviewer, expensePage: 0)).ErrorCode);
+
     }
   }
 

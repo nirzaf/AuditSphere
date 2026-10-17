@@ -652,9 +652,13 @@ public static class FirmExpenseService
     return posting;
   }
 
-  public static async Task<IReadOnlyList<FirmExpense>> ListAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default) =>
-    (await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers], ct)).Succeeded
-      ? await db.FirmExpenses.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.ExpenseDate).ThenByDescending(x => x.CreatedAt).Take(200)
+  public static async Task<IReadOnlyList<FirmExpense>> ListAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default,
+    int page = 1, Guid? expenseId = null, bool includeContinuation = false) =>
+    page is >= 1 and <= 100000 && expenseId != Guid.Empty &&
+      (await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers], ct)).Succeeded
+      ? await db.FirmExpenses.AsNoTracking().Where(x => x.FirmId == actor.FirmId && (!expenseId.HasValue || x.Id == expenseId))
+        .OrderByDescending(x => x.ExpenseDate).ThenByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+        .Skip((page - 1) * 200).Take(includeContinuation ? 201 : 200)
         .Select(x => new FirmExpense { Id = x.Id, FirmId = x.FirmId, ExpenseDate = x.ExpenseDate, Category = x.Category, Payee = x.Payee, Description = x.Description, Amount = x.Amount,
           Currency = x.Currency, EvidenceFileName = x.EvidenceFileName, EvidenceSha256 = x.EvidenceSha256, Status = x.Status, PreparedByUserId = x.PreparedByUserId, ReviewedByUserId = x.ReviewedByUserId,
           ReviewComment = x.ReviewComment, PostingId = x.PostingId, CreatedAt = x.CreatedAt }).ToListAsync(ct)
