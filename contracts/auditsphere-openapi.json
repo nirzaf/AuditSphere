@@ -48488,6 +48488,52 @@
               "null",
               "string"
             ]
+          },
+          "evidenceSelections": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ProcedureEvidenceSelection"
+            }
+          }
+        }
+      },
+      "ProcedureEvidenceSelection": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "linkId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "physicalLinkId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "manualReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "observation": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
