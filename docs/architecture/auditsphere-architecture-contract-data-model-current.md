@@ -29,6 +29,8 @@
 | Owner addition: consolidation | `Consolidation` | `Accounting/` consolidation and FX records |
 | Platform | `Security`, `Operations`, `Microsoft365`, `ClientSharePointSites` | `Security/Users.cs`, `Microsoft365/*.cs`, `Shared/Kernel.cs` |
 
+Procedure execution adds `audit_procedure_command_receipts` (append-only actor/request receipts with definition, generation, result/review and evidence-digest identity) and the nullable `evidence_digest` column. The submitted evidence snapshot is stored inside the immutable `audit_procedure_results.structured_result_json` under the server-reserved versioned property `_auditEvidenceSnapshot`; direct result/review writes are not accepted. See [AuditProcedureCommandReceipt](../../src/AuditSphereOps.Domain/Audit/AuditProcedureCommandReceipt.cs) and `AuditProgramService.Evidence.cs`.
+
 Use the [code map](auditsphere-architecture-code-map.md) to go from a capability to its Application services.
 
 ## 3. Changing the schema

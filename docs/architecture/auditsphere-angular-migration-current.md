@@ -1,8 +1,8 @@
 # AuditSphere Angular presentation migration
 
-**Status: CURRENT for implemented API/Angular boundaries; local owner-approved route cutover is complete; full migration acceptance remains PARTIAL. The owner authorized Blazor retirement on 2026-10-17; the branch removal is prepared for review and is not merged.**
+**Status: CURRENT for implemented API/Angular boundaries; local owner-approved route cutover is complete, and the Blazor host was retired and merged to `master` as `e7ebe27c`. Historical parity and operational acceptance remains PARTIAL/unverified.**
 
-The owner requested implementation of the attached Blazor-to-Angular guide. Angular replaces presentation incrementally. The .NET modular monolith remains the capability, session and database authority. Angular owns canonical API routes. Commit `59387b54` physically removed the Web host before all behavior and operational gates passed; the source and solution project were restored from its parent snapshot as a buildable rollback/reference host. On 2026-10-17 the owner authorized retirement despite the removal gate remaining `NOT_READY`; the removal is prepared on branch `chore/retire-blazor-host` for review and is not merged to `master`. The authorization does not establish parity, operational rollback or production acceptance. Sections below describe the state when written; this decision supersedes statements that the host is retained or that removal is blocked. Production deployment, canary, assistive-technology and live Microsoft gates remain separate acceptance work.
+The owner requested implementation of the attached Blazor-to-Angular guide. Angular replaces presentation incrementally. The .NET modular monolith remains the capability, session and database authority. Angular owns canonical API routes. Commit `59387b54` physically removed the Web host before all behavior and operational gates passed; the source and solution project were later restored as a buildable reference. On 2026-10-17 the owner authorized retirement despite the removal gate remaining `NOT_READY`; the removal was merged to `master` as `e7ebe27c`, so the host is absent from the current tree. The authorization and merge do not establish parity, operational rollback or production acceptance. Sections below describe the state when written; this decision supersedes statements that the host is retained or that removal is blocked. Production deployment, canary, assistive-technology and live Microsoft gates remain separate acceptance work.
 
 ## API and Angular project boundary
 
@@ -78,9 +78,10 @@ revocation, route destruction and changed filters fence late reads/downloads. Th
 configuration notice reports persisted active configuration only; it does not
 establish verified Microsoft capabilities. Full client/engagement source-action
 parity, production rollout and assistive-technology acceptance remain open. The
-Web host was physically removed before source-action parity passed and has since
-been restored as a rollback/reference project; migration acceptance is still
-`NOT_READY`, and production-like rollback operation has not been accepted. Curated source dispositions are in
+Web host was physically removed before source-action parity passed, was later
+restored as a buildable reference, and was retired and merged to `master` as
+`e7ebe27c`. Historical migration parity and production-like rollback were never
+accepted. Curated source dispositions are in
 the [portfolio action audit](../execution/angular-portfolio-parity.json).
 
 ### Reviewed local client contact creation
@@ -256,7 +257,7 @@ Search length at most 100, page size 1–100, nonnegative bounded page index. Ro
 
 The generated [source discovery inventory](../execution/angular-source-inventory.json) identifies routes, event expressions, service injections and literal links. It is not manually accepted coverage: nested/dynamic commands, dialogs, drafts, permissions and source tests still require review.
 
-The implementation covers native route families for practice, accounting, consolidation, audit, completion, portal and administration. Route presence is not accepted source-action parity. Full form/draft/control parity, comprehensive security and behavioral coverage, measurable production-like performance, rollback readiness and retirement acceptance remain open. The migration backlog records partial story coverage. The Web host was physically deleted before the gate passed and has been restored as a buildable rollback/reference project; operational rollback acceptance remains open and migration readiness remains `NOT_READY`.
+The implementation covers native route families for practice, accounting, consolidation, audit, completion, portal and administration. Route presence is not accepted source-action parity. Full form/draft/control parity, comprehensive security and behavioral coverage, measurable production-like performance, rollback readiness and retirement acceptance remain open. The migration backlog records partial story coverage. The Web host was retired and merged to `master` as `e7ebe27c`; historical operational rollback acceptance remains unverified.
 
 Execution evidence is recorded in [status.json](../execution/status.json). Local synthetic fixtures do not establish tenant, deployment, professional or owner acceptance. Wiki publication has not been authorized.
 
@@ -586,7 +587,7 @@ The Angular trial-balance intake composes a dedicated native Signal Forms curren
 
 The existing Application query filters prior candidates by current firm/client/engagement grants before selection. An engagement-only assignment cannot see a sibling engagement's prior balances or identity, while a valid client-wide/firm-wide assignment can include authorized prior work. Expired wider grants never qualify. Source sealing, exact period ancestry, bounded account aggregation and latest approved rate validity fail closed. An invalid latest direction/effective interval cannot silently use an older positive observation. Final authorization and current/prior source, period and rate rechecks refuse a changed read before publication.
 
-The native panel limits rendered pages, labels a missing authorized prior comparison, and removes the previous result before a refreshed calculation. Changed filters mark displayed results stale; late or wrong-context responses cannot repopulate changed datasets or revoked sessions. Missing rates explain the required input correction without inventing approvable figures. Upload and mapping commands remain their existing separate workflows. Complete intake command/form/draft parity, rate/method editor parity, and production/accessibility acceptance remain open. The Web rollback/reference source is restored, but parity and operational rollback gates remain open; retirement acceptance remains `NOT_READY`.
+The native panel limits rendered pages, labels a missing authorized prior comparison, and removes the previous result before a refreshed calculation. Changed filters mark displayed results stale; late or wrong-context responses cannot repopulate changed datasets or revoked sessions. Missing rates explain the required input correction without inventing approvable figures. Upload and mapping commands remain their existing separate workflows. Complete intake command/form/draft parity, rate/method editor parity, and production/accessibility acceptance remain open. The Web host was subsequently retired and merged; this source-specific parity and rollback gap remains unverified.
 
 ## Native currency configuration
 
@@ -796,8 +797,8 @@ The additive native-receipt migration is exercised only by owned local test data
 It was not applied to the shared Development database or production. Migration rollback
 refuses deletion of retained native receipts. Broader accounting form parity, high-volume
 performance/accessibility acceptance and production rollout remain open. The route
-cutover does not establish accepted rollback readiness; the Web rollback source is
-restored but has not passed an operational rollback exercise, and the retirement gate remains `NOT_READY`.
+cutover does not establish accepted rollback readiness; the Web host was retired
+and merged, and no operational rollback exercise was accepted.
 
 ### Native statement contribution review
 
@@ -821,9 +822,8 @@ It carries the exact source/mapping basis, checks revision and bounds on the ser
 protects text against spreadsheet formulas. It does not issue a financial package, record
 a professional conclusion or grant source/mapping approval. Complete migration acceptance,
 production-like performance and deployment rollback readiness remain open. The local route
-cutover does not establish rollback readiness; the Web rollback source was restored before the
-owner-authorized branch removal but has not passed an operational rollback exercise, and the
-retirement gate remains `NOT_READY`.
+cutover does not establish rollback readiness; the Web host was retired and merged,
+and no operational rollback exercise was accepted.
 
 ### Native journal revision lifecycle
 
@@ -854,9 +854,8 @@ The additive action-evidence migration and returned-line guard are exercised onl
 databases. Rollback refuses deletion of retained action evidence. Native creation is described
 below. Native management response is described below. Reflection/application controls, broader
 accounting parity and production-like acceptance remain open. The route cutover does not
-establish rollback readiness; the Web rollback source was restored before the owner-authorized
-branch removal but has not passed an operational rollback exercise, and the retirement gate
-remains `NOT_READY`. Executed verification lives in `status.json`.
+establish rollback readiness; the Web host was retired and merged, and no operational
+rollback exercise was accepted. Executed verification lives in `status.json`.
 
 ### Native journal creation
 

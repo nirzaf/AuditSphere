@@ -15,7 +15,7 @@ For browser-visible changes, use the built-in browser as the primary dynamic ver
 
 **Efficiency rule:** Local agents must **not** run full `.NET` solution tests, all Angular specs or all E2E by default; use the narrowest credible proving tests after a coherent slice. Entire suite execution belongs only to CI/CD; do not run full suites locally. Cached restore/build artifacts may be reused when sound. Fast CI is deliberately not expanded into full PostgreSQL/E2E for every PR.
 
-**Current release limitation:** `.github/workflows/release.yml` gates on successful `ci.yml` for the exact SHA, **not** on `release-verification.yml`. A full CI run for the release SHA must be inspected before making a full-regression release-readiness claim. Adding an automatic production gate is a separate owner decision; do not imply it is already implemented.
+**Current release precondition:** `.github/workflows/release.yml` requires both `verify-ci-passed` and `verify-release-source` for the exact SHA; the latter consumes retained `release-verification.yml` evidence. A full-regression release claim still requires inspecting the retained full suite result for that same SHA. Adding a new automatic production gate or changing triggers is a separate owner decision; do not imply one is already implemented.
 
 ## 2. Definition of Done — by verification level
 

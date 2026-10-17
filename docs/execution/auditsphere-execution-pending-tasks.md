@@ -69,6 +69,8 @@ The following local tasks, architectural decisions, and follow-ups are open for 
 
 - **Stale Content & Parameter Reauthorization:** Parameterized staff and portal routes have in-circuit route-change regressions. Both protected shells now recheck the trusted identity/session epoch every five seconds and remove their page, navigation, search and dialog subtree on a stale or disabled session without a user action. Commands still authorize at execution. A resource-planning stale-review journey now proves stale inputs are refused, the grid stays hidden until receipt reconciliation, and only the concurrent persisted value is shown after explicit close/reload. This is periodic server verification, not instantaneous revocation push, and cannot remove content already downloaded by a browser. Remaining: independent review and the other direct-command/export/count coverage above.
 
+- **AS-AWP-EXEC audit working process:** Atomic Tasks 01–09 are implemented on `master`: controlled publication/adoption, immutable definitions, independent N/A, exact procedure command receipts, frozen submitted evidence, the native procedure workspace, current-evidence progress and the 20-section support map. Task 10 remains `BLOCKED_DECISION` on the methodology owner's D1 acyclic terminal policy; Task 11 has focused technical evidence only. Current-source hosted CI, full regression, a dedicated HTTP API test for the new command routes, an authenticated browser journey and professional/live acceptance remain `NOT RUN`.
+
 ### 2.2a STE Audit Management specification alignment
 
 Source: the owner-supplied STE Audit Management Tool specification and its requirement-by-requirement comparison

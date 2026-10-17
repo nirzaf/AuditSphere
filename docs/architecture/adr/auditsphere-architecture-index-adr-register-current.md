@@ -8,7 +8,7 @@ ADR-0001 to ADR-0007, ADR-0009 to ADR-0011, and ADR-0013 to ADR-0015 are approve
 | ID | Decision | Status | Supersedes / relates to |
 | --- | --- | --- | --- |
 | [ADR-0001](auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-approved.md) | One modular monolith; static capability services returning `CommandResult`, no mediator layer | APPROVED | Records the variation from R2R-ADR-02 |
-| [ADR-0002](auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md) | Angular 22 is the canonical UI; Blazor Web kept as rollback until the readiness gate | APPROVED | Specification header "Blazor Interactive Server" |
+| [ADR-0002](auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md) | Angular 22 is the canonical UI; the Blazor Web rollback host was retired and merged to `master` as `e7ebe27c` after the owner decision | APPROVED with 2026-10-17 amendment | Specification header "Blazor Interactive Server"; historical parity/rollback gaps remain unverified |
 | [ADR-0003](auditsphere-architecture-adr-0003-client-portal-microsoft-sign-in-approved.md) | Client portal uses Microsoft sign-in, not emailed temporary passwords | APPROVED | Deviates from specification §3.1 / §4.1.5; live tenant gates remain separate |
 | [ADR-0004](auditsphere-architecture-adr-0004-engagement-lifecycle-derived-projection-approved.md) | Specification §5 lifecycle is a derived projection over gate records | APPROVED | Specification §5 |
 | [ADR-0005](auditsphere-architecture-adr-0005-visual-credentials-no-esignature-purview-approved.md) | PNG signature/seal as visual credentials; eSignature and Purview out of scope | APPROVED | R2R-ADR-08; gates P4, P5; PKI-signing exclusion superseded by ADR-0016 |

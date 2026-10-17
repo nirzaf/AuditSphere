@@ -35,6 +35,10 @@ an established-but-revoked session intentionally passes the HTTP boundary and is
 `TrustedActorResolver` inside the handler — the two refusal sources are deliberately distinct
 and covered by `HttpBoundarySecurityTests`.
 
+### Audit procedure command boundary
+
+`/api/ui/procedures/{id}/commands/{state,preview,actions,receipts}` is the only accepted mutation path for procedure results and reviews. `preview` returns the exact canonical request hash; `actions` requires fresh assent plus that hash; `receipts` returns the retained original outcome. The legacy `/procedures/{id}/results` and `/procedure-results/{id}/review` routes fail closed and must not be reintroduced. Application authorization, freshness, freeze, independence and current-evidence gates remain authoritative behind these routes.
+
 ## 3. Rate-Limit Policy Catalog
 
 Native ASP.NET Core rate limiting (`AddRateLimiter`/`UseRateLimiter`) is configured as one

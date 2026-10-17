@@ -10,7 +10,7 @@
 | **Target Focus** | Business Logic, Functional Requirements, Task Sequences & Module Workflows |
 | **Auditing Standards Context** | International Standards on Auditing (ISA) & International Financial Reporting Standards (IFRS) |
 | **Primary Currency** | Qatari Riyal (QAR) |
-| **System Architecture** | Modular Monolith (ASP.NET Core / Angular 22 canonical UI / PostgreSQL). Original wording: ~~Blazor Interactive Server~~, superseded by ADR-0002; the Blazor host is a rollback host only. |
+| **System Architecture** | Modular Monolith (ASP.NET Core / Angular 22 canonical UI / PostgreSQL). Original wording: ~~Blazor Interactive Server~~, superseded by ADR-0002. The former Blazor host was retired and merged as `e7ebe27c`; historical parity and rollback were not accepted. |
 
 ---
 
@@ -18,7 +18,7 @@
 
 The implementation intentionally differs from the original wording in the places below. Each line cites an APPROVED decision record. These owner-delegated product and architecture decisions do not substitute for live provider acceptance or qualified professional accounting treatment. Do not "fix" an implemented behaviour back to the original wording unless its ADR is superseded.
 
-- **ADR-0002 (Angular canonical UI):** Angular 22 is the canonical user interface; Blazor Interactive Server is a rollback host until the retirement gate passes. Affects the header architecture row.
+- **ADR-0002 (Angular canonical UI):** Angular 22 is the canonical user interface. The Blazor rollback host was retired by owner decision and merged as `e7ebe27c`. Affects the header architecture row.
 - **ADR-0003 (Microsoft sign-in for the client portal):** no temporary passwords are emailed or stored; the first-sign-in requirement of the Microsoft identity path applies. Affects the §3.1 portal box and the §4.1.5 portal bullets.
 - **ADR-0004 (lifecycle as a derived projection):** the §5 stages are computed from gate records and never stored or set directly. Affects §5.
 - **ADR-0005 (visual credentials; no eSignature or Purview):** the signature and seal are PNG visual credentials, not certificate-backed signatures. Affects the digital-credential wording in §4.1.4 and §4.4.1.

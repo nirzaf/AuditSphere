@@ -85,7 +85,7 @@ AI agents (and reviewers of AI work) operating in this repository must:
    evidence is never overwritten; financial inputs stay exact strings.
 5. Record only observed facts in the execution ledger, with source commit and
    boundary statements; never claim acceptance, production readiness, live
-   Microsoft capability or Blazor retirement that has not happened.
+   Microsoft capability or migration/retirement evidence that has not been observed.
 6. Respect the physical architecture: no new frameworks, no second ERP, no
    microservices, no tenant-wide Graph scopes, and no autonomous professional
    conclusions.

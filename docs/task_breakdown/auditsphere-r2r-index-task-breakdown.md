@@ -10,6 +10,8 @@
 
 **Source document:** STE-R2R-ARCH-001, version 1.0, proposed for review
 
+**Historical Blazor tasks:** T010 and any Blazor-first wording predate ADR-0002 and the 2026-10-17 retirement (merged as `e7ebe27c`). Do not recreate the Web host; implement the Angular/API equivalent only where the current code map shows a gap.
+
 **Source repository baseline:** `master@ba1a3ec23335b40667b679e4f0cd5f66b9e723b9` — a historical reference, not a freshly verified head
 
 **Target solution:** `nirzaf/AuditSphere` / `AuditSphereOps.slnx`
@@ -683,7 +685,7 @@ Reviewer decision and timestamp:
 
 Open this index and choose the next approved dependency-ready task. Read its module and shared references before coding. Inspect the actual repository head and map EXISTING/EXTEND/NEW/DECISION symbols. Do not rebuild working functionality, introduce duplicate accounting state, rename wire values, broaden scope, infer accounting policy or create an endpoint because its proposed name looks plausible.
 
-Implement the smallest coherent vertical slice, including its domain rules, actual persistence delta, owned request/validator contracts, consumer manifests, existing Blazor route and required tests. A task with no public request ownership consumes the existing contract instead of defining a competing one. Stop and mark BLOCKED on a concrete unresolved policy/contract contradiction.
+Implement the smallest coherent vertical slice, including its domain rules, actual persistence delta, owned request/validator contracts, consumer manifests, existing Angular/API route and required tests. Do not recreate the retired Blazor host. A task with no public request ownership consumes the existing contract instead of defining a competing one. Stop and mark BLOCKED on a concrete unresolved policy/contract contradiction.
 
 Update the task and exact evidence, request independent review, then refresh the index. Preserve old evidence if reopening a dependency. Never change expected financial answers to match faulty output. Task status cannot authorize a merge, deployment or Microsoft tenant operation; preserve the project's separate authorization process.
 

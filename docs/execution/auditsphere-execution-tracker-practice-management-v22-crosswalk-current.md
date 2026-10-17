@@ -129,7 +129,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | INT-04 | OPTIONAL | - | DEC-11. |
 | INT-05 | OPTIONAL | - | DEC-11. |
 | INT-06 | OPTIONAL | - | DEC-11. |
-| CLOUD-01 | PARTIAL | N | The Blazor retirement gate remains NOT_READY. |
+| CLOUD-01 | PARTIAL | N | The Blazor host is retired and merged as `e7ebe27c`; parity and operational acceptance evidence remain partial. |
 | CLOUD-02 | BLOCKED_EXTERNAL | R | Live Entra journeys. |
 | CLOUD-03 | BLOCKED_EXTERNAL | R | Live selected-site grants. |
 | CLOUD-04 | BLOCKED_EXTERNAL | R | Checkpoint and archive custody. |

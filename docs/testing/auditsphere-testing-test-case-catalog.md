@@ -1,6 +1,6 @@
 # Existing automated test catalog
 
-> **Status:** the test-case files listed in this historical inventory were removed on 2026-10-08 (commit `47ca0b05`, PR #30) and restored by STE-NXT-001 from the pre-removal commit `2713b58c`. The links below resolve to the restored files again. This catalog is the inventory record, not a pass/fail report; run the commands in `AGENTS.md` §3 for current results.
+> **Status: HISTORICAL_REFERENCE.** The test-case files listed in this historical inventory were removed on 2026-10-08 (commit `47ca0b05`, PR #30) and restored by STE-NXT-001 from the pre-removal commit `2713b58c`. The links below resolve to the restored files. Counts in this catalog are a historical snapshot, not current discovery or pass/fail evidence; current suite discovery and results belong in [`status.json`](../execution/status.json).
 
 ## Baseline and interpretation
 

@@ -2,6 +2,8 @@
 
 **Status: APPROVED** (owner-delegated approval recorded 2026-10-10) · Date recorded: 2026-10-08 · Decider: repository owner (authority delegated 2026-10-10)
 
+> **Amendment (2026-10-17):** The Web rollback host was retired by owner decision and merged to `master` as `e7ebe27c`. The modular-monolith decision is unchanged; the current deployable projects are Domain, Application, Infrastructure, Api, Worker and the Angular UI.
+
 ## Context
 R2R-ADR-02 planned MediatR facades and bUnit component tests. The shipped code instead resolves every command and query through static service classes that return `CommandResult` / `CommandResult<T>` (for example `ClientAccountingService`, `ConsolidationService`, `MaterialityEngineService`). The variation was recorded on 2026-09-25 in §2.3.1 of the R2R baseline document and in the current architecture document.
 

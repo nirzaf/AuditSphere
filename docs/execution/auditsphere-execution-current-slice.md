@@ -14,6 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+> **Reading note:** Any older section that says the Web host remains present or that
+> retirement is `NOT_READY` describes the state when it was written. The owner retired
+> the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
+> only Angular.
+
 ## AS-AWP-EXEC Atomic Tasks 05–09 — procedure execution, evidence and truthful progress — 2026-10-17
 
 Procedure submission and review now use an exact preview, fresh assent and an append-only command receipt; direct result and review writes fail closed. Submitted work retains a server-resolved evidence snapshot (stored link, physical file or manual reference) and a digest, distinct from later links. The native fieldwork page opens any authorized procedure for work, evidence selection and independent review, with lost-response recovery by receipt. Programme, area and fieldwork projections share the current-evidence evaluator; submitted or stale work is not counted as reviewed. Every one of the 165 source IDs retains the common workspace and a bounded existing-tool or manual-work support map.

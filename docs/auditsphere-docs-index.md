@@ -10,13 +10,7 @@
 
 ---
 
-The owner retired the former system specification, prototype parity source and UI migration document. Use the current STE functional requirements, current architecture and execution coverage for implementation; retired text remains in Git history only.
-
-Latest finance-family review: [Blazor firm finance source review](migration/auditsphere-migration-blazor-finance-source-review.md). All three source/action rows remain partial pending full behavior and authorization evidence.
-
-Supporting Web artifacts: [Blazor supporting-file source review](migration/auditsphere-migration-blazor-supporting-files-source-review.md) records hash-pinned partial reviews for the 17 previously unanalyzed host, configuration, styling and browser-support files. No supporting artifact is accepted as parity or approved for removal.
-
-Current presentation migration: [Angular migration and route ownership](architecture/auditsphere-angular-migration-current.md), with reviewed source evidence in the [Blazor administration source review](migration/auditsphere-migration-blazor-administration-source-review.md), [Blazor PBC source review](migration/auditsphere-migration-blazor-pbc-source-review.md), [Blazor accounting artifact source review](migration/auditsphere-migration-blazor-accounting-artifact-source-review.md), [Blazor accounting workspace and period maintenance source review](migration/auditsphere-migration-blazor-accounting-maintenance-source-review.md), [Blazor audit planning and fieldwork source review](migration/auditsphere-migration-blazor-audit-planning-fieldwork-source-review.md), [Blazor acceptance checklist source review](migration/auditsphere-migration-blazor-acceptance-checklist-source-review.md), [Blazor engagement activation source review](migration/auditsphere-migration-blazor-engagement-activation-source-review.md), [Blazor engagement creation source review](migration/auditsphere-migration-blazor-engagement-creation-source-review.md), [Blazor completion and file records source review](migration/auditsphere-migration-blazor-completion-file-records-source-review.md), [Blazor shell, search, portfolio and profile source review](migration/auditsphere-migration-blazor-shell-portfolio-source-review.md), [Blazor commercial workflow source review](migration/auditsphere-migration-blazor-commercial-source-review.md), [Blazor resource planning, budget and staffing source review](migration/auditsphere-migration-blazor-resource-planning-source-review.md), [Blazor practice operations source review](migration/auditsphere-migration-blazor-practice-operations-source-review.md), [Blazor finance source review](migration/auditsphere-migration-blazor-finance-source-review.md), [Blazor records source review](migration/auditsphere-migration-blazor-records-source-review.md), [Blazor statement and intake source review](migration/auditsphere-migration-blazor-statement-intake-source-review.md), [Blazor ReviewPoint source review](migration/auditsphere-migration-blazor-review-point-source-review.md), [Blazor Workpaper source review](migration/auditsphere-migration-blazor-workpaper-source-review.md), [Blazor Operations Recovery source review](migration/auditsphere-migration-blazor-operations-recovery-source-review.md), [Blazor Client Portal Home source review](migration/auditsphere-migration-blazor-client-portal-source-review.md), [Blazor shared confirmation source review](migration/auditsphere-migration-blazor-confirm-dialog-source-review.md), and [Blazor group consolidation source review](migration/auditsphere-migration-blazor-consolidation-source-review.md). The owner attached a new migration guide; former retired UI documents remain historical.
+The repository ships Angular as the canonical staff/client presentation. The legacy Blazor Web host was retired by owner decision and merged to `master` as `e7ebe27c`; its source remains available at the pre-removal commit and is historical evidence, not current UI guidance. The supplied 20-section/165-procedure audit working process is implemented through Atomic Tasks 01–09; Task 10 remains blocked on the methodology owner's D1 policy and Task 11 is technically prepared only. Current evidence is in [status.json](execution/status.json) and the [current-slice handoff](execution/auditsphere-execution-current-slice.md).
 
 ## 1. Start Here
 
@@ -110,7 +104,7 @@ When two documents appear to conflict or contain differing detail, precedence is
 | [`docs/architecture/auditsphere-architecture-index-agent-context-current.md`](architecture/auditsphere-architecture-index-agent-context-current.md) | Agent context slots in loading order, context hazards and the pack apply steps. | `CURRENT` |
 | [`docs/architecture/auditsphere-angular-conventions-current.md`](architecture/auditsphere-angular-conventions-current.md) | Native Angular coding conventions, draft/assent rules and safe AI-assisted implementation boundaries for the presentation migration. | `CURRENT` |
 | [`docs/architecture/auditsphere-architecture-http-boundary-and-contract-current.md`](architecture/auditsphere-architecture-http-boundary-and-contract-current.md) | Hardened HTTP boundary: authenticated `/api/ui` groups, rate-limit catalog, security headers, request-size policy, `ApiError` body, and the canonical OpenAPI 3.1 contract with CI drift protection. | `CURRENT` |
-| [`docs/migration/auditsphere-migration-blazor-retirement-inventory.md`](migration/auditsphere-migration-blazor-retirement-inventory.md), [route matrix](migration/auditsphere-migration-blazor-angular-route-parity.md), [feature register](migration/auditsphere-migration-blazor-feature-parity.md), [test register](migration/auditsphere-migration-blazor-test-parity.md), [removal gate](migration/auditsphere-migration-blazor-removal-readiness.md), and [stop-gate report](migration/auditsphere-migration-blazor-retirement-final-report.md) | Source discovery and evidence registers for the Blazor retirement. Route ownership is not behavior parity. The owner authorized removal on 2026-10-17; it is prepared on branch `chore/retire-blazor-host` for review and is not merged. Parity, rollback and external gates remain open. | `PARTIAL` |
+| [`docs/migration/auditsphere-migration-blazor-retirement-inventory.md`](migration/auditsphere-migration-blazor-retirement-inventory.md), [route matrix](migration/auditsphere-migration-blazor-angular-route-parity.md), [feature register](migration/auditsphere-migration-blazor-feature-parity.md), [test register](migration/auditsphere-migration-blazor-test-parity.md), [removal gate](migration/auditsphere-migration-blazor-removal-readiness.md), and [stop-gate report](migration/auditsphere-migration-blazor-retirement-final-report.md) | Historical source-discovery and evidence registers for the retired Blazor host. The removal was merged to `master` as `e7ebe27c`; the current tree contains only Angular. Route ownership was never behavior parity, and no parity, rollback or external acceptance is claimed. | `HISTORICAL_REFERENCE` |
 
 ---
 
@@ -179,24 +173,20 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 
   - [`auditsphere-r2r-tracker-status-history.md`](task_breakdown/tracking/auditsphere-r2r-tracker-status-history.md): Append-only log of task lifecycle transitions.
 
-## 7. Audit working process implementation
+## 7. Audit Programme and Fieldwork Workstreams
+
+### Supplied 20-section/165-procedure audit working process
 
 - **Supplied source:** [`auditsphere-audit-source-working-process.docx`](task_breakdown/source/auditsphere-audit-source-working-process.docx), preserved by SHA-256 in the specification and an independent procedure fixture.
-- **Implementation specification:** [`auditsphere-audit-specification-working-process-atomic-proposed.md`](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md), eleven dependency-ordered tasks covering the 20-section, 165-procedure supplied audit working process. It is a work plan, not professional approval or acceptance.
-- **Current implementation/evidence:** [`auditsphere-execution-current-slice.md`](execution/auditsphere-execution-current-slice.md) and [`status.json`](execution/status.json).
+- **Implementation specification:** [`auditsphere-audit-specification-working-process-atomic-proposed.md`](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md), eleven dependency-ordered tasks covering the 20-section, 165-procedure supplied working process. Tasks 01–09 are implemented; Task 10 is `BLOCKED_DECISION` on D1; Task 11 has focused technical evidence only.
+- **Native workspace and contracts:** `/app/engagements/:id/audit-fieldwork`; exact `/api/ui/procedures/{id}/commands/{state,preview,actions,receipts}`; append-only command receipts; server-resolved submitted evidence snapshots. See the [code map](architecture/auditsphere-architecture-code-map.md), [contract map](architecture/auditsphere-architecture-contract-data-model-current.md), [current-slice handoff](execution/auditsphere-execution-current-slice.md) and [status.json](execution/status.json).
+- **Reference excerpts:** 10 contract reference papers under `docs/task_breakdown/reference/` (`HISTORICAL_REFERENCE`).
 
-- **Reference Excerpts:** 10 contract reference papers under `docs/task_breakdown/reference/` (`HISTORICAL_REFERENCE`).
-
----
-
-## 7. Audit Fieldwork Workstream
+### Task cards
 
 - **Audit Program Library & Engagements:** Tasks T055–T059 under `docs/task_breakdown/tasks/17_Audit_Foundation/`.
-
 - **Fieldwork Core:** Tasks T060–T065 under `docs/task_breakdown/tasks/18_Audit_Fieldwork_Core/` (Cash, Receivables, Inventory, Revenue, Payables).
-
 - **Fieldwork Extended:** Tasks T066–T072 under `docs/task_breakdown/tasks/19_Audit_Fieldwork_Extended/` (Fixed assets, Expenses, Payroll, Loans, Related parties, Tax, Fraud/JE testing).
-
 - **Audit Completion:** Tasks T073–T075 under `docs/task_breakdown/tasks/20_Audit_Completion/` (Analytical review, Going concern, Subsequent events & handover).
 
 ---
@@ -239,7 +229,7 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 
 | [`docs/testing/auditsphere-testing-e2e-automation-strategy.md`](testing/auditsphere-testing-e2e-automation-strategy.md) | Playwright end-to-end automation strategy, CI pipeline execution models, and test fixtures. | `CURRENT` |
 
-| [`docs/testing/auditsphere-testing-test-case-catalog.md`](testing/auditsphere-testing-test-case-catalog.md) | Inventory of unit, integration, and E2E test suites with category mapping. | `CURRENT` |
+| [`docs/testing/auditsphere-testing-test-case-catalog.md`](testing/auditsphere-testing-test-case-catalog.md) | Historical baseline inventory of unit, integration and E2E suites. Current discovery and results belong in `status.json`. | `HISTORICAL_REFERENCE` |
 | [`docs/testing/auditsphere-scope-and-tenant-admin-test-cases.md`](testing/auditsphere-scope-and-tenant-admin-test-cases.md) | Proposed scope-isolation and live Development tenant administration acceptance cases; execution results belong in the ledger. | `CURRENT` |
 
 | [`docs/testing/auditsphere-testing-strategy-definition-of-done-current.md`](testing/auditsphere-testing-strategy-definition-of-done-current.md) | Test strategy and Definition of Done for the restored suites: what counts as verification. | `CURRENT` |
@@ -257,7 +247,7 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 
 | [`docs/operations/auditsphere-operations-decision-connection-capacity.md`](operations/auditsphere-operations-decision-connection-capacity.md) | PostgreSQL connection pool sizing, concurrency limits, and PgBouncer evaluation. | `CURRENT` |
 
-| [`docs/operations/auditsphere-operations-guide-telemetry.md`](operations/auditsphere-operations-guide-telemetry.md) | OpenTelemetry ActivitySource and Meter diagnostic configuration for Web and Worker hosts. | `CURRENT` |
+| [`docs/operations/auditsphere-operations-guide-telemetry.md`](operations/auditsphere-operations-guide-telemetry.md) | OpenTelemetry ActivitySource and Meter diagnostic configuration for the API and Worker hosts. | `CURRENT` |
 
 ---
 

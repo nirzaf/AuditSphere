@@ -41,10 +41,9 @@ this document wins and the source text remains a historical requirement record.
 
 - **One modular monolith**, with `Domain`, `Application`, `Infrastructure`, `Api`
   and `Worker`. The owner authorized retirement of the Blazor rollback host on
-  2026-10-17; the removal is prepared on branch `chore/retire-blazor-host` for
-  review, and `master` retains the host until that review concludes. API serves
-  Angular as the canonical route owner. No microservices, no message broker, no
-  second ERP.
+  2026-10-17; the removal was merged to `master` as `e7ebe27c`, so the host is
+  absent from the current tree. API serves Angular as the canonical route owner.
+  No microservices, no message broker, no second ERP.
 - **Microsoft tenant administration** follows the
   [capability permission decision](auditsphere-m365-tenant-administration-permissions.md):
   each Microsoft capability (directory read, optional user creation, guest
@@ -70,19 +69,25 @@ this document wins and the source text remains a historical requirement record.
   calculators) contain no EF Core, network, clock or random-ID dependencies.
 - **Durable work** (GL completeness, package build/render) runs through the local durable
   operation infrastructure with revision fencing and idempotent retries.
+- **Audit programme execution** is one reusable procedure workspace over the adopted
+  programme: exact command receipts (`audit_procedure_command_receipts`), a
+  server-resolved evidence snapshot inside the immutable result, and one shared
+  current-evidence evaluator for programme, area, fieldwork and completion views. Direct
+  result/review writes fail closed. Links to planning, confirmations, ledger, statements,
+  journals, differences and completion are navigation only; opening a tool never completes
+  a procedure.
 - **Legacy UI component library: MudBlazor 9.10.0, retired with the Web project.**
-  The owner-authorized removal is prepared on branch `chore/retire-blazor-host`;
-  `master` retains the buildable rollback host until review. The retired project is
-  excluded from API composition and the API-only test project graph. Neither owner
-  authorization nor removal establishes rollback acceptance; the canonical parity
-  and operational gates remain open.
+  The owner-authorized removal was merged to `master` as `e7ebe27c`; the host is
+  absent from the current tree. It is excluded from API composition and the
+  API-only test project graph. The removal does not establish parity or rollback
+  acceptance; the historical parity and operational gaps remain unverified.
   Intentional native HTML exceptions (browser-draft boundaries, raw-value and file-input
   contracts, `<tfoot>`/`colspan` tables) are recorded in
   the retired MudBlazor conventions document (Git history only; current guidance is `docs/architecture/auditsphere-angular-conventions-current.md`).
 
 ## Angular presentation migration
 
-The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend. API owns the authorized contracts, authentication/consent and protected file transports. On 2026-10-17 the owner authorized retirement of the Blazor rollback/reference host despite the readiness gate; the removal is prepared on branch `chore/retire-blazor-host` for review, and `master` retains the host until that review concludes. The retired project is not referenced by API composition or the current API-only test projects, and the removed source remains available at commit `c3905e07`. Operators use the API host with Angular. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries remain separate. Production canary, operational rollback, assistive-technology, locale, and live Microsoft acceptance gates remain open.
+The owner-requested [Angular migration](auditsphere-angular-migration-current.md) uses `AuditSphereOps.Api` as the ASP.NET Core HTTP backend and `AuditSphereOps.Ui` as the Angular frontend. API owns the authorized contracts, authentication/consent and protected file transports. On 2026-10-17 the owner authorized retirement of the Blazor rollback/reference host despite the readiness gate; the removal was merged to `master` as `e7ebe27c`, so the host is absent from the current tree. The retired project is not referenced by API composition or the current API-only test projects, and the removed source remains available at commit `c3905e07`. Operators use the API host with Angular. Domain, Application, Infrastructure, Worker, database and Microsoft permission boundaries remain separate. Production canary, operational rollback, assistive-technology, locale, and live Microsoft acceptance gates remain open.
 
 Native journal management evidence composes the existing local treatment command in Application.
 Client and staff routes derive signed-in versus offline evidence from current identity, preserve
