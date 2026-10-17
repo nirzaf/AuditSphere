@@ -26,9 +26,11 @@ const branding = {
   profileId: null, version: '0', legalName: 'Synthetic audit firm', accentColorHex: '#2B6CB0',
   hasLogo: false, logoSha256Hex: null,
 };
-const portal = (requests: ReturnType<typeof requestRows>, hasMoreRequests: boolean) => ({
+const packageRows = (page = 0, pageSize = 10) => packages.slice(page * pageSize, (page + 1) * pageSize);
+const portal = (requests: ReturnType<typeof requestRows>, hasMoreRequests: boolean, packagePage = 0, packagePageSize = 10) => ({
   firstSignIn: { completed: true, identityPath: 'EXTERNAL_IDENTITY', canComplete: false, message: 'Complete sign-in.' },
-  pendingOnboarding: false, engagementCount: 1, hasMoreRequests, requests, packages,
+  pendingOnboarding: false, engagementCount: 1, hasMoreRequests, requests, packages: packageRows(packagePage, packagePageSize),
+  packagePage, packagePageSize, hasMorePackages: (packagePage + 1) * packagePageSize < packages.length,
 });
 
 describe('Client portal workspace paging', () => {
@@ -156,10 +158,10 @@ describe('Client portal workspace paging', () => {
     expect(packageSection().querySelectorAll('a').length).toBe(10);
     expect(packageSection().querySelectorAll('audit-portal-report-action').length).toBe(10);
     expect(packageSection().textContent).toContain('no current sealed report invitation');
-    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Page 1 of 3 · 1–10 of 26');
+    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Page 1 · 10 shown');
     expect(root.textContent).toContain('Action counts describe this request page, not all engagements.');
     expect(root.textContent).not.toContain('Provide requested document');
-    expect(root.textContent).not.toContain('Only the 100 most recent package summaries are loaded.');
+    expect(root.textContent).not.toContain('Contact your audit team for older reports.');
 
     (Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Next requests')!).click();
     TestBed.tick();
@@ -186,24 +188,26 @@ describe('Client portal workspace paging', () => {
     expect(Array.from(packageSize.options).map((option) => Number(option.value))).toEqual([10, 25, 50]);
     (Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Next packages')!).click();
     fixture.detectChanges(); TestBed.tick(); fixture.detectChanges();
-    const nextPageReports = http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'));
-    expect(nextPageReports).toHaveLength(10);
-    nextPageReports.forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
+    expect(flushPortal('/api/ui/portal?page=0&pageSize=50&packagePage=1&packagePageSize=10',
+      portal(requestRows(26), false, 1, 10))).toBe(10);
     TestBed.tick(); fixture.detectChanges();
-    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Page 2 of 3 · 11–20 of 26');
+    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Page 2 · 10 shown');
     expect(packageSection().querySelectorAll('audit-portal-report-action').length).toBe(10);
     expect(packageSection().querySelector(`a[href="/portal/accounting/packages/${id(101)}"]`)).toBeNull();
     expect(packageSection().querySelector(`a[href="/portal/accounting/packages/${id(111)}"]`)).not.toBeNull();
 
-    packageSize.value = '25'; packageSize.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Page 1 of 2 · 1–25 of 26');
+    const packageSizeAfterPage = root.querySelector('#portal-package-page-size') as HTMLSelectElement;
+    packageSizeAfterPage.value = '25'; packageSizeAfterPage.dispatchEvent(new Event('change'));
+    fixture.detectChanges(); TestBed.tick(); fixture.detectChanges();
+    flushPortal('/api/ui/portal?page=0&pageSize=50&packagePage=0&packagePageSize=25', portal(requestRows(26), false, 0, 25));
+    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Page 1 · 25 shown');
     expect(packageSection().querySelectorAll('a').length).toBe(25);
-    http.expectNone((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'));
 
-    packageSize.value = '50'; packageSize.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Page 1 of 1 · 1–26 of 26');
+    const packageSizeAfterResize = root.querySelector('#portal-package-page-size') as HTMLSelectElement;
+    packageSizeAfterResize.value = '50'; packageSizeAfterResize.dispatchEvent(new Event('change'));
+    fixture.detectChanges(); TestBed.tick(); fixture.detectChanges();
+    flushPortal('/api/ui/portal?page=0&pageSize=50&packagePage=0&packagePageSize=50', portal(requestRows(26), false, 0, 50));
+    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Page 1 · 26 shown');
     expect(packageSection().querySelectorAll('a').length).toBe(26);
     expect(packageSection().querySelectorAll('audit-portal-report-action').length).toBe(0);
     http.expectNone((request) => request.method === 'POST');
@@ -301,7 +305,7 @@ describe('Client portal workspace paging', () => {
     fixture.destroy();
   });
 
-  it('keeps completed requests view-only and explains when older package summaries remain', () => {
+  it('keeps completed requests view-only and exposes continuation for older package summaries', () => {
     const fixture = TestBed.createComponent(ClientPortalHome);
     fixture.detectChanges(); TestBed.tick();
     const closed = { ...requestRows(1, 401)[0], state: 'CLOSED', canWrite: false };
@@ -320,7 +324,8 @@ describe('Client portal workspace paging', () => {
     expect(root.textContent).toContain('Completed requests (1)');
     expect(root.textContent).not.toContain('Documents to provide');
     expect(root.textContent).not.toContain('Provide requested document');
-    expect(root.textContent).toContain('Only the 100 most recent package summaries are loaded. Contact your audit team for older reports.');
+    expect(root.textContent).not.toContain('Only the 100 most recent package summaries are loaded.');
+    expect(root.querySelector('[aria-label="Financial package pages"]')?.textContent).toContain('Next packages');
     fixture.destroy();
   });
 });

@@ -147,7 +147,12 @@
                   <li [class.done]="task.status === 'COMPLETED'" [class.cancelled]="task.status === 'CANCELLED'">
                     <span class="checklist-state">{{ taskStateLabel(task.status) }}</span>
                     <span class="checklist-task">{{ task.title }}</span>
-                    <small>{{ task.dueDate ? 'Due ' + task.dueDate : 'No due date' }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }</small>
+                    <small>{{ task.dueDate ? 'Due ' + task.dueDate : 'No due date' }} · Owner: {{ task.assigneeDisplayName ?? 'Unassigned' }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }</small>
+                    @if (taskAssignmentAvailable() && (task.status === 'OPEN' || task.status === 'IN_PROGRESS')) {
+                      <button matButton type="button" (click)="openTaskAssignment(task)" [disabled]="assignmentBusy()">
+                        {{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}
+                      </button>
+                    }
                   </li>
                 }
               </ul>
@@ -158,6 +163,30 @@
         }
         <p><a matButton routerLink="/app/work">Open My work</a></p>
       </section>
+      @if (assignmentTask(); as task) {
+        <section class="phase-checklists" aria-labelledby="task-assignment-heading">
+          <h4 id="task-assignment-heading">{{ task.assigneeUserId ? 'Reassign workflow task' : 'Assign workflow task' }}</h4>
+          <p><strong>Task:</strong> {{ task.title }} ({{ task.id }})</p>
+          <p><strong>Engagement:</strong> {{ report.engagementId }}</p>
+          <p><strong>Current owner:</strong> {{ task.assigneeDisplayName ?? 'Unassigned' }}</p>
+          <label [attr.for]="'workflow-assignee-' + task.id">New owner
+            <select [id]="'workflow-assignee-' + task.id" [value]="assignmentUserId()" (change)="selectTaskAssignee($any($event.target).value)">
+              <option value="">Choose eligible staff</option>
+              @for (option of assigneeOptions(); track option.userId) { <option [value]="option.userId">{{ option.displayName }}</option> }
+            </select>
+          </label>
+          @if (selectedTaskAssignee(); as newOwner) {
+            <p>Confirm {{ task.assigneeUserId ? 'reassign' : 'assign' }} <strong>{{ task.title }}</strong> in engagement
+              <strong>{{ report.engagementId }}</strong> from <strong>{{ task.assigneeDisplayName ?? 'Unassigned' }}</strong>
+              to <strong>{{ newOwner.displayName }}</strong>.</p>
+            <label><input type="checkbox" [checked]="assignmentReviewed()" (change)="assignmentReviewed.set($any($event.target).checked)" /> I reviewed this exact task, engagement, current owner, and new owner.</label>
+            <button matButton="filled" type="button" (click)="saveTaskAssignment()"
+              [disabled]="assignmentBusy() || !assignmentReviewed() || newOwner.userId === task.assigneeUserId">Confirm assignment</button>
+          }
+          <button matButton type="button" (click)="cancelTaskAssignment()" [disabled]="assignmentBusy()">Cancel</button>
+          @if (assignmentMessage()) { <p [attr.role]="assignmentFailed() ? 'alert' : 'status'">{{ assignmentMessage() }}</p> }
+        </section>
+      }
       @if (taskCreationAvailable()) {
         <audit-workflow-task-create
           [engagementId]="report.engagementId"

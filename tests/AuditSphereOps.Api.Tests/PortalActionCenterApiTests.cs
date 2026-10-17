@@ -78,7 +78,7 @@ public sealed class PortalActionCenterApiTests
   }
 
   [Fact]
-  public async Task PortalWorkspaceCapsValidatedPackageSummariesAtOneHundredAndReportsMore()
+  public async Task PortalWorkspaceContinuesValidatedPackageHistoryBeyondTheFormerHundredRowLimit()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-PACKAGE-PAGING");
     var f = await PbcSeed.SeedAsync(pg);
@@ -138,12 +138,92 @@ public sealed class PortalActionCenterApiTests
     using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
     await SignIn(client);
 
-    using var response = await client.GetAsync("/api/ui/portal?page=0&pageSize=50");
+    using var response = await client.GetAsync("/api/ui/portal?page=0&pageSize=50&packagePage=0&packagePageSize=50");
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     var workspace = await response.Content.ReadFromJsonAsync<PortalWorkspace>();
     Assert.NotNull(workspace);
-    Assert.Equal(100, workspace.Packages.Count);
+    Assert.Equal(50, workspace.Packages.Count);
     Assert.True(workspace.HasMorePackages);
+    Assert.Equal(0, workspace.PackagePage);
+    Assert.Equal(50, workspace.PackagePageSize);
+
+    using var olderResponse = await client.GetAsync("/api/ui/portal?page=0&pageSize=50&packagePage=2&packagePageSize=50");
+    Assert.Equal(HttpStatusCode.OK, olderResponse.StatusCode);
+    var older = await olderResponse.Content.ReadFromJsonAsync<PortalWorkspace>();
+    Assert.NotNull(older);
+    Assert.Equal(2, older.PackagePage);
+    Assert.Single(older.Packages);
+    Assert.False(older.HasMorePackages);
+    Assert.DoesNotContain(older.Packages, item => workspace.Packages.Any(firstPage => firstPage.Id == item.Id));
+  }
+
+  [Fact]
+  public async Task PortalRequestHistoryPagesAreBoundedOrderedAndRemainParticipantScoped()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-REQUEST-HISTORY");
+    var f = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, f,
+      PbcSeed.Actor(f.Staff, "Staff"), PbcSeed.Actor(f.Client, "ClientUser"));
+    var foreignRequestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, foreign,
+      PbcSeed.Actor(foreign.Staff, "Staff"), PbcSeed.Actor(foreign.Client, "ClientUser"));
+    AppUser clientUser;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      clientUser = await db.Users.SingleAsync(x => x.FirmId == f.FirmId && x.UserKind == "Client" && !x.Disabled);
+      var request = await db.PbcRequests.SingleAsync(x => x.Id == requestId);
+      request.ClientOwnerUserId = clientUser.Id;
+      var occurred = DateTimeOffset.Parse("2026-10-01T00:00:00Z");
+      db.PbcCommunications.AddRange(Enumerable.Range(0, 31).Select(index => new PbcCommunication
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PbcRequestId = requestId, AuthorUserId = f.Staff.Id, Kind = PbcCommunicationKinds.ClientMessage,
+        Body = $"Message {index:D2}", CreatedAt = occurred.AddMinutes(index)
+      }));
+      db.PbcUploadIntents.AddRange(Enumerable.Range(0, 31).Select(index => new PbcUploadIntent
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PbcRequestId = requestId, UploaderUserId = clientUser.Id, FileName = $"upload-{index:D2}.pdf",
+        ContentType = "application/pdf", DeclaredByteCount = 1, DeclaredSha256Hex = new string('a', 64),
+        CapabilityHash = new string('b', 64), ReceivedByteCount = 0, State = PbcUploadStates.Started,
+        ExpiresAt = occurred.AddMinutes(index).AddDays(1), CreatedAt = occurred.AddMinutes(index), Revision = 1
+      }));
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = Factory(pg, clientUser);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignIn(client);
+    using var summaryResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}");
+    Assert.Equal(HttpStatusCode.OK, summaryResponse.StatusCode);
+    var summary = await summaryResponse.Content.ReadFromJsonAsync<PortalRequestWorkspace>();
+    Assert.NotNull(summary);
+    Assert.Equal(25, summary.Uploads.Count);
+    Assert.Equal(25, summary.Conversation.Count);
+    Assert.True(summary.HasMoreUploads);
+    Assert.True(summary.HasMoreConversation);
+
+    using var pageResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}/history?uploadPage=1&conversationPage=2&pageSize=10");
+    Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
+    var page = await pageResponse.Content.ReadFromJsonAsync<PortalRequestHistory>();
+    Assert.NotNull(page);
+    Assert.Equal(requestId, page.RequestId);
+    Assert.Equal(1, page.UploadPage);
+    Assert.Equal(2, page.ConversationPage);
+    Assert.Equal(10, page.PageSize);
+    Assert.Equal(10, page.Uploads.Count);
+    Assert.Equal("upload-20.pdf", page.Uploads[0].FileName);
+    Assert.Equal("upload-11.pdf", page.Uploads[^1].FileName);
+    Assert.Equal(10, page.Conversation.Count);
+    Assert.Equal("Message 20", page.Conversation[0].Body);
+    Assert.Equal("Message 29", page.Conversation[^1].Body);
+    Assert.True(page.HasMoreUploads);
+    Assert.False(page.HasMoreConversation);
+
+    using var foreignResponse = await client.GetAsync($"/api/ui/portal/requests/{foreignRequestId}/history?uploadPage=0&conversationPage=0&pageSize=10");
+    Assert.NotEqual(HttpStatusCode.OK, foreignResponse.StatusCode);
+    using var invalidPage = await client.GetAsync($"/api/ui/portal/requests/{requestId}/history?uploadPage=-1&conversationPage=0&pageSize=10");
+    Assert.NotEqual(HttpStatusCode.OK, invalidPage.StatusCode);
   }
 
   [Fact]

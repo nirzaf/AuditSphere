@@ -28,6 +28,7 @@ public sealed record WorkflowTaskRow(
   int Ordinal,
   string Status,
   Guid? AssigneeUserId,
+  string? AssigneeDisplayName,
   string? AssignedRole,
   DateOnly? DueDate,
   int? PlannedEffortMinutes,
@@ -42,6 +43,7 @@ public sealed record WorkflowTaskWorkspace(
   Guid EngagementId,
   IReadOnlyList<WorkflowTaskRow> Tasks,
   bool Truncated);
+public sealed record WorkflowTaskAssigneeOption(Guid UserId, string DisplayName);
 
 /// <summary>
 /// Workflow task coordination over the existing WorkTask and time-entry records. Task completion is operational only and
@@ -65,11 +67,17 @@ public static class EngagementWorkflowTaskService
                       where binding.FirmId == actor.FirmId && binding.EngagementId == engagementId
                       orderby binding.Phase, binding.Ordinal, binding.Id
                       select new WorkflowTaskRow(task.Id, task.Title, binding.Phase, binding.Ordinal, task.Status,
-                        binding.AssigneeUserIdSnapshot, binding.AssignedRole, task.DueDate, binding.PlannedEffortMinutes, task.MappingVersionId,
+                        binding.AssigneeUserIdSnapshot, null, binding.AssignedRole, task.DueDate, binding.PlannedEffortMinutes, task.MappingVersionId,
                         task.FsliCode, binding.TemplateRevisionId, binding.Generation, binding.Revision, binding.CreatedAt))
       .Take(501).ToListAsync(ct);
     var truncated = rows.Count > 500;
     if (truncated) rows.RemoveAt(rows.Count - 1);
+    var assigneeIds = rows.Where(x => x.AssigneeUserId.HasValue).Select(x => x.AssigneeUserId!.Value).Distinct().ToArray();
+    var assignees = assigneeIds.Length == 0 ? new Dictionary<Guid, string>() :
+      await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && assigneeIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+    rows = rows.Select(x => x with
+      { AssigneeDisplayName = x.AssigneeUserId is { } id ? assignees.GetValueOrDefault(id) : null }).ToList();
     return CommandResult<WorkflowTaskWorkspace>.Ok(new WorkflowTaskWorkspace(engagementId, rows, truncated));
   }
 
@@ -82,6 +90,38 @@ public static class EngagementWorkflowTaskService
     var linked = await db.WorkflowTaskBindings.AsNoTracking().AnyAsync(x =>
       x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.WorkTaskId == taskId, ct);
     return linked ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+  }
+
+  /// <summary>Active staff who meet the same firm/client/engagement grant boundary enforced by task assignment.</summary>
+  public static async Task<CommandResult<IReadOnlyList<WorkflowTaskAssigneeOption>>> GetAssigneeOptionsAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == engagementId, ct);
+    if (engagement is null)
+      return CommandResult<IReadOnlyList<WorkflowTaskAssigneeOption>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
+        PracticeTimeService.ApprovalRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<IReadOnlyList<WorkflowTaskAssigneeOption>>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var now = DateTimeOffset.UtcNow;
+    var options = await (from user in db.Users.AsNoTracking()
+      join grant in db.RoleGrants.AsNoTracking() on new { user.FirmId, UserId = user.Id }
+        equals new { grant.FirmId, grant.UserId }
+      where user.FirmId == actor.FirmId && user.UserKind == "Staff" && !user.Disabled &&
+        grant.RevokedAt == null && (grant.ExpiresAt == null || grant.ExpiresAt > now) &&
+        (grant.EngagementId == engagement.Id ||
+          (grant.EngagementId == null && (grant.ClientId == null || grant.ClientId == engagement.PracticeClientId)))
+      select new WorkflowTaskAssigneeOption(user.Id, user.DisplayName))
+      .Distinct().OrderBy(x => x.DisplayName).ThenBy(x => x.UserId).Take(200).ToListAsync(ct);
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
+        PracticeTimeService.ApprovalRoles, InternalOnly: true), ct);
+    return auth.Succeeded
+      ? CommandResult<IReadOnlyList<WorkflowTaskAssigneeOption>>.Ok(options)
+      : CommandResult<IReadOnlyList<WorkflowTaskAssigneeOption>>.Fail(auth.ErrorCode!, auth.Message!);
   }
 
   public static async Task<CommandResult<Guid>> CreateAsync(

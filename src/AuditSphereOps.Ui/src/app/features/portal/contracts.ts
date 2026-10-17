@@ -8,7 +8,7 @@ const portalWorkspaceShape = obj({ firstSignIn, pendingOnboarding: bool, engagem
   requests: arr(obj({ id: guid, area: text, objective: text, periodStart: date, periodEnd: date, dueDate: date, state: text, delegated: bool,
     clarificationReason: nullable(text), clarificationReasonTruncated: bool, canWrite: bool }), 50),
   packages: arr(obj({ id: guid, framework: text, periodStart: date, periodEnd: date, currency: str(3) }), 100),
-  asOfDateUtc: nullable(date), hasMorePackages: bool });
+  asOfDateUtc: nullable(date), hasMorePackages: bool, packagePage: nat, packagePageSize: nat });
 type PortalWorkspace = ReturnType<typeof portalWorkspaceShape>;
 export type PortalRequestItem = PortalWorkspace['requests'][number];
 export const portalWorkspace: Decoder<PortalWorkspace> = (value, path) => {
@@ -29,15 +29,27 @@ export const portalWorkspace: Decoder<PortalWorkspace> = (value, path) => {
     requests,
     asOfDateUtc: Object.prototype.hasOwnProperty.call(raw, 'asOfDateUtc') ? raw['asOfDateUtc'] : null,
     hasMorePackages: Object.prototype.hasOwnProperty.call(raw, 'hasMorePackages') ? raw['hasMorePackages'] : false,
+    packagePage: Object.prototype.hasOwnProperty.call(raw, 'packagePage') ? raw['packagePage'] : 0,
+    packagePageSize: Object.prototype.hasOwnProperty.call(raw, 'packagePageSize') ? raw['packagePageSize'] : 10,
   }, path);
 };
-export const portalRequest = obj({ id: guid, area: text, objective: text, instructions: text, requestedFormat: text, dueDate: date, state: text,
-  revision, firstSignIn, canWrite: bool, canDelegate: bool,
-  delegations: arr(obj({ id: guid, delegateUserId: guid, delegateName: text, createdAt: instant }), 500),
-  candidates: arr(obj({ userId: guid, name: text }), 500),
-  uploads: arr(obj({ id: guid, fileName: text, receivedByteCount: revision, declaredByteCount: revision, state: text, transferState: nullable(text), sha256, createdAt: instant }), 500),
-  conversation: arr(obj({ id: guid, at: instant, speaker: text, body: text }), 2000),
-  clarificationReason: nullable(text) });
+const portalUpload = obj({ id: guid, fileName: text, receivedByteCount: revision, declaredByteCount: revision,
+  state: text, transferState: nullable(text), sha256, createdAt: instant });
+const portalConversation = obj({ id: guid, at: instant, speaker: text, body: text });
+const portalRequestShape = obj({ id: guid, area: text, objective: text, instructions: text, requestedFormat: text, dueDate: date, state: text,
+  revision, firstSignIn, canWrite: bool, canDelegate: bool, delegations: arr(obj({ id: guid, delegateUserId: guid, delegateName: text, createdAt: instant }), 500),
+  candidates: arr(obj({ userId: guid, name: text }), 500), uploads: arr(portalUpload, 50), conversation: arr(portalConversation, 50),
+  clarificationReason: nullable(text), hasMoreUploads: bool, hasMoreConversation: bool });
+export const portalRequest: Decoder<ReturnType<typeof portalRequestShape>> = (value, path) => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new DecodeError(`${path}: expected object`);
+  const raw = value as Record<string, unknown>;
+  return portalRequestShape({ ...raw,
+    hasMoreUploads: Object.prototype.hasOwnProperty.call(raw, 'hasMoreUploads') ? raw['hasMoreUploads'] : false,
+    hasMoreConversation: Object.prototype.hasOwnProperty.call(raw, 'hasMoreConversation') ? raw['hasMoreConversation'] : false,
+  }, path);
+};
+export const portalRequestHistory = obj({ requestId: guid, uploadPage: nat, conversationPage: nat, pageSize: nat,
+  uploads: arr(portalUpload, 50), hasMoreUploads: bool, conversation: arr(portalConversation, 50), hasMoreConversation: bool });
 
 export function clientRequestStatusLabel(state: string): string {
   switch (state) {

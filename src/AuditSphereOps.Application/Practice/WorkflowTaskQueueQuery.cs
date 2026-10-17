@@ -19,7 +19,7 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   string EngagementServiceRoute, string EngagementPeriod, string Title, string Phase, int Ordinal,
   string TaskStatus, Guid? AssigneeUserId, string? AssigneeDisplayName, DateOnly? DueDate,
   Guid? MappingVersionId, string? FsliCode, int UnmetTaskDependencies, bool CanComplete,
-  bool CanChangeDueDate, long Revision,
+  bool CanChangeDueDate, bool CanAssign, long Revision,
   Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment,
   int UnmetEvidencePrerequisites = 0);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
@@ -251,10 +251,11 @@ public static class WorkflowTaskQueueQuery
       var canComplete = ActiveTaskStates.Contains(x.Status) && unmetCount == 0 &&
         pbcComplete && unmetEvidence == 0 && (x.AssigneeUserId == actor.UserId || CanElevatedManage(x.ClientId, x.EngagementId));
       var canChangeDueDate = ActiveTaskStates.Contains(x.Status) && CanElevatedManage(x.ClientId, x.EngagementId);
+      var canAssign = ActiveTaskStates.Contains(x.Status) && CanElevatedManage(x.ClientId, x.EngagementId);
       return new WorkflowTaskQueueRow(x.Id, x.ClientId, x.ClientName, x.EngagementId,
         x.EngagementServiceRoute, x.EngagementPeriod, x.Title, x.Phase, x.Ordinal, x.Status,
         x.AssigneeUserId, x.AssigneeUserId is { } userId ? assignees.GetValueOrDefault(userId) : null,
-        x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, x.Revision,
+        x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, canAssign, x.Revision,
         x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment, unmetEvidence);
     }).ToArray();
     var last = page[^1];

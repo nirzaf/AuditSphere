@@ -14,8 +14,12 @@ const supplier = '77777777-7777-4777-8777-777777777777';
 const period = '88888888-8888-4888-8888-888888888888';
 const apRole = '99999999-9999-4999-8999-999999999999';
 const base = `/api/ui/accounting/clients/${client}`;
+const otherClient = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const supplier26 = '00000026-0000-4000-8000-000000000026';
 const storageKey = `auditsphere.purchase-credit-command.v1:${client}`;
 const digest = 'a'.repeat(64);
+const supplierRow = (id: string, clientId = client) => ({ id, clientId, legalName: `Supplier ${id.slice(0, 8)}`, displayName: `Supplier ${id.slice(0, 8)}`, role: 'SUPPLIER', address: '', country: 'QA', taxIdentifier: '', contactDetails: '', paymentTerms: '', defaultCurrency: 'QAR', externalSystem: '', externalReference: '', createdByUserId: actor, createdAt: '2026-01-01T00:00:00Z', revision: '1', effectiveAmendmentId: null });
+const supplierPage = (clientId: string, pageNumber: number, total: number, counterparties: ReturnType<typeof supplierRow>[]) => ({ clientId, role: 'SUPPLIER', page: pageNumber, pageSize: 25, total, bookkeepingActive: true, counterparties });
 
 function receipt(kind: 'SUBMIT' | 'REVIEW', outcome: string, actorUserId = actor) {
   return { commandId: command, creditNoteId: creditNote, submissionId: submission, kind, actorUserId, intentHash: digest,
@@ -129,6 +133,56 @@ describe('Purchase credit command recovery', () => {
     expect(c.pendingCommand()?.commandId).toBe(command);
     expect(c.recoveredReceipt()).toBeNull();
     expect(sessionStorage.getItem(storageKey)).not.toBeNull();
+    fixture.destroy();
+  });
+
+  it('selects supplier 26 on the next page and preserves it when changing supplier pages', () => {
+    const fixture = create(), c = fixture.componentInstance;
+    const firstPage = Array.from({ length: 25 }, (_, index) => supplierRow(`000000${String(index + 1).padStart(2, '0')}-0000-4000-8000-${String(index + 1).padStart(12, '0')}`));
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush(supplierPage(client, 0, 26, firstPage));
+    expect(c.supplierTotal()).toBe(26);
+    c.loadSuppliers(1);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=1&pageSize=25`).flush(supplierPage(client, 1, 26, [supplierRow(supplier26)]));
+    c.selectSupplier(supplier26);
+    c.preview.set({ creditNoteId: creditNote, originalInvoiceId: null, currency: 'QAR', totalCredit: '12.500000', digest, originalAmount: '0.000000', previouslyCredited: '0.000000', remainingCreditLimit: '0.000000', duplicateWarnings: [], manifest: { lines: [] } });
+    c.submitAssent = true;
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush(supplierPage(client, 0, 26, firstPage));
+    expect(c.supplierId).toBe(supplier26);
+    expect(c.supplierOptions().some(item => item.id === supplier26)).toBe(true);
+    expect(c.preview()).not.toBeNull(); expect(c.submitAssent).toBe(true);
+    c.selectSupplier(firstPage[0].id);
+    expect(c.preview()).toBeNull(); expect(c.submitAssent).toBe(false); expect(c.originalInvoiceId).toBe('');
+    fixture.destroy();
+  });
+
+  it('clears supplier selection and preview on client change and cancels the old client page read', () => {
+    const fixture = create(), c = fixture.componentInstance;
+    c.loadSuppliers(0);
+    const oldPage = http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`);
+    c.selectSupplier(supplier);
+    c.preview.set({ creditNoteId: creditNote, originalInvoiceId: null, currency: 'QAR', totalCredit: '12.500000', digest, originalAmount: '0.000000', previouslyCredited: '0.000000', remainingCreditLimit: '0.000000', duplicateWarnings: [], manifest: { lines: [] } });
+    c.submitAssent = true;
+    fixture.componentRef.setInput('clientId', otherClient); fixture.detectChanges();
+    expect(oldPage.cancelled).toBe(true);
+    expect(c.supplierId).toBe(''); expect(c.selectedSupplier()).toBeNull(); expect(c.preview()).toBeNull(); expect(c.submitAssent).toBe(false);
+    http.expectOne(`/api/ui/accounting/clients/${otherClient}/purchase-credit-notes`).flush([]);
+    expect(c.supplierPage()).toBe(0); expect(c.supplierTotal()).toBe(0);
+    fixture.destroy();
+  });
+
+  it('keeps only the newest requested supplier page after a stale read is superseded', () => {
+    const fixture = create(), c = fixture.componentInstance;
+    c.loadSuppliers(0);
+    http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush(supplierPage(client, 0, 26, [supplierRow(supplier)]));
+    c.loadSuppliers(1);
+    const obsolete = http.expectOne(`${base}/counterparties?role=SUPPLIER&page=1&pageSize=25`);
+    c.loadSuppliers(0);
+    const current = http.expectOne(`${base}/counterparties?role=SUPPLIER&page=0&pageSize=25`);
+    expect(obsolete.cancelled).toBe(true);
+    current.flush(supplierPage(client, 0, 1, [supplierRow(supplier)]));
+    expect(c.supplierPage()).toBe(0); expect(c.supplierTotal()).toBe(1); expect(c.suppliers().map(item => item.id)).toEqual([supplier]);
     fixture.destroy();
   });
 });

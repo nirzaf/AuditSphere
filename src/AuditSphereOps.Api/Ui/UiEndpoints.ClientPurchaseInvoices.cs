@@ -44,6 +44,35 @@ public static partial class UiEndpoints
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
     }).Produces<ClientPurchaseInvoiceDraftView>();
 
+    group.MapGet("/accounting/clients/{clientId:guid}/purchase-invoice-drafts", async (Guid clientId,
+      HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory,
+      int page = 0, int pageSize = 25) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientPurchaseInvoiceWorkflow.ListDraftsAsync(db, actor, clientId, page, pageSize, http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
+    }).Produces<ClientPurchaseInvoiceDraftPage>();
+
+    group.MapGet("/accounting/clients/{clientId:guid}/purchase-invoice-requests/{commandId:guid}", async (Guid clientId,
+      Guid commandId, string? kind, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, actor, clientId, commandId, kind ?? "", http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      if (result.Succeeded) return Results.Ok(result.Value);
+      return Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode switch
+      {
+        "command.receipt-not-found" => 404,
+        "scope.denied" => 403,
+        _ => 400
+      });
+    }).Produces<ClientPurchaseInvoiceCommandOutcome>();
+
     group.MapGet("/accounting/clients/{clientId:guid}/purchase-invoices", async (Guid clientId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

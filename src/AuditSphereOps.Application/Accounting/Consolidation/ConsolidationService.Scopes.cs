@@ -29,6 +29,9 @@ public static partial class ConsolidationService
     var group = await db.ClientGroups.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == request.GroupId, ct);
     if (group is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (request.ExpectedGroupRevision > 0 && group.Revision != request.ExpectedGroupRevision)
+      return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
+        "The accounting group perimeter changed after these options were loaded. Refresh and review the current group basis before creating a scope.");
     var members = await db.ClientGroupMemberships.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == request.GroupId &&
       x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).ToListAsync(ct);
     if (members.Count == 0)

@@ -1,9 +1,18 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Domain.Shared;
+using System.Text.Json.Serialization;
 
 namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record CreateConsolidationGroupInput(string? Code, string? Name);
+  public sealed record AddConsolidationGroupMemberInput(
+    Guid ClientId, DateOnly? EffectiveFrom, DateOnly? EffectiveTo, string? ControlMethod,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal? OwnershipPercent,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] decimal? EconomicInterestPercent,
+    string? EvidenceReference);
+
   public sealed record AdvancedScheduleInput(string SourceManifestJson, string InputSnapshotJson);
 
   public sealed record CreateConsolidationScopeInput(
@@ -16,7 +25,8 @@ public static partial class UiEndpoints
     Guid? TranslationPolicyVersionId,
     DateOnly? TranslationRateDate,
     string? TranslationRateType,
-    Guid? PriorScopeVersionId);
+    Guid? PriorScopeVersionId,
+    long ExpectedGroupRevision);
 
   public sealed record SubmitComponentInput(
     Guid ClientId,
@@ -40,6 +50,28 @@ public static partial class UiEndpoints
   private static void MapConsolidationEndpoints(RouteGroupBuilder group)
   {
     group.MapUiGet("/consolidation", http => ReadAsync(http, (db, actor, ct) => ConsolidationOverviewQuery.GetAsync(db, actor, ct)));
+    group.MapPost("/consolidation/groups", (CreateConsolidationGroupInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => ConsolidationService.CreateGroupAsync(db, actor,
+        new ClientGroupRequest(input.Code ?? string.Empty, input.Name ?? string.Empty), ct)));
+    group.MapGet("/consolidation/groups/{groupId:guid}/members",
+      (Guid groupId, HttpContext http, int page = 0, int pageSize = 25, Guid? clientId = null, DateOnly? effectiveFrom = null) =>
+        ReadAsync(http, (db, actor, ct) => ConsolidationGroupWorkspaceQuery.GetAsync(
+          db, actor, groupId, page, pageSize, clientId, effectiveFrom, ct)));
+    group.MapGet("/consolidation/groups/{groupId:guid}/scope-options", (Guid groupId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => ConsolidationScopeCreationQuery.GetAsync(db, actor, groupId, ct)));
+    group.MapPost("/consolidation/groups/{groupId:guid}/members",
+      (Guid groupId, AddConsolidationGroupMemberInput input, HttpContext http) =>
+        CommandAsync(http, (db, actor, ct) =>
+        {
+          if (input.EffectiveFrom is not { } effectiveFrom || input.OwnershipPercent is not { } ownershipPercent ||
+              input.EconomicInterestPercent is not { } economicInterestPercent)
+            return Task.FromResult(CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
+              "Effective date and both percentage-point values are required."));
+          return ConsolidationService.AddMembershipAsync(db, actor,
+            new GroupMembershipRequest(groupId, input.ClientId, effectiveFrom, input.EffectiveTo,
+              input.ControlMethod ?? string.Empty, ownershipPercent, economicInterestPercent,
+              input.EvidenceReference ?? string.Empty), ct);
+        }));
 
     // Scope workspace detail & lifecycle
     group.MapGet("/consolidation/scopes/{scopeId:guid}", (Guid scopeId, HttpContext http) =>
@@ -47,7 +79,8 @@ public static partial class UiEndpoints
     group.MapPost("/consolidation/scopes", (CreateConsolidationScopeInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => ConsolidationService.CreateScopeAsync(db, actor,
         new ConsolidationScopeRequest(i.GroupId, i.PeriodId, i.ReportingCurrency, i.Method, i.OpeningBasis,
-          i.ExchangeRateSetVersionId, i.TranslationPolicyVersionId, i.TranslationRateDate, i.TranslationRateType ?? "", i.PriorScopeVersionId), ct)));
+          i.ExchangeRateSetVersionId, i.TranslationPolicyVersionId, i.TranslationRateDate, i.TranslationRateType ?? "",
+          i.PriorScopeVersionId, i.ExpectedGroupRevision), ct)));
     group.MapPost("/consolidation/scopes/{id:guid}/approve", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => ConsolidationService.ApproveScopeAsync(db, actor, id, ct)));
 

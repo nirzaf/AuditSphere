@@ -45,10 +45,14 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Logo-SHA256"] = result.Value.Sha256Hex;
       return Results.File(result.Value.Bytes, "image/png");
     });
-    group.MapGet("/portal", (int? page, int? pageSize, HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => ClientPortalWorkspaceQuery.GetAsync(db, actor, page ?? 0, pageSize ?? 50, ct)));
+    group.MapGet("/portal", (int? page, int? pageSize, int? packagePage, int? packagePageSize, HttpContext http) => ReadAsync(http,
+      (db, actor, ct) => ClientPortalWorkspaceQuery.GetAsync(db, actor, page ?? 0, pageSize ?? 50,
+        packagePage ?? 0, packagePageSize ?? 10, ct)));
     group.MapGet("/portal/requests/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.RequestAsync(db, actor, id, ct)));
+    group.MapGet("/portal/requests/{id:guid}/history", (Guid id, int? uploadPage, int? conversationPage, int? pageSize, HttpContext http) => ReadAsync(http,
+      (db, actor, ct) => ClientPortalWorkspaceQuery.RequestHistoryAsync(db, actor, id,
+        uploadPage ?? 0, conversationPage ?? 0, pageSize ?? 25, ct)));
     group.MapUiGet("/portal/documents", (HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalReviewQuery.GetAsync(db, actor, ct)));
     group.MapUiGet("/portal/finance", (HttpContext http) => ReadAsync(http,

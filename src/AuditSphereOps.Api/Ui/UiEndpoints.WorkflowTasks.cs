@@ -87,6 +87,9 @@ public static partial class UiEndpoints
     tasks.MapGet("", (Guid engagementId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementWorkflowTaskService.GetAsync(db, actor, engagementId, ct)));
 
+    tasks.MapGet("/assignees", (Guid engagementId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementWorkflowTaskService.GetAssigneeOptionsAsync(db, actor, engagementId, ct)));
+
     tasks.MapGet("/{taskId:guid}/dependencies", (Guid engagementId, Guid taskId, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => WorkflowTaskDependencyQuery.GetAsync(db, actor, engagementId, taskId, ct)));
     tasks.MapGet("/{taskId:guid}/dependencies/receipts/{key:guid}", (Guid engagementId, Guid taskId, Guid key, HttpContext http) =>

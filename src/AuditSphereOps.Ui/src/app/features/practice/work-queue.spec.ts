@@ -128,7 +128,7 @@ describe('workflow queue assignment filters', () => {
     title: 'Prepare lead schedule', phase: 'FIELDWORK', ordinal: 1, taskStatus: 'OPEN',
     assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
-    canComplete: false, canChangeDueDate: false, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
+    canComplete: false, canChangeDueDate: false, canAssign: true, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
   };
   const start = () => {
     TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
@@ -282,6 +282,75 @@ describe('workflow queue assignment filters', () => {
       expect(countOf('My tasks')).toBe('0');
       expect(overview().textContent).not.toContain('101');
       expect(http.match(request => request.method !== 'GET')).toEqual([]);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('requires an exact owner confirmation and reassigns against the loaded task revision', async () => {
+    const { fixture, http, host, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const opening = component.openAssignment(task);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+        .flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Replacement staff' }]);
+      await opening; fixture.detectChanges();
+      expect(host.textContent).toContain(task.taskId);
+      expect(host.textContent).toContain(task.engagementId);
+      expect(host.textContent).toContain('Audit staff');
+      expect(host.textContent).toContain('Replacement staff');
+      const select = host.querySelector('select[id^="task-assignee-"]') as HTMLSelectElement;
+      select.value = '55555555-5555-4555-8555-555555555555'; select.dispatchEvent(new Event('change')); fixture.detectChanges();
+      const button = Array.from(host.querySelectorAll('button')).find(x => x.textContent?.trim() === 'Confirm assignment') as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      component.assignmentReviewed.set(true); fixture.detectChanges(); expect(button.disabled).toBe(false);
+      const saving = component.saveAssignment();
+      const post = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`);
+      expect(post.request.body).toEqual({ assigneeUserId: '55555555-5555-4555-8555-555555555555', expectedRevision: task.revision });
+      post.flush({ value: true }); await saving;
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
+      expect(component.assignmentTask()).toBeNull();
+      expect(component.assignmentMessage()).toContain('Replacement staff');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('refreshes on a stale revision and does not silently overwrite an ineligible-assignee refusal', async () => {
+    const { fixture, http, component } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const opening = component.openAssignment(task);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+        .flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Replacement staff' }]); await opening;
+      component.selectAssignmentOwner('55555555-5555-4555-8555-555555555555'); component.assignmentReviewed.set(true);
+      const stale = component.saveAssignment();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`)
+        .flush({ code: 'revision.stale', message: 'The task changed.' }, { status: 409, statusText: 'Conflict' });
+      await stale;
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      expect(component.assignmentTask()).toBeNull();
+      expect(component.assignmentMessage()).toContain('queue has been refreshed');
+
+      const reopen = component.openAssignment(task);
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`)
+        .flush([{ userId: '55555555-5555-4555-8555-555555555555', displayName: 'Replacement staff' }]); await reopen;
+      component.selectAssignmentOwner('55555555-5555-4555-8555-555555555555'); component.assignmentReviewed.set(true);
+      const refused = component.saveAssignment();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/reassign`)
+        .flush({ code: 'scope.denied', message: 'The assignee is no longer eligible.' }, { status: 403, statusText: 'Forbidden' });
+      await refused;
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null });
+      expect(component.assignmentFailed()).toBe(true);
+      expect(component.assignmentMessage()).toContain('assignee is no longer eligible');
+      expect(component.assignmentTask()).toBeNull();
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });

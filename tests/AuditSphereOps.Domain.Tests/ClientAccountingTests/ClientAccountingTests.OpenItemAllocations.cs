@@ -72,6 +72,18 @@ public sealed partial class ClientAccountingTests
       var replay = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, maker, request, preview.Value.Digest);
       Assert.True(replay.Succeeded, replay.Message);
       Assert.Equal(created.Value!.JournalId, replay.Value!.JournalId);
+      var lookup = await ClientOperationalLedgerWorkspace.FindSettlementByCommandAsync(db, maker, scope.ClientA, request.CommandId);
+      Assert.True(lookup.Succeeded, lookup.Message);
+      Assert.True(lookup.Value!.Found);
+      Assert.Equal(maker.UserId, lookup.Value.ActorUserId);
+      Assert.Equal(preview.Value.IntentHash, lookup.Value.IntentHash);
+      Assert.Equal(created.Value.JournalId, lookup.Value.Receipt!.JournalId);
+      Assert.Equal("DRAFT", lookup.Value.Receipt.Outcome);
+      var otherActorLookup = await ClientOperationalLedgerWorkspace.FindSettlementByCommandAsync(db, reviewer, scope.ClientA, request.CommandId);
+      Assert.True(otherActorLookup.Succeeded, otherActorLookup.Message);
+      Assert.False(otherActorLookup.Value!.Found);
+      var otherClientLookup = await ClientOperationalLedgerWorkspace.FindSettlementByCommandAsync(db, maker, scope.ClientB, request.CommandId);
+      Assert.False(otherClientLookup.Succeeded);
       var journal = await ClientOperationalLedgerWorkspace.GetAsync(db, maker, scope.ClientA, created.Value.JournalId);
       Assert.True(journal.Succeeded, journal.Message);
       Assert.Equal("DRAFT", journal.Value!.Status);
@@ -343,6 +355,16 @@ public sealed partial class ClientAccountingTests
       var submitted = await ClientOpenItemAllocationWorkflow.SubmitAsync(db, maker, scope.ClientA,
         allocate with { PreviewDigest = preview.Value.Digest });
       Assert.True(submitted.Succeeded, submitted.Message); allocationSubmissionId = submitted.Value!.SubmissionId;
+      var makerCommand = await ClientOpenItemAllocationWorkflow.FindCommandAsync(db, maker, scope.ClientA, allocate.CommandId, "SUBMIT");
+      Assert.True(makerCommand.Succeeded && makerCommand.Value!.Found);
+      Assert.Equal(maker.UserId, makerCommand.Value!.Receipt!.ActorUserId);
+      Assert.Equal(preview.Value.Digest, makerCommand.Value.Receipt.PreviewDigest);
+      Assert.Equal("20.000000", makerCommand.Value.Receipt.Lines.Single().Amount);
+      var otherActorCommand = await ClientOpenItemAllocationWorkflow.FindCommandAsync(db, reviewer, scope.ClientA, allocate.CommandId, "SUBMIT");
+      Assert.True(otherActorCommand.Succeeded);
+      Assert.False(otherActorCommand.Value!.Found);
+      var otherClientCommand = await ClientOpenItemAllocationWorkflow.FindCommandAsync(db, maker, scope.ClientB, allocate.CommandId, "SUBMIT");
+      Assert.False(otherClientCommand.Succeeded);
       var pending = await ClientOpenItemAllocationWorkflow.PendingAsync(db, reviewer, scope.ClientA);
       Assert.True(pending.Succeeded, pending.Message); Assert.Single(pending.Value!);
       var review = await ClientOpenItemAllocationWorkflow.ReviewPreviewAsync(db, reviewer, scope.ClientA, allocationSubmissionId);
@@ -352,6 +374,10 @@ public sealed partial class ClientAccountingTests
       var approved = await ClientOpenItemAllocationWorkflow.ReviewAsync(db, reviewer, scope.ClientA, allocationSubmissionId,
         Guid.CreateVersion7(), "APPROVE", "Independent allocation approval", review.Value.Digest);
       Assert.True(approved.Succeeded, approved.Message);
+      var reviewerCommand = await ClientOpenItemAllocationWorkflow.FindCommandAsync(db, reviewer, scope.ClientA, approved.Value!.CommandId, "REVIEW");
+      Assert.True(reviewerCommand.Succeeded && reviewerCommand.Value!.Found);
+      Assert.Equal(approved.Value.DecisionId, reviewerCommand.Value!.Receipt!.DecisionId);
+      Assert.Equal("APPROVE", reviewerCommand.Value.Receipt.Decision);
       allocationLineId = await db.ClientOpenItemAllocationLines.Where(x => x.SubmissionId == allocationSubmissionId).Select(x => x.Id).SingleAsync();
       var balances = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 2, 1));
       Assert.Equal("105.000000", balances.Value!.Single(x => x.OpenItemId == invoiceItemId).OpenAmount);

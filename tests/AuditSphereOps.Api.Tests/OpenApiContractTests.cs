@@ -31,6 +31,29 @@ public sealed class OpenApiContractTests
     return json.RootElement.Clone();
   }
 
+  private static JsonElement SchemaProperty(JsonElement contract, string schemaName, string propertyName) =>
+    contract.GetProperty("components").GetProperty("schemas").GetProperty(schemaName)
+      .GetProperty("properties").GetProperty(propertyName);
+
+  private static string[] SchemaTypes(JsonElement schema)
+  {
+    var type = schema.GetProperty("type");
+    return type.ValueKind == JsonValueKind.Array
+      ? type.EnumerateArray().Select(value => value.GetString()!).ToArray()
+      : [type.GetString()!];
+  }
+
+  private static void AssertExactDecimalSchema(JsonElement schema, bool nullable)
+  {
+    var expectedTypes = nullable ? new[] { "null", "string" } : ["string"];
+    Assert.Equal(expectedTypes.OrderBy(value => value, StringComparer.Ordinal),
+      SchemaTypes(schema).OrderBy(value => value, StringComparer.Ordinal));
+    Assert.Equal(ApiContract.DecimalStringPattern, schema.GetProperty("pattern").GetString());
+    Assert.False(schema.TryGetProperty("format", out _));
+    Assert.Contains("JSON numbers for compatibility", schema.GetProperty("description").GetString(), StringComparison.Ordinal);
+    Assert.Contains("canonical on output", schema.GetProperty("description").GetString(), StringComparison.Ordinal);
+  }
+
   [Fact]
   public async Task ContractIsGeneratedFromActualEndpointsAsOpenApi31()
   {
@@ -124,8 +147,17 @@ public sealed class OpenApiContractTests
     var contract = await FetchContractAsync(client);
     var schemas = contract.GetProperty("components").GetProperty("schemas");
     Assert.True(schemas.TryGetProperty(ApiContract.ApiErrorSchemaId, out var error));
-    Assert.True(error.GetProperty("properties").TryGetProperty("code", out _));
-    Assert.True(error.GetProperty("properties").TryGetProperty("correlationId", out _));
+    var errorProperties = error.GetProperty("properties");
+    Assert.Contains("string", SchemaTypes(errorProperties.GetProperty("code")));
+    Assert.DoesNotContain("null", SchemaTypes(errorProperties.GetProperty("code")));
+    foreach (var nullableProperty in new[] { "message", "correlationId" })
+    {
+      Assert.True(errorProperties.TryGetProperty(nullableProperty, out var nullableSchema));
+      Assert.Equal(new[] { "null", "string" },
+        SchemaTypes(nullableSchema).OrderBy(value => value, StringComparer.Ordinal));
+    }
+    Assert.Equal(new[] { "code" }, error.GetProperty("required").EnumerateArray()
+      .Select(value => value.GetString()).ToArray());
 
     var throttled = contract.GetProperty("paths").GetProperty("/api/ui/session")
       .GetProperty("get").GetProperty("responses").GetProperty("429");
@@ -134,16 +166,53 @@ public sealed class OpenApiContractTests
   }
 
   [Fact]
+  public async Task EmittedDecimalSchemasUseExactStringsAndRetainClrNullability()
+  {
+    using var factory = ContractFactory();
+    using var client = factory.CreateClient();
+    var contract = await FetchContractAsync(client);
+
+    var journalLine = SchemaProperty(contract, "ConsolidationJournalLineInput", "debit");
+    AssertExactDecimalSchema(journalLine, nullable: false);
+    AssertExactDecimalSchema(SchemaProperty(contract, "ConsolidationJournalLineInput", "credit"), nullable: false);
+
+    // This is decimal? in the actual API input type. Its property is required, but null is a
+    // valid value; requiredness and nullability are separate OpenAPI semantics.
+    AssertExactDecimalSchema(SchemaProperty(contract, "CreateRelationshipInput", "ownershipPercentage"), nullable: true);
+
+    // A real integer input remains an integer schema with its int32 format and is not mistaken
+    // for a financial decimal by the CLR-type-based transformer.
+    var integerControl = SchemaProperty(contract, "AccountingProfileInput", "fiscalMonth");
+    Assert.Contains("integer", SchemaTypes(integerControl));
+    Assert.Equal("int32", integerControl.GetProperty("format").GetString());
+    Assert.NotEqual(ApiContract.DecimalStringPattern, integerControl.GetProperty("pattern").GetString());
+  }
+
+  [Fact]
   public void FinancialDecimalSchemasRemainExactStrings()
   {
-    var schema = new OpenApiSchema { Type = JsonSchemaType.Number, Format = "decimal" };
-    ApiContract.ApplyFinancialDecimalStringRule(schema);
+    var schema = new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.String, Format = "double" };
+    ApiContract.ApplyFinancialDecimalStringRule(schema, typeof(decimal));
     Assert.Equal(JsonSchemaType.String, schema.Type);
     Assert.Null(schema.Format);
     Assert.Equal(ApiContract.DecimalStringPattern, schema.Pattern);
+    Assert.Contains("JSON numbers for compatibility", schema.Description, StringComparison.Ordinal);
     Assert.Matches(ApiContract.DecimalStringPattern, "1234567890.12");
     Assert.Matches(ApiContract.DecimalStringPattern, "-9007199254740993");
     Assert.DoesNotMatch(ApiContract.DecimalStringPattern, "1.5e10");
+
+    var nullable = new OpenApiSchema
+    {
+      Type = JsonSchemaType.Null | JsonSchemaType.Number | JsonSchemaType.String,
+      Format = "double"
+    };
+    ApiContract.ApplyFinancialDecimalStringRule(nullable, typeof(decimal?));
+    Assert.Equal(JsonSchemaType.Null | JsonSchemaType.String, nullable.Type);
+
+    var nonDecimal = new OpenApiSchema { Type = JsonSchemaType.Number, Format = "double" };
+    ApiContract.ApplyFinancialDecimalStringRule(nonDecimal, typeof(double));
+    Assert.Equal(JsonSchemaType.Number, nonDecimal.Type);
+    Assert.Equal("double", nonDecimal.Format);
   }
 
   [Fact]

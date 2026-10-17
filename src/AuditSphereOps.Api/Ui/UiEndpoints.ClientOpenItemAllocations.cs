@@ -67,6 +67,17 @@ public static partial class UiEndpoints
       return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
     }).Produces<IReadOnlyList<ClientOpenItemAllocationPreview>>();
 
+    group.MapGet("/accounting/clients/{clientId:guid}/open-item-allocation-requests/{commandId:guid}", async (Guid clientId, Guid commandId,
+      string kind, HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOpenItemAllocationWorkflow.FindCommandAsync(db, actor, clientId, commandId, kind, http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
+    }).Produces<ClientOpenItemAllocationCommandLookup>();
+
     group.MapPost("/accounting/clients/{clientId:guid}/open-item-allocations/preview", async (Guid clientId, OpenItemAllocationHttpInput input,
       HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {

@@ -20,6 +20,8 @@ public sealed record ClientReportingPeriodOption(Guid Id, string Code, DateOnly 
 public sealed record ClientCounterpartyOption(Guid Id, string Role, string DisplayName);
 public sealed record ClientCashAccountOption(string AccountCode, string AccountName);
 public sealed record ClientManualSettlementReceipt(Guid CommandId, Guid JournalId, string Outcome);
+public sealed record ClientManualSettlementLookup(bool Found, Guid ClientId, Guid ActorUserId, Guid CommandId,
+  string? IntentHash, ClientManualSettlementReceipt? Receipt);
 
 public static partial class ClientOperationalLedgerWorkspace
 {
@@ -75,6 +77,25 @@ public static partial class ClientOperationalLedgerWorkspace
       control.AccountCode, cash.AccountCode, request.Reference.Trim(), request.EvidenceReference.Trim(), digest));
   }
 
+  public static async Task<CommandResult<ClientManualSettlementLookup>> FindSettlementByCommandAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid commandId, CancellationToken ct = default)
+  {
+    if (clientId == Guid.Empty || commandId == Guid.Empty ||
+        !(await AuthorizeAsync(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<ClientManualSettlementLookup>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var origin = await db.ClientManualSettlementOrigins.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == commandId, ct);
+    if (origin is null)
+      return CommandResult<ClientManualSettlementLookup>.Ok(new(false, clientId, actor.UserId, commandId, null, null));
+
+    return CommandResult<ClientManualSettlementLookup>.Ok(new(true, clientId, actor.UserId, commandId, origin.IntentHash,
+      new(origin.CommandId, origin.JournalId, "DRAFT")));
+  }
+
+  public static string SettlementIntentHash(ActorContext actor, ClientManualSettlementDraftRequest request, string previewDigest) =>
+    Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { actor.FirmId, actor.UserId, request, previewDigest })));
+
   public static async Task<CommandResult<ClientManualSettlementReceipt>> CreateSettlementDraftAsync(
     IClientAccountingDbContext db, ActorContext actor, ClientManualSettlementDraftRequest request,
     string previewDigest, CancellationToken ct = default)
@@ -86,7 +107,7 @@ public static partial class ClientOperationalLedgerWorkspace
     if (!auth.Succeeded) return CommandResult<ClientManualSettlementReceipt>.Fail(auth.ErrorCode!, auth.Message!);
     if (await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={request.ClientId} FOR UPDATE").SingleOrDefaultAsync(ct) is null)
       return CommandResult<ClientManualSettlementReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var intent = Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { actor.FirmId, actor.UserId, request, previewDigest })));
+    var intent = SettlementIntentHash(actor, request, previewDigest);
     var existing = await db.ClientManualSettlementOrigins.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ClientId == request.ClientId && x.CreatedByUserId == actor.UserId && x.CommandId == request.CommandId, ct);
     if (existing is not null)

@@ -7,7 +7,7 @@ import { Api, routeGuid, UNKNOWN_OUTCOME } from '../../core/api';
 import { decode, guid, nat, obj, sha256, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
-import { clientRequestStatusLabel, portalRequest } from './contracts';
+import { clientRequestStatusLabel, portalRequest, portalRequestHistory } from './contracts';
 
 const startReceipt = obj({ uploadIntentId: guid, pbcRequestId: guid, receivedByteCount: nat, capability: sha256 });
 const resumeReceipt = obj({ uploadIntentId: guid, pbcRequestId: guid, state: text, receivedByteCount: nat,
@@ -23,9 +23,9 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
     <nav aria-label="Request location"><a routerLink="/portal">Client portal</a> / <span>Request</span></nav>
     <audit-page-header title="PBC request" description="Files and conversation with your audit team. Uploading bytes does not mark the request received or accepted." />
     <button matButton (click)="refresh()" [disabled]="busy() || ws.loading()">Refresh request</button>
-    <audit-state [loading]="ws.loading()" [error]="ws.error()" label="your assigned request" />
+    <audit-state [loading]="ws.loading() || history.loading()" [error]="history.error() || ws.error()" label="your assigned request" />
     <audit-command-message [message]="message()" [failed]="failed()" />
-    @if (ws.data(); as w) {
+    @if (authorizedRequest(); as w) {
       <section class="panel"><h2>{{ w.area }}</h2><p>{{ w.objective }}</p><p>{{ w.instructions }}</p>
         <p>Requested format: {{ w.requestedFormat }} · due {{ w.dueDate }} · revision {{ w.revision }}</p>
         <audit-status [value]="statusLabel(w.state)" />
@@ -70,31 +70,49 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
         </section>
       }
       <section class="panel" aria-labelledby="conversation-heading"><h2 id="conversation-heading">Conversation timeline</h2>
-        <ol class="conversation">@for (m of timeline(); track m.id) { <li><strong>{{ m.speaker }}</strong> <time [attr.datetime]="m.at">{{ m.at }}</time><p>{{ m.body }}</p></li> }
-          @empty { <li>No messages or files yet.</li> }
-        </ol>
+        @if (requestHistory(); as h) {
+          <ol class="conversation">@for (m of h.conversation; track m.id) { <li><strong>{{ m.speaker }}</strong> <time [attr.datetime]="m.at">{{ m.at }}</time><p>{{ m.body }}</p></li> }
+            @empty { <li>{{ history.loading() ? 'Loading conversation…' : 'No messages on this page.' }}</li> }
+          </ol>
+          <nav class="history-pages" aria-label="Conversation pages">
+            <button matButton (click)="previousConversationPage()" [disabled]="conversationPage() === 0 || history.loading()">Previous messages</button>
+            <span aria-live="polite">Page {{ conversationPage() + 1 }} · {{ h.conversation.length }} shown</span>
+            <button matButton (click)="nextConversationPage(h.hasMoreConversation)" [disabled]="!h.hasMoreConversation || history.loading()">Older messages</button>
+          </nav>
+        }
         @if (w.canWrite) { <form [formGroup]="reply" (ngSubmit)="sendReply()">
           <label for="portal-reply">Reply to the audit team</label><textarea id="portal-reply" formControlName="body" maxlength="4000"></textarea>
           @if (reply.controls.body.touched && reply.invalid) { <p role="alert">Enter a reply of up to 4000 characters.</p> }
           <button matButton="filled" [disabled]="reply.invalid || busy() || uncertain()">Send reply</button>
         </form> }
       </section>
+      @if (requestHistory(); as h) {
       <section class="panel"><h2>Transfer receipts</h2>
-        @for (u of w.uploads; track u.id) { <article class="receipt"><h3>{{ u.fileName }}</h3><audit-status [value]="u.state" />
+        @for (u of h.uploads; track u.id) { <article class="receipt"><h3>{{ u.fileName }}</h3><audit-status [value]="u.state" />
           <p>{{ u.receivedByteCount }} / {{ u.declaredByteCount }} bytes · provider {{ u.transferState ?? 'Not dispatched' }}</p><p class="fingerprint">SHA-256 {{ u.sha256 }}</p>
           @if (w.canWrite && w.firstSignIn.completed && canResume(u)) {
             <p>To continue safely, choose the exact same file again. Its name, size, and SHA-256 must match this receipt.</p>
             <button matButton (click)="resumeUpload(u)" [disabled]="busy() || !matchesUpload(u)">Resume staged upload</button>
           }
-        </article> } @empty { <p>No transfer intents are recorded.</p> }
+        </article> } @empty { <p>{{ history.loading() ? 'Loading transfer receipts…' : 'No transfer intents on this page.' }}</p> }
+        <nav class="history-pages" aria-label="Transfer receipt pages">
+          <button matButton (click)="previousUploadPage()" [disabled]="uploadPage() === 0 || history.loading()">Previous uploads</button>
+          <span aria-live="polite">Page {{ uploadPage() + 1 }} · {{ h.uploads.length }} shown</span>
+          <button matButton (click)="nextUploadPage(h.hasMoreUploads)" [disabled]="!h.hasMoreUploads || history.loading()">Older uploads</button>
+        </nav>
       </section>
+      }
     }
-  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; }`
+  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; } .history-pages { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block: .75rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; }`
 })
 export class ClientPbcRequest {
   private readonly api = inject(Api); private readonly session = inject(SessionService);
   readonly id = routeGuid();
   readonly ws = this.api.resource(() => this.id() ? `/api/ui/portal/requests/${this.id()}` : null, portalRequest, 'This request is not available in your current access scope.');
+  readonly uploadPage = signal(0); readonly conversationPage = signal(0); readonly historyActive = signal(false);
+  readonly history = this.api.resource(() => this.historyActive() && this.id()
+    ? `/api/ui/portal/requests/${this.id()}/history?uploadPage=${this.uploadPage()}&conversationPage=${this.conversationPage()}&pageSize=25`
+    : null, portalRequestHistory, 'This request history is unavailable in your current access scope.');
   private readonly fb = inject(FormBuilder);
   readonly reply = this.fb.nonNullable.group({ body: ['', [Validators.required, Validators.maxLength(4000)]] });
   readonly delegation = this.fb.nonNullable.group({ userId: ['', Validators.required] });
@@ -103,14 +121,22 @@ export class ClientPbcRequest {
   readonly busy = signal(false); readonly uncertain = signal(false); readonly uploadUncertain = signal(false);
   readonly failed = signal(false); readonly message = signal('');
   private abort = new AbortController(); private selection = 0;
+  private lastRequestId: string | null = null;
   private lastDraftContext: { identity: string; authorization: string } | null = null;
   statusLabel(state: string): string { return clientRequestStatusLabel(state); }
   constructor() {
     effect(() => {
       const requestId = this.id();
+      if (requestId !== this.lastRequestId) {
+        this.lastRequestId = requestId;
+        this.uploadPage.set(0); this.conversationPage.set(0); this.historyActive.set(false);
+      }
+    });
+    effect(() => {
+      const requestId = this.id();
       const generation = this.session.invalidation();
       const actor = this.session.current();
-      const error = this.ws.error();
+      const error = this.ws.error() || this.history.error();
       const workspace = this.ws.data();
       if (!requestId || !actor || error || workspace && workspace.id !== requestId) {
         this.clearDrafts();
@@ -150,13 +176,20 @@ export class ClientPbcRequest {
   }
   private currentWorkspace(): { id: string; canWrite: boolean; canDelegate: boolean; firstSignIn: { completed: boolean } } | null {
     const workspace = this.ws.data();
-    return this.session.current() && !this.ws.error() && !this.ws.loading() && workspace?.id === this.id()
+    return this.session.current() && !this.ws.error() && !this.history.error() && !this.ws.loading() && workspace?.id === this.id()
       ? workspace : null;
   }
-  timeline(): { id: string; at: string; speaker: string; body: string }[] {
-    const w = this.ws.data(); if (!w) return [];
-    return [...w.conversation, ...w.uploads.map(u => ({ id: u.id, at: u.createdAt, speaker: 'Client uploaded ' + u.fileName,
-      body: `${u.receivedByteCount} of ${u.declaredByteCount} bytes · ${u.state}` }))].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+  authorizedRequest() { return this.ws.error() || this.history.error() ? null : this.ws.data(); }
+  requestHistory() {
+    const workspace = this.ws.data(); if (!workspace || this.ws.error() || this.history.error()) return null;
+    if (this.historyActive()) {
+      const page = this.history.data();
+      if (!page || page.requestId !== workspace.id || page.uploadPage !== this.uploadPage() || page.conversationPage !== this.conversationPage()) return null;
+      return page;
+    }
+    return { requestId: workspace.id, uploadPage: 0, conversationPage: 0, pageSize: 25,
+      uploads: workspace.uploads, hasMoreUploads: workspace.hasMoreUploads,
+      conversation: workspace.conversation, hasMoreConversation: workspace.hasMoreConversation };
   }
   progress(): number { return this.file()?.size ? this.sent() * 100 / this.file()!.size : 0; }
   canResume(upload: PortalUploadRow): boolean {
@@ -167,7 +200,16 @@ export class ClientPbcRequest {
     return !!file && !!hash && file.name === upload.fileName && String(file.size) === upload.declaredByteCount &&
       hash.toLowerCase() === upload.sha256.toLowerCase();
   }
-  refresh(): void { if (this.busy() || this.ws.loading()) return; this.ws.reload(); /* unknown mutations remain fenced; verify with the audit team before repeating */ }
+  refresh(): void {
+    if (this.busy() || this.ws.loading() || this.history.loading()) return;
+    this.ws.reload();
+    if (this.historyActive()) this.history.reload();
+    /* unknown mutations remain fenced; verify with the audit team before repeating */
+  }
+  previousUploadPage(): void { this.historyActive.set(true); this.uploadPage.update(p => Math.max(0, p - 1)); }
+  nextUploadPage(hasMore: boolean): void { if (hasMore) { this.historyActive.set(true); this.uploadPage.update(p => Math.min(10000, p + 1)); } }
+  previousConversationPage(): void { this.historyActive.set(true); this.conversationPage.update(p => Math.max(0, p - 1)); }
+  nextConversationPage(hasMore: boolean): void { if (hasMore) { this.historyActive.set(true); this.conversationPage.update(p => Math.min(10000, p + 1)); } }
   async choose(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const selected = input.files?.[0] ?? null;

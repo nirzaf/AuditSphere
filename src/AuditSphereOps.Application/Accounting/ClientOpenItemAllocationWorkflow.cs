@@ -27,6 +27,11 @@ public sealed record ClientOpenItemAllocationPreview(Guid SubmissionId, string D
   Guid SourceItemId, Guid CounterpartyId, string Currency, string SourceOriginalAmount, string SourceAvailableAmount,
   IReadOnlyList<ClientOpenItemAllocationPreviewLine> Lines, IReadOnlyList<string> TargetAvailableAmounts);
 public sealed record ClientOpenItemAllocationReceipt(Guid CommandId, Guid SubmissionId, string Outcome, Guid? DecisionId);
+public sealed record ClientOpenItemAllocationCommandReceipt(string Kind, Guid ClientId, Guid ActorUserId, Guid CommandId,
+  Guid SubmissionId, Guid? DecisionId, string Outcome, string PreviewDigest, string IntentHash,
+  string SourceKind, Guid SourceItemId, string Disposition, string Reference, string Reason,
+  IReadOnlyList<ClientOpenItemAllocationPreviewLine> Lines, string? Decision, string? DecisionReason);
+public sealed record ClientOpenItemAllocationCommandLookup(bool Found, ClientOpenItemAllocationCommandReceipt? Receipt);
 
 /// <summary>Client-book allocation between approved ledger-backed credit open items and matching posted invoices.</summary>
 public static class ClientOpenItemAllocationWorkflow
@@ -319,6 +324,85 @@ public static class ClientOpenItemAllocationWorkflow
       return CommandResult<IReadOnlyList<ClientOpenItemAllocationPreview>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult<IReadOnlyList<ClientOpenItemAllocationPreview>>.Ok(result);
   }
+
+  /// <summary>Reads only the caller's retained submission or decision command, without replaying it.</summary>
+  public static async Task<CommandResult<ClientOpenItemAllocationCommandLookup>> FindCommandAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid commandId, string kind, CancellationToken ct = default)
+  {
+    if (commandId == Guid.Empty || kind is not ("SUBMIT" or "REVIEW"))
+      return CommandResult<ClientOpenItemAllocationCommandLookup>.Fail(ErrorCodes.Accounting.MappingInvalid, "Choose a valid allocation command identity and kind.");
+    var roles = kind == "SUBMIT" ? Preparers : Reviewers;
+    if (!(await Authorize(db, actor, clientId, roles, ct)).Succeeded)
+      return CommandResult<ClientOpenItemAllocationCommandLookup>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    ClientOpenItemAllocationCommandReceipt? receipt;
+    if (kind == "SUBMIT")
+    {
+      var submission = await db.ClientOpenItemAllocationSubmissions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == commandId, ct);
+      receipt = submission is null ? null : await SubmissionReceiptAsync(db, actor, submission, ct);
+    }
+    else
+    {
+      var decision = await db.ClientOpenItemAllocationDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == clientId && x.ActorUserId == actor.UserId && x.CommandId == commandId, ct);
+      var submission = decision is null ? null : await db.ClientOpenItemAllocationSubmissions.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == decision.SubmissionId, ct);
+      receipt = decision is null || submission is null ? null : await DecisionReceiptAsync(db, actor, submission, decision, ct);
+    }
+
+    if (!(await Authorize(db, actor, clientId, roles, ct)).Succeeded)
+      return CommandResult<ClientOpenItemAllocationCommandLookup>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return CommandResult<ClientOpenItemAllocationCommandLookup>.Ok(new(receipt is not null, receipt));
+  }
+
+  private static async Task<ClientOpenItemAllocationCommandReceipt?> SubmissionReceiptAsync(IClientAccountingDbContext db,
+    ActorContext actor, ClientOpenItemAllocationSubmission submission, CancellationToken ct)
+  {
+    if (Hash(submission.ManifestJson) != submission.ManifestHash) return null;
+    var manifest = DeserializeManifest(submission);
+    if (manifest is null || manifest.Digest != submission.PreviewDigest || manifest.SourceKind != submission.SourceKind ||
+        manifest.SourceItemId != submission.SourceItemId || manifest.Disposition != submission.Disposition ||
+        manifest.CounterpartyId != submission.CounterpartyId || manifest.Currency != submission.Currency ||
+        !decimal.TryParse(manifest.SourceOriginalAmount, System.Globalization.NumberStyles.AllowDecimalPoint,
+          System.Globalization.CultureInfo.InvariantCulture, out var originalAmount) || originalAmount != submission.SourceAmount) return null;
+    var lines = await db.ClientOpenItemAllocationLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == submission.ClientId &&
+      x.SubmissionId == submission.Id).OrderBy(x => x.LineNumber).Select(x => new ClientOpenItemAllocationPreviewLine(
+        x.LineNumber, x.TargetKind, x.TargetOpenItemId, Exact(x.Amount), x.ReversesAllocationLineId)).ToListAsync(ct);
+    if (!ManifestLinesMatch(manifest.Lines, lines)) return null;
+    return new("SUBMIT", submission.ClientId, submission.CreatedByUserId, submission.CommandId, submission.Id, null, "SUBMITTED",
+      submission.PreviewDigest, submission.IntentHash, submission.SourceKind, submission.SourceItemId, submission.Disposition,
+      submission.Reference, submission.Reason, lines, null, null);
+  }
+
+  private static async Task<ClientOpenItemAllocationCommandReceipt?> DecisionReceiptAsync(IClientAccountingDbContext db,
+    ActorContext actor, ClientOpenItemAllocationSubmission submission, ClientOpenItemAllocationDecision decision, CancellationToken ct)
+  {
+    var manifest = Hash(submission.ManifestJson) == submission.ManifestHash ? DeserializeManifest(submission) : null;
+    if (manifest is null || decision.Decision is not ("APPROVE" or "RETURN") || decision.IntentHash != Hash($"{submission.IntentHash}|{decision.Decision}|{decision.Reason}") ||
+        submission.PreviewDigest != decision.PreviewDigest || manifest.Digest != submission.PreviewDigest || manifest.SourceKind != submission.SourceKind ||
+        manifest.SourceItemId != submission.SourceItemId || manifest.Disposition != submission.Disposition || manifest.CounterpartyId != submission.CounterpartyId ||
+        manifest.Currency != submission.Currency || !decimal.TryParse(manifest.SourceOriginalAmount, System.Globalization.NumberStyles.AllowDecimalPoint,
+          System.Globalization.CultureInfo.InvariantCulture, out var originalAmount) || originalAmount != submission.SourceAmount) return null;
+    var lines = await db.ClientOpenItemAllocationLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == submission.ClientId &&
+      x.SubmissionId == submission.Id).OrderBy(x => x.LineNumber).Select(x => new ClientOpenItemAllocationPreviewLine(
+        x.LineNumber, x.TargetKind, x.TargetOpenItemId, Exact(x.Amount), x.ReversesAllocationLineId)).ToListAsync(ct);
+    if (!ManifestLinesMatch(manifest.Lines, lines)) return null;
+    return new("REVIEW", submission.ClientId, decision.ActorUserId, decision.CommandId, submission.Id, decision.Id,
+      decision.Decision == "APPROVE" ? "APPROVED" : "RETURNED", decision.PreviewDigest, decision.IntentHash,
+      submission.SourceKind, submission.SourceItemId, submission.Disposition, submission.Reference, submission.Reason, lines,
+      decision.Decision, decision.Reason);
+  }
+
+  private static ClientOpenItemAllocationPreview? DeserializeManifest(ClientOpenItemAllocationSubmission submission)
+  {
+    try { return JsonSerializer.Deserialize<ClientOpenItemAllocationPreview>(submission.ManifestJson); }
+    catch (JsonException) { return null; }
+  }
+
+  private static bool ManifestLinesMatch(IReadOnlyList<ClientOpenItemAllocationPreviewLine> manifest,
+    IReadOnlyList<ClientOpenItemAllocationPreviewLine> retained) => manifest.Count == retained.Count &&
+    manifest.OrderBy(x => x.LineNumber).Zip(retained.OrderBy(x => x.LineNumber)).All(pair => pair.First == pair.Second);
 
   public static async Task<CommandResult<ClientOpenItemAllocationReceipt>> ReviewAsync(IClientAccountingDbContext db,
     ActorContext actor, Guid clientId, Guid submissionId, Guid commandId, string decision, string reason, string previewDigest, CancellationToken ct = default)

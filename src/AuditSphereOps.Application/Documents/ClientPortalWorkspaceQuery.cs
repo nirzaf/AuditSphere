@@ -14,7 +14,7 @@ public sealed record PortalRequestItem(Guid Id, string Area, string Objective, s
 public sealed record PortalPackageItem(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Currency);
 public sealed record PortalWorkspace(FirstSignInStatus FirstSignIn, bool PendingOnboarding, int EngagementCount,
   IReadOnlyList<PortalRequestItem> Requests, bool HasMoreRequests, IReadOnlyList<PortalPackageItem> Packages,
-  DateOnly? AsOfDateUtc = null, bool HasMorePackages = false);
+  DateOnly? AsOfDateUtc = null, bool HasMorePackages = false, int PackagePage = 0, int PackagePageSize = 10);
 public sealed record PortalUploadItem(Guid Id, string FileName, string ReceivedByteCount, string DeclaredByteCount, string State,
   string? TransferState, string Sha256, string CreatedAt);
 public sealed record PortalConversationItem(Guid Id, string At, string Speaker, string Body);
@@ -22,18 +22,25 @@ public sealed record PortalRequestWorkspace(Guid Id, string Area, string Objecti
   string DueDate, string State, string Revision, FirstSignInStatus FirstSignIn, bool CanWrite, bool CanDelegate,
   IReadOnlyList<PbcDelegationRow> Delegations, IReadOnlyList<PbcDelegateCandidate> Candidates,
   IReadOnlyList<PortalUploadItem> Uploads, IReadOnlyList<PortalConversationItem> Conversation,
-  string? ClarificationReason = null);
+  string? ClarificationReason = null, bool HasMoreUploads = false, bool HasMoreConversation = false);
+public sealed record PortalRequestHistory(Guid RequestId, int UploadPage, int ConversationPage, int PageSize,
+  IReadOnlyList<PortalUploadItem> Uploads, bool HasMoreUploads,
+  IReadOnlyList<PortalConversationItem> Conversation, bool HasMoreConversation);
 
 /// <summary>Client-only DTOs. Participation is additional to current role, scope, commercial and session authorization.</summary>
 public static class ClientPortalWorkspaceQuery
 {
   public static Task<CommandResult<PortalWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, int page = 0, CancellationToken ct = default) =>
-    GetAsync(db, actor, page, 50, ct);
+    GetAsync(db, actor, page, 50, 0, 10, ct);
+
+  public static Task<CommandResult<PortalWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, int page,
+    int pageSize, CancellationToken ct = default) => GetAsync(db, actor, page, pageSize, 0, 10, ct);
 
   public static async Task<CommandResult<PortalWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, int page,
-    int pageSize, CancellationToken ct = default)
+    int pageSize, int packagePage, int packagePageSize, CancellationToken ct = default)
   {
-    if (page is < 0 or > 10000 || pageSize is not (10 or 25 or 50) || !await IsClientAsync(db, actor, ct))
+    if (page is < 0 or > 10000 || pageSize is not (10 or 25 or 50) || packagePage is < 0 or > 10000 ||
+        packagePageSize is not (10 or 25 or 50) || !await IsClientAsync(db, actor, ct))
       return CommandResult<PortalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Portal unavailable.");
     var engagements = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor, ct);
     var requests = await ClientPortalService.ParticipantRequests(db, actor).Where(x => engagements.Contains(x.EngagementId))
@@ -45,7 +52,7 @@ public static class ClientPortalWorkspaceQuery
         x.ClarificationReason
       }).ToListAsync(ct);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && engagements.Contains(x.EngagementId) && x.Status == AccountingPackageStates.PackageValidated)
-      .OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(101)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Skip(packagePage * packagePageSize).Take(packagePageSize + 1)
       .Select(x => new PortalPackageItem(x.Id, x.Framework, x.PeriodStart, x.PeriodEnd, x.Currency)).ToListAsync(ct);
     var requestPage = requests.Take(pageSize).ToArray();
     var firstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct);
@@ -63,7 +70,7 @@ public static class ClientPortalWorkspaceQuery
         row.Item.State is (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.PartiallyReceived or PbcStates.ClarificationRequired);
       return row.Item with { ClarificationReason = clarification, ClarificationReasonTruncated = truncated, CanWrite = canWrite };
     }).ToArray();
-    var packageItems = packages.Take(100).ToArray();
+    var packageItems = packages.Take(packagePageSize).ToArray();
     var asOfDateUtc = DateOnly.FromDateTime(DateTime.UtcNow);
     var requestIds = requests.Select(x => x.Item.Id).ToArray();
     var writableRequests = requestPage.Where((_, index) => requestItems[index].CanWrite).ToArray();
@@ -88,7 +95,7 @@ public static class ClientPortalWorkspaceQuery
       return CommandResult<PortalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Portal unavailable.");
     return CommandResult<PortalWorkspace>.Ok(new(firstSignIn,
       await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor, ct), engagements.Count,
-      requestItems, requests.Count > pageSize, packageItems, asOfDateUtc, packages.Count > 100));
+      requestItems, requests.Count > pageSize, packageItems, asOfDateUtc, packages.Count > packagePageSize, packagePage, packagePageSize));
   }
 
   public static async Task<CommandResult<PortalRequestWorkspace>> RequestAsync(IAuditSphereDbContext db, ActorContext actor, Guid requestId, CancellationToken ct = default)
@@ -96,14 +103,10 @@ public static class ClientPortalWorkspaceQuery
     if (!await IsClientAsync(db, actor, ct)) return Denied();
     var request = await ClientPortalService.ParticipantRequests(db, actor).SingleOrDefaultAsync(x => x.Id == requestId, ct);
     if (request is null || !await AuthorizedAsync(db, actor, request, ct)) return Denied();
-    var uploads = await db.PbcUploadIntents.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PbcRequestId == requestId)
-      .OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(501).ToListAsync(ct);
-    var messages = await db.PbcCommunications.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PbcRequestId == requestId)
-      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(2001).ToListAsync(ct);
-    if (uploads.Count > 500 || messages.Count > 2000)
-      return CommandResult<PortalRequestWorkspace>.Fail(ErrorCodes.GateBlocked, "This request requires a paged archive review. Contact your audit team.");
-    var operations = uploads.Where(x => x.TransferOperationId.HasValue).Select(x => x.TransferOperationId!.Value).ToArray();
-    var states = await db.DurableOperations.AsNoTracking().Where(x => x.FirmId == actor.FirmId && operations.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Status.ToString(), ct);
+    var history = await ReadRequestHistoryAsync(db, actor, request, 0, 0, 25, ct);
+    if (!history.Succeeded || history.Value is null) return Denied();
+    var uploads = history.Value.Uploads;
+    var messages = history.Value.Conversation;
     var firstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct);
     var window = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
     var canDelegate = request.ClientOwnerUserId == actor.UserId && await ClientPortalService.IsPrimaryContactAsync(db, actor, request.ClientId, ct);
@@ -114,12 +117,43 @@ public static class ClientPortalWorkspaceQuery
       request.DueDate, request.State, request.Revision.ToString(CultureInfo.InvariantCulture), firstSignIn,
       window.Succeeded && request.State is not (PbcStates.Accepted or PbcStates.Closed), canDelegate,
       delegations, candidates.Where(x => delegations.All(d => d.DelegateUserId != x.UserId)).Take(500).ToArray(),
-      uploads.Select(x => new PortalUploadItem(x.Id, x.FileName, x.ReceivedByteCount.ToString(CultureInfo.InvariantCulture), x.DeclaredByteCount.ToString(CultureInfo.InvariantCulture),
-        x.State, x.TransferOperationId is { } op && states.TryGetValue(op, out var state) ? state : null, x.DeclaredSha256Hex, x.CreatedAt.ToUniversalTime().ToString("O"))).ToArray(),
-      messages.Select(x => new PortalConversationItem(x.Id, x.CreatedAt.ToUniversalTime().ToString("O"),
-        x.Kind is PbcCommunicationKinds.ClientMessage or PbcCommunicationKinds.ClientAction ? "Client"
-          : x.Kind == PbcCommunicationKinds.Email ? "Email notification" : "Audit team", x.Body)).ToArray(),
-      request.ClarificationReason));
+      uploads, messages, request.ClarificationReason, history.Value.HasMoreUploads, history.Value.HasMoreConversation));
+  }
+
+  public static async Task<CommandResult<PortalRequestHistory>> RequestHistoryAsync(IAuditSphereDbContext db, ActorContext actor,
+    Guid requestId, int uploadPage, int conversationPage, int pageSize, CancellationToken ct = default)
+  {
+    if (uploadPage is < 0 or > 10000 || conversationPage is < 0 or > 10000 || pageSize is not (10 or 25 or 50) ||
+        !await IsClientAsync(db, actor, ct)) return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+    var request = await ClientPortalService.ParticipantRequests(db, actor).SingleOrDefaultAsync(x => x.Id == requestId, ct);
+    if (request is null || !await AuthorizedAsync(db, actor, request, ct))
+      return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+    return await ReadRequestHistoryAsync(db, actor, request, uploadPage, conversationPage, pageSize, ct);
+  }
+
+  private static async Task<CommandResult<PortalRequestHistory>> ReadRequestHistoryAsync(IAuditSphereDbContext db, ActorContext actor,
+    PbcRequest request, int uploadPage, int conversationPage, int pageSize, CancellationToken ct)
+  {
+    var uploads = await db.PbcUploadIntents.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PbcRequestId == request.Id)
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Skip(uploadPage * pageSize).Take(pageSize + 1).ToListAsync(ct);
+    var messages = await db.PbcCommunications.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PbcRequestId == request.Id)
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Skip(conversationPage * pageSize).Take(pageSize + 1).ToListAsync(ct);
+    var uploadItems = uploads.Take(pageSize).ToArray();
+    var messageItems = messages.Take(pageSize).ToArray();
+    var operations = uploadItems.Where(x => x.TransferOperationId.HasValue).Select(x => x.TransferOperationId!.Value).ToArray();
+    var states = await db.DurableOperations.AsNoTracking().Where(x => x.FirmId == actor.FirmId && operations.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.Status.ToString(), ct);
+    var uploadRows = uploadItems.Select(x => new PortalUploadItem(x.Id, x.FileName,
+      x.ReceivedByteCount.ToString(CultureInfo.InvariantCulture), x.DeclaredByteCount.ToString(CultureInfo.InvariantCulture), x.State,
+      x.TransferOperationId is { } op && states.TryGetValue(op, out var state) ? state : null,
+      x.DeclaredSha256Hex, x.CreatedAt.ToUniversalTime().ToString("O"))).ToArray();
+    var conversationRows = messageItems.Select(x => new PortalConversationItem(x.Id, x.CreatedAt.ToUniversalTime().ToString("O"),
+      x.Kind is PbcCommunicationKinds.ClientMessage or PbcCommunicationKinds.ClientAction ? "Client"
+        : x.Kind == PbcCommunicationKinds.Email ? "Email notification" : "Audit team", x.Body)).ToArray();
+    if (!await IsClientAsync(db, actor, ct) || !await AuthorizedAsync(db, actor, request, ct))
+      return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+    return CommandResult<PortalRequestHistory>.Ok(new(request.Id, uploadPage, conversationPage, pageSize,
+      uploadRows, uploads.Count > pageSize, conversationRows, messages.Count > pageSize));
   }
   private static Task<bool> IsClientAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     db.Users.AsNoTracking().AnyAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.UserKind == "Client" && !x.Disabled, ct);

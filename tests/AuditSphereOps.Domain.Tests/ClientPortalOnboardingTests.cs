@@ -220,6 +220,61 @@ public sealed class ClientPortalOnboardingTests
   }
 
   [Fact]
+  public async Task PortalRequestHistory_ContinuesBoundedOrderedPagesAndDeniesUnassignedClient()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var other = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId, onboarded: true);
+    var requestId = await SentRequestAsync(pg, f, f.Client.Id);
+    var otherRequestId = await SentRequestAsync(pg, f, other.Id);
+    var occurred = DateTimeOffset.Parse("2026-10-01T00:00:00Z");
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.PbcCommunications.AddRange(Enumerable.Range(0, 31).Select(index => new PbcCommunication
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PbcRequestId = requestId, AuthorUserId = f.Staff.Id, Kind = PbcCommunicationKinds.ClientMessage,
+        Body = $"Message {index:D2}", CreatedAt = occurred.AddMinutes(index)
+      }));
+      seed.PbcUploadIntents.AddRange(Enumerable.Range(0, 31).Select(index => new PbcUploadIntent
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PbcRequestId = requestId, UploaderUserId = f.Client.Id, FileName = $"upload-{index:D2}.pdf",
+        ContentType = "application/pdf", DeclaredByteCount = 1, DeclaredSha256Hex = new string('a', 64),
+        CapabilityHash = new string('b', 64), State = PbcUploadStates.Started, ExpiresAt = occurred.AddMinutes(index).AddDays(1),
+        CreatedAt = occurred.AddMinutes(index), Revision = 1
+      }));
+      await seed.SaveChangesAsync();
+    }
+
+    var actor = PbcSeed.Actor(f.Client, "ClientUser");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var summary = await ClientPortalWorkspaceQuery.RequestAsync(db, actor, requestId);
+    Assert.True(summary.Succeeded, summary.Message);
+    Assert.Equal(25, summary.Value!.Uploads.Count);
+    Assert.Equal(25, summary.Value.Conversation.Count);
+    Assert.True(summary.Value.HasMoreUploads);
+    Assert.True(summary.Value.HasMoreConversation);
+
+    var page = await ClientPortalWorkspaceQuery.RequestHistoryAsync(db, actor, requestId,
+      uploadPage: 1, conversationPage: 2, pageSize: 10);
+    Assert.True(page.Succeeded, page.Message);
+    Assert.Equal(requestId, page.Value!.RequestId);
+    Assert.Equal(10, page.Value.Uploads.Count);
+    Assert.Equal("upload-20.pdf", page.Value.Uploads[0].FileName);
+    Assert.Equal("upload-11.pdf", page.Value.Uploads[^1].FileName);
+    Assert.Equal(10, page.Value.Conversation.Count);
+    Assert.Equal("Message 20", page.Value.Conversation[0].Body);
+    Assert.Equal("Message 29", page.Value.Conversation[^1].Body);
+    Assert.True(page.Value.HasMoreUploads);
+    Assert.False(page.Value.HasMoreConversation);
+    Assert.Equal(ErrorCodes.ScopeDenied,
+      (await ClientPortalWorkspaceQuery.RequestHistoryAsync(db, actor, otherRequestId, 0, 0, 10)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied,
+      (await ClientPortalWorkspaceQuery.RequestHistoryAsync(db, PbcSeed.Actor(f.Staff, "Staff"), requestId, 0, 0, 10)).ErrorCode);
+  }
+
+  [Fact]
   public async Task PortalRequest_PresentsClarificationReason_WhenAuditorRejectsAndRequestsReUpload()
   {
     await using var pg = await PgTestSchema.CreateAsync();

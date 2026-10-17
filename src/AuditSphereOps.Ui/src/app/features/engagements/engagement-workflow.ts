@@ -5,9 +5,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
+import { arr, decode, guid, obj, str } from '../../core/decode';
 import {
   EngagementWorkflowReport, PhaseChecklist, WorkbenchLink, decodeEngagementWorkflowReport, decodeEngagementWorkflowTasks,
-  phaseChecklists, workbenchLinksFor,
+  EngagementWorkflowTask, phaseChecklists, workbenchLinksFor,
 } from './engagement-workflow-contracts';
 import { EngagementReminders } from './engagement-reminders';
 import { WorkflowTaskCreate } from './workflow-task-create';
@@ -19,6 +20,7 @@ const PHASE_STATUS_LABELS: Record<string, string> = {
   COMPLETED: 'Completed',
   ARCHIVED: 'Archived',
 };
+const assigneeOptionsDecoder = arr(obj({ userId: guid, displayName: str(200) }), 200);
 
 /**
  * Seven-phase engagement workbench (WF-02). The server projects the phase from the canonical lifecycle; this view renders
@@ -42,11 +44,20 @@ export class EngagementWorkflow {
   readonly checklistError = signal('');
   /** Available only after the feature-gated, engagement-authorized task read succeeds. */
   readonly taskCreationAvailable = signal(false);
+  readonly taskAssignmentAvailable = signal(false);
+  readonly assigneeOptions = signal<{ userId: string; displayName: string }[]>([]);
+  readonly assignmentTask = signal<EngagementWorkflowTask | null>(null);
+  readonly assignmentUserId = signal('');
+  readonly assignmentReviewed = signal(false);
+  readonly assignmentBusy = signal(false);
+  readonly assignmentMessage = signal('');
+  readonly assignmentFailed = signal(false);
 
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private request?: Subscription;
   private taskRequest?: Subscription;
+  private assignmentRequest?: Subscription;
   private destroyed = false;
 
   constructor() {
@@ -59,6 +70,12 @@ export class EngagementWorkflow {
         this.taskRequest?.unsubscribe();
         this.checklists.set(null);
         this.taskCreationAvailable.set(false);
+        this.taskAssignmentAvailable.set(false);
+        this.assigneeOptions.set([]);
+        this.assignmentTask.set(null);
+        this.assignmentUserId.set('');
+        this.assignmentReviewed.set(false);
+        this.assignmentRequest?.unsubscribe();
         this.checklistError.set('');
         this.data.set(null);
         this.error.set('');
@@ -71,6 +88,7 @@ export class EngagementWorkflow {
       this.destroyed = true;
       this.request?.unsubscribe();
       this.taskRequest?.unsubscribe();
+      this.assignmentRequest?.unsubscribe();
     });
   }
 
@@ -106,6 +124,7 @@ export class EngagementWorkflow {
             this.checklists.set(phaseChecklists(workspace.tasks));
             this.checklistsTruncated.set(workspace.truncated);
             this.taskCreationAvailable.set(true);
+            this.loadAssigneeOptions(id, generation);
           } catch {
             this.checklists.set(null);
             this.taskCreationAvailable.set(false);
@@ -127,6 +146,70 @@ export class EngagementWorkflow {
 
   onWorkflowTaskCreated(): void {
     this.load();
+  }
+
+  openTaskAssignment(task: EngagementWorkflowTask): void {
+    if (!this.taskAssignmentAvailable() || !['OPEN', 'IN_PROGRESS'].includes(task.status) || this.assignmentBusy()) return;
+    this.assignmentTask.set(task); this.assignmentUserId.set(''); this.assignmentReviewed.set(false);
+    this.assignmentMessage.set(''); this.assignmentFailed.set(false);
+  }
+
+  selectTaskAssignee(userId: string): void {
+    this.assignmentUserId.set(userId); this.assignmentReviewed.set(false); this.assignmentMessage.set('');
+  }
+
+  selectedTaskAssignee(): { userId: string; displayName: string } | null {
+    return this.assigneeOptions().find(x => x.userId === this.assignmentUserId()) ?? null;
+  }
+
+  cancelTaskAssignment(): void {
+    if (this.assignmentBusy()) return;
+    this.assignmentTask.set(null); this.assignmentUserId.set(''); this.assignmentReviewed.set(false);
+  }
+
+  saveTaskAssignment(): void {
+    const task = this.assignmentTask(); const owner = this.selectedTaskAssignee(); const report = this.data();
+    if (!task || !owner || !report || !this.assignmentReviewed() || this.assignmentBusy() || owner.userId === task.assigneeUserId) return;
+    const action = task.assigneeUserId ? 'reassign' : 'assign';
+    const url = `/api/ui/engagements/${report.engagementId}/workflow/tasks/${task.id}/${action}`;
+    this.assignmentBusy.set(true); this.assignmentFailed.set(false); this.assignmentMessage.set('');
+    this.assignmentRequest = this.http.post<unknown>(url, { assigneeUserId: owner.userId, expectedRevision: task.revision })
+      .pipe(timeout(20000)).subscribe({
+        next: () => {
+          this.assignmentBusy.set(false); this.assignmentTask.set(null); this.assignmentUserId.set('');
+          this.assignmentReviewed.set(false); this.assignmentMessage.set(`Task assigned to ${owner.displayName}.`);
+          this.load();
+        },
+        error: (error: { status?: number }) => {
+          this.assignmentBusy.set(false); this.assignmentFailed.set(true);
+          if (error.status === 401) { this.session.clear(); return; }
+          if (error.status === 409) {
+            this.assignmentMessage.set('The task changed before assignment. Its current owner and revision have been refreshed; review the exact change again.');
+            this.assignmentTask.set(null); this.load(); return;
+          }
+          this.assignmentMessage.set(error.status === 403
+            ? 'Assignment was refused because the assignee is no longer eligible or your authority changed. The current task was refreshed.'
+            : 'Assignment was not confirmed. Refresh the engagement task list before trying again.');
+          this.assignmentTask.set(null); this.load();
+        },
+      });
+  }
+
+  private loadAssigneeOptions(id: string, generation: number): void {
+    this.assignmentRequest?.unsubscribe();
+    this.assignmentRequest = this.http.get<unknown>(`/api/ui/engagements/${id}/workflow/tasks/assignees`)
+      .pipe(timeout(15000)).subscribe({
+        next: value => {
+          if (this.destroyed || generation !== this.session.invalidation()) return;
+          try { this.assigneeOptions.set(decode(assigneeOptionsDecoder, value)); this.taskAssignmentAvailable.set(true); }
+          catch { this.assigneeOptions.set([]); this.taskAssignmentAvailable.set(false); }
+        },
+        error: error => {
+          if (this.destroyed || generation !== this.session.invalidation()) return;
+          this.assigneeOptions.set([]); this.taskAssignmentAvailable.set(false);
+          if (error.status === 401) this.session.clear();
+        },
+      });
   }
 
   taskStateLabel(status: string): string {

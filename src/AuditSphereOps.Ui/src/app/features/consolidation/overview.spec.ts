@@ -1,10 +1,203 @@
-import { describe, expect, it } from 'vitest';
-import { displayUtcInstant } from './overview';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SessionService } from '../../core/session';
+import { ConsolidationOverview, decodeConsolidation, displayUtcInstant } from './overview';
+
+const groupId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const actorId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const firmId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const groupsUrl = '/api/ui/consolidation';
+const optionsUrl = `${groupsUrl}/groups/${groupId}/scope-options`;
+const scopeId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const createdGroup = { id: groupId, code: 'HOLDCO-01', name: 'Holding Company Group', scopes: [] };
+const scopeOptions = {
+  groupId, groupCode: 'HOLDCO-01', groupName: 'Holding Company Group', groupRevision: 7, canCreateScope: true,
+  periods: [{ id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', clientName: 'Operating Company', code: 'FY2026',
+    startDate: '2026-01-01', endDate: '2026-12-31', basis: 'ANNUAL', currency: 'QAR', status: 'CLOSED' }],
+  currencies: ['QAR'],
+  methods: [
+    { code: 'FULLY_OWNED_SAME_CURRENCY', label: 'Fully owned · same currency', enabled: true, guidance: 'Same currency.' },
+    { code: 'CONTROLLED_FOREIGN_OPERATION_TRANSLATION_V1', label: 'Foreign operation', enabled: false, guidance: 'Approved FX policy required.' },
+  ],
+  approvedRateSets: [], approvedTranslationPolicies: [], approvedPriorScopes: [], existingScopes: [],
+  guidance: 'Options are limited to the authorized group.'
+};
+
+function overview(groups: object[] = [], canCreateGroup = true) { return { canCreateGroup, groups }; }
+function membership() {
+  return { groupId, groupCode: 'HOLDCO-01', groupName: 'Holding Company Group', groupRevision: 1, page: 0, pageSize: 25,
+    total: 0, members: [], eligibleClients: [], canAddMember: true };
+}
 
 describe('consolidation report timestamps', () => {
   it('shows the approval instant in UTC with an explicit timezone label', () => {
     expect(displayUtcInstant('2026-10-07T10:00:00Z')).toBe('2026-10-07 10:00 UTC');
     expect(displayUtcInstant('2026-10-07T13:00:00+03:00')).toBe('2026-10-07 10:00 UTC');
     expect(displayUtcInstant(null)).toBe('');
+  });
+});
+
+describe('accounting group creation', () => {
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    TestBed.configureTestingModule({
+      imports: [ConsolidationOverview],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    TestBed.inject(SessionService).current.set({ userId: actorId, firmId, generation: '1', staff: true });
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    try { http.verify({ ignoreCancelled: true }); }
+    finally { TestBed.resetTestingModule(); sessionStorage.clear(); vi.restoreAllMocks(); }
+  });
+
+  async function open(initial = overview()) {
+    const fixture = TestBed.createComponent(ConsolidationOverview);
+    fixture.detectChanges();
+    http.expectOne(groupsUrl).flush(initial);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { fixture, component: fixture.componentInstance };
+  }
+
+  it('posts the exact group intent, refreshes permitted groups and navigates to its perimeter', async () => {
+    const { fixture, component } = await open();
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.groupCode = ' HOLDCO-01 ';
+    component.groupName = ' Holding Company Group ';
+
+    const creating = component.createGroup();
+    const post = http.expectOne(groupsUrl + '/groups');
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({ code: 'HOLDCO-01', name: 'Holding Company Group' });
+    post.flush({ value: groupId });
+    await creating;
+    expect(navigate).toHaveBeenCalledWith([], { fragment: `group-${groupId}` });
+    http.expectOne(groupsUrl).flush(overview([createdGroup]));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('HOLDCO-01');
+    const members = http.expectOne(request => request.urlWithParams === `/api/ui/consolidation/groups/${groupId}/members?page=0&pageSize=25`);
+    members.flush(membership());
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Holding Company Group');
+  });
+
+  it('reconciles an unknown create only from an exact permitted group and never resends', async () => {
+    const { fixture, component } = await open();
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.groupCode = 'HOLDCO-01';
+    component.groupName = 'Holding Company Group';
+
+    const creating = component.createGroup();
+    http.expectOne(request => request.method === 'POST' && request.url === groupsUrl + '/groups')
+      .flush({}, { status: 503, statusText: 'Unavailable' });
+    await creating;
+    expect(component.createCommand.uncertain()).toBe(true);
+
+    const recovering = component.recoverGroup();
+    http.expectOne(request => request.method === 'GET' && request.url === groupsUrl).flush(overview([createdGroup]));
+    await recovering;
+    http.expectOne(groupsUrl).flush(overview([createdGroup]));
+    await fixture.whenStable();
+    http.expectNone(request => request.method === 'POST' && request.url === groupsUrl + '/groups');
+    expect(component.createCommand.uncertain()).toBe(false);
+    expect(navigate).toHaveBeenCalledWith([], { fragment: `group-${groupId}` });
+    fixture.detectChanges();
+    http.expectOne(request => request.urlWithParams === `/api/ui/consolidation/groups/${groupId}/members?page=0&pageSize=25`)
+      .flush(membership());
+  });
+
+  it('rejects an overview that omits explicit creation authority or the permitted group list', () => {
+    expect(() => decodeConsolidation({ groups: [] }, 'overview')).toThrow();
+    expect(() => decodeConsolidation({ canCreateGroup: 'true', groups: [] }, 'overview')).toThrow();
+    expect(() => decodeConsolidation(overview([{ ...createdGroup, id: 'invalid' }]), 'overview')).toThrow();
+  });
+
+  it('loads authorized options and posts explicit nullable pins before navigating to the new scope workspace', async () => {
+    const { fixture, component } = await open(overview([createdGroup]));
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.selectScopeGroup(groupId);
+    fixture.detectChanges();
+    http.expectOne(optionsUrl).flush(scopeOptions);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const periodId = scopeOptions.periods[0].id;
+    component.scopePeriodId = periodId;
+    component.scopeMethod = 'FULLY_OWNED_SAME_CURRENCY';
+    component.scopeCurrency = 'QAR';
+
+    const creating = component.createScope();
+    const post = http.expectOne(groupsUrl + '/scopes');
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({
+      groupId, periodId, reportingCurrency: 'QAR', method: 'FULLY_OWNED_SAME_CURRENCY',
+      openingBasis: 'INITIAL_CONSOLIDATION', exchangeRateSetVersionId: null,
+      translationPolicyVersionId: null, translationRateDate: null, translationRateType: null,
+      priorScopeVersionId: null, expectedGroupRevision: 7
+    });
+    post.flush({ value: scopeId });
+    await creating;
+    expect(navigate).toHaveBeenCalledWith(['/app/consolidation/scopes', scopeId]);
+  });
+
+  it('reconciles an uncertain save from the exact scoped version and does not resend', async () => {
+    const { fixture, component } = await open(overview([createdGroup]));
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.selectScopeGroup(groupId);
+    fixture.detectChanges();
+    http.expectOne(optionsUrl).flush(scopeOptions);
+    await fixture.whenStable();
+    component.scopePeriodId = scopeOptions.periods[0].id;
+    component.scopeMethod = 'FULLY_OWNED_SAME_CURRENCY';
+    component.scopeCurrency = 'QAR';
+
+    const creating = component.createScope();
+    http.expectOne(groupsUrl + '/scopes').flush({}, { status: 503, statusText: 'Unavailable' });
+    await creating;
+    expect(component.scopeCommand.uncertain()).toBe(true);
+    const recovering = component.recoverScope();
+    http.expectOne(optionsUrl).flush({ ...scopeOptions, existingScopes: [{
+      id: scopeId, periodId: scopeOptions.periods[0].id, reportingCurrency: 'QAR',
+      method: 'FULLY_OWNED_SAME_CURRENCY', openingBasis: 'INITIAL_CONSOLIDATION',
+      exchangeRateSetVersionId: null, translationPolicyVersionId: null, translationRateDate: null,
+      translationRateType: '', priorScopeVersionId: null, groupRevision: 7, status: 'DRAFT'
+    }] });
+    await recovering;
+    expect(component.scopeCommand.uncertain()).toBe(false);
+    expect(navigate).toHaveBeenCalledWith(['/app/consolidation/scopes', scopeId]);
+    http.expectNone(request => request.method === 'POST' && request.url === groupsUrl + '/scopes');
+  });
+
+  it('refreshes pinned group basis after a stale refusal without retrying creation', async () => {
+    const { fixture, component } = await open(overview([createdGroup]));
+    component.selectScopeGroup(groupId);
+    fixture.detectChanges();
+    http.expectOne(optionsUrl).flush(scopeOptions);
+    await fixture.whenStable();
+    component.scopePeriodId = scopeOptions.periods[0].id;
+    component.scopeMethod = 'FULLY_OWNED_SAME_CURRENCY';
+    component.scopeCurrency = 'QAR';
+    const creating = component.createScope();
+    http.expectOne(groupsUrl + '/scopes').flush({ code: 'generation.stale', message: 'The group changed.' },
+      { status: 409, statusText: 'Conflict' });
+    await creating;
+    expect(component.scopeCommand.uncertain()).toBe(false);
+    expect(component.scopeValidation()).toContain('group basis changed');
+    http.expectOne(optionsUrl).flush({ ...scopeOptions, groupRevision: 8 });
+    await fixture.whenStable();
+    http.expectNone(request => request.method === 'POST' && request.url === groupsUrl + '/scopes');
   });
 });

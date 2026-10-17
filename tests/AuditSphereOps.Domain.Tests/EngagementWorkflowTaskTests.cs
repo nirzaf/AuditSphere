@@ -95,6 +95,14 @@ public sealed class EngagementWorkflowTaskTests
       var stale = await EngagementWorkflowTaskService.ReassignAsync(db, managerActor, taskA, staffB.Id, 1);
       Assert.False(stale.Succeeded);
       Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+      var eligible = await EngagementWorkflowTaskService.GetAssigneeOptionsAsync(db, managerActor, engagementA);
+      Assert.True(eligible.Succeeded, eligible.Message);
+      Assert.Contains(eligible.Value!, x => x.UserId == staffA.Id);
+      Assert.DoesNotContain(eligible.Value!, x => x.UserId == staffB.Id);
+      var ineligible = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, taskASecond, staffB.Id, 1);
+      Assert.False(ineligible.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, ineligible.ErrorCode);
+      Assert.Equal(1, (await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == taskASecond)).Revision);
       var sameAssignee = await EngagementWorkflowTaskService.ReassignAsync(db, managerActor, taskA, staffA.Id, 2);
       Assert.True(sameAssignee.Succeeded, sameAssignee.Message);
       Assert.Equal(2, await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == taskA));

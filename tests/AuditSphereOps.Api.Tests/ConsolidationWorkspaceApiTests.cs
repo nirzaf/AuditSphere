@@ -45,6 +45,230 @@ public sealed class ConsolidationWorkspaceApiTests
 
     using var response = await client.GetAsync($"/api/ui/consolidation/scopes/{scopeId}");
     Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    using var optionsDenied = await client.GetAsync($"/api/ui/consolidation/groups/{scopeId}/scope-options");
+    Assert.Equal(HttpStatusCode.Forbidden, optionsDenied.StatusCode);
+  }
+
+  [Fact]
+  public async Task ScopeCreationOptions_AreGroupScopedAndExpectedRevisionIsPinnedOnCreate()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-SCOPE-OPTIONS");
+    var seed = await PbcSeed.SeedAsync(pg);
+    using var factory = Factory(pg, seed.Staff);
+    using var client = factory.CreateClient();
+    var csrf = await SignIn(client);
+    using var createdGroup = await Post(client, csrf, "/api/ui/consolidation/groups",
+      new { code = "SCOPE-OPT-01", name = "Scope Options Group" });
+    Assert.Equal(HttpStatusCode.OK, createdGroup.StatusCode);
+    var groupId = JsonDocument.Parse(await createdGroup.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    var periodId = Guid.CreateVersion7();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.ClientGroupMemberships.Add(new ClientGroupMembership
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, ClientId = seed.ClientId,
+        EffectiveFrom = new DateOnly(2026, 1, 1), ControlMethod = "CONTROLLED", OwnershipPercent = 100m,
+        EconomicInterestPercent = 100m, EvidenceReference = "scope-options-test",
+        Status = AccountingWorkflowStates.Approved, CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = seed.FirmId, ClientId = seed.ClientId, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "ANNUAL",
+        Currency = "QAR", Status = AccountingWorkflowStates.Closed, CreatedByUserId = seed.Staff.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var options = await Read(client, $"/api/ui/consolidation/groups/{groupId}/scope-options");
+    var groupRevision = options.GetProperty("groupRevision").GetInt64();
+    Assert.True(options.GetProperty("canCreateScope").GetBoolean());
+    Assert.Equal(periodId, options.GetProperty("periods")[0].GetProperty("id").GetGuid());
+    Assert.Contains(options.GetProperty("currencies").EnumerateArray(), x => x.GetString() == "QAR");
+    Assert.Contains(options.GetProperty("methods").EnumerateArray(), x =>
+      x.GetProperty("code").GetString() == ConsolidationCalculator.RestrictedMethod && x.GetProperty("enabled").GetBoolean());
+    Assert.Empty(options.GetProperty("approvedPriorScopes").EnumerateArray());
+
+    using var scopeResponse = await Post(client, csrf, "/api/ui/consolidation/scopes", new
+    {
+      groupId, periodId, reportingCurrency = "QAR", method = ConsolidationCalculator.RestrictedMethod,
+      openingBasis = "INITIAL_CONSOLIDATION", exchangeRateSetVersionId = (Guid?)null,
+      translationPolicyVersionId = (Guid?)null, translationRateDate = (DateOnly?)null,
+      translationRateType = (string?)null, priorScopeVersionId = (Guid?)null, expectedGroupRevision = groupRevision
+    });
+    Assert.Equal(HttpStatusCode.OK, scopeResponse.StatusCode);
+    var scopeId = JsonDocument.Parse(await scopeResponse.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    var saved = await proof.ConsolidationScopeVersions.SingleAsync(x => x.Id == scopeId);
+    Assert.Equal(groupRevision, saved.GroupRevision);
+    Assert.Null(saved.ExchangeRateSetVersionId);
+    Assert.Null(saved.TranslationPolicyVersionId);
+    Assert.Null(saved.PriorScopeVersionId);
+
+    using var stale = await Post(client, csrf, "/api/ui/consolidation/scopes", new
+    {
+      groupId, periodId, reportingCurrency = "QAR", method = ConsolidationCalculator.RestrictedMethod,
+      openingBasis = "INITIAL_CONSOLIDATION", exchangeRateSetVersionId = (Guid?)null,
+      translationPolicyVersionId = (Guid?)null, translationRateDate = (DateOnly?)null,
+      translationRateType = (string?)null, priorScopeVersionId = (Guid?)null, expectedGroupRevision = groupRevision + 1
+    });
+    Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+  }
+
+  [Fact]
+  public async Task GroupCreation_RequiresFirmWideAuthorityAndGrantsOnlyTheCreatedGroup()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-GROUP-CREATE");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var scopedManager = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = seed.FirmId, Email = "scoped.manager@auditsphere.test",
+      DisplayName = "Scoped Manager", TenantId = "tenant-001", Subject = "sub-scoped-manager-consol"
+    };
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Staff, "Manager"));
+      db.Users.Add(scopedManager);
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, scopedManager, "Manager", clientId: seed.ClientId));
+      await db.SaveChangesAsync();
+    }
+
+    using var creatorFactory = Factory(pg, seed.Staff);
+    using var creator = creatorFactory.CreateClient();
+    var csrf = await SignIn(creator);
+    var initial = await Read(creator, "/api/ui/consolidation");
+    Assert.True(initial.GetProperty("canCreateGroup").GetBoolean());
+    Assert.Empty(initial.GetProperty("groups").EnumerateArray());
+
+    using var created = await Post(creator, csrf, "/api/ui/consolidation/groups", new { code = "HOLDCO-01", name = "Holding Company Group" });
+    Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+    var groupId = JsonDocument.Parse(await created.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var group = await db.ClientGroups.SingleAsync(x => x.FirmId == seed.FirmId && x.Id == groupId);
+      Assert.Equal("HOLDCO-01", group.Code);
+      Assert.Equal("Holding Company Group", group.Name);
+      var grant = await db.GroupAccessGrants.SingleAsync(x => x.FirmId == seed.FirmId && x.GroupId == groupId);
+      Assert.Equal(seed.Staff.Id, grant.UserId);
+      Assert.Equal("Manager", grant.Role);
+    }
+    var refreshed = await Read(creator, "/api/ui/consolidation");
+    Assert.Single(refreshed.GetProperty("groups").EnumerateArray());
+    Assert.Equal(groupId, refreshed.GetProperty("groups")[0].GetProperty("id").GetGuid());
+
+    using var scopedFactory = Factory(pg, scopedManager);
+    using var scoped = scopedFactory.CreateClient();
+    var scopedCsrf = await SignIn(scoped);
+    var scopedOverview = await Read(scoped, "/api/ui/consolidation");
+    Assert.False(scopedOverview.GetProperty("canCreateGroup").GetBoolean());
+    Assert.Empty(scopedOverview.GetProperty("groups").EnumerateArray());
+    using var denied = await Post(scoped, scopedCsrf, "/api/ui/consolidation/groups", new { code = "HOLDCO-02", name = "Unauthorized Group" });
+    Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await proof.ClientGroups.CountAsync(x => x.FirmId == seed.FirmId));
+  }
+
+  [Fact]
+  public async Task GroupMembership_IsExplicitlyScopedAndPreservesPercentagesAndRevision()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-GROUP-MEMBERS");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var ungranted = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = seed.FirmId, Email = "ungranted.consol@auditsphere.test",
+      DisplayName = "Ungraded Viewer", TenantId = "tenant-001", Subject = "sub-ungranted-consol"
+    };
+    var reader = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = seed.FirmId, Email = "reader.consol@auditsphere.test",
+      DisplayName = "Group Reader", TenantId = "tenant-001", Subject = "sub-reader-consol"
+    };
+    var groupId = Guid.CreateVersion7();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(ungranted);
+      db.Users.Add(reader);
+      db.ClientGroups.Add(new ClientGroup
+      {
+        Id = groupId, FirmId = seed.FirmId, Code = "MEMBER-GROUP", Name = "Membership Group",
+        CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow, Revision = 1
+      });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, UserId = seed.Staff.Id,
+        Role = "Manager", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = seed.Staff.Id
+      });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, UserId = reader.Id,
+        Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = seed.Staff.Id
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = Factory(pg, seed.Staff);
+    using var client = factory.CreateClient();
+    var csrf = await SignIn(client);
+    var initial = await Read(client, $"/api/ui/consolidation/groups/{groupId}/members?page=0&pageSize=1");
+    Assert.Equal(1, initial.GetProperty("groupRevision").GetInt64());
+    Assert.True(initial.GetProperty("canAddMember").GetBoolean());
+    Assert.Contains(initial.GetProperty("eligibleClients").EnumerateArray(), x => x.GetProperty("id").GetGuid() == seed.ClientId);
+    Assert.DoesNotContain(initial.GetProperty("eligibleClients").EnumerateArray(), x => x.GetProperty("id").GetGuid() == foreign.ClientId);
+
+    using var added = await Post(client, csrf, $"/api/ui/consolidation/groups/{groupId}/members", new
+    {
+      clientId = seed.ClientId, effectiveFrom = "2026-01-01", effectiveTo = "2026-12-31", controlMethod = "controlled",
+      ownershipPercent = "91.123456", economicInterestPercent = "78.654321", evidenceReference = "PERIMETER-APPROVAL-01"
+    });
+    Assert.Equal(HttpStatusCode.OK, added.StatusCode);
+
+    var members = await Read(client, $"/api/ui/consolidation/groups/{groupId}/members?page=0&pageSize=1");
+    Assert.Equal(2, members.GetProperty("groupRevision").GetInt64());
+    Assert.Equal(1, members.GetProperty("total").GetInt32());
+    Assert.Equal("91.123456", members.GetProperty("members")[0].GetProperty("ownershipPercent").GetString());
+    Assert.Equal("78.654321", members.GetProperty("members")[0].GetProperty("economicInterestPercent").GetString());
+    Assert.Equal("CONTROLLED", members.GetProperty("members")[0].GetProperty("controlMethod").GetString());
+
+    var exact = await Read(client, $"/api/ui/consolidation/groups/{groupId}/members?page=0&pageSize=25&clientId={seed.ClientId}&effectiveFrom=2026-01-01");
+    Assert.Single(exact.GetProperty("members").EnumerateArray());
+
+    using var overlap = await Post(client, csrf, $"/api/ui/consolidation/groups/{groupId}/members", new
+    {
+      clientId = seed.ClientId, effectiveFrom = "2026-06-01", effectiveTo = "2027-01-01", controlMethod = "CONTROLLED",
+      ownershipPercent = "100", economicInterestPercent = "100", evidenceReference = "OVERLAP-01"
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, overlap.StatusCode);
+    Assert.Contains("Overlapping", (await overlap.Content.ReadAsStringAsync()), StringComparison.OrdinalIgnoreCase);
+
+    using var crossFirm = await Post(client, csrf, $"/api/ui/consolidation/groups/{groupId}/members", new
+    {
+      clientId = foreign.ClientId, effectiveFrom = "2026-01-01", effectiveTo = (string?)null, controlMethod = "CONTROLLED",
+      ownershipPercent = "100", economicInterestPercent = "100", evidenceReference = "CROSS-FIRM-01"
+    });
+    Assert.Equal(HttpStatusCode.Forbidden, crossFirm.StatusCode);
+
+    using var readerFactory = Factory(pg, reader);
+    using var readerClient = readerFactory.CreateClient();
+    var readerCsrf = await SignIn(readerClient);
+    var readerWorkspace = await Read(readerClient, $"/api/ui/consolidation/groups/{groupId}/members?page=0&pageSize=25");
+    Assert.False(readerWorkspace.GetProperty("canAddMember").GetBoolean());
+    Assert.Equal(1, readerWorkspace.GetProperty("total").GetInt32());
+    using var deniedAdd = await Post(readerClient, readerCsrf, $"/api/ui/consolidation/groups/{groupId}/members", new
+    {
+      clientId = seed.ClientId, effectiveFrom = "2027-01-01", effectiveTo = (string?)null, controlMethod = "CONTROLLED",
+      ownershipPercent = "100", economicInterestPercent = "100", evidenceReference = "READER-CANNOT-ADD"
+    });
+    Assert.Equal(HttpStatusCode.Forbidden, deniedAdd.StatusCode);
+
+    using var ungrantedFactory = Factory(pg, ungranted);
+    using var ungrantedClient = ungrantedFactory.CreateClient();
+    await SignIn(ungrantedClient);
+    using var deniedRead = await ungrantedClient.GetAsync($"/api/ui/consolidation/groups/{groupId}/members?page=0&pageSize=25");
+    Assert.Equal(HttpStatusCode.Forbidden, deniedRead.StatusCode);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await proof.ClientGroupMemberships.CountAsync(x => x.FirmId == seed.FirmId && x.GroupId == groupId));
   }
 
   [Fact]

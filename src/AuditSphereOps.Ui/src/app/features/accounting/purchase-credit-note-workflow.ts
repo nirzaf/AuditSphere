@@ -54,8 +54,16 @@ const isPendingCreditCommand = (value: unknown, clientId: string): value is Pend
   @if (pendingStorageBlocked()) { <p role="alert">A retained supplier-credit command exists but could not be validated. New supplier-credit actions are blocked until its outcome is reconciled.</p> }
   @if (!preview()) {
     <form #form="ngForm" (ngSubmit)="form.valid && previewCredit()"><fieldset [disabled]="busy() || !!pendingCommand() || pendingStorageBlocked()"><legend>Prepare supplier credit</legend>
-      <button matButton type="button" (click)="loadSuppliers()">Load client suppliers</button>
-      <label>Supplier <select name="supplier" [(ngModel)]="supplierId" required><option value="">Choose supplier</option>@for (supplier of suppliers(); track supplier.id) { <option [value]="supplier.id">{{ supplier.displayName }}</option> }</select></label>
+      <button matButton type="button" [disabled]="supplierBusy()" (click)="loadSuppliers(supplierPage())">Refresh client suppliers</button>
+      @if (supplierError()) { <p role="alert">{{ supplierError() }}</p> }
+      @if (supplierBusy()) { <p role="status">Loading client suppliers…</p> }
+      @if (supplierLoaded() && supplierTotal() === 0 && !supplierBusy()) { <p>No suppliers are available for this client.</p> }
+      <label>Supplier <select name="supplier" [(ngModel)]="supplierId" (ngModelChange)="selectSupplier($event)" required><option value="">Choose supplier</option>@for (supplier of supplierOptions(); track supplier.id) { <option [value]="supplier.id">{{ supplier.displayName }}</option> }</select></label>
+      <nav aria-label="Supplier pages">
+        <button matButton type="button" [disabled]="supplierBusy() || supplierPage() === 0" (click)="loadSuppliers(supplierPage() - 1)">Previous suppliers</button>
+        <span>Supplier page {{ supplierPage() + 1 }} of {{ supplierPageCount() }} · {{ supplierTotal() }} suppliers · {{ supplierPageSize }} per page</span>
+        <button matButton type="button" [disabled]="supplierBusy() || !supplierHasNext()" (click)="loadSuppliers(supplierPage() + 1)">Next suppliers</button>
+      </nav>
       <label>Original purchase <select name="originalInvoice" [(ngModel)]="originalInvoiceId"><option value="">Unlinked exception</option>@for (invoice of purchases(); track invoice.invoiceId) { <option [value]="invoice.invoiceId" [disabled]="invoice.state !== 'POSTED' || invoice.supplierId !== supplierId">{{ invoice.supplierInvoiceReference }} · {{ invoice.gross }} {{ invoice.currency }}</option> }</select></label>
       <button matButton type="button" (click)="loadPurchases()">Load posted purchases</button>
       <label>Supplier credit reference <input name="reference" [(ngModel)]="reference" required maxlength="200" /></label>
@@ -100,8 +108,11 @@ const isPendingCreditCommand = (value: unknown, clientId: string): value is Pend
   }
 </section>` })
 export class PurchaseCreditNoteWorkflow {
+  readonly supplierPageSize = 25;
   readonly clientId = input.required<string>(); readonly currency = input.required<string>(); readonly periods = input.required<Period[]>();
   readonly suppliers = signal<Supplier[]>([]); readonly purchases = signal<PurchaseRow[]>([]); readonly rows = signal<CreditRow[]>([]);
+  readonly supplierBusy = signal(false); readonly supplierError = signal(''); readonly supplierLoaded = signal(false); readonly supplierPage = signal(0); readonly supplierTotal = signal(0);
+  readonly selectedSupplier = signal<Supplier | null>(null);
   readonly preview = signal<CreditPreview | null>(null); readonly activeReview = signal<CreditReview | null>(null); readonly error = signal(''); readonly busy = signal(false);
   readonly pendingCommand = signal<PendingCreditCommand | null>(null); readonly pendingStorageBlocked = signal(false); readonly recoveredReceipt = signal<CreditCommandReceipt | null>(null);
   readonly guidPattern = guidPattern; readonly amountPattern = amountPattern; readonly userId = () => this.session.current()?.userId ?? '';
@@ -110,16 +121,16 @@ export class PurchaseCreditNoteWorkflow {
   lines: CreditLine[] = [this.newLine()];
   private creditNoteId = '';
   private readonly http = inject(HttpClient); private readonly session = inject(SessionService); private readonly destroyRef = inject(DestroyRef);
-  private operation?: Subscription; private requestId = 0;
+  private operation?: Subscription; private requestId = 0; private supplierRequestId = 0; private supplierOperation?: Subscription;
   constructor() {
     effect(() => { const client = this.clientId(); this.currency(); this.periods(); untracked(() => { this.reset(); if (guid(client)) this.refresh(); }); });
     effect(() => { const generation = this.session.invalidation(); untracked(() => { void generation; this.reset(); }); });
-    this.destroyRef.onDestroy(() => { this.requestId++; this.operation?.unsubscribe(); });
+    this.destroyRef.onDestroy(() => { this.requestId++; this.supplierRequestId++; this.operation?.unsubscribe(); this.supplierOperation?.unsubscribe(); });
   }
   private base(): string { return `/api/ui/accounting/clients/${this.clientId()}`; }
   private newLine(): CreditLine { return { originalLineNumber: '', accountCode: '', amount: '' }; }
   addLine(): void { if (!this.pendingCommand() && !this.pendingStorageBlocked() && this.lines.length < 99) this.lines = [...this.lines, this.newLine()]; }
-  private reset(): void { this.operation?.unsubscribe(); this.requestId++; this.rows.set([]); this.suppliers.set([]); this.purchases.set([]); this.preview.set(null); this.activeReview.set(null); this.error.set(''); this.busy.set(false); this.recoveredReceipt.set(null); this.supplierId = ''; this.originalInvoiceId = ''; this.reference = ''; this.periodId = ''; this.payableRoleId = ''; this.reason = ''; this.unlinkedRationale = ''; this.sourceBasis = ''; this.prepareAssent = false; this.submitAssent = false; this.creditNoteId = ''; this.lines = [this.newLine()]; this.restorePendingCommand(); }
+  private reset(): void { this.operation?.unsubscribe(); this.supplierOperation?.unsubscribe(); this.requestId++; this.supplierRequestId++; this.rows.set([]); this.suppliers.set([]); this.selectedSupplier.set(null); this.supplierPage.set(0); this.supplierTotal.set(0); this.supplierBusy.set(false); this.supplierError.set(''); this.supplierLoaded.set(false); this.purchases.set([]); this.preview.set(null); this.activeReview.set(null); this.error.set(''); this.busy.set(false); this.recoveredReceipt.set(null); this.supplierId = ''; this.originalInvoiceId = ''; this.reference = ''; this.periodId = ''; this.payableRoleId = ''; this.reason = ''; this.unlinkedRationale = ''; this.sourceBasis = ''; this.prepareAssent = false; this.submitAssent = false; this.creditNoteId = ''; this.lines = [this.newLine()]; this.restorePendingCommand(); }
   pendingMatchesContext(): boolean { const pending = this.pendingCommand(); return !!pending && pending.clientId === this.clientId() && pending.actorId === this.userId(); }
   private restorePendingCommand(): void {
     this.pendingCommand.set(null);
@@ -142,7 +153,35 @@ export class PurchaseCreditNoteWorkflow {
     } catch { this.error.set('This browser could not retain the command safely, so nothing was sent.'); return false; }
     this.pendingCommand.set(pending); this.recoveredReceipt.set(null); return true;
   }
-  loadSuppliers(): void { if (this.busy() || this.pendingCommand()) return; const request = ++this.requestId, generation = this.session.invalidation(), client = this.clientId(); this.busy.set(true); this.operation = this.http.get<unknown>(`${this.base()}/counterparties`, { params: { role: 'SUPPLIER', page: '0', pageSize: '25' } }).pipe(timeout(15000)).subscribe({ next: data => { if (request !== this.requestId || generation !== this.session.invalidation() || client !== this.clientId()) return; try { this.suppliers.set(decodeCounterparties(data, client, 'SUPPLIER', 0).counterparties.filter(x => x.role === 'SUPPLIER' || x.role === 'BOTH').map(x => ({ id: x.id, displayName: x.displayName, role: x.role }))); this.busy.set(false); } catch { this.busy.set(false); this.error.set('Supplier list could not be validated.'); } }, error: () => { if (request === this.requestId) { this.busy.set(false); this.error.set('Client supplier list is unavailable.'); } } }); }
+  supplierOptions(): Supplier[] { const current = this.suppliers(), selected = this.selectedSupplier(); return selected && !current.some(item => item.id === selected.id) ? [...current, selected] : current; }
+  supplierPageCount(): number { return Math.max(1, Math.ceil(this.supplierTotal() / this.supplierPageSize)); }
+  supplierHasNext(): boolean { return this.supplierPage() + 1 < this.supplierPageCount(); }
+  selectSupplier(id: string): void {
+    if (id === this.supplierId) return;
+    this.supplierId = id; this.selectedSupplier.set(this.suppliers().find(item => item.id === id) ?? null);
+    this.originalInvoiceId = ''; this.creditNoteId = ''; this.preview.set(null); this.submitAssent = false; this.prepareAssent = false; this.activeReview.set(null);
+  }
+  loadSuppliers(page = 0): void {
+    if (this.pendingCommand() || this.pendingStorageBlocked()) return;
+    const lastPage = Math.max(0, Math.ceil(this.supplierTotal() / this.supplierPageSize) - 1);
+    if (!Number.isInteger(page) || page < 0 || page > 1_000 || (page > lastPage && (this.supplierLoaded() || page !== 0))) return;
+    const request = ++this.supplierRequestId, generation = this.session.invalidation(), client = this.clientId();
+    this.supplierOperation?.unsubscribe(); this.supplierBusy.set(true); this.supplierError.set('');
+    this.supplierOperation = this.http.get<unknown>(`${this.base()}/counterparties`, { params: { role: 'SUPPLIER', page: String(page), pageSize: String(this.supplierPageSize) } }).pipe(timeout(15000)).subscribe({
+      next: data => {
+        if (request !== this.supplierRequestId || generation !== this.session.invalidation() || client !== this.clientId()) return;
+        this.supplierBusy.set(false);
+        try {
+          const result = decodeCounterparties(data, client, 'SUPPLIER', page);
+          if (page * this.supplierPageSize >= result.total && page !== 0) throw new Error('Supplier page is beyond the current result set');
+          const items = result.counterparties.filter(item => item.role === 'SUPPLIER' || item.role === 'BOTH').map(item => ({ id: item.id, displayName: item.displayName, role: item.role }));
+          this.suppliers.set(items); this.supplierPage.set(page); this.supplierTotal.set(result.total); this.supplierLoaded.set(true);
+          this.selectedSupplier.set(items.find(item => item.id === this.supplierId) ?? this.selectedSupplier());
+        } catch { this.supplierError.set('Client suppliers could not be validated.'); }
+      },
+      error: () => { if (request === this.supplierRequestId && generation === this.session.invalidation() && client === this.clientId()) { this.supplierBusy.set(false); this.supplierError.set('Client suppliers are unavailable; the displayed page was not replaced.'); } }
+    });
+  }
   loadPurchases(): void { if (this.busy() || this.pendingCommand()) return; const request = ++this.requestId; this.busy.set(true); this.operation = this.http.get<PurchaseRow[]>(`${this.base()}/purchase-invoices`).pipe(timeout(15000)).subscribe({ next: rows => { if (request !== this.requestId) return; this.purchases.set(rows.filter(x => x.currency === this.currency() && x.state === 'POSTED')); this.busy.set(false); }, error: () => { if (request === this.requestId) { this.busy.set(false); this.error.set('Posted client purchases are unavailable.'); } } }); }
   private body(): object | null { if (!guid(this.supplierId) || !guid(this.periodId) || !guid(this.payableRoleId) || !this.reference.trim() || !this.reason.trim() || !this.sourceBasis.trim() || this.lines.some(x => !amountPattern.test(x.amount) || Number(x.amount) <= 0 || !x.accountCode.trim()) || this.originalInvoiceId && !guid(this.originalInvoiceId)) return null; this.creditNoteId ||= crypto.randomUUID(); return { creditNoteId: this.creditNoteId, creditNoteReference: this.reference.trim(), originalInvoiceId: this.originalInvoiceId || null, supplierId: this.supplierId, periodId: this.periodId, payableRoleId: this.payableRoleId, postingDate: this.postingDate, reason: this.reason.trim(), unlinkedExceptionRationale: this.unlinkedRationale.trim(), sourceReceiptId: null, sourceBasis: this.sourceBasis.trim(), lines: this.lines.map(x => ({ originalLineNumber: x.originalLineNumber ? Number(x.originalLineNumber) : null, accountCode: x.accountCode.trim(), amount: x.amount })) }; }
   previewCredit(): void { const body = this.body(); if (!body || this.busy() || this.pendingCommand() || this.pendingStorageBlocked()) return; this.busy.set(true); this.operation = this.http.post<CreditPreview>(`${this.base()}/purchase-credit-notes/preview`, body).pipe(timeout(20000)).subscribe({ next: preview => { this.busy.set(false); this.preview.set(preview); this.submitAssent = false; this.error.set(''); }, error: () => { this.busy.set(false); this.error.set('Supplier credit preview failed. Check its client, supplier, AP role, period and line limits.'); } }); }

@@ -37,6 +37,17 @@ public static partial class UiEndpoints
       return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
     }).Produces<ClientManualSettlementOptions>();
 
+    group.MapGet("/accounting/clients/{clientId:guid}/manual-settlement-requests/{commandId:guid}", async (Guid clientId, Guid commandId,
+      HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await ClientOperationalLedgerWorkspace.FindSettlementByCommandAsync(db, actor, clientId, commandId, http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
+    }).Produces<ClientManualSettlementLookup>();
+
     group.MapPost("/accounting/clients/{clientId:guid}/manual-settlements/preview", async (Guid clientId,
       ClientManualSettlementHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,
       IDbContextFactory<AuditSphereDbContext> factory) =>
@@ -47,7 +58,9 @@ public static partial class UiEndpoints
       if (!TryRequest(clientId, input, out var request)) return Failure("request.invalid");
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, actor, request, http.RequestAborted);
-      return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
+      if (!result.Succeeded) return Failure(result.ErrorCode);
+      http.Response.Headers["X-AuditSphere-Intent-Hash"] = ClientOperationalLedgerWorkspace.SettlementIntentHash(actor, request, result.Value!.Digest);
+      return Results.Ok(result.Value);
     }).Produces<ClientManualSettlementPreview>();
 
     group.MapPost("/accounting/clients/{clientId:guid}/manual-settlements", async (Guid clientId,

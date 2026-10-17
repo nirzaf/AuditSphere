@@ -76,7 +76,7 @@ interface PortalShell { generation: number; onboarding: boolean }
         <audit-portal-finance />
         @if (ws.data(); as w) {
         <section class="panel"><h2>Financial packages for management review</h2>
-          @for (p of packageRows(w.packages); track p.id) {
+          @for (p of w.packages; track p.id) {
             @if (packagePageSize() === 10) {
               <audit-portal-report-action [packageId]="p.id" />
             } @else {
@@ -84,14 +84,11 @@ interface PortalShell { generation: number; onboarding: boolean }
             }
           }
           @empty { <p>No validated packages are available for your current scope.</p> }
-          @if (w.hasMorePackages) {
-            <p>Only the 100 most recent package summaries are loaded. Contact your audit team for older reports.</p>
-          }
-          @if (w.packages.length > 10) {
+          @if (w.packages.length || w.hasMorePackages || packagePage() > 0) {
             <nav class="actions" aria-label="Financial package pages">
-              <button matButton (click)="previousPackagePage()" [disabled]="packagePage() === 0">Previous packages</button>
-              <span aria-live="polite">Page {{ packagePage() + 1 }} of {{ packagePageCount(w.packages.length) }} · {{ packageRangeStart(w.packages.length) }}–{{ packageRangeEnd(w.packages.length) }} of {{ w.packages.length }}</span>
-              <button matButton (click)="nextPackagePage(w.packages.length)" [disabled]="packagePage() + 1 >= packagePageCount(w.packages.length)">Next packages</button>
+              <button matButton (click)="previousPackagePage()" [disabled]="packagePage() === 0 || ws.loading()">Previous packages</button>
+              <span aria-live="polite">Page {{ packagePage() + 1 }} · {{ w.packages.length }} shown</span>
+              <button matButton (click)="nextPackagePage(w.hasMorePackages)" [disabled]="!w.hasMorePackages || ws.loading()">Next packages</button>
               <label for="portal-package-page-size">Packages per page
                 <select id="portal-package-page-size" [value]="packagePageSize()" (change)="setPackagePageSize($event)">
                   @for (size of pageSizes; track size) { <option [value]="size">{{ size }}</option> }
@@ -115,7 +112,7 @@ export class ClientPortalHome {
   readonly requestPageSize = signal(10);
   readonly packagePage = signal(0);
   readonly packagePageSize = signal(10);
-  readonly ws = this.api.resource(() => `/api/ui/portal?page=${this.requestPage()}&pageSize=${this.requestPageSize()}`, portalWorkspace, 'Portal unavailable. A current client assignment is required.');
+  readonly ws = this.api.resource(() => this.workspaceUrl(), portalWorkspace, 'Portal unavailable. A current client assignment is required.');
   /**
    * The authorized portal shell, opened only by a decoded summary of the current session. It outlives a summary reload in
    * progress (polling, paging, refresh), so the child editors keep their drafts, file selection and in-flight command context.
@@ -154,6 +151,12 @@ export class ClientPortalHome {
     if (dueDate < asOfDateUtc) return 'Overdue';
     return dueDate === asOfDateUtc ? 'Due today' : null;
   }
+  private workspaceUrl(): string {
+    const base = `/api/ui/portal?page=${this.requestPage()}&pageSize=${this.requestPageSize()}`;
+    return this.packagePage() === 0 && this.packagePageSize() === 10
+      ? base
+      : `${base}&packagePage=${this.packagePage()}&packagePageSize=${this.packagePageSize()}`;
+  }
   clarificationPreview(request: PortalRequestItem): string {
     return request.clarificationReason?.trim() ? request.clarificationReason : "Open the request to review the firm's instructions.";
   }
@@ -175,12 +178,8 @@ export class ClientPortalHome {
     const size = Number((event.target as HTMLSelectElement).value);
     if ((this.pageSizes as readonly number[]).includes(size)) { this.requestPageSize.set(size); this.requestPage.set(0); }
   }
-  packageRows<T>(rows: T[]): T[] { const start = this.packagePage() * this.packagePageSize(); return rows.slice(start, start + this.packagePageSize()); }
-  packagePageCount(count: number): number { return Math.max(1, Math.ceil(count / this.packagePageSize())); }
-  packageRangeStart(count: number): number { return count === 0 ? 0 : this.packagePage() * this.packagePageSize() + 1; }
-  packageRangeEnd(count: number): number { return Math.min(count, (this.packagePage() + 1) * this.packagePageSize()); }
   previousPackagePage(): void { this.packagePage.update(p => Math.max(0, p - 1)); }
-  nextPackagePage(count: number): void { this.packagePage.update(p => Math.min(this.packagePageCount(count) - 1, p + 1)); }
+  nextPackagePage(hasMore: boolean): void { if (hasMore) this.packagePage.update(p => Math.min(10000, p + 1)); }
   setPackagePageSize(event: Event): void {
     const size = Number((event.target as HTMLSelectElement).value);
     if ((this.pageSizes as readonly number[]).includes(size)) { this.packagePageSize.set(size); this.packagePage.set(0); }

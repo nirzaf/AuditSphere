@@ -13,6 +13,7 @@ const requestWorkspace = (canWrite = true, canDelegate = true) => ({
   requestedFormat: 'PDF', dueDate: '2027-01-31', state: 'SENT', revision: '3',
   firstSignIn: { completed: true, identityPath: 'EXTERNAL_IDENTITY', canComplete: false, message: '' },
   canWrite, canDelegate, delegations: [], candidates: [], uploads: [], conversation: [], clarificationReason: null,
+  hasMoreUploads: false, hasMoreConversation: false,
 });
 
 describe('Client request draft polling', () => {
@@ -69,6 +70,48 @@ describe('Client request draft polling', () => {
     component.sendReply();
     http.expectNone((request) => request.method === 'POST');
     expect(root.textContent).not.toContain('Unsent synthetic reply');
+    fixture.destroy();
+  });
+
+  it('loads independently bounded history pages for the same request and clears the request on history denial', () => {
+    const fixture = TestBed.createComponent(ClientPbcRequest);
+    fixture.detectChanges(); TestBed.tick();
+    const summary = { ...requestWorkspace(), hasMoreUploads: true, hasMoreConversation: true };
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush(summary);
+    TestBed.tick(); fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.nextConversationPage(true); TestBed.tick(); fixture.detectChanges();
+    const olderMessages = http.expectOne(`/api/ui/portal/requests/${id}/history?uploadPage=0&conversationPage=1&pageSize=25`);
+    olderMessages.flush({ requestId: id, uploadPage: 0, conversationPage: 1, pageSize: 25,
+      uploads: [], hasMoreUploads: true,
+      conversation: [{ id: '40000000-0000-4000-8000-000000000011', at: '2026-10-17T10:00:00Z', speaker: 'Audit team', body: 'Older synthetic message' }],
+      hasMoreConversation: false });
+    TestBed.tick(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Older synthetic message');
+    expect(fixture.nativeElement.textContent).toContain('Synthetic request');
+
+    component.nextUploadPage(true); TestBed.tick(); fixture.detectChanges();
+    const olderUploads = http.expectOne(`/api/ui/portal/requests/${id}/history?uploadPage=1&conversationPage=1&pageSize=25`);
+    olderUploads.flush({ requestId: id, uploadPage: 1, conversationPage: 1, pageSize: 25,
+      uploads: [{ id: '40000000-0000-4000-8000-000000000012', fileName: 'older.pdf', receivedByteCount: '1', declaredByteCount: '1',
+        state: 'STAGED', transferState: null, sha256: 'a'.repeat(64), createdAt: '2026-10-16T10:00:00Z' }],
+      hasMoreUploads: false,
+      conversation: [{ id: '40000000-0000-4000-8000-000000000011', at: '2026-10-17T10:00:00Z', speaker: 'Audit team', body: 'Older synthetic message' }],
+      hasMoreConversation: false });
+    TestBed.tick(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('older.pdf');
+    expect(fixture.nativeElement.textContent).toContain('Older synthetic message');
+
+    component.reply.controls.body.setValue('Private draft cleared after denial');
+    component.previousUploadPage(); TestBed.tick(); fixture.detectChanges();
+    http.expectOne(`/api/ui/portal/requests/${id}/history?uploadPage=0&conversationPage=1&pageSize=25`)
+      .flush({ code: 'scope.denied', message: 'Denied' }, { status: 403, statusText: 'Forbidden' });
+    TestBed.tick(); fixture.detectChanges();
+    expect(component.reply.controls.body.value).toBe('');
+    expect(fixture.nativeElement.textContent).not.toContain('Synthetic request');
+    expect(fixture.nativeElement.textContent).not.toContain('Older synthetic message');
+    expect(fixture.nativeElement.textContent).not.toContain('older.pdf');
     fixture.destroy();
   });
 });

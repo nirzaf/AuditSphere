@@ -52,8 +52,8 @@ public static class ApiContract
           Properties = new Dictionary<string, IOpenApiSchema>
           {
             ["code"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Stable bounded error code." },
-            ["message"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Safe user-facing message." },
-            ["correlationId"] = new OpenApiSchema { Type = JsonSchemaType.String, Description = "Matches X-Correlation-Id telemetry." }
+            ["message"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null, Description = "Safe user-facing message." },
+            ["correlationId"] = new OpenApiSchema { Type = JsonSchemaType.String | JsonSchemaType.Null, Description = "Matches X-Correlation-Id telemetry." }
           },
           Required = new HashSet<string> { "code" }
         };
@@ -73,7 +73,12 @@ public static class ApiContract
         if (HttpMethods.IsPost(context.Description.HttpMethod ?? "") && context.Description.AcceptsJsonBody())
           operation.Responses.TryAdd("413", BoundaryError("The JSON command body exceeded the accepted size."));
       });
-      options.AddSchemaTransformer(async (schema, context, ct) => ApplyFinancialDecimalStringRule(schema));
+      options.AddSchemaTransformer((schema, context, _) =>
+      {
+        var clrType = context.JsonPropertyInfo?.PropertyType ?? context.JsonTypeInfo.Type;
+        ApplyFinancialDecimalStringRule(schema, clrType);
+        return Task.CompletedTask;
+      });
     });
 
   /// <summary>Exposes the contract outside production; production exposure stays disabled by default.</summary>
@@ -94,16 +99,23 @@ public static class ApiContract
 
   /// <summary>
   /// Exact decimal wire values stay strings; financial values are never described as
-  /// JavaScript-compatible floating-point numbers.
+  /// JavaScript-compatible floating-point numbers. Request bodies also accept JSON numbers
+  /// for compatibility, while responses are emitted as invariant decimal strings.
   /// </summary>
-  internal static void ApplyFinancialDecimalStringRule(OpenApiSchema schema)
+  internal static void ApplyFinancialDecimalStringRule(OpenApiSchema schema, Type clrType)
   {
-    if (schema.Type is JsonSchemaType.Number && string.Equals(schema.Format, "decimal", StringComparison.OrdinalIgnoreCase))
-    {
-      schema.Type = JsonSchemaType.String;
-      schema.Format = null;
-      schema.Pattern = DecimalStringPattern;
-    }
+    var underlyingType = Nullable.GetUnderlyingType(clrType);
+    if ((underlyingType ?? clrType) != typeof(decimal)) return;
+
+    var allowsNull = underlyingType is not null || (schema.Type & JsonSchemaType.Null) != 0;
+    schema.Type = allowsNull ? JsonSchemaType.String | JsonSchemaType.Null : JsonSchemaType.String;
+    schema.Format = null;
+    schema.Pattern = DecimalStringPattern;
+    const string decimalDescription = "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command.";
+    if (schema.Description?.Contains(decimalDescription, StringComparison.Ordinal) is not true)
+      schema.Description = string.IsNullOrWhiteSpace(schema.Description)
+        ? decimalDescription
+        : $"{schema.Description} {decimalDescription}";
   }
 }
 

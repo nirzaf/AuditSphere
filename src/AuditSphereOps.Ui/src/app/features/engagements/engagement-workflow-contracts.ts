@@ -108,6 +108,9 @@ const workflowTaskDecoder = obj({
   phase: oneOf(...WORKFLOW_PHASES.map((p) => p.code)),
   ordinal: int,
   status: oneOf('OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'),
+  assigneeUserId: nullable(guid),
+  assigneeDisplayName: nullable(str(200)),
+  revision: int,
   dueDate: nullable(str(10)),
   fsliCode: nullable(str(100)),
 });

@@ -38,6 +38,7 @@ public sealed record ConsolidationScopeRow
   public ConsolidationReport? Report { get; init; }
 }
 public sealed record ConsolidationGroupRow(Guid Id, string Code, string Name, IReadOnlyList<ConsolidationScopeRow> Scopes);
+public sealed record ConsolidationOverview(bool CanCreateGroup, IReadOnlyList<ConsolidationGroupRow> Groups);
 
 /// <summary>
 /// Group consolidation overview for explicitly granted groups only (firm-wide grants never imply group access):
@@ -46,8 +47,12 @@ public sealed record ConsolidationGroupRow(Guid Id, string Code, string Name, IR
 /// </summary>
 public static class ConsolidationOverviewQuery
 {
-  public static async Task<CommandResult<IReadOnlyList<ConsolidationGroupRow>>> GetAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default)
+  public static async Task<CommandResult<ConsolidationOverview>> GetAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default)
   {
+
+    var createAccess = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Manager", "Partner", "Administrator"],
+        InternalOnly: true, RequireFirmWide: true), ct);
 
     var candidateGroupIds = await db.GroupAccessGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
       .Select(x => x.GroupId).Distinct().ToArrayAsync(ct);
@@ -149,6 +154,6 @@ public static class ConsolidationOverviewQuery
           Report = reports.GetValueOrDefault(x.Id)
         };
       }).ToArray())).ToList();
-    return CommandResult<IReadOnlyList<ConsolidationGroupRow>>.Ok(result);
+    return CommandResult<ConsolidationOverview>.Ok(new ConsolidationOverview(createAccess.Succeeded, result));
   }
 }

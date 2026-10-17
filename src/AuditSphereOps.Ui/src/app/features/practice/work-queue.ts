@@ -20,10 +20,11 @@ const queueTask = obj({
   engagementPeriod: str(80), title: str(300), phase: str(40), ordinal: int, taskStatus: str(40),
   assigneeUserId: nullable(guid), assigneeDisplayName: nullable(str(200)), dueDate: nullable(date),
   mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), unmetTaskDependencies: int, unmetEvidencePrerequisites: int,
-  canComplete: bool, canChangeDueDate: bool, revision: int,
+  canComplete: bool, canChangeDueDate: bool, canAssign: bool, revision: int,
   pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
   reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
 });
+type QueueTask = ReturnType<typeof queueTask>;
 /** Work overview cards in display order; each opens its server queue view through selectView. */
 const summaryCards: { key: QueueView; label: string }[] = [
   { key: 'MY_TASKS', label: 'My tasks' },
@@ -53,6 +54,7 @@ const decodeQueue = obj({
   nextCursor: nullable(obj({ dueDate: nullable(date), taskId: guid })),
   summary: nullable(decodeQueueSummary),
 });
+const decodeAssigneeOptions = arr(obj({ userId: guid, displayName: nonBlank(200) }), 200);
 const reviewItem = obj({ resultId: guid, procedureId: guid, engagementId: guid, clientName: text,
   serviceRoute: str(100), engagementPeriod: str(80), sourceProcedureId: str(100), procedureTitle: text,
   revision: int, preparedByDisplayName: str(200), submittedAt: instant });
@@ -170,6 +172,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         @if (task.canComplete) {
           <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button>
         }
+        @if (task.canAssign) { <button matButton (click)="openAssignment(task)"> {{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }} </button> }
       </article>
     </ng-template>
     @if (queue.data(); as result) {
@@ -253,7 +256,8 @@ const queueViews: { key: QueueView; label: string }[] = [
                 <button matButton (click)="evidenceTask.set(task)">Review prerequisites</button>
         <button matButton (click)="orderingTask.set(task)">Review task ordering</button></td>
               <td><button matButton (click)="showActivity(task.engagementId, task.taskId, task.title)">{{ activityTask()?.taskId === task.taskId ? 'Hide activity' : 'View activity' }}</button>
-                @if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }</td>
+                @if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }
+                @if (task.canAssign) { <button matButton (click)="openAssignment(task)">{{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}</button> }</td>
             </tr>
           } @empty {
             <tr><td colspan="7">No tasks match this view in your current authorized scope.</td></tr>
@@ -296,6 +300,36 @@ const queueViews: { key: QueueView; label: string }[] = [
           }
         </section>
       }
+      @if (assignmentTask(); as selected) {
+        <section class="activity-panel" aria-labelledby="task-assignment-heading">
+          <h2 id="task-assignment-heading">{{ selected.assigneeUserId ? 'Reassign workflow task' : 'Assign workflow task' }}</h2>
+          @if (assignmentLoading()) { <p role="status">Loading eligible staff for this engagement.</p> }
+          @if (assignmentError()) { <p role="alert">{{ assignmentError() }}</p> }
+          <dl>
+            <dt>Task</dt><dd>{{ selected.title }} ({{ selected.taskId }})</dd>
+            <dt>Engagement</dt><dd>{{ selected.engagementPeriod }} · {{ selected.engagementId }}</dd>
+            <dt>Current owner</dt><dd>{{ selected.assigneeUserId ? (selected.assigneeDisplayName ?? selected.assigneeUserId) : 'Unassigned' }}</dd>
+          </dl>
+          @if (assignmentOptions().length) {
+            <label [attr.for]="'task-assignee-' + selected.taskId">New owner
+              <select [id]="'task-assignee-' + selected.taskId" [value]="assignmentUserId()" (change)="selectAssignmentOwner($any($event.target).value)">
+                <option value="">Choose eligible staff</option>
+                @for (option of assignmentOptions(); track option.userId) { <option [value]="option.userId">{{ option.displayName }}</option> }
+              </select>
+            </label>
+            @if (selectedAssignmentOwner(); as newOwner) {
+              <p>Confirm {{ selected.assigneeUserId ? 'reassign' : 'assign' }} <strong>{{ selected.title }}</strong> in engagement
+                <strong>{{ selected.engagementId }}</strong> from <strong>{{ selected.assigneeUserId ? (selected.assigneeDisplayName ?? selected.assigneeUserId) : 'Unassigned' }}</strong>
+                to <strong>{{ newOwner.displayName }}</strong>.</p>
+              <label><input type="checkbox" [checked]="assignmentReviewed()" (change)="assignmentReviewed.set($any($event.target).checked)" /> I reviewed this exact task, engagement, current owner, and new owner.</label>
+              <button matButton="filled" [disabled]="assignmentBusy() || !assignmentReviewed() || newOwner.userId === selected.assigneeUserId"
+                (click)="saveAssignment()">Confirm assignment</button>
+            }
+          } @else if (!assignmentLoading() && !assignmentError()) { <p>No eligible active staff members are available for this engagement.</p> }
+          <button matButton (click)="closeAssignment()" [disabled]="assignmentBusy()">Cancel</button>
+          @if (assignmentMessage()) { <p [attr.role]="assignmentFailed() ? 'alert' : 'status'">{{ assignmentMessage() }}</p> }
+        </section>
+      }
       <p class="queue-note">Waiting for client is derived from the linked PBC request. Under review and Changes required follow the exact current procedure result; task completion never changes audit review or approval state.</p>
       @if (result.hasMore && result.nextCursor) {
         <button matButton (click)="nextPage(result.nextCursor)">Next tasks</button>
@@ -319,6 +353,15 @@ export class WorkflowWorkQueue {
   readonly activityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly orderingTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly evidenceTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
+  readonly assignmentTask = signal<QueueTask | null>(null);
+  readonly assignmentOptions = signal<{ userId: string; displayName: string }[]>([]);
+  readonly assignmentUserId = signal('');
+  readonly assignmentReviewed = signal(false);
+  readonly assignmentBusy = signal(false);
+  readonly assignmentLoading = signal(false);
+  readonly assignmentError = signal('');
+  readonly assignmentMessage = signal('');
+  readonly assignmentFailed = signal(false);
   private readonly cursor = signal<{ dueDate: string | null; taskId: string } | null>(null);
   private readonly reviewCursor = signal<{ submittedAt: string; resultId: string } | null>(null);
   private readonly activityCursor = signal<{ occurredAt: string; activityId: string } | null>(null);
@@ -363,7 +406,7 @@ export class WorkflowWorkQueue {
   constructor() {
     effect(() => {
       this.session.invalidation(); this.session.current();
-      this.evidenceTask.set(null); this.orderingTask.set(null); this.activityTask.set(null);
+      this.evidenceTask.set(null); this.orderingTask.set(null); this.activityTask.set(null); this.closeAssignment();
     });
     effect(() => {
       const ordering = this.orderingTask(); const page = this.queue.data();
@@ -423,6 +466,57 @@ export class WorkflowWorkQueue {
     return ({ TASK_CREATED: 'Task created', TASK_ASSIGNED: 'Task assigned',
       TASK_REASSIGNED: 'Task reassigned', TASK_COMPLETED: 'Task completed',
       TASK_DUE_DATE_CHANGED: 'Due date changed', TASK_EVIDENCE_RULE_CHANGED: 'Evidence prerequisite changed', TASK_DEPENDENCIES_CHANGED: 'Task ordering changed' } as Record<string, string>)[kind] ?? 'Workflow event';
+  }
+
+  async openAssignment(task: QueueTask): Promise<void> {
+    if (!task.canAssign || this.assignmentBusy()) return;
+    this.assignmentTask.set(task); this.assignmentOptions.set([]); this.assignmentUserId.set('');
+    this.assignmentReviewed.set(false); this.assignmentError.set(''); this.assignmentMessage.set('');
+    this.assignmentLoading.set(true);
+    try {
+      this.assignmentOptions.set(await this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks/assignees`, decodeAssigneeOptions));
+    } catch (error) {
+      this.assignmentError.set(error instanceof Error ? error.message : 'Eligible staff are unavailable. Refresh the task list.');
+    } finally { this.assignmentLoading.set(false); }
+  }
+
+  selectedAssignmentOwner(): { userId: string; displayName: string } | null {
+    return this.assignmentOptions().find(x => x.userId === this.assignmentUserId()) ?? null;
+  }
+
+  selectAssignmentOwner(userId: string): void {
+    this.assignmentUserId.set(userId); this.assignmentReviewed.set(false); this.assignmentMessage.set('');
+  }
+
+  closeAssignment(): void {
+    if (this.assignmentBusy()) return;
+    this.assignmentTask.set(null); this.assignmentOptions.set([]); this.assignmentUserId.set('');
+    this.assignmentReviewed.set(false); this.assignmentError.set('');
+  }
+
+  async saveAssignment(): Promise<void> {
+    const task = this.assignmentTask(); const owner = this.selectedAssignmentOwner();
+    if (!task || !owner || !task.canAssign || !this.assignmentReviewed() || this.assignmentBusy() || owner.userId === task.assigneeUserId) return;
+    this.assignmentBusy.set(true); this.assignmentFailed.set(false); this.assignmentMessage.set('');
+    const action = task.assigneeUserId ? 'reassign' : 'assign';
+    const outcome = await this.api.command(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/${action}`,
+      { assigneeUserId: owner.userId, expectedRevision: task.revision });
+    this.assignmentBusy.set(false);
+    if (outcome.ok) {
+      this.assignmentMessage.set(`Task assigned to ${owner.displayName}.`);
+      this.assignmentTask.set(null); this.assignmentOptions.set([]); this.assignmentReviewed.set(false);
+      this.queue.reload(); this.activity.reload();
+      return;
+    }
+    this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.message);
+    if (!outcome.unknown && (outcome.status === 409 || /stale|revision/i.test(outcome.code))) {
+      this.assignmentTask.set(null); this.assignmentOptions.set([]); this.assignmentReviewed.set(false);
+      this.queue.reload(); this.activity.reload();
+      this.assignmentMessage.set('The task changed before assignment. The queue has been refreshed; reopen it and review the current owner and revision.');
+    } else if (!outcome.unknown && outcome.status === 403) {
+      this.assignmentTask.set(null); this.assignmentOptions.set([]); this.assignmentUserId.set('');
+      this.assignmentReviewed.set(false); this.queue.reload();
+    }
   }
 
   changeDueDate(engagementId: string, taskId: string, revision: number, dueDate: string): void {

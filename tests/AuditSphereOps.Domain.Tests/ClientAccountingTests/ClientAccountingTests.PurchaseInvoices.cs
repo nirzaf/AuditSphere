@@ -45,6 +45,11 @@ public sealed partial class ClientAccountingTests
     {
       var saved = await ClientPurchaseInvoiceWorkflow.SaveDraftAsync(db, maker, scope.ClientA, request);
       Assert.True(saved.Succeeded, saved.Message); invoiceId = saved.Value!.InvoiceId;
+      var draftOutcome = await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, maker, scope.ClientA, request.CommandId, "DRAFT");
+      Assert.True(draftOutcome.Succeeded, draftOutcome.Message);
+      Assert.Equal(saved.Value.Id, draftOutcome.Value!.DraftId); Assert.Equal(saved.Value.SnapshotHash, draftOutcome.Value.Draft!.SnapshotHash);
+      Assert.False((await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, reviewer, scope.ClientA, request.CommandId, "DRAFT")).Succeeded);
+      Assert.False((await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, maker, scope.ClientB, request.CommandId, "DRAFT")).Succeeded);
       Assert.True(saved.Value.Snapshot.LateArrival);
       var submit = new ClientPurchaseInvoiceSubmitRequest(Guid.CreateVersion7(), invoiceId, "1", apRoleId, "");
       var preview = await ClientPurchaseInvoiceWorkflow.PreviewAsync(db, maker, scope.ClientA, submit);
@@ -52,12 +57,24 @@ public sealed partial class ClientAccountingTests
       Assert.Equal("100.000000", preview.Value.Gross);
       var submitted = await ClientPurchaseInvoiceWorkflow.SubmitAsync(db, maker, scope.ClientA, submit with { PreviewDigest = preview.Value.Digest });
       Assert.True(submitted.Succeeded, submitted.Message); submissionId = submitted.Value!.SubmissionId;
+      var submitOutcome = await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, maker, scope.ClientA, submit.CommandId, "SUBMIT");
+      Assert.True(submitOutcome.Succeeded, submitOutcome.Message); Assert.Equal(submissionId, submitOutcome.Value!.SubmissionId);
+      Assert.Equal(submitted.Value.IntentHash, submitOutcome.Value.Receipt!.IntentHash);
+      Assert.False((await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, reviewer, scope.ClientA, submit.CommandId, "SUBMIT")).Succeeded);
+      Assert.False((await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, maker, scope.ClientB, submit.CommandId, "SUBMIT")).Succeeded);
       Assert.Empty(await db.ClientPurchaseInvoiceOpenItems.ToListAsync());
       var review = await ClientPurchaseInvoiceWorkflow.PreviewReviewAsync(db, reviewer, scope.ClientA, submissionId);
       Assert.True(review.Succeeded, review.Message); Assert.True(review.Value!.CanPost); Assert.False(review.Value.DuplicateWarning);
+      var approveCommandId = Guid.CreateVersion7();
       var posted = await ClientPurchaseInvoiceWorkflow.ReviewAsync(db, reviewer, scope.ClientA,
-        new(Guid.CreateVersion7(), submissionId, "APPROVE", "Checked supplier, late evidence and exact expense/AP journal", "", review.Value.Digest));
+        new(approveCommandId, submissionId, "APPROVE", "Checked supplier, late evidence and exact expense/AP journal", "", review.Value.Digest));
       Assert.True(posted.Succeeded, posted.Message);
+      var reviewOutcome = await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, reviewer, scope.ClientA, approveCommandId, "REVIEW");
+      Assert.True(reviewOutcome.Succeeded, reviewOutcome.Message); Assert.Equal("POSTED", reviewOutcome.Value!.Outcome);
+      Assert.Equal(posted.Value.IntentHash, reviewOutcome.Value.PostingReceipt!.IntentHash);
+      Assert.Equal(posted.Value.SubmissionId, reviewOutcome.Value.SubmissionId);
+      Assert.False((await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, maker, scope.ClientA, approveCommandId, "REVIEW")).Succeeded);
+      Assert.False((await ClientPurchaseInvoiceWorkflow.GetCommandOutcomeAsync(db, reviewer, scope.ClientB, approveCommandId, "REVIEW")).Succeeded);
       var open = await db.ClientPurchaseInvoiceOpenItems.SingleAsync(x => x.InvoiceId == invoiceId);
       Assert.Equal(supplierId, open.SupplierId); Assert.Equal(100m, open.OriginalAmount); Assert.Equal(new DateOnly(2026, 2, 10), open.DueDate);
       var journal = await db.ClientOperationalJournalLines.Where(x => x.JournalId == open.JournalId).ToListAsync();

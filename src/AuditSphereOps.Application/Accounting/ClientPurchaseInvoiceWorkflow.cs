@@ -28,6 +28,10 @@ public sealed record ClientPurchaseInvoiceSnapshot(string Version, string Engine
 public sealed record ClientPurchaseInvoiceDraftView(Guid Id, Guid InvoiceId, Guid ClientId, Guid PeriodId,
   Guid SupplierId, string VoucherReference, string SupplierInvoiceReference, string Revision, string SnapshotHash,
   Guid CreatedByUserId, string State, ClientPurchaseInvoiceSnapshot Snapshot);
+public sealed record ClientPurchaseInvoiceDraftDiscoveryRow(Guid InvoiceId, Guid PeriodId, Guid SupplierId,
+  string SupplierName, string VoucherReference, string SupplierInvoiceReference, string Revision, string State, Guid MakerId);
+public sealed record ClientPurchaseInvoiceDraftPage(Guid ClientId, int Page, int PageSize, bool HasMore,
+  IReadOnlyList<ClientPurchaseInvoiceDraftDiscoveryRow> Rows);
 public sealed record ClientPurchaseInvoiceSubmitRequest(Guid CommandId, Guid InvoiceId, string ExpectedDraftRevision,
   Guid PayableRoleId, string PreviewDigest);
 public sealed record ClientPurchaseInvoiceReviewRequest(Guid CommandId, Guid SubmissionId, string Decision,
@@ -49,6 +53,10 @@ public sealed record ClientPurchaseInvoiceReviewPreview(Guid InvoiceId, Guid Sub
   string ReviewContextJson, ClientPurchaseInvoiceManifest Manifest);
 public sealed record ClientPurchaseInvoiceReceipt(Guid CommandId, Guid InvoiceId, Guid SubmissionId,
   string Kind, Guid ActorUserId, string IntentHash, string Outcome, Guid? DecisionId);
+public sealed record ClientPurchaseInvoiceCommandOutcome(Guid CommandId, string Kind, Guid ActorUserId,
+  string IntentHash, string Outcome, Guid InvoiceId, Guid? DraftId, Guid? SubmissionId, Guid? DecisionId,
+  Guid? JournalId, ClientPurchaseInvoiceDraftView? Draft, ClientPurchaseInvoiceReceipt? Receipt,
+  ClientOperationalPostingReceiptView? PostingReceipt);
 public sealed record ClientPurchaseInvoiceView(Guid InvoiceId, Guid SupplierId, string SupplierInvoiceReference,
   string VoucherReference, string State, string Currency, string Gross, string DueDate, string ReceiptDate,
   bool LateArrival, bool DuplicateWarning, Guid SubmissionId, Guid? JournalId, Guid MakerId,
@@ -175,6 +183,122 @@ public static class ClientPurchaseInvoiceWorkflow
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded) return CommandResult<ClientPurchaseInvoiceDraftView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     try { return CommandResult<ClientPurchaseInvoiceDraftView>.Ok(View(row)); }
     catch (InvalidOperationException) { return CommandResult<ClientPurchaseInvoiceDraftView>.Fail(ErrorCodes.ProtectedState, "The retained purchase draft is invalid."); }
+  }
+
+  public static async Task<CommandResult<ClientPurchaseInvoiceDraftPage>> ListDraftsAsync(IClientAccountingDbContext db,
+    ActorContext actor, Guid clientId, int page = 0, int pageSize = 25, CancellationToken ct = default)
+  {
+    if (page is < 0 or > 1_000 || pageSize is < 1 or > 100)
+      return CommandResult<ClientPurchaseInvoiceDraftPage>.Fail(ErrorCodes.Accounting.MappingInvalid, "Choose a bounded purchase draft page.");
+    if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<ClientPurchaseInvoiceDraftPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var latestDrafts = db.ClientPurchaseInvoiceDrafts.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId)
+      .GroupBy(x => x.InvoiceId)
+      .Select(group => group.OrderByDescending(x => x.Revision).First());
+    var resumable = latestDrafts.Where(d =>
+      !db.ClientPurchaseInvoiceSubmissions.Any(s => s.FirmId == actor.FirmId && s.ClientId == clientId && s.DraftId == d.Id) ||
+      db.ClientPurchaseInvoiceSubmissions.Any(s => s.FirmId == actor.FirmId && s.ClientId == clientId && s.DraftId == d.Id &&
+        db.ClientPurchaseInvoiceDecisions.Any(decision => decision.FirmId == actor.FirmId && decision.ClientId == clientId &&
+          decision.SubmissionId == s.Id && decision.Decision == "RETURN")));
+    var rows = await resumable.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.InvoiceId)
+      .Skip(page * pageSize).Take(pageSize + 1)
+      .Select(d => new
+      {
+        d.InvoiceId, d.PeriodId, d.SupplierId, d.VoucherReference, d.SupplierInvoiceReference, d.Revision,
+        d.CreatedByUserId, d.SnapshotJson, d.SnapshotHash,
+        Returned = db.ClientPurchaseInvoiceSubmissions.Any(s => s.FirmId == actor.FirmId && s.ClientId == clientId && s.DraftId == d.Id &&
+          db.ClientPurchaseInvoiceDecisions.Any(decision => decision.FirmId == actor.FirmId && decision.ClientId == clientId &&
+            decision.SubmissionId == s.Id && decision.Decision == "RETURN"))
+      }).ToListAsync(ct);
+    if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<ClientPurchaseInvoiceDraftPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var hasMore = rows.Count > pageSize;
+    var result = new List<ClientPurchaseInvoiceDraftDiscoveryRow>(Math.Min(rows.Count, pageSize));
+    foreach (var row in rows.Take(pageSize))
+    {
+      if (Hash(row.SnapshotJson) != row.SnapshotHash)
+        return CommandResult<ClientPurchaseInvoiceDraftPage>.Fail(ErrorCodes.ProtectedState, "A retained purchase draft identity is invalid.");
+      ClientPurchaseInvoiceSnapshot? snapshot;
+      try { snapshot = JsonSerializer.Deserialize<ClientPurchaseInvoiceSnapshot>(row.SnapshotJson); }
+      catch (JsonException) { snapshot = null; }
+      if (snapshot is null || snapshot.SupplierId != row.SupplierId || snapshot.VoucherReference != row.VoucherReference ||
+          snapshot.SupplierInvoiceReference != row.SupplierInvoiceReference)
+        return CommandResult<ClientPurchaseInvoiceDraftPage>.Fail(ErrorCodes.ProtectedState, "A retained purchase draft does not match its scoped header.");
+      result.Add(new(row.InvoiceId, row.PeriodId, row.SupplierId, snapshot.SupplierName, row.VoucherReference,
+        row.SupplierInvoiceReference, row.Revision.ToString(CultureInfo.InvariantCulture), row.Returned ? "RETURNED" : "DRAFT", row.CreatedByUserId));
+    }
+    return CommandResult<ClientPurchaseInvoiceDraftPage>.Ok(new(clientId, page, pageSize, hasMore, result));
+  }
+
+  public static async Task<CommandResult<ClientPurchaseInvoiceCommandOutcome>> GetCommandOutcomeAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid commandId, string kind, CancellationToken ct = default)
+  {
+    kind = (kind ?? "").Trim().ToUpperInvariant();
+    if (clientId == Guid.Empty || commandId == Guid.Empty || kind is not ("DRAFT" or "SUBMIT" or "REVIEW"))
+      return CommandResult<ClientPurchaseInvoiceCommandOutcome>.Fail(ErrorCodes.Accounting.MappingInvalid, "Choose an exact purchase-invoice command identity.");
+    var roles = kind == "REVIEW" ? Reviewers : Preparers;
+    if (!(await Authorize(db, actor, clientId, roles, ct)).Succeeded)
+      return CommandResult<ClientPurchaseInvoiceCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    ClientPurchaseInvoiceCommandOutcome? outcome = null;
+    if (kind == "DRAFT")
+    {
+      var draft = await db.ClientPurchaseInvoiceDrafts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == commandId, ct);
+      if (draft is not null)
+        try
+        {
+          outcome = new(commandId, kind, actor.UserId, draft.IntentHash, "DRAFT", draft.InvoiceId, draft.Id,
+            null, null, null, View(draft), null, null);
+        }
+        catch (InvalidOperationException)
+        {
+          return CommandResult<ClientPurchaseInvoiceCommandOutcome>.Fail(ErrorCodes.ProtectedState, "The retained purchase draft identity is invalid.");
+        }
+    }
+    else if (kind == "SUBMIT")
+    {
+      var submission = await db.ClientPurchaseInvoiceSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == commandId, ct);
+      if (submission is not null)
+        outcome = new(commandId, kind, actor.UserId, submission.IntentHash, "SUBMITTED", submission.InvoiceId, null,
+          submission.Id, null, submission.JournalId, null, Receipt(submission), null);
+    }
+    else
+    {
+      var decision = await db.ClientPurchaseInvoiceDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == clientId && x.ActorUserId == actor.UserId && x.CommandId == commandId, ct);
+      if (decision is not null)
+      {
+        var submission = await db.ClientPurchaseInvoiceSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+          x.ClientId == clientId && x.Id == decision.SubmissionId, ct);
+        if (submission is null)
+          return CommandResult<ClientPurchaseInvoiceCommandOutcome>.Fail(ErrorCodes.ProtectedState, "The retained purchase decision has no matching submission.");
+        ClientOperationalPostingReceiptView? posting = null;
+        if (decision.Decision == "APPROVE")
+        {
+          var receipt = await db.ClientOperationalPostingReceipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+            x.ClientId == clientId && x.ActorUserId == actor.UserId && x.CommandId == commandId, ct);
+          if (receipt is null || receipt.IntentHash != decision.IntentHash || receipt.JournalId != submission.JournalId)
+            return CommandResult<ClientPurchaseInvoiceCommandOutcome>.Fail(ErrorCodes.ProtectedState, "The approved purchase decision is missing its posting receipt.");
+          posting = new(receipt.CommandId, receipt.ClientId, receipt.JournalId, receipt.ActorUserId,
+            receipt.SubmittedRevision.ToString(CultureInfo.InvariantCulture), receipt.PostedRevision.ToString(CultureInfo.InvariantCulture),
+            receipt.PreviewDigest, receipt.IntentHash, receipt.RecordedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture), "POSTED");
+        }
+        outcome = new(commandId, kind, actor.UserId, decision.IntentHash,
+          decision.Decision == "APPROVE" ? "POSTED" : "RETURNED", submission.InvoiceId, null, submission.Id,
+          decision.Id, submission.JournalId, null, Receipt(decision, submission), posting);
+      }
+    }
+
+    if (!(await Authorize(db, actor, clientId, roles, ct)).Succeeded)
+      return CommandResult<ClientPurchaseInvoiceCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return outcome is null
+      ? CommandResult<ClientPurchaseInvoiceCommandOutcome>.Fail("command.receipt-not-found", "No purchase-invoice outcome was found for this actor and client.")
+      : CommandResult<ClientPurchaseInvoiceCommandOutcome>.Ok(outcome);
   }
 
   private static async Task<CommandResult<ClientPurchaseInvoicePreview>> BuildPreviewAsync(IClientAccountingDbContext db, ActorContext actor,

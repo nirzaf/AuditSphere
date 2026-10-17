@@ -254,7 +254,8 @@ describe('Phase checklists (STE v2.2 section 6.2)', () => {
   const engagementId = '0d3b6a53-7d0a-4b47-9d53-3a2c5c1f4b11';
   const task = (n: number, phase: string, status: string, ordinal = n) => ({
     id: `5a1c1f6e-2f0b-4a0e-8a53-0000000000${String(n).padStart(2, '0')}`,
-    title: `Task ${n}`, phase, ordinal, status, dueDate: null, fsliCode: null,
+    title: `Task ${n}`, phase, ordinal, status, assigneeUserId: null, assigneeDisplayName: null,
+    revision: 1, dueDate: null, fsliCode: null,
   });
 
   it('builds one checklist per phase in phase order, with tasks in their ordinal order', () => {

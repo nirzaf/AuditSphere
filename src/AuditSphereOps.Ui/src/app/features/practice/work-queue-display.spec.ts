@@ -12,7 +12,7 @@ const task = (n: number, taskStatus: string, dueDate: string | null, canComplete
   clientId: user, clientName: 'Synthetic client', engagementId: engagement, engagementServiceRoute: 'Audit',
   engagementPeriod: '2026', title: `Queue task ${n}`, phase: 'AUDIT_FIELDWORK', ordinal: n, taskStatus,
   assigneeUserId: null, assigneeDisplayName: null, dueDate, mappingVersionId: null, fsliCode: null,
-  unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0, canComplete, canChangeDueDate: false, revision: 1,
+  unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0, canComplete, canChangeDueDate: false, canAssign: false, revision: 1,
   pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
 });
 const queue = {
