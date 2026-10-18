@@ -1,6 +1,7 @@
 using System.Data.Common;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -135,8 +136,16 @@ public sealed partial class PlanningResourcesAndMaterialityTests
   {
     await using var pg=await PgTestSchema.CreateAsync();var w=await SeedAsync(pg);await using var db=new AuditSphereDbContext(pg.Options);var actor=w.Actor("partner","Partner");
     var r=await PlanningReview(db,w,PlanningFields(w,"CERTIFICATION"));var first=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,r);Assert.True(first.Succeeded,first.Message);
+    Assert.True((await StaffingService.AssignAsync(db,actor,new(w.EngagementId,w.Users["associate"].Id,StaffingLevels.StaffAssociate))).Succeeded);
+    var allocationFields=PlanningFields(w,"ALLOCATION");
+    var allocationReview=await PlanningReview(db,w,allocationFields);
     await db.Users.Where(x=>x.Id==w.Users["associate"].Id).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Disabled,true));
     Assert.False((await ResourcePlanningCommandWorkspace.PreviewAsync(db,actor,new(Guid.NewGuid(),r.Fields))).Succeeded);
+    Assert.False((await ResourcePlanningCommandWorkspace.PreviewAsync(db,actor,new(Guid.NewGuid(),allocationFields))).Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied,(await ResourcePlanningService.SetAllocationAsync(db,actor,
+      new(w.EngagementId,w.Users["associate"].Id,allocationFields.WeekStart!.Value,allocationFields.PlannedMinutes!.Value))).ErrorCode);
+    Assert.False((await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,allocationReview)).Succeeded);
+    Assert.Empty(await db.StaffAllocations.ToListAsync());
     Assert.False((await ResourcePlanningService.AddCertificationAsync(db,actor,new(w.Users["associate"].Id,"Refused",null,null))).Succeeded);
     Assert.True((await ResourcePlanningCommandWorkspace.LookupAsync(db,actor,r.RequestId,r.RequestHash)).Value!.Found);
     Assert.Equal(first.Value!.Id,(await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,r)).Value!.Id);
