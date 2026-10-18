@@ -121276,10 +121276,15 @@
       },
       "PortalClientFinanceView": {
         "required": [
+          "asOfDateUtc",
           "agreements"
         ],
         "type": "object",
         "properties": {
+          "asOfDateUtc": {
+            "type": "string",
+            "format": "date"
+          },
           "agreements": {
             "type": "array",
             "items": {
@@ -121296,7 +121301,16 @@
           "status",
           "amount",
           "currency",
-          "issuedAt"
+          "postedAt",
+          "sentAt",
+          "deliveryStatus",
+          "collectionStatus",
+          "cashApplied",
+          "creditApplied",
+          "outstandingAmount",
+          "dueDate",
+          "paymentTermsStatus",
+          "agingStatus"
         ],
         "type": "object",
         "properties": {
@@ -121319,12 +121333,47 @@
           "currency": {
             "type": "string"
           },
-          "issuedAt": {
+          "postedAt": {
             "type": [
               "null",
               "string"
             ],
             "format": "date-time"
+          },
+          "sentAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deliveryStatus": {
+            "type": "string"
+          },
+          "collectionStatus": {
+            "type": "string"
+          },
+          "cashApplied": {
+            "type": "string"
+          },
+          "creditApplied": {
+            "type": "string"
+          },
+          "outstandingAmount": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "paymentTermsStatus": {
+            "type": "string"
+          },
+          "agingStatus": {
+            "type": "string"
           }
         }
       },

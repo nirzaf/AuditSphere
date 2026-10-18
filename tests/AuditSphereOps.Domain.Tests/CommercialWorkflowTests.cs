@@ -799,6 +799,30 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(advanceInvoice.Value, (await FeeAgreementService.IssueAdvanceInvoiceAsync(db, w.FinanceManager, agreementId)).Value);
     Assert.Equal(12500m, (await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == advanceInvoice.Value)).Total);
 
+    var clientUser = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, Subject = "client-finance-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant-commercial", Email = "client.portal@gulf.example.test", DisplayName = "Client Portal User",
+      UserKind = "Client", CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.Users.Add(clientUser);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = clientUser.Id, Role = "ClientUser",
+      ClientId = clientId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId
+    });
+    await db.SaveChangesAsync();
+    var clientActor = new ActorContext(clientUser.Id, w.FirmId, clientUser.SessionEpoch, ["ClientUser"]);
+    var draftPortalFinance = await ClientPortalFinanceQuery.GetAsync(db, clientActor);
+    Assert.True(draftPortalFinance.Succeeded, draftPortalFinance.Message);
+    var draftPortalInvoice = Assert.Single(Assert.Single(draftPortalFinance.Value!.Agreements).Invoices);
+    Assert.Equal(BillingStates.InvoiceDraft, draftPortalInvoice.Status);
+    Assert.Equal("NOT_POSTED", draftPortalInvoice.CollectionStatus);
+    Assert.Equal("0", draftPortalInvoice.OutstandingAmount);
+    Assert.Equal("NOT_APPLICABLE", draftPortalInvoice.AgingStatus);
+    Assert.Null(draftPortalInvoice.PostedAt);
+    Assert.Null(draftPortalInvoice.SentAt);
+
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 12500m, "TT-1")).ErrorCode); // draft invoice
     Assert.True((await BillingService.SubmitInvoiceAsync(db, w.FinanceManager, advanceInvoice.Value)).Succeeded);
     Assert.True((await BillingService.ApproveInvoiceAsync(db, w.FinanceReviewer, advanceInvoice.Value)).Succeeded);
@@ -975,21 +999,6 @@ public sealed class CommercialWorkflowTests
     Assert.Equal("finance@gulf.example.test", balNotification.Recipient);
 
     // 9. Client portal user document download
-    var clientUser = new AppUser
-    {
-      Id = Guid.NewGuid(), FirmId = w.FirmId, Subject = "client-finance-" + Guid.NewGuid().ToString("N"),
-      TenantId = "tenant-commercial", Email = "client.portal@gulf.example.test", DisplayName = "Client Portal User",
-      UserKind = "Client", CreatedAt = DateTimeOffset.UtcNow
-    };
-    db.Users.Add(clientUser);
-    db.RoleGrants.Add(new RoleGrant
-    {
-      Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = clientUser.Id, Role = "ClientUser",
-      ClientId = clientId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId
-    });
-    await db.SaveChangesAsync();
-
-    var clientActor = new ActorContext(clientUser.Id, w.FirmId, clientUser.SessionEpoch, ["ClientUser"]);
     var docDownload = await CommercialDocumentService.GetAsync(db, clientActor, balReceiptDoc.Id);
     Assert.True(docDownload.Succeeded, docDownload.Message);
     Assert.NotNull(docDownload.Value);
@@ -1010,6 +1019,17 @@ public sealed class CommercialWorkflowTests
       Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = foreignClientUser.Id, Role = "ClientUser",
       ClientId = otherClient.Id, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId
     });
+    var termsReviewedAt = DateTimeOffset.UtcNow.AddDays(-12);
+    var overdueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-10);
+    db.InvoicePaymentTermsRevisions.Add(new InvoicePaymentTermsRevision
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, InvoiceId = advanceInvoice.Value, Revision = 1,
+      DueDate = overdueDate, Basis = InvoicePaymentTermsKinds.ContractualDueDate,
+      TermsDescription = "Synthetic reviewed payment terms.", EvidenceReference = "TEST-TERMS-001",
+      Status = InvoicePaymentTermsStates.Approved, SubmittedByUserId = w.FinanceManager.UserId,
+      SubmittedAt = termsReviewedAt.AddMinutes(-1), ReviewedByUserId = w.FinanceReviewer.UserId,
+      ReviewedAt = termsReviewedAt, ReviewReason = "Verified synthetic engagement terms."
+    });
     await db.SaveChangesAsync();
     var foreignActor = new ActorContext(foreignClientUser.Id, w.FirmId, foreignClientUser.SessionEpoch, ["ClientUser"]);
     var foreignDoc = await CommercialDocumentService.GetAsync(db, foreignActor, balReceiptDoc.Id);
@@ -1024,6 +1044,12 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(2, agreementFinance.Invoices.Count);
     Assert.Equal(4, agreementFinance.Receipts.Count); // 2 advance receipts + 2 balance receipts
     Assert.Equal("0", agreementFinance.OutstandingBalance);
+    var settledAdvanceInvoice = Assert.Single(agreementFinance.Invoices, x => x.InvoiceId == advanceInvoice.Value);
+    Assert.Equal("PAID", settledAdvanceInvoice.CollectionStatus);
+    Assert.Equal(FirmReceivablesAgingPolicy.Settled, settledAdvanceInvoice.AgingStatus);
+    Assert.Equal(overdueDate, settledAdvanceInvoice.DueDate);
+    Assert.Equal(InvoicePaymentTermsStates.Approved, settledAdvanceInvoice.PaymentTermsStatus);
+    Assert.Equal("NOT_TRACKED", settledAdvanceInvoice.DeliveryStatus);
     var originalPortalReceipt = Assert.Single(agreementFinance.Receipts, x => x.ReceiptId == partial.Value.ReceiptId);
     Assert.Equal(5000m, decimal.Parse(originalPortalReceipt.Amount, CultureInfo.InvariantCulture));
     Assert.Equal(5000m, decimal.Parse(originalPortalReceipt.AppliedAmount, CultureInfo.InvariantCulture));
@@ -1107,6 +1133,11 @@ public sealed class CommercialWorkflowTests
     Assert.True(reopenedPortalFinance.Succeeded, reopenedPortalFinance.Message);
     var reopenedPortalAgreement = Assert.Single(reopenedPortalFinance.Value!.Agreements);
     Assert.Equal(100m, decimal.Parse(reopenedPortalAgreement.OutstandingBalance, CultureInfo.InvariantCulture));
+    var reopenedAdvanceInvoice = Assert.Single(reopenedPortalAgreement.Invoices, x => x.InvoiceId == advanceInvoice.Value);
+    Assert.Equal("PARTIALLY_PAID", reopenedAdvanceInvoice.CollectionStatus);
+    Assert.Equal("12400", reopenedAdvanceInvoice.CashApplied);
+    Assert.Equal("100", reopenedAdvanceInvoice.OutstandingAmount);
+    Assert.Equal(FirmReceivablesAgingPolicy.Overdue1To30, reopenedAdvanceInvoice.AgingStatus);
     var reversedPortalReceipt = Assert.Single(reopenedPortalAgreement.Receipts, x => x.ReceiptId == partial.Value.ReceiptId);
     Assert.Equal(5000m, decimal.Parse(reversedPortalReceipt.Amount, CultureInfo.InvariantCulture));
     Assert.Equal(4900m, decimal.Parse(reversedPortalReceipt.AppliedAmount, CultureInfo.InvariantCulture));

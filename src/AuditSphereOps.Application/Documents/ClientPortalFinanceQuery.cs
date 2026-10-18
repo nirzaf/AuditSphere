@@ -16,7 +16,16 @@ public sealed record PortalClientMilestoneInvoice(
   string Status,
   string Amount,
   string Currency,
-  DateTimeOffset? IssuedAt);
+  DateTimeOffset? PostedAt,
+  DateTimeOffset? SentAt,
+  string DeliveryStatus,
+  string CollectionStatus,
+  string CashApplied,
+  string CreditApplied,
+  string OutstandingAmount,
+  DateOnly? DueDate,
+  string PaymentTermsStatus,
+  string AgingStatus);
 
 public sealed record PortalClientReceipt(
   Guid ReceiptId,
@@ -40,6 +49,7 @@ public sealed record PortalClientFinanceAgreement(
   IReadOnlyList<PortalClientReceipt> Receipts);
 
 public sealed record PortalClientFinanceView(
+  DateOnly AsOfDateUtc,
   IReadOnlyList<PortalClientFinanceAgreement> Agreements);
 
 public static class ClientPortalFinanceQuery
@@ -54,6 +64,7 @@ public static class ClientPortalFinanceQuery
       return CommandResult<PortalClientFinanceView>.Fail(ErrorCodes.ScopeDenied, "Finance documents unavailable.");
 
     var now = DateTimeOffset.UtcNow;
+    var asOfDateUtc = DateOnly.FromDateTime(now.UtcDateTime);
     // Client grants carry an exact scope: a client-wide grant (no engagement) covers the client's
     // agreements, while an engagement-scoped grant only covers that engagement's agreement. The
     // query never widens an engagement-only grant to sibling engagements (STE-REM-03).
@@ -64,7 +75,7 @@ public static class ClientPortalFinanceQuery
       .ToListAsync(ct);
 
     if (grants.Count == 0)
-      return CommandResult<PortalClientFinanceView>.Ok(new([]));
+      return CommandResult<PortalClientFinanceView>.Ok(new(asOfDateUtc, []));
 
     var clientIds = grants.Select(x => x.ClientId).Distinct().ToList();
     var clientWide = grants.Where(x => x.EngagementId == null).Select(x => x.ClientId).ToHashSet();
@@ -94,68 +105,113 @@ public static class ClientPortalFinanceQuery
 
       foreach (var milestone in milestones)
       {
-        if (milestone.InvoiceId.HasValue)
-        {
-          var invoice = await db.Invoices.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Id == milestone.InvoiceId.Value && x.FirmId == actor.FirmId, ct);
-          if (invoice is not null)
+        if (!milestone.InvoiceId.HasValue) continue;
+
+        var invoiceId = milestone.InvoiceId.Value;
+        var invoice = await db.Invoices.AsNoTracking()
+          .SingleOrDefaultAsync(x => x.Id == invoiceId && x.FirmId == actor.FirmId, ct);
+        var allocations = await (
+          from allocation in db.ReceiptAllocations.AsNoTracking()
+          join receipt in db.Receipts.AsNoTracking()
+            on new { allocation.FirmId, allocation.ReceiptId } equals new { receipt.FirmId, ReceiptId = receipt.Id }
+          where allocation.FirmId == actor.FirmId && allocation.InvoiceId == invoiceId &&
+            receipt.Status == BillingStates.ReceiptRecorded
+          select new
           {
-            invoiceList.Add(new(
-              invoice.Id,
-              milestone.Kind,
-              invoice.InvoiceNumber,
-              invoice.Status,
-              Exact(invoice.Total),
-              agreement.Currency,
-              invoice.PostedAt ?? invoice.SentAt ?? invoice.CreatedAt));
-          }
+            allocation.ReceiptId,
+            allocation.Amount,
+            ApprovedReversedAmount = db.ReceiptAllocationReversals.AsNoTracking()
+              .Where(reversal => reversal.FirmId == actor.FirmId && reversal.ReceiptAllocationId == allocation.Id &&
+                reversal.Status == ReceiptAllocationReversalStates.Approved)
+              .Sum(reversal => (decimal?)reversal.Amount) ?? 0m
+          }).ToListAsync(ct);
+        var allocationAmountsByReceipt = allocations.GroupBy(x => x.ReceiptId).ToDictionary(group => group.Key, group =>
+          (Original: group.Sum(x => x.Amount),
+            Applied: MoneyPolicy.Normalize(group.Sum(x => x.Amount - x.ApprovedReversedAmount))));
+        var receiptIds = allocationAmountsByReceipt.Keys.ToList();
+        List<Receipt> receipts = receiptIds.Count == 0 ? [] : await db.Receipts.AsNoTracking()
+          .Where(x => x.FirmId == actor.FirmId && x.Status == BillingStates.ReceiptRecorded && receiptIds.Contains(x.Id))
+          .OrderBy(x => x.ReceivedAt)
+          .ToListAsync(ct);
+        var cashApplied = MoneyPolicy.Normalize(allocationAmountsByReceipt.Values.Sum(x => x.Applied));
+        totalPaid += cashApplied;
+
+        if (invoice is not null)
+        {
+          var creditApplied = MoneyPolicy.Normalize(await db.CreditNotes.AsNoTracking()
+            .Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId && x.Status == BillingStates.CreditIssued)
+            .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m);
+          var termRevisions = await db.InvoicePaymentTermsRevisions.AsNoTracking()
+            .Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId)
+            .OrderBy(x => x.Revision)
+            .ToListAsync(ct);
+          var approvedTerms = termRevisions
+            .Where(x => x.Status == InvoicePaymentTermsStates.Approved && x.ReviewedAt is { } reviewedAt && reviewedAt <= now)
+            .OrderByDescending(x => x.Revision)
+            .FirstOrDefault();
+          var latestTerms = termRevisions.LastOrDefault();
+          var paymentTermsStatus = latestTerms is null
+            ? "NOT_CONFIGURED"
+            : latestTerms.ReviewedAt is null || latestTerms.ReviewedAt > now
+              ? InvoicePaymentTermsStates.PendingReview
+              : latestTerms.Status;
+          var isPostedReceivable = invoice.PostedAt is not null &&
+            invoice.Status is (BillingStates.InvoicePosted or BillingStates.InvoiceSent);
+          var isCancelled = invoice.Status == BillingStates.InvoiceCancelled;
+          var dueDate = approvedTerms?.DueDate;
+          var invoiceOutstanding = isPostedReceivable
+            ? Math.Max(0m, invoice.Total - cashApplied - creditApplied)
+            : 0m;
+          var collectionStatus = isCancelled
+            ? BillingStates.InvoiceCancelled
+            : !isPostedReceivable
+              ? "NOT_POSTED"
+              : invoiceOutstanding > 0m
+                ? cashApplied > 0m ? "PARTIALLY_PAID" : creditApplied > 0m ? "PARTIALLY_CREDITED" : "UNPAID"
+                : cashApplied >= invoice.Total && invoice.Total > 0m
+                  ? "PAID"
+                  : creditApplied > 0m ? "SETTLED_WITH_CREDIT" : "SETTLED";
+          var agingStatus = isPostedReceivable
+            ? FirmReceivablesAgingPolicy.Bucket(dueDate, asOfDateUtc, invoiceOutstanding)
+            : "NOT_APPLICABLE";
+
+          invoiceList.Add(new(
+            invoice.Id,
+            milestone.Kind,
+            invoice.InvoiceNumber,
+            invoice.Status,
+            Exact(invoice.Total),
+            invoice.Currency ?? agreement.Currency,
+            invoice.PostedAt,
+            invoice.SentAt,
+            "NOT_TRACKED",
+            collectionStatus,
+            Exact(cashApplied),
+            Exact(creditApplied),
+            Exact(invoiceOutstanding),
+            dueDate,
+            paymentTermsStatus,
+            agingStatus));
         }
 
-        if (milestone.InvoiceId.HasValue)
+        var doc = await db.CommercialDocuments.AsNoTracking()
+          .Where(x => x.FirmId == actor.FirmId && x.FeeMilestoneId == milestone.Id && x.Kind == CommercialDocumentKinds.PaymentReceipt)
+          .OrderByDescending(x => x.CreatedAt)
+          .FirstOrDefaultAsync(ct);
+
+        foreach (var receipt in receipts)
         {
-          var invoiceId = milestone.InvoiceId.Value;
-          var allocations = await db.ReceiptAllocations.AsNoTracking()
-            .Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId)
-            .Select(x => new
-            {
-              x.ReceiptId,
-              x.Amount,
-              ApprovedReversedAmount = db.ReceiptAllocationReversals.AsNoTracking()
-                .Where(reversal => reversal.FirmId == actor.FirmId && reversal.ReceiptAllocationId == x.Id &&
-                  reversal.Status == ReceiptAllocationReversalStates.Approved)
-                .Sum(reversal => (decimal?)reversal.Amount) ?? 0m
-            })
-            .ToListAsync(ct);
-          var allocationAmountsByReceipt = allocations.GroupBy(x => x.ReceiptId).ToDictionary(group => group.Key, group =>
-            (Original: group.Sum(x => x.Amount),
-              Applied: MoneyPolicy.Normalize(group.Sum(x => x.Amount - x.ApprovedReversedAmount))));
-          var receiptIds = allocationAmountsByReceipt.Keys.ToList();
-          var receipts = await db.Receipts.AsNoTracking()
-            .Where(x => x.FirmId == actor.FirmId && receiptIds.Contains(x.Id))
-            .OrderBy(x => x.ReceivedAt)
-            .ToListAsync(ct);
-
-          var doc = await db.CommercialDocuments.AsNoTracking()
-            .Where(x => x.FirmId == actor.FirmId && x.FeeMilestoneId == milestone.Id && x.Kind == CommercialDocumentKinds.PaymentReceipt)
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefaultAsync(ct);
-
-          foreach (var receipt in receipts)
-          {
-            var amounts = allocationAmountsByReceipt[receipt.Id];
-            totalPaid += amounts.Applied;
-
-            receiptList.Add(new(
-              receipt.Id,
-              doc?.Id,
-              milestone.Kind,
-              Exact(amounts.Original),
-              Exact(amounts.Applied),
-              agreement.Currency,
-              receipt.Reference,
-              receipt.ReceivedAt,
-              doc is not null ? $"/api/commercial/documents/{doc.Id}/download" : null));
-          }
+          var amounts = allocationAmountsByReceipt[receipt.Id];
+          receiptList.Add(new(
+            receipt.Id,
+            doc?.Id,
+            milestone.Kind,
+            Exact(amounts.Original),
+            Exact(amounts.Applied),
+            receipt.Currency ?? agreement.Currency,
+            receipt.Reference,
+            receipt.ReceivedAt,
+            doc is not null ? $"/api/commercial/documents/{doc.Id}/download" : null));
         }
       }
 
@@ -172,6 +228,6 @@ public static class ClientPortalFinanceQuery
         receiptList));
     }
 
-    return CommandResult<PortalClientFinanceView>.Ok(new(agreementViews));
+    return CommandResult<PortalClientFinanceView>.Ok(new(asOfDateUtc, agreementViews));
   }
 }

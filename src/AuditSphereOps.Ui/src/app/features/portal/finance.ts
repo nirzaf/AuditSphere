@@ -1,10 +1,11 @@
 import { Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
-import { arr, guid, instant, nullable, obj, text } from '../../core/decode';
+import { arr, date, guid, instant, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
 export const portalFinanceContract = obj({
+  asOfDateUtc: date,
   agreements: arr(
     obj({
       agreementId: guid,
@@ -21,7 +22,16 @@ export const portalFinanceContract = obj({
           status: text,
           amount: text,
           currency: text,
-          issuedAt: nullable(instant),
+          postedAt: nullable(instant),
+          sentAt: nullable(instant),
+          deliveryStatus: text,
+          collectionStatus: text,
+          cashApplied: text,
+          creditApplied: text,
+          outstandingAmount: text,
+          dueDate: nullable(date),
+          paymentTermsStatus: text,
+          agingStatus: text,
         }),
         50
       ),
@@ -52,6 +62,7 @@ export const portalFinanceContract = obj({
       <h2 id="portal-finance-heading">Billing and payment receipts</h2>
       <audit-state [loading]="ws.loading()" [error]="ws.error()" label="your financial records" />
       @if (ws.data(); as data) {
+        <p class="aging-as-of">Invoice aging as of {{ data.asOfDateUtc }} UTC. Lifecycle, cash collection and aging are separate states; invoice-specific provider delivery is shown only when recorded.</p>
         @for (agr of data.agreements; track agr.agreementId) {
           <article class="agreement-card">
             <h3>
@@ -71,9 +82,17 @@ export const portalFinanceContract = obj({
                       <tr>
                         <th>Type</th>
                         <th>Invoice #</th>
-                        <th>Status</th>
+                        <th>Lifecycle</th>
+                        <th>Collection</th>
+                        <th>Aging</th>
                         <th>Amount</th>
-                        <th>Issued</th>
+                        <th>Cash applied</th>
+                        <th>Credit applied</th>
+                        <th>Outstanding</th>
+                        <th>Approved due date</th>
+                        <th>Posted</th>
+                        <th>Sent</th>
+                        <th>Provider delivery</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -82,8 +101,21 @@ export const portalFinanceContract = obj({
                           <td>{{ inv.kind === 'ADVANCE' ? 'Advance' : 'Final Balance' }}</td>
                           <td><code>{{ inv.invoiceNumber }}</code></td>
                           <td><audit-status [value]="inv.status" /></td>
+                          <td><audit-status [value]="inv.collectionStatus" /></td>
+                          <td><audit-status [value]="inv.agingStatus" /></td>
                           <td>{{ inv.amount }} {{ inv.currency }}</td>
-                          <td>{{ inv.issuedAt ?? '—' }}</td>
+                          <td>{{ inv.cashApplied }} {{ inv.currency }}</td>
+                          <td>{{ inv.creditApplied }} {{ inv.currency }}</td>
+                          <td>{{ inv.outstandingAmount }} {{ inv.currency }}</td>
+                          <td>
+                            {{ inv.dueDate ?? '—' }}
+                            @if (inv.paymentTermsStatus !== 'APPROVED' && inv.paymentTermsStatus !== 'NOT_CONFIGURED') {
+                              <small>Terms {{ inv.paymentTermsStatus }}</small>
+                            }
+                          </td>
+                          <td>{{ inv.postedAt ?? '—' }}</td>
+                          <td>{{ inv.sentAt ?? '—' }}</td>
+                          <td><audit-status [value]="inv.deliveryStatus" /></td>
                         </tr>
                       }
                     </tbody>
@@ -159,7 +191,8 @@ export const portalFinanceContract = obj({
       gap: 1rem;
     }
     .finance-table {
-      width: 100%;
+      width: max-content;
+      min-width: 100%;
       border-collapse: collapse;
       margin-block-start: 0.5rem;
       th, td {
@@ -171,6 +204,16 @@ export const portalFinanceContract = obj({
         font-weight: 600;
         color: var(--mat-sys-on-surface-variant);
       }
+    }
+    .table-section {
+      overflow-x: auto;
+    }
+    .aging-as-of {
+      color: var(--mat-sys-on-surface-variant);
+    }
+    small {
+      display: block;
+      color: var(--mat-sys-on-surface-variant);
     }
   `,
 })

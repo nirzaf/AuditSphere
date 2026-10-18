@@ -67,7 +67,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/branding').flush(branding);
     http.expectOne('/api/ui/portal/documents').flush(shared);
     http.expectOne('/api/ui/portal/accounting/journals?page=0').flush({ items: [], page: 0, hasMore: false });
-    http.expectOne('/api/ui/portal/finance').flush({ agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' });
+    http.expectOne('/api/ui/portal/finance').flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' });
     settle();
     const editor = () => fixture.debugElement.query(By.directive(PortalDocuments))?.componentInstance as PortalDocuments | undefined;
     const original = editor()!;
@@ -144,7 +144,7 @@ describe('Client portal workspace paging', () => {
       http.match('/api/ui/portal/branding').forEach((req) => req.flush(branding));
       http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
       http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
-      http.match('/api/ui/portal/finance').forEach((req) => req.flush({ agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
+      http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
       const reports = http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'));
       reports.forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
       TestBed.tick(); fixture.detectChanges();
@@ -215,21 +215,35 @@ describe('Client portal workspace paging', () => {
     fixture.destroy();
   });
 
-  it('shows the original receipt allocation separately from currently applied cash', async () => {
+  it('shows invoice lifecycle, cash, credit, overdue and untracked delivery states separately', async () => {
     const fixture = TestBed.createComponent(PortalFinance);
     fixture.detectChanges(); TestBed.tick();
-    http.expectOne('/api/ui/portal/finance').flush({ agreements: [{
+    http.expectOne('/api/ui/portal/finance').flush({ asOfDateUtc: '2026-10-18', agreements: [{
       agreementId: id(601), engagementId: id(602), agreedFee: '25000', currency: 'QAR', advancePercent: '50',
-      outstandingBalance: '100', invoices: [], receipts: [{ receiptId: id(603), documentId: null, kind: 'ADVANCE',
+      outstandingBalance: '100', invoices: [{ invoiceId: id(604), kind: 'ADVANCE', invoiceNumber: 'INV-ADV-1',
+        status: 'SENT', amount: '12500', currency: 'QAR', postedAt: '2026-10-01T09:00:00Z', sentAt: '2026-10-02T09:00:00Z',
+        deliveryStatus: 'NOT_TRACKED', collectionStatus: 'PARTIALLY_PAID', cashApplied: '4900', creditApplied: '7500',
+        outstandingAmount: '100', dueDate: '2026-10-13', paymentTermsStatus: 'APPROVED', agingStatus: 'OVERDUE_1_30' }],
+      receipts: [{ receiptId: id(603), documentId: null, kind: 'ADVANCE',
         amount: '5000', appliedAmount: '4900', currency: 'QAR', reference: 'SYNTHETIC-ADVANCE',
         receivedAt: '2026-10-18T08:00:00Z', downloadUrl: null }],
     }] });
     await fixture.whenStable(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
-    const cells = root.querySelectorAll('tbody tr td');
-    expect(cells[2].textContent).toContain('5000 QAR');
-    expect(cells[3].textContent).toContain('4900 QAR');
+    const receiptCells = root.querySelectorAll('table[aria-label="Payment receipts"] tbody tr td');
+    expect(receiptCells[2].textContent).toContain('5000 QAR');
+    expect(receiptCells[3].textContent).toContain('4900 QAR');
     expect(root.textContent).toContain('independently approved allocation reversals');
+    expect(root.textContent).toContain('Invoice aging as of 2026-10-18 UTC');
+    const invoiceRow = root.querySelector('table[aria-label="Fee invoices"] tbody tr')!;
+    expect(invoiceRow.textContent).toContain('sent');
+    expect(invoiceRow.textContent).toContain('partially paid');
+    expect(invoiceRow.textContent).toContain('overdue 1 30');
+    expect(invoiceRow.textContent).toContain('4900 QAR');
+    expect(invoiceRow.textContent).toContain('7500 QAR');
+    expect(invoiceRow.textContent).toContain('100 QAR');
+    expect(invoiceRow.textContent).toContain('2026-10-13');
+    expect(invoiceRow.textContent).toContain('not tracked');
     fixture.destroy();
   });
 
@@ -276,7 +290,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/branding').flush(branding);
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
-    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
+    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
     TestBed.tick(); fixture.detectChanges();
@@ -311,7 +325,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/branding').flush(branding);
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
-    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
+    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
     TestBed.tick(); fixture.detectChanges();
@@ -335,7 +349,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/branding').flush(branding);
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
-    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
+    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
     TestBed.tick(); fixture.detectChanges();
