@@ -478,13 +478,23 @@ public static partial class PracticeTimeService
     var entry = await LoadTimeForUpdateAsync(db, actor.FirmId, timeEntryId, ct);
     if (entry is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (entry.Status == PracticeTimeStates.TimeSubmitted) return CommandResult.Ok();
-    if (entry.Status != PracticeTimeStates.TimeDraft)
-      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft time entry can be submitted.");
+    if (entry.Status is not (PracticeTimeStates.TimeDraft or PracticeTimeStates.TimeReturned))
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft or returned time entry can be submitted.");
     if (entry.UserId != actor.UserId &&
         !await IsElevatedAsync(db, actor, task.ClientId, task.EngagementId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Only the entry owner or an authorized manager can submit time.");
+    if (entry.SubmissionRound == int.MaxValue)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The time entry has reached its submission history limit.");
+    var now = DateTimeOffset.UtcNow;
+    entry.SubmissionRound++;
     entry.Status = PracticeTimeStates.TimeSubmitted;
-    entry.SubmittedAt = DateTimeOffset.UtcNow;
+    entry.SubmittedAt = now;
+    db.TimeEntryReviewEvents.Add(new TimeEntryReviewEvent
+    {
+      Id = Guid.CreateVersion7(), FirmId = entry.FirmId, TimeEntryId = entry.Id,
+      SubmissionRound = entry.SubmissionRound, ActorUserId = actor.UserId,
+      Action = PracticeTimeStates.ReviewSubmitted, CreatedAt = now
+    });
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -514,7 +524,55 @@ public static partial class PracticeTimeService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Time preparers cannot approve their own entry.");
     entry.Status = PracticeTimeStates.TimeApproved;
     entry.ApprovedByUserId = actor.UserId;
-    entry.ApprovedAt = DateTimeOffset.UtcNow;
+    var now = DateTimeOffset.UtcNow;
+    entry.ApprovedAt = now;
+    db.TimeEntryReviewEvents.Add(new TimeEntryReviewEvent
+    {
+      Id = Guid.CreateVersion7(), FirmId = entry.FirmId, TimeEntryId = entry.Id,
+      SubmissionRound = entry.SubmissionRound, ActorUserId = actor.UserId,
+      Action = PracticeTimeStates.ReviewApproved, CreatedAt = now
+    });
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult.Ok();
+  }
+
+  public static async Task<CommandResult> ReturnTimeAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid timeEntryId, string reason, CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 2000)
+      return CommandResult.Fail("time.invalid", "Enter a return reason of 1 to 2000 characters.");
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var snapshot = await db.TimeEntries.AsNoTracking().SingleOrDefaultAsync(
+      x => x.Id == timeEntryId && x.FirmId == actor.FirmId, ct);
+    if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var firm = await LockFirmAsync(db, actor.FirmId, ct);
+    if (firm is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    var guard = await LockClientAsync(db, actor.FirmId, snapshot.ClientId, ct);
+    if (!guard.Succeeded) return guard;
+    var task = await LoadTaskForUpdateAsync(db, actor.FirmId, snapshot.TaskId, ct);
+    if (task is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeTaskAsync(db, actor, task, ApprovalRoles, ct);
+    if (!auth.Succeeded) return auth;
+    var entry = await LoadTimeForUpdateAsync(db, actor.FirmId, timeEntryId, ct);
+    if (entry is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (entry.UserId == actor.UserId)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Time preparers cannot return their own entry.");
+    if (entry.Status != PracticeTimeStates.TimeSubmitted)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only submitted time can be returned.");
+    if (entry.SubmissionRound < 1)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The submitted time entry has no valid review round.");
+
+    var now = DateTimeOffset.UtcNow;
+    var trimmedReason = reason.Trim();
+    entry.Status = PracticeTimeStates.TimeReturned;
+    entry.LastReturnReason = trimmedReason;
+    db.TimeEntryReviewEvents.Add(new TimeEntryReviewEvent
+    {
+      Id = Guid.CreateVersion7(), FirmId = entry.FirmId, TimeEntryId = entry.Id,
+      SubmissionRound = entry.SubmissionRound, ActorUserId = actor.UserId,
+      Action = PracticeTimeStates.ReviewReturned, Reason = trimmedReason, CreatedAt = now
+    });
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();

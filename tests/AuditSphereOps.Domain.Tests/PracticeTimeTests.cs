@@ -8,6 +8,9 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -265,6 +268,93 @@ public sealed class PracticeTimeTests
       Assert.Equal(100m, entry.RatePerHour);
       Assert.Equal("QAR", entry.Currency);
       Assert.Equal(1, entry.Revision);
+    }
+  }
+
+  [Fact]
+  public async Task ReturnedTime_RetainsEachReviewRound_ReusesItsRateSnapshot_AndEntersBillingOnlyOnceAfterApproval()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var finance = User(fixture.FirmId, "FinanceReviewer");
+    var financeActor = Actor(finance, "FinanceManager");
+    var workDate = new DateOnly(2026, 1, 10);
+    Guid timeEntryId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(finance);
+      await db.SaveChangesAsync();
+      db.RoleGrants.Add(Grant(fixture.FirmId, finance, "FinanceManager"));
+      await db.SaveChangesAsync();
+      var taskId = (await PracticeTimeService.CreateTaskAsync(db, fixture.ManagerActor,
+        new CreateTaskRequest("Prepare schedules", fixture.ClientId, fixture.EngagementId))).Value;
+      await CreateApprovedRateAsync(db, fixture);
+      timeEntryId = (await PracticeTimeService.SaveTimeDraftAsync(db, fixture.ManagerActor,
+        new SaveTimeDraftRequest(taskId, workDate, 9 * 60, 60, "Staff", "Schedules", Currency: "QAR"))).Value;
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.ManagerActor, timeEntryId)).Succeeded);
+
+      var selfReturn = await PracticeTimeService.ReturnTimeAsync(db, fixture.ManagerActor, timeEntryId, "Own entry");
+      Assert.False(selfReturn.Succeeded);
+      Assert.Equal(ErrorCodes.ProtectedState, selfReturn.ErrorCode);
+
+      var returned = await PracticeTimeService.ReturnTimeAsync(db, fixture.PartnerActor, timeEntryId,
+        "Explain the source of the recorded hours.");
+      Assert.True(returned.Succeeded, returned.Message);
+      var record = await db.TimeEntries.SingleAsync(x => x.Id == timeEntryId);
+      Assert.Equal(PracticeTimeStates.TimeReturned, record.Status);
+      Assert.Equal("Explain the source of the recorded hours.", record.LastReturnReason);
+      Assert.Equal(100m, record.RatePerHour);
+      Assert.Equal(1, record.SubmissionRound);
+      var notYetBillable = await FirmUnbilledTimeQuery.GetAsync(db, financeActor,
+        new FirmUnbilledTimeRequest(workDate, workDate));
+      Assert.True(notYetBillable.Succeeded, notYetBillable.Message);
+      Assert.Empty(notYetBillable.Value!.Rows);
+
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.ManagerActor, timeEntryId)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, timeEntryId)).Succeeded);
+      var approved = await db.TimeEntries.SingleAsync(x => x.Id == timeEntryId);
+      Assert.Equal(PracticeTimeStates.TimeApproved, approved.Status);
+      Assert.Equal(2, approved.SubmissionRound);
+      Assert.Equal(100m, approved.RatePerHour);
+      Assert.Equal(1, await db.TimeEntries.CountAsync(x => x.Id == timeEntryId));
+
+      var history = await db.TimeEntryReviewEvents.AsNoTracking().Where(x => x.TimeEntryId == timeEntryId)
+        .OrderBy(x => x.SubmissionRound).ThenBy(x => x.CreatedAt).ToListAsync();
+      Assert.Equal(4, history.Count);
+      Assert.Collection(history.Where(x => x.SubmissionRound == 1).OrderBy(x => x.CreatedAt),
+        submitted => Assert.Equal(PracticeTimeStates.ReviewSubmitted, submitted.Action),
+        returnedEvent =>
+        {
+          Assert.Equal(PracticeTimeStates.ReviewReturned, returnedEvent.Action);
+          Assert.Equal("Explain the source of the recorded hours.", returnedEvent.Reason);
+          Assert.Equal(fixture.Partner.Id, returnedEvent.ActorUserId);
+        });
+      Assert.Collection(history.Where(x => x.SubmissionRound == 2).OrderBy(x => x.CreatedAt),
+        approvedSubmission => Assert.Equal(PracticeTimeStates.ReviewSubmitted, approvedSubmission.Action),
+        approvedEvent =>
+        {
+          Assert.Equal(PracticeTimeStates.ReviewApproved, approvedEvent.Action);
+          Assert.Equal(fixture.Partner.Id, approvedEvent.ActorUserId);
+          Assert.Null(approvedEvent.Reason);
+        });
+
+      var billable = await FirmUnbilledTimeQuery.GetAsync(db, financeActor,
+        new FirmUnbilledTimeRequest(workDate, workDate));
+      Assert.True(billable.Succeeded, billable.Message);
+      Assert.Single(billable.Value!.Rows);
+      Assert.Equal(timeEntryId, billable.Value.Rows[0].TimeEntryId);
+
+      var mutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE time_entry_review_events SET reason = 'tampered' WHERE id = {history[1].Id}"));
+      Assert.Equal("55000", Assert.IsType<PostgresException>(mutation.GetBaseException()).SqlState);
+      var migrations = db.Database.GetMigrations().ToArray();
+      var returnWorkflow = Array.FindIndex(migrations,
+        x => x.EndsWith("_TimeEntryReturnWorkflow", StringComparison.Ordinal));
+      Assert.True(returnWorkflow > 0);
+      var downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
+        db.GetService<IMigrator>().MigrateAsync(migrations[returnWorkflow - 1]));
+      Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
     }
   }
 

@@ -10,6 +10,7 @@ public static partial class UiEndpoints
     Guid? EngagementId = null, Guid? MappingVersionId = null, string? FsliCode = null);
   public sealed record TimeDraftInput(Guid TaskId, string WorkDate, int DurationMinutes, string Role, string Activity, bool Billable, string? Narrative,
     int? StartMinute = null);
+  public sealed record TimeReturnInput(string Reason);
 
   private static void MapTimeEndpoints(RouteGroupBuilder group)
   {
@@ -59,6 +60,9 @@ public static partial class UiEndpoints
       .WithT046Response<UiValueResponse<bool>>();
     group.MapPost("/practice/time/entries/{id:guid}/approve", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => PracticeTimeService.ApproveTimeAsync(db, actor, id, ct)))
+      .WithT046Response<UiValueResponse<bool>>();
+    group.MapPost("/practice/time/entries/{id:guid}/return", (Guid id, TimeReturnInput input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => PracticeTimeService.ReturnTimeAsync(db, actor, id, input.Reason, ct)))
       .WithT046Response<UiValueResponse<bool>>();
   }
 }

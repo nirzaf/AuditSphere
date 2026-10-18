@@ -656,6 +656,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<WorkflowTemplateDecision> WorkflowTemplateDecisions => db.WorkflowTemplateDecisions;
     public DbSet<WorkflowTaskPlanReceipt> WorkflowTaskPlanReceipts => db.WorkflowTaskPlanReceipts;
     public DbSet<TimeEntry> TimeEntries => db.TimeEntries;
+    public DbSet<TimeEntryReviewEvent> TimeEntryReviewEvents => db.TimeEntryReviewEvents;
     public DbSet<RateCardVersion> RateCardVersions => db.RateCardVersions;
     public DbSet<EngagementBudget> EngagementBudgets => db.EngagementBudgets;
     public DbSet<BudgetLine> BudgetLines => db.BudgetLines;

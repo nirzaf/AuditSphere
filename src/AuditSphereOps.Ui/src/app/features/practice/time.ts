@@ -13,11 +13,12 @@ import { SHARED } from '../../core/ui';
 import { applyTracker, draftSegments, emptyTracker, TrackerDraft, TrackerState } from './time-tracker';
 
 const entryShape = obj({ id: guid, workDate: date, taskId: guid, taskTitle: text, userId: guid, durationMinutes: nat, startMinute: nat, activity: text,
-  billableClassification: text, narrative: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)) });
+  billableClassification: text, narrative: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)),
+  lastReturnReason: nullable(str(2000)) });
 const entry: Decoder<ReturnType<typeof entryShape>> = (value, path) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new DecodeError(`${path || 'response'}: expected object`);
   const source = value as Record<string, unknown>;
-  return entryShape(Object.prototype.hasOwnProperty.call(source, 'startMinute') ? source : { ...source, startMinute: 540 }, path);
+  return entryShape({ ...source, startMinute: source['startMinute'] ?? 540, lastReturnReason: source['lastReturnReason'] ?? null }, path);
 };
 const taskOption = obj({ id: guid, title: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)) });
 export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(obj({ id: guid, clientId: guid, label: text }), 5000),
@@ -121,8 +122,8 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
           <thead><tr><th scope="col">Date</th><th scope="col">Task</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Classification</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>@for (e of v.myEntries; track e.id) {
             <tr><td>{{ e.workDate }}</td><td>{{ e.taskTitle }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m ({{ (e.durationMinutes / 60).toFixed(1) }}h)</td><td>{{ e.billableClassification }}</td>
-              <td><audit-status [value]="e.status" /></td>
-              <td>@if (e.status === 'DRAFT') { <button matButton (click)="act(e.id, 'submit', 'Time entry was submitted for approval.')" [disabled]="cmd.busy()">Submit</button> }</td></tr>
+              <td><audit-status [value]="e.status" />@if (e.lastReturnReason) { <small class="return-feedback">Latest return feedback: {{ e.lastReturnReason }}</small> }</td>
+              <td>@if (e.status === 'DRAFT' || e.status === 'RETURNED') { <button matButton (click)="act(e.id, 'submit', e.status === 'RETURNED' ? 'Returned time was resubmitted for approval.' : 'Time entry was submitted for approval.')" [disabled]="cmd.busy()">{{ e.status === 'RETURNED' ? 'Resubmit' : 'Submit' }}</button> }</td></tr>
           } @empty { <tr><td colspan="7">You have not recorded any time entries in the current firm scope.</td></tr> }</tbody>
         </table></div>
       </section>
@@ -139,7 +140,14 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
             <thead><tr><th scope="col">Date</th><th scope="col">Staff user</th><th scope="col">Task</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Activity</th><th scope="col">Narrative</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
             <tbody>@for (e of v.awaitingApproval; track e.id) {
               <tr><td>{{ e.workDate }}</td><td><code>{{ e.userId }}</code></td><td>{{ e.taskTitle }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m</td><td>{{ e.activity }}</td><td>{{ e.narrative }}</td>
-                <td><button matButton="filled" (click)="act(e.id, 'approve', 'Time entry was approved.')" [disabled]="cmd.busy()">Approve</button></td></tr>
+                <td>
+                  <button matButton="filled" (click)="act(e.id, 'approve', 'Time entry was approved.')" [disabled]="cmd.busy()">Approve</button>
+                  @if (returningTimeId() === e.id) {
+                    <label>Return reason * <textarea [name]="'return-reason-' + e.id" [ngModel]="timeReturnReason()" (ngModelChange)="timeReturnReason.set($event)" maxlength="2000" required></textarea></label>
+                    <button matButton type="button" (click)="returnTime(e.id)" [disabled]="cmd.busy() || !timeReturnReason().trim()">Return time</button>
+                    <button matButton type="button" (click)="cancelReturn()" [disabled]="cmd.busy()">Cancel</button>
+                  } @else { <button matButton type="button" (click)="beginReturn(e.id)" [disabled]="cmd.busy()">Return with reason</button> }
+                </td></tr>
             } @empty { <tr><td colspan="8">No pending submitted time entries awaiting approval.</td></tr> }</tbody>
           </table></div>
         </section>
@@ -147,7 +155,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
     }
     <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />
   `,
-  styles: `:host .timer-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .75rem; }`,
+  styles: `:host .timer-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .75rem; } :host .return-feedback { display: block; max-width: 32rem; white-space: normal; } :host textarea { display: block; max-width: 24rem; min-width: 16rem; }`,
 })
 export class PracticeTime implements NavigationProtected {
   private readonly api = inject(Api);
@@ -165,6 +173,8 @@ export class PracticeTime implements NavigationProtected {
   readonly selectedSegment = signal<number | null>(null);
   readonly savedSegments = signal<ReadonlySet<number>>(new Set());
   readonly unconfirmedSegment = signal<number | null>(null);
+  readonly returningTimeId = signal<string | null>(null);
+  readonly timeReturnReason = signal('');
   private readonly destroyRef = inject(DestroyRef);
   private tickTimer?: ReturnType<typeof setInterval>;
   private taskTimer?: ReturnType<typeof setTimeout>;
@@ -347,8 +357,16 @@ export class PracticeTime implements NavigationProtected {
   private clearCommandOutcome(): void {
     this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.uncertain.set(false); this.cmd.code.set('');
   }
-  act(id: string, action: 'submit' | 'approve', ok: string): void {
-    this.cmd.run(`/api/ui/practice/time/entries/${id}/${action}`, {}, ok).finally(this.reload);
+  act(id: string, action: 'submit' | 'approve', ok: string): Promise<boolean> {
+    return this.cmd.run(`/api/ui/practice/time/entries/${id}/${action}`, {}, ok).finally(this.reload);
+  }
+  beginReturn(id: string): void { this.returningTimeId.set(id); this.timeReturnReason.set(''); }
+  cancelReturn(): void { this.returningTimeId.set(null); this.timeReturnReason.set(''); }
+  returnTime(id: string): Promise<boolean> | void {
+    const reason = this.timeReturnReason().trim();
+    if (this.returningTimeId() !== id || !reason || reason.length > 2000 || this.cmd.busy() || this.cmd.uncertain()) return;
+    return this.cmd.run(`/api/ui/practice/time/entries/${id}/return`, { reason }, 'Time entry was returned to its preparer with the recorded reason.',
+      () => this.cancelReturn()).finally(this.reload);
   }
 }
 

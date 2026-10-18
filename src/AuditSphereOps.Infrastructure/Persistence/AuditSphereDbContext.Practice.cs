@@ -22,6 +22,7 @@ public sealed partial class AuditSphereDbContext
     b.Entity<PracticeClient>().HasIndex(x => new { x.FirmId, x.LegalName }).IsUnique();
     b.Entity<WorkTask>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_work_tasks_firm_id_id");
     b.Entity<TimeEntry>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_time_entries_firm_id_id");
+    b.Entity<TimeEntryReviewEvent>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_time_entry_review_events_firm_id_id");
     b.Entity<RateCardVersion>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_rate_cards_firm_id_id");
     b.Entity<EngagementBudget>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_budgets_firm_id_id");
     b.Entity<BudgetLine>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_budget_lines_firm_id_id");
@@ -140,15 +141,23 @@ public sealed partial class AuditSphereDbContext
         "(mapping_version_id IS NULL AND fsli_code IS NULL) OR (mapping_version_id IS NOT NULL AND client_id IS NOT NULL AND engagement_id IS NOT NULL AND fsli_code IS NOT NULL AND length(trim(fsli_code)) > 0)");
     });
     b.Entity<TimeEntry>().Property(x => x.FsliCode).HasMaxLength(100);
+    b.Entity<TimeEntry>().Property(x => x.SubmissionRound).HasDefaultValue(0);
+    b.Entity<TimeEntry>().Property(x => x.LastReturnReason).HasMaxLength(2000);
     b.Entity<TimeEntry>().ToTable("time_entries", t =>
     {
       t.HasCheckConstraint("ck_time_entry_state",
-        "status IN ('DRAFT','SUBMITTED','APPROVED','SUPERSEDED') AND revision >= 1 AND start_minute BETWEEN 0 AND 1439 AND duration_minutes BETWEEN 1 AND 1440 AND start_minute + duration_minutes <= 1440");
+        "status IN ('DRAFT','SUBMITTED','RETURNED','APPROVED','SUPERSEDED') AND revision >= 1 AND submission_round >= 0 AND (last_return_reason IS NULL OR length(trim(last_return_reason)) BETWEEN 1 AND 2000) AND start_minute BETWEEN 0 AND 1439 AND duration_minutes BETWEEN 1 AND 1440 AND start_minute + duration_minutes <= 1440");
       t.HasCheckConstraint("ck_time_entry_content",
         "length(role) > 0 AND length(activity) > 0 AND billable_classification IN ('BILLABLE','NON_BILLABLE','NO_CHARGE') AND narrative_visibility IN ('INTERNAL','CLIENT_VISIBLE') AND ((billable_classification = 'BILLABLE' AND rate_card_version_id IS NOT NULL AND rate_per_hour IS NOT NULL AND rate_per_hour >= 0) OR billable_classification <> 'BILLABLE')");
       t.HasCheckConstraint("ck_time_entry_fsli_snapshot",
         "(mapping_version_id IS NULL AND fsli_code IS NULL) OR (mapping_version_id IS NOT NULL AND client_id IS NOT NULL AND engagement_id IS NOT NULL AND fsli_code IS NOT NULL AND length(trim(fsli_code)) > 0)");
     });
+    b.Entity<TimeEntryReviewEvent>().Property(x => x.Action).HasMaxLength(20);
+    b.Entity<TimeEntryReviewEvent>().Property(x => x.Reason).HasMaxLength(2000);
+    b.Entity<TimeEntryReviewEvent>().HasIndex(x => new { x.FirmId, x.TimeEntryId, x.SubmissionRound, x.Action }).IsUnique();
+    b.Entity<TimeEntryReviewEvent>().ToTable("time_entry_review_events", t =>
+      t.HasCheckConstraint("ck_time_entry_review_event_values",
+        "submission_round >= 1 AND ((action = 'LEGACY_SUBMISSION' AND actor_user_id IS NULL AND reason IS NULL) OR (action = 'RETURNED' AND actor_user_id IS NOT NULL AND reason IS NOT NULL AND length(trim(reason)) BETWEEN 1 AND 2000) OR (action IN ('SUBMITTED','APPROVED') AND actor_user_id IS NOT NULL AND reason IS NULL))"));
     b.Entity<RateCardVersion>().ToTable("rate_card_versions", t => t.HasCheckConstraint("ck_rate_card_state",
       "version >= 1 AND length(role) > 0 AND length(activity) > 0 AND currency ~ '^[A-Z]{3}$' AND rate_per_hour >= 0 AND status IN ('DRAFT','APPROVED','SUPERSEDED')"));
     b.Entity<EngagementBudget>().ToTable("engagement_budgets", t => t.HasCheckConstraint("ck_budget_state",
@@ -286,6 +295,12 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<TimeEntry>().HasOne<TimeEntry>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.SupersedesId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntryReviewEvent>().HasOne<TimeEntry>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.TimeEntryId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<TimeEntryReviewEvent>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ActorUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<RateCardVersion>().HasOne<AppUser>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.CreatedByUserId })

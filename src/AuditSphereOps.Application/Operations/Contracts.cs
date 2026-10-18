@@ -175,6 +175,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<WorkflowTemplateDecision> WorkflowTemplateDecisions { get; }
   DbSet<WorkflowTaskPlanReceipt> WorkflowTaskPlanReceipts { get; }
   DbSet<TimeEntry> TimeEntries { get; }
+  DbSet<TimeEntryReviewEvent> TimeEntryReviewEvents { get; }
   DbSet<RateCardVersion> RateCardVersions { get; }
   DbSet<EngagementBudget> EngagementBudgets { get; }
   DbSet<BudgetLine> BudgetLines { get; }

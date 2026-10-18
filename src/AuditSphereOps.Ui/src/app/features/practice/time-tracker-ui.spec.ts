@@ -18,7 +18,7 @@ const workspace = {
   myEntries: [], awaitingApproval: [],
 };
 
-function open() {
+function open(initialWorkspace: object = workspace) {
   TestBed.configureTestingModule({
     imports: [PracticeTime],
     providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
@@ -28,7 +28,7 @@ function open() {
   const fixture = TestBed.createComponent(PracticeTime);
   const http = TestBed.inject(HttpTestingController);
   fixture.detectChanges(); TestBed.tick();
-  http.expectOne('/api/ui/practice/time').flush(workspace);
+  http.expectOne('/api/ui/practice/time').flush(initialWorkspace);
   TestBed.tick();
   return { fixture, component: fixture.componentInstance, http, session };
 }
@@ -54,6 +54,34 @@ describe('foreground practice time tracker integration', () => {
       await component.saveDraft();
       http.expectNone(request => request.method === 'POST');
       expect(component.cmd.message()).toContain('whole-minute duration');
+    } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
+  });
+
+  it('returns submitted time with an explicit reason and surfaces retained feedback for resubmission', async () => {
+    const submitted = {
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 60, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE',
+      narrative: '', status: 'SUBMITTED', mappingVersionId: null, fsliCode: null, lastReturnReason: null,
+    };
+    const { fixture, component, http } = open({ ...workspace, isApprover: true, awaitingApproval: [submitted] });
+    try {
+      component.beginReturn(entryId);
+      component.timeReturnReason.set('  Explain the source of the recorded hours.  ');
+      fixture.detectChanges();
+      const returning = component.returnTime(entryId);
+      const returnRequest = http.expectOne(`/api/ui/practice/time/entries/${entryId}/return`);
+      expect(returnRequest.request.body).toEqual({ reason: 'Explain the source of the recorded hours.' });
+      returnRequest.flush({ value: true });
+      await returning;
+      http.expectOne('/api/ui/practice/time').flush({ ...workspace, myEntries: [{ ...submitted,
+        status: 'RETURNED', lastReturnReason: 'Explain the source of the recorded hours.' }] });
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Latest return feedback: Explain the source of the recorded hours.');
+      expect(fixture.nativeElement.textContent).toContain('Resubmit');
+      const resubmitting = component.act(entryId, 'submit', 'Returned time was resubmitted for approval.');
+      http.expectOne(`/api/ui/practice/time/entries/${entryId}/submit`).flush({ value: true });
+      await resubmitting;
+      http.expectOne('/api/ui/practice/time').flush(workspace);
     } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
   });
 

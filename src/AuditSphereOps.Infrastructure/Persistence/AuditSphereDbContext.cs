@@ -156,6 +156,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<WorkflowTaskPlanReceipt> WorkflowTaskPlanReceipts => Set<WorkflowTaskPlanReceipt>();
 
   public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
+  public DbSet<TimeEntryReviewEvent> TimeEntryReviewEvents => Set<TimeEntryReviewEvent>();
 
   public DbSet<RateCardVersion> RateCardVersions => Set<RateCardVersion>();
 

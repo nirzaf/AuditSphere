@@ -27005,6 +27005,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("fsli_code");
 
+                    b.Property<string>("LastReturnReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_return_reason");
+
                     b.Property<Guid?>("MappingVersionId")
                         .HasColumnType("uuid")
                         .HasColumnName("mapping_version_id");
@@ -27054,6 +27059,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("status");
 
+                    b.Property<int>("SubmissionRound")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("submission_round");
+
                     b.Property<DateTimeOffset?>("SubmittedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("submitted_at");
@@ -27097,7 +27108,61 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_time_entry_fsli_snapshot", "(mapping_version_id IS NULL AND fsli_code IS NULL) OR (mapping_version_id IS NOT NULL AND client_id IS NOT NULL AND engagement_id IS NOT NULL AND fsli_code IS NOT NULL AND length(trim(fsli_code)) > 0)");
 
-                            t.HasCheckConstraint("ck_time_entry_state", "status IN ('DRAFT','SUBMITTED','APPROVED','SUPERSEDED') AND revision >= 1 AND start_minute BETWEEN 0 AND 1439 AND duration_minutes BETWEEN 1 AND 1440 AND start_minute + duration_minutes <= 1440");
+                            t.HasCheckConstraint("ck_time_entry_state", "status IN ('DRAFT','SUBMITTED','RETURNED','APPROVED','SUPERSEDED') AND revision >= 1 AND submission_round >= 0 AND (last_return_reason IS NULL OR length(trim(last_return_reason)) BETWEEN 1 AND 2000) AND start_minute BETWEEN 0 AND 1439 AND duration_minutes BETWEEN 1 AND 1440 AND start_minute + duration_minutes <= 1440");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.TimeEntryReviewEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<int>("SubmissionRound")
+                        .HasColumnType("integer")
+                        .HasColumnName("submission_round");
+
+                    b.Property<Guid>("TimeEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("time_entry_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_time_entry_review_events_firm_id_id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "TimeEntryId", "SubmissionRound", "Action")
+                        .IsUnique();
+
+                    b.ToTable("time_entry_review_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_time_entry_review_event_values", "submission_round >= 1 AND ((action = 'LEGACY_SUBMISSION' AND actor_user_id IS NULL AND reason IS NULL) OR (action = 'RETURNED' AND actor_user_id IS NOT NULL AND reason IS NOT NULL AND length(trim(reason)) BETWEEN 1 AND 2000) OR (action IN ('SUBMITTED','APPROVED') AND actor_user_id IS NOT NULL AND reason IS NULL))");
                         });
                 });
 
@@ -35726,6 +35791,22 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "MappingVersionId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.TimeEntryReviewEvent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.TimeEntry", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TimeEntryId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkTask", b =>

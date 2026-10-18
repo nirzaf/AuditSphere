@@ -9,8 +9,14 @@ public static class PracticeTimeStates
   public const string TaskCancelled = "CANCELLED";
   public const string TimeDraft = "DRAFT";
   public const string TimeSubmitted = "SUBMITTED";
+  public const string TimeReturned = "RETURNED";
   public const string TimeApproved = "APPROVED";
   public const string TimeSuperseded = "SUPERSEDED";
+  public const string ReviewReturned = "RETURNED";
+  public const string ReviewApproved = "APPROVED";
+  public const string ReviewSubmitted = "SUBMITTED";
+  /// <summary>Legacy submission time is known, but its actor was not stored by the prior schema.</summary>
+  public const string ReviewLegacySubmission = "LEGACY_SUBMISSION";
   public const string BudgetDraft = "DRAFT";
   public const string BudgetApproved = "APPROVED";
   public const string BudgetSuperseded = "SUPERSEDED";
@@ -74,9 +80,26 @@ public sealed class TimeEntry
   public Guid? RateCardVersionId { get; set; }
   public decimal? RatePerHour { get; set; }
   public DateTimeOffset? SubmittedAt { get; set; }
+  /// <summary>One-based submit/review cycle; retries of an already-submitted entry do not advance it.</summary>
+  public int SubmissionRound { get; set; }
+  /// <summary>Latest reviewer return feedback, retained on the entry for the preparer; all decisions remain in the immutable event table.</summary>
+  public string? LastReturnReason { get; set; }
   public Guid? ApprovedByUserId { get; set; }
   public DateTimeOffset? ApprovedAt { get; set; }
   public string? CorrectionReason { get; set; }
+  public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// <summary>Immutable reviewer decision attached to one submitted time-entry round.</summary>
+public sealed class TimeEntryReviewEvent
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid TimeEntryId { get; set; }
+  public int SubmissionRound { get; set; }
+  public Guid? ActorUserId { get; set; }
+  public string Action { get; set; } = string.Empty;
+  public string? Reason { get; set; }
   public DateTimeOffset CreatedAt { get; set; }
 }
 
