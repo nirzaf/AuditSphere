@@ -1018,6 +1018,12 @@
       "passed": 1,
       "failed": 0
     },
+    "practiceProposalSendRecipientAuthority20261018": {
+      "sourceCommit": "395d2ef06e53e7c21aece54f8d85f78c482a9514",
+      "result": "FOCUSED_PASS",
+      "testsPassed": 2,
+      "summary": "Prospect email change and revoked client route block before provider send."
+    },
     "practiceResourcePhaseRisk20261018": {
       "sourceCommit": "5996f36d49bf89feba9c99a7fab7c567c5f41c95",
       "result": "FOCUSED_PASS",
@@ -1130,9 +1136,6 @@
     },
     "aspmCom03QarAcceptance20261018": {
       "status": "PARTIAL",
-      "sourceCommit": "954a623f799b0871afc85937d43267726d74ee7c",
-      "focusedTest": "PASS 1/1; QAR 4,000 leaves QAR 6,000 and the advance gate false; another QAR 6,000 clears it.",
-      "fastCiRun": "39120222007 SUCCESS on 1f4e5430 (Docs Health, Angular, .NET Release); predecessor 39119821556 SUCCESS on 9fad72d0; run 39119098499 FAILED contract drift (fixed in 9fad72d0).",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCom03QarAcceptance20261018"
     },
     "aspmFin03ReceivablesTypes20261018": {
