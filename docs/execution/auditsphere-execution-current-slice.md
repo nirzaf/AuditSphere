@@ -19,6 +19,12 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Documentation reconciliation revalidation (2026-10-18)
+
+The documentation reconciliation report was revalidated against `master@d4bbef4d`; PR #46 and the companion PR #47 are already merged. The operative index now keeps Tasks 01–09 at technical-evidence-only, Task 10 `BLOCKED_DECISION`, and Task 11 `PARTIAL`. No task-card, professional-approval or external-gate status was promoted. The R2R index's two links to repository architecture guidance now target the canonical `master` files so the extracted task pack remains internally valid.
+
+Source integrity, Markdown health, naming, narrative-metric, task-pack, generated-board and diff checks passed. Fast CI `39134304836` passed on `d4bbef4d`; it predates this documentation refresh and is not full regression evidence. Full release run `39132911253` is pinned to `f5f96d9e`; Domain failed and API/E2E were still running at the 14:15 UTC observation. No application tests were run locally. See [the reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) and [`status.json`](status.json) for the exact record.
+
 ## Reversible client archive history (2026-10-18)
 
 Commit `9cdbfb19e512c8d9e849fe95cfd6f2d38a33b2c7` adds a reversible client archive state backed by append-only actor, UTC time and revision events. Archive/restore is client-grant authorized, locks the client row, checks the expected revision and does not change client status, engagement records, evidence or authorization. Authorized portfolio and global search retain archived clients and label them; the client profile offers a scoped archive/restore action. The migration refuses downgrade while lifecycle events remain and has not been applied to a shared or live database.
@@ -213,9 +219,9 @@ Matching counterparties can now be discovered through bounded pages and search. 
 
 Components and readiness now have independent bounded pages and complete counts. Exact component correction remains available when the selected component is outside the displayed page. The focused browser check loaded the current contract and retained evidence using the synthetic local database with external effects disabled. This does not establish multi-page browser or full workflow acceptance. Current verification evidence and remaining gates are in `status.json` under `apiAngularParity.localVerification.pagingSlice`. Continue the original parity specification; do not equate this slice with completion of all tasks.
 
-## Documentation reconciliation — review branch
+## Documentation reconciliation — initial delivery (historical)
 
-The [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) records corrected current instructions, approved ADR scopes and delegated engineering defaults. This documentation slice uses a dedicated branch and reviewable PR; no direct master push or merge without `AUDITSPHERE-MERGE-APPROVED`. Pre-existing API/Angular integration remains preserved and outside the documentation PR. D1-DRAFT-01 is an unapproved review packet, not a change to audit gates. Qualified T003/G16/EOS and external acceptance requirements remain open. Exact baseline and observed documentation checks are in `status.json` under `documentationReconciliation`; no application test or provider acceptance is claimed.
+The initial documentation slice was delivered through PR #46, and the companion API/Angular integration through PR #47; both are merged to `master`. This paragraph records delivery history only. Current dispositions, evidence and open gates are in the [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) and [`status.json`](status.json). D1-DRAFT-01 remains an unapproved review packet; qualified T003/G16/EOS and external acceptance requirements remain open.
 
 
 ## API and Angular bidirectional parity — active implementation

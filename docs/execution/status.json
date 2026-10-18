@@ -1,26 +1,28 @@
 {
   "schemaVersion": "1",
   "documentationReconciliation": {
-    "inspectedCommit": "150c7671762ac93f87b2b539cb53f688fb90557e",
-    "inspectedAtUtc": "2026-10-17T18:31:29Z",
-    "branch": "codex/documentation-reconciliation",
+    "inspectedCommit": "d4bbef4dc5717f943810a939eee83d4acb158992",
+    "inspectedAtUtc": "2026-10-18T14:15:16Z",
+    "branch": "master",
     "report": "docs/execution/auditsphere-execution-report-documentation-reconciliation-current.md",
-    "scope": "Documentation-only PR #46; API/Angular integration and its separate verification are included in PR #47. This record describes only the original documentation slice.",
+    "scope": "Revalidated operative instructions, links and evidence on master; PR #46/#47 are merged. No application/provider changes.",
     "result": "DOCS_RECONCILED",
     "checks": {
-      "sourceIntegrity": "PASS: Word SHA-256, 20 ordered sections and 165 exact procedure paragraphs match the JSON manifest",
-      "documentation": "PASS: 215 Markdown files; links/paths/requirements overlays and ledger budgets",
-      "filenames": "PASS: 215 Markdown filenames",
-      "narrativeMetrics": "PASS: six protected narrative documents",
-      "taskBoardFreshness": "PASS: generated board matches sources",
-      "stagedDiff": "PASS: git diff --cached --check; documentation-only path audit"
+      "sourceIntegrity": "PASS: Word SHA-256; 20 sections; 165 exact procedures",
+      "documentation": "PASS: 219 Markdown files; 3,017 relative links; 441 paths",
+      "filenames": "PASS: 219 files; 3 conventional exceptions",
+      "narrativeMetrics": "PASS: 6 protected files",
+      "taskBoard": "PASS: 99 generated items; no board diff",
+      "taskPack": "PASS: 75 tasks; 2,899 local links",
+      "diff": "PASS: git diff --check"
     },
-    "applicationTests": "NOT_RUN: documentation-only slice; full local suites prohibited",
-    "currentPrCi": "NOT_RUN",
-    "professionalApproval": "NONE; D1-DRAFT-01 is proposed only",
+    "fastCi": "PASS: run 39134304836 on d4bbef4d; Docs, Angular and .NET Release",
+    "fullCi": "IN_PROGRESS at 2026-10-18T14:15Z: run 39132911253 on f5f96d9e; Domain failed, API/E2E running; failure logs unavailable",
+    "applicationTests": "NOT_RUN locally; full suites remain CI-only",
+    "professionalApproval": "NONE; D1-DRAFT-01 remains proposed",
     "cardStatusesChanged": false,
     "externalGateStatusesChanged": false,
-    "merge": "AUTHORIZED: subsequent explicit owner instructions request merging PRs #46 and #47 and continuing on master; actual merge outcomes recorded separately.",
+    "merge": "PR #46 e030f19a and PR #47 8758a8f9 merged to master",
     "deployment": "NOT_RUN"
   },
   "specificationVersion": "5.0",
@@ -1323,7 +1325,7 @@
         "ranOn": "e1fcf453"
       }
     },
-    "latestAttempt": "Run 39081736086 on 9e2709b: FAILED; Domain 1,360/1,360 passed, API unknown after hosted-runner loss, E2E timed out after 3h with 24 failures. PBC labels fixed on 4bf84641; last full pass remains productCodeCommit above.",
+    "latestAttempt": "Run 39132911253 on f5f96d9e: IN_PROGRESS at 2026-10-18T14:15Z; Domain FAILED, API/E2E running. Not current commit.",
     "notes": "Historical suite details are in runs; no live-provider acceptance.",
     "migrationHead": "20261018072145_StaffAllocationPhaseRiskArea"
   },

@@ -2,15 +2,15 @@
 
 **Status: CURRENT** for instruction reconciliation. The D1 policy below is **PROPOSED, NOT APPROVED**.
 
-**Inspected baseline:** `150c7671762ac93f87b2b539cb53f688fb90557e` on 2026-10-17. Work is on `codex/documentation-reconciliation`. The original documentation-only slice is PR #46. API/Angular integration is excluded from that slice and subsequently included separately in PR #47; static inspection of that integration is not baseline or execution evidence.
+**Revalidated baseline:** `d4bbef4dc5717f943810a939eee83d4acb158992` on 2026-10-18, in the main `master` worktree. The original documentation slice merged as PR #46 at `e030f19a9507ce8707121849b9055f28bf8323bd`; the companion API/Angular integration merged as PR #47 at `8758a8f9a2b8269633079cc861f95052f4fd3ee0`. Those merges do not establish full feature parity or release acceptance.
 
 **Authority:** owner's documentation/engineering delegation, [AGENTS.md](../../AGENTS.md), [documentation index](../auditsphere-docs-index.md), [current architecture](../architecture/auditsphere-architecture-current-architecture.md), requirements and each [approved ADR](../architecture/adr/auditsphere-architecture-index-adr-register-current.md) within its explicit scope. Requirement sources, executed contracts, historical evidence and prior verification records remain preserved. No professional approval, task completion, external-gate promotion or deployment is recorded here.
 
 ## Before → authority → correction
 
-The linked paths are the modified documents; supporting generated-record changes are listed below.
+The rows describe the issues at the original reconciliation baseline. Their dispositions were rechecked against current `master`; original requirement/source wording remains preserved where it is explicitly marked historical or superseded.
 
-| Current conflict / paths | Classification and controlling authority | Operative correction |
+| Original conflict / affected paths | Classification and controlling authority | Current disposition |
 | --- | --- | --- |
 | [Architecture](../architecture/auditsphere-architecture-current-architecture.md), [code map](../architecture/auditsphere-architecture-code-map.md), [migration guide](../architecture/auditsphere-angular-migration-current.md): current presentation owners still include Web/Razor | STALE_DOC; ADR-0002 retirement amendment | Angular owns UI, API owns HTTP/session/file transport, Application owns business authority. Blazor source is historical only; retirement does not prove parity or operational acceptance. |
 | [Agent context](../architecture/auditsphere-architecture-index-agent-context-current.md) still presents the old pack's test absence and approval steps as current | STALE_DOC; current index, ADR register and test policy | Separate operative reading pointers from the preserved dated pack snapshot. Do not reinstall tests or reapprove existing ADRs from old instructions. |
@@ -23,14 +23,14 @@ The linked paths are the modified documents; supporting generated-record changes
 | AWP source coverage conflated with performed work or Task 10 approval | CODE_OR_TEST_GAP / PROFESSIONAL_POLICY; atomic spec D1 and existing evidence | Tasks 01–09 have technical implementation and historical focused checks, not complete current acceptance. The source spec's “9 completed” checklist is a dated focused-evidence snapshot; status records remain PARTIAL and Task 04 has no separate current ledger entry. Retain every source ID; Task 10 stays blocked only on its terminal policy. Proposed sequencing below changes no gates. |
 | [Restore runbook](../operations/auditsphere-operations-runbook-restore-drill.md) implies an old checkpoint is latest/current and includes Purview as a recovery prerequisite | STALE_DOC / EXTERNAL_GATE; ADR-0009, P7/P8 and retained evidence | Label the same-host checkpoint historical. Operations/records owners approve targets/topology and measure custodially separate cross-store restore. No new multi-region requirement, p95/capacity target, provider or metric is invented. |
 
-Supporting modified records: [central index](../auditsphere-docs-index.md), [current-slice handoff](auditsphere-execution-current-slice.md), [status.json](status.json), [current audit dispositions](auditsphere-execution-report-task-codebase-audit-current.json), [generated task board](auditsphere-execution-index-task-board-current.md) and its [generator](../../scripts/docs/build-task-board.py). The generator now retains the existing API/Angular tracker pointer and the reconciliation pointer on regeneration. Original audit items and card approval/status metadata are unchanged; regenerated counts follow actual card front matter.
+Records updated in this revalidation: [central index](../auditsphere-docs-index.md), [current-slice handoff](auditsphere-execution-current-slice.md), [status.json](status.json), this report and the [R2R index](../task_breakdown/auditsphere-r2r-index-task-breakdown.md). The current audit disposition ledger, generated task board and its [generator](../../scripts/docs/build-task-board.py) were checked but unchanged; the board generator retains the existing API/Angular tracker pointer and reconciliation pointer. Original audit items and card approval/status metadata are unchanged; regenerated counts follow actual card front matter.
 
 ## Delegated engineering resolutions
 
 - Apply existing approved ADRs without duplicate approval. Acceptance rule: each operative instruction cites its controlling scope and retains distinct code, verification, professional and external requirements.
 - Retain current stricter request bounds; make no limit or capacity change. Acceptance rule: proposed section 10.1 limits cannot silently raise an enforced bound; missing enforcement remains a code/evidence task.
-- Preserve the active integration and stage only this documentation slice. Acceptance rule: documentation-only PR #46 contains no application/UI/test implementation, migration, provider mutation or historical source rewrite. Integration PR #47 has its own application changes and verification records.
-- Use the dedicated branch/PR exception in AGENTS.md. The original reconciliation instruction prohibited direct master pushes and required `AUDITSPHERE-MERGE-APPROVED`. The owner subsequently explicitly instructed merging PRs #46 and #47 and continuing on master; this later task instruction authorizes those merges. No force-push or professional/external approval is implied.
+- Original delivery boundaries: PR #46 contained documentation reconciliation only; PR #47 contained the API/Angular integration. Both are merged to `master` at the SHAs recorded above. That split is historical delivery context, not an outstanding merge task.
+- This revalidation is limited to operative documentation, links and observed status records on the main `master` worktree. It changes no source requirement text, professional/card approval, tenant permission, provider state, database, or deployment state.
 
 ## Proposed D1 terminal policy
 
@@ -54,7 +54,7 @@ Before implementation the qualified owner/reviewer must approve a versioned exac
 
 | Classification / item | Accountable owner and exact next evidence |
 | --- | --- |
-| CODE_OR_TEST_GAP — parity integration, Task 11, R2R contract/resource enforcement | Implementation coordinator + independent technical reviewer: resume the [parity tracker](auditsphere-execution-tracker-api-angular-parity-current.md) and card-owned files; complete wiring, focused changed-behavior checks and relevant browser flows, commit separately, then inspect immutable-SHA CI artifacts. Existing dirty code is not accepted by this PR. |
+| CODE_OR_TEST_GAP — parity integration, Task 11, R2R contract/resource enforcement | Implementation coordinator + independent technical reviewer: continue the [parity tracker](auditsphere-execution-tracker-api-angular-parity-current.md) and card-owned files; complete wiring, focused changed-behavior checks and relevant browser flows, then inspect immutable-SHA CI artifacts. Merged integration and focused checks do not establish full parity. |
 | PROFESSIONAL_POLICY — T003 / [eight GOLD-R2R fixtures](../task_breakdown/coverage/auditsphere-r2r-tracker-golden-fixtures.md) | Named qualified accounting methodology owner + independent reviewer: approved framework editions/effective dates, FX/consolidation profile and exact fixture inputs/expected outputs, separate from existing approved fixtures. ADR-0014 resolves arithmetic only. GOLD-R2R-07 has historical numerical evidence; seven rows are NOT_RUN/unmapped, not proven absent tests. Map assertions/execution per fixture without deriving expected answers from implementation. |
 | PROFESSIONAL_POLICY — G16 | Qualified accounting owner + independent reviewer: period-end monetary-item classification, carrying-amount evidence, rate source/effective dates and approved examples for the proposed automated policy. Existing preparer-entered evidence-bound schedule calculation/review remains available and does not post a journal or approve that policy. |
 | PROFESSIONAL_POLICY — EOS / signing / commercial rules | Qualified accountant + independent Partner confirmation of EOS treatment and configured provision/expense accounts before posting; firm legal/certificate custodians for signing sufficiency; authorized firm owners for fee/letter/contact policies outside explicit ADR scope. No posting or approval performed here. |
@@ -65,13 +65,15 @@ Before implementation the qualified owner/reviewer must approve a versioned exac
 
 ## Checks actually run
 
-- Source-integrity check passed: preserved Word SHA-256, 20 ordered sections and all 165 exact procedure paragraphs match the JSON source manifest. This is documentation/source integrity, not execution of the procedures.
-- Documentation health/link/naming, narrative-metrics, generated-board freshness and final staged diff checks: results are recorded in `status.json` under `documentationReconciliation` after execution.
-- Application builds/tests, full local suites, browser business journeys, database/provider operations and deployment: **NOT RUN for this documentation slice**. Prior execution records retain their original SHA and boundary. Current-PR CI is not credited before its result is observed.
+- `python3 scripts/docs/verify-audit-program-source.py` passed: source SHA-256, 20 ordered sections and all 165 exact procedure paragraphs match the JSON manifest. This proves source integrity, not execution of the procedures.
+- Local documentation checks passed: Markdown health (219 files, 3,017 relative links, 441 repository paths), filename policy (219 files), narrative metrics (six protected files), task-pack validation (75 tasks and 2,899 local links), and `git diff --check`. `python3 scripts/docs/build-task-board.py` regenerated 99 items with no generated-board diff. Exact source-integrity results are in the first bullet; check results are also recorded in `status.json` under `documentationReconciliation`.
+- Fast CI run [39134304836](https://github.com/nirzaf/AuditSphere/actions/runs/39134304836) passed on the inspected baseline `d4bbef4d`: Docs, Angular, and .NET Release jobs succeeded. This predates the uncommitted documentation refresh and is not full regression verification.
+- Full release run [39132911253](https://github.com/nirzaf/AuditSphere/actions/runs/39132911253) targets the older `f5f96d9e`: the unfiltered Domain job failed; API and Playwright E2E were still running at 2026-10-18 14:15 UTC. Failure logs were not yet available. It is not current-SHA release acceptance.
+- No application tests, browser business journeys, database/provider operations or deployment were run for this documentation-only revalidation. Professional approval remains NONE; external gates and card statuses were not promoted.
 
 ## Next actions
 
-1. Review this documentation-only PR; merge only after the exact owner codeword. No merge or deployment is part of this delivery.
-2. Resume the preserved code integration as a separate coherent change, with focused verification and immutable-SHA full regression through CI/CD.
-3. Obtain qualified D1/T003/G16/EOS decisions only for their dependent actions; retain the approved technical defaults and proceed with independent work.
-4. Have authorized operations/tenant/professional reviewers collect the outstanding real evidence. Keep affected gates blocked until their own exits are met.
+1. Continue the remaining API/Angular parity and Task 11 work from the current tracker; run focused checks for each coherent change and use immutable-SHA CI for full regression.
+2. Keep Task 10 blocked until a qualified methodology owner and independent reviewer approve or revise the exact D1 source-ID mapping, dependency graph, digest boundaries and compatibility rules.
+3. Keep T003, G16 and end-of-service posting blocked on their named qualified decisions; proceed with independent technical work that does not depend on them.
+4. Keep P7/P8, accessibility and live-tenant gates open until the named owners provide the targets and observed evidence listed above. No further PR merge or deployment is part of this revalidation.
