@@ -1,0 +1,548 @@
+    <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Audit fieldwork</span></nav>
+    @if (statementFocus.line) {
+      <p role="status">Opened from statement line {{ statementFocus.line }}{{ statementFocus.area ? ' (' + statementFocus.area + ')' : '' }}. {{ focusedRisks().length ? focusedRisks().length + ' risk(s) are recorded for this line.' : 'No risk is recorded for this line yet.' }}</p>
+    }
+    <audit-page-header title="Controlled audit fieldwork" eyebrow="Engagement audit" [description]="ws.data()?.canManageFieldwork ? 'Fieldwork procedures, differences, and aggregate conclusion on this engagement.' : 'Review submitted procedure results and resolve review notes for this engagement.'" />
+    <audit-state [loading]="ws.loading()" [error]="ws.error()" label="fieldwork coverage" />
+    @if (ws.data(); as w) {
+      @if (w.program) { <p role="status">{{ w.procedures.length }} adopted procedures · {{ count(w, 'APPLICABLE') }} applicable · {{ reviewed(w) }} reviewed</p> }
+      @if (w.canReviewSelections) {
+        <section class="panel" aria-labelledby="manager-review-summary-heading">
+          <h2 id="manager-review-summary-heading">Manager review and handoff</h2>
+          <audit-state [loading]="managerReview.loading()" [error]="managerReview.error()" label="manager review summary" />
+          @if (managerReview.data(); as summary) {
+            <p role="status">{{ summary.partnerHandoffReady ? 'Ready for Partner handoff' : 'Partner handoff is blocked' }} ·
+              Summary Review Memorandum: {{ summary.summaryReviewMemorandumState.replace('_', ' ').toLowerCase() }}
+              @if (summary.summaryReviewMemorandumVersion !== null) { · version {{ summary.summaryReviewMemorandumVersion }} }
+              @if (summary.summaryReviewMemorandumGeneratedAt) { · generated {{ summary.summaryReviewMemorandumGeneratedAt.slice(0, 10) }} }
+            </p>
+            <div class="table-scroll"><table aria-label="Manager review evidence counts">
+              <thead><tr><th scope="col">Review evidence</th><th scope="col">Count</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Applicable procedures</th><td>{{ summary.applicableProcedures }}</td></tr>
+                <tr><th scope="row">Procedures needing review</th><td>{{ summary.proceduresNeedingReview }}</td></tr>
+                <tr><th scope="row">Selected item tests needing review</th><td>{{ summary.itemTestsNeedingReview }}</td></tr>
+                <tr><th scope="row">Selections needing review</th><td>{{ summary.selectionsNeedingReview }}</td></tr>
+                <tr><th scope="row">Unresolved review threads</th><td>{{ summary.unresolvedReviewThreads }}</td></tr>
+                <tr><th scope="row">Open confirmations</th><td>{{ summary.openConfirmations }}</td></tr>
+                <tr><th scope="row">Bank reconciliations needing approval</th><td>{{ summary.bankReconciliationsNeedingApproval }}</td></tr>
+                <tr><th scope="row">Unevaluated differences</th><td>{{ summary.unevaluatedDifferences }}</td></tr>
+              </tbody>
+            </table></div>
+            @if (summary.blockers.length) {
+              <h3>Current blockers</h3>
+              <ul>@for (blocker of summary.blockers; track blocker.code) { <li>{{ blocker.label }} <span>({{ blocker.count }})</span></li> }</ul>
+            }
+            <a [routerLink]="['/app/engagements', id(), 'completion']">Open completion and Summary Review Memorandum</a>
+          }
+        </section>
+      }
+      @if (w.canManageFieldwork || w.canViewReviewNotes) {
+      <section class="panel" aria-labelledby="fieldwork-tools-heading">
+        <h2 id="fieldwork-tools-heading">{{ w.canManageFieldwork ? 'Fieldwork tools' : 'Procedure review' }}</h2>
+        @if (w.canManageFieldwork) { <a [routerLink]="['/app/engagements',id(),'confirmations']">Confirmation dashboard</a> }
+        <mat-tab-group [selectedIndex]="toolTab()" (selectedIndexChange)="toolTab.set($event)">
+          @if (w.canManageFieldwork || w.canReviewSelections) {
+          <mat-tab label="Sampling">
+            @if (w.canManageFieldwork) {
+            <p>Choose a method variant, preview the exact rows, then confirm to record the selection. Population attributes come from the approved schedule; account, currency, direction and month are not inferred from the amount.</p>
+            <p><strong>Method limits:</strong> MUS is monetary-unit interval selection; systematic and random methods select by row; key item selects above a threshold; stratified combines key items with random selection; attribute strata allocates rows across the selected attribute groups. The deterministic preview does not establish statistical sufficiency, confidence or an error bound. A qualified practitioner remains responsible for the methodology and sample size.</p>
+            <form class="inline-form" (submit)="$event.preventDefault(); sampling.sample()">
+              <label>Procedure <select name="sp" [(ngModel)]="sampling.s.procedure" (ngModelChange)="sampling.inputsChanged()"><option value="">Select</option>@for (p of applicable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
+              <label>Approved schedule <select name="ss" [(ngModel)]="sampling.s.schedule" (ngModelChange)="sampling.inputsChanged()"><option value="">Select</option>@for (x of w.schedules; track x.id) { <option [value]="x.id">{{ x.scheduleType }} · {{ x.rowCount }} rows ({{ x.currency }})</option> }</select></label>
+              <label>Method <select name="sm" [(ngModel)]="sampling.s.method" (ngModelChange)="sampling.inputsChanged()">@for (m of w.samplingMethods; track m) { <option [value]="m">{{ sampling.methodLabel(m) }}</option> }</select></label>
+              @if (sampling.s.method === 'MUS') { <label>Interval <input name="si" inputmode="decimal" [(ngModel)]="sampling.s.interval" (ngModelChange)="sampling.inputsChanged()" /></label> }
+              @if (sampling.s.method === 'KEY_ITEM' || sampling.s.method === 'STRATIFIED') { <label>Key-item threshold <input name="sk" inputmode="decimal" [(ngModel)]="sampling.s.key" (ngModelChange)="sampling.inputsChanged()" /></label> }
+              @if (sampling.countBased()) {
+                <label>Sample size <input name="sz" type="number" min="1" [(ngModel)]="sampling.s.size" (ngModelChange)="sampling.inputsChanged()" /></label>
+                <label>Seed <input name="sd" type="number" [(ngModel)]="sampling.s.seed" (ngModelChange)="sampling.inputsChanged()" /></label>
+              }
+              @if (sampling.s.method === 'ATTRIBUTE_STRATA') {
+                <fieldset class="fieldwork-attribute-fields"><legend>Stratify by</legend>
+                  @for (field of sampling.attributeFields; track field.value) {
+                    <label><input type="checkbox" [checked]="sampling.s.attributeFields.includes(field.value)" (change)="sampling.toggleAttributeField(field.value, $any($event.target).checked)" /> {{ field.label }}</label>
+                  }
+                </fieldset>
+              }
+              <label>Rationale <input name="sr" [(ngModel)]="sampling.s.rationale" (ngModelChange)="sampling.inputsChanged()" maxlength="500" /></label>
+              <button matButton="filled" type="submit" [disabled]="sampling.samplingBusy()">Preview selection</button>
+            </form>
+            @if (sampling.samplingPreview(); as preview) {
+              <section class="panel" aria-labelledby="sampling-preview-heading">
+                <h3 id="sampling-preview-heading">Exact selection preview</h3>
+                @if (sampling.previewMatchesInputs()) {
+                  <p role="status">{{ preview.outcome.selectedCount }} of {{ preview.outcome.populationCount }} rows selected · {{ preview.outcome.coveragePercent | money }}% absolute-amount coverage. Review the row identities and strata before recording.</p>
+                } @else { <p role="alert" class="error-text">Sampling inputs changed after this preview. Preview again before recording.</p> }
+                <dl class="facts"><dt>Source digest</dt><dd><code>{{ preview.sourceDigest }}</code></dd><dt>Preview digest</dt><dd><code>{{ preview.previewDigest }}</code></dd></dl>
+                @if (preview.outcome.strata?.length) {
+                  <h4>Attribute strata and allocation</h4>
+                  <div class="table-scroll"><table aria-label="Attribute strata allocation"><thead><tr><th>Stratum</th><th>Population</th><th>Selected</th></tr></thead>
+                    <tbody>@for (stratum of preview.outcome.strata; track stratum.stratumKey) { <tr><td>{{ stratum.stratumKey }}</td><td>{{ stratum.populationCount }}</td><td>{{ stratum.selectedCount }}</td></tr> }</tbody></table></div>
+                }
+                <h4>Selected row identities</h4>
+                <div class="table-scroll"><table aria-label="Exact selected sampling rows"><thead><tr><th>Stable row ID</th><th>Signed amount</th><th>Selection basis</th></tr></thead>
+                  <tbody>@for (item of preview.outcome.items; track item.stableRowId) { <tr><td><code>{{ item.stableRowId }}</code></td><td>{{ item.signedAmount | money }}</td><td>{{ item.inclusionReason }}</td></tr> }</tbody></table></div>
+                <p><small>All selected IDs are shown above. Recording stores the selection, source and selection digests, method version, ordering policy and seed for replay.</small></p>
+                <button matButton="filled" type="button" [disabled]="sampling.samplingBusy() || !sampling.previewMatchesInputs()" (click)="sampling.recordSampling()">Record this exact sample</button>
+              </section>
+            }
+            }
+            @if (w.samplingRuns.length) {
+              <div class="table-scroll"><table aria-label="Sampling calculation log">
+                <thead><tr><th>When</th><th>Method</th><th>Parameters</th><th>Selection</th><th>Selected</th><th>Coverage</th><th>Attributes / provenance</th><th>Re-performed</th><th>Execution</th></tr></thead>
+                <tbody>@for (r of w.samplingRuns; track r.id) {
+                  <tr><td>{{ r.createdAt.slice(0, 16).replace('T', ' ') }}</td><td>{{ sampling.methodLabel(r.method) }}</td><td>{{ sampling.parameters(r) }}</td><td>{{ r.selectionStatus }}</td><td>{{ r.selectedCount }} of {{ r.populationCount }}</td>
+                    <td>{{ r.coveragePercent | money }}%</td><td>{{ r.attributeFields.length ? r.attributeFields.join(', ') : '—' }}<br /><small>{{ r.orderingPolicy ?? 'Legacy ordering' }} · {{ r.engineVersion }}</small></td>
+                    <td [class.error-text]="!r.reproduces">{{ r.reproduces ? 'Matches' : 'Source changed' }}</td><td>
+                      <button matButton (click)="sampling.openSampleSet(r.selectionId)" [disabled]="sampling.sampleSetLoading() || sampling.sampleActionBusy()">Open sample set</button>
+                      @if (r.canReviewSelection) {
+                        <label>Review note <input [(ngModel)]="sampling.selectionReviewComment" [name]="'selection-review-' + r.selectionId" /></label>
+                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'REVIEWED')" [disabled]="sampling.sampleActionBusy()">Approve for execution</button>
+                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'CHANGES_REQUIRED')" [disabled]="sampling.sampleActionBusy()">Return for changes</button>
+                      } @else if (r.selectionStatus !== 'REVIEWED') {
+                        <small>{{ r.preparedByMe ? 'Independent review required before execution.' : 'Awaiting an authorized selection reviewer.' }}</small>
+                      }
+                    </td></tr> }</tbody>
+              </table></div>
+            } @else { <p role="status">No saved sampling selections are available in this engagement yet.</p> }
+            @if (sampling.sampleSetLoading()) { <p role="status">Loading the selected sample and execution history…</p> }
+            @if (sampling.sampleSetError()) { <p role="alert" class="error-text">{{ sampling.sampleSetError() }}</p> }
+            @if (sampling.sampleSet(); as selected) {
+              <section class="panel" aria-labelledby="sample-execution-heading">
+                <h3 id="sample-execution-heading">Sample execution · {{ selected.method }} · {{ selected.status }}</h3>
+                <p>{{ selected.testedCount }} of {{ selected.totalCount }} items tested · {{ selected.exceptionCount }} exceptions or limitations · {{ selected.selectedCount }} items in this reviewed sample.</p>
+                <p><strong>Rationale:</strong> {{ selected.rationale }}</p>
+                @if (selected.status !== 'REVIEWED') {
+                  <p role="status">Execution is locked until an independent reviewer approves this exact sample.</p>
+                }
+                @for (item of selected.items; track item.selectionItemId) {
+                  @let draft = sampling.itemDraft(item);
+                  <article class="panel" [attr.data-sample-item]="item.stableRowId">
+                    <h4>{{ item.stableRowId }} · {{ item.signedAmount | money }} {{ item.currency }}</h4>
+                    <p><strong>Selection basis:</strong> {{ item.inclusionReason }}</p>
+                    @if (item.testRevision > 0) {
+                      <div class="facts" aria-label="Recorded item test">
+                        <p><strong>Current result:</strong> {{ item.testResult }} · revision {{ item.testRevision }}{{ item.testReviewed ? ' · independently reviewed' : ' · review pending' }}</p>
+                        <p><strong>Work performed:</strong> {{ item.testWorkPerformed }}</p>
+                        @if (item.exceptionAmount !== null) { <p><strong>Exception amount:</strong> {{ item.exceptionAmount | money }} {{ item.currency }}</p> }
+                        @if (item.evidenceReferences.length) { <p><strong>Evidence references:</strong> {{ item.evidenceReferences.join(', ') }}</p> }
+                        @if (item.contradictoryEvidence) { <p><strong>Contradictory evidence:</strong> {{ item.contradictoryEvidence }}</p> }
+                        @if (item.followUp) { <p><strong>Required follow-up:</strong> {{ item.followUp }}</p> }
+                        @if (item.testReviewDecision) { <p><strong>Reviewer decision:</strong> {{ item.testReviewDecision }}{{ item.testReviewComment ? ' — ' + item.testReviewComment : '' }}</p> }
+                      </div>
+                    } @else { <p role="status">No execution result recorded.</p> }
+                    @if (selected.status === 'REVIEWED' && w.canManageFieldwork) {
+                      <form class="inline-form" (submit)="$event.preventDefault(); sampling.recordItemTest(item)">
+                        <label>Result <select [(ngModel)]="draft.result" [name]="'result-' + item.selectionItemId"><option value="PASS">Pass</option><option value="EXCEPTION">Exception</option><option value="LIMITATION">Limitation</option></select></label>
+                        <label>Work performed <textarea [(ngModel)]="draft.workPerformed" [name]="'work-' + item.selectionItemId" maxlength="20000" rows="2"></textarea></label>
+                        <label>Evidence references (one per line) <textarea [(ngModel)]="draft.evidenceReferences" [name]="'evidence-' + item.selectionItemId" rows="2"></textarea></label>
+                        @if (draft.result === 'EXCEPTION') { <label>Exception amount <input inputmode="decimal" [(ngModel)]="draft.exceptionAmount" [name]="'amount-' + item.selectionItemId" /></label> }
+                        @if (draft.result !== 'PASS') {
+                          <label>Contradictory evidence <textarea [(ngModel)]="draft.contradictoryEvidence" [name]="'contradiction-' + item.selectionItemId" rows="2"></textarea></label>
+                          <label>Required follow-up <textarea [(ngModel)]="draft.followUp" [name]="'followup-' + item.selectionItemId" rows="2"></textarea></label>
+                        }
+                        <button matButton="filled" type="submit" [disabled]="sampling.sampleActionBusy()">{{ item.testRevision ? 'Record a new test revision' : 'Record item test' }}</button>
+                      </form>
+                    }
+                    @if (item.canReviewTest && item.auditItemTestId) {
+                      <div class="inline-form" aria-label="Independent item-test review">
+                        <label>Reviewer note <input [(ngModel)]="draft.reviewerComment" [name]="'test-review-' + item.selectionItemId" /></label>
+                        <button matButton (click)="sampling.reviewItemTest(item.auditItemTestId!, 'REVIEWED', item.selectionItemId)" [disabled]="sampling.sampleActionBusy()">Review item test</button>
+                        <button matButton (click)="sampling.reviewItemTest(item.auditItemTestId!, 'CHANGES_REQUIRED', item.selectionItemId)" [disabled]="sampling.sampleActionBusy() || !draft.reviewerComment.trim()">Return item test</button>
+                      </div>
+                    }
+                  </article>
+                }
+                <p>Showing items {{ sampling.pageStart(selected) }}–{{ sampling.pageEnd(selected) }} of {{ selected.totalCount }}.</p>
+                <div class="actions">
+                  <button matButton (click)="sampling.loadSampleSet(selected.selectionId, selected.page - 1)" [disabled]="sampling.sampleSetLoading() || selected.page <= 1">Previous</button>
+                  <button matButton (click)="sampling.loadSampleSet(selected.selectionId, selected.page + 1)" [disabled]="sampling.sampleSetLoading() || selected.page * selected.pageSize >= selected.totalCount">Next</button>
+                </div>
+              </section>
+            }
+          </mat-tab>
+          }
+          @if (w.canManageFieldwork) {
+          <mat-tab label="Client evidence">
+            <p>Link a received client upload to a procedure. The link pins the provider receipt digest; a superseded version cannot be linked.</p>
+            <form class="inline-form" (submit)="$event.preventDefault(); procedure.linkEvidence()">
+              <label>Procedure <select name="ep" [(ngModel)]="procedure.e.procedure" (ngModelChange)="procedure.selectProcedure($event)"><option value="">Select</option>@for (p of applicable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
+              <label>Received upload <select name="eu" [(ngModel)]="procedure.e.upload"><option value="">Select</option>@for (c of w.evidenceCandidates; track c.uploadIntentId) { <option [value]="c.uploadIntentId">{{ c.requestArea }} · {{ c.fileName }} · {{ c.receivedAt.slice(0, 16).replace('T', ' ') }}{{ c.superseded ? ' (superseded)' : '' }}</option> }</select></label>
+              <label>Note <input name="en" [(ngModel)]="procedure.e.note" maxlength="500" /></label>
+              <button matButton="filled" type="submit" [disabled]="cmd.busy()">Link evidence</button>
+            </form>
+            @if (procedure.review()?.evidence?.length) { <ul aria-label="Linked client evidence">@for (l of procedure.review()!.evidence; track l.linkId) { <li>{{ l.fileName }} <code>{{ l.contentSha256.slice(0, 12) }}</code>{{ l.note ? ' — ' + l.note : '' }}</li> }</ul> }
+          </mat-tab>
+          <mat-tab label="Physical files">
+            <form class="inline-form" (submit)="$event.preventDefault(); procedure.register()">
+              <label>File index <input name="pi" [(ngModel)]="procedure.ph.index" maxlength="40" placeholder="X-1" /></label>
+              <label>Box <input name="pb" [(ngModel)]="procedure.ph.box" maxlength="40" placeholder="Box 3" /></label>
+              <label>Description <input name="pd" [(ngModel)]="procedure.ph.description" maxlength="300" /></label>
+              <label>Location <input name="pl" [(ngModel)]="procedure.ph.location" maxlength="200" /></label>
+              <button matButton="filled" type="submit" [disabled]="cmd.busy()">Register file</button>
+            </form>
+            @for (item of w.physicalItems; track item.id) {
+              <article class="panel" [attr.data-file-index]="item.fileIndex">
+                <p><strong>{{ item.fileIndex }}</strong> · {{ item.boxReference }} · {{ item.description }} — at <em>{{ item.currentLocation }}</em></p>
+                <p><small>History: {{ procedure.history(item.movements) }}</small></p>
+                <p><small>Procedures: {{ item.procedureTitles.length ? item.procedureTitles.join(', ') : 'none' }}</small></p>
+                <div class="inline-form">
+                  <label>Link to procedure <select [(ngModel)]="procedure.ph.linkTarget" [name]="'pt-' + item.id" [attr.aria-label]="'Procedure for ' + item.fileIndex"><option value="">Select</option>@for (p of applicable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
+                  <button matButton (click)="procedure.linkPhysical(item.id)" [disabled]="cmd.busy() || !procedure.ph.linkTarget" [attr.aria-label]="'Link ' + item.fileIndex">Link</button>
+                  <label>Move to <input [(ngModel)]="procedure.ph.moveTo" [name]="'mv-' + item.id" [attr.aria-label]="'New location for ' + item.fileIndex" /></label>
+                  <button matButton (click)="procedure.move(item.id)" [disabled]="cmd.busy()" [attr.aria-label]="'Move ' + item.fileIndex">Record move</button>
+                </div>
+              </article>
+            }
+          </mat-tab>
+          <mat-tab label="Ad hoc steps">
+            <p>Add a step for an unusual risk or transaction. The adopted programme's baseline is untouched; the step must be performed and reviewed before completion.</p>
+            <form class="inline-form" (submit)="$event.preventDefault(); procedure.adHoc()">
+              <label>Title <input name="at" [(ngModel)]="procedure.ah.title" maxlength="300" /></label>
+              <label>Step <textarea name="aw" [(ngModel)]="procedure.ah.wording" maxlength="4000" rows="2"></textarea></label>
+              <label>Why it is needed <input name="ar" [(ngModel)]="procedure.ah.reason" maxlength="500" /></label>
+              <label>Audit area <input name="as" [(ngModel)]="procedure.ah.section" maxlength="100" /></label>
+              <button matButton="filled" type="submit" [disabled]="cmd.busy()">Insert step</button>
+            </form>
+          </mat-tab>
+          }
+          @if (w.canViewReviewNotes) {
+          <mat-tab label="Review notes">
+            <p>Anchor a note to text in the current submitted result. A result cannot be approved while a note is open; the preparer responds and a reviewer resolves.</p>
+            @if (reviewable(w).length) {
+              <label>Procedure <select [(ngModel)]="procedure.e.procedure" name="rp" (ngModelChange)="procedure.selectProcedure($event)"><option value="">Select</option>@for (p of reviewable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
+            } @else { <p role="status">No submitted procedure results are ready for review.</p> }
+            @if (procedure.reviewError()) { <p role="alert" class="error-text">{{ procedure.reviewError() }}</p> }
+            @if (procedure.review()?.currentResult; as r) {
+              <div aria-label="Current submitted result">
+                <p><strong>Revision {{ r.revision }} — work performed:</strong> {{ r.workPerformed }}</p>
+                <p><strong>Conclusion:</strong> {{ r.conclusion }}</p>
+              </div>
+              @if (w.canAddOrResolveReviewNotes) {
+              <form class="inline-form" (submit)="$event.preventDefault(); procedure.addNote(r.id)">
+                <label>Field <select name="nf" [(ngModel)]="procedure.n.field"><option value="WORK_PERFORMED">Work performed</option><option value="CONCLUSION">Conclusion</option></select></label>
+                <label>Quoted text <input name="ne" [(ngModel)]="procedure.n.excerpt" maxlength="500" /></label>
+                <label>Note <input name="nb" [(ngModel)]="procedure.n.body" maxlength="4000" /></label>
+                <button matButton="filled" type="submit" [disabled]="cmd.busy()">Add note</button>
+              </form>
+              }
+            }
+            @for (note of procedure.review()?.notes ?? []; track note.noteId) {
+              <article class="panel" [attr.data-note]="note.excerpt">
+                <p><mark>“{{ note.excerpt }}”</mark> (r{{ note.resultRevision }}, {{ note.field.toLowerCase().replace('_', ' ') }}) — {{ note.body }} <small>{{ note.authorName }}</small> <strong>{{ note.open ? 'Open' : 'Resolved' }}</strong></p>
+                @for (ev of note.events; track ev.id) { <p><small>{{ ev.kind.toLowerCase() }}: {{ ev.body }}</small></p> }
+                <div class="inline-form">
+                  @if (w.canRespondToReviewNotes) {
+                    <label>Reply <input [(ngModel)]="procedure.n.reply" [name]="'nr-' + note.noteId" [attr.aria-label]="'Reply to note on ' + note.excerpt" /></label>
+                    <button matButton (click)="procedure.noteEvent(note.noteId, 'RESPONSE')" [disabled]="cmd.busy()">Respond</button>
+                  }
+                  @if (note.open && w.canAddOrResolveReviewNotes) { <button matButton (click)="procedure.noteEvent(note.noteId, 'RESOLVED')" [disabled]="cmd.busy()" [attr.aria-label]="'Resolve note on ' + note.excerpt">Resolve</button> }
+                </div>
+              </article>
+            }
+          </mat-tab>
+          }
+        </mat-tab-group>
+      </section>
+      }
+
+      @if (w.canManageFieldwork) {
+      <section class="panel" aria-labelledby="program-heading">
+        <h2 id="program-heading">Versioned audit program</h2>
+        <p>The controlled source catalog contains {{ w.catalogProcedureCount }} procedures across 20 sections. Applicability and evidence status are persisted per engagement.</p>
+        @if (w.program; as p) {
+          <dl class="facts"><dt>Program</dt><dd>{{ p.programCode }} v{{ p.version }}</dd><dt>Source hash</dt><dd><code>{{ p.sourceHash }}</code></dd>
+            <dt>Adopted procedures</dt><dd>{{ w.procedures.length }}</dd><dt>Applicable / reviewed</dt><dd>{{ count(w, 'APPLICABLE') }} / {{ reviewed(w) }}</dd></dl>
+          @if (programOptions.data(); as options) {
+            <p>Controlled baseline {{ options.baselineProcedureCount }} · ad hoc {{ options.adHocProcedureCount }}. The baseline and engagement-added procedures are counted separately.</p>
+            @if (!options.currentAdoptionComplete || options.currentAdoptionBlocker) { <p class="error" role="alert">{{ options.currentAdoptionBlocker ?? 'The current adoption is not verified complete. Review its source and retained procedures before relying on coverage.' }}</p> }
+          }
+          <p class="actions"><a [routerLink]="['/app/engagements', w.engagementId, 'audit-plan']">Open planning</a><a routerLink="/app/audit/library">Program library</a><a [routerLink]="['/app/engagements', w.engagementId, 'completion']">Open completion</a></p>
+        } @else {
+          <p>No published program has been adopted for this engagement.</p>
+          @if (programOptions.data(); as options) {
+            @if (options.currentAdoptionBlocker) { <p class="error" role="alert">{{ options.currentAdoptionBlocker }}</p> }
+            @if (options.options.length) {
+              <label for="published-program-version">Published programme version</label>
+              <select id="published-program-version" [ngModel]="procedure.selectedProgramVersion(options)" (ngModelChange)="procedure.selectedProgramVersionId.set($event)">
+                @for (option of options.options; track option.programVersionId) {
+                  <option [value]="option.programVersionId" [disabled]="!option.eligible">{{ option.programCode }} v{{ option.version }} · {{ option.procedureCount }} procedures{{ option.eligible ? '' : ' · unavailable' }}</option>
+                }
+              </select>
+              @if (procedure.selectedProgram(options); as selected) {
+                <p>Source SHA-256 <code>{{ selected.sourceHash }}</code> · content SHA-256 <code>{{ selected.contentDigest ?? 'unverified' }}</code> · baseline {{ selected.procedureCount }}</p>
+                @if (selected.blocker) { <p role="status">{{ selected.blocker }}</p> }
+                <button matButton="filled" (click)="procedure.adoptProgram(options)" [disabled]="cmd.busy() || !selected.eligible || !!options.currentAdoptionId || !!options.currentAdoptionBlocker">Adopt exact published version {{ selected.version }}</button>
+              }
+            } @else { <p role="status">No published eligible programme is available. A firm-wide owner must publish a reviewed version first.</p> }
+          } @else if (programOptions.loading()) { <p role="status">Loading engagement-scoped published versions…</p> }
+          @else if (programOptions.error()) { <p class="error" role="alert">{{ programOptions.error() }}</p> }
+        }
+      </section>
+
+      @if (w.differences.length) {
+        <section class="panel" aria-labelledby="difference-summary-heading">
+          <h2 id="difference-summary-heading">Aggregate differences and reporting assessment</h2>
+          <p>Review gross and signed amounts separately by currency. These totals do not determine materiality or an audit opinion; the engagement team records the professional conclusion.</p>
+          <div class="table-scroll"><table>
+            <thead><tr><th scope="col">Currency</th><th scope="col" class="number">Count</th><th scope="col" class="number">Gross</th><th scope="col" class="number">Signed/net</th><th scope="col" class="number">Unadjusted gross</th><th scope="col" class="number">Unadjusted net</th><th scope="col" class="number">Corrected gross</th></tr></thead>
+            <tbody>@for (d of w.differences; track d.currency) { <tr><td>{{ d.currency }}</td><td class="number">{{ d.differenceCount }}</td><td class="number">{{ d.grossAmount | money }}</td><td class="number">{{ d.signedNetAmount | money }}</td>
+              <td class="number">{{ d.unadjustedGrossAmount | money }}</td><td class="number">{{ d.unadjustedSignedNetAmount | money }}</td><td class="number">{{ d.correctedGrossAmount | money }}</td></tr> }</tbody>
+          </table></div>
+          @if (w.aggregate; as a) {
+            <dl class="facts"><dt>Assessment</dt><dd>{{ a.status }}</dd><dt>Current and independently reviewed</dt><dd>{{ w.aggregateCurrentAndReviewed ? 'Yes' : 'No — refresh the assessment before completion' }}</dd>
+              <dt>Professional conclusion / reporting impact</dt><dd>{{ a.conclusion }}</dd></dl>
+            @if (a.status !== 'REVIEWED' && !a.preparedByMe) { <button matButton="filled" (click)="send('/api/ui/area-assessments/' + a.id + '/review', {}, 'Aggregate conclusion reviewed.')" [disabled]="cmd.busy()">Review aggregate conclusion</button> }
+          }
+          <form (submit)="$event.preventDefault(); aggregate(w)">
+            <label>Required: professional aggregate conclusion and reporting impact <textarea name="agg" [(ngModel)]="aggregateConclusion" maxlength="4000" rows="4" required></textarea></label>
+            <button matButton="filled" type="submit" [disabled]="cmd.busy() || !aggregateConclusion.trim()">Record aggregate conclusion</button>
+          </form>
+        </section>
+      }
+
+      @if (w.program) {
+        <section class="panel" aria-labelledby="coverage-heading">
+          <h2 id="coverage-heading">Procedure applicability and evidence coverage</h2>
+          <p>An applicable procedure cannot be completed from a title alone. Link its financial-statement risk so execution and review use current qualitative risk and mapped FSLI exposure. Submit work, evidence and a current independent review through the guarded commands.</p>
+          <div class="inline-form">
+            <label>Audit section <select name="section" [ngModel]="section() ?? firstSection(w)" (ngModelChange)="section.set($event)">
+              <option [ngValue]="0">All sections</option>
+              @for (g of sections(w); track g.key) { <option [ngValue]="g.key">{{ g.key === -2 ? 'Unclassified' : 'Section ' + g.key }} — {{ g.title }} ({{ g.count }})</option> }</select></label>
+            <span>Showing {{ visible(w).length }} of {{ w.procedures.length }} authorized procedures</span>
+          </div>
+          <div class="table-scroll"><table>
+            <thead><tr><th scope="col">Source</th><th scope="col">Section</th><th scope="col">Procedure</th><th scope="col">Instructions and provenance</th><th scope="col">Applicability</th><th scope="col">Linked risk</th><th scope="col">Evidence</th><th scope="col">Action</th></tr></thead>
+            <tbody>@for (p of visible(w); track p.id) {
+              <tr [id]="'procedure-' + p.id"><td><code>{{ p.sourceProcedureId }}</code></td><td>{{ p.sourceSectionTitle }}</td><td>{{ p.title }}</td>
+                <td><details><summary>View original and effective wording</summary>
+                  <p><strong>Original source:</strong> {{ p.originalWording ?? 'No controlled source text; see the retained ad-hoc wording history.' }}</p>
+                  <p><strong>Effective instructions:</strong> {{ p.effectiveWording ?? p.title }}</p>
+                  <p><strong>Definition provenance:</strong> {{ p.definitionProvenance }}{{ p.definitionRevision ? ' · revision ' + p.definitionRevision : '' }}</p>
+                </details>
+                @if (w.canManageFieldwork && p.originalWording && p.definitionRevision) {
+                  <button matButton="outlined" type="button" (click)="procedure.beginTailoring(p)"
+                    [disabled]="procedure.tailoringBusy() || procedure.tailoringUncertain() || procedure.tailoringProcedureId() !== ''">Tailor effective wording</button>
+                }
+                @if (procedure.tailoringProcedureId() === p.id) {
+                  <form class="stack-form" (submit)="$event.preventDefault(); procedure.submitTailoring()" aria-label="Tailor controlled procedure wording">
+                    <p>The original controlled wording remains unchanged. This creates a new append-only effective definition revision.</p>
+                    <p><strong>Original source:</strong> {{ p.originalWording }}</p>
+                    <p><strong>Current effective wording:</strong> {{ p.effectiveWording ?? p.title }}</p>
+                    <p>Expected definition revision {{ p.definitionRevision }}</p>
+                    <label>Effective title <input name="tailor-title-{{ p.id }}" [(ngModel)]="procedure.tailoringTitle" maxlength="500" required [disabled]="procedure.tailoringBusy() || procedure.tailoringUncertain()" /></label>
+                    <label>Effective instructions <textarea name="tailor-wording-{{ p.id }}" [(ngModel)]="procedure.tailoringWording" maxlength="2000" rows="4" required [disabled]="procedure.tailoringBusy() || procedure.tailoringUncertain()"></textarea></label>
+                    <label>Tailoring rationale <textarea name="tailor-rationale-{{ p.id }}" [(ngModel)]="procedure.tailoringRationale" maxlength="1000" rows="3" required [disabled]="procedure.tailoringBusy() || procedure.tailoringUncertain()"></textarea></label>
+                    @if (procedure.tailoringUncertain()) {
+                      <section class="panel" role="region" aria-label="Uncertain tailoring outcome recovery">
+                        <p role="alert">The result is unknown. The exact request identity and wording are retained. Retry that same command to reconcile it before starting another tailoring change.</p>
+                        @if (procedure.tailoringPending(); as pending) { <p>Command <code>{{ pending.command.commandId }}</code> · expected revision {{ pending.command.expectedDefinitionRevision }}</p> }
+                        <button matButton="filled" type="button" (click)="procedure.recoverTailoring()" [disabled]="procedure.tailoringBusy()">Retry exact tailoring request</button>
+                      </section>
+                    } @else {
+                      <button matButton="filled" type="submit" [disabled]="procedure.tailoringBusy()">Append wording revision</button>
+                      <button matButton="outlined" type="button" (click)="procedure.cancelTailoring()" [disabled]="procedure.tailoringBusy()">Cancel</button>
+                    }
+                    @if (procedure.tailoringMessage()) { <p [attr.role]="procedure.tailoringFailed() || procedure.tailoringUncertain() ? 'alert' : 'status'">{{ procedure.tailoringMessage() }}</p> }
+                  </form>
+                }
+                </td><td>{{ p.applicabilityStatus }}</td>
+                <td>
+                  @if (w.canManageFieldwork) {
+                    <div class="inline-form">
+                      <label [attr.for]="'risk-link-' + p.id">Financial-statement risk</label>
+                      <select [id]="'risk-link-' + p.id" [name]="'risk-link-' + p.id" [ngModel]="riskSelection(p)"
+                        (ngModelChange)="setRiskSelection(p.id, $event)">
+                        <option value="">No linked risk</option>
+                        @for (risk of w.risks; track risk.id) {
+                          <option [value]="risk.id">{{ risk.area }} · {{ risk.effectiveBand ?? risk.band ?? 'Not assessed' }}{{ risk.significanceDecision === 'SIGNIFICANT' ? ' · Significant' : '' }}{{ risk.blocker ? ' · Review blocked' : '' }}</option>
+                        }
+                      </select>
+                      <button matButton (click)="saveRiskLink(p.id)" [disabled]="cmd.busy() || !riskLink.canPrepare('LINK_PROCEDURE_RISK') || riskSelection(p) === (p.riskId ?? '')">Preview risk link</button>
+                      @if (riskFor(w, p.riskId); as linkedRisk) {
+                        <div class="facts" aria-label="Current procedure risk basis">
+                          <p><strong>{{ linkedRisk.effectiveBand ?? linkedRisk.band ?? 'Unassessed' }} effective risk</strong>
+                            {{ linkedRisk.significanceDecision === 'SIGNIFICANT' ? '· Significant risk' : '' }}</p>
+                          @if (linkedRisk.blocker) { <p role="alert" class="error-text">{{ linkedRisk.blocker }}</p> }
+                          @if (linkedRisk.balance !== null && linkedRisk.currency) {
+                            <p>Mapped FSLI balance: {{ linkedRisk.balance | money }} {{ linkedRisk.currency }}</p>
+                          }
+                          @if (linkedRisk.tolerableError !== null && linkedRisk.planningMateriality !== null && linkedRisk.currency) {
+                            <p>TE {{ linkedRisk.tolerableError | money }} {{ linkedRisk.currency }} · PM {{ linkedRisk.planningMateriality | money }} {{ linkedRisk.currency }}</p>
+                          }
+                          @if (linkedRisk.explanation) { <p>{{ linkedRisk.explanation }}</p> }
+                          <details>
+                            <summary>Risk and planning source revision</summary>
+                            <p>Risk assessment: <code>{{ linkedRisk.riskAssessmentId ?? 'not assessed' }}</code></p>
+                            <p>Materiality assessment / calculation: <code>{{ linkedRisk.materialityAssessmentId ?? 'not available' }}</code> / <code>{{ linkedRisk.materialityCalculationId ?? 'not available' }}</code></p>
+                            <p>Approved mapping: <code>{{ linkedRisk.mappingVersionId ?? 'not available' }}</code>{{ linkedRisk.mappingVersionNumber !== null ? ' · version ' + linkedRisk.mappingVersionNumber : '' }}</p>
+                            <p>Dataset: <code>{{ linkedRisk.datasetId ?? 'not available' }}</code>{{ linkedRisk.datasetDigest ? ' · SHA-256 ' + linkedRisk.datasetDigest : '' }}</p>
+                            <p>FSLI: {{ linkedRisk.destinationCode ?? 'not matched' }}{{ linkedRisk.statementSection ? ' · ' + linkedRisk.statementSection : '' }} · rules {{ linkedRisk.ruleVersion ?? 'unavailable' }}</p>
+                          </details>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    @if (riskFor(w, p.riskId); as linkedRisk) {
+                      <div class="facts" aria-label="Current procedure risk basis">
+                        <p><strong>{{ linkedRisk.effectiveBand ?? linkedRisk.band ?? 'Unassessed' }} effective risk</strong>
+                          {{ linkedRisk.significanceDecision === 'SIGNIFICANT' ? '· Significant risk' : '' }}</p>
+                        @if (linkedRisk.blocker) { <p role="alert" class="error-text">{{ linkedRisk.blocker }}</p> }
+                        @if (linkedRisk.balance !== null && linkedRisk.currency) { <p>Mapped FSLI balance: {{ linkedRisk.balance | money }} {{ linkedRisk.currency }}</p> }
+                        @if (linkedRisk.tolerableError !== null && linkedRisk.planningMateriality !== null && linkedRisk.currency) {
+                          <p>TE {{ linkedRisk.tolerableError | money }} {{ linkedRisk.currency }} · PM {{ linkedRisk.planningMateriality | money }} {{ linkedRisk.currency }}</p>
+                        }
+                        @if (linkedRisk.explanation) { <p>{{ linkedRisk.explanation }}</p> }
+                        <details><summary>Risk and planning source revision</summary>
+                          <p>Risk assessment: <code>{{ linkedRisk.riskAssessmentId ?? 'not assessed' }}</code></p>
+                          <p>Materiality assessment / calculation: <code>{{ linkedRisk.materialityAssessmentId ?? 'not available' }}</code> / <code>{{ linkedRisk.materialityCalculationId ?? 'not available' }}</code></p>
+                          <p>Approved mapping: <code>{{ linkedRisk.mappingVersionId ?? 'not available' }}</code>{{ linkedRisk.mappingVersionNumber !== null ? ' · version ' + linkedRisk.mappingVersionNumber : '' }}</p>
+                          <p>Dataset: <code>{{ linkedRisk.datasetId ?? 'not available' }}</code>{{ linkedRisk.datasetDigest ? ' · SHA-256 ' + linkedRisk.datasetDigest : '' }}</p>
+                          <p>FSLI: {{ linkedRisk.destinationCode ?? 'not matched' }}{{ linkedRisk.statementSection ? ' · ' + linkedRisk.statementSection : '' }} · rules {{ linkedRisk.ruleVersion ?? 'unavailable' }}</p>
+                        </details>
+                      </div>
+                    } @else { <small>{{ riskLabel(w, p.riskId) }}</small> }
+                  }
+                </td><td>{{ p.status }}</td>
+                <td>
+                  <strong>{{ p.applicabilityStatus }}</strong>
+                  @if (p.applicabilityStatus === 'PENDING' || p.applicabilityStatus === 'NA_UNVERIFIED' || p.applicabilityStatus === 'APPLICABLE') {
+                    @if (p.applicabilityStatus === 'PENDING' || p.applicabilityStatus === 'NA_UNVERIFIED') {
+                      <button matButton="filled" (click)="procedure.decide(p, 'APPLICABLE')" [disabled]="cmd.busy()">Applicable</button>
+                    } @else { <small>Execute from source workflow</small> }
+                  }
+                  @if (p.canProposeNotApplicable) {
+                    <label [attr.for]="'na-reason-' + p.id">Reason for non-applicability</label>
+                    <textarea [id]="'na-reason-' + p.id" [name]="'na-reason-' + p.id" maxlength="1000"
+                      [ngModel]="procedure.applicabilityReason(p.id)" (ngModelChange)="procedure.setApplicabilityReason(p.id, $event)"></textarea>
+                    <button matButton="filled" (click)="procedure.decide(p, 'PROPOSE_NOT_APPLICABLE')"
+                      [disabled]="cmd.busy() || !procedure.applicabilityReason(p.id).trim()">Propose N/A</button>
+                  }
+                  @if (p.canApproveNotApplicable) {
+                    <p><strong>Pending N/A reason:</strong> {{ p.applicabilityRationale }}</p>
+                    <button matButton="filled" (click)="procedure.decide(p, 'APPROVE_NOT_APPLICABLE')" [disabled]="cmd.busy()">Approve as Partner</button>
+                    <label [attr.for]="'na-return-' + p.id">Reason to return proposal</label>
+                    <textarea [id]="'na-return-' + p.id" [name]="'na-return-' + p.id" maxlength="1000"
+                      [ngModel]="procedure.applicabilityReason(p.id)" (ngModelChange)="procedure.setApplicabilityReason(p.id, $event)"></textarea>
+                    <button matButton (click)="procedure.decide(p, 'RETURN_NOT_APPLICABLE')"
+                      [disabled]="cmd.busy() || !procedure.applicabilityReason(p.id).trim()">Return proposal</button>
+                  }
+                  @if (p.applicabilityStatus === 'NA_UNVERIFIED') {
+                    <p role="status">Historical N/A is unverified against current proposal, Partner and input evidence.</p>
+                  }
+                  @if (w.canManageFieldwork || w.canViewReviewNotes) {
+                    <button matButton (click)="procedure.openProcedure(p)">Open procedure</button>
+                  }
+                  @if (p.applicabilityHistory.length) {
+                    <details><summary>Applicability history (latest 20)</summary>
+                      @for (decision of p.applicabilityHistory; track decision.id) {
+                        <p>Revision {{ decision.revision }} · {{ decision.action }} · {{ decision.occurredAt | date:'medium' }} · {{ decision.actorUserId }}{{ decision.rationale ? ' · ' + decision.rationale : '' }}</p>
+                      }
+                    </details>
+                  }
+                </td></tr> }</tbody>
+          </table></div>
+        </section>
+
+        @if (procedure.procedureSelectedId()) {
+          <section class="panel" aria-labelledby="procedure-command-heading">
+            <h2 id="procedure-command-heading">Procedure execution and review</h2>
+            @if (procedure.procedureCommandState(); as state) {
+              <p><strong>{{ state.basis.sourceProcedureId }} · {{ state.basis.title }}</strong></p>
+              <p>Applicability {{ state.basis.applicabilityStatus }} · procedure {{ state.basis.procedureStatus }} · definition revision {{ state.basis.definitionRevision }} · input generation {{ state.basis.inputGeneration }}</p>
+              @if (procedure.selectedProcedure(w); as selected) {
+                <details><summary>Source and effective instructions</summary>
+                  <p><strong>Original source:</strong> {{ selected.originalWording ?? 'Retained ad-hoc wording only.' }}</p>
+                  <p><strong>Effective instructions:</strong> {{ selected.effectiveWording ?? selected.title }}</p>
+                  <p><strong>Definition provenance:</strong> {{ selected.definitionProvenance }}{{ selected.definitionRevision ? ' · revision ' + selected.definitionRevision : '' }}</p>
+                </details>
+              }
+              @if (procedure.selectedProcedure(w); as selected) {
+                @if (selected.supportLinks.length) {
+                  <section aria-labelledby="procedure-support-heading">
+                    <h3 id="procedure-support-heading">Supporting tools and manual work</h3>
+                    @for (support of selected.supportLinks; track support.toolKind + ':' + (support.route ?? '')) {
+                      <p>@if (support.route) { <a [routerLink]="support.route">{{ support.label }}</a> } @else { <strong>{{ support.label }}</strong> }
+                        · {{ support.availability }} — {{ support.explanation }}</p>
+                    }
+                  </section>
+                }
+              }
+              @if (state.basis.blockers.length) {
+                <div role="alert" class="error"><p>Current blockers:</p><ul>@for (b of state.basis.blockers; track b) { <li>{{ b }}</li> }</ul></div>
+              }
+              @if (procedure.review(); as r) {
+                @if (r.currentResult; as result) {
+                  <div class="facts"><h3>Frozen submitted result</h3>
+                    <p><strong>Work performed:</strong> {{ result.workPerformed }}</p>
+                    <p><strong>Conclusion:</strong> {{ result.conclusion }}</p>
+                    <p><strong>Evidence digest:</strong> <code>{{ result.evidenceDigest ?? 'legacy/unverified' }}</code></p>
+                    @if (result.submittedEvidenceJson) { <details><summary>Evidence snapshot considered at submission</summary><pre>{{ result.submittedEvidenceJson }}</pre></details> }
+                    @if (r.evidence.length || r.physicalEvidence.length) {
+                      <details><summary>Current linked evidence (not the submitted snapshot)</summary>
+                        @for (e of r.evidence; track e.linkId) { <p>{{ e.fileName }} · {{ e.contentSha256 }}</p> }
+                        @for (phys of r.physicalEvidence; track phys.linkId) { <p>{{ phys.fileIndex }} · {{ phys.boxReference }} · {{ phys.currentLocation }}</p> }
+                      </details>
+                    }
+                  </div>
+                }
+              }
+              @if (state.basis.canSubmit) {
+                <form (submit)="$event.preventDefault(); procedure.prepareProcedureCommand('SUBMIT_RESULT')">
+                  <h3>Record performed work</h3>
+                  <label>Work performed <textarea name="procedure-work" [(ngModel)]="procedure.procedureWork" (ngModelChange)="procedure.procedureInputChanged()" maxlength="100000" rows="4" required></textarea></label>
+                  <label>Conclusion <textarea name="procedure-conclusion" [(ngModel)]="procedure.procedureConclusion" (ngModelChange)="procedure.procedureInputChanged()" maxlength="20000" rows="3" required></textarea></label>
+                  <fieldset><legend>Evidence actually considered</legend>
+                    @if (!(procedure.review()?.evidence?.length) && !(procedure.review()?.physicalEvidence?.length)) { <p>Link received PBC evidence or a physical file in the evidence controls first, or record a complete manual reference below.</p> }
+                    @for (e of procedure.review()?.evidence ?? []; track e.linkId) {
+                      <label><input type="checkbox" [checked]="procedure.procedureSelectedLinks.has(e.linkId)" (change)="procedure.toggleProcedureLink(e.linkId, $any($event.target).checked)" /> {{ e.fileName }} · {{ e.contentSha256 }}</label>
+                    }
+                    @for (phys of procedure.review()?.physicalEvidence ?? []; track phys.linkId) {
+                      <label><input type="checkbox" [checked]="procedure.procedureSelectedPhysical.has(phys.linkId)" (change)="procedure.toggleProcedurePhysical(phys.linkId, $any($event.target).checked)" /> {{ phys.fileIndex }} · {{ phys.boxReference }} · {{ phys.currentLocation }}</label>
+                    }
+                    <label>Manual reference <input name="manual-reference" [(ngModel)]="procedure.procedureManualReference" (ngModelChange)="procedure.procedureInputChanged()" maxlength="500" /></label>
+                    <label>What was observed <textarea name="manual-observation" [(ngModel)]="procedure.procedureObservation" (ngModelChange)="procedure.procedureInputChanged()" maxlength="4000" rows="3"></textarea></label>
+                    <label>Legacy free-text references (one per line) <textarea name="legacy-references" [(ngModel)]="procedure.procedureLegacyReferences" (ngModelChange)="procedure.procedureInputChanged()" rows="2"></textarea></label>
+                  </fieldset>
+                  <button matButton="filled" type="submit" [disabled]="procedure.procedureCommandBusy() || !procedure.procedureWork.trim() || !procedure.procedureConclusion.trim()">Preview exact submission</button>
+                </form>
+              }
+              @if (state.basis.canReview) {
+                <section aria-labelledby="procedure-review-action-heading">
+                  <h3 id="procedure-review-action-heading">Independent review</h3>
+                  @if (procedure.review()?.currentResult; as result) { <p>Reviewing result revision {{ result.revision }}. The submitted snapshot above is the evidence considered.</p> }
+                  <label>Decision <select name="procedure-decision" [(ngModel)]="procedure.procedureDecision" (ngModelChange)="procedure.procedureInputChanged()">
+                    <option value="REVIEWED">Reviewed</option><option value="CHANGES_REQUIRED">Changes required</option></select></label>
+                  <label>Review comment (required when returning) <textarea name="procedure-comment" [(ngModel)]="procedure.procedureComment" (ngModelChange)="procedure.procedureInputChanged()" maxlength="20000" rows="3"></textarea></label>
+                  <button matButton="filled" (click)="procedure.prepareProcedureCommand('REVIEW_RESULT')" [disabled]="procedure.procedureCommandBusy() || (procedure.procedureDecision === 'CHANGES_REQUIRED' && !procedure.procedureComment.trim())">Preview exact review</button>
+                </section>
+              }
+              @if (procedure.procedureCommandPreview(); as preview) {
+                <section class="panel" aria-labelledby="procedure-preview-heading">
+                  <h3 id="procedure-preview-heading">Exact command preview</h3>
+                  <p>{{ preview.action === 'SUBMIT_RESULT' ? 'Submit this exact work and evidence snapshot.' : 'Record this exact independent review.' }}</p>
+                  <p>Request SHA-256 <code>{{ preview.requestHash }}</code></p>
+                  <p>Basis: definition revision {{ preview.basis.definitionRevision }} · input generation {{ preview.basis.inputGeneration }} · current result revision {{ preview.basis.currentResultRevision }}</p>
+                  @if (preview.blockers.length) { <ul role="alert">@for (b of preview.blockers; track b) { <li>{{ b }}</li> }</ul> }
+                  <label><input type="checkbox" [(ngModel)]="procedure.procedureAssent" /> I reviewed this exact procedure, work, evidence and basis.</label>
+                  <button matButton="filled" (click)="procedure.executeProcedureCommand()" [disabled]="procedure.procedureCommandBusy() || !procedure.procedureAssent || !preview.canProceed">Record exact outcome</button>
+                </section>
+              }
+              @if (procedure.procedureCommandReceipt(); as receipt) {
+                <p role="status">Recorded {{ receipt.action }} · request <code>{{ receipt.requestId }}</code> · result revision {{ receipt.resultRevision }} · {{ receipt.committedAt | date:'medium' }}{{ receipt.evidenceDigest ? ' · evidence ' + receipt.evidenceDigest : '' }}</p>
+              }
+              @if (procedure.procedureUnknownForSelection(); as pending) {
+                <p role="alert">The outcome is unknown. Keep request <code>{{ pending.requestId }}</code> and check the retained receipt; do not resend a new identity.</p>
+                <button matButton (click)="procedure.recoverProcedureCommand()" [disabled]="procedure.procedureCommandBusy()">Check original outcome</button>
+              }
+              @if (procedure.procedureCommandError()) { <p role="alert" class="error-text">{{ procedure.procedureCommandError() }}</p> }
+            } @else if (procedure.procedureCommandBusy()) { <p role="status">Loading exact procedure state…</p> }
+            @else { <p role="alert">{{ procedure.procedureCommandError() || 'Procedure command state is unavailable.' }}</p> }
+          </section>
+        }
+      }
+      }
+    }
+    <audit-planning-command-review [flow]="riskLink" />
+    @if (previousScopeOutcomeUncertain()) { <p role="alert" class="error-text">A request from a prior engagement could not be confirmed. Reopen that engagement and review its saved state before retrying.</p> }
+    <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />

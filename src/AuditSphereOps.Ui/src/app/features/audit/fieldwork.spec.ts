@@ -6,7 +6,9 @@ import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { TabDrafts } from '../../core/tab-drafts';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AuditFieldwork, decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, focusRisks } from './fieldwork';
+import { AuditFieldwork } from './fieldwork';
+import { FieldworkProcedureState } from './fieldwork-procedure-state';
+import { decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, focusRisks } from './fieldwork-contracts';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -323,12 +325,12 @@ describe('Procedure execution and review workspace', () => {
     workspace.update(w => ({ ...w, procedures: [{ ...w.procedures[0], originalWording: 'Original controlled source wording.',
       effectiveWording: 'Existing effective instructions.', definitionRevision: 4 }] }));
     TestBed.tick();
-    page.beginTailoring(workspace().procedures[0] as Parameters<AuditFieldwork['beginTailoring']>[0]);
-    page.tailoringTitle = 'Cash confirmation';
-    page.tailoringWording = 'Confirm the balance directly with the bank and investigate exceptions.';
-    page.tailoringRationale = 'The engagement includes a material foreign-currency bank account.';
+    page.procedure.beginTailoring(workspace().procedures[0] as Parameters<FieldworkProcedureState['beginTailoring']>[0]);
+    page.procedure.tailoringTitle = 'Cash confirmation';
+    page.procedure.tailoringWording = 'Confirm the balance directly with the bank and investigate exceptions.';
+    page.procedure.tailoringRationale = 'The engagement includes a material foreign-currency bank account.';
     api.command.mockResolvedValueOnce({ ok: true, value: {} });
-    await page.submitTailoring();
+    await page.procedure.submitTailoring();
 
     expect(api.command).toHaveBeenCalledWith(`/api/ui/procedures/${id2}/tailor`, expect.objectContaining({
       title: 'Cash confirmation', customWording: 'Confirm the balance directly with the bank and investigate exceptions.',
@@ -345,82 +347,120 @@ describe('Procedure execution and review workspace', () => {
     workspace.update(w => ({ ...w, procedures: [{ ...w.procedures[0], originalWording: 'Original controlled source wording.',
       effectiveWording: 'Existing effective instructions.', definitionRevision: 2 }] }));
     TestBed.tick();
-    page.beginTailoring(workspace().procedures[0] as Parameters<AuditFieldwork['beginTailoring']>[0]);
-    page.tailoringTitle = 'Cash confirmation';
-    page.tailoringWording = 'Confirm the bank balance at year end.';
-    page.tailoringRationale = 'The account is material.';
+    page.procedure.beginTailoring(workspace().procedures[0] as Parameters<FieldworkProcedureState['beginTailoring']>[0]);
+    page.procedure.tailoringTitle = 'Cash confirmation';
+    page.procedure.tailoringWording = 'Confirm the bank balance at year end.';
+    page.procedure.tailoringRationale = 'The account is material.';
     api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', message: 'unknown', status: 0 })
       .mockResolvedValueOnce({ ok: true, value: {} });
-    await page.submitTailoring();
+    await page.procedure.submitTailoring();
     const original = api.command.mock.calls[0][1] as { commandId: string; title: string; customWording: string };
-    expect(page.tailoringUncertain()).toBe(true);
-    page.beginTailoring(workspace().procedures[0] as Parameters<AuditFieldwork['beginTailoring']>[0]);
-    expect(page.tailoringPending()?.command.commandId).toBe(original.commandId);
-    page.tailoringTitle = 'Changed while outcome unknown';
-    await page.recoverTailoring();
+    expect(page.procedure.tailoringUncertain()).toBe(true);
+    page.procedure.beginTailoring(workspace().procedures[0] as Parameters<FieldworkProcedureState['beginTailoring']>[0]);
+    expect(page.procedure.tailoringPending()?.command.commandId).toBe(original.commandId);
+    page.procedure.tailoringTitle = 'Changed while outcome unknown';
+    await page.procedure.recoverTailoring();
     expect(api.command.mock.calls[1][1]).toEqual(api.command.mock.calls[0][1]);
     expect(api.command.mock.calls[1][1]).toMatchObject({ commandId: original.commandId, title: original.title, customWording: original.customWording });
-    expect(page.tailoringUncertain()).toBe(false);
-    expect(page.tailoringPending()).toBeNull();
+    expect(page.procedure.tailoringUncertain()).toBe(false);
+    expect(page.procedure.tailoringPending()).toBeNull();
   });
   it('does not send a tailoring command without a meaningful rationale', async () => {
     const { page, workspace, api } = open();
     workspace.update(w => ({ ...w, procedures: [{ ...w.procedures[0], originalWording: 'Original controlled source wording.',
       effectiveWording: 'Existing effective instructions.', definitionRevision: 1 }] }));
     TestBed.tick();
-    page.beginTailoring(workspace().procedures[0] as Parameters<AuditFieldwork['beginTailoring']>[0]);
-    page.tailoringWording = 'Updated instructions.';
-    page.tailoringRationale = '   ';
-    await page.submitTailoring();
+    page.procedure.beginTailoring(workspace().procedures[0] as Parameters<FieldworkProcedureState['beginTailoring']>[0]);
+    page.procedure.tailoringWording = 'Updated instructions.';
+    page.procedure.tailoringRationale = '   ';
+    await page.procedure.submitTailoring();
     expect(api.command).not.toHaveBeenCalled();
-    expect(page.tailoringFailed()).toBe(true);
+    expect(page.procedure.tailoringFailed()).toBe(true);
   });
   it('requires preview and fresh assent, then recovers an unknown outcome from its exact receipt', async () => {
     const { page, workspace, api } = open();
-    api.get.mockResolvedValueOnce(state)
-      .mockResolvedValueOnce({ procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
-    await page.openProcedure(workspace().procedures[0] as Parameters<AuditFieldwork['openProcedure']>[0]);
-    expect(page.procedureCommandState()?.basis.canSubmit).toBe(true);
+    api.get.mockResolvedValueOnce({ procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] })
+      .mockResolvedValueOnce(state);
+    await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
+    expect(page.procedure.procedureCommandState()?.basis.canSubmit).toBe(true);
 
-    page.procedureWork = 'Agreed the bank listing to the ledger.';
-    page.procedureConclusion = 'No exception noted.';
+    page.procedure.procedureWork = 'Agreed the bank listing to the ledger.';
+    page.procedure.procedureConclusion = 'No exception noted.';
     api.command.mockImplementationOnce((_url: string, body: unknown) =>
       ({ ok: true, value: { ...preview, requestId: (body as { requestId: string }).requestId } }));
-    await page.prepareProcedureCommand('SUBMIT_RESULT');
-    expect(page.procedureCommandPreview()?.requestHash).toBe(hash64);
-    const previewRequestId = page.procedureCommandPreview()!.requestId;
+    await page.procedure.prepareProcedureCommand('SUBMIT_RESULT');
+    expect(page.procedure.procedureCommandPreview()?.requestHash).toBe(hash64);
+    const previewRequestId = page.procedure.procedureCommandPreview()!.requestId;
     expect(api.command.mock.calls[0][1]).toMatchObject({ action: 'SUBMIT_RESULT', reviewed: false });
 
-    await page.executeProcedureCommand();
+    await page.procedure.executeProcedureCommand();
     expect(api.command).toHaveBeenCalledTimes(1);
-    expect(page.procedureCommandReceipt()).toBeNull();
+    expect(page.procedure.procedureCommandReceipt()).toBeNull();
 
-    page.procedureAssent = true;
+    page.procedure.procedureAssent = true;
     api.command.mockResolvedValueOnce({ ok: false, unknown: true, code: 'outcome.unknown', message: 'unknown', status: 0 });
-    await page.executeProcedureCommand();
+    await page.procedure.executeProcedureCommand();
     expect(api.command).toHaveBeenCalledTimes(2);
     expect(api.command.mock.calls[1][1]).toMatchObject({ reviewed: true, expectedRequestHash: hash64 });
-    expect(page.procedureUnknown()?.requestId).toBe(previewRequestId);
+    expect(page.procedure.procedureUnknown()?.requestId).toBe(previewRequestId);
 
     api.get.mockResolvedValueOnce({ found: true, receipt });
-    await page.recoverProcedureCommand();
-    expect(page.procedureCommandReceipt()?.id).toBe(receipt.id);
-    expect(page.procedureUnknown()).toBeNull();
+    await page.procedure.recoverProcedureCommand();
+    expect(page.procedure.procedureCommandReceipt()?.id).toBe(receipt.id);
+    expect(page.procedure.procedureUnknown()).toBeNull();
+  });
+  it('retains an unknown exact receipt when its procedure selection changes in flight', async () => {
+    const { page, workspace, api } = open();
+    workspace.set({ ...workspace(), procedures: [{ ...workspace().procedures[0], id: id2 }, { ...workspace().procedures[0], id: id3 }] });
+    api.get.mockImplementation(async (url: string) => url.includes('/commands/state') ? state :
+      { procedureId: url.includes(id2) ? id2 : id3, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
+    await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
+    page.procedure.procedureWork = 'Work.';
+    page.procedure.procedureConclusion = 'Conclusion.';
+    api.command.mockResolvedValueOnce({ ok: true, value: preview });
+    await page.procedure.prepareProcedureCommand('SUBMIT_RESULT');
+    page.procedure.procedureAssent = true;
+
+    let complete!: (result: { ok: false; unknown: true; code: string; message: string; status: number }) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => complete = resolve));
+    const pending = page.procedure.executeProcedureCommand();
+    await page.procedure.selectProcedure(id3);
+    complete({ ok: false, unknown: true, code: 'outcome.unknown', message: 'unknown', status: 0 });
+    await pending;
+    expect(page.procedure.procedureUnknownForSelection()).toBeNull();
+
+    await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
+    expect(page.procedure.procedureUnknownForSelection()).toMatchObject({ procedureId: id2, requestHash: hash64 });
   });
   it('clears the preview when material inputs change after preview', async () => {
     const { page, workspace, api } = open();
-    api.get.mockResolvedValueOnce(state)
-      .mockResolvedValueOnce({ procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
-    await page.openProcedure(workspace().procedures[0] as Parameters<AuditFieldwork['openProcedure']>[0]);
-    page.procedureWork = 'Work.';
-    page.procedureConclusion = 'Conclusion.';
+    api.get.mockResolvedValueOnce({ procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] })
+      .mockResolvedValueOnce(state);
+    await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
+    page.procedure.procedureWork = 'Work.';
+    page.procedure.procedureConclusion = 'Conclusion.';
     api.command.mockResolvedValueOnce({ ok: true, value: preview });
-    await page.prepareProcedureCommand('SUBMIT_RESULT');
-    page.procedureAssent = true;
-    page.procedureConclusion = 'Changed conclusion.';
-    page.procedureInputChanged();
-    expect(page.procedureCommandPreview()).toBeNull();
-    expect(page.procedureAssent).toBe(false);
+    await page.procedure.prepareProcedureCommand('SUBMIT_RESULT');
+    page.procedure.procedureAssent = true;
+    page.procedure.procedureConclusion = 'Changed conclusion.';
+    page.procedure.procedureInputChanged();
+    expect(page.procedure.procedureCommandPreview()).toBeNull();
+    expect(page.procedure.procedureAssent).toBe(false);
+  });
+  it('does not combine one procedure command state with another procedure review', async () => {
+    const { page, workspace, api } = open();
+    workspace.set({ ...workspace(), procedures: [
+      { ...workspace().procedures[0], id: id2 }, { ...workspace().procedures[0], id: id3 },
+    ] });
+    api.get.mockImplementation(async (url: string) => url.includes('/commands/state') ? state :
+      { procedureId: url.includes(id2) ? id2 : id3, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
+    await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
+    expect(page.procedure.procedureSelectedId()).toBe(id2);
+
+    await page.procedure.selectProcedure(id3);
+    expect(page.procedure.procedureSelectedId()).toBe('');
+    expect(page.procedure.procedureCommandState()).toBeNull();
+    expect(page.procedure.review()?.procedureId).toBe(id3);
   });
 });
 
@@ -452,23 +492,23 @@ describe('Audit fieldwork decimal inputs (T005)', () => {
     const set = sampleData(), item = set.items[0];
     api.command.mockResolvedValue({ ok: true, value: null });
 
-    page.sampleSet.set(set);
-    Object.assign(page.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
+    page.sampling.sampleSet.set(set);
+    Object.assign(page.sampling.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
       result: 'EXCEPTION', exceptionAmount: '123.456789', followUp: 'Investigate the difference.' });
-    await page.recordItemTest(item);
+    await page.sampling.recordItemTest(item);
     expect(api.command).toHaveBeenCalledTimes(1);
     expect(api.command.mock.calls[0][1]).toMatchObject({ exceptionAmount: '123.456789' });
 
-    page.sampleSet.set(set);
-    Object.assign(page.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
+    page.sampling.sampleSet.set(set);
+    Object.assign(page.sampling.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
       result: 'EXCEPTION', exceptionAmount: '123.4567890', followUp: 'Investigate the difference.' });
-    await page.recordItemTest(item);
+    await page.sampling.recordItemTest(item);
     expect(api.command).toHaveBeenCalledTimes(1);
 
-    page.sampleSet.set(set);
-    Object.assign(page.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
+    page.sampling.sampleSet.set(set);
+    Object.assign(page.sampling.itemDraft(item), { workPerformed: 'Agreed to the source document.', evidenceReferences: 'evidence-1',
       result: 'EXCEPTION', exceptionAmount: '  ', followUp: 'Investigate the difference.' });
-    await page.recordItemTest(item);
+    await page.sampling.recordItemTest(item);
     expect(api.command).toHaveBeenCalledTimes(2);
     expect(api.command.mock.calls[1][1]).toMatchObject({ exceptionAmount: null });
   });
@@ -480,22 +520,36 @@ describe('Audit fieldwork decimal inputs (T005)', () => {
         selectedCount: 1, selectedAbsoluteTotal: '12.345678', coveragePercent: '100.000000', seed: null, interval, keyItemThreshold,
         items: [{ stableRowId: 'ROW-001', signedAmount: '12.345678', absoluteAmount: '12.345678', inclusionReason: 'Selected',
           cumulativeAbsoluteAmount: '12.345678' }], strata: null } });
-    Object.assign(page.s, { procedure: id2, schedule: id3, method: 'MUS', interval: '12.345678', key: '', rationale: 'Approved plan.' });
+    Object.assign(page.sampling.s, { procedure: id2, schedule: id3, method: 'MUS', interval: '12.345678', key: '', rationale: 'Approved plan.' });
     api.command.mockResolvedValueOnce({ ok: true, value: preview('MUS', '12.345678', null) });
-    await page.sample();
+    await page.sampling.sample();
     expect(api.command.mock.calls[0][1]).toMatchObject({ interval: '12.345678', keyItemThreshold: null });
-    expect(page.previewMatchesInputs()).toBe(true);
+    expect(page.sampling.previewMatchesInputs()).toBe(true);
 
-    Object.assign(page.s, { method: 'KEY_ITEM', interval: '', key: '0.123456' });
+    Object.assign(page.sampling.s, { method: 'KEY_ITEM', interval: '', key: '0.123456' });
     api.command.mockResolvedValueOnce({ ok: true, value: preview('KEY_ITEM', null, '0.123456') });
-    await page.sample();
+    await page.sampling.sample();
     expect(api.command.mock.calls[1][1]).toMatchObject({ interval: null, keyItemThreshold: '0.123456' });
-    expect(page.previewMatchesInputs()).toBe(true);
+    expect(page.sampling.previewMatchesInputs()).toBe(true);
 
-    Object.assign(page.s, { method: 'MUS', interval: '12.3456789' });
-    await page.sample();
+    page.sampling.inputsChanged();
+    expect(page.sampling.samplingPreview()).toBeNull();
+    expect(page.sampling.previewMatchesInputs()).toBe(false);
+
+    Object.assign(page.sampling.s, { method: 'MUS', interval: '12.3456789' });
+    await page.sampling.sample();
     expect(api.command).toHaveBeenCalledTimes(2);
-    expect(page.previewMatchesInputs()).toBe(false);
+    expect(page.sampling.previewMatchesInputs()).toBe(false);
+
+    let completePreview!: (result: { ok: true; value: unknown }) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => completePreview = resolve));
+    Object.assign(page.sampling.s, { method: 'MUS', interval: '12.345678', rationale: 'Approved plan.' });
+    const pendingPreview = page.sampling.sample();
+    page.sampling.s.seed = 100;
+    page.sampling.inputsChanged();
+    completePreview({ ok: true, value: preview('MUS', '12.345678', null) });
+    await pendingPreview;
+    expect(page.sampling.samplingPreview()).toBeNull();
   });
 });
 
@@ -516,25 +570,47 @@ describe('Procedure risk link reviewed preparation', () => {
     let first!: (value: unknown) => void, second!: (value: unknown) => void;
     api.get.mockImplementationOnce(() => new Promise(resolve => first = resolve))
       .mockImplementationOnce(() => new Promise(resolve => second = resolve));
-    const older = page.selectProcedure(id2), newer = page.selectProcedure(id3);
+    const older = page.procedure.selectProcedure(id2), newer = page.procedure.selectProcedure(id3);
     second({ procedureId: id3 }); await newer;
     first({ procedureId: id2 }); await older;
-    expect(page.review()?.procedureId).toBe(id3);
+    expect(page.procedure.review()?.procedureId).toBe(id3);
   });
   it('discards review results after scope refresh and rejects mismatched procedure identity', async () => {
     const { page, workspace, api } = open(); let complete!: (value: unknown) => void;
     api.get.mockImplementationOnce(() => new Promise(resolve => complete = resolve));
-    const pending = page.selectProcedure(id2);
+    const pending = page.procedure.selectProcedure(id2);
     workspace.set({ ...workspace() }); TestBed.tick(); complete({ procedureId: id2 }); await pending;
-    expect(page.review()).toBeNull();
-    api.get.mockResolvedValueOnce({ procedureId: id3 }); await page.selectProcedure(id2);
-    expect(page.review()).toBeNull(); expect(page.reviewError()).toBe('Procedure review unavailable.');
+    expect(page.procedure.review()).toBeNull();
+    api.get.mockResolvedValueOnce({ procedureId: id3 }); await page.procedure.selectProcedure(id2);
+    expect(page.procedure.review()).toBeNull(); expect(page.procedure.reviewError()).toBe('Procedure review unavailable.');
   });
   it('does not publish a pending procedure review after destruction', async () => {
     const { page, api } = open(); let complete!: (value: unknown) => void;
     api.get.mockImplementationOnce(() => new Promise(resolve => complete = resolve));
-    const pending = page.selectProcedure(id2); TestBed.resetTestingModule();
-    complete({ procedureId: id2 }); await pending; expect(page.review()).toBeNull();
+    const pending = page.procedure.selectProcedure(id2); TestBed.resetTestingModule();
+    complete({ procedureId: id2 }); await pending; expect(page.procedure.review()).toBeNull();
+  });
+  it('does not let an old engagement command overwrite current feedback or reload the new scope', async () => {
+    const { page, api } = open();
+    const reload = vi.spyOn(page.ws, 'reload');
+    let completeOld!: (value: unknown) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => completeOld = resolve));
+    const oldCommand = page.send(`/api/ui/engagements/${id1}/fieldwork/physical`, {}, 'Old engagement completed.');
+    const route = TestBed.inject(ActivatedRoute);
+    (route.paramMap as BehaviorSubject<ReturnType<typeof convertToParamMap>>).next(convertToParamMap({ id: id3 }));
+    TestBed.tick();
+    expect(page.id()).toBe(id3);
+    expect(page.previousScopeOutcomeUncertain()).toBe(true);
+
+    api.command.mockResolvedValueOnce({ ok: true, value: {} });
+    await page.send(`/api/ui/engagements/${id3}/fieldwork/physical`, {}, 'Current engagement completed.');
+    expect(page.cmd.message()).toBe('Current engagement completed.');
+    completeOld({ ok: true, value: {} });
+    await oldCommand;
+
+    expect(page.cmd.message()).toBe('Current engagement completed.');
+    expect(page.previousScopeOutcomeUncertain()).toBe(false);
+    expect(reload).toHaveBeenCalledTimes(1);
   });
   it('previews selected risk and exact prior link, never calls the legacy risk write', async () => {
     const { page, api } = open(), prepare = vi.spyOn(page.riskLink, 'prepare').mockResolvedValue();
