@@ -11,6 +11,7 @@ import {
   signal,
   untracked,
   viewChild,
+  viewChildren,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
@@ -46,17 +47,22 @@ export class EngagementPlanning {
   private readonly renderInjector = inject(Injector);
   private readonly budgetReviewElement = viewChild<ElementRef<HTMLElement>>('budgetReview');
   private readonly budgetReviewTrigger = viewChild<unknown, ElementRef<HTMLButtonElement>>('budgetReviewTrigger', { read: ElementRef });
+  private readonly approvalReviewElement = viewChild<ElementRef<HTMLElement>>('approvalReview');
+  private readonly approvalAssentElement = viewChild<unknown, ElementRef<HTMLInputElement>>('approvalAssent', { read: ElementRef });
+  private readonly staffingReviewElement = viewChild<ElementRef<HTMLElement>>('staffingReview');
+  private readonly staffingAssentElement = viewChild<unknown, ElementRef<HTMLInputElement>>('staffingAssent', { read: ElementRef });
+  private readonly revokeTriggers = viewChildren<unknown, ElementRef<HTMLButtonElement>>('revokeTrigger', { read: ElementRef });
   private focusedPlanningControl(): Element | null {
     const element = this.hostElement.nativeElement;
     const active = element.ownerDocument.activeElement;
     return active && element.contains(active) ? active : null;
   }
-  private focusBudgetControl(review: boolean, owner: string, origin: Element): void {
+  private focusPlanningControl(target: () => ElementRef<HTMLElement> | undefined, owner: string, origin: Element): void {
     afterNextRender(() => {
       const document = this.hostElement.nativeElement.ownerDocument;
       if (this.destroyed || owner !== this.owner() ||
           (document.activeElement !== origin && document.activeElement !== document.body)) return;
-      (review ? this.budgetReviewElement() : this.budgetReviewTrigger())?.nativeElement.focus();
+      target()?.nativeElement.focus();
     }, { injector: this.renderInjector });
   }
   private navigationPending = false;
@@ -211,25 +217,51 @@ export class EngagementPlanning {
     const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.budgetPreview();
     await this.budgetState.saveBudget();
     if (origin && this.budgetPreview() && this.budgetPreview() !== previous && owner === this.owner())
-      this.focusBudgetControl(true, owner, origin);
+      this.focusPlanningControl(this.budgetReviewElement, owner, origin);
   }
   cancelBudgetReview(): void {
     const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.budgetPreview();
     this.budgetState.cancelBudgetReview();
-    if (origin && previous && !this.budgetPreview()) this.focusBudgetControl(false, owner, origin);
+    if (origin && previous && !this.budgetPreview()) this.focusPlanningControl(this.budgetReviewTrigger, owner, origin);
   }
   confirmBudgetPreparation(): Promise<void> { return this.budgetState.confirmBudgetPreparation(); }
   reconcileBudgetPreparation(): Promise<void> { return this.budgetState.reconcileBudgetPreparation(); }
   acknowledgeBudgetPreparation(): void { this.budgetState.acknowledgeBudgetPreparation(); }
-  cancelApprovalReview(): void { this.budgetState.cancelApprovalReview(); }
-  approveBudget(id: string): Promise<void> { return this.budgetState.approveBudget(id); }
+  cancelApprovalReview(): void {
+    const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.approvalPreview();
+    this.budgetState.cancelApprovalReview();
+    if (origin && previous && !this.approvalPreview()) this.focusPlanningControl(this.approvalAssentElement, owner, origin);
+  }
+  async approveBudget(id: string): Promise<void> {
+    const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.approvalPreview();
+    await this.budgetState.approveBudget(id);
+    if (origin && this.approvalPreview() && this.approvalPreview() !== previous && owner === this.owner())
+      this.focusPlanningControl(this.approvalReviewElement, owner, origin);
+  }
   confirmBudgetApproval(): Promise<void> { return this.budgetState.confirmBudgetApproval(); }
   reconcileBudgetApproval(): Promise<void> { return this.budgetState.reconcileBudgetApproval(); }
   acknowledgeBudgetApproval(): void { this.budgetState.acknowledgeBudgetApproval(); }
   requestRevocation(person: TeamMember): void { this.staffingState.requestRevocation(person); }
-  assign(): Promise<void> { return this.staffingState.assign(); }
-  revoke(id: string): Promise<void> { return this.staffingState.revoke(id); }
-  cancelStaffingReview(): void { this.staffingState.cancelStaffingReview(); }
+  async assign(): Promise<void> {
+    const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.staffingPreview();
+    await this.staffingState.assign();
+    if (origin && this.staffingPreview() && this.staffingPreview() !== previous && owner === this.owner())
+      this.focusPlanningControl(this.staffingReviewElement, owner, origin);
+  }
+  async revoke(id: string): Promise<void> {
+    const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.staffingPreview();
+    await this.staffingState.revoke(id);
+    if (origin && this.staffingPreview() && this.staffingPreview() !== previous && owner === this.owner())
+      this.focusPlanningControl(this.staffingReviewElement, owner, origin);
+  }
+  cancelStaffingReview(): void {
+    const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.staffingPreview();
+    this.staffingState.cancelStaffingReview();
+    if (origin && previous && !this.staffingPreview())
+      this.focusPlanningControl(previous.fields.action === 'REVOKE'
+        ? () => this.revokeTriggers().find(button => button.nativeElement.dataset['assignmentId'] === previous.fields.assignmentId)
+        : this.staffingAssentElement, owner, origin);
+  }
   confirmStaffingChange(): Promise<void> { return this.staffingState.confirmStaffingChange(); }
   reconcileStaffingChange(): Promise<void> { return this.staffingState.reconcileStaffingChange(); }
   acknowledgeStaffingChange(): void { this.staffingState.acknowledgeStaffingChange(); }

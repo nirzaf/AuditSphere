@@ -17,7 +17,9 @@
         </p>
         @if (planning.canManageStaffing) {
           <button
+            #revokeTrigger
             matButton
+            [attr.data-assignment-id]="person.assignmentId"
             [disabled]="busy() || uncertain() || !!budgetPreview()"
             (click)="requestRevocation(person)"
           >
@@ -59,6 +61,7 @@
             </select>
             <label
               ><input
+                #staffingAssent
                 type="checkbox"
                 [formField]="staffingFields.reviewed"
                 (change)="reviewed = checkboxChecked($event)"
@@ -96,7 +99,7 @@
         </section>
       }
       @if (staffingPreview(); as preview) {
-        <section aria-label="Staffing change review">
+        <section #staffingReview tabindex="-1" aria-label="Staffing change review">
           <h3>Review staffing change</h3>
           <p>
             {{ preview.fields.action === 'ASSIGN' ? 'Assign' : 'Revoke' }} {{ preview.userName }} ·
@@ -310,6 +313,7 @@
           @if (draft.canApprove) {
             <label
               ><input
+                #approvalAssent
                 type="checkbox"
                 [formField]="approvalFields.reviewed"
                 (change)="budgetReviewed = checkboxChecked($event)"
@@ -329,7 +333,7 @@
         </section>
       }
       @if (approvalPreview(); as preview) {
-        <section aria-label="Reviewed budget approval">
+        <section #approvalReview tabindex="-1" aria-label="Reviewed budget approval">
           <h3>Review independent budget approval</h3>
           <p>
             Draft {{ preview.fields.expectedVersion }} · {{ preview.currency }} · forecast

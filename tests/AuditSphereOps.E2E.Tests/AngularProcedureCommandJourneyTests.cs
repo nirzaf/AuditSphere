@@ -10,6 +10,23 @@ namespace AuditSphereOps.E2E.Tests;
 [Trait("Category", "AuditFieldwork")]
 public sealed class AngularProcedureCommandJourneyTests
 {
+  private const string ProcedureAssentLabel = "I reviewed this exact procedure, work, evidence and basis.";
+
+  private static async Task TabToAsync(IPage page, ILocator target)
+  {
+    var focusableCount = await page.Locator(
+      "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex='-1'])")
+      .CountAsync();
+    for (var attempt = 0; attempt <= focusableCount; attempt++)
+    {
+      if (await target.EvaluateAsync<bool>("element => element === document.activeElement")) return;
+      await page.Keyboard.PressAsync("Tab");
+    }
+
+    Assert.True(await target.EvaluateAsync<bool>("element => element === document.activeElement"),
+      "The control could not be reached through the page's normal Tab order.");
+  }
+
   [Fact]
   [Trait("CaseId", "AS-AWP-PROCEDURE-COMMAND-RECOVERY-01")]
   public async Task CashAndBankProcedureRecoversExactSubmissionAndIndependentReviewerCanReturnIt()
@@ -64,16 +81,27 @@ public sealed class AngularProcedureCommandJourneyTests
 
     var execution = preparerPage.GetByRole(AriaRole.Region, new() { Name = "Procedure execution and review", Exact = true });
     await Assertions.Expect(execution).ToContainTextAsync("AWP-02-01");
-    await execution.GetByLabel("Work performed", new() { Exact = true })
+    await execution.GetByRole(AriaRole.Textbox, new() { Name = "Work performed", Exact = true })
       .FillAsync("Agreed the synthetic year-end bank reconciliation to the listed bank accounts.");
-    await execution.GetByLabel("Conclusion", new() { Exact = true })
+    await execution.GetByRole(AriaRole.Textbox, new() { Name = "Conclusion", Exact = true })
       .FillAsync("The synthetic reconciliation agrees to the supporting statement.");
-    await execution.GetByLabel("Manual reference", new() { Exact = true }).FillAsync("BANK-REC-SYNTHETIC-01");
-    await execution.GetByLabel("What was observed", new() { Exact = true })
+    await execution.GetByRole(AriaRole.Textbox, new() { Name = "Manual reference", Exact = true })
+      .FillAsync("BANK-REC-SYNTHETIC-01");
+    await execution.GetByRole(AriaRole.Textbox, new() { Name = "What was observed", Exact = true })
       .FillAsync("The closing balance and reconciling items agree to the synthetic schedule.");
-    await execution.GetByRole(AriaRole.Button, new() { Name = "Preview exact submission", Exact = true }).ClickAsync();
+    var prepareSubmission = execution.GetByRole(AriaRole.Button,
+      new() { Name = "Preview exact submission", Exact = true });
+    await TabToAsync(preparerPage, prepareSubmission);
+    await Assertions.Expect(prepareSubmission).ToBeFocusedAsync();
+    await preparerPage.Keyboard.PressAsync("Enter");
     var preview = execution.GetByRole(AriaRole.Region, new() { Name = "Exact command preview", Exact = true });
     await Assertions.Expect(preview).ToContainTextAsync("Submit this exact work and evidence snapshot.");
+    var submissionAssent = preview.GetByRole(AriaRole.Checkbox,
+      new() { Name = ProcedureAssentLabel, Exact = true });
+    var recordSubmission = preview.GetByRole(AriaRole.Button,
+      new() { Name = "Record exact outcome", Exact = true });
+    await Assertions.Expect(submissionAssent).Not.ToBeCheckedAsync();
+    await Assertions.Expect(recordSubmission).ToBeDisabledAsync();
 
     Guid requestId = Guid.Empty;
     string? requestHash = null;
@@ -88,10 +116,18 @@ public sealed class AngularProcedureCommandJourneyTests
       Assert.Equal(200, committed.Status);
       await route.AbortAsync("failed");
     });
-    await preview.GetByLabel("I reviewed this exact procedure, work, evidence and basis.", new() { Exact = true }).CheckAsync();
-    await preview.GetByRole(AriaRole.Button, new() { Name = "Record exact outcome", Exact = true }).ClickAsync();
+    await TabToAsync(preparerPage, submissionAssent);
+    await Assertions.Expect(submissionAssent).ToBeFocusedAsync();
+    await preparerPage.Keyboard.PressAsync("Space");
+    await Assertions.Expect(submissionAssent).ToBeCheckedAsync();
+    await Assertions.Expect(recordSubmission).ToBeEnabledAsync();
+    await TabToAsync(preparerPage, recordSubmission);
+    await Assertions.Expect(recordSubmission).ToBeFocusedAsync();
+    await preparerPage.Keyboard.PressAsync("Enter");
     var recover = execution.GetByRole(AriaRole.Button, new() { Name = "Check original outcome", Exact = true });
     await Assertions.Expect(recover).ToBeVisibleAsync();
+    await Assertions.Expect(execution.GetByRole(AriaRole.Alert).Filter(new() { HasText = "The outcome is unknown." }))
+      .ToContainTextAsync("do not resend a new identity.");
     Assert.NotEqual(Guid.Empty, requestId);
     Assert.Matches("^[0-9a-f]{64}$", requestHash!);
     await recover.ClickAsync();
@@ -148,17 +184,67 @@ public sealed class AngularProcedureCommandJourneyTests
     }
     var review = reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Procedure execution and review", Exact = true });
     await Assertions.Expect(review).ToContainTextAsync("Frozen submitted result");
-    var decisionControl = review.Locator("select[name='procedure-decision']");
+    await Assertions.Expect(review.GetByText(
+      "Agreed the synthetic year-end bank reconciliation to the listed bank accounts."))
+      .ToBeVisibleAsync();
+    foreach (var width in new[] { 320, 390 })
+    {
+      await reviewerPage.SetViewportSizeAsync(width, 900);
+      var documentWidth = await reviewerPage.EvaluateAsync<int>(
+        "() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth)");
+      Assert.True(documentWidth <= width + 1,
+        $"The populated procedure review document overflows at {width}px (scroll width {documentWidth}px).");
+      await Assertions.Expect(review.GetByText(
+        "Agreed the synthetic year-end bank reconciliation to the listed bank accounts."))
+        .ToBeVisibleAsync();
+    }
+
+    var decisionControl = review.GetByRole(AriaRole.Combobox, new() { Name = "Decision", Exact = true });
     Assert.True(await decisionControl.CountAsync() == 1,
       $"The server state allowed independent review, but the UI did not render its decision control. " +
       $"Command state: {commandStateBody}; panel: {await review.InnerTextAsync()}; page errors: {string.Join(" | ", pageErrors)}");
     await decisionControl.SelectOptionAsync("CHANGES_REQUIRED");
-    await review.GetByLabel("Review comment (required when returning)", new() { Exact = true })
-      .FillAsync("Return the reconciliation conclusion with an explicit statement-level tie-out.");
-    await review.GetByRole(AriaRole.Button, new() { Name = "Preview exact review", Exact = true }).ClickAsync();
+    var reviewComment = review.GetByRole(AriaRole.Textbox,
+      new() { Name = "Review comment (required when returning)", Exact = true });
+    var prepareReview = review.GetByRole(AriaRole.Button, new() { Name = "Preview exact review", Exact = true });
+    await Assertions.Expect(reviewComment).ToBeVisibleAsync();
+    await Assertions.Expect(prepareReview).ToBeDisabledAsync();
+    await reviewComment.FillAsync("Return the reconciliation conclusion with an explicit statement-level tie-out.");
+    await TabToAsync(reviewerPage, prepareReview);
+    await Assertions.Expect(prepareReview).ToBeFocusedAsync();
+    await reviewerPage.Keyboard.PressAsync("Enter");
     var reviewPreview = review.GetByRole(AriaRole.Region, new() { Name = "Exact command preview", Exact = true });
-    await reviewPreview.GetByLabel("I reviewed this exact procedure, work, evidence and basis.", new() { Exact = true }).CheckAsync();
-    await reviewPreview.GetByRole(AriaRole.Button, new() { Name = "Record exact outcome", Exact = true }).ClickAsync();
+    var reviewAssent = reviewPreview.GetByRole(AriaRole.Checkbox,
+      new() { Name = ProcedureAssentLabel, Exact = true });
+    var recordReview = reviewPreview.GetByRole(AriaRole.Button,
+      new() { Name = "Record exact outcome", Exact = true });
+    await Assertions.Expect(reviewPreview).ToContainTextAsync("Record this exact independent review.");
+    await Assertions.Expect(reviewAssent).Not.ToBeCheckedAsync();
+    await Assertions.Expect(recordReview).ToBeDisabledAsync();
+
+    // Editing the named comment is the existing cancel-and-edit path: it invalidates the preview and assent.
+    await TabToAsync(reviewerPage, reviewAssent);
+    await reviewerPage.Keyboard.PressAsync("Space");
+    await Assertions.Expect(reviewAssent).ToBeCheckedAsync();
+    await reviewerPage.Keyboard.PressAsync("Shift+Tab");
+    await Assertions.Expect(prepareReview).ToBeFocusedAsync();
+    await reviewerPage.Keyboard.PressAsync("Shift+Tab");
+    await Assertions.Expect(reviewComment).ToBeFocusedAsync();
+    await reviewComment.FillAsync(
+      "Return the reconciliation conclusion with an explicit statement-level tie-out and closing-balance cross-check.");
+    await Assertions.Expect(reviewPreview).ToHaveCountAsync(0);
+    await TabToAsync(reviewerPage, prepareReview);
+    await reviewerPage.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(reviewPreview).ToContainTextAsync("Record this exact independent review.");
+    await Assertions.Expect(reviewAssent).Not.ToBeCheckedAsync();
+    await Assertions.Expect(recordReview).ToBeDisabledAsync();
+    await TabToAsync(reviewerPage, reviewAssent);
+    await reviewerPage.Keyboard.PressAsync("Space");
+    await Assertions.Expect(reviewAssent).ToBeCheckedAsync();
+    await Assertions.Expect(recordReview).ToBeEnabledAsync();
+    await TabToAsync(reviewerPage, recordReview);
+    await Assertions.Expect(recordReview).ToBeFocusedAsync();
+    await reviewerPage.Keyboard.PressAsync("Enter");
     await Assertions.Expect(review.Locator("p[role='status']").Filter(new() { HasText = "Recorded REVIEW_RESULT" }))
       .ToBeVisibleAsync();
 
@@ -181,6 +267,10 @@ public sealed class AngularProcedureCommandJourneyTests
     await returned.GetByRole(AriaRole.Button, new() { Name = "Preview exact submission", Exact = true }).ClickAsync();
     var resubmission = returned.GetByRole(AriaRole.Region, new() { Name = "Exact command preview", Exact = true });
     await Assertions.Expect(resubmission.GetByRole(AriaRole.Alert)).ToHaveCountAsync(0);
+    await Assertions.Expect(resubmission.GetByRole(AriaRole.Checkbox,
+      new() { Name = ProcedureAssentLabel, Exact = true })).Not.ToBeCheckedAsync();
+    await Assertions.Expect(resubmission.GetByRole(AriaRole.Button,
+      new() { Name = "Record exact outcome", Exact = true })).ToBeDisabledAsync();
 
     await using (var proof = host.CreateDbContext())
     {
