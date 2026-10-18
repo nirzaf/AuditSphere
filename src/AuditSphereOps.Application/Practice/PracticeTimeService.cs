@@ -602,6 +602,10 @@ public static partial class PracticeTimeService
     if (entry is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (entry.Status != PracticeTimeStates.TimeApproved)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Only approved time can be corrected.");
+    if (await db.BillingSourceAllocations.AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.SourceKind == "TIME" && x.SourceId == entry.Id && x.SourceRevision == entry.Revision, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState,
+        "This approved time revision is reserved to an invoice and cannot be corrected.");
     var draft = new SaveTimeDraftRequest(entry.TaskId, request.WorkDate, request.StartMinute,
       request.DurationMinutes, entry.Role, request.Activity, entry.BillableClassification,
       request.Narrative, request.NarrativeVisibility, entry.Currency ?? "QAR");

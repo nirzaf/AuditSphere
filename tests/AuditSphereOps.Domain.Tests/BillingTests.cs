@@ -209,6 +209,65 @@ public sealed class BillingTests
       Assert.Equal(1, await verify.BillingSourceAllocations.CountAsync());
   }
 
+  [Fact]
+  public async Task ReservedTimeCannotBeCorrectedOrRebilledThroughAnExistingCorrectionLineage()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var sourceId = await SeedTimeAsync(pg, fixture, PracticeTimeStates.TimeApproved);
+    var correctionActor = new ActorContext(fixture.Manager.Id, fixture.FirmId, fixture.Manager.SessionEpoch, ["Manager"]);
+    Guid accountId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(Grant(fixture.FirmId, fixture.Manager, "Manager", fixture.ClientId));
+      await db.SaveChangesAsync();
+      accountId = (await BillingService.CreateBillingAccountAsync(db, fixture.ManagerActor,
+        new CreateBillingAccountRequest(fixture.ClientId, "QAR"))).Value;
+      var first = await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
+        new CreateInvoiceDraftRequest(accountId, "INV-TIME-RESERVED", [
+          new InvoiceLineRequest("Original approved time", 1.5m, 300m, "TIME", sourceId, 1)
+        ]));
+      Assert.True(first.Succeeded, first.Message);
+
+      var correction = await PracticeTimeService.CorrectTimeAsync(db, correctionActor,
+        new CorrectTimeRequest(sourceId, new DateOnly(2026, 3, 2), 540, 120,
+          "Billing source", "Attempt to alter invoiced time", Reason: "Correct after invoice reservation"));
+      Assert.Equal(ErrorCodes.ProtectedState, correction.ErrorCode);
+      var original = await db.TimeEntries.SingleAsync(x => x.Id == sourceId);
+      Assert.Equal(PracticeTimeStates.TimeApproved, original.Status);
+      Assert.Equal(0, await db.TimeEntries.CountAsync(x => x.SupersedesId == sourceId));
+
+      // Simulate a retained legacy correction chain created before both reservation guards existed.
+      original.Status = PracticeTimeStates.TimeSuperseded;
+      var now = DateTimeOffset.UtcNow;
+      var legacyCorrectionId = Guid.NewGuid();
+      db.TimeEntries.Add(new TimeEntry
+      {
+        Id = legacyCorrectionId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, TaskId = original.TaskId,
+        UserId = original.UserId, WorkDate = original.WorkDate, StartMinute = original.StartMinute,
+        DurationMinutes = original.DurationMinutes, Role = original.Role, Activity = original.Activity,
+        Phase = original.Phase, RiskArea = original.RiskArea, MappingVersionId = original.MappingVersionId,
+        FsliCode = original.FsliCode, BillableClassification = original.BillableClassification,
+        Narrative = "Retained legacy correction", NarrativeVisibility = original.NarrativeVisibility,
+        Status = PracticeTimeStates.TimeApproved, Currency = original.Currency, Revision = original.Revision + 1,
+        SupersedesId = original.Id, RateCardVersionId = original.RateCardVersionId, RatePerHour = original.RatePerHour,
+        ApprovedByUserId = fixture.Reviewer.Id, ApprovedAt = now, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+
+      var duplicate = await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
+        new CreateInvoiceDraftRequest(accountId, "INV-TIME-CORRECTION-DUPLICATE", [
+          new InvoiceLineRequest("Legacy corrected time", 1.5m, 300m, "TIME", legacyCorrectionId, 2)
+        ]));
+      Assert.Equal("billing.source-duplicate", duplicate.ErrorCode);
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(1, await verify.Invoices.CountAsync());
+    Assert.Equal(1, await verify.BillingSourceAllocations.CountAsync());
+    Assert.Equal(2, await verify.TimeEntries.CountAsync());
+  }
+
   private static async Task<Guid> SeedTimeAsync(PgTestSchema pg, Fixture fixture, string status)
   {
     var now = DateTimeOffset.UtcNow;

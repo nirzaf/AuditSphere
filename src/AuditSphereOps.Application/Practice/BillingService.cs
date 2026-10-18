@@ -619,11 +619,34 @@ public static class BillingService
     if (entry is null || !string.Equals(entry.Currency, account.Currency, StringComparison.OrdinalIgnoreCase) ||
         (entry.EngagementId is { } engagementId && !await EngagementBelongsToClientAsync(db, firmId, engagementId, account.PracticeClientId, ct)))
       return CommandResult.Fail("billing.source-invalid", "Only approved billable time for this client in the account currency can be billed.");
+    var lineage = await ValidateUnreservedTimeLineageAsync(db, firmId, entry, ct);
+    if (lineage is not null) return lineage;
     var expectedQuantity = entry.DurationMinutes / 60m;
     var expectedAmount = MoneyPolicy.Normalize(entry.DurationMinutes * (entry.RatePerHour ?? 0m) / 60m);
     return request.Quantity != expectedQuantity || lineTotal != expectedAmount
       ? CommandResult.Fail("billing.source-mismatch", "The invoice line does not match the approved time snapshot.")
       : null;
+  }
+
+  private static async Task<CommandResult?> ValidateUnreservedTimeLineageAsync(
+    IAuditSphereDbContext db, Guid firmId, TimeEntry entry, CancellationToken ct)
+  {
+    var visited = new HashSet<Guid> { entry.Id };
+    var predecessorId = entry.SupersedesId;
+    while (predecessorId is { } id)
+    {
+      if (!visited.Add(id))
+        return CommandResult.Fail("billing.source-invalid", "The approved time correction lineage is invalid.");
+      var predecessor = await db.TimeEntries.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == firmId && x.ClientId == entry.ClientId && x.Id == id, ct);
+      if (predecessor is null)
+        return CommandResult.Fail("billing.source-invalid", "The approved time correction lineage is invalid.");
+      if (await db.BillingSourceAllocations.AnyAsync(x => x.FirmId == firmId && x.SourceKind == TimeSourceKind &&
+          x.SourceId == predecessor.Id && x.SourceRevision == predecessor.Revision, ct))
+        return CommandResult.Fail("billing.source-duplicate", "An approved predecessor time revision is already allocated to an invoice.");
+      predecessorId = predecessor.SupersedesId;
+    }
+    return null;
   }
 
   // A fee milestone has no revision of its own: revision 1 names the agreed amount, which never changes once created.
