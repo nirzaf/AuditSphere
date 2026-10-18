@@ -368,6 +368,39 @@ public sealed class ClientRelationshipsAndRoutingTests
     var deactDispatch = await PracticeCrmService.RecordCorrespondenceDispatchAsync(db, partner, new RecordCorrespondenceDispatchRequest(
       seed.ClientId, null, CorrespondencePurposes.Commercial, deactContactId, "Proposal", "PROP-002", 1, docHash));
     Assert.Equal(ErrorCodes.GateBlocked, deactDispatch.ErrorCode);
+
+    var expiredContact = await db.ClientContacts.SingleAsync(x => x.Id == mdContactId);
+    expiredContact.ValidTo = DateTimeOffset.UtcNow.AddDays(-1);
+    await db.SaveChangesAsync();
+    var expiredResolution = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, seed.ClientId,
+      CorrespondencePurposes.Commercial, today);
+    Assert.Equal(RecipientResolutionStatus.NoRecipient, expiredResolution.Status);
+    Assert.Null(expiredResolution.ClientContactId);
+    var expiredDispatch = await PracticeCrmService.RecordCorrespondenceDispatchAsync(db, partner, new RecordCorrespondenceDispatchRequest(
+      seed.ClientId, null, CorrespondencePurposes.Commercial, mdContactId, "Proposal", "PROP-EXPIRED", 1, docHash));
+    Assert.Equal(ErrorCodes.GateBlocked, expiredDispatch.ErrorCode);
+
+    var futureContactId = Guid.NewGuid();
+    db.ClientContacts.Add(new ClientContact
+    {
+      Id = futureContactId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+      FullName = "Future Contact", Email = "future@client.test", Role = "Authorized Contact", IsActive = true,
+      ValidFrom = DateTimeOffset.UtcNow.AddDays(1)
+    });
+    await db.SaveChangesAsync();
+    var futureRouting = await PracticeCrmService.AssignContactRoutingAsync(db, partner,
+      new AssignContactRoutingRequest(seed.ClientId, futureContactId, CorrespondencePurposes.Completion));
+    Assert.True(futureRouting.Succeeded, futureRouting.Message);
+    var futureResolution = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, seed.ClientId,
+      CorrespondencePurposes.Completion, today);
+    Assert.Equal(RecipientResolutionStatus.NoRecipient, futureResolution.Status);
+    var futureOverride = await PracticeCrmService.ResolveCorrespondenceRecipientAsync(db, partner, seed.ClientId,
+      CorrespondencePurposes.Completion, today, overrideContactId: futureContactId, overrideReason: "Future appointment only.");
+    Assert.Equal(RecipientResolutionStatus.NoRecipient, futureOverride.Status);
+    var futureDispatch = await PracticeCrmService.RecordCorrespondenceDispatchAsync(db, partner, new RecordCorrespondenceDispatchRequest(
+      seed.ClientId, null, CorrespondencePurposes.Completion, futureContactId, "CompletionLetter", "PROP-FUTURE", 1, docHash));
+    Assert.Equal(ErrorCodes.GateBlocked, futureDispatch.ErrorCode);
+    Assert.Single(await db.CorrespondenceDispatchRecords.AsNoTracking().ToListAsync());
   }
 
   [Fact]

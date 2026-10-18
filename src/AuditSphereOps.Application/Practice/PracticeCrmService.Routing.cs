@@ -212,6 +212,8 @@ public static partial class PracticeCrmService
     Guid? overrideContactId = null, string? overrideReason = null, CancellationToken ct = default)
   {
     var normalizedPurpose = purpose.Trim().ToUpperInvariant();
+    var asOfStart = new DateTimeOffset(asOfDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+    var asOfEnd = asOfStart.AddDays(1);
 
     // Recipient routing is client-level commercial data: resolution (including the override path)
     // requires current internal commercial scope for this client and never bypasses it (STE-REM-03).
@@ -236,10 +238,10 @@ public static partial class PracticeCrmService
           normalizedPurpose, "The override recipient contact does not belong to the authorized client.");
       }
 
-      if (!overrideContact.IsActive)
+      if (!overrideContact.IsActive || !ContactIsEffectiveOn(overrideContact, asOfStart, asOfEnd))
       {
         return new RecipientResolutionResult(RecipientResolutionStatus.NoRecipient, null, null, null, null, null,
-          normalizedPurpose, "The designated override recipient is deactivated.");
+          normalizedPurpose, "The designated override recipient is inactive or outside its effective dates.");
       }
 
       return RecipientResolutionResult.Overridden(overrideContact, normalizedPurpose, actor.UserId, overrideReason.Trim());
@@ -251,7 +253,8 @@ public static partial class PracticeCrmService
       where (r.EffectiveFrom == null || r.EffectiveFrom <= asOfDate) &&
             (r.EffectiveTo == null || r.EffectiveTo >= asOfDate)
       join c in db.ClientContacts.AsNoTracking() on r.ClientContactId equals c.Id
-      where c.IsActive
+      where c.IsActive && (c.ValidFrom == null || c.ValidFrom < asOfEnd) &&
+        (c.ValidTo == null || c.ValidTo >= asOfStart)
       select new { Routing = r, Contact = c }
     ).ToListAsync(ct);
 
@@ -296,8 +299,10 @@ public static partial class PracticeCrmService
     if (contact is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Recipient contact not found for this client.");
 
-    if (!contact.IsActive)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Cannot dispatch correspondence to a deactivated contact.");
+    var dispatchedAt = DateTimeOffset.UtcNow;
+    if (!contact.IsActive || !ContactIsEffectiveAt(contact, dispatchedAt))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Cannot dispatch correspondence to a contact that is inactive or outside its effective dates.");
 
     var purpose = request.Purpose.Trim().ToUpperInvariant();
 
@@ -319,11 +324,19 @@ public static partial class PracticeCrmService
       OverriddenByUserId = request.WasOverridden ? actor.UserId : null,
       OverrideReason = TrimOrNull(request.OverrideReason),
       DispatchedByUserId = actor.UserId,
-      DispatchedAt = DateTimeOffset.UtcNow
+      DispatchedAt = dispatchedAt
     };
 
     db.CorrespondenceDispatchRecords.Add(record);
     await db.SaveChangesAsync(ct);
     return CommandResult<Guid>.Ok(record.Id);
   }
+
+  private static bool ContactIsEffectiveOn(ClientContact contact, DateTimeOffset asOfStart, DateTimeOffset asOfEnd) =>
+    (!contact.ValidFrom.HasValue || contact.ValidFrom.Value < asOfEnd) &&
+    (!contact.ValidTo.HasValue || contact.ValidTo.Value >= asOfStart);
+
+  private static bool ContactIsEffectiveAt(ClientContact contact, DateTimeOffset instant) =>
+    (!contact.ValidFrom.HasValue || contact.ValidFrom.Value <= instant) &&
+    (!contact.ValidTo.HasValue || contact.ValidTo.Value >= instant);
 }
