@@ -93,6 +93,46 @@ public sealed class WorkflowDependencyAmendmentTests
   }
 
   [Fact]
+  public async Task GraphBeyondTaskBoundIsRejectedWithoutPartialApplication()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    const int taskCount = 501;
+    var now = DateTimeOffset.UtcNow;
+    var tasks = Enumerable.Range(0, taskCount).Select(i => new WorkTask
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      Title = $"Bounded graph task {i + 1}", Status = PracticeTimeStates.TaskOpen,
+      Phase = BudgetPhases.Unassigned, CreatedAt = now
+    }).ToArray();
+    var bindings = tasks.Select((task, i) => new WorkflowTaskBinding
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      WorkTaskId = task.Id, Phase = WorkflowTaskPhases.AuditPlanning, Ordinal = i + 1,
+      SourceKey = $"TEST-BOUND:{i + 1}", CreationRequestDigest = new string('a', 64), Generation = 1,
+      DueDatePolicy = "MANUAL", AssignmentSource = "MANUAL", CreatedAt = now, CreatedByUserId = actor.UserId
+    }).ToArray();
+    db.WorkTasks.AddRange(tasks);
+    db.WorkflowTaskBindings.AddRange(bindings);
+    await db.SaveChangesAsync();
+
+    var dependency = new WorkflowDependencyChangeRequest(
+      tasks[0].Id, true, ExpectedRevision: 1, ExpectedPredecessorRevision: 1,
+      Reason: "Do not partially apply an oversized graph.", IdempotencyKey: Guid.NewGuid());
+    var result = await PracticeTimeService.ChangeWorkflowDependencyAsync(
+      db, actor, f.EngagementId, tasks[1].Id, dependency);
+
+    Assert.Equal(ErrorCodes.GateBlocked, result.ErrorCode);
+    Assert.Equal(0, await db.WorkflowTaskDependencyRevisions.CountAsync());
+    Assert.All(await db.WorkflowTaskBindings.AsNoTracking().Where(x => x.EngagementId == f.EngagementId)
+      .Select(x => x.Revision).ToArrayAsync(), revision => Assert.Equal(1, revision));
+    Assert.Equal(0, await db.WorkflowTaskActivities.CountAsync(x => x.Kind == WorkflowTaskActivityKinds.DependencyChanged));
+  }
+
+  [Fact]
   public async Task TemplateEdgesRemainPinnedWhileReviewedOverlayChangesOnlyOperationalOrdering()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg); var actor = PbcSeed.Actor(f.Admin, "Administrator");
