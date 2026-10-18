@@ -142,6 +142,7 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | ☑ Completed | Resource range validation and capacity remainder calculation | Complete staffing/resource acceptance remains open. |
 | ☑ Completed | Certification disclosure separating verification from expiry | Broader resource and concurrency acceptance remain open. |
 | ☑ Completed | Exact-source certification rules, append-only persistence and Application review workspace | UI/API and staffing integration have focused checks; concurrency and current release acceptance remain open. |
+| ☑ Completed | Purchase-invoice AP-role preview recovery and supplier purchase/credit browser journey | Focused local journeys pass; full accounting acceptance and exact-SHA release verification remain separate gates. |
 
 ### Available screens and feature roadmap
 

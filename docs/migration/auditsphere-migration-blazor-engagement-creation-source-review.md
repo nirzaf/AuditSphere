@@ -62,7 +62,7 @@ open. Blazor retirement remains `NOT_READY`.
 
 ## Acceptance batch follow-up
 
-The creation journey now exercises blank profiles, reversed periods, native route-length enforcement and fresh assent after correcting fields. API assertions separately reject an oversized route. Current API assertions compare foreign/guessed preview and receipt denials, refuse a resource-mismatched execute hash, and prove another authorized actor cannot recover the original receipt. Exact results and source attribution are in `status.json` under `targetedVerification.angularMigrationAcceptanceBatch`. Valid resource-bound execute authorization, broader error states and human accessibility remain open; activation also needs publication-lock and paid-advance browser transition evidence. This row remains PARTIAL.
+The creation journey now exercises blank profiles, reversed periods, native route-length enforcement and fresh assent after correcting fields. API assertions separately reject an oversized route. Current API assertions compare foreign/guessed preview and receipt denials, refuse a resource-mismatched execute hash, and prove another authorized actor cannot recover the original receipt. The compact PARTIAL record is under `status.json` at `targetedVerification.angularMigrationAcceptanceBatch`; full results and source attribution are preserved in [`status-archive-2026-10.json`](../execution/status-archive-2026-10.json) at `keys.targetedVerification.angularMigrationAcceptanceBatch`. Valid resource-bound execute authorization, broader error states and human accessibility remain open; activation also needs publication-lock and paid-advance browser transition evidence. This row remains PARTIAL.
 
 ## Current source reconciliation awaiting hosted evidence
 

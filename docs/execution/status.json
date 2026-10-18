@@ -162,68 +162,6 @@
         "Commit-pinned full release verification for this chunk"
       ]
     },
-    "angularMigrationAcceptanceBatch": {
-      "codeCommit": "40a2a9a102c9576aba6102a46b70cc094fae1f6e",
-      "source": "Verified working tree immediately committed with unchanged implementation/test content.",
-      "result": "PARTIAL",
-      "releaseBuild": {
-        "exitCode": 0,
-        "warnings": 0,
-        "errors": 0,
-        "durationSeconds": 5.75
-      },
-      "angular": {
-        "passed": 840,
-        "failed": 0,
-        "files": 139,
-        "durationSeconds": 9.92,
-        "productionBuildExitCode": 0,
-        "warning": "Existing commercial settings stylesheet budget."
-      },
-      "api": {
-        "passed": 3,
-        "failed": 0,
-        "skipped": 0,
-        "durationSeconds": 60,
-        "report": "scratchpad/parity-verification-20261016/acceptance-command-corrected.trx"
-      },
-      "browser": {
-        "passed": 5,
-        "failed": 0,
-        "skipped": 0,
-        "durationSeconds": 89,
-        "report": "scratchpad/parity-verification-20261016/acceptance-browser-corrected.trx"
-      },
-      "covered": [
-        "Exact-client checklist link retains engagement context",
-        "Foreign/guessed preview and receipt denials match",
-        "Resource-mismatched execute hashes rejected before authorization",
-        "Another authorized actor cannot recover the original receipt",
-        "Blank profile and reversed period block browser review without writes; correction requires fresh assent",
-        "Native route length limit and independent oversized API input rejection"
-      ],
-      "builtInBrowser": "Owned synthetic activation blocked state; exact-client/context checklist link navigated. Destination remained unavailable for engagement-only Partner, preserving client scope. No console errors or business mutations.",
-      "limits": [
-        "Full final-commit regression pending",
-        "Valid resource-bound execute authorization deserves separate assertion",
-        "Activation publication/lookup concurrency and advance-blocker browser transitions remain",
-        "Human accessibility, operational cutover/rollback and live-provider gates remain"
-      ],
-      "fullReleaseVerification": {
-        "state": "IN_PROGRESS",
-        "workflow": "release-verification.yml",
-        "candidateCommit": "b370b2f85824cfbeb64976b73b26a2427d32f55c",
-        "runId": 38880323316,
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/38880323316",
-        "observedStep": "Full solution test suite (no filter)",
-        "limitation": "No terminal verdict yet.",
-        "previousAttempt": {
-          "runId": 38880070430,
-          "state": "CHECKOUT_FAILED",
-          "reason": "Abbreviated ref was interpreted as branch; no tests executed. Re-dispatched exact full SHA."
-        }
-      }
-    },
     "angularBlazorPackageGateFixtureFollowUp": {
       "archive": "status-archive-2026-10.json",
       "key": "keys.targetedVerification.angularBlazorPackageGateFixtureFollowUp",
@@ -1220,6 +1158,17 @@
       "builtInBrowser": "NOT_VERIFIED: built-in browser had a stale PBC bundle (lazy chunk 404); current-bundle Playwright E2E passed.",
       "fastCi": "PASS: run 39093158735 on 4bf84641; Docs, Angular build/specs, .NET Release/guards, EF, publication and OpenAPI succeeded.",
       "fullSuites": "NOT_PASS: release run 39081736086 had Domain pass, API result unknown and E2E timeout after 24 failures. Live-provider acceptance remains external."
+    },
+    "angularMigrationAcceptanceBatch": {
+      "result": "PARTIAL",
+      "codeCommit": "40a2a9a102c9576aba6102a46b70cc094fae1f6e",
+      "limits": [
+        "Full final-commit regression pending",
+        "Valid resource-bound execute authorization deserves separate assertion",
+        "Activation publication/lookup concurrency and advance-blocker browser transitions remain",
+        "Human accessibility, operational cutover/rollback and live-provider gates remain"
+      ],
+      "archiveRef": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceBatch"
     }
   },
   "externalGates": [
