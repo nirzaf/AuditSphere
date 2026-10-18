@@ -133,6 +133,77 @@ public sealed class WorkflowDependencyAmendmentTests
   }
 
   [Fact]
+  public async Task GraphBeyondEdgeBoundIsRejectedWithoutPartialApplication()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    var reviewer = PbcSeed.Actor(f.Reviewer, "Partner");
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    const int taskCount = 90;
+    const int edgeCount = 4001;
+    var candidatePairs = Enumerable.Range(0, taskCount - 1)
+      .SelectMany(i => Enumerable.Range(i + 1, taskCount - i - 1).Select(j => (Predecessor: i, Successor: j)))
+      .Take(edgeCount).ToArray();
+    Assert.Equal(edgeCount, candidatePairs.Length);
+    var dependenciesBySuccessor = candidatePairs.GroupBy(x => x.Successor)
+      .ToDictionary(x => x.Key, x => (IReadOnlyList<string>)x.Select(pair => $"STEP-{pair.Predecessor + 1}").ToArray());
+    var steps = Enumerable.Range(0, taskCount).Select(i => new WorkflowTemplateStepDraft(
+      $"STEP-{i + 1}", WorkflowTaskPhases.AuditPlanning, $"Edge-bound step {i + 1}",
+      "Synthetic ordering fixture.", null, null, null, null, true, i + 1,
+      dependenciesBySuccessor.GetValueOrDefault(i, Array.Empty<string>()))).ToArray();
+
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner"));
+    var engagement = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
+    engagement.ServiceRoute = "FinancialStatementAudit";
+    engagement.PeriodStart = "2026-01-01";
+    engagement.PeriodEnd = "2026-12-31";
+    await db.SaveChangesAsync();
+
+    var draft = await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      new SaveWorkflowTemplateDraftRequest(null, "Edge-bound fixture", "FinancialStatementAudit", null, steps));
+    Assert.True(draft.Succeeded, draft.Message);
+    var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == draft.Value);
+    var reviewed = await WorkflowTemplateService.ReviewAsync(db, reviewer, revision.TemplateId, revision.Id,
+      revision.Revision, "Review the bounded synthetic dependency graph.");
+    Assert.True(reviewed.Succeeded, reviewed.Message);
+    revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == draft.Value);
+    var published = await WorkflowTemplateService.PublishAsync(db, reviewer, revision.TemplateId, revision.Id,
+      revision.Revision, "Publish the bounded synthetic dependency graph.");
+    Assert.True(published.Succeeded, published.Message);
+
+    var schedule = await StatutoryMilestoneService.SaveMilestonesAsync(db, actor,
+      new SaveMilestonesRequest(f.EngagementId, new DateOnly(2027, 4, 30)));
+    Assert.True(schedule.Succeeded, schedule.Message);
+    var preview = await EngagementWorkflowPlanService.PreviewAsync(db, actor, f.EngagementId,
+      new PreviewEngagementWorkflowPlanRequest(revision.Id));
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.True(preview.Value!.CanExecute);
+    var execute = await EngagementWorkflowPlanService.ExecuteAsync(db, actor, f.EngagementId,
+      new ExecuteEngagementWorkflowPlanRequest(revision.Id, preview.Value.PreviewDigest, Guid.NewGuid()));
+    Assert.True(execute.Succeeded, execute.Message);
+    Assert.Equal(taskCount, execute.Value!.TaskCount);
+    var bindings = await db.WorkflowTaskBindings.AsNoTracking().Where(x => x.EngagementId == f.EngagementId)
+      .OrderBy(x => x.Ordinal).ToArrayAsync();
+    var tasksByOrdinal = bindings.ToDictionary(x => x.Ordinal - 1, x => x.WorkTaskId);
+    Assert.Equal(edgeCount, await db.WorkflowTaskDependencies.CountAsync(x => x.EngagementId == f.EngagementId));
+
+    var request = new WorkflowDependencyChangeRequest(
+      tasksByOrdinal[0], true, ExpectedRevision: 1, ExpectedPredecessorRevision: 1,
+      Reason: "Do not partially apply an oversized graph.", IdempotencyKey: Guid.NewGuid());
+    var result = await PracticeTimeService.ChangeWorkflowDependencyAsync(
+      db, actor, f.EngagementId, tasksByOrdinal[1], request);
+
+    Assert.Equal(ErrorCodes.GateBlocked, result.ErrorCode);
+    Assert.Equal(edgeCount, await db.WorkflowTaskDependencies.CountAsync(x => x.EngagementId == f.EngagementId));
+    Assert.Equal(0, await db.WorkflowTaskDependencyRevisions.CountAsync());
+    Assert.All(await db.WorkflowTaskBindings.AsNoTracking().Where(x => x.EngagementId == f.EngagementId)
+      .Select(x => x.Revision).ToArrayAsync(), revision => Assert.Equal(1, revision));
+    Assert.Equal(0, await db.WorkflowTaskActivities.CountAsync(x => x.Kind == WorkflowTaskActivityKinds.DependencyChanged));
+  }
+
+  [Fact]
   public async Task TemplateEdgesRemainPinnedWhileReviewedOverlayChangesOnlyOperationalOrdering()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg); var actor = PbcSeed.Actor(f.Admin, "Administrator");
