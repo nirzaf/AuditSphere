@@ -16,7 +16,6 @@ public static partial class UiEndpoints
   public sealed record LeadInput(Guid RequestId, string Name, string Source, string? ContactName, string? ContactEmail);
   public sealed record ProposalResponseInput(string Decision, string? Reason, string? OfferSha256 = null,
     string? RespondentName = null, string? RespondentEmail = null, string? EvidenceReference = null, string? Channel = null);
-  public sealed record ClientConversionInput(string LegalName);
   public sealed record ProposalRevisionInput(string ExpectedRevision, string ServiceProfile, string Scope,
     string Exclusions, string Deliverables, string Dependencies, string Fee, string Currency,
     string PeriodStart, string PeriodEnd, Guid? RequestId = null, string? Timeline = null);
@@ -151,21 +150,6 @@ public static partial class UiEndpoints
       var result = await PracticeCrmService.RecordProposalResponseAsync(db, actor, id,
         new(input.Decision, input.Reason, input.OfferSha256, input.RespondentName, input.RespondentEmail, input.EvidenceReference, input.Channel),
         http.RequestAborted);
-      return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
-    })
-      .Produces(StatusCodes.Status204NoContent)
-      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
-      .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
-      .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
-    group.MapPost("/proposals/{id:guid}/convert", async (Guid id, ClientConversionInput input, HttpContext http, TrustedActorResolver resolver,
-      IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
-    {
-      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
-      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
-      try { await csrf.ValidateRequestAsync(http); }
-      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
-      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await PracticeCrmService.ConvertToClientDraftAsync(db, actor, new(id, input.LegalName), http.RequestAborted);
       return result.Succeeded ? Results.NoContent() : Results.Json(new { code = result.ErrorCode }, statusCode: 400);
     })
       .Produces(StatusCodes.Status204NoContent)

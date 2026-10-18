@@ -40,6 +40,8 @@ public sealed class ClientConversionReviewApiTests
     await c.GetAsync("/auth/sign-in"); using var session = await c.GetAsync("/api/ui/session");
     var csrf = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie").Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
     Assert.Equal(HttpStatusCode.Forbidden, (await Post(c, "forged", url + "/preview", r)).StatusCode);
+    using var legacyConvert = await Post(c, csrf, "/api/ui/proposals/" + proposalId + "/convert", new { legalName = "Unreviewed legacy client" });
+    Assert.Equal(HttpStatusCode.NotFound, legacyConvert.StatusCode);
     using var preview = await Post(c, csrf, url + "/preview", r); Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
     Assert.True(preview.Headers.CacheControl!.NoStore);
     var p = JsonDocument.Parse(await preview.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
