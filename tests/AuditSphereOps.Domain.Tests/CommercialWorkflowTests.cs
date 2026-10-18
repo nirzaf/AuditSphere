@@ -778,6 +778,18 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
     await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    // Deliver while the frozen prospect contact is still authoritative. Conversion changes the
+    // recipient boundary; it must not authorize a delayed prospect notification retroactively.
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var store = new PostgresOperationStore(factory);
+    var sender = new RecordingMailSender();
+    var handler = new CommercialMailDeliveryHandler(factory, sender);
+    var options = new WorkerOptions(w.FirmId, "Acceptance", ExternalEffectsEnabled: true, Group: "mail");
+    var worker = new AuditSphereOps.Worker.Worker(new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
+      [new CommercialMailDiscovery(factory, store, handler, options)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+    Assert.True(await worker.ProcessNextAsync());
+    Assert.Single(sender.Plans);
+    Assert.Contains("Proposal revision", sender.Plans[0].Subject);
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
       new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
@@ -896,15 +908,7 @@ public sealed class CommercialWorkflowTests
     Assert.Contains("6,000.00 QAR", firstVoucher);
     Assert.Equal(2, await db.CommercialNotifications.CountAsync(x => x.Kind == CommercialNotificationKinds.PaymentVoucher));
 
-    // The isolated mail worker delivers the receipt email exactly once (the proposal dispatch email is separate).
-    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
-    var store = new PostgresOperationStore(factory);
-    var sender = new RecordingMailSender();
-    var handler = new CommercialMailDeliveryHandler(factory, sender);
-    var options = new WorkerOptions(w.FirmId, "Acceptance", ExternalEffectsEnabled: true, Group: "mail");
-    var worker = new AuditSphereOps.Worker.Worker(new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
-      [new CommercialMailDiscovery(factory, store, handler, options)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
-    Assert.True(await worker.ProcessNextAsync());
+    // Deliver the receipt and two vouchers exactly once; the prospect proposal was sent before conversion.
     Assert.True(await worker.ProcessNextAsync());
     Assert.True(await worker.ProcessNextAsync());
     Assert.True(await worker.ProcessNextAsync());
@@ -912,7 +916,7 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(4, sender.Plans.Count);
     Assert.Equal(2, sender.Plans.Count(p => p.Subject.StartsWith("Payment voucher")));
     Assert.Contains(sender.Plans, p => p.Subject.StartsWith("Payment receipt"));
-    Assert.Contains(sender.Plans, p => p.Subject.Contains("Proposal revision"));
+    Assert.Single(sender.Plans, p => p.Subject.Contains("Proposal revision"));
     var deliveredReceipt = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
     Assert.Equal(("PROVIDER_ACCEPTED", true), (deliveredReceipt.DeliveryState, deliveredReceipt.DeliveredAt is not null));
 
