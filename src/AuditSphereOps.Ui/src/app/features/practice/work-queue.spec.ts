@@ -125,7 +125,7 @@ describe('workflow queue assignment filters', () => {
   const task = {
     taskId: '22222222-2222-4222-8222-222222222222', clientId: '33333333-3333-4333-8333-333333333333', clientName: 'Client A',
     engagementId: '44444444-4444-4444-8444-444444444444', engagementServiceRoute: 'AUDIT', engagementPeriod: 'FY2026',
-    sourceKey: 'MANUAL:fixture', templateRevisionId: null, templateStepId: null,
+    sourceKey: 'MANUAL:fixture', templateRevisionId: null, templateStepId: null, requiredTask: null,
     title: 'Prepare lead schedule', phase: 'FIELDWORK', ordinal: 1, taskStatus: 'OPEN',
     assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
@@ -159,7 +159,11 @@ describe('workflow queue assignment filters', () => {
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
-        .flush({ view: 'MY_TASKS', tasks: [{ ...task, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId, mappingVersionId: task.engagementId, fsliCode: 'CASH', pbcRequestId: task.taskId, pbcState: 'SENT', reviewState: 'CHANGES_REQUIRED', reviewComment: 'Reconcile the retained cash evidence' }], hasMore: false, nextCursor: null, summary: summary() });
+        .flush({ view: 'MY_TASKS', tasks: [
+          { ...task, requiredTask: true, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId, mappingVersionId: task.engagementId, fsliCode: 'CASH', pbcRequestId: task.taskId, pbcState: 'SENT', reviewState: 'CHANGES_REQUIRED', reviewComment: 'Reconcile the retained cash evidence' },
+          { ...task, taskId: '55555555-5555-4555-8555-555555555555', title: 'Optional evidence check', requiredTask: false },
+          { ...task, taskId: '66666666-6666-4666-8666-666666666666', title: 'Manual follow-up', requiredTask: null },
+        ], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
       TestBed.tick();
       for (const display of ['LIST', 'BOARD', 'CALENDAR'] as const) {
@@ -168,6 +172,8 @@ describe('workflow queue assignment filters', () => {
         expect(labels.length).toBe(1);
         expect(labels[0].textContent).toContain('Prerequisites: blocked');
         expect(host.textContent).toContain('Source: MANUAL:fixture');
+        expect(host.textContent).toContain('Template task designation: Required');
+        expect(host.textContent).toContain('Template task designation: Optional');
         expect(host.textContent).toContain('template revision ' + task.taskId);
         expect(host.textContent).toContain('step ' + task.clientId);
         expect(host.textContent).toContain('FSLI CASH');

@@ -21,7 +21,8 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   Guid? MappingVersionId, string? FsliCode, int UnmetTaskDependencies, bool CanComplete,
   bool CanChangeDueDate, bool CanAssign, long Revision,
   Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment,
-  int UnmetEvidencePrerequisites = 0, string SourceKey = "", Guid? TemplateRevisionId = null, Guid? TemplateStepId = null);
+  int UnmetEvidencePrerequisites = 0, string SourceKey = "", Guid? TemplateRevisionId = null, Guid? TemplateStepId = null,
+  bool? RequiredTask = null);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor, WorkflowTaskQueueSummary? Summary = null);
 public sealed record WorkflowTaskQueueCount(string View, string Count);
@@ -128,6 +129,9 @@ public static class WorkflowTaskQueueQuery
       {
         BindingId = binding.Id, binding.Revision, binding.Phase, binding.Ordinal,
         binding.SourceKey, binding.TemplateRevisionId, binding.TemplateStepId,
+        RequiredTask = db.WorkflowTemplateSteps.AsNoTracking().Where(step => step.FirmId == binding.FirmId &&
+            step.TemplateRevisionId == binding.TemplateRevisionId && step.Id == binding.TemplateStepId)
+          .Select(step => (bool?)step.RequiredTask).FirstOrDefault(),
         task.Id, ClientId = binding.ClientId, ClientName = client.LegalName, EngagementId = binding.EngagementId,
         EngagementServiceRoute = engagement.ServiceRoute,
         EngagementPeriod = engagement.PeriodStart + " – " + engagement.PeriodEnd,
@@ -258,7 +262,7 @@ public static class WorkflowTaskQueueQuery
         x.AssigneeUserId, x.AssigneeUserId is { } userId ? assignees.GetValueOrDefault(userId) : null,
         x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, canAssign, x.Revision,
         x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment, unmetEvidence,
-        x.SourceKey, x.TemplateRevisionId, x.TemplateStepId);
+        x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask);
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,

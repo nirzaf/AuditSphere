@@ -22,6 +22,7 @@ const queueTask = obj({
   mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), unmetTaskDependencies: int, unmetEvidencePrerequisites: int,
   canComplete: bool, canChangeDueDate: bool, canAssign: bool, revision: int,
   sourceKey: str(500), templateRevisionId: nullable(guid), templateStepId: nullable(guid),
+  requiredTask: nullable(bool),
   pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
   reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
 });
@@ -178,6 +179,7 @@ const queueViews: { key: QueueView; label: string }[] = [
       <article class="task-card">
         <strong>{{ task.title }}</strong>
         <small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>
+        @if (task.requiredTask !== null) { <small>Template task designation: {{ task.requiredTask ? 'Required' : 'Optional' }}</small> }
         <small><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a> · {{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small>
         <small>{{ task.phase.replaceAll('_', ' ') }} · #{{ task.ordinal }} · {{ task.dueDate ? 'due ' + task.dueDate : 'no due date' }} · {{ task.assigneeDisplayName ?? 'Unassigned' }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
         @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
@@ -265,7 +267,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                 }
               </td>
               <td><a [routerLink]="['/app/engagements', task.engagementId]">{{ task.clientName }}</a><small>{{ task.engagementServiceRoute }} · {{ task.engagementPeriod }}</small></td>
-              <td>{{ task.title }}<small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small><small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
+              <td>{{ task.title }}<small>Source: {{ task.sourceKey || 'Not recorded' }}@if (task.templateRevisionId) { · template revision {{ task.templateRevisionId }} }@if (task.templateStepId) { · step {{ task.templateStepId }} }</small>@if (task.requiredTask !== null) { <small>Template task designation: {{ task.requiredTask ? 'Required' : 'Optional' }}</small> }<small>{{ task.phase.replace('_', ' ') }} · #{{ task.ordinal }}@if (task.fsliCode) { · FSLI {{ task.fsliCode }} }@if (task.mappingVersionId) { · mapping {{ task.mappingVersionId }} }</small>
                 @if (task.pbcRequestId) { <small><a [routerLink]="['/app/engagements', task.engagementId, 'pbc']">PBC request · {{ task.pbcState }}</a></small> }
                 @if (task.reviewState) {
                   <small><audit-status [value]="task.reviewState" /> · {{ task.reviewState === 'UNDER_REVIEW' ? 'resubmitted work awaits independent review' : 'current audit result needs resubmission' }}</small>

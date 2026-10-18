@@ -39,7 +39,7 @@ public sealed class EngagementWorkflowPlanTests
         new SaveWorkflowTemplateDraftRequest(null, "Annual statutory audit", "FinancialStatementAudit", "ProfessionalServices",
         [
           Step("PLANNING", 1, -10),
-          Step("FIELDWORK", 2, -5, ["PLANNING"])
+          Step("FIELDWORK", 2, -5, ["PLANNING"], requiredTask: false)
         ]));
       Assert.True(draft.Succeeded, draft.Message);
       revisionId = draft.Value;
@@ -168,6 +168,11 @@ public sealed class EngagementWorkflowPlanTests
       Assert.Equal("DRAFT", draftCatalogItem.RevisionStatus);
       Assert.Equal(revisionId, draftCatalogItem.CurrentPublishedRevision?.RevisionId);
       Assert.Equal(1, draftCatalogItem.CurrentPublishedRevision?.Version);
+      var completedQueue = await WorkflowTaskQueueQuery.GetAsync(db, adminActor,
+        new WorkflowTaskQueueRequest("COMPLETED"));
+      Assert.True(completedQueue.Succeeded, completedQueue.Message);
+      Assert.Equal(true, Assert.Single(completedQueue.Value!.Tasks, x => x.TaskId == predecessor.Id).RequiredTask);
+      Assert.Equal(false, Assert.Single(completedQueue.Value.Tasks, x => x.TaskId == successor.Id).RequiredTask);
       var nextRevision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == nextDraft.Value);
       var nextReviewed = await WorkflowTemplateService.ReviewAsync(db, partnerActor, templateId, nextDraft.Value,
         nextRevision.Revision, "Review the revised annual task plan.");
@@ -243,9 +248,10 @@ public sealed class EngagementWorkflowPlanTests
     }
   }
 
-  private static WorkflowTemplateStepDraft Step(string key, int order, int dueOffset, IReadOnlyList<string>? dependsOn = null) =>
+  private static WorkflowTemplateStepDraft Step(string key, int order, int dueOffset, IReadOnlyList<string>? dependsOn = null,
+    bool requiredTask = true) =>
     new(key, WorkflowTaskPhases.AuditPlanning, $"Prepare {key.ToLowerInvariant()} work", $"Complete the {key.ToLowerInvariant()} task.",
-      null, 60, dueOffset, null, true, order, dependsOn);
+      null, 60, dueOffset, null, requiredTask, order, dependsOn);
 
   private static async Task SeedAsync(DbContextOptions<AuditSphereDbContext> options, Guid firmId,
     Guid clientId, Guid engagementId, Guid secondEngagementId, AppUser admin, AppUser partner, AppUser staff)

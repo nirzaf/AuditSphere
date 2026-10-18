@@ -139397,6 +139397,12 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "requiredTask": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
