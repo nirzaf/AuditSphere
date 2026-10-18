@@ -1085,27 +1085,6 @@
       ],
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018"
     },
-    "workflowDependencyGraphLimit20261018": {
-      "recordedAtUtc": "2026-10-18T08:46:21Z",
-      "sourceCommit": "58a073b79526731653cd2e51b6e598d291bee39e",
-      "status": "PARTIAL",
-      "scope": "501-task and 4,001-edge graph bounds reject atomically; broader ASPM-WF-02/PMCOMP-06 acceptance remains partial.",
-      "tests": [
-        {
-          "name": "GraphBeyondTaskBoundIsRejectedWithoutPartialApplication",
-          "sourceCommit": "77613c4a731c9915d9c911c7eadbe31756d45b73",
-          "result": "PASS 1/1",
-          "asserted": "501 tasks; no revisions, binding changes or activity."
-        },
-        {
-          "name": "GraphBeyondEdgeBoundIsRejectedWithoutPartialApplication",
-          "sourceCommit": "58a073b79526731653cd2e51b6e598d291bee39e",
-          "result": "PASS 1/1, 6s",
-          "asserted": "4,001 pinned edges; no revisions, binding changes or activity."
-        }
-      ],
-      "releaseRun": "39112632278 (in progress)"
-    },
     "practiceContactValidity20261018": {
       "sourceCommit": "95af9748f30b8d48c823d0461c2cd0c4d19c3e35",
       "result": "FOCUSED_PASS",
@@ -1168,6 +1147,27 @@
       "fastCiStatusAtRecord": "SUCCESS",
       "fullReleaseVerification": "NOT_RUN",
       "verificationLevel": "FAST_CI_PASS"
+    },
+    "workflowDependencyGraphLimit20261018": {
+      "recordedAtUtc": "2026-10-18T08:46:21Z",
+      "sourceCommit": "58a073b79526731653cd2e51b6e598d291bee39e",
+      "status": "PARTIAL",
+      "scope": "Atomic task/edge bounds verified; detailed results archived.",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowDependencyGraphLimit20261018"
+    },
+    "workflowTaskRequiredDesignation20261018": {
+      "recordedAtUtc": "2026-10-18T09:01:28Z",
+      "sourceCommit": "e4c5fa5f6def0077662b784650ac8d66f53ba956",
+      "status": "PARTIAL",
+      "scope": "Required/Optional from exact pinned template; manual tasks unlabelled. Informational only.",
+      "checks": [
+        "Pinned-plan PostgreSQL regression PASS 1/1.",
+        "work-queue.spec.ts PASS 18/18 across three layouts.",
+        "OpenAPI current; Angular and OpenAPI emitter builds pass. Existing stylesheet budget warning."
+      ],
+      "browser": "Manual task unlabelled; positive labels not browser-verified because API predates field.",
+      "releaseRun": "39113751546 (in progress)",
+      "stillOpen": "Required-task graph semantics and broader ASPM-WF-02 acceptance."
     }
   },
   "externalGates": [

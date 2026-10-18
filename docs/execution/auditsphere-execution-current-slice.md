@@ -19,6 +19,14 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Pinned workflow task designation in queues (2026-10-18)
+
+Commit `e4c5fa5f6def0077662b784650ac8d66f53ba956` projects each templated task's Required/Optional designation from its exact firm, pinned template revision and step. Manual tasks return no designation. The Angular My Work list, board and calendar show the value as plain text. It is informational only and does not gate task completion, lifecycle transitions or professional review.
+
+Focused PostgreSQL coverage passed 1/1 in `EngagementWorkflowPlanTests.PlanPinsPublishedTemplateAndSchedule_AndRecoversRetryWithoutDuplicateTasks`; it verifies the old plan still reports Required/Optional after a later draft revision. The focused `work-queue.spec.ts` passed 18/18, including all three layouts and manual tasks. The OpenAPI emitter Release build passed with 0 warnings/errors, the generated contract is current, and the Angular production build passed with its existing `commercial/settings.scss` budget warning (7.53 kB against 4.00 kB). Fast CI run `39113115375` passed on the preceding source commit `aad8c8de`; full release verification run `39113751546` was dispatched against this exact source commit.
+
+Built-in browser smoke check on the current Angular dev server at port 4301 used the existing synthetic API at port 5029. The queue rendered its manual synthetic task without a Required/Optional label. That API process predates the new response field, so positive template-backed labels were not browser-verified; they are covered by the Angular spec. No business records were changed. ASPM-WF-02 remains PARTIAL: required-task graph semantics, broader role/accessibility acceptance and full release verification remain open.
+
 ## Certification revocation versus reviewed staffing (2026-10-18)
 
 Added a deterministic PostgreSQL interleaving regression on source commit `8a01261066f5e105bd993ac999a61b840d2cff29`. The test pauses an independent certification revocation while it holds the firm publication lock, observes a previously reviewed higher-level assignment waiting on that lock, lets the revocation commit, and confirms the assignment is refused with no new assignment, staffing receipt or staffing grant. Its exact result and CI history are retained in [`status.json`](status.json#targetedVerification.staffingCertificationRevocationRace20261018) and the referenced status archive.
