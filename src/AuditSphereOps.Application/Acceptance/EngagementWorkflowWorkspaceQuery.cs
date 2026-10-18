@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ public static class EngagementWorkflowPhaseStatuses
   public const string Archived = "ARCHIVED";
 }
 
-public sealed record EngagementWorkflowPhaseState(int Index, string Code, string Label, string Status);
+public sealed record EngagementWorkflowPhaseState(int Index, string Code, string Label, string Status, DateOnly? OperationalDueDate);
 
 public sealed record EngagementWorkflowNextAction(string Key, string Label, string Href);
 
@@ -26,7 +27,8 @@ public sealed record EngagementWorkflowArchiveState(
 
 /// <summary>
 /// Seven-phase engagement projection (WF-01). It carries the exact canonical stage for audit traceability, the display phase
-/// derived from it, blockers from the authoritative evaluator, and at most one allowlisted internal next action.
+/// derived from it, blockers from the authoritative evaluator, open-task due dates, and at most one role-authorized
+/// allowlisted internal next action.
 /// </summary>
 public sealed record EngagementWorkflowReport(
   Guid EngagementId,
@@ -67,9 +69,10 @@ public static class EngagementWorkflowWorkspaceQuery
 
     var hasBlockers = summary.BlockedReasons.Count > 0;
     var blockers = summary.BlockedReasons;
+    var operationalDueDates = await OperationalDueDatesAsync(db, actor.FirmId, report.EngagementId, ct);
     var phases = EngagementDisplayPhaseMapper.Phases
       .Select(p => new EngagementWorkflowPhaseState(p.Index, p.Code, p.Label,
-        PhaseStatus(p.Index, phase.Index, summary.CanonicalStage, hasBlockers)))
+        PhaseStatus(p.Index, phase.Index, summary.CanonicalStage, hasBlockers), operationalDueDates.GetValueOrDefault(p.Code)))
       .ToList();
     var current = phases[phase.Index - 1];
 
@@ -78,7 +81,9 @@ public static class EngagementWorkflowWorkspaceQuery
       : new EngagementWorkflowArchiveState(summary.LocalArchiveState, summary.ProviderProtectionState,
         summary.ComplianceWarning, summary.ComplianceCountdownDays);
 
-    var nextActions = InternalRoute.IsMatch(summary.DeepLink)
+    var canOpenNextAction = InternalRoute.IsMatch(summary.DeepLink) &&
+      await CanOpenNextActionAsync(db, actor, report.ClientId, report.EngagementId, summary.ResponsibleRole, ct);
+    var nextActions = canOpenNextAction
       ? new List<EngagementWorkflowNextAction>
       {
         new("OPEN_CANONICAL_ACTION", $"Open: {summary.StageLabel}", summary.DeepLink),
@@ -91,6 +96,55 @@ public static class EngagementWorkflowWorkspaceQuery
       report.EngagementId, report.ClientId, report.ServiceRoute,
       summary.CanonicalStage, summary.StageIndex, summary.StageLabel,
       current, phases, summary.ResponsibleRole, responsibleUsers, blockers, nextActions, archive, report.EvaluatedAtUtc));
+  }
+
+  /// <summary>
+  /// A phase date is the earliest due date on a current, unfinished operational task. It is deliberately labelled as an
+  /// operational date; it does not invent a statutory deadline or satisfy a canonical lifecycle gate.
+  /// </summary>
+  private static async Task<Dictionary<string, DateOnly?>> OperationalDueDatesAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  {
+    var dates = await (from binding in db.WorkflowTaskBindings.AsNoTracking()
+      join task in db.WorkTasks.AsNoTracking()
+        on new { binding.FirmId, WorkTaskId = binding.WorkTaskId }
+        equals new { task.FirmId, WorkTaskId = task.Id }
+      where binding.FirmId == firmId && binding.EngagementId == engagementId && binding.SupersededAt == null &&
+        task.DueDate != null && (task.Status == PracticeTimeStates.TaskOpen || task.Status == PracticeTimeStates.TaskInProgress)
+      group task by binding.Phase into phaseTasks
+      select new { Phase = phaseTasks.Key, DueDate = phaseTasks.Min(task => task.DueDate) })
+      .ToDictionaryAsync(x => x.Phase, x => x.DueDate, ct);
+    return dates;
+  }
+
+  /// <summary>
+  /// The canonical stage proposes a route; a current grant and, for staffed engagement roles, the matching live assignment
+  /// determine whether this caller gets it. Downstream commands remain authoritative and reauthorize on every action.
+  /// </summary>
+  private static async Task<bool> CanOpenNextActionAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, string responsibleRole, CancellationToken ct)
+  {
+    var staffingLevel = responsibleRole switch
+    {
+      "EngagementPartner" => StaffingLevels.EngagementPartner,
+      "AuditManager" => StaffingLevels.AuditManager,
+      "SeniorAuditor" => StaffingLevels.SeniorAuditor,
+      _ => null,
+    };
+    if (staffingLevel is not null)
+    {
+      var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new(actor.FirmId, clientId, engagementId, [StaffingLevels.AuthorizationRole(staffingLevel)], InternalOnly: true), ct);
+      return auth.Succeeded && await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+        x.UserId == actor.UserId && x.StaffingLevel == staffingLevel && x.RevokedAt == null, ct);
+    }
+
+    if (responsibleRole is not ("CommercialManager" or "FinanceManager")) return false;
+    var businessRoleAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, clientId, engagementId, [responsibleRole], InternalOnly: true,
+        RequireFirmWide: responsibleRole == "FinanceManager"), ct);
+    return businessRoleAuth.Succeeded;
   }
 
   /// <summary>

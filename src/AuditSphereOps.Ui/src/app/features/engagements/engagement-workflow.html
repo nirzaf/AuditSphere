@@ -24,6 +24,9 @@
           <span class="phase-text">
             <span class="phase-label">{{ phase.label }}</span>
             <span class="phase-status">{{ statusLabel(phase.status) }}</span>
+            @if (phase.operationalDueDate) {
+              <span class="phase-status">Next task due: {{ phase.operationalDueDate }}</span>
+            }
           </span>
           <span class="sr-only">Phase {{ phase.index }}</span>
         </li>

@@ -1,4 +1,4 @@
-import { arr, bool, dec, decode, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
+import { arr, bool, date, dec, decode, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
 
 /** Seven ordinary-language phases (WF-01). Presentation only: a phase never advances an engagement. */
 export const WORKFLOW_PHASES = [
@@ -53,6 +53,7 @@ const phaseDecoder = obj({
   code: str(100),
   label: str(200),
   status: phaseStatus,
+  operationalDueDate: nullable(date),
 });
 
 const actionDecoder = obj({

@@ -17,6 +17,7 @@ const phases = (current: number, status: string) =>
     code: p.code,
     label: p.label,
     status: p.index < current ? 'COMPLETED' : p.index === current ? status : 'NOT_STARTED',
+    operationalDueDate: null as string | null,
   }));
 
 function workflow(overrides: Record<string, unknown> = {}) {
@@ -53,6 +54,16 @@ describe('Seven-phase workflow projection contract (WF-01/WF-02)', () => {
     expect(decoded.phases).toHaveLength(7);
     expect(decoded.blockers).toHaveLength(1);
     expect(decoded.archive).toBeNull();
+  });
+
+  it('decodes an optional source-backed operational due date without changing phase status', () => {
+    const raw = workflow();
+    raw.phases[0].operationalDueDate = '2026-10-20';
+    const decoded = decodeEngagementWorkflowReport(raw);
+    expect(decoded.phases[0].operationalDueDate).toBe('2026-10-20');
+    expect(decoded.phases[0].status).toBe('BLOCKED');
+    raw.phases[0].operationalDueDate = 'next Tuesday';
+    expect(() => decodeEngagementWorkflowReport(raw)).toThrow();
   });
 
   it('decodes archive and provider protection state without treating them as cleared', () => {

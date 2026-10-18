@@ -61,7 +61,7 @@ public sealed record EngagementLifecycleReport(
 /// </summary>
 public static class EngagementLifecycleQuery
 {
-  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "Auditor", "EngagementLeader"];
+  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "Auditor", "EngagementLeader", "CommercialManager", "FinanceManager"];
 
   public static async Task<CommandResult<EngagementLifecycleReport>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)

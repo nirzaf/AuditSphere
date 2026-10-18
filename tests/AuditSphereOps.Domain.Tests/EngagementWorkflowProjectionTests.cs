@@ -1,7 +1,10 @@
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Engagements;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -106,5 +109,64 @@ public sealed class EngagementWorkflowProjectionTests
     var denied = await EngagementWorkflowWorkspaceQuery.GetAsync(db, unauthorized, engagementId);
     Assert.False(denied.Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+  }
+
+  [Fact]
+  public async Task WorkflowShowsNearestOpenTaskDatesAndOnlyTheResponsibleRoleGetsTheCanonicalAction()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var staff = PbcSeed.Actor(seed.Staff, "Staff");
+    var commercialManager = PbcSeed.User(seed.FirmId, "Staff");
+    var admin = PbcSeed.Actor(seed.Admin, "Administrator");
+    var onboardingDue = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(8);
+    var onboardingEarlier = onboardingDue.AddDays(-3);
+    var planningDue = onboardingDue.AddDays(4);
+    Guid completedTask;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(commercialManager);
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, commercialManager, "CommercialManager", seed.ClientId, seed.EngagementId));
+      var completed = await EngagementWorkflowTaskService.CreateAsync(db, staff, seed.EngagementId,
+        new("Completed onboarding work", WorkflowTaskPhases.ClientOnboarding, 1, onboardingEarlier, IdempotencyKey: Guid.NewGuid()));
+      Assert.True(completed.Succeeded, completed.Message);
+      completedTask = completed.Value;
+      Assert.True((await EngagementWorkflowTaskService.CreateAsync(db, staff, seed.EngagementId,
+        new("Open onboarding work", WorkflowTaskPhases.ClientOnboarding, 2, onboardingDue, IdempotencyKey: Guid.NewGuid()))).Succeeded);
+      Assert.True((await EngagementWorkflowTaskService.CreateAsync(db, staff, seed.EngagementId,
+        new("In-progress planning work", WorkflowTaskPhases.AuditPlanning, 1, planningDue, IdempotencyKey: Guid.NewGuid()))).Succeeded);
+      await db.WorkTasks.Where(x => x.Id == completedTask)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Status, PracticeTimeStates.TaskCompleted));
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var report = await EngagementWorkflowWorkspaceQuery.GetAsync(db, staff, seed.EngagementId);
+      Assert.True(report.Succeeded, report.Message);
+      Assert.Equal(onboardingDue, report.Value!.Phases[0].OperationalDueDate);
+      Assert.Equal(planningDue, report.Value.Phases[1].OperationalDueDate);
+      Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, report.Value.CurrentPhase.Status);
+      Assert.Empty(report.Value.NextActions);
+
+      // An administrator without the stage's commercial role does not get the proposal action merely from broad read access.
+      var administrator = await EngagementWorkflowWorkspaceQuery.GetAsync(db, admin, seed.EngagementId);
+      Assert.True(administrator.Succeeded, administrator.Message);
+      Assert.Empty(administrator.Value!.NextActions);
+
+      var commercial = await EngagementWorkflowWorkspaceQuery.GetAsync(db,
+        PbcSeed.Actor(commercialManager, "CommercialManager"), seed.EngagementId);
+      Assert.True(commercial.Succeeded, commercial.Message);
+      var action = Assert.Single(commercial.Value!.NextActions);
+      Assert.Equal("OPEN_CANONICAL_ACTION", action.Key);
+      Assert.Equal($"/app/clients/{seed.ClientId}", action.Href);
+
+      // Completing operational tasks removes their displayed due date, but the canonical proposal gate remains blocked.
+      await db.WorkTasks.Where(x => x.EngagementId == seed.EngagementId && x.Status != PracticeTimeStates.TaskCompleted)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Status, PracticeTimeStates.TaskCompleted));
+      var completedWork = await EngagementWorkflowWorkspaceQuery.GetAsync(db, staff, seed.EngagementId);
+      Assert.True(completedWork.Succeeded, completedWork.Message);
+      Assert.Null(completedWork.Value!.Phases[0].OperationalDueDate);
+      Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, completedWork.Value.CurrentPhase.Status);
+    }
   }
 }

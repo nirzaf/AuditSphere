@@ -111,7 +111,7 @@ The [product crosswalk](docs/execution/auditsphere-execution-tracker-practice-ma
 | Checklist | Module / capability | Available implementation | Remaining work |
 | --- | --- | --- | --- |
 | ☐ Partially pending | Practice & commercial | Leads, client profiles/contacts, quotes, pricing, proposals, fee agreements and activation | Complete commercial acceptance, approved layouts/policy and provider delivery evidence. |
-| ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, templates, dependencies, queues, list/board/calendar | Required-task graph, recurrence/automation, lifecycle and current browser acceptance. |
+| ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, expandable task checklists, phase-scoped operational due dates, role-authorized canonical action, templates, dependencies and queues | Statutory milestone mapping, required-task graph, recurrence/automation, complete role-by-role and current browser acceptance. |
 | ☐ Partially pending | Client collaboration | First sign-in, scoped PBC requests/uploads, comments, financial-package review | Shared write-gate acceptance, exact accepted evidence sets and document/delivery lifecycle. |
 | ☐ Partially pending | People & time | Staffing, resource grid, availability, allocations, time, budgets, rates and utilization | Review-revocation/assignment race and broader resource/time acceptance. |
 | ☐ Partially pending | Firm finance | Protected billing, receipt allocations, expenses, firm ledger, aging, WIP and profitability | Full financial workflow acceptance; firm pricing and end-of-service professional configuration. |

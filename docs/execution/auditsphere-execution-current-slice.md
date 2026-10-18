@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Engagement workflow phase cues (2026-10-18)
+
+The seven-phase engagement projection now shows each phase's nearest due date from its current, open or in-progress workflow tasks. The UI labels these as task deadlines; they are not statutory milestones and do not satisfy readiness gates. Canonical next-action links are now projected only when the caller has the responsible-role grant and, for staffed audit roles, the matching active engagement assignment. Finance Manager links also require firm-wide scope. A focused PostgreSQL regression covers nearest-date selection, task completion leaving the lifecycle blocked, and authorized versus denied roles. The Angular decoder spec, production build, API Release build and OpenAPI drift check pass; the production build retains the existing commercial stylesheet budget warning. The built-in browser rendered the local synthetic engagement, its blocked lifecycle, task/gate separation, and the scoped Commercial Manager action. The sample had no active dated tasks, so the date label itself was not exercised there; responsive and full role-by-role browser acceptance remain open. No business records were changed. Exact source and verification details are in the current execution tracker and the practice-management criterion audit.
+
 ## Practice time return and resubmission (2026-10-18)
 
 RES-04 now has an independent return path with a mandatory reviewer reason. A returned entry can be resubmitted as a new review round on the same time-entry identity; its captured rate and billing classification remain unchanged. PostgreSQL retains submission, return and approval events append-only, and unapproved/returned time remains outside billable WIP. The current Angular time workspace displays the latest return reason and supports resubmission.
