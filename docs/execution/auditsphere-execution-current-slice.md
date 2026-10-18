@@ -19,13 +19,25 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Certification revocation versus reviewed staffing (2026-10-18)
+
+Added a deterministic PostgreSQL interleaving regression on source commit `8a01261066f5e105bd993ac999a61b840d2cff29`. The test pauses an independent certification revocation while it holds the firm publication lock, observes a previously reviewed higher-level assignment waiting on that lock, lets the revocation commit, and confirms the assignment is refused with no new assignment, staffing receipt or staffing grant. Its exact result and CI history are retained in [`status.json`](status.json#targetedVerification.staffingCertificationRevocationRace20261018) and the referenced status archive.
+
+ASPM-RES-02 remains PARTIAL: broader resource and release acceptance are still open. This backend transaction-ordering change has no new UI behavior; earlier synthetic-browser evidence for the certification status display remains scoped to that display only.
+
+## Recorded resource availability in the selected range (2026-10-18)
+
+The resource grid now returns and displays the exact saved leave, training and public-holiday entries that overlap its selected weeks, per staff member. Each entry shows its kind, inclusive start/end dates and recorded minutes per day. The projection exposes no private reason text and adds no inferred approval state. Existing aggregate capacity arithmetic and the firm-wide resource authorization boundary are unchanged.
+
+The source API response, generated OpenAPI schema, selected-range decoder, and focused Domain/Angular/browser checks cover the new projection. Exact commands and counts are recorded in [`status.json`](status.json#targetedVerification.resourceAvailabilityProjection20261018). Fast CI run `39109639455` passed on the exact source commit; it is not the full release regression suite. The existing local browser server on port 5029 still serves a shell whose route content is blank; that manual check remains blocked by the stale local host rather than treated as acceptance. ASPM-RES-01 remains PARTIAL pending broad role, range-boundary, responsive/accessibility and current release acceptance.
+
 ## Phase- and risk-attributed resource allocations (2026-10-18)
 
 Resource allocations now preserve separate planned-hour lines for each engagement, staff member, Sunday-based week, audit phase and optional risk area. The reviewed preview, request hash, durable receipt and PostgreSQL uniqueness/receipt guards bind the exact line. Different phase/risk lines coexist and all contribute to the weekly capacity total. Historical rows backfill to visible `UNASSIGNED` attribution, remain in capacity totals, and can be removed only through a reviewed zero-minute action for that exact legacy line; new positive allocations require an assignable phase. The Angular form requires the phase, normalizes a selected date to Sunday, and displays phase/risk on saved lines. Existing staffing and enabled-staff authorization checks remain in force.
 
 Focused checks on source commit `5996f36d49bf89feba9c99a7fab7c567c5f41c95`: PostgreSQL Domain regression 1/1 (two lines, aggregate capacity, exact-line removal and retry); resource Angular spec 15/15; resource E2E cohort 4/4; API and E2E Release builds with 0 warnings/errors; EF model drift and OpenAPI checks pass. Angular production build passes with the existing `commercial/settings.scss` warning (7.53 kB vs 4.00 kB). Fast CI run `39108092465` was in progress when this handoff was written; release-wide suites remain CI/CD work.
 
-Built-in browser inspection reached the existing local server on port 5029, where the Resources navigation selected but the workspace stayed blank because the stale shell referenced missing lazy chunk `chunk-Eamlq2bo.js`. I left that running process untouched, so the current source UI was not manually browser-verified. ASPM-RES-01 remains partial: the full availability/leave/holiday matrix, controlled approval status, broader roles/responsive/accessibility acceptance and full current-SHA CI remain open. The focused allocation evidence is in `status.json` at `targetedVerification.practiceResourcePhaseRisk20261018`; the earlier eligibility-only record is preserved in the status archive.
+Built-in browser inspection reached the existing local server on port 5029, where the Resources navigation selected but the workspace stayed blank because the stale shell referenced missing lazy chunk `chunk-Eamlq2bo.js`. I left that running process untouched, so the current source UI was not manually browser-verified. Broader date-boundary, role, responsive/accessibility acceptance and full current-SHA CI remain open. The focused allocation evidence is in `status.json` at `targetedVerification.practiceResourcePhaseRisk20261018`; the earlier eligibility-only record is preserved in the status archive.
 
 ## Correspondence contact effective-date enforcement (2026-10-18)
 

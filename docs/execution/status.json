@@ -1069,49 +1069,6 @@
       ],
       "archiveRef": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceBatch"
     },
-    "ste22F07WorkflowPhaseCues": {
-      "recordedAtUtc": "2026-10-18T06:25:07Z",
-      "sourceCommit": "4d8f0883197190a5a1326acbe5f89ec088f23d0c",
-      "status": "PARTIAL",
-      "scope": "PM-01 / WF-02 explicit saved Audit Plan milestone display in the seven-phase engagement workflow.",
-      "history": "status-archive-2026-10.json#keys.targetedVerification.ste22F07WorkflowPhaseCuesBeforeMilestoneDisplay20261018",
-      "closedInCode": [
-        "Reads the existing engagement-scoped milestone endpoint separately from workflow tasks; route/session changes clear prior plan data.",
-        "Displays saved fieldwork start in phase 3, report and filing dates in phase 6, and archive deadline in phase 7.",
-        "Distinguishes an authorized empty schedule from a role-denied/failed read; an unsupported or mismatched response fails closed.",
-        "Labels statutory filing cutoff as saved plan data, not legal validation; operational task deadlines remain separate."
-      ],
-      "runs": [
-        {
-          "name": "Focused Angular engagement workflow milestone spec",
-          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/engagements/engagement-workflow.spec.ts'",
-          "result": "PASS",
-          "passed": 3,
-          "failed": 0,
-          "total": 3
-        },
-        {
-          "name": "Angular production build",
-          "command": "npm --prefix src/AuditSphereOps.Ui run build -- --configuration production",
-          "result": "PASS_WITH_EXISTING_WARNING",
-          "warning": "Existing commercial/settings.scss component style exceeds the 4.00 kB budget at 7.53 kB; no workflow style warning."
-        },
-        {
-          "name": "Built-in browser local synthetic engagement read",
-          "result": "PASS_SCOPED",
-          "observed": "Read-only page showed no saved milestone schedule, did not substitute operational task dates, and emitted no console errors/warnings. Milestone, workflow, task and assignee reads returned HTTP 200."
-        }
-      ],
-      "notRun": [
-        "Full .NET, Angular and Playwright suites locally; they remain CI/CD responsibilities.",
-        "Broad role-by-role, responsive and assistive-technology browser acceptance."
-      ],
-      "stillOpen": [
-        "Qualified approval of an applicable, versioned jurisdictional source mapping and any legal validation for statutory filing cutoffs.",
-        "Broader role-specific, responsive and assistive-technology acceptance.",
-        "Current-SHA CI/CD and production/live-provider acceptance; this local UI slice does not establish either."
-      ]
-    },
     "figmaAngularShell": {
       "status": "ARCHIVED_FOCUSED_EVIDENCE",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -1164,7 +1121,54 @@
       "angular": 15,
       "e2e": 4,
       "fastCiRun": "39108092465",
-      "fastCi": "IN_PROGRESS"
+      "fastCi": "CANCELLED_SUPERSEDED"
+    },
+    "ste22F07WorkflowPhaseCues": {
+      "status": "PARTIAL",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.ste22F07WorkflowPhaseCuesLatest20261018",
+      "stillOpen": [
+        "Qualified approval of an applicable, versioned jurisdictional source mapping and legal validation for statutory filing cutoffs.",
+        "Broader role, responsive, assistive-technology and current-SHA release acceptance."
+      ]
+    },
+    "staffingCertificationRevocationRace20261018": {
+      "status": "FOCUSED_PASS",
+      "sourceCommit": "8a01261066f5e105bd993ac999a61b840d2cff29",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.staffingCertificationRevocationRace20261018",
+      "fastCiRun": "39108579093",
+      "fastCi": "Superseded by passing run 39109639455 on 5dcb656e"
+    },
+    "resourceAvailabilityProjection20261018": {
+      "recordedAtUtc": "2026-10-18T08:04:42Z",
+      "sourceCommit": "5dcb656e1dae5dc34ec8e23f84e2dca4b884dc63",
+      "status": "FOCUSED_PASS",
+      "domain": {
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea'",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "angular": {
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/practice/resources.spec.ts'",
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0
+      },
+      "browserJourney": {
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularResourcePlanningJourneyTests.KeyboardFormsCapacityAvailabilityAndAllocationsRemainServerOwned'",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "note": "Both canonical and /ui modes passed after UI rebuild."
+      },
+      "apiReleaseBuild": "PASS; 0 warnings, 0 errors",
+      "angularProductionBuild": "PASS_WITH_EXISTING_WARNING; settings.scss exceeds size budget.",
+      "openApiDrift": "PASS",
+      "builtInBrowser": "BLOCKED_STALE_LOCAL_SHELL: blank main at 127.0.0.1:5029.",
+      "fastCiRun": "39109639455",
+      "fastCiStatusAtRecord": "SUCCESS",
+      "fullReleaseVerification": "NOT_RUN",
+      "verificationLevel": "FAST_CI_PASS"
     }
   },
   "externalGates": [
