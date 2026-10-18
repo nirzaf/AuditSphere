@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "e15a1c7f4811c380a50e429a21f913ee30f3a700",
+  "headCommit": "5996f36d49bf89feba9c99a7fab7c567c5f41c95",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1157,11 +1157,14 @@
       "passed": 1,
       "failed": 0
     },
-    "practiceResourceEligibility20261018": {
-      "sourceCommit": "e15a1c7f4811c380a50e429a21f913ee30f3a700",
+    "practiceResourcePhaseRisk20261018": {
+      "sourceCommit": "5996f36d49bf89feba9c99a7fab7c567c5f41c95",
       "result": "FOCUSED_PASS",
-      "passed": 1,
-      "failed": 0
+      "domain": 1,
+      "angular": 15,
+      "e2e": 4,
+      "fastCiRun": "39108092465",
+      "fastCi": "IN_PROGRESS"
     }
   },
   "externalGates": [
@@ -1339,7 +1342,7 @@
     },
     "latestAttempt": "Run 39081736086 on 9e2709b: FAILED; Domain 1,360/1,360 passed, API unknown after hosted-runner loss, E2E timed out after 3h with 24 failures. PBC labels fixed on 4bf84641; last full pass remains productCodeCommit above.",
     "notes": "Historical suite details are in runs; no live-provider acceptance.",
-    "migrationHead": "20261010203413_ReportCertificateSignatureEvidence"
+    "migrationHead": "20261018072145_StaffAllocationPhaseRiskArea"
   },
   "hostingerAcceptance": {
     "recordedAtUtc": "2026-10-15T13:28:06Z",
