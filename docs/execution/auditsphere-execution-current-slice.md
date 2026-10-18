@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Time-source billing reservation guard (2026-10-18)
+
+Commit `5e9a1eb5` prevents an approved time entry from being corrected after its exact revision is reserved to an invoice. Billing also walks a corrected entry's `SupersedesId` ancestry and refuses it if any predecessor revision is already reserved, covering retained legacy chains. The focused PostgreSQL regression asserts the original invoice/allocation remain the only billing reservation and that the forbidden correction creates no child entry; it also attempts to bill a legacy correction descendant and verifies no second invoice is created. The named Domain test passed 1/1. Full suites and authenticated browser verification were not run for this server-side change. ASPM-RES-04 and ASPM-FIN-01 remain partial; milestone and other source reservation cases remain open. Fast CI is pending on the pushed commit.
+
 ## Workflow dependency graph bound (2026-10-18)
 
 The existing dependency command checks the complete engagement graph before saving and refuses graphs beyond its 500-task/4,000-edge bounds. A focused PostgreSQL regression seeds 501 scoped workflow tasks, attempts an edge change, and asserts `GateBlocked`, zero dependency revisions, unchanged task-binding revisions, and no dependency-change activity. The focused test passed; exact run metadata is in `status.json`. The 4,001-edge branch is not independently exercised; `ASPM-WF-02` and PMCOMP-06 remain partial. No full suite was run locally.
