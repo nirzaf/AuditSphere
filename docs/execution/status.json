@@ -27,9 +27,9 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "fe4d94b257563a5dd525a0f70f187f734a3ec1fd",
+  "headCommit": "4bf8464174afe69fd2b3751e2317958b3e9332ee",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
-  "remoteHeadVerified": false,
+  "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
   "productionEnabled": false,
   "verifiedAt": "2026-10-17T10:13:43Z",
@@ -1208,16 +1208,18 @@
     "pbcExactVersionAcceptance20261018": {
       "baseCommit": "b11a1f0f4390b9e345c8039ee6ad1fa5269724c8",
       "implementationCommit": "fe4d94b257563a5dd525a0f70f187f734a3ec1fd",
+      "followUpCommit": "4bf8464174afe69fd2b3751e2317958b3e9332ee",
       "pushedToMaster": true,
-      "result": "FOCUSED_PASS_BROWSER_POSITIVE_UNVERIFIED",
-      "domain": "PbcTransferTests and EngagementDeadlineReminderTests: 20 passed, 0 failed; includes exact-source acceptance and PostgreSQL immutability guards.",
-    "domainPostGuardChange": "ReviewerGates_AfterReceived_StayScopedAndStale: 1 passed, 0 failed after extending the accepted-request immutability guard to every request field.",
+      "result": "FOCUSED_PASS",
+      "domain": "PbcTransferTests and EngagementDeadlineReminderTests: 20 passed, 0 failed, including PostgreSQL immutability guards; ReviewerGates_AfterReceived_StayScopedAndStale: 1 passed after the final all-fields immutability guard.",
       "angular": "src/app/features/engagements/pbc.spec.ts: 2 passed, 0 failed.",
       "apiBuild": "Release build passed, 0 warnings, 0 errors.",
       "openApi": "Emitter Release build passed; scripts/contracts/verify-openapi.sh passed after updating the contract.",
       "angularBuild": "Production build passed; existing settings.scss component-style budget warning remains.",
-      "builtInBrowser": "Synthetic engagement rendered. PBC route did not open for the available browser session; positive reviewer UI flow NOT_VERIFIED. No business state was changed.",
-      "fullSuites": "DEFERRED_TO_CI"
+      "focusedE2e": "PASS: 2 selected Playwright E2E journeys on 4bf84641; exact-version reviewer assent/immutable receipt and grant-revocation denial verified.",
+      "builtInBrowser": "NOT_VERIFIED: built-in browser had a stale PBC bundle (lazy chunk 404); current-bundle Playwright E2E passed.",
+      "fastCi": "PASS: run 39093158735 on 4bf84641; Docs, Angular build/specs, .NET Release/guards, EF, publication and OpenAPI succeeded.",
+      "fullSuites": "NOT_PASS: release run 39081736086 had Domain pass, API result unknown and E2E timeout after 24 failures. Live-provider acceptance remains external."
     }
   },
   "externalGates": [
@@ -1392,6 +1394,7 @@
         "ranOn": "e1fcf453"
       }
     },
+    "latestAttempt": "Run 39081736086 on 9e2709b: FAILED; Domain 1,360/1,360 passed, API unknown after hosted-runner loss, E2E timed out after 3h with 24 failures. PBC labels fixed on 4bf84641; last full pass remains productCodeCommit above.",
     "notes": "Current-tree regression on code commit c9bea82ae52ee9e4867ad26d2c4059991e19dade: API 223/223, Domain 825/825, and E2E 236/236 (1,284 total, zero failures) against auditsphere_tests on 127.0.0.1:5433. Angular CI specs passed 630/630 across 114 files. The Release solution build passed with six NU1900 warnings because the NuGet vulnerability service was unreachable. Angular production build passed using the SQLite cache override; the existing commercial/settings.scss stylesheet exceeds its 4 KB budget by 3.53 KB. EF reports no pending model changes and OpenAPI matches the committed contract. No production or development database migration, live Microsoft consent handshake, or external provider acceptance was performed.",
     "migrationHead": "20261010203413_ReportCertificateSignatureEvidence"
   },
