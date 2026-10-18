@@ -1,0 +1,713 @@
+    <nav aria-label="Consolidation location">
+      <a routerLink="/app/consolidation">Consolidation</a> / <span>Scope workspace</span>
+    </nav>
+
+    <audit-page-header
+      title="Consolidation scope workspace"
+      eyebrow="Group accounting"
+      description="Perimeter management, component intake & approvals, elimination journals, and calculation runs."
+    />
+
+    <audit-state [loading]="ws.loading()" [error]="ws.error()" label="the consolidation scope workspace" />
+
+    @if (ws.data(); as w) {
+      <p class="actions">
+        <a routerLink="/app/consolidation">Group workspace</a>
+        <audit-status [value]="w.scope.status" />
+      </p>
+
+      <!-- Scope Perimeter Summary -->
+      <section class="panel" aria-labelledby="scope-heading">
+        <h2 id="scope-heading">{{ w.scope.groupName }} ({{ w.scope.groupCode }}) · v{{ w.scope.version }}</h2>
+        <dl class="facts">
+          <dt>Method</dt><dd><code>{{ w.scope.method }}</code></dd>
+          <dt>Reporting currency</dt><dd><code>{{ w.scope.reportingCurrency }}</code></dd>
+          <dt>Opening basis</dt><dd>{{ w.scope.openingBasis }}</dd>
+          <dt>Group perimeter revision</dt><dd>{{ w.scope.groupRevision }}</dd>
+          <dt>Perimeter status</dt><dd><audit-status [value]="w.scope.status" /></dd>
+        </dl>
+
+        @if (w.scope.status === 'DRAFT' && w.canReview) {
+          <div class="actions" style="margin-top: 1rem;">
+            <button matButton="filled" (click)="approveScope(w.scope.id)" [disabled]="cmd.busy()">
+              Approve perimeter
+            </button>
+          </div>
+        }
+      </section>
+
+      <!-- Quick Navigation Tabs -->
+      <nav aria-label="Scope sections" class="actions">
+        <a [routerLink]="[]" fragment="components">Components ({{ w.componentPaging.totalCount }})</a>
+        <a [routerLink]="[]" fragment="external-packs">External component packs</a>
+        <a [routerLink]="[]" fragment="journals">Elimination journals ({{ w.journals.totalCount }})</a>
+        <a [routerLink]="[]" fragment="runs">Runs & Reports ({{ w.runs.totalCount }})</a>
+        <a [routerLink]="[]" fragment="readiness">Readiness ({{ w.componentReadiness.available ? w.readinessPaging?.totalCount ?? 0 : 'unavailable' }})</a>
+        <a [routerLink]="[]" fragment="intercompany">Intercompany ({{ intercompanyCountLabel(w) }})</a>
+        <a [routerLink]="[]" fragment="ownership">Ownership relationships</a>
+      </nav>
+
+      <audit-consolidation-ownership [scopeId]="w.scope.id" />
+
+      <!-- Component Intake & Approval -->
+      <section class="panel" id="components" aria-labelledby="components-heading">
+        <h2 id="components-heading">Components & Intake</h2>
+        <p><small>Consolidation operates strictly on approved, validated component financial packages. Preparers cannot approve their own submissions.</small></p>
+
+        @if (w.scope.status === 'DRAFT' && w.canPrepare && w.eligiblePackages.items.length > 0) {
+          <fieldset class="panel" style="margin: 1rem 0;">
+            <legend><strong>Submit component from eligible package</strong></legend>
+            <div class="inline-form">
+              <label>
+                Eligible package *
+                <select [(ngModel)]="selectedPackageId" name="selectedPackage">
+                  <option value="">-- Select validated package --</option>
+                  @for (pkg of w.eligiblePackages.items; track pkg.packageId) {
+                    <option [value]="pkg.packageId">
+                      {{ pkg.clientLegalName }} ({{ pkg.currency }}, {{ pkg.periodBasis }})
+                    </option>
+                  }
+                </select>
+              </label>
+
+              <label>
+                Ownership % *
+                <input type="text" inputmode="decimal" [(ngModel)]="ownershipPercent" name="ownershipPercent" maxlength="64" />
+                @if (!isValidOwnershipPercent(ownershipPercent)) {
+                  <small class="error-text" role="alert">Enter an ownership percentage from 0 to 100 with at most six decimal places.</small>
+                }
+              </label>
+
+              <label>
+                Control method *
+                <select [(ngModel)]="controlMethod" name="controlMethod">
+                  <option value="CONTROLLED">Controlled</option>
+                  <option value="SIGNIFICANT_INFLUENCE">Significant influence</option>
+                  <option value="JOINT_CONTROL">Joint control</option>
+                </select>
+              </label>
+
+              <button matButton="filled" (click)="submitComponent(w)" [disabled]="cmd.busy() || !selectedPackageId || !isValidOwnershipPercent(ownershipPercent)">
+                Submit component
+              </button>
+            </div>
+          </fieldset>
+        }
+
+        @if (w.scope.status === 'DRAFT' && w.canPrepare) {
+          <nav class="actions" aria-label="Eligible package pages">
+            <span>{{ w.eligiblePackages.totalCount }} eligible packages · Page {{ w.eligiblePackages.page }} of {{ Math.max(1, Math.ceil(w.eligiblePackages.totalCount / w.eligiblePackages.pageSize)) }}</span>
+            <button matButton="outlined" type="button" (click)="previousEligiblePackagesPage()" [disabled]="w.eligiblePackages.page <= 1 || ws.loading()">Previous</button>
+            <button matButton="outlined" type="button" (click)="nextEligiblePackagesPage(w.eligiblePackages)" [disabled]="w.eligiblePackages.page * w.eligiblePackages.pageSize >= w.eligiblePackages.totalCount || ws.loading()">Next</button>
+          </nav>
+        }
+
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Entity</th>
+                <th>Currency</th>
+                <th>Ownership</th>
+                <th>Control method</th>
+                <th>Period basis</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of w.components; track c.id) {
+                <tr>
+                  <td>
+                    <strong>{{ c.clientLegalName }}</strong>
+                    <small>Digest: {{ c.packageHash.slice(0, 12) }}…</small>
+                  </td>
+                  <td><code>{{ c.currency }}</code></td>
+                  <td>{{ ownershipPercentDisplay(c.ownershipPercent) }}</td>
+                  <td>{{ c.controlMethod }}</td>
+                  <td>{{ c.periodBasis }}</td>
+                  <td><audit-status [value]="c.status" /></td>
+                  <td>
+                    @if (c.status === 'SUBMITTED' && w.canReview && c.submittedByUserId !== w.currentUserId) {
+                      <button matButton="filled" (click)="approveComponent(c.id)" [disabled]="cmd.busy()">
+                        Approve
+                      </button>
+                    } @else if (c.status === 'SUBMITTED' && c.submittedByUserId === w.currentUserId) {
+                      <small>Maker/checker: independent review required</small>
+                    } @else if (c.status === 'APPROVED') {
+                      <small>Approved {{ c.approvedAt ? c.approvedAt.slice(0, 10) : '' }}</small>
+                    }
+                    @if (w.canPrepare) {
+                      <button matButton="outlined" type="button" (click)="toggleComponentCorrection(w, c.id)" [attr.aria-pressed]="isComponentCorrectionSelected(w, c.id)">
+                        {{ isComponentCorrectionSelected(w, c.id) ? 'Selected for correction' : 'Correct source' }}
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="7">No components have been submitted for this scope version.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="actions" aria-label="Component pages">
+          <button matButton="outlined" type="button" (click)="previousComponentsPage()" [disabled]="w.componentPaging.page <= 1 || ws.loading()">Previous</button>
+          <span>{{ w.componentPaging.totalCount }} components · Page {{ w.componentPaging.page }} of {{ Math.max(1, Math.ceil(w.componentPaging.totalCount / w.componentPaging.pageSize)) }}</span>
+          <button matButton="outlined" type="button" (click)="nextComponentsPage(w.componentPaging)" [disabled]="w.componentPaging.page * w.componentPaging.pageSize >= w.componentPaging.totalCount || ws.loading()">Next</button>
+        </div>
+        @if (selectedComponentCorrectionFor(w); as correction) {
+          <audit-consolidation-component-correction
+            [scopeId]="w.scope.id"
+            [groupId]="w.scope.groupId"
+            [componentId]="correction.id"
+          />
+        }
+      </section>
+
+      <section class="panel" id="external-packs" aria-labelledby="external-packs-heading">
+        <h2 id="external-packs-heading">External component packs</h2>
+        <p>Inspect source-linked submissions, reconcile and independently review them before pinning an approved pack.</p>
+        <button type="button" matButton="outlined" (click)="toggleExternalPacks(w)"
+          [attr.aria-expanded]="isExternalPacksOpen(w)" aria-controls="external-packs-workspace">
+          {{ isExternalPacksOpen(w) ? 'Close external component packs' : 'Open external component packs' }}
+        </button>
+        <div id="external-packs-workspace">
+          @if (isExternalPacksOpen(w)) {
+            <audit-consolidation-external-packs [scopeId]="w.scope.id" (componentPinned)="ws.reload()" />
+          }
+        </div>
+      </section>
+
+      <!-- Elimination Journals -->
+      <section class="panel" id="journals" aria-labelledby="journals-heading">
+        <h2 id="journals-heading">Elimination journals</h2>
+        <p><small>Journals eliminate intercompany balances and investments. Debits and credits must balance before submission.</small></p>
+
+        @if (w.canPrepare) {
+          <details style="margin: 1rem 0;">
+            <summary><strong role="button">Create elimination journal</strong></summary>
+            <div class="panel" style="margin-top: 0.5rem;">
+              <div class="inline-form">
+                <label>
+                  Journal number *
+                  <input type="text" [(ngModel)]="journalNumber" placeholder="EJ-001" maxlength="32" />
+                </label>
+                <label>
+                  Type *
+                  <select [(ngModel)]="journalType">
+                    <option value="INTERCOMPANY_ELIMINATION">Intercompany elimination</option>
+                    <option value="INVESTMENT_ELIMINATION">Investment elimination</option>
+                    <option value="PROFIT_IN_INVENTORY">Unrealized profit in inventory</option>
+                  </select>
+                </label>
+                <label>
+                  Currency *
+                  <input type="text" [(ngModel)]="journalCurrency" maxlength="3" style="width: 5rem;" />
+                </label>
+                <label>
+                  Evidence reference *
+                  <input type="text" [(ngModel)]="journalEvidence" placeholder="Working paper or agreement ref" maxlength="128" />
+                </label>
+              </div>
+
+              <h3>Journal lines</h3>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Taxonomy code *</th>
+                      <th>Debit</th>
+                      <th>Credit</th>
+                      <th>Description</th>
+                      <th><span class="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (line of journalLines(); track $index) {
+                      <tr>
+                        <td><input type="text" [ngModel]="line.taxonomyCode" (ngModelChange)="updateJournalLine($index, 'taxonomyCode', $event)" placeholder="e.g. BS-100" /></td>
+                        <td><input type="text" inputmode="decimal" maxlength="64" [ngModel]="line.debit" (ngModelChange)="updateJournalLine($index, 'debit', $event)" style="width: 8rem;" /></td>
+                        <td><input type="text" inputmode="decimal" maxlength="64" [ngModel]="line.credit" (ngModelChange)="updateJournalLine($index, 'credit', $event)" style="width: 8rem;" /></td>
+                        <td><input type="text" [ngModel]="line.description" (ngModelChange)="updateJournalLine($index, 'description', $event)" placeholder="Line memo" /></td>
+                        <td>
+                          @if (journalLines().length > 2) {
+                            <button type="button" (click)="removeJournalLine($index)">Remove</button>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th>Total</th>
+                      <th class="number">{{ totalDebits() }}</th>
+                      <th class="number">{{ totalCredits() }}</th>
+                      <th colspan="2">
+                        @if (!journalAmountsValid()) {
+                          <span class="error-text" role="alert">Enter non-negative decimal amounts within numeric(19,6), with no more than six decimal places.</span>
+                        } @else if (isJournalBalanced()) {
+                          <span style="color: #127236; font-weight: 600;">✓ Balanced</span>
+                        } @else {
+                          <span class="error-text">Out of balance (Diff: {{ journalDifference() }})</span>
+                        }
+                      </th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div class="actions" style="margin-top: 1rem;">
+                <button type="button" (click)="addJournalLine()">Add line</button>
+                <button
+                  matButton="filled"
+                  (click)="createJournal(w.scope.id)"
+                  [disabled]="cmd.busy() || !isJournalBalanced() || !journalNumber.trim() || !journalEvidence.trim()"
+                >
+                  Submit journal
+                </button>
+              </div>
+            </div>
+          </details>
+        }
+
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Journal</th>
+                <th>Type</th>
+                <th>Currency</th>
+                <th class="number">Debits</th>
+                <th class="number">Credits</th>
+                <th>Status</th>
+                <th>Lines</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (j of w.journals.items; track j.id) {
+                <tr>
+                  <td>
+                    <strong>{{ j.journalNumber }}</strong>
+                    <small>Ref: {{ j.evidenceReference }}</small>
+                    @if (j.returnReason) {
+                      <small class="error-text">Returned reason: {{ j.returnReason }}</small>
+                    }
+                  </td>
+                  <td><code>{{ j.journalType }}</code></td>
+                  <td><code>{{ j.currency }}</code></td>
+                  <td class="number">{{ j.totalDebits | money:6 }}</td>
+                  <td class="number">{{ j.totalCreditsAbs | money:6 }}</td>
+                  <td><audit-status [value]="j.status" /></td>
+                  <td>
+                    <details>
+                      <summary>{{ j.lines.length }} lines</summary>
+                      <ul>
+                        @for (l of j.lines; track l.id) {
+                          <li>
+                            <code>{{ l.taxonomyCode }}</code>: Dr {{ l.debit | money:6 }} / Cr {{ l.credit | money:6 }}
+                            @if (l.description) { — {{ l.description }} }
+                          </li>
+                        }
+                      </ul>
+                    </details>
+                  </td>
+                  <td>
+                    @if (j.status === 'SUBMITTED' && w.canReview && j.createdByUserId !== w.currentUserId) {
+                      <div class="actions">
+                        <button matButton="filled" (click)="approveJournal(j.id)" [disabled]="cmd.busy()">
+                          Approve
+                        </button>
+                        <button type="button" (click)="promptReturnJournal(j.id)" [disabled]="cmd.busy()">
+                          Return
+                        </button>
+                      </div>
+                    } @else if (j.status === 'SUBMITTED' && j.createdByUserId === w.currentUserId) {
+                      <small>Maker/checker: independent review required</small>
+                    } @else if (j.status === 'Returned' && w.canPrepare) {
+                      <button matButton="filled" (click)="resubmitJournal(j.id)" [disabled]="cmd.busy()">
+                        Resubmit
+                      </button>
+                    } @else if (j.status === 'APPROVED') {
+                      <small>Approved {{ j.approvedAt ? j.approvedAt.slice(0, 10) : '' }}</small>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="8">No elimination journals recorded for this scope.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="actions" aria-label="Elimination journal pages">
+          <span>{{ w.journals.items.length }} of {{ w.journals.totalCount }} journals · Page {{ w.journals.page }} of {{ Math.max(1, Math.ceil(w.journals.totalCount / w.journals.pageSize)) }}</span>
+          <button matButton="outlined" type="button" (click)="previousJournalsPage()" [disabled]="w.journals.page <= 1 || ws.loading()">Previous</button>
+          <button matButton="outlined" type="button" (click)="nextJournalsPage(w.journals)" [disabled]="w.journals.page * w.journals.pageSize >= w.journals.totalCount || ws.loading()">Next</button>
+        </nav>
+      </section>
+
+      <!-- Consolidation Runs & Reports -->
+      <section class="panel" id="runs" aria-labelledby="runs-heading">
+        <h2 id="runs-heading">Consolidation runs & reports</h2>
+        <p><small>Consolidation executes over approved components and approved journals. Runs require maker/checker review before generating authoritative reports.</small></p>
+
+        @if (w.canPrepare && w.scope.status === 'APPROVED') {
+          <div class="actions" style="margin-bottom: 1rem;">
+            <button matButton="filled" (click)="runConsolidation(w.scope.id)" [disabled]="cmd.busy()">
+              Calculate consolidation run
+            </button>
+          </div>
+        }
+
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Run date</th>
+                <th>Engine</th>
+                <th>Hash</th>
+                <th class="number">Signed total</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of w.runs.items; track r.id) {
+                <tr>
+                  <td>{{ r.createdAt.slice(0, 16).replace('T', ' ') }} UTC</td>
+                  <td><code>{{ r.engineVersion }}</code></td>
+                  <td><code>{{ r.runHash.slice(0, 12) }}…</code></td>
+                  <td class="number">{{ r.signedTotal | money }}</td>
+                  <td><audit-status [value]="r.status" /></td>
+                  <td>
+                    @if (r.status === 'SUBMITTED' && w.canReview && r.createdByUserId !== w.currentUserId) {
+                      <button matButton="filled" (click)="approveRun(r.id)" [disabled]="cmd.busy()">
+                        Approve run
+                      </button>
+                    } @else if (r.status === 'SUBMITTED' && r.createdByUserId === w.currentUserId) {
+                      <small>Maker/checker: independent review required</small>
+                    } @else if (r.status === 'APPROVED') {
+                      <small>Approved {{ r.approvedAt ? r.approvedAt.slice(0, 10) : '' }}</small>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="6">No consolidation runs executed for this scope.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <nav class="actions" aria-label="Consolidation run pages">
+          <span>{{ w.runs.items.length }} of {{ w.runs.totalCount }} runs · Page {{ w.runs.page }} of {{ Math.max(1, Math.ceil(w.runs.totalCount / w.runs.pageSize)) }}</span>
+          <button matButton="outlined" type="button" (click)="previousRunsPage()" [disabled]="w.runs.page <= 1 || ws.loading()">Previous</button>
+          <button matButton="outlined" type="button" (click)="nextRunsPage(w.runs)" [disabled]="w.runs.page * w.runs.pageSize >= w.runs.totalCount || ws.loading()">Next</button>
+        </nav>
+
+        @if (!w.latestReport.available) {
+          <p class="error-text" role="alert">Latest report unavailable ({{ w.latestReport.errorCode }}): {{ w.latestReport.message }}</p>
+        } @else if (w.latestReport.value?.state === 'CURRENT_APPROVED') {
+          <div class="panel" style="margin-top: 1.5rem;">
+            <h3>Authoritative consolidated report</h3>
+            <p><small>Run {{ w.latestReport.value!.runId }} · Approved {{ w.latestReport.value!.approvedAt ? w.latestReport.value!.approvedAt!.slice(0, 16).replace('T', ' ') : '' }}</small></p>
+
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Component / Adjustment</th>
+                    <th>Taxonomy code</th>
+                    <th class="number">Component</th>
+                    <th class="number">Alignment</th>
+                    <th class="number">Elimination</th>
+                    <th class="number">Consolidated</th>
+                    <th>Currency</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (l of w.latestReport.value!.lines; track $index) {
+                    <tr>
+                      <td>{{ l.component }}</td>
+                      <td><code>{{ l.taxonomyCode }}</code></td>
+                      <td class="number">{{ l.componentAmount | money }}</td>
+                      <td class="number">{{ l.alignmentAmount | money }}</td>
+                      <td class="number">{{ l.eliminationAmount | money }}</td>
+                      <td class="number"><strong>{{ l.consolidatedAmount | money }}</strong></td>
+                      <td><code>{{ l.currency }}</code></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      </section>
+
+      <!-- Component Readiness -->
+      <section class="panel" id="readiness" aria-labelledby="readiness-heading">
+        <h2 id="readiness-heading">Component readiness</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Currency</th>
+                <th>Period basis</th>
+                <th>Taxonomy</th>
+                <th>State</th>
+                <th>Compatibility</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (!w.componentReadiness.available) {
+                <tr><td colspan="6" class="error-text">Readiness unavailable ({{ w.componentReadiness.errorCode }}): {{ w.componentReadiness.message }}</td></tr>
+              } @else {
+                @for (m of w.componentReadiness.value ?? []; track m.clientId) {
+                <tr>
+                  <td>{{ m.memberName }}</td>
+                  <td><code>{{ m.currency }}</code></td>
+                  <td>{{ m.periodBasis }}</td>
+                  <td>{{ m.taxonomyVersion }}</td>
+                  <td><audit-status [value]="m.componentState" /></td>
+                  <td>
+                    @if (m.currencyCompatible) {
+                      <span style="color: #127236;">✓ Compatible</span>
+                    } @else {
+                      <span class="error-text">{{ m.mismatchReason || 'Incompatible' }}</span>
+                    }
+                  </td>
+                </tr>
+                } @empty {
+                  <tr><td colspan="6">No member readiness information available.</td></tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (w.readinessPaging; as paging) {
+          <div class="actions" aria-label="Readiness pages">
+            <button matButton="outlined" type="button" (click)="previousReadinessPage()" [disabled]="paging.page <= 1 || ws.loading()">Previous</button>
+            <span>{{ paging.totalCount }} members · Page {{ paging.page }} of {{ Math.max(1, Math.ceil(paging.totalCount / paging.pageSize)) }}</span>
+            <button matButton="outlined" type="button" (click)="nextReadinessPage(paging)" [disabled]="paging.page * paging.pageSize >= paging.totalCount || ws.loading()">Next</button>
+          </div>
+        }
+      </section>
+
+      <!-- Intercompany Matching, Independent Review and Retained History -->
+      <section class="panel" id="intercompany" aria-labelledby="intercompany-heading">
+        <h2 id="intercompany-heading">Intercompany matches & exceptions</h2>
+        <p>Matches retain their exact source amounts and evidence. Approval is independent and does not create an elimination journal or post to component books.</p>
+
+        @if (!w.intercompanyExceptions.available) {
+          <p class="error-text" role="alert">Exception history unavailable ({{ w.intercompanyExceptions.errorCode }}): {{ w.intercompanyExceptions.message }}</p>
+        }
+
+        <div class="actions" role="group" aria-label="Intercompany match view">
+          <button matButton="outlined" type="button" [attr.aria-pressed]="!intercompanyUnresolvedOnly()" (click)="showIntercompanyHistory()">All matches & history</button>
+          <button matButton="outlined" type="button" [attr.aria-pressed]="intercompanyUnresolvedOnly()" (click)="showIntercompanyExceptions()">Unresolved exceptions</button>
+        </div>
+
+        @if (intercompanyMatchOptions.loading()) { <p role="status">Loading bounded group members and taxonomy options…</p> }
+        @if (intercompanyMatchOptions.error()) { <p class="error-text" role="alert">{{ intercompanyMatchOptions.error() }}</p> }
+        @if (intercompanyMatchOptions.data(); as options) {
+          <p>
+            Scope revision {{ options.pinnedGroupRevision }} · current group revision {{ options.currentGroupRevision }}
+            · reporting currency <code>{{ options.reportingCurrency }}</code>
+            @if (options.periodStartDate && options.periodEndDate) {
+              · membership overlaps scope reporting period <code>{{ options.periodStartDate }}</code>–<code>{{ options.periodEndDate }}</code>
+            }
+          </p>
+          @if (options.membershipBlocker) {
+            <p class="error-text" role="alert">{{ options.membershipBlocker }}</p>
+          }
+          @if (!isCurrentIntercompanyRevision(w, options)) {
+            <p class="error-text" role="alert">The group perimeter changed after this scope was approved. Refresh and review a current scope before recording or approving matches.</p>
+          }
+          <label>Find a group member
+            <input name="intercompanyMemberSearch" [ngModel]="intercompanyMemberSearch()" (ngModelChange)="searchIntercompanyMembers($event)" maxlength="100" />
+          </label>
+          @if (!options.membershipBlocker) {
+          @let paging = options.memberPaging;
+            <div class="actions" aria-label="Intercompany member pages">
+              <button matButton="outlined" type="button" (click)="previousIntercompanyMembersPage()" [disabled]="paging.page <= 1 || intercompanyMatchOptions.loading()">Previous</button>
+              <span>{{ paging.totalCount }} members · Page {{ paging.page }} of {{ Math.max(1, Math.ceil(paging.totalCount / paging.pageSize)) }}</span>
+              <button matButton="outlined" type="button" (click)="nextIntercompanyMembersPage(paging)" [disabled]="paging.page * paging.pageSize >= paging.totalCount || intercompanyMatchOptions.loading()">Next</button>
+            </div>
+          }
+          @if (options.taxonomyCodesTruncated) {
+            <p role="status">Taxonomy suggestions are bounded. Enter the exact approved taxonomy code if it is not shown.</p>
+          }
+
+          @if (w.canPrepare) {
+            <form class="panel" style="margin: 1rem 0;" (ngSubmit)="submitIntercompanyMatch(w, options)" aria-label="Record intercompany match">
+              <h3>Record a match for independent review</h3>
+              <p><small>Amounts are exact signed decimal strings, with up to six fractional digits. Review the current group revision before submitting.</small></p>
+              <div class="inline-form">
+                <label>Account nature
+                  <select name="intercompanyNature" [(ngModel)]="intercompanyForm.accountNature" (ngModelChange)="invalidateIntercompanyReview()" required>
+                    @for (nature of intercompanyNatures; track nature) { <option [value]="nature">{{ nature }}</option> }
+                  </select>
+                </label>
+                <label>Period code
+                  <input name="intercompanyPeriod" [(ngModel)]="intercompanyForm.periodCode" (ngModelChange)="invalidateIntercompanyReview()" maxlength="100" required>
+                </label>
+                <label>Currency
+                  <input name="intercompanyCurrency" [ngModel]="options.reportingCurrency" readonly>
+                </label>
+                <label>Transaction reference
+                  <input name="intercompanyTransaction" [(ngModel)]="intercompanyForm.transactionReference" (ngModelChange)="invalidateIntercompanyReview()" maxlength="200" required>
+                </label>
+                <label>Match mode
+                  <select name="intercompanyMode" [(ngModel)]="intercompanyForm.matchMode" (ngModelChange)="invalidateIntercompanyReview()">
+                    <option value="ONE_TO_ONE">One to one</option>
+                    <option value="GROUPED">Grouped</option>
+                  </select>
+                </label>
+                @if (intercompanyForm.matchMode === 'GROUPED') {
+                  <label>Match group reference
+                    <input name="intercompanyGroupReference" [(ngModel)]="intercompanyForm.matchGroupReference" (ngModelChange)="invalidateIntercompanyReview()" maxlength="200" required>
+                  </label>
+                }
+              </div>
+
+              <label style="display: block; margin: .75rem 0;">
+                <input type="checkbox" name="outsidePerimeterReview" [ngModel]="intercompanyForm.outsidePerimeterReview" (ngModelChange)="changeIntercompanyOutside('enabled', $event)">
+                Related party is outside the approved group perimeter (review only; no automatic elimination)
+              </label>
+              @if (intercompanyForm.outsidePerimeterReview) {
+                <div class="inline-form">
+                  <label>Outside party side
+                    <select name="outsidePartySide" [ngModel]="intercompanyForm.outsidePartySide" (ngModelChange)="changeIntercompanyOutside('side', $event)">
+                      <option value="SELLER">Seller</option>
+                      <option value="BUYER">Buyer</option>
+                    </select>
+                  </label>
+                  <label>Outside client ID
+                    <input name="outsideClientId" [ngModel]="intercompanyForm.outsideClientId" (ngModelChange)="changeIntercompanyOutside('clientId', $event)" maxlength="36" required>
+                  </label>
+                </div>
+              }
+
+              <div class="inline-form">
+                <label>Seller group member
+                  <select name="sellerMember" [ngModel]="intercompanyForm.sellerClientId" (ngModelChange)="selectIntercompanyMember('SELLER', $event)" [disabled]="intercompanyForm.outsidePerimeterReview && intercompanyForm.outsidePartySide === 'SELLER'" required>
+                    <option value="">Select a member</option>
+                    @for (member of intercompanyMemberOptions(options); track member.clientId) { <option [value]="member.clientId">{{ member.legalName }}{{ member.hasApprovedComponent ? '' : ' · no approved component' }}</option> }
+                  </select>
+                </label>
+                <label>Buyer group member
+                  <select name="buyerMember" [ngModel]="intercompanyForm.buyerClientId" (ngModelChange)="selectIntercompanyMember('BUYER', $event)" [disabled]="intercompanyForm.outsidePerimeterReview && intercompanyForm.outsidePartySide === 'BUYER'" required>
+                    <option value="">Select a member</option>
+                    @for (member of intercompanyMemberOptions(options); track member.clientId) { <option [value]="member.clientId">{{ member.legalName }}{{ member.hasApprovedComponent ? '' : ' · no approved component' }}</option> }
+                  </select>
+                </label>
+              </div>
+
+              <div class="inline-form">
+                <label>Seller exact amount
+                  <input name="sellerExactAmount" type="text" inputmode="decimal" autocomplete="off" [(ngModel)]="intercompanyForm.sellerAmount" (ngModelChange)="invalidateIntercompanyReview()" maxlength="21" placeholder="-1200.123456" required>
+                </label>
+                <label>Buyer exact amount
+                  <input name="buyerExactAmount" type="text" inputmode="decimal" autocomplete="off" [(ngModel)]="intercompanyForm.buyerAmount" (ngModelChange)="invalidateIntercompanyReview()" maxlength="21" placeholder="1200.123456" required>
+                </label>
+                <label>Matched amount
+                  <input name="matchedExactAmount" type="text" inputmode="decimal" autocomplete="off" [(ngModel)]="intercompanyForm.matchedAmount" (ngModelChange)="invalidateIntercompanyReview()" maxlength="21" placeholder="1200.123456" required>
+                </label>
+              </div>
+
+              <div class="inline-form">
+                <label>Seller taxonomy code
+                  <input name="sellerTaxonomy" list="intercompany-taxonomy-options" [(ngModel)]="intercompanyForm.sellerTaxonomyCode" (ngModelChange)="invalidateIntercompanyReview()" maxlength="100" required>
+                </label>
+                <label>Buyer taxonomy code
+                  <input name="buyerTaxonomy" list="intercompany-taxonomy-options" [(ngModel)]="intercompanyForm.buyerTaxonomyCode" (ngModelChange)="invalidateIntercompanyReview()" maxlength="100" required>
+                </label>
+                <datalist id="intercompany-taxonomy-options">
+                  @for (code of options.taxonomyCodes; track code) { <option [value]="code"></option> }
+                </datalist>
+                <label>Evidence reference
+                  <input name="intercompanyEvidence" [(ngModel)]="intercompanyForm.evidenceReference" (ngModelChange)="invalidateIntercompanyReview()" maxlength="2000" required>
+                </label>
+                <label>Unmatched balance or signed difference reason
+                  <input name="intercompanyDifferenceReason" [(ngModel)]="intercompanyForm.differenceReason" (ngModelChange)="invalidateIntercompanyReview()" maxlength="2000">
+                  @if (intercompanyDifferenceReasonRequired()) {
+                    <small>Required when either side remains unmatched or the stored signed difference is nonzero.</small>
+                  }
+                </label>
+              </div>
+
+              <label style="display: block; margin: .75rem 0;">
+                <input type="checkbox" name="reviewedIntercompanyMatch" [(ngModel)]="intercompanyForm.reviewed">
+                I reviewed both counterparties, exact amounts, taxonomies, evidence and the current group revision.
+              </label>
+              <button matButton="filled" type="submit" [disabled]="cmd.busy() || !canSubmitIntercompanyMatch(w, options)">Submit for independent review</button>
+            </form>
+          }
+        }
+
+        @if (intercompanyMatches.loading()) { <p role="status">Loading retained intercompany matches…</p> }
+        @if (intercompanyMatches.error()) { <p class="error-text" role="alert">{{ intercompanyMatches.error() }}</p> }
+        @if (intercompanyMatches.data(); as matchPage) {
+          <p>
+            {{ intercompanyUnresolvedOnly() ? 'Unresolved exceptions' : 'All matches, including resolved history' }}
+            · {{ matchPage.totalCount }} records
+            · signed net difference (stored; rows may offset) <code>{{ matchPage.totalUnmatchedDifference }}</code>
+            · gross unmatched exposure across {{ matchPage.totalCount }} matches in this view <code>{{ matchPage.totalGrossUnmatchedExposure }}</code>
+            · scope revision {{ matchPage.pinnedGroupRevision }} / current group revision {{ matchPage.currentGroupRevision }}
+          </p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Match</th><th>Full retained record</th><th>Status</th><th>Independent review</th></tr></thead>
+              <tbody>
+                @for (item of matchPage.items; track item.matchId) {
+                  <tr>
+                    <td><code>{{ item.matchId }}</code></td>
+                    <td>
+                      <details>
+                        <summary>{{ item.accountNature }} · {{ item.periodCode }} · {{ item.currency }} · {{ item.transactionReference }}</summary>
+                        <dl class="facts">
+                          <dt>Seller client / taxonomy / exact amount</dt><dd><code>{{ item.sellerClientId }}</code> · <code>{{ item.sellerTaxonomyCode }}</code> · <code>{{ item.sellerAmount }}</code></dd>
+                          <dt>Buyer client / taxonomy / exact amount</dt><dd><code>{{ item.buyerClientId }}</code> · <code>{{ item.buyerTaxonomyCode }}</code> · <code>{{ item.buyerAmount }}</code></dd>
+                          <dt>Matched amount / stored signed difference</dt><dd><code>{{ item.matchedAmount }}</code> / <code>{{ item.difference }}</code></dd>
+                          <dt>Gross unmatched residual on both sides</dt><dd><code>{{ item.unmatchedResidual }}</code></dd>
+                          <dt>Difference reason</dt><dd>{{ item.differenceReason || 'None recorded' }}</dd>
+                          <dt>Mode / group reference</dt><dd>{{ item.matchMode }} / {{ item.matchGroupReference || '—' }}</dd>
+                          <dt>Outside-perimeter review</dt><dd>{{ item.outsidePerimeterReview ? 'Yes · review only' : 'No' }}</dd>
+                          <dt>Evidence reference</dt><dd>{{ item.evidenceReference }}</dd>
+                          <dt>Prepared by / at</dt><dd><code>{{ item.createdByUserId }}</code> · {{ item.createdAt }}</dd>
+                          <dt>Reviewed by / at</dt><dd>{{ item.reviewedByUserId ? item.reviewedByUserId : 'Not reviewed' }} · {{ item.reviewedAt || '—' }}</dd>
+                        </dl>
+                      </details>
+                    </td>
+                    <td><audit-status [value]="item.status" /></td>
+                    <td>
+                      @if (canApproveIntercompanyMatch(w, item, matchPage)) {
+                        <label><input type="checkbox" [ngModel]="isIntercompanyApprovalReviewed(item.matchId)" [ngModelOptions]="{ standalone: true }" (ngModelChange)="setIntercompanyApprovalReviewed(item.matchId, $event)"> I reviewed the full retained match and current revision</label>
+                        <button matButton="filled" type="button" (click)="approveIntercompanyMatch(w, item, matchPage)" [disabled]="cmd.busy() || !isIntercompanyApprovalReviewed(item.matchId)">Approve match</button>
+                      } @else if (item.status === 'SUBMITTED' && item.createdByUserId === w.currentUserId) {
+                        <span>Maker/checker: preparers cannot approve their own match.</span>
+                      } @else if (item.status === 'SUBMITTED' && !isCurrentIntercompanyPageRevision(w, matchPage)) {
+                        <span class="error-text">The group revision changed. Approval is disabled.</span>
+                      } @else if (item.status === 'SUBMITTED') {
+                        <span>Independent reviewer grant required.</span>
+                      } @else {
+                        <span>{{ item.reviewedByUserId ? 'Reviewed by an independent user.' : 'No approval action.' }}</span>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="4">No {{ intercompanyUnresolvedOnly() ? 'unresolved exceptions' : 'retained matches' }} found.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="actions" aria-label="Intercompany match pages">
+            <button matButton="outlined" type="button" (click)="previousIntercompanyPage()" [disabled]="matchPage.page <= 1 || intercompanyMatches.loading()">Previous</button>
+            <span>Page {{ matchPage.page }} of {{ Math.max(1, Math.ceil(matchPage.totalCount / matchPage.pageSize)) }}</span>
+            <button matButton="outlined" type="button" (click)="nextIntercompanyPage(matchPage)" [disabled]="matchPage.page * matchPage.pageSize >= matchPage.totalCount || intercompanyMatches.loading()">Next</button>
+          </div>
+        }
+      </section>
+    }
+
+    <audit-command-message [message]="cmd.message()" [failed]="cmd.failed()" />

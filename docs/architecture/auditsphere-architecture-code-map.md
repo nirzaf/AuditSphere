@@ -175,7 +175,7 @@ unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
 - Historical Blazor screens (pinned pre-removal source only): `Consolidation.razor`, `AdvancedConsolidationWorkflow.razor`.
 
-- Current Angular UI: `src/AuditSphereOps.Ui/src/app/features/consolidation/overview.ts` and `src/AuditSphereOps.Ui/src/app/features/consolidation/advanced.ts`
+- Current Angular UI: `src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts` coordinates the single aggregate workspace, scope-owned commands and child workspaces; `scope-intercompany-state.ts` owns member selection, exact response binding, match review and history; `scope-journal-state.ts` owns elimination journal editing/review intent; `scope-amounts.ts` preserves exact six-decimal bigint parsing/formatting. The external `scope-workspace.html` retains the workspace UI. `overview.ts` and `advanced.ts` own their separate pages.
 
 - Current API/Application: `src/AuditSphereOps.Api/Ui/UiEndpoints.Consolidation.cs`, `ConsolidationOverviewQuery`, `AdvancedConsolidationWorkspaceQuery`, and the `ConsolidationService` partials. These file locations do not certify parity with the historical screens above.
 

@@ -15,7 +15,8 @@ import {
   decodeScopeSummary,
   ScopeWorkspace,
 } from './scope-contracts';
-import { ConsolidationScopeWorkspace, formatOwnershipPercent } from './scope-workspace';
+import { ConsolidationScopeWorkspace } from './scope-workspace';
+import { formatOwnershipPercent } from './scope-amounts';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
@@ -192,7 +193,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
         provideRouter([]),
         { provide: ActivatedRoute, useValue: { paramMap: params } },
         { provide: Api, useValue: api },
-        { provide: SessionService, useValue: { invalidation: signal(0) } },
+        { provide: SessionService, useValue: { invalidation: signal(0), current: signal({ userId: actor, firmId: id2, generation: '1', staff: true }) } },
       ],
     });
   });
@@ -211,6 +212,7 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
   it('opens external pack history only for the active scope and clears it on a route change', () => {
     const { fixture, component } = open();
+    expect(api.resource.mock.calls.filter(([url]) => (url as () => string | null)()?.includes('?eligiblePackagesPage='))).toHaveLength(1);
     const page = fixture.nativeElement as HTMLElement;
     expect(page.querySelector('audit-consolidation-external-packs')).toBeNull();
     const firstChildCall = api.resource.mock.calls.length;
@@ -231,12 +233,18 @@ describe('Consolidation Scope Workspace Contracts', () => {
     component.intercompanyForm.buyerClientId = id3;
     component.intercompanyForm.sellerAmount = '1200.000000';
     component.intercompanyForm.reviewed = true;
+    component.journalNumber = 'EJ-OLD-SCOPE';
+    component.journalEvidence = 'OLD-SCOPE-EVIDENCE';
+    component.journalLines.set([{ taxonomyCode: 'OLD', debit: '1', credit: '1', description: 'old scope' }]);
     params.next(convertToParamMap({ id: id2 }));
     fixture.detectChanges();
     expect(component.intercompanyForm.sellerClientId).toBe('');
     expect(component.intercompanyForm.buyerClientId).toBe('');
     expect(component.intercompanyForm.sellerAmount).toBe('');
     expect(component.intercompanyForm.reviewed).toBe(false);
+    expect(component.journalNumber).toBe('');
+    expect(component.journalEvidence).toBe('');
+    expect(component.journalLines()).toHaveLength(2);
     expect(page.querySelector('audit-consolidation-external-packs')).toBeNull();
     component.toggleExternalPacks(oldWorkspace);
     fixture.detectChanges();
@@ -461,6 +469,30 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(button).toBeTruthy();
     button.click();
     expect(api.command).toHaveBeenCalledWith(`${scopeUrl}/approve`, {}, 'POST');
+  });
+
+  it('does not publish a delayed command result or reload after the scope owner changes or the host is destroyed', async () => {
+    let finishFirst!: (result: { ok: true; value: unknown }) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }));
+    const { fixture, component } = open(workspacePayload({ scope: { ...workspacePayload().scope, status: 'DRAFT' } }));
+    component.approveScope(id1);
+    await vi.waitFor(() => expect(finishFirst).toBeTypeOf('function'));
+    params.next(convertToParamMap({ id: id2 }));
+    fixture.detectChanges();
+    finishFirst({ ok: true, value: true });
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+    expect(resource.reload).not.toHaveBeenCalled();
+    expect(component.cmd.message()).toBe('');
+
+    let finishDestroyed!: (result: { ok: true; value: unknown }) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => { finishDestroyed = resolve; }));
+    component.approveScope(id2);
+    await vi.waitFor(() => expect(finishDestroyed).toBeTypeOf('function'));
+    fixture.destroy();
+    finishDestroyed({ ok: true, value: true });
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+    expect(resource.reload).not.toHaveBeenCalled();
+    expect(component.cmd.message()).toBe('');
   });
 
   it('renders submitted-journal review, denies same-maker approval, and dispatches Returned resubmission', async () => {
