@@ -18,6 +18,28 @@ public sealed class PbcReminderTests
   private static readonly DateTimeOffset NoonUtc = new(2026, 10, 12, 12, 0, 0, TimeSpan.Zero);
 
   [Fact]
+  public async Task DisabledReminderPolicyLeavesRequestHistoryAndOutboxUnchanged()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateDueSentRequestAsync(pg, fixture, "2026-10-13");
+    var discovery = new PbcReminderDiscovery(
+      new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options)),
+      LiveMailOptions(fixture.FirmId), EnabledOptions with { Enabled = false },
+      new FixedTimeProvider(NoonUtc));
+
+    Assert.Equal(0, await discovery.EnqueuePendingAsync());
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(PbcStates.Sent,
+      (await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId)).State);
+    Assert.Empty(await verify.PbcReminderReceipts.AsNoTracking().Where(x => x.PbcRequestId == requestId).ToListAsync());
+    Assert.Empty(await verify.PbcCommunications.AsNoTracking().Where(x =>
+      x.PbcRequestId == requestId && x.Kind == PbcCommunicationKinds.Email).ToListAsync());
+    Assert.Empty(await verify.DurableOperations.AsNoTracking().Where(x =>
+      x.TargetId == requestId && x.OperationKind == PbcMailDeliveryHandler.Kind).ToListAsync());
+  }
+
+  [Fact]
   public async Task DueReminderIsIdempotentAndDeliveredThroughExistingMailOutbox()
   {
     await using var pg = await PgTestSchema.CreateAsync();
