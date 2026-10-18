@@ -1,8 +1,8 @@
 # Practice Management v2.2 — Story and Candidate-Gap Crosswalk
 
-**Status: CURRENT** as a reconciliation of [`auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md`](auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md) against the code. It is the PM-00 baseline. It is not a functional-testing claim and it closes no external gate.
+**Status: CURRENT** as a reconciliation of [`auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md`](auditsphere-execution-user-stories-cloud-practice-management-v22-proposed.md) against the code. It is the PM-00 baseline. It is not a functional-testing claim and it closes no external gate. The expanded 87-criterion specification has its own qualified ASPM keys and source audit; see the [criterion audit](auditsphere-execution-report-practice-management-criterion-audit-current.md).
 
-**Baseline:** `master` at `733ab239`, plus the slice that introduced this document. Verified test evidence is in [`status.json`](status.json), not here.
+**Baseline:** the original PM v2.2 candidate-gap review was `master` at `733ab239`. The expanded-spec source audit is against `master` at `a6e160c3fdc6b2abed9631340d0f48d7453d700e`; its CI and inspection limits are recorded in the linked audit and [`status.json`](status.json).
 
 **Dispositions:** `ALREADY_COMPLETE` · `PARTIAL` · `MISSING` · `OWNER_DECISION` (names the decision in section 7 of the story document) · `BLOCKED_EXTERNAL` · `DEVIATION` (recorded in an ADR) · `OPTIONAL` · `OUT_OF_SCOPE` · `NOT_REVERIFIED`.
 
@@ -51,6 +51,8 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | PM-17 | OPTIONAL | DEC-11. No decision recorded. |
 
 ## Candidate gaps from the prior review
+
+This table retains the **older PM v2.2 candidate-gap namespace and scope** for historical traceability. Its bare IDs and `ALREADY_COMPLETE` dispositions are not status for the new `ASPM-*` requirements. Several same-numbered IDs have different meanings; use the expanded-spec audit matrix below for those criteria.
 
 | Gap | Disposition | Basis | Note |
 | --- | --- | --- | --- |
@@ -171,7 +173,7 @@ Everything else that is open waits on a decision listed as not decided in ADR-00
 
 ## Complete-product specification inventory
 
-The [complete-product specification](../requirements/auditsphere-requirements-specification-complete-practice-management-proposed.md) extends this crosswalk. The earlier next-work conclusion above describes the older scope; it does not classify the expanded product requirements. PMCOMP-00 is **IN_PROGRESS**. This inventory preserves every functional, UAT and NFR identifier; it is not a completion claim. Exact source identity and current verification belong to `status.json` under `completePracticeManagement`.
+The [complete-product specification](../requirements/auditsphere-requirements-specification-complete-practice-management-proposed.md) extends this crosswalk. The earlier next-work conclusion above describes the older scope; it does not classify the expanded product requirements. PMCOMP-00's source reconciliation is recorded as **AUDITED_WITH_OPEN_ACCEPTANCE**. This is not a product completion claim. Exact source identity and current verification belong to `status.json` under `completePracticeManagement`.
 
 ### PMCOMP-00 micro-spec
 
@@ -201,101 +203,15 @@ These paths were checked to exist. The test cohorts are not blanket evidence for
 
 ### Criterion audit queue
 
-| Original requirement ID | Discovery family | Current disposition |
-| --- | --- | --- |
-| `CRM-01` | CRM | EXISTS_NOT_VERIFIED |
-| `CRM-02` | CRM | NOT_REVERIFIED |
-| `CRM-03` | CRM | PARTIAL |
-| `CRM-04` | CRM | NOT_REVERIFIED |
-| `CRM-05` | CRM | PARTIAL |
-| `COM-01` | COM | NOT_REVERIFIED |
-| `COM-02` | COM | NOT_REVERIFIED |
-| `COM-03` | COM | PARTIAL |
-| `COM-04` | COM | NOT_REVERIFIED |
-| `COM-05` | COM | NOT_REVERIFIED |
-| `COM-06` | COM | NOT_REVERIFIED |
-| `WF-01` | WF | PARTIAL |
-| `WF-02` | WF | PARTIAL: queue layout/context browser verified; graph acceptance remains |
-| `WF-03` | WF | PARTIAL: retained source and review context exposed; broader required-task acceptance remains |
-| `WF-04` | WF | NOT_REVERIFIED |
-| `WF-05` | WF | NOT_REVERIFIED |
-| `WF-06` | WF | PARTIAL: prerequisite blocking/clearing verified; broader queue acceptance remains |
-| `WF-07` | WF | NOT_REVERIFIED |
-| `WF-08` | WF | NOT_REVERIFIED |
-| `CLIENT-01` | CLIENT | SOURCE_INSPECTED: local identity/scope/first-sign-in paths present; current live acceptance pending |
-| `CLIENT-02` | CLIENT | PARTIAL: exact provider-verified upload/request revision and content hash are retained in an immutable human-acceptance receipt; focused verification passes, while browser-positive and live acceptance remain open |
-| `CLIENT-03` | CLIENT | SOURCE_INSPECTED: scoped byte/version checks present; current dynamic/live proof pending |
-| `CLIENT-04` | CLIENT | PARTIAL: retained actor projection/UI verified; wider communication acceptance pending |
-| `CLIENT-05` | CLIENT | PARTIAL: client-facing provider/delivery/withdrawal/supersession lifecycle incomplete |
-| `CLIENT-06` | CLIENT | PARTIAL: shared write gate implemented and focused checks pass; browser/live acceptance pending |
-| `RES-01` | RES | PARTIAL: supported range and refusal/recovery verified; broader staffing/capacity acceptance remains |
-| `RES-02` | RES | PARTIAL: exact-source review and staffing eligibility integrated; race and broader acceptance pending |
-| `RES-03` | RES | NOT_REVERIFIED |
-| `RES-04` | RES | NOT_REVERIFIED |
-| `RES-05` | RES | NOT_REVERIFIED |
-| `RES-06` | RES | PARTIAL: shared daily capacity passes focused verification; wider dashboard/audience acceptance remains |
-| `FIN-01` | FIN | NOT_REVERIFIED |
-| `FIN-02` | FIN | PARTIAL |
-| `FIN-03` | FIN | NOT_REVERIFIED |
-| `FIN-04` | FIN | NOT_REVERIFIED |
-| `FIN-05` | FIN | NOT_REVERIFIED |
-| `FIN-06` | FIN | PARTIAL: balanced ledger/monthly P&L focused regression passes including date boundaries; full acceptance remains |
-| `FIN-07` | FIN | PARTIAL: monthly size boundary verified; broader currency/export acceptance remains |
-| `FIN-08` | FIN | NOT_REVERIFIED |
-| `ACC-01` | ACC | NOT_REVERIFIED |
-| `ACC-02` | ACC | NOT_REVERIFIED |
-| `ACC-03` | ACC | NOT_REVERIFIED |
-| `ACC-04` | ACC | NOT_REVERIFIED |
-| `ACC-05` | ACC | NOT_REVERIFIED |
-| `ACC-06` | ACC | NOT_REVERIFIED |
-| `ACC-07` | ACC | NOT_REVERIFIED |
-| `AUD-01` | AUD | NOT_REVERIFIED |
-| `AUD-02` | AUD | NOT_REVERIFIED |
-| `AUD-03` | AUD | NOT_REVERIFIED |
-| `AUD-04` | AUD | NOT_REVERIFIED |
-| `AUD-05` | AUD | NOT_REVERIFIED |
-| `AUD-06` | AUD | NOT_REVERIFIED |
-| `AUD-07` | AUD | NOT_REVERIFIED |
-| `AUD-08` | AUD | NOT_REVERIFIED |
-| `UX-01` | UX | PARTIAL |
-| `UX-02` | UX | NOT_REVERIFIED |
-| `UX-03` | UX | NOT_REVERIFIED |
-| `UX-04` | UX | NOT_REVERIFIED |
-| `UX-05` | UX | NOT_REVERIFIED |
-| `UX-06` | UX | NOT_REVERIFIED |
-| `UAT-01` | UAT | NOT_REVERIFIED |
-| `UAT-02` | UAT | NOT_REVERIFIED |
-| `UAT-03` | UAT | NOT_REVERIFIED |
-| `UAT-04` | UAT | NOT_REVERIFIED |
-| `UAT-05` | UAT | NOT_REVERIFIED |
-| `UAT-06` | UAT | NOT_REVERIFIED |
-| `UAT-07` | UAT | NOT_REVERIFIED |
-| `UAT-08` | UAT | NOT_REVERIFIED |
-| `UAT-09` | UAT | NOT_REVERIFIED |
-| `UAT-10` | UAT | NOT_REVERIFIED |
-| `UAT-11` | UAT | NOT_REVERIFIED |
-| `UAT-12` | UAT | NOT_REVERIFIED |
-| `UAT-13` | UAT | NOT_REVERIFIED |
-| `UAT-14` | UAT | NOT_REVERIFIED |
-| `UAT-15` | UAT | BLOCKED_EXTERNAL |
-| `NFR-01` | NFR | NOT_REVERIFIED |
-| `NFR-02` | NFR | NOT_REVERIFIED |
-| `NFR-03` | NFR | NOT_REVERIFIED |
-| `NFR-04` | NFR | NOT_REVERIFIED |
-| `NFR-05` | NFR | OWNER_DECISION |
-| `NFR-06` | NFR | OWNER_DECISION |
-| `NFR-07` | NFR | NOT_REVERIFIED |
-| `NFR-08` | NFR | OWNER_DECISION |
-| `NFR-09` | NFR | NOT_REVERIFIED |
-| `NFR-10` | NFR | NOT_REVERIFIED |
-| `NFR-11` | NFR | NOT_REVERIFIED |
-| `NFR-12` | NFR | NOT_REVERIFIED |
+Every expanded requirement is now prefixed with `ASPM-` in the [current 87-row evidence matrix](auditsphere-execution-report-practice-management-criterion-audit-current.md). The matrix records code state, inspected source/test bodies, residual blockers, and whether a legacy task is an exact alias or only a package-level trace. Test-body inspection is not a test pass.
 
 ### Separate acceptance gates
 
 D1 and DEC-01 through DEC-10 require their specified human or live evidence where applicable. Existing approved ADRs are reused. PM-NATIVE and PM-SAAS are conditional release claims; this task does not enable them. PMCOMP-20 remains conditional on DEC-11. The illustrative monthly fee is not a firm tariff, and no monthly cadence or new fee policy is approved by this inventory. The original API/Angular parity backlog remains active in its own tracker; duplicate implementation is not requested.
 
 ### Initial inspected criterion evidence
+
+The notes below preserve evidence from earlier implementation slices. Where they disagree with the current expanded-criteria audit, use the [current evidence matrix](auditsphere-execution-report-practice-management-criterion-audit-current.md); do not reinterpret older same-numbered PM IDs as ASPM IDs.
 
 - **CRM-01 / PMCOMP-03:** `PracticeCrmService.CreateLeadAsync` retains canonical channel/owner and request identity; `ConvertToClientDraftAsync` binds conversion. Existing `PracticeCrmTests.CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending` asserts one client, no engagement, pending clearance, awaiting-acceptance portal intent and no client role grant. Its body was inspected; it was not executed in this documentation slice. The entire lead action-history and invalid-stage browser criterion remains unverified.
 - **CRM-05 / PMCOMP-01/02:** `EngagementLifecycleService.CreateDraftAsync` stores route/profile and creates a Draft with `ProfessionalWorkBlocked = true`, serialized against client safety and duplicate service-period creation. This supplies a blocked shell; it does not establish an approved accounting-only service policy, review or completion profile. Those remain separate requirements.
