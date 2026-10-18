@@ -9,7 +9,7 @@ import { SessionService } from '../../core/session';
 import { Api, CommandOutcome } from '../../core/api';
 const id = '11111111-1111-4111-8111-111111111111';
 const payload = {
-  search: '', clients: { items: [{ id, name: 'Scoped client', engagements: 1 }], total: 1, page: 0, pageSize: 25 },
+  search: '', clients: { items: [{ id, name: 'Scoped client', engagements: 1, isArchived: true }], total: 1, page: 0, pageSize: 25 },
   metrics: { clients: 1, engagements: 1, openHolds: 1, pendingOperations: 1, readyCandidates: 1, issuedReleases: 0 },
   hasActiveMicrosoftConfiguration: false, recentLimit: 25, candidateTotal: 1, packageTotal: 0,
   candidates: [{ id, clientId: id, engagementId: id, clientName: 'Scoped client', targetKind: 'WORKPAPER', targetRevision: '9007199254740993', status: 'READY', createdAt: '2026-10-01T12:00:00Z' }], packages: [],
@@ -56,6 +56,7 @@ describe('Native portfolio reads and export fences', () => {
     const f = open(); read().flush(payload); TestBed.tick();
     const text = f.nativeElement.textContent;
     expect(text).toContain('Open holds'); expect(text).toContain('9007199254740993');
+    expect(text).toContain('Archived');
     expect(text).toContain('No active Microsoft 365 configuration'); expect(text).toContain('No financial packages');
     expect(f.nativeElement.querySelectorAll('.portfolio-clients tbody tr').length).toBe(1);
   });

@@ -8,7 +8,8 @@ import { ClientDetail } from './client';
 import { clientLocation, clientUtcTime, decodeClient, defaultClientLocation, portalIntentExplanation } from './client-contracts';
 const id = '11111111-1111-4111-8111-111111111111', other = '22222222-2222-4222-8222-222222222222';
 const payload = { id, name: 'Scoped synthetic client', status: 'PROSPECT', commercialName: 'Synthetic trading', registrationNumber: 'SYNTHETIC-REG',
-  jurisdiction: 'QA', createdAt: '2026-01-02T12:30:00Z', safetyGeneration: '9007199254740993', canManageContacts: true, canCreateEngagement: false,
+  jurisdiction: 'QA', createdAt: '2026-01-02T12:30:00Z', isArchived: false, lastArchivedAt: null, lifecycleRevision: '0',
+  safetyGeneration: '9007199254740993', canManageContacts: true, canManageArchive: true, canCreateEngagement: false,
   metrics: { engagements: 27, workBlocked: 13, contacts: 27 }, paging: { ...defaultClientLocation },
   engagements: [{ id, serviceRoute: 'Audit', status: 'Draft', periodStart: '2026-01-01', periodEnd: '2026-12-31', professionalWorkBlocked: true }],
   contacts: [{ id, name: 'Synthetic contact', email: 'client@example.test', role: 'Finance', primary: true }],
@@ -66,6 +67,29 @@ describe('Client profile request and command ownership', () => {
     expect(nav).toHaveBeenCalledWith([], expect.objectContaining({queryParams:{...defaultClientLocation,contactPage:1}}));
     f.componentInstance.size('engagement','25');
     expect(nav).toHaveBeenCalledWith([], expect.objectContaining({queryParams:{...defaultClientLocation,engagementPageSize:25}}));
+  });
+  it('archives and restores with the exact lifecycle revision while keeping history searchable', () => {
+    const f = open(); read().flush(payload); TestBed.tick();
+    f.componentInstance.setArchived(true);
+    const command = TestBed.inject(HttpTestingController).expectOne(`/api/ui/clients/${id}/archive-state`);
+    expect(command.request.method).toBe('PUT');
+    expect(command.request.body).toEqual({ isArchived: true, expectedRevision: '0' });
+    command.flush({ isArchived: true, lastArchivedAt: '2026-10-18T10:00:00Z', revision: '1' }); TestBed.tick();
+    read().flush({ ...payload, isArchived: true, lastArchivedAt: '2026-10-18T10:00:00Z', lifecycleRevision: '1' }); TestBed.tick();
+    expect(f.nativeElement.textContent).toContain('Archived client record');
+    expect(f.nativeElement.textContent).toContain('authorized engagement history');
+    expect(f.componentInstance.data()?.metrics.engagements).toBe(27);
+    f.componentInstance.setArchived(false);
+    const restore = TestBed.inject(HttpTestingController).expectOne(`/api/ui/clients/${id}/archive-state`);
+    expect(restore.request.body).toEqual({ isArchived: false, expectedRevision: '1' });
+    restore.flush({ isArchived: false, lastArchivedAt: '2026-10-18T10:00:00Z', revision: '2' }); TestBed.tick();
+    read().flush({ ...payload, lastArchivedAt: '2026-10-18T10:00:00Z', lifecycleRevision: '2' }); TestBed.tick();
+    expect(f.componentInstance.data()?.isArchived).toBe(false);
+    expect(f.componentInstance.data()?.lastArchivedAt).toBe('2026-10-18T10:00:00Z');
+    ids.next(convertToParamMap({ id: other })); TestBed.tick();
+    expect(f.componentInstance.archiveMessage()).toBe('');
+    expect(f.componentInstance.archiveFailed()).toBe(false);
+    read().flush({ ...payload, id: other }); TestBed.tick();
   });
   it('cancels superseded reads and rejects mismatched client or page responses', () => {
     const f = open(), old = read(); ids.next(convertToParamMap({id:other})); TestBed.tick();

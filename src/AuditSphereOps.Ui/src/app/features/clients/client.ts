@@ -11,7 +11,7 @@ import { PortfolioNavigation } from '../portfolio/portfolio-contracts';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { guidPattern } from '../../core/contracts';
-import { Client, ClientLocation, clientLocation, decodeClient, clientUtcTime, portalIntentExplanation } from './client-contracts';
+import { Client, ClientLocation, clientLocation, decodeClient, decodeClientArchiveState, clientUtcTime, portalIntentExplanation } from './client-contracts';
 import { ClientRelationships } from './client-relationships';
 export { decodeClient } from './client-contracts';
 @Component({
@@ -42,14 +42,21 @@ export class ClientDetail {
   private destroyed = false;
   private readonly session = inject(SessionService);
   private request?: Subscription;
+  private archiveRequest?: Subscription;
   private id = '';
   readonly data = signal<Client | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
+  readonly archiveBusy = signal(false);
+  readonly archiveMessage = signal('');
+  readonly archiveFailed = signal(false);
   constructor() {
     const routeSubscription = this.route.paramMap.subscribe((p) => {
       this.routeRevision++;
       this.id = (p.get('id') ?? '').toLowerCase();
+      this.archiveBusy.set(false);
+      this.archiveMessage.set('');
+      this.archiveFailed.set(false);
       this.load();
     });
     const querySubscription = this.route.queryParamMap.subscribe(p => {
@@ -62,6 +69,8 @@ export class ClientDetail {
       untracked(() => {
         this.routeRevision++;
           this.request?.unsubscribe();
+        this.archiveRequest?.unsubscribe();
+        this.archiveBusy.set(false);
         this.data.set(null);
           if (staff) this.load();
       });
@@ -73,6 +82,7 @@ export class ClientDetail {
       routeSubscription.unsubscribe();
       querySubscription.unsubscribe();
       this.request?.unsubscribe();
+      this.archiveRequest?.unsubscribe();
     });
   }
   page(kind: 'engagement' | 'contact', page: number): void {
@@ -90,6 +100,38 @@ export class ClientDetail {
   }
   private navigate(location: ClientLocation): void {
     void this.router.navigate([], { relativeTo: this.route, queryParams: location });
+  }
+  setArchived(isArchived: boolean): void {
+    const client = this.data();
+    if (!client || !client.canManageArchive || this.archiveBusy() || client.isArchived === isArchived) return;
+    const id = this.id, owner = this.owner();
+    this.archiveBusy.set(true); this.archiveMessage.set(''); this.archiveFailed.set(false);
+    this.archiveRequest = this.http.put<unknown>(`/api/ui/clients/${id}/archive-state`, {
+      isArchived, expectedRevision: client.lifecycleRevision,
+    }).pipe(timeout(15000)).subscribe({
+      next: value => {
+        if (owner !== this.owner() || this.destroyed) return;
+        this.archiveBusy.set(false);
+        try {
+          const state = decodeClientArchiveState(value);
+          if (state.isArchived !== isArchived) throw new Error('Unexpected client archive state');
+          this.archiveMessage.set(isArchived
+            ? 'Client archived. Its profile and authorized engagement history remain searchable.'
+            : 'Client restored. Its existing history and authorization remain unchanged.');
+          this.load();
+        } catch {
+          this.archiveFailed.set(true); this.archiveMessage.set('The server returned an unsupported archive response. Refresh to review the current state.');
+        }
+      },
+      error: failure => {
+        if (owner !== this.owner() || this.destroyed) return;
+        this.archiveBusy.set(false); this.archiveFailed.set(true);
+        this.archiveMessage.set(failure.status === 409
+          ? 'The client archive state changed elsewhere. Refresh the profile before retrying.'
+          : 'Client archive state was not confirmed. Refresh to review the current state.');
+        if (failure.status === 401) this.session.clear();
+      },
+    });
   }
   private owner(): string {
     const s = this.session.current();

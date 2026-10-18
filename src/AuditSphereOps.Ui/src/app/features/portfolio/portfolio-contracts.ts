@@ -2,9 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { SessionService } from '../../core/session';
 import { arr, bool, decode, guid, instant, nat, obj, str } from '../../core/decode';
 
-export interface ClientRow { id: string; name: string; engagements: number; }
+export interface ClientRow { id: string; name: string; engagements: number; isArchived: boolean; }
 export interface PortfolioPage { items: ClientRow[]; total: number; page: number; pageSize: number; }
-const pageDecoder = obj({ items: arr(obj({ id: guid, name: str(2000), engagements: nat }), 100), total: nat, page: nat, pageSize: nat });
+const pageDecoder = obj({ items: arr(obj({ id: guid, name: str(2000), engagements: nat, isArchived: bool }), 100), total: nat, page: nat, pageSize: nat });
 export function decodePortfolio(value: unknown): PortfolioPage {
   const v = decode(pageDecoder, value);
   if (v.page > 10000 || v.pageSize < 1 || v.pageSize > 100 || v.items.length > v.pageSize || v.items.length > v.total)

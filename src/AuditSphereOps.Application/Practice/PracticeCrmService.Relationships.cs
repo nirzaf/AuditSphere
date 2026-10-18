@@ -18,6 +18,9 @@ public sealed record UpdateClientProfileRequest(
   string? RestrictedProfile = null,
   long? ExpectedGeneration = null);
 
+public sealed record SetClientArchiveRequest(Guid ClientId, bool IsArchived, long ExpectedRevision);
+public sealed record ClientArchiveState(bool IsArchived, DateTimeOffset? LastArchivedAt, long Revision);
+
 public sealed record UpdateClientContactRequest(
   Guid ContactId,
   string FullName,
@@ -79,6 +82,57 @@ public sealed record ClientOrganizationHierarchyDto(
 
 public static partial class PracticeCrmService
 {
+  public static async Task<CommandResult<ClientArchiveState>> SetClientArchivedAsync(
+    IAuditSphereDbContext db, ActorContext actor, SetClientArchiveRequest request, CancellationToken ct = default)
+  {
+    if (request.ClientId == Guid.Empty || request.ExpectedRevision < 0)
+      return CommandResult<ClientArchiveState>.Fail("crm.invalid", "A client and non-negative archive revision are required.");
+
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.ClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<ClientArchiveState>.Fail(auth.ErrorCode!, auth.Message!);
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var client = await db.PracticeClients.FromSqlInterpolated(
+      $"SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (client is null)
+      return CommandResult<ClientArchiveState>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
+
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.ClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<ClientArchiveState>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var latest = await db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == actor.FirmId && e.ClientId == request.ClientId)
+      .OrderByDescending(e => e.Revision).Select(e => new { e.Revision, e.EventKind }).FirstOrDefaultAsync(ct);
+    var revision = latest?.Revision ?? 0;
+    if (revision != request.ExpectedRevision)
+      return CommandResult<ClientArchiveState>.Fail(ErrorCodes.GenerationStale, "Client archive state changed; refresh the profile and retry.");
+
+    var isArchived = latest?.EventKind == ClientLifecycleEventKinds.Archived;
+    var lastArchivedAt = await db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == actor.FirmId &&
+        e.ClientId == request.ClientId && e.EventKind == ClientLifecycleEventKinds.Archived)
+      .OrderByDescending(e => e.Revision).Select(e => (DateTimeOffset?)e.OccurredAt).FirstOrDefaultAsync(ct);
+    if (isArchived == request.IsArchived)
+    {
+      await tx.CommitAsync(ct);
+      return CommandResult<ClientArchiveState>.Ok(new(isArchived, lastArchivedAt, revision));
+    }
+
+    var nextRevision = checked(revision + 1);
+    var occurredAt = DateTimeOffset.UtcNow;
+    db.ClientLifecycleEvents.Add(new ClientLifecycleEvent
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, Revision = nextRevision,
+      EventKind = request.IsArchived ? ClientLifecycleEventKinds.Archived : ClientLifecycleEventKinds.Restored,
+      ActorUserId = actor.UserId, OccurredAt = occurredAt
+    });
+    await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
+    return CommandResult<ClientArchiveState>.Ok(new(request.IsArchived,
+      request.IsArchived ? occurredAt : lastArchivedAt, nextRevision));
+  }
+
   public static async Task<CommandResult> UpdateClientProfileAsync(
     IAuditSphereDbContext db, ActorContext actor, UpdateClientProfileRequest request, CancellationToken ct = default)
   {

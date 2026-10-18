@@ -81,6 +81,24 @@ public sealed class GlobalSearchQueryTests
   }
 
   [Fact]
+  public async Task RelationshipManagerCanSearchOnlyTheirArchivedClient()
+  {
+    await using var w = await SeedAsync();
+    var (_, actor) = await UserAsync(w, ("RelationshipManager", w.Own.ClientId, null));
+    await using (var db = w.Db())
+    {
+      var archived = await PracticeCrmService.SetClientArchivedAsync(db, actor, new(w.Own.ClientId, true, 0));
+      Assert.True(archived.Succeeded, archived.Message);
+    }
+
+    var result = await SearchAsync(w, actor, "PBC TEST CLIENT");
+    var hit = Assert.Single(result.Hits, x => x.Kind == GlobalSearchQuery.Kinds.Client);
+    Assert.Equal($"/app/clients/{w.Own.ClientId:D}", hit.Href);
+    Assert.Contains("Archived client", hit.Detail);
+    Assert.DoesNotContain(result.Hits, x => x.Href.Contains(w.Sibling.Fixture.ClientId.ToString("D"), StringComparison.Ordinal));
+  }
+
+  [Fact]
   public async Task EngagementOnlyUser_GetsNoClientLevelHitAndNoSiblingEngagement()
   {
     await using var w = await SeedAsync();

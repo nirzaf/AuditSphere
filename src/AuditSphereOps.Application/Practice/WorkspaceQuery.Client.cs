@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +26,11 @@ public static partial class WorkspaceQuery
       return UnavailableClient();
     var client = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(c => c.FirmId == actor.FirmId && c.Id == id, ct);
     if (client is null) return UnavailableClient();
+    var latestLifecycle = await db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == actor.FirmId && e.ClientId == id)
+      .OrderByDescending(e => e.Revision).Select(e => new { e.Revision, e.EventKind }).FirstOrDefaultAsync(ct);
+    var lastArchivedAt = await db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == actor.FirmId &&
+        e.ClientId == id && e.EventKind == ClientLifecycleEventKinds.Archived)
+      .OrderByDescending(e => e.Revision).Select(e => (DateTimeOffset?)e.OccurredAt).FirstOrDefaultAsync(ct);
 
     // Capture contributing scope requests once. Reauthorization later refuses a mixed old/new view.
     // Business summaries support annual preparation; this does not grant the professional engagement workspace.
@@ -63,13 +69,19 @@ public static partial class WorkspaceQuery
       RequiredRoles: ["Administrator", "Partner", "Manager", "RelationshipManager"], InternalOnly: true);
     var canManage = safetyGeneration.HasValue && (await AuthorizationDecision.AuthorizeAsync(db, actor, manage, ct)).Succeeded;
     if (canManage) requests.Add(manage);
+    var archiveManage = new AuthorizationRequest(actor.FirmId, ClientId: id,
+      RequiredRoles: manage.RequiredRoles, InternalOnly: true);
+    var canManageArchive = (await AuthorizationDecision.AuthorizeAsync(db, actor, archiveManage, ct)).Succeeded;
+    if (canManageArchive) requests.Add(archiveManage);
     var create = new AuthorizationRequest(actor.FirmId, ClientId: id, RequiredRoles: EngagementCreationWorkspace.DraftRoles, InternalOnly: true);
     var canCreate = (await AuthorizationDecision.AuthorizeAsync(db, actor, create, ct)).Succeeded;
     if (canCreate) requests.Add(create);
     foreach (var scope in requests)
       if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, scope, ct)).Succeeded) return UnavailableClient();
-    return CommandResult<ClientWorkspace>.Ok(new(client.Id, client.LegalName, client.Status, rows, contacts, canManage,
-      (safetyGeneration ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture), canCreate,
+    return CommandResult<ClientWorkspace>.Ok(new(client.Id, client.LegalName, client.Status,
+      latestLifecycle?.EventKind == ClientLifecycleEventKinds.Archived, lastArchivedAt,
+      (latestLifecycle?.Revision ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture), rows, contacts, canManage,
+      (safetyGeneration ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture), canManageArchive, canCreate,
       client.CommercialName, client.RegistrationNumber, client.Jurisdiction, client.CreatedAt,
       new(engagementTotal, blockedTotal, contactTotal), paging, portalIntent));
   }

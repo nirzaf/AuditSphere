@@ -135,6 +135,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<PracticeClient> PracticeClients => Set<PracticeClient>();
 
+  public DbSet<ClientLifecycleEvent> ClientLifecycleEvents => Set<ClientLifecycleEvent>();
+
   public DbSet<ClientContact> ClientContacts => Set<ClientContact>();
 
   public DbSet<ClientContactCreation> ClientContactCreations => Set<ClientContactCreation>();

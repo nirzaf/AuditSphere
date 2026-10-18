@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,7 +40,7 @@ public static class GlobalSearchQuery
   }
 
   // The same role sets the destination routes authorize with.
-  private static readonly string[] ClientRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "CommercialManager", "EngagementLeader"];
+  private static readonly string[] ClientRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "CommercialManager", "EngagementLeader", "RelationshipManager"];
   private static readonly string[] EngagementRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"];
   private static readonly string[] PbcRoles = ["Administrator", "Partner", "Manager", "Reviewer", "Senior", "Staff", "Auditor", "Accountant", "AccountingPreparer", "AccountingReviewer"];
   private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
@@ -110,11 +111,16 @@ public static class GlobalSearchQuery
         (c.LegalName.ToLower().Contains(lowered) || (c.CommercialName != null && c.CommercialName.ToLower().Contains(lowered)) ||
          (c.RegistrationNumber != null && c.RegistrationNumber.ToLower().Contains(lowered))))
       .OrderBy(c => c.LegalName).ThenBy(c => c.Id).Take(Candidates)
-      .Select(c => new { c.Id, c.LegalName, c.CommercialName, c.Status })
+      .Select(c => new
+      {
+        c.Id, c.LegalName, c.CommercialName, c.Status,
+        IsArchived = db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == c.FirmId && e.ClientId == c.Id)
+          .OrderByDescending(e => e.Revision).Select(e => e.EventKind == ClientLifecycleEventKinds.Archived).FirstOrDefault()
+      })
       .ToListAsync(ct);
     truncated |= await AddAuthorizedAsync(hits, clients, async c => (await AuthorizationDecision.AuthorizeAsync(db, actor,
         new AuthorizationRequest(actor.FirmId, c.Id, RequiredRoles: ClientRoles, InternalOnly: true), ct)).Succeeded,
-      c => new(Kinds.Client, c.LegalName, string.IsNullOrWhiteSpace(c.CommercialName) ? $"Client · {c.Status}" : $"Trading as {c.CommercialName} · {c.Status}",
+      c => new(Kinds.Client, c.LegalName, $"{(c.IsArchived ? "Archived client" : "Client")} · {(string.IsNullOrWhiteSpace(c.CommercialName) ? c.Status : $"Trading as {c.CommercialName} · {c.Status}")}",
         $"/app/clients/{c.Id:D}"));
 
     // Engagements match on their own service route or their client's name.

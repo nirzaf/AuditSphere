@@ -128,7 +128,8 @@ const mockRoutings = [
 const mockClientWorkspace = {
   id: clientId, name: 'Apex Holding Group Q.P.S.C.', status: 'Active',
   commercialName: null, registrationNumber: 'CR-2026-0042', jurisdiction: 'Qatar',
-  createdAt: '2026-01-01T00:00:00Z', safetyGeneration: '1', canManageContacts: true, canCreateEngagement: false,
+  createdAt: '2026-01-01T00:00:00Z', isArchived: false, lastArchivedAt: null, lifecycleRevision: '0',
+  safetyGeneration: '1', canManageContacts: true, canManageArchive: true, canCreateEngagement: false,
   metrics: { engagements: 0, workBlocked: 0, contacts: 1 },
   paging: { engagementPage: 0, engagementPageSize: 10, contactPage: 0, contactPageSize: 50 },
   engagements: [],

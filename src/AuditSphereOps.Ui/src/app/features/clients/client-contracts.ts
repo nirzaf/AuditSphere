@@ -24,7 +24,8 @@ const revision = (v: unknown): string => {
 const decoder = obj({
   id: guid, name: str(2000), status: str(100), commercialName: nullable(str(2000)),
   registrationNumber: nullable(str(2000)), jurisdiction: nullable(str(200)), createdAt: instant,
-  safetyGeneration: revision, canManageContacts: bool, canCreateEngagement: bool,
+  isArchived: bool, lastArchivedAt: nullable(instant), lifecycleRevision: revision,
+  safetyGeneration: revision, canManageContacts: bool, canManageArchive: bool, canCreateEngagement: bool,
   metrics: obj({ engagements: nat, workBlocked: nat, contacts: nat }),
   paging: obj({ engagementPage: nat, engagementPageSize: nat, contactPage: nat, contactPageSize: nat }),
   engagements: arr(obj({ id: guid, serviceRoute: str(200), status: str(100), periodStart: str(100), periodEnd: str(100), professionalWorkBlocked: bool }), 50),
@@ -43,6 +44,9 @@ export function decodeClient(value: unknown) {
   return v;
 }
 export type Client = ReturnType<typeof decodeClient>;
+export function decodeClientArchiveState(value: unknown) {
+  return decode(obj({ isArchived: bool, lastArchivedAt: nullable(instant), revision }), value);
+}
 export function clientUtcTime(value: string): string {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : 'Unsupported timestamp';

@@ -7,9 +7,22 @@
 @if (data(); as client) {
   <nav aria-label="Client navigation">
     <audit-status [value]="client.status" />
+    <span class="client-archive-state" [attr.aria-label]="client.isArchived ? 'Client record archived' : 'Client record current'">{{ client.isArchived ? 'Archived client' : 'Current client' }}</span>
     <a [routerLink]="['/app/clients', client.id, 'assessment']">Acceptance checklist</a>
     <button matButton  (click)="load()">Refresh client</button>
+    @if (client.canManageArchive) {
+      <button matButton="outlined" [disabled]="archiveBusy()" (click)="setArchived(!client.isArchived)">
+        {{ archiveBusy() ? 'Saving archive state…' : client.isArchived ? 'Restore client' : 'Archive client' }}
+      </button>
+    }
   </nav>
+  @if (archiveMessage()) { <p [attr.role]="archiveFailed() ? 'alert' : 'status'">{{ archiveMessage() }}</p> }
+  @if (client.isArchived) {
+    <aside aria-label="Archived client history">
+      <strong>Archived client record.</strong> Authorized staff can still search this client and review its existing engagements and evidence.
+      @if (client.lastArchivedAt) { <span> Last archived {{ utcTime(client.lastArchivedAt) }}.</span> }
+    </aside>
+  }
   <section class="client-metrics" aria-label="Scoped client summary">
     <article><h2>Engagements</h2><strong>{{ client.metrics.engagements }}</strong></article>
     <article><h2>Work blocked</h2><strong>{{ client.metrics.workBlocked }}</strong></article>

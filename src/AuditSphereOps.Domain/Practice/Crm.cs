@@ -208,6 +208,26 @@ public sealed class PracticeClient
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+public static class ClientLifecycleEventKinds
+{
+  public const string Archived = "ARCHIVED";
+  public const string Restored = "RESTORED";
+
+  public static readonly string[] All = [Archived, Restored];
+}
+
+/// <summary>Append-only client archive and restore history. Existing client and engagement records are retained.</summary>
+public sealed class ClientLifecycleEvent
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid ClientId { get; set; }
+  public long Revision { get; set; }
+  public string EventKind { get; set; } = ClientLifecycleEventKinds.Archived;
+  public Guid ActorUserId { get; set; }
+  public DateTimeOffset OccurredAt { get; set; }
+}
+
 public sealed class ClientContact
 {
   public Guid Id { get; set; }

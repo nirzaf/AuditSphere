@@ -30,14 +30,16 @@
   <button matButton="outlined" (click)="download()" [disabled]="exporting()">{{ exporting() ? 'Preparing CSV…' : 'Download scoped CSV' }}</button>
   <p>Export includes matching clients (up to 1,000) and matching records from the latest {{ result.recentLimit }} candidates and packages in your scope.</p>
   <h2>Clients in this search</h2>
+  <p>Search includes archived clients; their existing history remains available within your current authorization.</p>
   <p role="status">{{ result.clients.total }} clients in this search</p>
   @if (!result.clients.items.length) { <p>No clients match this search in your current scope.</p> }
   @else {
     <div class="table-scroll"><table class="portfolio-clients" aria-label="Authorized clients">
-      <caption>Authorized clients</caption><thead><tr><th>Client</th><th>Visible engagements</th></tr></thead>
+      <caption>Authorized clients</caption><thead><tr><th>Client</th><th>Record state</th><th>Visible engagements</th></tr></thead>
       <tbody>@for (client of result.clients.items; track client.id) {
         <tr [class.selected]="location()?.selected === client.id">
           <td><strong><a [routerLink]="['/app/clients', client.id]" (click)="select(client.id)">{{ client.name }}</a></strong><small>{{ client.id }}</small></td>
+          <td>{{ client.isArchived ? 'Archived' : 'Current' }}</td>
           <td class="number">{{ client.engagements }}</td>
         </tr>
       }</tbody>

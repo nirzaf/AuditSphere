@@ -29,6 +29,8 @@ public static partial class UiEndpoints
     bool IsPrimaryForPurpose = true);
 
   public sealed record RevokeRoutingInput(string Reason);
+  public sealed record SetClientArchiveInput(bool IsArchived, string ExpectedRevision);
+  public sealed record ClientArchiveStateResponse(bool IsArchived, DateTimeOffset? LastArchivedAt, string Revision);
 
   /// <summary>Direct success body returned after a client relationship or routing is revoked.</summary>
   public sealed record ClientRelationshipMutationResponse(bool Success);
@@ -38,6 +40,35 @@ public static partial class UiEndpoints
 
   private static void MapClientRelationshipEndpoints(RouteGroupBuilder group)
   {
+    var archiveState = group.MapPut("/clients/{id:guid}/archive-state", async (Guid id, SetClientArchiveInput input,
+      HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
+    {
+      var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
+      if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      try { await csrf.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
+      if (input is null || id == Guid.Empty || string.IsNullOrEmpty(input.ExpectedRevision) || input.ExpectedRevision.Length > 19 ||
+          !long.TryParse(input.ExpectedRevision, NumberStyles.None, CultureInfo.InvariantCulture, out var expectedRevision) || expectedRevision < 0)
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+
+      await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
+      var result = await PracticeCrmService.SetClientArchivedAsync(db, actor,
+        new SetClientArchiveRequest(id, input.IsArchived, expectedRevision), http.RequestAborted);
+      if (!result.Succeeded)
+      {
+        var status = result.ErrorCode == ErrorCodes.GenerationStale ? 409 :
+          result.ErrorCode == "crm.invalid" ? 400 : 403;
+        return Results.Json(new { code = result.ErrorCode, message = result.Message }, statusCode: status);
+      }
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
+        return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      var state = result.Value!;
+      return Results.Ok(new ClientArchiveStateResponse(state.IsArchived, state.LastArchivedAt,
+        state.Revision.ToString(CultureInfo.InvariantCulture)));
+    }).WithSummary("Set client archive state")
+      .WithDescription("Records an authorized, reversible archive-state change. Client, engagement and evidence history remains available in its current authorized scope.")
+      .WithT046Response<ClientArchiveStateResponse>();
+
     // Hierarchy
     var candidates = group.MapGet("/clients/{id:guid}/relationship-candidates", async (Guid id, string? search, int? page, int? pageSize,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>

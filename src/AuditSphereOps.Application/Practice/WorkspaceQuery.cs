@@ -8,9 +8,10 @@ namespace AuditSphereOps.Application.Practice;
 
 public sealed record WorkspaceEngagement(Guid Id, string ServiceRoute, string Status,
   string PeriodStart, string PeriodEnd, bool ProfessionalWorkBlocked);
-public sealed record ClientWorkspace(Guid Id, string Name, string Status,
+public sealed record ClientWorkspace(Guid Id, string Name, string Status, bool IsArchived,
+  DateTimeOffset? LastArchivedAt, string LifecycleRevision,
   IReadOnlyList<WorkspaceEngagement> Engagements, IReadOnlyList<WorkspaceContact> Contacts, bool CanManageContacts, string SafetyGeneration,
-  bool CanCreateEngagement, string? CommercialName, string? RegistrationNumber, string? Jurisdiction,
+  bool CanManageArchive, bool CanCreateEngagement, string? CommercialName, string? RegistrationNumber, string? Jurisdiction,
   DateTimeOffset CreatedAt, ClientWorkspaceMetrics Metrics, ClientWorkspacePaging Paging,
   AuditSphereOps.Application.Documents.ClientPortalIntentView? PortalIntent);
 public sealed record ClientWorkspaceMetrics(int Engagements, int WorkBlocked, int Contacts);

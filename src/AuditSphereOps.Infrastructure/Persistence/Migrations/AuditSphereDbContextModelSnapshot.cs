@@ -23316,6 +23316,57 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ClientLifecycleEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("EventKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("event_kind");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_client_lifecycle_events_firm_id_id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "ClientId", "OccurredAt");
+
+                    b.HasIndex("FirmId", "ClientId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("client_lifecycle_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_client_lifecycle_event_kind", "event_kind IN ('ARCHIVED','RESTORED') AND revision >= 1");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.ClientRelationship", b =>
                 {
                     b.Property<Guid>("Id")
@@ -35126,6 +35177,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.ClientLifecycleEvent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

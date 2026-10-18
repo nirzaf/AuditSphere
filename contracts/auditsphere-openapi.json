@@ -3329,6 +3329,130 @@
         ]
       }
     },
+    "/api/ui/clients/{id}/archive-state": {
+      "put": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "summary": "Set client archive state",
+        "description": "Records an authorized, reversible archive-state change. Client, engagement and evidence history remains available in its current authorized scope.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetClientArchiveInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientArchiveStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/clients/{id}/relationship-candidates": {
       "get": {
         "tags": [
@@ -91280,6 +91404,29 @@
           }
         }
       },
+      "ClientArchiveStateResponse": {
+        "required": [
+          "isArchived",
+          "lastArchivedAt",
+          "revision"
+        ],
+        "type": "object",
+        "properties": {
+          "isArchived": {
+            "type": "boolean"
+          },
+          "lastArchivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "string"
+          }
+        }
+      },
       "ClientBundleView": {
         "required": [
           "manifestSha256",
@@ -97494,10 +97641,14 @@
           "id",
           "name",
           "status",
+          "isArchived",
+          "lastArchivedAt",
+          "lifecycleRevision",
           "engagements",
           "contacts",
           "canManageContacts",
           "safetyGeneration",
+          "canManageArchive",
           "canCreateEngagement",
           "commercialName",
           "registrationNumber",
@@ -97519,6 +97670,19 @@
           "status": {
             "type": "string"
           },
+          "isArchived": {
+            "type": "boolean"
+          },
+          "lastArchivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lifecycleRevision": {
+            "type": "string"
+          },
           "engagements": {
             "type": "array",
             "items": {
@@ -97536,6 +97700,9 @@
           },
           "safetyGeneration": {
             "type": "string"
+          },
+          "canManageArchive": {
+            "type": "boolean"
           },
           "canCreateEngagement": {
             "type": "boolean"
@@ -122362,7 +122529,8 @@
         "required": [
           "id",
           "name",
-          "engagements"
+          "engagements",
+          "isArchived"
         ],
         "type": "object",
         "properties": {
@@ -122380,6 +122548,9 @@
               "string"
             ],
             "format": "int32"
+          },
+          "isArchived": {
+            "type": "boolean"
           }
         }
       },
@@ -130701,6 +130872,21 @@
           },
           "staff": {
             "type": "boolean"
+          }
+        }
+      },
+      "SetClientArchiveInput": {
+        "required": [
+          "isArchived",
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "isArchived": {
+            "type": "boolean"
+          },
+          "expectedRevision": {
+            "type": "string"
           }
         }
       },

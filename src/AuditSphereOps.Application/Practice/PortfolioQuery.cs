@@ -1,12 +1,13 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Practice;
 
-public sealed record PortfolioClient(Guid Id, string Name, int Engagements);
+public sealed record PortfolioClient(Guid Id, string Name, int Engagements, bool IsArchived);
 public sealed record PortfolioPage(IReadOnlyList<PortfolioClient> Items, int Total, int Page, int PageSize);
 
 /// <summary>Bounded current-grant portfolio projection for browser clients.</summary>
@@ -39,7 +40,10 @@ public static partial class PortfolioQuery
     }
     var total = await query.CountAsync(ct);
     var rows = await query.OrderBy(c => c.LegalName).ThenBy(c => c.Id).Skip(page * pageSize).Take(pageSize)
-      .Select(c => new PortfolioClient(c.Id, c.LegalName, visibleEngagements.Count(e => e.PracticeClientId == c.Id))).ToListAsync(ct);
+      .Select(c => new PortfolioClient(c.Id, c.LegalName, visibleEngagements.Count(e => e.PracticeClientId == c.Id),
+        db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == c.FirmId && e.ClientId == c.Id)
+          .OrderByDescending(e => e.Revision).Select(e => e.EventKind == ClientLifecycleEventKinds.Archived).FirstOrDefault()))
+      .ToListAsync(ct);
     return new(rows, total, page, pageSize);
   }
 }

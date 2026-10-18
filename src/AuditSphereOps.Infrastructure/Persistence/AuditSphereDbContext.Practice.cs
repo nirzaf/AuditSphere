@@ -147,6 +147,19 @@ public sealed partial class AuditSphereDbContext
     b.Entity<PracticeClient>().Property(x => x.EntityType).HasMaxLength(64);
     b.Entity<PracticeClient>().ToTable("practice_clients", t => t.HasCheckConstraint("ck_practice_client_name",
       "length(legal_name) > 0"));
+    b.Entity<ClientLifecycleEvent>(e =>
+    {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_client_lifecycle_events_firm_id_id");
+      e.Property(x => x.EventKind).HasMaxLength(16);
+      e.HasIndex(x => new { x.FirmId, x.ClientId, x.Revision }).IsUnique();
+      e.HasIndex(x => new { x.FirmId, x.ClientId, x.OccurredAt });
+      e.ToTable("client_lifecycle_events", t =>
+        t.HasCheckConstraint("ck_client_lifecycle_event_kind", "event_kind IN ('ARCHIVED','RESTORED') AND revision >= 1"));
+      e.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ActorUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    });
     b.Entity<ClientContact>().Property(x => x.Phone).HasMaxLength(32);
     b.Entity<ClientContact>().Property(x => x.Title).HasMaxLength(100);
     b.Entity<ClientContact>().Property(x => x.SignatoryAuthority).HasMaxLength(64);

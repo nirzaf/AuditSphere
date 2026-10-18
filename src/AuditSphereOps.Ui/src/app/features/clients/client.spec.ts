@@ -10,6 +10,7 @@ describe('Client Detail Contracts', () => {
     const raw = {
       id: id1,
       commercialName: 'Acme', registrationNumber: 'REG-1', jurisdiction: 'QA', createdAt: '2026-01-01T00:00:00Z',
+      isArchived: false, lastArchivedAt: null, lifecycleRevision: '0',
       metrics: { engagements: 1, workBlocked: 0, contacts: 1 },
       paging: { engagementPage: 0, engagementPageSize: 10, contactPage: 0, contactPageSize: 10 }, portalIntent: null,
       name: 'Acme Global Holdings Ltd',
@@ -34,6 +35,7 @@ describe('Client Detail Contracts', () => {
         },
       ],
       canManageContacts: true,
+      canManageArchive: true,
       safetyGeneration: '1001',
       canCreateEngagement: true,
     };

@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Microsoft365;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -100,11 +101,14 @@ public static partial class PortfolioQuery
     }
     var engagements = VisibleEngagements(db, actor, scope);
     var rows = await query.OrderBy(c => c.LegalName).ThenBy(c => c.Id).Take(ExportClientLimit + 1)
-      .Select(c => new PortfolioClient(c.Id, c.LegalName, engagements.Count(e => e.PracticeClientId == c.Id))).ToListAsync(ct);
+      .Select(c => new PortfolioClient(c.Id, c.LegalName, engagements.Count(e => e.PracticeClientId == c.Id),
+        db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == c.FirmId && e.ClientId == c.Id)
+          .OrderByDescending(e => e.Revision).Select(e => e.EventKind == ClientLifecycleEventKinds.Archived).FirstOrDefault()))
+      .ToListAsync(ct);
     if (rows.Count > ExportClientLimit)
       return CommandResult<PortfolioExport>.Fail("export.limit", "Narrow the search before exporting. The client export limit was exceeded.");
     var lines = new List<string> { "record_type,client,identifier,status,period,details" };
-    lines.AddRange(rows.Select(c => CsvRow("CLIENT", c.Name, c.Id.ToString("D"), "SCOPED", "",
+    lines.AddRange(rows.Select(c => CsvRow("CLIENT", c.Name, c.Id.ToString("D"), c.IsArchived ? "ARCHIVED" : "CURRENT", "",
       $"Visible engagements: {c.Engagements}")));
     lines.AddRange(workspace.Value!.Candidates.Select(c => CsvRow("RELEASE_CANDIDATE", c.ClientName,
       c.Id.ToString("D"), c.Status, "", $"Target revision: {c.TargetRevision}")));

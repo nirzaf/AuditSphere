@@ -1,13 +1,79 @@
 using System.Data.Common;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
 public sealed class ClientProfileWorkspaceTests
 {
+  [Fact]
+  public async Task ClientArchiveIsReversibleSearchableScopedAndAppendOnly()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    await ClientProfileWorkspaceSeed.PopulateAsync(db, f, count: 1);
+    db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Manager", f.ClientId));
+    await db.SaveChangesAsync();
+    var manager = PbcSeed.Actor(f.Staff, "Manager");
+
+    var before = await WorkspaceQuery.ClientAsync(db, manager, f.ClientId);
+    Assert.True(before.Succeeded, before.Message);
+    Assert.False(before.Value!.IsArchived);
+    Assert.Equal("0", before.Value.LifecycleRevision);
+
+    var archived = await PracticeCrmService.SetClientArchivedAsync(db, manager, new(f.ClientId, true, 0));
+    Assert.True(archived.Succeeded, archived.Message);
+    Assert.True(archived.Value!.IsArchived);
+    Assert.Equal(1, archived.Value.Revision);
+    Assert.NotNull(archived.Value.LastArchivedAt);
+
+    var replay = await PracticeCrmService.SetClientArchivedAsync(db, manager, new(f.ClientId, true, 1));
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(1, replay.Value!.Revision);
+    Assert.Single(await db.ClientLifecycleEvents.Where(e => e.ClientId == f.ClientId).ToListAsync());
+    Assert.Equal(ErrorCodes.GenerationStale,
+      (await PracticeCrmService.SetClientArchivedAsync(db, manager, new(f.ClientId, false, 0))).ErrorCode);
+
+    var visible = await PortfolioQuery.ListAsync(db, manager, "PBC TEST CLIENT");
+    Assert.True(visible.Succeeded, visible.Message);
+    Assert.True(Assert.Single(visible.Value!.Items).IsArchived);
+    var profile = await WorkspaceQuery.ClientAsync(db, manager, f.ClientId);
+    Assert.True(profile.Succeeded, profile.Message);
+    Assert.True(profile.Value!.IsArchived);
+    Assert.Single(profile.Value.Engagements);
+
+    var denied = await PracticeCrmService.SetClientArchivedAsync(db,
+      PbcSeed.Actor(f.Client, "ClientUser"), new(f.ClientId, false, 1));
+    Assert.False(denied.Succeeded);
+    Assert.Equal(1, await db.ClientLifecycleEvents.CountAsync(e => e.ClientId == f.ClientId));
+
+    var restored = await PracticeCrmService.SetClientArchivedAsync(db, manager, new(f.ClientId, false, 1));
+    Assert.True(restored.Succeeded, restored.Message);
+    Assert.False(restored.Value!.IsArchived);
+    Assert.Equal(2, restored.Value.Revision);
+    Assert.NotNull(restored.Value.LastArchivedAt);
+    Assert.Equal(2, await db.ClientLifecycleEvents.CountAsync(e => e.ClientId == f.ClientId));
+    var history = await db.ClientLifecycleEvents.Where(e => e.ClientId == f.ClientId).OrderBy(e => e.Revision).ToListAsync();
+    Assert.Equal(new[] { ClientLifecycleEventKinds.Archived, ClientLifecycleEventKinds.Restored }, history.Select(e => e.EventKind).ToArray());
+    var refusal = await Assert.ThrowsAnyAsync<Exception>(async () =>
+      await db.ClientLifecycleEvents.Where(e => e.ClientId == f.ClientId)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(e => e.EventKind, ClientLifecycleEventKinds.Archived)));
+    Assert.Equal("55000", Assert.IsType<PostgresException>(refusal.GetBaseException()).SqlState);
+    var migrations = db.Database.GetMigrations().ToArray();
+    var archiveMigration = Array.FindIndex(migrations, name => name.Contains("_ClientLifecycleArchiveHistory", StringComparison.Ordinal));
+    Assert.True(archiveMigration > 0, "The archive history migration must be discoverable.");
+    var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync(migrations[archiveMigration - 1]));
+    Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
+    Assert.Equal(2, await db.ClientLifecycleEvents.CountAsync(e => e.ClientId == f.ClientId));
+  }
+
   [Fact]
   public async Task MetadataFullScopedCountsAndIndependentPagesNeverTruncateAtTheOldWindow()
   {

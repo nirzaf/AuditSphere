@@ -636,6 +636,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<FeeMilestone> FeeMilestones => db.FeeMilestones;
     public DbSet<CommercialNotification> CommercialNotifications => db.CommercialNotifications;
     public DbSet<PracticeClient> PracticeClients => db.PracticeClients;
+    public DbSet<ClientLifecycleEvent> ClientLifecycleEvents => db.ClientLifecycleEvents;
     public DbSet<ClientContact> ClientContacts => db.ClientContacts;
     public DbSet<ClientContactCreation> ClientContactCreations => db.ClientContactCreations;
     public DbSet<ClientConversion> ClientConversions => db.ClientConversions;

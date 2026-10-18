@@ -3,7 +3,7 @@ describe('portfolio contract', () => {
   it('decodes bounded exact-count rows', () => {
     expect(
       decodePortfolio({
-        items: [{ id: '00000000-0000-0000-0000-000000000001', name: 'Client A', engagements: 1 }],
+        items: [{ id: '00000000-0000-0000-0000-000000000001', name: 'Client A', engagements: 1, isArchived: true }],
         total: 1,
         page: 0,
         pageSize: 25,
@@ -15,7 +15,7 @@ describe('portfolio contract', () => {
     expect(() => decodePortfolio({ items: [], total: '1', page: 0, pageSize: 25 })).toThrow();
     expect(() =>
       decodePortfolio({
-        items: [{ id: 'email@example.test', name: 'Client', engagements: 1 }],
+        items: [{ id: 'email@example.test', name: 'Client', engagements: 1, isArchived: false }],
         total: 1,
         page: 0,
         pageSize: 25,
