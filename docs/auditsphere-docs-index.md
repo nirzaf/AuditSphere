@@ -26,7 +26,7 @@ The repository ships Angular as the canonical staff/client presentation. The leg
 | Testing and Definition of Done | [Testing strategy](testing/auditsphere-testing-strategy-definition-of-done-current.md) |
 | Migration history and retirement evidence | [Removal gate](migration/auditsphere-migration-blazor-removal-readiness.md) · [Angular migration](architecture/auditsphere-angular-migration-current.md) |
 | Operations and recovery | [Restore drill](operations/auditsphere-operations-runbook-restore-drill.md) |
-| Client-tenant Entra, Graph, SharePoint and email setup | [CLI setup runbook](operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) · [Configuration inventory](operations/auditsphere-operations-reference-microsoft365-configuration-current.md) |
+| Client-tenant Entra, Graph, SharePoint and email setup | [Terminal-driven setup overview](operations/auditsphere-operations-guide-terminal-driven-microsoft365-setup-current.md) · [CLI setup runbook](operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) · [Configuration inventory](operations/auditsphere-operations-reference-microsoft365-configuration-current.md) |
 | R2R task breakdown | [R2R index](task_breakdown/auditsphere-r2r-index-task-breakdown.md) |
 | Proposed gap-remediation plan | [43-task gap specification](task_breakdown/source/auditsphere-implementation-spec-atomic-gap-remediation-proposed.md) |
 
