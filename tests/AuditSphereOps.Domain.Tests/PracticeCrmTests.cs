@@ -267,8 +267,10 @@ public sealed class PracticeCrmTests
       var fingerprintMigration = Array.FindIndex(migrations,
         id => id.EndsWith("_CommercialProposalCreateRequestFingerprint", StringComparison.Ordinal));
       Assert.True(fingerprintMigration > 0);
-      await Assert.ThrowsAsync<PostgresException>(() => retryDb.GetService<IMigrator>()
+      var refusedMigration = await Assert.ThrowsAnyAsync<Exception>(() => retryDb.GetService<IMigrator>()
         .MigrateAsync(migrations[fingerprintMigration - 1]));
+      var postgresRefusal = Assert.IsType<PostgresException>(refusedMigration.GetBaseException());
+      Assert.Equal("55000", postgresRefusal.SqlState);
       Assert.Equal(1, await retryDb.Proposals.CountAsync(x => x.OpportunityId == opportunityId));
     }
   }
