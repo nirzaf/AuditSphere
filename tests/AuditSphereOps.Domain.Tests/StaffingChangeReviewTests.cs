@@ -181,9 +181,19 @@ public sealed class StaffingChangeReviewTests
     var pause = new PauseCertificationReview();
     await using var reviewDb = new AuditSphereDbContext(
       new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options);
-    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    // The full Domain workflow runs PostgreSQL-heavy cohorts concurrently; allow the reviewed command
+    // to reach the explicit save barrier while still bounding a genuinely stalled interleaving.
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
     var revokeTask = ResourcePlanningService.ReviewCertificationAsync(reviewDb, actor, revoke, timeout.Token);
-    await pause.Reached.Task.WaitAsync(timeout.Token);
+    var pauseWait = pause.Reached.Task.WaitAsync(timeout.Token);
+    if (await Task.WhenAny(pauseWait, revokeTask) == revokeTask)
+    {
+      var earlyResult = await revokeTask;
+      Assert.True(earlyResult.Succeeded,
+        $"Certification review finished before the save barrier: {earlyResult.ErrorCode} {earlyResult.Message}");
+      Assert.Fail("Certification review completed without reaching the save barrier.");
+    }
+    await pauseWait;
 
     await using var staffingDb = new AuditSphereDbContext(pg.Options);
     await using var observer = new AuditSphereDbContext(pg.Options);

@@ -130,11 +130,20 @@ public static class ResourcePlanningCommandWorkspace
     if(!await LockRequestAsync(db,a,ct)) return Denied<ResourcePlanningReceiptView>();
     var prior=await db.ResourcePlanningReceipts.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId && x.ActorId==a.UserId && x.RequestId==request.RequestId,ct);
     if(prior is not null) {
-      if(prior.RequestHash!=request.RequestHash || prior.ReviewBasis!=request.ReviewBasis) return CommandResult<ResourcePlanningReceiptView>.Fail(ErrorCodes.StaleRevision,"This request belongs to a different reviewed intent.");
+      if(prior.RequestHash!=request.RequestHash || prior.ReviewBasis!=request.ReviewBasis || prior.ActorEpoch!=a.SessionEpoch)
+        return CommandResult<ResourcePlanningReceiptView>.Fail(ErrorCodes.StaleRevision,"This request belongs to a different reviewed intent.");
+      var priorPreview=JsonSerializer.Deserialize<ResourcePlanningPreview>(prior.PreviewJson);
+      if(priorPreview is null) return Invalid<ResourcePlanningReceiptView>();
+      // A retained receipt may predate fields added to the request contract. Accept that exact
+      // historical snapshot for replay, but never let its request identity acknowledge changed fields.
+      var submitted=Canonical(request.Fields);
+      if(submitted is not null
+        ? submitted!=priorPreview.Fields || request.RequestHash!=RequestHash(a,request.RequestId,submitted)
+        : request.Fields!=priorPreview.Fields)
+        return CommandResult<ResourcePlanningReceiptView>.Fail(ErrorCodes.StaleRevision,"This request belongs to a different reviewed intent.");
       await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptView>.Ok(Receipt(prior));
     }
-    // Check for an exact retained result before current-field canonicalization. This preserves replay recovery
-    // for pending tabs whose immutable request was created before a later contract added fields.
+    // New requests without a retained receipt must satisfy the current canonical contract before mutation.
     var f=Canonical(request.Fields);
     if(f is null || request.RequestHash!=RequestHash(a,request.RequestId,f)) return Invalid<ResourcePlanningReceiptView>();
     if(!await LockAsync(db,a,f,ct)) return Denied<ResourcePlanningReceiptView>();
