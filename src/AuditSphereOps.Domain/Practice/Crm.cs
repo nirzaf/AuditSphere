@@ -36,6 +36,44 @@ public sealed class Lead
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Stable action names retained for the lead's commercial lifecycle timeline.</summary>
+public static class LeadActivityActions
+{
+  public const string Created = "LEAD_CREATED";
+  public const string Qualified = "LEAD_QUALIFIED";
+  public const string OpportunityCreated = "OPPORTUNITY_CREATED";
+  public const string ProposalRevisionCreated = "PROPOSAL_REVISION_CREATED";
+  public const string ProposalReviewed = "PROPOSAL_REVIEWED";
+  public const string ProposalMarkedSent = "PROPOSAL_MARKED_SENT";
+  public const string ProposalAccepted = "PROPOSAL_ACCEPTED";
+  public const string ProposalDeclined = "PROPOSAL_DECLINED";
+  public const string ClientConversionLinked = "CLIENT_CONVERSION_LINKED";
+}
+
+/// <summary>
+/// Append-only commercial activity for a lead. Optional fields are immutable snapshots from the command that
+/// produced the action; they never replace the current Lead, Opportunity, Proposal, or Client records.
+/// </summary>
+public sealed class LeadActivityEvent
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid LeadId { get; set; }
+  public string Action { get; set; } = string.Empty;
+  public DateTimeOffset OccurredAt { get; set; }
+  public Guid? ActorUserId { get; set; }
+  public bool IsBackfill { get; set; }
+  public string? FromState { get; set; }
+  public string? ToState { get; set; }
+  public string? SourceChannel { get; set; }
+  public Guid? OwnerUserId { get; set; }
+  public Guid? OpportunityId { get; set; }
+  public string? ServiceRoute { get; set; }
+  public Guid? ProposalId { get; set; }
+  public long? ProposalRevision { get; set; }
+  public Guid? ClientId { get; set; }
+}
+
 public sealed class Opportunity
 {
   public Guid Id { get; set; }

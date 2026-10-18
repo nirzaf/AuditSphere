@@ -90,6 +90,7 @@ public sealed class PracticeCrmTests
       Assert.True(retry.Succeeded, retry.Message);
       Assert.Equal(requestId, retry.Value);
       Assert.Equal(1, await retryDb.Leads.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.Equal(1, await retryDb.LeadActivityEvents.CountAsync(x => x.FirmId == fixture.FirmId && x.LeadId == requestId));
 
       var changedIntent = await PracticeCrmService.CreateLeadAsync(retryDb, fixture.Actor,
         request with { Source = "Email" });
@@ -287,9 +288,18 @@ public sealed class PracticeCrmTests
         new CreateLeadRequest("EXAMPLE TRADING LLC", "Web Form", "A. Owner", "OWNER@EXAMPLE.TEST"));
       Assert.False(duplicate.Succeeded);
       Assert.Equal("crm.duplicate", duplicate.ErrorCode);
+      var prematureOpportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId));
+      Assert.False(prematureOpportunity.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, prematureOpportunity.ErrorCode);
+      Assert.Equal(1, await db.LeadActivityEvents.CountAsync(x => x.FirmId == fixture.FirmId && x.LeadId == leadId));
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, leadId)).Succeeded);
       opportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId))).Value;
       proposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
+      var prematureConversion = await PracticeCrmService.ConvertToClientDraftAsync(db, fixture.Actor,
+        new ConvertToClientDraftRequest(proposalId, "Example Trading LLC", Jurisdiction: "QA"));
+      Assert.False(prematureConversion.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, prematureConversion.ErrorCode);
+      Assert.Empty(await db.PracticeClients.Where(x => x.FirmId == fixture.FirmId).ToListAsync());
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposalId)).Succeeded);
       await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, proposalId);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposalId)).Succeeded);
@@ -336,7 +346,103 @@ public sealed class PracticeCrmTests
       Assert.Equal((AuditSphereOps.Domain.Documents.ClientPortalIntentStates.AwaitingAcceptance, "owner@example.test"), (intent.State, intent.RecipientEmail));
       Assert.True((await db.ClientContacts.SingleAsync(x => x.PracticeClientId == clientId)).Primary);
       Assert.False(await db.RoleGrants.AnyAsync(x => x.ClientId == clientId && x.Role == "ClientUser"));
+
+      var leadWorkspace = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, leadId);
+      Assert.True(leadWorkspace.Succeeded);
+      Assert.Equal("Referral", leadWorkspace.Value!.Source);
+      Assert.Equal(CrmStates.LeadQualified, leadWorkspace.Value.Status);
+      Assert.False(leadWorkspace.Value.HistoryHasMore);
+      Assert.Equal(
+        new[] { LeadActivityActions.Created, LeadActivityActions.Qualified, LeadActivityActions.OpportunityCreated,
+          LeadActivityActions.ProposalRevisionCreated, LeadActivityActions.ProposalReviewed,
+          LeadActivityActions.ProposalMarkedSent, LeadActivityActions.ProposalAccepted,
+          LeadActivityActions.ClientConversionLinked },
+        leadWorkspace.Value.History.Select(x => x.Action).ToArray());
+      var conversionEvent = leadWorkspace.Value.History.Single(x => x.Action == LeadActivityActions.ClientConversionLinked);
+      Assert.Equal(clientId, conversionEvent.ClientId);
+      Assert.Equal(proposalId, conversionEvent.ProposalId);
+      Assert.Equal(opportunityId, conversionEvent.OpportunityId);
+      var updateError = await Assert.ThrowsAnyAsync<Exception>(() => db.LeadActivityEvents
+        .Where(x => x.Id == conversionEvent.Id)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.ToState, "MUTATED")));
+      Assert.Equal("55000", Assert.IsType<PostgresException>(updateError.GetBaseException()).SqlState);
+      var deleteError = await Assert.ThrowsAnyAsync<Exception>(() => db.LeadActivityEvents
+        .Where(x => x.Id == conversionEvent.Id)
+        .ExecuteDeleteAsync());
+      Assert.Equal("55000", Assert.IsType<PostgresException>(deleteError.GetBaseException()).SqlState);
     }
+  }
+
+  [Fact]
+  public async Task LostLeadCannotBeQualifiedOrStartAServiceOpportunity()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid leadId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      leadId = (await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
+        new CreateLeadRequest("Closed prospect LLC", "Referral"))).Value;
+      var lead = await db.Leads.SingleAsync(x => x.Id == leadId && x.FirmId == fixture.FirmId);
+      lead.Status = CrmStates.LeadLost;
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var qualification = await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, leadId);
+      Assert.False(qualification.Succeeded);
+      Assert.Equal(ErrorCodes.ProtectedState, qualification.ErrorCode);
+      var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId));
+      Assert.False(opportunity.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, opportunity.ErrorCode);
+      Assert.Empty(await db.Opportunities.Where(x => x.FirmId == fixture.FirmId && x.LeadId == leadId).ToListAsync());
+      Assert.Empty(await db.PracticeClients.Where(x => x.FirmId == fixture.FirmId).ToListAsync());
+      Assert.Empty(await db.Engagements.Where(x => x.FirmId == fixture.FirmId).ToListAsync());
+      Assert.Empty(await db.ClientPortalIntents.Where(x => x.FirmId == fixture.FirmId).ToListAsync());
+      Assert.False(await db.RoleGrants.AnyAsync(x => x.FirmId == fixture.FirmId && x.Role == "ClientUser"));
+    }
+  }
+
+  [Fact]
+  public async Task LeadActivityHistory_IsBoundedAndPagesOlderEventsInStableOrder()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
+      new CreateLeadRequest("Long-running prospect LLC", "Referral"));
+    Assert.True(lead.Succeeded, lead.Message);
+
+    var firstOccurredAt = DateTimeOffset.UtcNow.AddDays(-201);
+    db.LeadActivityEvents.AddRange(Enumerable.Range(0, 201).Select(index => new LeadActivityEvent
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, LeadId = lead.Value,
+      Action = LeadActivityActions.Qualified, OccurredAt = firstOccurredAt.AddMinutes(index),
+      ActorUserId = fixture.User.Id, FromState = CrmStates.LeadNew, ToState = CrmStates.LeadQualified
+    }));
+    await db.SaveChangesAsync();
+
+    var firstPage = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, lead.Value);
+    Assert.True(firstPage.Succeeded, firstPage.Message);
+    Assert.Equal(200, firstPage.Value!.History.Count);
+    Assert.True(firstPage.Value.HistoryHasMore);
+
+    var oldest = firstPage.Value.History[0];
+    var olderPage = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, lead.Value,
+      oldest.OccurredAt, oldest.Id);
+    Assert.True(olderPage.Succeeded, olderPage.Message);
+    Assert.Equal(2, olderPage.Value!.History.Count);
+    Assert.False(olderPage.Value.HistoryHasMore);
+    Assert.All(olderPage.Value.History, item => Assert.True(item.OccurredAt < oldest.OccurredAt));
+
+    var combinedIds = olderPage.Value.History.Concat(firstPage.Value.History).Select(x => x.Id).ToArray();
+    Assert.Equal(202, combinedIds.Length);
+    Assert.Equal(202, combinedIds.Distinct().Count());
+    var invalidCursor = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, lead.Value,
+      oldest.OccurredAt, null);
+    Assert.False(invalidCursor.Succeeded);
+    Assert.Equal("crm.invalid", invalidCursor.ErrorCode);
   }
 
   [Fact]

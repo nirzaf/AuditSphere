@@ -82,6 +82,20 @@ public static partial class PracticeCrmService
 {
   private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
 
+  private static void RecordLeadActivity(IAuditSphereDbContext db, ActorContext actor, Guid leadId, string action,
+    DateTimeOffset occurredAt, string? fromState = null, string? toState = null, string? sourceChannel = null,
+    Guid? ownerUserId = null, Guid? opportunityId = null, string? serviceRoute = null, Guid? proposalId = null,
+    long? proposalRevision = null, Guid? clientId = null)
+  {
+    db.LeadActivityEvents.Add(new LeadActivityEvent
+    {
+      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, LeadId = leadId, Action = action,
+      OccurredAt = occurredAt, ActorUserId = actor.UserId, FromState = fromState, ToState = toState,
+      SourceChannel = sourceChannel, OwnerUserId = ownerUserId, OpportunityId = opportunityId,
+      ServiceRoute = serviceRoute, ProposalId = proposalId, ProposalRevision = proposalRevision, ClientId = clientId
+    });
+  }
+
   public static async Task<CommandResult<Guid>> CreateLeadAsync(
     IAuditSphereDbContext db, ActorContext actor, CreateLeadRequest request, CancellationToken ct = default)
   {
@@ -127,14 +141,17 @@ public static partial class PracticeCrmService
     if (duplicate)
       return CommandResult<Guid>.Fail("crm.duplicate", "A matching lead already exists; reviewed resolution is required.");
 
+    var createdAt = DateTimeOffset.UtcNow;
     var lead = new Lead
     {
       Id = request.RequestId ?? Guid.CreateVersion7(), FirmId = actor.FirmId, Name = name,
       Source = source, PrimaryContactName = contactName,
       PrimaryContactEmail = contactEmail, OwnerUserId = request.OwnerUserId,
-      ConsentRestrictions = consentRestrictions, CreatedAt = DateTimeOffset.UtcNow
+      ConsentRestrictions = consentRestrictions, CreatedAt = createdAt
     };
     db.Leads.Add(lead);
+    RecordLeadActivity(db, actor, lead.Id, LeadActivityActions.Created, createdAt,
+      toState: CrmStates.LeadNew, sourceChannel: source, ownerUserId: request.OwnerUserId);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(lead.Id);
@@ -154,6 +171,9 @@ public static partial class PracticeCrmService
     if (lead.Status != CrmStates.LeadNew)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a new lead can be qualified.");
     lead.Status = CrmStates.LeadQualified;
+    var qualifiedAt = DateTimeOffset.UtcNow;
+    RecordLeadActivity(db, actor, lead.Id, LeadActivityActions.Qualified, qualifiedAt,
+      fromState: CrmStates.LeadNew, toState: CrmStates.LeadQualified);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -207,6 +227,9 @@ public static partial class PracticeCrmService
       CreatedAt = DateTimeOffset.UtcNow
     };
     db.Opportunities.Add(opportunity);
+    RecordLeadActivity(db, actor, lead.Id, LeadActivityActions.OpportunityCreated, opportunity.CreatedAt,
+      toState: opportunity.Stage, ownerUserId: opportunity.OwnerUserId, opportunityId: opportunity.Id,
+      serviceRoute: opportunity.ServiceRoute);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(opportunity.Id);
@@ -278,6 +301,10 @@ public static partial class PracticeCrmService
     };
     opportunity.Stage = CrmStates.OpportunityProposal;
     db.Proposals.Add(proposal);
+    RecordLeadActivity(db, actor, opportunity.LeadId, LeadActivityActions.ProposalRevisionCreated,
+      proposal.CreatedAt, fromState: previous?.Status, toState: proposal.Status,
+      opportunityId: opportunity.Id, serviceRoute: opportunity.ServiceRoute,
+      proposalId: proposal.Id, proposalRevision: proposal.Revision);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(proposal.Id);
@@ -310,6 +337,11 @@ public static partial class PracticeCrmService
     proposal.Status = CrmStates.ProposalInternalReview;
     proposal.ApprovedByUserId = actor.UserId;
     proposal.ApprovedAt = DateTimeOffset.UtcNow;
+    var opportunity = await db.Opportunities.AsNoTracking()
+      .SingleAsync(x => x.FirmId == actor.FirmId && x.Id == proposal.OpportunityId, ct);
+    RecordLeadActivity(db, actor, opportunity.LeadId, LeadActivityActions.ProposalReviewed, proposal.ApprovedAt.Value,
+      fromState: CrmStates.ProposalDraft, toState: proposal.Status, opportunityId: opportunity.Id,
+      serviceRoute: opportunity.ServiceRoute, proposalId: proposal.Id, proposalRevision: proposal.Revision);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -438,6 +470,9 @@ public static partial class PracticeCrmService
     proposal.SentAt = DateTimeOffset.UtcNow;
     proposal.SentOfferSha256 = offerSha256;
     opportunity.Stage = CrmStates.OpportunityNegotiation;
+    RecordLeadActivity(db, actor, opportunity.LeadId, LeadActivityActions.ProposalMarkedSent, proposal.SentAt.Value,
+      fromState: CrmStates.ProposalInternalReview, toState: proposal.Status, opportunityId: opportunity.Id,
+      serviceRoute: opportunity.ServiceRoute, proposalId: proposal.Id, proposalRevision: proposal.Revision);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -569,6 +604,10 @@ public static partial class PracticeCrmService
     var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     opportunity.Stage = decision == CrmStates.ProposalAccepted
       ? CrmStates.OpportunityWon : CrmStates.OpportunityLost;
+    RecordLeadActivity(db, actor, opportunity.LeadId,
+      decision == CrmStates.ProposalAccepted ? LeadActivityActions.ProposalAccepted : LeadActivityActions.ProposalDeclined,
+      recordedAt, fromState: CrmStates.ProposalSent, toState: decision, opportunityId: opportunity.Id,
+      serviceRoute: opportunity.ServiceRoute, proposalId: proposal.Id, proposalRevision: proposal.Revision);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -676,6 +715,10 @@ public static partial class PracticeCrmService
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PracticeClientId = client.Id,
         Decision = "Pending", ServiceRoute = opportunity.ServiceRoute, Generation = clientGeneration
       });
+    RecordLeadActivity(db, actor, opportunity.LeadId, LeadActivityActions.ClientConversionLinked,
+      DateTimeOffset.UtcNow, fromState: proposal.Status, toState: client.Status, opportunityId: opportunity.Id,
+      serviceRoute: opportunity.ServiceRoute, proposalId: proposal.Id, proposalRevision: proposal.Revision,
+      clientId: client.Id);
     await RecordPortalIntentAsync(db, actor.FirmId, proposal.Id, client.Id, opportunity.LeadId, ct);
     await db.SaveChangesAsync(ct);
     auth = await AuthorizeAsync(db, actor, ct);

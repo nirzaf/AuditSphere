@@ -20,11 +20,46 @@ interface Opportunity {
   proposalId: string | null;
   revision: string;
 }
+type LeadActivityAction =
+  | 'LEAD_CREATED'
+  | 'LEAD_QUALIFIED'
+  | 'OPPORTUNITY_CREATED'
+  | 'PROPOSAL_REVISION_CREATED'
+  | 'PROPOSAL_REVIEWED'
+  | 'PROPOSAL_MARKED_SENT'
+  | 'PROPOSAL_ACCEPTED'
+  | 'PROPOSAL_DECLINED'
+  | 'CLIENT_CONVERSION_LINKED';
+interface LeadActivity {
+  id: string;
+  action: LeadActivityAction;
+  occurredAt: string;
+  actorName: string;
+  actorUserId: string | null;
+  isBackfill: boolean;
+  fromState: string | null;
+  toState: string | null;
+  sourceChannel: string | null;
+  ownerName: string | null;
+  ownerUserId: string | null;
+  serviceRoute: string | null;
+  opportunityId: string | null;
+  proposalId: string | null;
+  proposalRevision: string | null;
+  clientId: string | null;
+}
 interface LeadWorkspace {
   id: string;
   name: string;
   status: string;
+  source: string;
+  ownerUserId: string | null;
+  ownerName: string;
+  createdAt: string;
   opportunities: Opportunity[];
+  history: LeadActivity[];
+  historyHasMore: boolean;
+  hasLegacyHistoryGap: boolean;
 }
 interface OpportunityCreateIntent {
   leadId: string;
@@ -62,8 +97,17 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
     !guidPattern.test(v['id']) ||
     typeof v['name'] !== 'string' ||
     typeof v['status'] !== 'string' ||
+    typeof v['source'] !== 'string' ||
+    (v['ownerUserId'] !== null && (typeof v['ownerUserId'] !== 'string' || !guidPattern.test(v['ownerUserId']))) ||
+    typeof v['ownerName'] !== 'string' ||
+    typeof v['createdAt'] !== 'string' ||
+    !Number.isFinite(Date.parse(v['createdAt'])) ||
     !Array.isArray(v['opportunities']) ||
-    v['opportunities'].length > 100
+    v['opportunities'].length > 100 ||
+    !Array.isArray(v['history']) ||
+    v['history'].length > 200 ||
+    typeof v['historyHasMore'] !== 'boolean' ||
+    typeof v['hasLegacyHistoryGap'] !== 'boolean'
   )
     throw new Error('Unsupported lead');
   for (const o of v['opportunities']) {
@@ -81,6 +125,41 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
         (typeof o.proposalId !== 'string' || !guidPattern.test(o.proposalId)))
     )
       throw new Error('Unsupported opportunity');
+  }
+  const actions: readonly string[] = [
+    'LEAD_CREATED',
+    'LEAD_QUALIFIED',
+    'OPPORTUNITY_CREATED',
+    'PROPOSAL_REVISION_CREATED',
+    'PROPOSAL_REVIEWED',
+    'PROPOSAL_MARKED_SENT',
+    'PROPOSAL_ACCEPTED',
+    'PROPOSAL_DECLINED',
+    'CLIENT_CONVERSION_LINKED',
+  ];
+  for (const event of v['history']) {
+    if (
+      !event ||
+      typeof event.id !== 'string' ||
+      !guidPattern.test(event.id) ||
+      typeof event.action !== 'string' ||
+      !actions.includes(event.action) ||
+      typeof event.occurredAt !== 'string' ||
+      !Number.isFinite(Date.parse(event.occurredAt)) ||
+      typeof event.actorName !== 'string' ||
+      (event.actorUserId !== null &&
+        (typeof event.actorUserId !== 'string' || !guidPattern.test(event.actorUserId))) ||
+      typeof event.isBackfill !== 'boolean' ||
+      !['fromState', 'toState', 'sourceChannel', 'ownerName', 'serviceRoute'].every(
+        (k) => event[k] === null || typeof event[k] === 'string',
+      ) ||
+      !['ownerUserId', 'opportunityId', 'proposalId', 'clientId'].every(
+        (k) => event[k] === null || (typeof event[k] === 'string' && guidPattern.test(event[k])),
+      ) ||
+      (event.proposalRevision !== null &&
+        (typeof event.proposalRevision !== 'string' || !/^\d{1,19}$/.test(event.proposalRevision)))
+    )
+      throw new Error('Unsupported lead activity');
   }
   return v as unknown as LeadWorkspace;
 }
@@ -100,6 +179,61 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
     @if (data(); as lead) {
       <h2>{{ lead.name }}</h2>
       <p>{{ lead.status }}</p>
+      <p>Source: {{ lead.source }} · Owner: {{ lead.ownerName }} · Created: {{ lead.createdAt }}</p>
+      <section aria-labelledby="lead-history-heading">
+        <h2 id="lead-history-heading">Lead history</h2>
+        @if (lead.hasLegacyHistoryGap) {
+          <p role="note">
+            This lead predates retained activity history. Its original source is preserved; older actions and their
+            actors could not be reconstructed. Entries marked historical show only known creation details.
+          </p>
+        }
+        @if (lead.history.length === 0) {
+          <p>No lead activity is recorded.</p>
+        } @else {
+          <ol>
+            @for (event of lead.history; track event.id) {
+              <li>
+                <strong>{{ activityLabel(event.action) }}</strong>
+                <time [attr.datetime]="event.occurredAt">{{ event.occurredAt }}</time>
+                <span> · {{ event.actorName }}</span>
+                @if (event.fromState || event.toState) {
+                  <span> · {{ event.fromState ?? '—' }} → {{ event.toState ?? '—' }}</span>
+                }
+                @if (event.sourceChannel) {
+                  <span> · Source: {{ event.sourceChannel }}</span>
+                }
+                @if (event.ownerName) {
+                  <span> · Owner: {{ event.ownerName }}</span>
+                }
+                @if (event.serviceRoute) {
+                  <span> · Service: {{ event.serviceRoute }}</span>
+                }
+                @if (event.proposalRevision) {
+                  <span> · Proposal revision {{ event.proposalRevision }}</span>
+                }
+                @if (event.clientId) {
+                  <span> · Client identity: {{ event.clientId }}</span>
+                }
+                @if (event.isBackfill) {
+                  <span> · Historical source details; actor not retained</span>
+                }
+              </li>
+            }
+          </ol>
+          @if (lead.historyHasMore) {
+            <button matButton [disabled]="busy() || loading() || historyLoading()" (click)="loadOlderHistory()">
+              Load older activity
+            </button>
+            @if (historyLoading()) {
+              <p role="status">Loading older activity…</p>
+            }
+            @if (historyError()) {
+              <p role="alert">{{ historyError() }}</p>
+            }
+          }
+        }
+      </section>
       @if (lead.status === 'QUALIFIED') {
         <h2>Record discovery opportunity</h2>
         <p>Commercial discovery does not accept a client or activate professional work.</p>
@@ -287,6 +421,7 @@ export class Opportunities {
   private readonly drafts = inject(Drafts);
   private id = '';
   private request?: Subscription;
+  private historyRequest?: Subscription;
   private write?: Subscription;
   private requestId: string = crypto.randomUUID();
   private proposalRequestId: string = crypto.randomUUID();
@@ -295,6 +430,8 @@ export class Opportunities {
   readonly data = signal<LeadWorkspace | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
+  readonly historyLoading = signal(false);
+  readonly historyError = signal('');
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly createPending = signal(false);
@@ -342,12 +479,16 @@ export class Opportunities {
       this.fence++;
       route.unsubscribe();
       this.request?.unsubscribe();
+      this.historyRequest?.unsubscribe();
       this.write?.unsubscribe();
     });
   }
   private reset(): void {
     this.fence++;
     this.request?.unsubscribe();
+    this.historyRequest?.unsubscribe();
+    this.historyLoading.set(false);
+    this.historyError.set('');
     this.write?.unsubscribe();
     this.data.set(null);
     this.selected.set(null);
@@ -376,6 +517,19 @@ export class Opportunities {
     if (this.proposalCreatePending()) return;
     this.selected.set(o);
     this.proposalReviewed = false;
+  }
+  activityLabel(action: LeadActivityAction): string {
+    return {
+      LEAD_CREATED: 'Lead created',
+      LEAD_QUALIFIED: 'Lead qualified',
+      OPPORTUNITY_CREATED: 'Service interest recorded',
+      PROPOSAL_REVISION_CREATED: 'Proposal revision created',
+      PROPOSAL_REVIEWED: 'Proposal entered internal review',
+      PROPOSAL_MARKED_SENT: 'Proposal marked sent',
+      PROPOSAL_ACCEPTED: 'Proposal response accepted',
+      PROPOSAL_DECLINED: 'Proposal declined',
+      CLIENT_CONVERSION_LINKED: 'Client conversion linked',
+    }[action];
   }
   createOpportunity(): void {
     if (
@@ -823,6 +977,9 @@ export class Opportunities {
   }
   load(): void {
     this.request?.unsubscribe();
+    this.historyRequest?.unsubscribe();
+    this.historyLoading.set(false);
+    this.historyError.set('');
     this.data.set(null);
     this.error.set('');
     if (!guidPattern.test(this.id) || !this.session.current()?.staff) return;
@@ -866,6 +1023,56 @@ export class Opportunities {
           this.error.set(
             'Opportunities unavailable. Current firm-wide commercial authority is required.',
           );
+          if (failure.status === 401) this.session.clear();
+        },
+      });
+  }
+  loadOlderHistory(): void {
+    const current = this.data();
+    const oldest = current?.history[0];
+    if (
+      !current?.historyHasMore ||
+      !oldest ||
+      this.historyLoading() ||
+      !guidPattern.test(this.id) ||
+      !this.session.current()?.staff
+    )
+      return;
+    const fence = this.fence;
+    const query = `?historyBeforeOccurredAt=${encodeURIComponent(oldest.occurredAt)}&historyBeforeId=${oldest.id}`;
+    this.historyLoading.set(true);
+    this.historyError.set('');
+    this.historyRequest = this.http
+      .get<unknown>('/api/ui/leads/' + this.id + query)
+      .pipe(timeout(15000))
+      .subscribe({
+        next: (value) => {
+          if (fence !== this.fence) return;
+          try {
+            const page = decodeOpportunities(value);
+            if (page.id !== current.id || page.history.length === 0) {
+              throw new Error('Lead history page does not match the current lead.');
+            }
+            const known = new Set(current.history.map((event) => event.id.toLowerCase()));
+            const older = page.history.filter((event) => !known.has(event.id.toLowerCase()));
+            if (older.length === 0) throw new Error('Lead history page contained no earlier events.');
+            const history = [...older, ...current.history].sort((a, b) => {
+              const time = Date.parse(a.occurredAt) - Date.parse(b.occurredAt);
+              if (time !== 0) return time;
+              const left = a.id.toLowerCase();
+              const right = b.id.toLowerCase();
+              return left < right ? -1 : left > right ? 1 : 0;
+            });
+            this.data.set({ ...current, history, historyHasMore: page.historyHasMore });
+          } catch {
+            this.historyError.set('Older lead activity could not be read safely. Refresh persisted state and retry.');
+          }
+          this.historyLoading.set(false);
+        },
+        error: (failure) => {
+          if (fence !== this.fence) return;
+          this.historyLoading.set(false);
+          this.historyError.set('Older lead activity is unavailable. Refresh persisted state and retry.');
           if (failure.status === 401) this.session.clear();
         },
       });

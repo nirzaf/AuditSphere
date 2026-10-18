@@ -58,6 +58,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<UserAccessInvitation> UserAccessInvitations => Set<UserAccessInvitation>();
 
   public DbSet<Lead> Leads => Set<Lead>();
+  public DbSet<LeadActivityEvent> LeadActivityEvents => Set<LeadActivityEvent>();
 
   public DbSet<Opportunity> Opportunities => Set<Opportunity>();
 

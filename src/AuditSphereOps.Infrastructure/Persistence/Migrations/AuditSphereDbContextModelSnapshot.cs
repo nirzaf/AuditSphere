@@ -25282,6 +25282,116 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.LeadActivityEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("FromState")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("from_state");
+
+                    b.Property<bool>("IsBackfill")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_backfill");
+
+                    b.Property<Guid>("LeadId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lead_id");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid?>("OpportunityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("opportunity_id");
+
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<Guid?>("ProposalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposal_id");
+
+                    b.Property<long?>("ProposalRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("proposal_revision");
+
+                    b.Property<string>("ServiceRoute")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("service_route");
+
+                    b.Property<string>("SourceChannel")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("source_channel");
+
+                    b.Property<string>("ToState")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("to_state");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_lead_activity_events_firm_id_id");
+
+                    b.HasIndex("FirmId", "ActorUserId");
+
+                    b.HasIndex("FirmId", "ClientId");
+
+                    b.HasIndex("FirmId", "LeadId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_lead_activity_events_created_once")
+                        .HasFilter("action = 'LEAD_CREATED'");
+
+                    b.HasIndex("FirmId", "OpportunityId");
+
+                    b.HasIndex("FirmId", "OwnerUserId");
+
+                    b.HasIndex("FirmId", "ProposalId");
+
+                    b.HasIndex("FirmId", "LeadId", "OccurredAt", "Id")
+                        .HasDatabaseName("IX_lead_activity_events_firm_lead_time");
+
+                    b.ToTable("lead_activity_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_lead_activity_action", "action IN ('LEAD_CREATED','LEAD_QUALIFIED','OPPORTUNITY_CREATED','PROPOSAL_REVISION_CREATED','PROPOSAL_REVIEWED','PROPOSAL_MARKED_SENT','PROPOSAL_ACCEPTED','PROPOSAL_DECLINED','CLIENT_CONVERSION_LINKED')");
+
+                            t.HasCheckConstraint("ck_lead_activity_actor", "actor_user_id IS NOT NULL OR is_backfill");
+
+                            t.HasCheckConstraint("ck_lead_activity_backfill", "NOT is_backfill OR (action = 'LEAD_CREATED' AND actor_user_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_lead_activity_revision", "proposal_revision IS NULL OR proposal_revision >= 1");
+
+                            t.HasCheckConstraint("ck_lead_activity_shape", "(action <> 'LEAD_CREATED' OR (to_state = 'NEW' AND source_channel IS NOT NULL)) AND (action <> 'LEAD_QUALIFIED' OR (from_state = 'NEW' AND to_state = 'QUALIFIED')) AND (action <> 'OPPORTUNITY_CREATED' OR (opportunity_id IS NOT NULL AND service_route IS NOT NULL)) AND (action <> 'PROPOSAL_REVISION_CREATED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND to_state = 'DRAFT')) AND (action <> 'PROPOSAL_REVIEWED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'DRAFT' AND to_state = 'INTERNAL_REVIEW')) AND (action <> 'PROPOSAL_MARKED_SENT' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'INTERNAL_REVIEW' AND to_state = 'SENT')) AND (action NOT IN ('PROPOSAL_ACCEPTED','PROPOSAL_DECLINED') OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'SENT' AND ((action = 'PROPOSAL_ACCEPTED' AND to_state = 'ACCEPTED') OR (action = 'PROPOSAL_DECLINED' AND to_state = 'DECLINED')))) AND (action <> 'CLIENT_CONVERSION_LINKED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND client_id IS NOT NULL AND to_state = 'PROSPECT'))");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.LedgerPostingReceipt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -35393,6 +35503,46 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "OwnerUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.LeadActivityEvent", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.Lead", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "LeadId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.Opportunity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "OpportunityId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "OwnerUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.Proposal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ProposalId")
                         .HasPrincipalKey("FirmId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
                 });

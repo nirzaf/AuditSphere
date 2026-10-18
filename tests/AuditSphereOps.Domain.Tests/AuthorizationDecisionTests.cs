@@ -572,6 +572,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<EvaluationResponse> EvaluationResponses => db.EvaluationResponses;
     public DbSet<AcceptanceDecision> AcceptanceDecisions => db.AcceptanceDecisions;
     public DbSet<Lead> Leads => db.Leads;
+    public DbSet<LeadActivityEvent> LeadActivityEvents => db.LeadActivityEvents;
     public DbSet<Opportunity> Opportunities => db.Opportunities;
     public DbSet<Proposal> Proposals => db.Proposals;
     public DbSet<ProposalResponseRecord> ProposalResponseRecords => db.ProposalResponseRecords;

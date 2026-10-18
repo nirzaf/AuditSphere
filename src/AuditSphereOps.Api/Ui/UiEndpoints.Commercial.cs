@@ -21,19 +21,24 @@ public static partial class UiEndpoints
     string PeriodStart, string PeriodEnd, Guid? RequestId = null, string? Timeline = null);
   private static void MapCommercialEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/leads/{id:guid}", async (Guid id, HttpContext http, TrustedActorResolver resolver,
+    group.MapGet("/leads/{id:guid}", async (Guid id, DateTimeOffset? historyBeforeOccurredAt,
+      Guid? historyBeforeId, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
+      if (historyBeforeOccurredAt.HasValue != historyBeforeId.HasValue || historyBeforeId == Guid.Empty)
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await CommercialWorkspaceQuery.LeadAsync(db, actor, id, http.RequestAborted);
+      var result = await CommercialWorkspaceQuery.LeadAsync(db, actor, id,
+        historyBeforeOccurredAt, historyBeforeId, http.RequestAborted);
       if (!result.Succeeded) return Results.Json(new { code = result.ErrorCode }, statusCode: 403);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return Results.Ok(result.Value);
     })
       .Produces<LeadWorkspace>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
     group.MapPost("/leads/{id:guid}/opportunities", async (Guid id, OpportunityInput input,

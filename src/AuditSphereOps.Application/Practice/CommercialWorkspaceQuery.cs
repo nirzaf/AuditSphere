@@ -26,13 +26,22 @@ public sealed record ProposalWorkspace(Guid Id, Guid OpportunityId, string LeadN
 
 public sealed record OpportunityItem(Guid Id, string ServiceRoute, string EntityScope, string Stage,
   string ExpectedFee, string Currency, string PeriodStart, string PeriodEnd, Guid? ProposalId, string Revision);
-public sealed record LeadWorkspace(Guid Id, string Name, string Status, IReadOnlyList<OpportunityItem> Opportunities);
+public sealed record LeadActivityItem(Guid Id, string Action, DateTimeOffset OccurredAt, string ActorName,
+  Guid? ActorUserId, bool IsBackfill, string? FromState, string? ToState, string? SourceChannel,
+  string? OwnerName, Guid? OwnerUserId, string? ServiceRoute, Guid? OpportunityId, Guid? ProposalId,
+  string? ProposalRevision, Guid? ClientId);
+public sealed record LeadWorkspace(Guid Id, string Name, string Status, string Source, Guid? OwnerUserId,
+  string OwnerName, DateTimeOffset CreatedAt, IReadOnlyList<OpportunityItem> Opportunities,
+  IReadOnlyList<LeadActivityItem> History, bool HistoryHasMore, bool HasLegacyHistoryGap);
 
 public static class CommercialWorkspaceQuery
 {
   public static async Task<CommandResult<LeadWorkspace>> LeadAsync(IAuditSphereDbContext db,
-    ActorContext actor, Guid id, CancellationToken ct = default)
+    ActorContext actor, Guid id, DateTimeOffset? historyBeforeOccurredAt = null,
+    Guid? historyBeforeId = null, CancellationToken ct = default)
   {
+    if (historyBeforeOccurredAt.HasValue != historyBeforeId.HasValue || historyBeforeId == Guid.Empty)
+      return CommandResult<LeadWorkspace>.Fail("crm.invalid", "Lead history cursor is invalid.");
     var request = new AuthorizationRequest(actor.FirmId,
       RequiredRoles: ["Administrator", "Partner", "Manager", "RelationshipManager"], InternalOnly: true, RequireFirmWide: true);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
@@ -44,8 +53,34 @@ public static class CommercialWorkspaceQuery
     var ids = opportunities.Select(x => x.Id).ToArray();
     var proposals = await db.Proposals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && ids.Contains(x.OpportunityId))
       .GroupBy(x => x.OpportunityId).Select(g => g.OrderByDescending(x => x.Revision).First()).ToListAsync(ct);
-    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
-      return CommandResult<LeadWorkspace>.Fail(ErrorCodes.ScopeDenied, "Lead unavailable.");
+    var activityQuery = db.LeadActivityEvents.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.LeadId == id);
+    if (historyBeforeOccurredAt is { } beforeAt && historyBeforeId is { } beforeId)
+    {
+      var cursorExists = await activityQuery.AnyAsync(x => x.OccurredAt == beforeAt && x.Id == beforeId, ct);
+      if (!cursorExists)
+        return CommandResult<LeadWorkspace>.Fail("crm.invalid", "Lead history cursor is invalid.");
+      activityQuery = activityQuery.Where(x => x.OccurredAt < beforeAt ||
+        (x.OccurredAt == beforeAt && x.Id.CompareTo(beforeId) < 0));
+    }
+    var activityRows = await activityQuery
+      .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id).Take(201).ToListAsync(ct);
+    var historyHasMore = activityRows.Count > 200;
+    var activity = activityRows.Take(200).OrderBy(x => x.OccurredAt).ThenBy(x => x.Id).ToArray();
+    var userIds = activity.SelectMany(x => new[] { x.ActorUserId, x.OwnerUserId })
+      .Append(lead.OwnerUserId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+    var names = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && userIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+    string UserName(Guid? userId, string missing) => userId.HasValue && names.TryGetValue(userId.Value, out var name)
+      ? name : missing;
+    var history = activity.Select(x => new LeadActivityItem(x.Id, x.Action, x.OccurredAt,
+      UserName(x.ActorUserId, x.IsBackfill ? "Actor not retained" : "Actor unavailable"),
+      x.ActorUserId, x.IsBackfill, x.FromState, x.ToState, x.SourceChannel,
+      x.OwnerUserId.HasValue ? UserName(x.OwnerUserId, "Owner unavailable") : null,
+      x.OwnerUserId, x.ServiceRoute, x.OpportunityId, x.ProposalId,
+      x.ProposalRevision?.ToString(CultureInfo.InvariantCulture), x.ClientId)).ToArray();
+    var hasLegacyHistoryGap = await db.LeadActivityEvents.AsNoTracking()
+      .AnyAsync(x => x.FirmId == actor.FirmId && x.LeadId == id && x.IsBackfill, ct);
     var rows = opportunities.Select(o =>
     {
       var latest = proposals.SingleOrDefault(p => p.OpportunityId == o.Id);
@@ -53,7 +88,11 @@ public static class CommercialWorkspaceQuery
         o.ExpectedFee.ToString(CultureInfo.InvariantCulture), o.Currency, o.PeriodStart, o.PeriodEnd,
         latest?.Id, (latest?.Revision ?? 0).ToString(CultureInfo.InvariantCulture));
     }).ToArray();
-    return CommandResult<LeadWorkspace>.Ok(new(lead.Id, lead.Name, lead.Status, rows));
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
+      return CommandResult<LeadWorkspace>.Fail(ErrorCodes.ScopeDenied, "Lead unavailable.");
+    return CommandResult<LeadWorkspace>.Ok(new(lead.Id, lead.Name, lead.Status, lead.Source,
+      lead.OwnerUserId, UserName(lead.OwnerUserId, "Not assigned"), lead.CreatedAt, rows,
+      history, historyHasMore, hasLegacyHistoryGap));
   }
 
   public static async Task<CommandResult<ProposalWorkspace>> ProposalAsync(IAuditSphereDbContext db,

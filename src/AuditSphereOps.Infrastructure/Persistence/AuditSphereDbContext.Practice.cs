@@ -46,6 +46,52 @@ public sealed partial class AuditSphereDbContext
     b.Entity<LedgerPostingReceipt>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_ledger_receipts_firm_id_id");
     b.Entity<PeriodCloseDecision>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_period_decisions_firm_id_id");
     b.Entity<Lead>().HasIndex(x => new { x.FirmId, x.Status, x.CreatedAt });
+    b.Entity<LeadActivityEvent>(e =>
+    {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_lead_activity_events_firm_id_id");
+      e.Property(x => x.Action).HasMaxLength(40);
+      e.Property(x => x.FromState).HasMaxLength(32);
+      e.Property(x => x.ToState).HasMaxLength(32);
+      e.Property(x => x.SourceChannel).HasMaxLength(40);
+      e.Property(x => x.ServiceRoute).HasMaxLength(100);
+      e.HasIndex(x => new { x.FirmId, x.LeadId, x.OccurredAt, x.Id })
+        .HasDatabaseName("IX_lead_activity_events_firm_lead_time");
+      e.HasIndex(x => new { x.FirmId, x.LeadId }).IsUnique()
+        .HasFilter("action = 'LEAD_CREATED'")
+        .HasDatabaseName("IX_lead_activity_events_created_once");
+      e.HasOne<Lead>().WithMany().HasForeignKey(x => new { x.FirmId, x.LeadId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ActorUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.OwnerUserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<Opportunity>().WithMany().HasForeignKey(x => new { x.FirmId, x.OpportunityId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<Proposal>().WithMany().HasForeignKey(x => new { x.FirmId, x.ProposalId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<PracticeClient>().WithMany().HasForeignKey(x => new { x.FirmId, x.ClientId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.ToTable("lead_activity_events", t =>
+      {
+        t.HasCheckConstraint("ck_lead_activity_action",
+          "action IN ('LEAD_CREATED','LEAD_QUALIFIED','OPPORTUNITY_CREATED','PROPOSAL_REVISION_CREATED','PROPOSAL_REVIEWED','PROPOSAL_MARKED_SENT','PROPOSAL_ACCEPTED','PROPOSAL_DECLINED','CLIENT_CONVERSION_LINKED')");
+        t.HasCheckConstraint("ck_lead_activity_backfill",
+          "NOT is_backfill OR (action = 'LEAD_CREATED' AND actor_user_id IS NULL)");
+        t.HasCheckConstraint("ck_lead_activity_actor",
+          "actor_user_id IS NOT NULL OR is_backfill");
+        t.HasCheckConstraint("ck_lead_activity_revision",
+          "proposal_revision IS NULL OR proposal_revision >= 1");
+        t.HasCheckConstraint("ck_lead_activity_shape",
+          "(action <> 'LEAD_CREATED' OR (to_state = 'NEW' AND source_channel IS NOT NULL)) AND " +
+          "(action <> 'LEAD_QUALIFIED' OR (from_state = 'NEW' AND to_state = 'QUALIFIED')) AND " +
+          "(action <> 'OPPORTUNITY_CREATED' OR (opportunity_id IS NOT NULL AND service_route IS NOT NULL)) AND " +
+          "(action <> 'PROPOSAL_REVISION_CREATED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND to_state = 'DRAFT')) AND " +
+          "(action <> 'PROPOSAL_REVIEWED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'DRAFT' AND to_state = 'INTERNAL_REVIEW')) AND " +
+          "(action <> 'PROPOSAL_MARKED_SENT' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'INTERNAL_REVIEW' AND to_state = 'SENT')) AND " +
+          "(action NOT IN ('PROPOSAL_ACCEPTED','PROPOSAL_DECLINED') OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'SENT' AND ((action = 'PROPOSAL_ACCEPTED' AND to_state = 'ACCEPTED') OR (action = 'PROPOSAL_DECLINED' AND to_state = 'DECLINED')))) AND " +
+          "(action <> 'CLIENT_CONVERSION_LINKED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND client_id IS NOT NULL AND to_state = 'PROSPECT'))");
+      });
+    });
     b.Entity<Opportunity>().HasIndex(x => new { x.FirmId, x.LeadId, x.Stage });
     b.Entity<Proposal>().HasIndex(x => new { x.FirmId, x.OpportunityId, x.Revision }).IsUnique();
     b.Entity<WorkTask>().HasIndex(x => new { x.FirmId, x.Status, x.CreatedAt });

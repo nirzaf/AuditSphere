@@ -1460,6 +1460,22 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "historyBeforeOccurredAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "historyBeforeId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -1479,6 +1495,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LeadWorkspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiCodeErrorResponse"
                 }
               }
             }
@@ -114138,6 +114164,117 @@
           }
         }
       },
+      "LeadActivityItem": {
+        "required": [
+          "id",
+          "action",
+          "occurredAt",
+          "actorName",
+          "actorUserId",
+          "isBackfill",
+          "fromState",
+          "toState",
+          "sourceChannel",
+          "ownerName",
+          "ownerUserId",
+          "serviceRoute",
+          "opportunityId",
+          "proposalId",
+          "proposalRevision",
+          "clientId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actorName": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "isBackfill": {
+            "type": "boolean"
+          },
+          "fromState": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "toState": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceChannel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ownerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "ownerUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "serviceRoute": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "opportunityId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "proposalId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "proposalRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clientId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
       "LeadInput": {
         "required": [
           "requestId",
@@ -114177,7 +114314,14 @@
           "id",
           "name",
           "status",
-          "opportunities"
+          "source",
+          "ownerUserId",
+          "ownerName",
+          "createdAt",
+          "opportunities",
+          "history",
+          "historyHasMore",
+          "hasLegacyHistoryGap"
         ],
         "type": "object",
         "properties": {
@@ -114191,11 +114335,40 @@
           "status": {
             "type": "string"
           },
+          "source": {
+            "type": "string"
+          },
+          "ownerUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
           "opportunities": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/OpportunityItem"
             }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeadActivityItem"
+            }
+          },
+          "historyHasMore": {
+            "type": "boolean"
+          },
+          "hasLegacyHistoryGap": {
+            "type": "boolean"
           }
         }
       },
