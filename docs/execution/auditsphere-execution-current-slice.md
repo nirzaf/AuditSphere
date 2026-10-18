@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Correspondence contact effective-date enforcement (2026-10-18)
+
+Purpose-specific recipient resolution now excludes active contacts whose validity interval does not overlap the requested UTC date, including explicitly selected overrides. Dispatch receipt creation checks the contact again at the exact recorded dispatch instant and refuses inactive, future-dated, or expired contacts. The existing PostgreSQL routing regression passed with expired/future normal routing, override and dispatch cases. ASPM-CRM-03 remains partial: DEC-09 routing precedence, ambiguity remedy, external provider delivery and acceptance at the actual send boundary remain open. Exact source commit and focused test metadata are in `status.json` under `targetedVerification.practiceContactValidity20261018`.
+
 ## Time-source billing reservation guard (2026-10-18)
 
 Commit `5e9a1eb5` prevents an approved time entry from being corrected after its exact revision is reserved to an invoice. Billing also walks a corrected entry's `SupersedesId` ancestry and refuses it if any predecessor revision is already reserved, covering retained legacy chains. The focused PostgreSQL regression asserts the original invoice/allocation remain the only billing reservation and that the forbidden correction creates no child entry; it also attempts to bill a legacy correction descendant and verifies no second invoice is created. The named Domain test passed 1/1. Full suites and authenticated browser verification were not run for this server-side change. ASPM-RES-04 and ASPM-FIN-01 remain partial; milestone and other source reservation cases remain open. Fast CI is pending on the pushed commit.
