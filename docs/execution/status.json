@@ -45,7 +45,7 @@
     "implementationStatus": "PARTIAL",
     "acceptanceStatus": "PARTIAL",
     "scope": "Angular is canonical; the Blazor Web host was retired and merged to master (absent from the tree). Source-action parity is partial; supporting-file reviews are partial. The removal gate remains NOT_READY and production acceptance is not claimed. Exact counts and local evidence are in targetedVerification and the migration register.",
-    "nextAction": "Obtain a qualified methodology owner and independent reviewer for T003 accounting framework, FX/consolidation policy, resource bounds and golden fixtures; complete and review T007/T013 before starting T014. Keep STE-GAP-004 and STE-GAP-007 blocked until live tenant/provider evidence exists. Legal confirmation taxonomy, FSLI-pinned time attribution, and the locally executable STE browser journeys are implemented and current-tree verified; see the STE tracker and testSuites.",
+    "nextAction": "Obtain qualified owner and independent review for T003 policy, bounds and fixtures; complete/review T007 and T013 before T014. Keep STE-GAP-004/007 blocked pending live tenant/provider evidence; see STE tracker.",
     "branch": "master"
   },
   "remainingLocalWork": [
@@ -1344,7 +1344,7 @@
       }
     },
     "latestAttempt": "Run 39081736086 on 9e2709b: FAILED; Domain 1,360/1,360 passed, API unknown after hosted-runner loss, E2E timed out after 3h with 24 failures. PBC labels fixed on 4bf84641; last full pass remains productCodeCommit above.",
-    "notes": "Current-tree regression on code commit c9bea82ae52ee9e4867ad26d2c4059991e19dade: API 223/223, Domain 825/825, and E2E 236/236 (1,284 total, zero failures) against auditsphere_tests on 127.0.0.1:5433. Angular CI specs passed 630/630 across 114 files. The Release solution build passed with six NU1900 warnings because the NuGet vulnerability service was unreachable. Angular production build passed using the SQLite cache override; the existing commercial/settings.scss stylesheet exceeds its 4 KB budget by 3.53 KB. EF reports no pending model changes and OpenAPI matches the committed contract. No production or development database migration, live Microsoft consent handshake, or external provider acceptance was performed.",
+    "notes": "Historical suite details are in runs; no live-provider acceptance.",
     "migrationHead": "20261010203413_ReportCertificateSignatureEvidence"
   },
   "hostingerAcceptance": {
@@ -1988,7 +1988,7 @@
       "ASPM-NFR-01..12",
       "ASPM-UAT-01..15"
     ],
-    "lastTechnicalSlice": "fe4d94b257563a5dd525a0f70f187f734a3ec1fd",
+    "lastTechnicalSlice": "37e9f591b6b77872348a49a60b20fcfcd573d93e",
     "advanceCashGate": {
       "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
       "result": "FOCUSED_INCREMENTAL_PASS",
@@ -2039,6 +2039,26 @@
       "verification": "Staffing Domain 9 PASS; timeline rerun 1 PASS after composite-ID fixture fix; Angular activity 5 PASS, review 15 PASS; E2E project build PASS. Browser revoked candidate no longer Certified; console clean.",
       "remaining": "Deterministic review-revocation/assignment race, broader resource and full current-SHA CI acceptance.",
       "browserDatabase": "auditsphere_browser only; synthetic qualification reviewed then withdrawn; no real qualification or staffing grant asserted."
+    },
+    "returnedTimeWorkflow": {
+      "codeCommit": "37e9f591b6b77872348a49a60b20fcfcd573d93e",
+      "result": "FOCUSED_PASS",
+      "domain": {
+        "passed": 1,
+        "failed": 0,
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~PracticeTimeTests.ReturnedTime_RetainsEachReviewRound'"
+      },
+      "angular": {
+        "passed": 6,
+        "failed": 0,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/practice/time-tracker-ui.spec.ts'"
+      },
+      "apiReleaseBuild": "PASS; 0 warnings/errors",
+      "angularProductionBuild": "PASS; existing commercial/settings.scss budget warning",
+      "efModelDrift": "PASS",
+      "openapi": "PASS",
+      "documentation": "PASS",
+      "builtInBrowser": "Bundle assets load; /api/ui/session returned 401; authenticated workflow NOT_VERIFIED."
     }
   }
 }
