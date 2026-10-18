@@ -771,7 +771,8 @@ public sealed class CommercialWorkflowTests
     var (_, _, proposalId) = await DraftProposalAsync(pg, w);
     await using var db = new AuditSphereDbContext(pg.Options);
 
-    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId)); // 25,000 → 12,500 + 12,500
+    var quote = await QuotationService.SaveAsync(db, w.Prep,
+      Quote(proposalId, lines: [new("Partner", "Audit", 8m), new("Manager", "Audit", 16m)])); // QAR 20,000 → 10,000 + 10,000
     Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
     Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).ErrorCode); // not accepted yet
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
@@ -785,8 +786,8 @@ public sealed class CommercialWorkflowTests
     var agreementId = (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).Value;
     Assert.Equal(agreementId, (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).Value);
     var view = (await FeeAgreementService.GetForProposalAsync(db, w.Prep, proposalId)).Value!;
-    Assert.Equal((25000m, 50m), (view.Agreement.AgreedFee, view.Agreement.AdvancePercent));
-    Assert.Equal([12500m, 12500m], view.Milestones.Select(x => x.Milestone.Amount));
+    Assert.Equal((20000m, 50m), (view.Agreement.AgreedFee, view.Agreement.AdvancePercent));
+    Assert.Equal([10000m, 10000m], view.Milestones.Select(x => x.Milestone.Amount));
     Assert.Equal(view.Agreement.AgreedFee, view.Milestones.Sum(x => x.Milestone.Amount));
 
     // The balance cannot be invoiced before the advance is paid, nor without a delivered final report.
@@ -797,7 +798,7 @@ public sealed class CommercialWorkflowTests
     var advanceInvoice = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, w.FinanceManager, agreementId);
     Assert.True(advanceInvoice.Succeeded, advanceInvoice.Message);
     Assert.Equal(advanceInvoice.Value, (await FeeAgreementService.IssueAdvanceInvoiceAsync(db, w.FinanceManager, agreementId)).Value);
-    Assert.Equal(12500m, (await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == advanceInvoice.Value)).Total);
+    Assert.Equal(10000m, (await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == advanceInvoice.Value)).Total);
 
     var clientUser = new AppUser
     {
@@ -823,7 +824,7 @@ public sealed class CommercialWorkflowTests
     Assert.Null(draftPortalInvoice.PostedAt);
     Assert.Null(draftPortalInvoice.SentAt);
 
-    Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 12500m, "TT-1")).ErrorCode); // draft invoice
+    Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 10000m, "TT-1")).ErrorCode); // draft invoice
     Assert.True((await BillingService.SubmitInvoiceAsync(db, w.FinanceManager, advanceInvoice.Value)).Succeeded);
     Assert.True((await BillingService.ApproveInvoiceAsync(db, w.FinanceReviewer, advanceInvoice.Value)).Succeeded);
     db.FirmFinanceProfiles.Add(new FirmFinanceProfile
@@ -835,28 +836,30 @@ public sealed class CommercialWorkflowTests
     Assert.True((await BillingService.PostInvoiceAsync(db, w.FinanceManager, advanceInvoice.Value)).Succeeded);
 
     // Partial, duplicate and excessive payments are handled; the advance stays unpaid until fully allocated.
-    var partial = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-1");
+    var partial = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-1");
     Assert.True(partial.Succeeded, partial.Message);
-    Assert.Equal((false, 7500m, null), (partial.Value!.MilestonePaid, partial.Value.Outstanding, partial.Value.ReceiptDocumentId));
-    var repeated = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-1");
+    Assert.Equal((false, 6000m, null), (partial.Value!.MilestonePaid, partial.Value.Outstanding, partial.Value.ReceiptDocumentId));
+    Assert.False(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
+    var repeated = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-1");
     Assert.Equal(partial.Value.ReceiptId, repeated.Value!.ReceiptId);
     Assert.Equal(1, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
-    Assert.Equal("fee.reference-conflict", (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 4999m, "TT-1")).ErrorCode);
+    Assert.Equal("fee.reference-conflict", (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 3999m, "TT-1")).ErrorCode);
     Assert.Equal(1, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
-    Assert.Equal("fee.over-payment", (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 8000m, "TT-2")).ErrorCode);
+    Assert.Equal("fee.over-payment", (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 7000m, "TT-2")).ErrorCode);
     Assert.Equal(0, await db.CommercialDocuments.CountAsync(x => x.Kind == CommercialDocumentKinds.PaymentReceipt));
 
     // Full payment: paid once, one official receipt document, one queued email.
     Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner, new("Gulf Audit Partners", "Doha", "hello@gulf.example.test", "", "#2B6CB0", ""))).Succeeded);
-    var paid = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 7500m, "TT-2");
+    var paid = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 6000m, "TT-2");
     Assert.True(paid.Succeeded, paid.Message);
     Assert.True(paid.Value!.MilestonePaid && paid.Value.EmailQueued);
+    Assert.True(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
     Assert.NotNull(paid.Value.ReceiptDocumentId);
-    var again = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 7500m, "TT-2");
+    var again = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 6000m, "TT-2");
     Assert.Equal(paid.Value.ReceiptDocumentId, again.Value!.ReceiptDocumentId);
     var receiptDoc = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Kind == CommercialDocumentKinds.PaymentReceipt);
     var receiptText = DocxText(receiptDoc.Bytes);
-    Assert.Contains("12,500.00 QAR", receiptText);
+    Assert.Contains("10,000.00 QAR", receiptText);
     Assert.Contains("Balance due on delivery of the final report", receiptText);
     var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
     Assert.Equal("owner@gulf.example.test", notification.Recipient);
@@ -864,33 +867,33 @@ public sealed class CommercialWorkflowTests
     // The settlement receipt lists each constituent payment instead of presenting the last one as the whole advance.
     Assert.Contains("TT-1", receiptText);
     Assert.Contains("TT-2", receiptText);
-    Assert.Contains("5,000.00 QAR", receiptText);
-    Assert.Contains("7,500.00 QAR", receiptText);
+    Assert.Contains("4,000.00 QAR", receiptText);
+    Assert.Contains("6,000.00 QAR", receiptText);
 
     // Each actual payment has its own voucher (F-09). The first payment was recorded before the profile existed; recording the same
     // reference again issues its voucher without a second receipt, allocation or email for the payment.
     Assert.NotNull(paid.Value.VoucherDocumentId);
     Assert.Equal(paid.Value.VoucherDocumentId, again.Value.VoucherDocumentId);
-    var recovered = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-1");
+    var recovered = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-1");
     Assert.True(recovered.Succeeded, recovered.Message);
     Assert.NotNull(recovered.Value!.VoucherDocumentId);
     Assert.Equal(recovered.Value.VoucherDocumentId,
-      (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-1")).Value!.VoucherDocumentId);
+      (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-1")).Value!.VoucherDocumentId);
     Assert.Equal(2, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
     var vouchers = await db.CommercialDocuments.AsNoTracking().Where(x => x.Kind == CommercialDocumentKinds.PaymentVoucher).ToListAsync();
     Assert.Equal(2, vouchers.Count);
     var voucherReceipts = await db.Receipts.AsNoTracking().Where(x => vouchers.Select(v => v.ReceiptId).Contains(x.Id)).ToListAsync();
-    Assert.Equal(12500m, voucherReceipts.Sum(x => x.Amount));
+    Assert.Equal(10000m, voucherReceipts.Sum(x => x.Amount));
     var firstVoucher = DocxText(vouchers.Single(x => x.ReceiptId == partial.Value.ReceiptId).Bytes);
     var secondVoucher = DocxText(vouchers.Single(x => x.ReceiptId == paid.Value.ReceiptId).Bytes);
-    Assert.Contains("5,000.00 QAR", firstVoucher);
+    Assert.Contains("4,000.00 QAR", firstVoucher);
     Assert.Contains("TT-1", firstVoucher);
-    Assert.DoesNotContain("12,500.00 QAR from", firstVoucher);
-    Assert.Contains("7,500.00 QAR", secondVoucher);
+    Assert.DoesNotContain("10,000.00 QAR from", firstVoucher);
+    Assert.Contains("6,000.00 QAR", secondVoucher);
     Assert.Contains("TT-2", secondVoucher);
     // The first voucher states the balance as it stood after the first payment, even though it was issued after the second.
     Assert.Contains("Remaining on this invoice after this payment", firstVoucher);
-    Assert.Contains("7,500.00 QAR", firstVoucher);
+    Assert.Contains("6,000.00 QAR", firstVoucher);
     Assert.Equal(2, await db.CommercialNotifications.CountAsync(x => x.Kind == CommercialNotificationKinds.PaymentVoucher));
 
     // The isolated mail worker delivers the receipt email exactly once (the proposal dispatch email is separate).
@@ -942,12 +945,12 @@ public sealed class CommercialWorkflowTests
     Assert.True(balance.Succeeded, balance.Message);
     Assert.Equal(balance.Value, (await FeeAgreementService.IssueBalanceInvoiceAsync(db, w.FinanceManager, agreementId)).Value); // never twice
     Assert.NotEqual(advanceInvoice.Value, balance.Value);
-    Assert.Equal(25000m, await db.Invoices.Where(x => x.FirmId == w.FirmId).SumAsync(x => x.Total)); // advance + balance = agreed fee
+    Assert.Equal(20000m, await db.Invoices.Where(x => x.FirmId == w.FirmId).SumAsync(x => x.Total)); // advance + balance = agreed fee
     Assert.Equal(2, await db.BillingSourceAllocations.CountAsync(x => x.SourceKind == FeeAgreementService.MilestoneSourceKind));
 
     // Balance payment workflow (AS-COMP-08)
     // 1. Payment blocked while invoice is Draft
-    Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 12500m, "TT-BAL-1")).ErrorCode);
+    Assert.Equal(ErrorCodes.GateBlocked, (await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 10000m, "TT-BAL-1")).ErrorCode);
 
     // 2. Submit, approve and post the balance invoice
     Assert.True((await BillingService.SubmitInvoiceAsync(db, w.FinanceManager, balance.Value)).Succeeded);
@@ -969,17 +972,17 @@ public sealed class CommercialWorkflowTests
     await db.SaveChangesAsync();
 
     // 4. Partial balance payment
-    var balPartial = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-BAL-1");
+    var balPartial = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-BAL-1");
     Assert.True(balPartial.Succeeded, balPartial.Message);
     Assert.False(balPartial.Value!.MilestonePaid);
-    Assert.Equal(7500m, balPartial.Value.Outstanding);
+    Assert.Equal(6000m, balPartial.Value.Outstanding);
 
     // 5. Duplicate balance payment with same reference
-    var balRepeated = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 5000m, "TT-BAL-1");
+    var balRepeated = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-BAL-1");
     Assert.Equal(balPartial.Value.ReceiptId, balRepeated.Value!.ReceiptId);
 
     // 6. Complete balance payment
-    var balPaid = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 7500m, "TT-BAL-2");
+    var balPaid = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 6000m, "TT-BAL-2");
     Assert.True(balPaid.Succeeded, balPaid.Message);
     Assert.True(balPaid.Value!.MilestonePaid && balPaid.Value.EmailQueued);
     Assert.NotNull(balPaid.Value.ReceiptDocumentId);
@@ -1051,8 +1054,8 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(InvoicePaymentTermsStates.Approved, settledAdvanceInvoice.PaymentTermsStatus);
     Assert.Equal("NOT_TRACKED", settledAdvanceInvoice.DeliveryStatus);
     var originalPortalReceipt = Assert.Single(agreementFinance.Receipts, x => x.ReceiptId == partial.Value.ReceiptId);
-    Assert.Equal(5000m, decimal.Parse(originalPortalReceipt.Amount, CultureInfo.InvariantCulture));
-    Assert.Equal(5000m, decimal.Parse(originalPortalReceipt.AppliedAmount, CultureInfo.InvariantCulture));
+    Assert.Equal(4000m, decimal.Parse(originalPortalReceipt.Amount, CultureInfo.InvariantCulture));
+    Assert.Equal(4000m, decimal.Parse(originalPortalReceipt.AppliedAmount, CultureInfo.InvariantCulture));
 
     // An approved cash unapplication must reopen the current advance gate without
     // rewriting the receipt proving that it was previously settled.
@@ -1075,7 +1078,7 @@ public sealed class CommercialWorkflowTests
     var rejectedPortalFinance = await ClientPortalFinanceQuery.GetAsync(db, clientActor);
     Assert.True(rejectedPortalFinance.Succeeded, rejectedPortalFinance.Message);
     Assert.Equal("0", Assert.Single(rejectedPortalFinance.Value!.Agreements).OutstandingBalance);
-    Assert.Equal(5000m, decimal.Parse(Assert.Single(rejectedPortalFinance.Value.Agreements[0].Receipts,
+    Assert.Equal(4000m, decimal.Parse(Assert.Single(rejectedPortalFinance.Value.Agreements[0].Receipts,
       x => x.ReceiptId == partial.Value.ReceiptId).AppliedAmount, CultureInfo.InvariantCulture));
 
     var approvedReversal = await ReceiptAllocationReversalService.SubmitAsync(db, w.FinanceManager, advanceAllocation.Id,
@@ -1105,7 +1108,7 @@ public sealed class CommercialWorkflowTests
       // This replay reads its PAID milestone before waiting; reversal must win before
       // it can republish settlement from that stale tracked instance.
       var paymentReplay = FeeAgreementService.RecordAdvancePaymentAsync(replayDb, w.FinanceManager,
-        agreementId, 7500m, "TT-2", ct: timeout.Token);
+        agreementId, 6000m, "TT-2", ct: timeout.Token);
       try
       {
         await WaitForFirmWaiters(2);
@@ -1128,31 +1131,31 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(originalPaidReceiptId, advanceMilestone.ReceiptId);
     Assert.Equal(originalPaidAt, advanceMilestone.PaidAt);
     Assert.False(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
-    Assert.Equal(12400m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
+    Assert.Equal(9900m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
     var reopenedPortalFinance = await ClientPortalFinanceQuery.GetAsync(db, clientActor);
     Assert.True(reopenedPortalFinance.Succeeded, reopenedPortalFinance.Message);
     var reopenedPortalAgreement = Assert.Single(reopenedPortalFinance.Value!.Agreements);
     Assert.Equal(100m, decimal.Parse(reopenedPortalAgreement.OutstandingBalance, CultureInfo.InvariantCulture));
     var reopenedAdvanceInvoice = Assert.Single(reopenedPortalAgreement.Invoices, x => x.InvoiceId == advanceInvoice.Value);
     Assert.Equal("PARTIALLY_PAID", reopenedAdvanceInvoice.CollectionStatus);
-    Assert.Equal("12400", reopenedAdvanceInvoice.CashApplied);
-    Assert.Equal("100", reopenedAdvanceInvoice.OutstandingAmount);
+    Assert.Equal("9900.000000", reopenedAdvanceInvoice.CashApplied);
+    Assert.Equal("100.000000", reopenedAdvanceInvoice.OutstandingAmount);
     Assert.Equal(FirmReceivablesAgingPolicy.Overdue1To30, reopenedAdvanceInvoice.AgingStatus);
     var reversedPortalReceipt = Assert.Single(reopenedPortalAgreement.Receipts, x => x.ReceiptId == partial.Value.ReceiptId);
-    Assert.Equal(5000m, decimal.Parse(reversedPortalReceipt.Amount, CultureInfo.InvariantCulture));
-    Assert.Equal(4900m, decimal.Parse(reversedPortalReceipt.AppliedAmount, CultureInfo.InvariantCulture));
+    Assert.Equal(4000m, decimal.Parse(reversedPortalReceipt.Amount, CultureInfo.InvariantCulture));
+    Assert.Equal(3900m, decimal.Parse(reversedPortalReceipt.AppliedAmount, CultureInfo.InvariantCulture));
     var reopenedReadiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Partner, engagementId);
     Assert.True(reopenedReadiness.Succeeded, reopenedReadiness.Message);
     Assert.NotEqual(OnboardingReadinessStatuses.Paid, reopenedReadiness.Value!.AdvancePayment.Status);
     Assert.True((await ReceiptAllocationReversalService.ReviewAsync(db, w.FinanceReviewer, approvedReversal.Value, reversalReview)).Succeeded);
-    Assert.Equal(12400m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
+    Assert.Equal(9900m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
     Assert.Equal(originalSettlementBytes, (await db.CommercialDocuments.AsNoTracking()
       .SingleAsync(x => x.Id == originalSettlementId)).Bytes);
 
     var restored = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 100m, "TT-REPLACEMENT");
     Assert.True(restored.Succeeded, restored.Message);
     Assert.True(restored.Value!.MilestonePaid);
-    Assert.Equal(12500m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
+    Assert.Equal(10000m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
     Assert.Equal(FeeMilestoneStates.Paid, advanceMilestone.State);
     Assert.True(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
     Assert.Equal(originalSettlementBytes, (await db.CommercialDocuments.AsNoTracking()
@@ -1172,7 +1175,7 @@ public sealed class CommercialWorkflowTests
       agreementId, 100m, "TT-REPLACEMENT");
     Assert.True(cashStillMissing.Succeeded, cashStillMissing.Message);
     Assert.False(cashStillMissing.Value!.MilestonePaid);
-    Assert.Equal(12400m, cashStillMissing.Value.Allocated);
+    Assert.Equal(9900m, cashStillMissing.Value.Allocated);
     Assert.Equal(100m, cashStillMissing.Value.Outstanding);
     Assert.Equal(FeeMilestoneStates.Paid, advanceMilestone.State);
     Assert.False(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
