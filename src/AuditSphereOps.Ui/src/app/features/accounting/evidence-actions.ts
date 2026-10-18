@@ -54,7 +54,7 @@ export class EvidenceActions implements NavigationProtected {
   changeAction(event:Event){if(this.busy()||(this.uncertain()&&!this.absent()))return;const action=(event.target as HTMLSelectElement).value;if(action!=='LINK'&&action!=='REVIEW')return;this.model.update(m=>({...m,action,resultId:null,resultBasis:null,decision:''}));}
   chooseResult(event:Event){if(this.busy()||(this.uncertain()&&!this.absent()))return;const id=(event.target as HTMLSelectElement).value;const r=this.procedures.data()?.rows.find(x=>x.resultId===id&&!x.alreadyLinked);
     this.model.update(m=>({...m,resultId:r?.resultId??null,resultBasis:r?.resultBasis??null}));}
-  chooseDecision(event:Event){if(!this.busy()&&(!this.uncertain()||this.absent())){const d=(event.target as HTMLSelectElement).value;if(this.context()?.s.decisions.includes(d as any))this.model.update(m=>({...m,decision:d}));}}
+  chooseDecision(event:Event){if(!this.busy()&&(!this.uncertain()||this.absent())){const target=event.target;if(!(target instanceof HTMLSelectElement))return;const decision=this.context()?.s.decisions.find(candidate=>candidate===target.value);if(decision!==undefined)this.model.update(m=>({...m,decision}));}}
   async prepare(){const c=this.context(),g=this.generation,m=this.model();if(!c||this.busy()||!this.fields().valid()||(this.uncertain()&&!this.absent())||
     (m.action==='LINK' ? !c.s.canLink||!m.resultId : !c.s.canReview||!m.decision))return;
     const pending=this.pending(),r:Request={...structuredClone(m),requestId:pending?.requestId??crypto.randomUUID(),reviewBasis:c.s.reviewBasis,reviewed:false};

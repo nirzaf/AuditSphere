@@ -341,6 +341,35 @@ describe('Exact native journal editor and receipt recovery', () => {
     });
     expect(decoded.managementDecision?.decision).toBe('ACCEPTED');
     expect(decoded.sourceReflection?.state).toBe('REFLECTED');
+    const postedViewForReflection = {
+      status: 'Posted',
+      canEdit: false,
+      canSubmit: false,
+      canPost: false,
+      canReturn: false,
+      canReverse: true,
+      canReconcileReflection: true,
+    };
+    for (const state of ['NOT_REFLECTED', 'REFLECTED', 'PARTIALLY_REFLECTED', 'NOT_APPLICABLE'] as const) {
+      expect(decodeJournalReview({
+        ...v,
+        ...postedViewForReflection,
+        sourceReflection: {
+          state,
+          evidence: 'Synthetic bridge evidence',
+          reviewedByUserId: actor,
+          reviewedAt: '2026-02-02T11:00:00Z',
+          isExactRevision: true,
+        },
+      }).sourceReflection?.state).toBe(state);
+    }
+    expect(() => decodeJournalReview({
+      ...v,
+      ...postedViewForReflection,
+      sourceReflection: {
+        state: 'UNRECOGNIZED', evidence: '', reviewedByUserId: null, reviewedAt: null, isExactRevision: false,
+      },
+    })).toThrow();
     expect(() =>
       decodeJournalReview({ ...v, status: 'Draft', canReconcileReflection: true }),
     ).toThrow();

@@ -38,6 +38,27 @@ describe('native evidence action review and receipt recovery',()=>{
     expect(c.saveDraft()).toBe(true);expect(sessionStorage.getItem(sessionStorage.key(0)!)).not.toContain('"reviewed"');
     expect(evidenceActionFields({...fields,reviewed:true})).toBeNull();expect(evidenceActionFields({...fields,action:'REVIEW'})).toBeNull();
   });
+  it('accepts only a decision from the decoded server list and ignores non-select events', async()=>{
+    const {c}=await open();
+    c.model.set({...fields,action:'REVIEW',resultId:null,resultBasis:null,decision:''});
+    const select=document.createElement('select');
+    select.innerHTML='<option value="REJECTED">Rejected</option><option value="UNLISTED">Unlisted</option>';
+    const event=new Event('change');
+    Object.defineProperty(event,'target',{value:select});
+
+    select.value='REJECTED';
+    c.chooseDecision(event);
+    expect(c.model().decision).toBe('REJECTED');
+
+    select.value='UNLISTED';
+    c.chooseDecision(event);
+    expect(c.model().decision).toBe('REJECTED');
+
+    const buttonEvent=new Event('change');
+    Object.defineProperty(buttonEvent,'target',{value:document.createElement('button')});
+    c.chooseDecision(buttonEvent);
+    expect(c.model().decision).toBe('REJECTED');
+  });
   it('fences unknown dispatch, verifies an actor-owned receipt, then requires acknowledgment',async()=>{
     const {c}=await open();await prepare(c);c.reviewed.set(true);const task=c.execute();const r=http.expectOne(root+'/actions');const requestId=r.request.body.requestId;
     r.flush({}, {status:503,statusText:'Unavailable'});await task;expect(c.uncertain()).toBe(true);expect(await c.confirmNavigation()).toBe(false);await c.execute();http.expectNone(root+'/actions');

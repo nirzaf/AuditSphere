@@ -170,9 +170,10 @@ export class AdjustmentJournal implements NavigationProtected {
           this.uncertain.set(true);
           this.message.set(UNKNOWN_OUTCOME);
         }
-        if (v.sourceReflection && v.sourceReflection.state !== 'UNKNOWN') {
-          this.reflectionState.set(v.sourceReflection.state as any);
-          this.reflectionEvidence.set(v.sourceReflection.evidence ?? '');
+        const reflection = v.sourceReflection;
+        if (reflection && reflection.state !== 'UNKNOWN') {
+          this.reflectionState.set(reflection.state);
+          this.reflectionEvidence.set(reflection.evidence ?? '');
         } else {
           this.reflectionState.set('NOT_REFLECTED');
           this.reflectionEvidence.set('');
