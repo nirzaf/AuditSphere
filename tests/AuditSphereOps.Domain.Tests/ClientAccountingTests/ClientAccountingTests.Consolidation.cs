@@ -292,12 +292,13 @@ public sealed partial class ClientAccountingTests
     }
 
     Guid packageA, packageB;
-    string sourcePackagesBefore;
+    string sourcePackagesBefore, sourceClientBooksBefore;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       packageA = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientA).Select(x => x.Id).SingleAsync();
       packageB = await db.FinancialPackages.Where(x => x.ClientId == scope.ClientB).Select(x => x.Id).SingleAsync();
       sourcePackagesBefore = await CurrencyPackageSourceManifestAsync(db, [packageA, packageB]);
+      sourceClientBooksBefore = await ClientBookSourceManifestAsync(db, scope.FirmId, [scope.ClientA, scope.ClientB]);
       var packageMappings = await db.FinancialPackages.Where(x => x.Id == packageA || x.Id == packageB)
         .ToDictionaryAsync(x => x.Id, x => x.MappingVersionId);
       var invalidLineage = await ConsolidationService.SubmitComponentAsync(db, preparer,
@@ -463,6 +464,8 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(1, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == matchId));
       Assert.Empty(await db.ConsolidationRunLines.Where(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == outsideMatchId).ToListAsync());
       Assert.All(await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).ToListAsync(), x => Assert.Equal(AccountingWorkflowStates.Approved, x.Status));
+      Assert.Equal(sourceClientBooksBefore,
+        await ClientBookSourceManifestAsync(db, scope.FirmId, [scope.ClientA, scope.ClientB]));
 
       var newClientId = Guid.NewGuid();
       db.PracticeClients.Add(new PracticeClient { Id = newClientId, FirmId = scope.FirmId, LegalName = "CLIENT C", CreatedAt = DateTimeOffset.UtcNow });

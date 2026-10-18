@@ -31,8 +31,8 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 
 | Story | Disposition | Note |
 | --- | --- | --- |
-| PM-00 | PARTIAL | This crosswalk, and the scenario map below. NR-11 and NR-12 have no single named test. |
-| PM-01 | PARTIAL | Named staff, countdown and phase checklists are delivered. Per-phase milestone dates and a role-computed next action remain. |
+| PM-00 | PARTIAL | This crosswalk and scenario map; NR-11 now has explicit firm/client/consolidation source-book assertions. NR-12 has focused switch-off coverage but no complete switch-to-compatibility matrix. |
+| PM-01 | PARTIAL | Named staff, countdown and phase checklists are delivered. Operational task due dates and role-gated next actions are projected; approved statutory milestone mapping and broad browser acceptance remain. |
 | PM-02 | PARTIAL | Board and calendar views are delivered. Editable task groups and dependency authoring outside a template remain. |
 | PM-03 | OWNER_DECISION | DEC-01 and DEC-03 gate the recurrence action. |
 | PM-04 | PARTIAL | Reminder rule administration and escalation remain. |
@@ -161,13 +161,14 @@ Names are tests in `tests/AuditSphereOps.Domain.Tests`. A named test covers the 
 | NR-08 tenant and sibling isolation | `ClientProfileWorkspaceTests.ClientCommercialAuthorityDoesNotWidenEngagementRoleOrAggregateSiblingData`; `GlobalSearchQueryTests.ClientScopedUser_FindsOwnClientEngagementAndRequest_NeverTheSibling`; `EngagementCommunicationTimelineTests` | Whole-application coverage is CLOUD-09. |
 | NR-09 recurring year | `EngagementLifecycleQueryTests.PriorPeriodAcceptedOfferDoesNotAdvanceANewPeriodEngagement` | No recurrence action exists to test. |
 | NR-10 durable retries | `PbcTests.MailWorker_DeliversQueuedNotification_ExactlyOnce`; `EngagementActivationReviewTests.ExactReviewConcurrentRecoveryAndAppendOnlyEvidenceActivateOnce` | None found. |
-| NR-11 three books | No single named test was located. `FirmReceivablesAgingQueryTests` shows firm receivables read firm invoices only. | A named cross-ledger negative test is missing. |
-| NR-12 feature-off compatibility | `PbcWorkflowTaskTests.DisabledWorkflowDoesNotCreatePbcFollowUpTask` | One flag only; no general flag-off suite. |
+| NR-11 three books | `LedgerTests.LedgerWorkflow_IsBalancedIdempotentAndImmutable` proves a firm posting leaves that client's native journals/imported GL untouched; `ClientAccountingTests.SalesInvoiceIndependentPostIsAtomicScopedRecoverableAndReconcilesWithNativeGL` proves a client invoice post creates no firm journal/posting; `ClientAccountingTests.GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem` compares the component TB/GL/native-journal source manifest and approved package manifest before and after the group run. | These negative boundaries are now explicit. A named end-to-end firm-invoice source workflow and separate reporting-aggregate contamination case remain uncovered. |
+| NR-12 feature-off compatibility | `PbcWorkflowTaskTests.DisabledWorkflowDoesNotCreatePbcFollowUpTask`; `ClientSharePointSitesTests.DisabledPolicy_DoesNotEnqueueOrChangeExistingClientRepositories`; `WorkflowDashboardApiTests.DisabledExperienceKeepsTheExistingDenialAndConfigurationUnchanged`; `WorkflowEvidenceApiTests.DisabledExperienceDoesNotExposePrerequisiteOrReceiptRoutes`; `WorkflowDependencyApiTests.DisabledExperienceDoesNotExposePrerequisiteOrReceiptRoutes`; `EngagementDeadlineReminderApiTests.DisabledWorkflowExperienceReturnsTheQueueScopeDenial`; `CanonicalAngularHostTests` covers canonical-routing disablement and startup refusal. | Focused off-path checks exist for the identified workflow, client-site and canonical-UI switches. No single inventory proves every feature flag preserves every API contract, approval, historical record and UI route; NR-12 remains partial pending a scoped flag/compatibility matrix. |
 
 ## What can be built next without a decision
 
-- **NR-11 and NR-12:** a named cross-ledger negative test and a flag-off suite.
-- **PM-01 remainder:** a per-phase milestone date and a role-computed next action.
+- **NR-11 remainder:** add the actual firm-invoice source workflow and reporting-aggregate negative case when those named workflows are in scope; current ledger, client-invoice, and consolidation source-book boundaries have explicit regression assertions.
+- **NR-12 remainder:** inventory the v2.2 feature switches and map each to only its affected route, approval, retained-history, and UI compatibility checks; do not create a generic all-flags test that duplicates focused behavior.
+- **PM-01 remainder:** map statutory milestones to an approved, versioned source before adding milestone dates. The current seven-phase UI displays operational task deadlines only; role-gated next actions are implemented, while statutory milestone mapping and broad browser acceptance remain open.
 
 Everything else that is open waits on a decision listed as not decided in ADR-0018, on live infrastructure, or on a scope choice. Those are not development defects.
 

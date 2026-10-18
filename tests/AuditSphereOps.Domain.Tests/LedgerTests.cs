@@ -94,6 +94,11 @@ public sealed class LedgerTests
       var reversedLines = await db.FirmPostingLines.Where(x => x.PostingId == reversal.Value).ToListAsync();
       Assert.Equal(100m, reversedLines.Sum(x => x.Credit));
       Assert.Equal(100m, reversedLines.Sum(x => x.Debit));
+
+      Assert.Empty(await db.ClientOperationalJournals.AsNoTracking()
+        .Where(x => x.FirmId == fixture.FirmId && x.ClientId == fixture.ClientId).ToListAsync());
+      Assert.Empty(await db.GeneralLedgerTransactions.AsNoTracking()
+        .Where(x => x.FirmId == fixture.FirmId && x.ClientId == fixture.ClientId).ToListAsync());
     }
   }
 

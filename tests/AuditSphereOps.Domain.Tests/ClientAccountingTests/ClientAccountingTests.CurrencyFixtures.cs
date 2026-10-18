@@ -238,6 +238,38 @@ public sealed partial class ClientAccountingTests
     return System.Text.Json.JsonSerializer.Serialize(new { packages, lines, artifacts });
   }
 
+  private static async Task<string> ClientBookSourceManifestAsync(AuditSphereDbContext db, Guid firmId, Guid[] clientIds)
+  {
+    var datasets = await db.TrialBalanceDatasets.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var datasetIds = datasets.Select(x => x.Id).ToArray();
+    var rows = await db.TrialBalanceRows.AsNoTracking().Where(x => datasetIds.Contains(x.DatasetId))
+      .OrderBy(x => x.Id).ToListAsync();
+    var transactions = await db.GeneralLedgerTransactions.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var generalLedgerLines = await db.GeneralLedgerLines.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var journals = await db.ClientOperationalJournals.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var operationalLines = await db.ClientOperationalJournalLines.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var decisions = await db.ClientOperationalJournalDecisions.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var snapshots = await db.ClientOperationalJournalSnapshots.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var reversals = await db.ClientOperationalJournalReversals.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var receipts = await db.ClientOperationalPostingReceipts.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    var openingBalances = await db.ClientOperationalOpeningBalances.AsNoTracking()
+      .Where(x => x.FirmId == firmId && clientIds.Contains(x.ClientId)).OrderBy(x => x.Id).ToListAsync();
+    return System.Text.Json.JsonSerializer.Serialize(new
+    {
+      datasets, rows, transactions, generalLedgerLines, journals, operationalLines, decisions, snapshots, reversals, receipts,
+      openingBalances
+    });
+  }
+
   // Raw, deliberately unreviewable input for service gate-denial tests only.
   private static async Task<Guid> AddSparseCurrencyPackageAsync(AuditSphereDbContext db, Scope scope, Guid clientId, Guid engagementId,
     IReadOnlyList<(string Destination, string Section, decimal Amount)> lines,

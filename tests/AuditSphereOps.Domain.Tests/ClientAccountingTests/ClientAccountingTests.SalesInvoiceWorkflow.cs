@@ -83,7 +83,9 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(2,gl.TotalEntries);Assert.Equal(125m,decimal.Parse(gl.TrialBalance.ClosingDebit,CultureInfo.InvariantCulture));Assert.Equal(125m,decimal.Parse(gl.TrialBalance.ClosingCredit,CultureInfo.InvariantCulture));
       Assert.Equal(125m,decimal.Parse(gl.Accounts.Single(x=>x.AccountCode=="1100").DebitMovement,CultureInfo.InvariantCulture));
       Assert.Equal(125m,decimal.Parse(gl.Accounts.Single(x=>x.AccountCode=="4000").CreditMovement,CultureInfo.InvariantCulture));
-      Assert.Single(await db.ClientSalesInvoiceDecisions.ToListAsync());Assert.Single(await db.ClientOperationalPostingReceipts.ToListAsync());Assert.Single(await db.ClientSalesInvoiceOpenItems.ToListAsync());Assert.Empty(await db.FirmJournals.ToListAsync());
+      Assert.Single(await db.ClientSalesInvoiceDecisions.ToListAsync());Assert.Single(await db.ClientOperationalPostingReceipts.ToListAsync());Assert.Single(await db.ClientSalesInvoiceOpenItems.ToListAsync());
+      Assert.Empty(await db.FirmJournals.Where(x => x.FirmId == s.FirmId).ToListAsync());
+      Assert.Empty(await db.FirmPostings.Where(x => x.FirmId == s.FirmId).ToListAsync());
       Assert.False((await ClientOperationalLedgerWorkspace.CreateReversalAsync(db,maker,s.ClientA,lifecycle.JournalId!.Value,new(long.Parse(lifecycle.JournalRevision!),f.Period,"REV-1",new(2026,1,20),"Bypass","Evidence"))).Succeeded);
       var submissionDelete=await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlRawAsync("DELETE FROM client_sales_invoice_submissions"));Assert.Equal("23514",submissionDelete.SqlState);
       var decisionDelete=await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlRawAsync("DELETE FROM client_sales_invoice_decisions"));Assert.Equal("23514",decisionDelete.SqlState);
