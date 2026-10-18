@@ -53,7 +53,7 @@ Commit `5e9a1eb5` prevents an approved time entry from being corrected after its
 
 ## Workflow dependency graph bound (2026-10-18)
 
-The existing dependency command checks the complete engagement graph before saving and refuses graphs beyond its 500-task/4,000-edge bounds. A focused PostgreSQL regression seeds 501 scoped workflow tasks, attempts an edge change, and asserts `GateBlocked`, zero dependency revisions, unchanged task-binding revisions, and no dependency-change activity. The focused test passed; exact run metadata is in `status.json`. The 4,001-edge branch is not independently exercised; `ASPM-WF-02` and PMCOMP-06 remain partial. No full suite was run locally.
+The existing dependency command checks the complete engagement graph before saving and refuses graphs beyond its 500-task/4,000-edge bounds. Focused PostgreSQL regressions now cover both overflow paths: a valid published-template graph with 501 tasks, and an acyclic 4,001-edge pinned graph created through the template and plan services. Both return `GateBlocked` with no dependency revisions, task-binding revision changes or dependency-change activity. The 4,001-edge test passed 1/1 locally. Current-SHA full release verification is running in CI; no full suite was run locally. `ASPM-WF-02` and PMCOMP-06 remain partial for broader acceptance. Exact test evidence is in `status.json` under `targetedVerification.workflowDependencyGraphLimit20261018`.
 
 ## Engagement workflow phase cues (2026-10-18)
 

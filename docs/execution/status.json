@@ -1086,26 +1086,25 @@
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018"
     },
     "workflowDependencyGraphLimit20261018": {
-      "recordedAtUtc": "2026-10-18T06:40:04Z",
-      "sourceCommit": "77613c4a731c9915d9c911c7eadbe31756d45b73",
+      "recordedAtUtc": "2026-10-18T08:46:21Z",
+      "sourceCommit": "58a073b79526731653cd2e51b6e598d291bee39e",
       "status": "PARTIAL",
-      "scope": "ASPM-WF-02: task-count overflow rejects before graph mutation; 4,001-edge overflow and broad criterion acceptance remain unverified.",
-      "runs": [
+      "scope": "501-task and 4,001-edge graph bounds reject atomically; broader ASPM-WF-02/PMCOMP-06 acceptance remains partial.",
+      "tests": [
         {
-          "name": "Workflow dependency graph task-bound rejection",
-          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~WorkflowDependencyAmendmentTests.GraphBeyondTaskBoundIsRejectedWithoutPartialApplication'",
-          "result": "PASS",
-          "passed": 1,
-          "failed": 0,
-          "skipped": 0,
-          "total": 1,
-          "duration": "39s",
-          "asserted": "501 tasks refused with GateBlocked; zero dependency revisions, unchanged binding revisions, no dependency-change activity."
+          "name": "GraphBeyondTaskBoundIsRejectedWithoutPartialApplication",
+          "sourceCommit": "77613c4a731c9915d9c911c7eadbe31756d45b73",
+          "result": "PASS 1/1",
+          "asserted": "501 tasks; no revisions, binding changes or activity."
+        },
+        {
+          "name": "GraphBeyondEdgeBoundIsRejectedWithoutPartialApplication",
+          "sourceCommit": "58a073b79526731653cd2e51b6e598d291bee39e",
+          "result": "PASS 1/1, 6s",
+          "asserted": "4,001 pinned edges; no revisions, binding changes or activity."
         }
       ],
-      "stillOpen": [
-        "Test the 4,001-edge overflow path independently; ASPM-WF-02 and PMCOMP-06 remain partial."
-      ]
+      "releaseRun": "39112632278 (in progress)"
     },
     "practiceContactValidity20261018": {
       "sourceCommit": "95af9748f30b8d48c823d0461c2cd0c4d19c3e35",
