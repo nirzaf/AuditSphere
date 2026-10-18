@@ -199,7 +199,6 @@
     <section
       class="panel"
       aria-labelledby="active-heading"
-      (keydown.escape)="cancelEdit(); $event.stopPropagation()"
     >
       <h2 id="active-heading">Edit account {{ active().accountCode }}</h2>
       <form (submit)="$event.preventDefault(); stage()">

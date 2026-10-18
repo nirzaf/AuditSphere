@@ -75,6 +75,15 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": { "setupFiles": ["testing/browser-setup.ts"] }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"],
+            "cache": false,
+            "force": false,
+            "maxWarnings": 0
+          }
         }
       }
     }

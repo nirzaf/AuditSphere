@@ -125,6 +125,8 @@ jobs:
           set -euo pipefail
           bash scripts/release/run-verification-step.sh "npm ci (Angular)" \
             npm --prefix src/AuditSphereOps.Ui ci
+          bash scripts/release/run-verification-step.sh "Angular production lint" \
+            npm --prefix src/AuditSphereOps.Ui run lint:ci
           bash scripts/release/run-verification-step.sh "Angular production build" \
             npm --prefix src/AuditSphereOps.Ui run build
           bash scripts/release/run-verification-step.sh "Angular full specs (test:ci)" \

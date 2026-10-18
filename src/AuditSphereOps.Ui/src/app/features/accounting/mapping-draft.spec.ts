@@ -408,4 +408,16 @@ describe('Reviewed new mapping version workflow', () => {
     expect(c.changes()).toEqual([]);
     f.destroy();
   });
+  it('cancels the active mapping editor when Escape bubbles from a form control', async () => {
+    const { f, c } = await open();
+    c.edit('1000');
+    f.detectChanges();
+    const control = (f.nativeElement as HTMLElement).querySelector(
+      '[aria-labelledby="active-heading"] select',
+    );
+    expect(control).not.toBeNull();
+    control!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(c.active().accountCode).toBe('');
+    f.destroy();
+  });
 });

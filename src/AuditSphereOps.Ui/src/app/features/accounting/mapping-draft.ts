@@ -39,6 +39,7 @@ import {
 @Component({
   selector: 'audit-mapping-draft',
   imports: [RouterLink, FormField, MatButtonModule, ...SHARED],
+  host: { '(keydown.escape)': 'cancelEdit(); $event.stopPropagation()' },
   templateUrl: './mapping-draft.html',
   styleUrl: './mapping-draft.scss',
 })

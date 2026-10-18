@@ -42,7 +42,7 @@ export function decodeSalesDraft(value: unknown, client: string, invoice?: strin
     @if (retry()) { <label><input type="checkbox" [ngModel]="reviewed()" (ngModelChange)="reviewed.set($event)" /> Retry this exact unchanged draft request.</label><button matButton type="button" [disabled]="busy() || !reviewed()" (click)="sendPending()">Retry original invoice draft request</button> }
   }
   <details><summary>Prepare or revise a sales draft</summary>
-    <label>Customer page</label><button matButton type="button" [disabled]="busy()" (click)="loadCustomers(0)">Load client customers</button>
+    <p>Customer page</p><button matButton type="button" [disabled]="busy()" (click)="loadCustomers(0)">Load client customers</button>
     @if (customers(); as c) { <p>{{ c.total }} customers · Page {{ c.page + 1 }}</p><button matButton type="button" [disabled]="busy() || c.page === 0" (click)="loadCustomers(c.page - 1)">Previous invoice customers</button><button matButton type="button" [disabled]="busy() || (c.page + 1) * 25 >= c.total" (click)="loadCustomers(c.page + 1)">Next invoice customers</button> }
     <form #form="ngForm" (ngSubmit)="form.valid && save()"><fieldset [disabled]="busy() || !!pending()"><legend>Unposted sales draft</legend>
       <label>Sales draft period <select aria-label="Sales draft period" name="period" [(ngModel)]="periodId" (ngModelChange)="reviewed.set(false)" required><option value="">Choose period</option>@for (p of periods(); track p.id) { <option [value]="p.id" [disabled]="p.status === 'CLOSED'">{{ p.code }}</option> }</select></label>

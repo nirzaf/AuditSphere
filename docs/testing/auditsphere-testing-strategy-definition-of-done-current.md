@@ -17,6 +17,13 @@ For changed Angular workflows, use the scoped [rendered accessibility checklist]
 
 **Efficiency rule:** Local agents must **not** run full `.NET` solution tests, all Angular specs or all E2E by default; use the narrowest credible proving tests after a coherent slice. The combined unfiltered Domain/API/PostgreSQL/browser release gate belongs in `.github/workflows/release-verification.yml` (fast `ci.yml` also runs the full Angular spec suite), against that workflow's resolved immutable commit SHA; do not run full suites locally. Cached restore/build artifacts may be reused when sound. Fast CI is deliberately not expanded into full PostgreSQL/E2E for every PR.
 
+Angular ESLint is a separate static check in the existing fast and full CI
+workflows. For local lint feedback, use the `lint:files` script with explicit
+changed production paths; an inline template is linted through its owning
+TypeScript file. Do not run the full `lint:ci` tree locally during routine
+development. A lint result does not replace builds, behavior tests, browser
+verification or the full CI suites.
+
 **Current release precondition:** `.github/workflows/release.yml` requires both `verify-ci-passed` and `verify-release-source` for the exact SHA; the latter consumes retained `release-verification.yml` evidence. A full-regression release claim still requires inspecting the retained full suite result for that same SHA. Adding a new automatic production gate or changing triggers is a separate owner decision; do not imply one is already implemented.
 
 ## 2. Definition of Done — by verification level

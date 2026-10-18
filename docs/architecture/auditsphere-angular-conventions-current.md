@@ -60,6 +60,24 @@ implemented patterns; acceptance claims always belong to `docs/execution/status.
   kept in step with the `SpaRoutes` table in
   `UiEndpoints.Infrastructure.cs`, and deep links must survive reload.
 
+## Static lint
+
+- `npm run lint:ci` runs the Angular ESLint target over production TypeScript
+  and external templates. It is part of both existing CI workflows; it is a
+  static check, not a new test suite.
+- For local feedback, pass only changed production files to
+  `npm run lint:files -- <file...>`. Include the owning `.ts` file for an
+  inline template and both the component and external `.html` file when both
+  changed. Do not invoke `lint:files` without an explicit file list.
+- The flat config intentionally uses syntax-level rules. It excludes generated
+  output, caches, dependencies, specs and `testing/` fixtures; production
+  directories remain in scope. No type-aware whole-project lint, formatter
+  preset or style rewrite is enabled.
+- Errors must be fixed at their production source. Use a narrow, documented
+  exception only when the actual rendered semantics prove a selected rule is
+  a false positive; do not ignore a feature directory or relax the rule
+  globally.
+
 ## Drafts, assent and session fencing
 
 - Convenience form persistence uses `core/drafts.ts` (identity-scoped keys,
