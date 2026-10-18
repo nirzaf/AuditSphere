@@ -65,12 +65,14 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<StaffAllocation>(e =>
     {
-      e.HasIndex(x => new { x.FirmId, x.EngagementId, x.UserId, x.WeekStart }).IsUnique();
+      e.HasIndex(x => new { x.FirmId, x.EngagementId, x.UserId, x.WeekStart, x.Phase, x.RiskArea }).IsUnique();
       e.HasIndex(x => new { x.FirmId, x.WeekStart });
       e.HasOne<Engagement>().WithMany().HasForeignKey(x => x.EngagementId).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+      e.Property(x => x.Phase).HasMaxLength(30).HasDefaultValue(BudgetPhases.Unassigned);
+      e.Property(x => x.RiskArea).HasMaxLength(100).HasDefaultValue(string.Empty);
       e.ToTable("staff_allocations", t => t.HasCheckConstraint("ck_staff_allocation_values",
-        "planned_minutes BETWEEN 1 AND 4800 AND extract(dow from week_start) = 0"));
+        "planned_minutes BETWEEN 1 AND 4800 AND extract(dow from week_start) = 0 AND phase IN ('PLANNING','FIELDWORK','COMPLETION','REPORTING','UNASSIGNED') AND risk_area = btrim(risk_area) AND length(risk_area) <= 100"));
     });
     b.Entity<MaterialityCalculation>(e =>
     {

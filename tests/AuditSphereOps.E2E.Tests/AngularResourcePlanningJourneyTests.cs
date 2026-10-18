@@ -26,7 +26,7 @@ public sealed class AngularResourcePlanningJourneyTests
       Assert.True((await ResourcePlanningService.SaveProfileAsync(db, actor,
         new(f.Staff.Id, "Audit", "IFRS", 2400, 75m))).Succeeded);
       Assert.True((await ResourcePlanningService.SetAllocationAsync(db, actor,
-        new(f.EngagementId, f.Staff.Id, week, 600))).Succeeded);
+        new(f.EngagementId, f.Staff.Id, week, 600, BudgetPhases.Fieldwork, "Revenue"))).Succeeded);
     }
 
     var settings = new Dictionary<string, string>
@@ -51,6 +51,8 @@ public sealed class AngularResourcePlanningJourneyTests
     await allocation.GetByLabel("Engagement", new() { Exact = true }).SelectOptionAsync(f.EngagementId.ToString());
     await allocation.GetByLabel("Team member", new() { Exact = true }).SelectOptionAsync(f.Staff.Id.ToString());
     await allocation.GetByLabel("Week of", new() { Exact = true }).FillAsync(week.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+    await allocation.GetByLabel("Work phase", new() { Exact = true }).SelectOptionAsync(BudgetPhases.Fieldwork);
+    await allocation.GetByLabel("Risk area (optional)", new() { Exact = true }).FillAsync("Revenue");
     await allocation.GetByLabel("Planned hours", new() { Exact = true }).FillAsync("20");
     var previewResponse = page.WaitForResponseAsync(response =>
       response.Request.Method == "POST" && response.Url.EndsWith("/api/ui/practice/resources/preview", StringComparison.Ordinal));
@@ -65,7 +67,7 @@ public sealed class AngularResourcePlanningJourneyTests
       await using var db = host.CreateDbContext();
       var actor = PbcSeed.Actor(f.Admin, "Administrator");
       var concurrentChange = await ResourcePlanningService.SetAllocationAsync(db, actor,
-        new(f.EngagementId, f.Staff.Id, week, 120));
+        new(f.EngagementId, f.Staff.Id, week, 120, BudgetPhases.Fieldwork, "Revenue"));
       Assert.True(concurrentChange.Succeeded);
       await route.ContinueAsync();
     });
@@ -188,9 +190,13 @@ public sealed class AngularResourcePlanningJourneyTests
     var allocation=page.GetByRole(AriaRole.Form,new(){Name="Save allocation",Exact=true});
     await allocation.GetByLabel("Engagement",new(){Exact=true}).SelectOptionAsync(f.EngagementId.ToString());
     await allocation.GetByLabel("Team member",new(){Exact=true}).SelectOptionAsync(f.Staff.Id.ToString());
+    await allocation.GetByLabel("Work phase",new(){Exact=true}).SelectOptionAsync(BudgetPhases.Fieldwork);
+    await allocation.GetByLabel("Risk area (optional)",new(){Exact=true}).FillAsync("Revenue");
     await allocation.GetByLabel("Planned hours",new(){Exact=true}).FillAsync("30");
     await SubmitAndConfirmAsync(allocation.GetByRole(AriaRole.Button,new(){Name="Save allocation",Exact=true}));
     await Assertions.Expect(table.Locator("tr[data-user='Synthetic resource staff']")).ToContainTextAsync("Over-allocated");
+    await Assertions.Expect(page.Locator("[aria-labelledby='allocations-heading']")).ToContainTextAsync("Fieldwork");
+    await Assertions.Expect(page.Locator("[aria-labelledby='allocations-heading']")).ToContainTextAsync("Revenue");
     await Assertions.Expect(page.Locator("[aria-labelledby='allocations-heading']")).ToContainTextAsync("30 hours");
     var certification=page.GetByRole(AriaRole.Form,new(){Name="Add certification",Exact=true});
     await certification.GetByLabel("Team member",new(){Exact=true}).SelectOptionAsync(f.Staff.Id.ToString());

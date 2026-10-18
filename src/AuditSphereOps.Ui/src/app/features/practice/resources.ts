@@ -15,13 +15,14 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { Api, CommandState } from '../../core/api';
 import { SessionService } from '../../core/session';
-import { arr, bool, date, decode, dec, guid, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, date, decode, dec, guid, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { hours } from './analytics';
 import {
   ResourceEditor,
   ResourceFormKind,
   ResourceModel,
+  RESOURCE_PHASES,
   resourceMinutes,
   validResourceDate,
 } from './resource-editor';
@@ -48,6 +49,7 @@ const cell = obj({
   overAllocated: bool,
   approvedBillableMinutes: nat,
 });
+const allocationPhase = oneOf('PLANNING', 'FIELDWORK', 'COMPLETION', 'REPORTING', 'UNASSIGNED');
 const row = obj({
   userId: guid,
   name: text,
@@ -59,7 +61,8 @@ const row = obj({
   hasProfile: bool,
   weeks: arr(cell, 12),
   allocations: arr(
-    obj({ engagementId: guid, engagementLabel: text, weekStart: date, plannedMinutes: nat }),
+    obj({ engagementId: guid, engagementLabel: text, weekStart: date, phase: allocationPhase,
+      riskArea: nullable(text), plannedMinutes: nat }),
     500,
   ),
 });
@@ -169,6 +172,8 @@ export class ResourcePlanning {
   );
   readonly hrs = (m: number) => hours(m).replace(/\.0$/, '');
   readonly whole = whole;
+  readonly phaseLabel = (phase: string) =>
+    RESOURCE_PHASES.find((item) => item.value === phase)?.label ?? 'Legacy phase not assigned';
   readonly weekStarts = resourceWeekStarts;
   readonly hasAllocations = computed(
     () => this.view.data()?.grid.rows.some((r) => r.allocations.length) ?? false,
@@ -282,13 +287,14 @@ export class ResourcePlanning {
     const owner = this.owner(),
       visit = ++this.commandVisit,
       edit = this.editVisit,
-      requestId = crypto.randomUUID();
+      requestId = crypto.randomUUID(),
+      fields = planningFields(kind, m);
     this.cmd.busy.set(true);
     this.cmd.message.set('');
     try {
       const r = await this.api.command('/api/ui/practice/resources/preview', {
         requestId,
-        fields: planningFields(kind, m),
+        fields,
       });
       if (
         !this.alive ||
@@ -312,7 +318,13 @@ export class ResourcePlanning {
       if (
         p.requestId !== requestId ||
         p.fields.userId !== m.user ||
-        p.fields.kind !== kind.toUpperCase()
+        p.fields.kind !== kind.toUpperCase() ||
+        (kind === 'allocation' &&
+          (p.fields.engagementId !== fields.engagementId ||
+            p.fields.weekStart !== fields.weekStart ||
+            p.fields.plannedMinutes !== fields.plannedMinutes ||
+            p.fields.phase !== fields.phase ||
+            p.fields.riskArea !== fields.riskArea))
       )
         throw new Error('Unsupported preview');
       this.preview.set(p);

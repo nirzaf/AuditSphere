@@ -104,7 +104,7 @@ public sealed class StaffAvailability
   public Guid RecordedByUserId { get; set; }
 }
 
-/// <summary>Planned minutes for one person on one engagement in one week (Sunday start).</summary>
+/// <summary>Planned minutes for one person, engagement, week, phase and optional risk area (Sunday start).</summary>
 public sealed class StaffAllocation
 {
   public Guid Id { get; set; }
@@ -113,6 +113,10 @@ public sealed class StaffAllocation
   public Guid EngagementId { get; set; }
   public Guid UserId { get; set; }
   public DateOnly WeekStart { get; set; }
+  /// <summary>Budget phase; older allocations retain UNASSIGNED until a planner deliberately replaces them.</summary>
+  public string Phase { get; set; } = BudgetPhases.Unassigned;
+  /// <summary>Optional normalized risk-area label; empty means no risk-area attribution.</summary>
+  public string RiskArea { get; set; } = string.Empty;
   public int PlannedMinutes { get; set; }
   public DateTimeOffset UpdatedAt { get; set; }
   public Guid UpdatedByUserId { get; set; }

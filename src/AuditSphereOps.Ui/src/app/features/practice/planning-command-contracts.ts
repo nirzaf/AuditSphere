@@ -2,7 +2,9 @@ import { bool, date, guid, nat, nullable, obj, text } from '../../core/decode';
 import {
   ResourceFormKind,
   ResourceModel,
+  RESOURCE_PHASES,
   resourceMinutes,
+  resourceWeekStart,
   validResourceDate,
 } from './resource-editor';
 const hash = (v: unknown): string => {
@@ -39,6 +41,8 @@ const rawFields = obj({
   minutesPerDay: nullable(nat),
   weekStart: nullable(calendar),
   plannedMinutes: nullable(nat),
+  phase: nullable(bounded(30)),
+  riskArea: nullable(bounded(100)),
 });
 export type PlanningFields = ReturnType<typeof rawFields>;
 export function decodePlanningFields(raw: unknown): PlanningFields {
@@ -85,12 +89,18 @@ export function decodePlanningFields(raw: unknown): PlanningFields {
       });
       break;
     case 'ALLOCATION':
-      if (!f.engagementId || !f.weekStart || f.plannedMinutes === null || f.plannedMinutes > 4800)
+      if (
+        !f.engagementId || !f.weekStart || f.plannedMinutes === null || f.plannedMinutes > 4800 ||
+        f.phase !== null && !RESOURCE_PHASES.some((phase) => phase.value === f.phase) ||
+        f.riskArea !== null && f.riskArea !== f.riskArea.trim()
+      )
         throw new Error('Unsupported allocation');
       Object.assign(shaped, {
         engagementId: f.engagementId,
         weekStart: f.weekStart,
         plannedMinutes: f.plannedMinutes,
+        phase: f.phase,
+        riskArea: f.riskArea,
       });
       break;
     default:
@@ -116,6 +126,8 @@ export function emptyPlanningFields(kind: string, userId: string): PlanningField
     minutesPerDay: null,
     weekStart: null,
     plannedMinutes: null,
+    phase: null,
+    riskArea: null,
   };
 }
 export function planningFields(kind: ResourceFormKind, m: ResourceModel): PlanningFields {
@@ -124,9 +136,16 @@ export function planningFields(kind: ResourceFormKind, m: ResourceModel): Planni
     case 'profile':
       Object.assign(f, {
         department: m.department.trim(),
-        skills: m.skills.trim() || null,
+        skills:
+          m.skills
+            .split(',')
+            .map((skill) => skill.trim().toUpperCase())
+            .filter(Boolean)
+            .filter((skill, index, all) => all.indexOf(skill) === index)
+            .slice(0, 30)
+            .join(',') || null,
         weeklyCapacityMinutes: resourceMinutes(m.capacity),
-        targetUtilizationPercent: m.target.trim(),
+        targetUtilizationPercent: String(Number(m.target.trim())),
       });
       break;
     case 'certification':
@@ -143,8 +162,10 @@ export function planningFields(kind: ResourceFormKind, m: ResourceModel): Planni
     case 'allocation':
       Object.assign(f, {
         engagementId: m.engagement,
-        weekStart: m.week,
+        weekStart: resourceWeekStart(m.week),
         plannedMinutes: resourceMinutes(m.hours),
+        phase: m.phase,
+        riskArea: m.riskArea.trim() || null,
       });
       break;
   }
@@ -167,6 +188,8 @@ const preview = obj({
     capacityMinutes: nullable(nat),
     unavailableMinutes: nullable(nat),
     totalPlannedMinutes: nullable(nat),
+    allocationPhase: nullable(bounded(30)),
+    allocationRiskArea: nullable(bounded(100)),
   }),
   effect: bounded(2000),
 });
@@ -235,6 +258,10 @@ export function planningSummary(p: PlanningPreview): { label: string; value: str
     case 'ALLOCATION':
       add('Engagement', b.engagementLabel);
       add('Week of', f.weekStart);
+      add('Previous phase', b.allocationPhase);
+      add('Previous risk area', b.allocationRiskArea);
+      add('Proposed phase', f.phase ?? 'Legacy phase not assigned');
+      add('Proposed risk area', f.riskArea ?? 'No specific risk area');
       add('Previous allocation (minutes)', b.plannedMinutes);
       add('Proposed allocation (minutes)', f.plannedMinutes);
       add('Current capacity (minutes)', b.capacityMinutes);

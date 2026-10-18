@@ -14,7 +14,8 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     "PROFILE"=>new(kind,w.Users["associate"].Id,Department:"Audit",Skills:"IFRS,ifrs",WeeklyCapacityMinutes:1200,TargetUtilizationPercent:"75.00"),
     "CERTIFICATION"=>new(kind,w.Users["associate"].Id,Name:"Synthetic certification",ExpiresOn:new DateOnly(2028,12,31)),
     "AVAILABILITY"=>new(kind,w.Users["associate"].Id,StartDate:new DateOnly(2026,10,5),EndDate:new DateOnly(2026,10,6),AvailabilityKind:"LEAVE",MinutesPerDay:480),
-    _=>new(kind,w.Users["associate"].Id,EngagementId:w.EngagementId,WeekStart:new DateOnly(2026,10,7),PlannedMinutes:1800) };
+    _=>new(kind,w.Users["associate"].Id,EngagementId:w.EngagementId,WeekStart:new DateOnly(2026,10,7),PlannedMinutes:1800,
+      Phase:BudgetPhases.Fieldwork,RiskArea:"Revenue") };
   private static async Task<ResourcePlanningCommandRequest> PlanningReview(AuditSphereDbContext db,World w,ResourcePlanningFields fields)
   {
     var result=await ResourcePlanningCommandWorkspace.PreviewAsync(db,w.Actor("partner","Partner"),new(Guid.NewGuid(),fields));
@@ -43,16 +44,29 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     await using var pg=await PgTestSchema.CreateAsync();var w=await SeedAsync(pg);
     await using var db=new AuditSphereDbContext(pg.Options);var actor=w.Actor("partner","Partner");
     Assert.True((await StaffingService.AssignAsync(db,actor,new(w.EngagementId,w.Users["associate"].Id,StaffingLevels.StaffAssociate))).Succeeded);
+    Assert.Equal("resource.invalid",(await ResourcePlanningService.SetAllocationAsync(db,actor,
+      new(w.EngagementId,w.Users["associate"].Id,new DateOnly(2026,10,5),1200,BudgetPhases.Unassigned,"Revenue"))).ErrorCode);
     var r=await PlanningReview(db,w,PlanningFields(w,"ALLOCATION"));
-    Assert.True((await ResourcePlanningService.SetAllocationAsync(db,actor,new(w.EngagementId,w.Users["associate"].Id,new DateOnly(2026,10,5),1200))).Succeeded);
+    Assert.True((await ResourcePlanningService.SetAllocationAsync(db,actor,new(w.EngagementId,w.Users["associate"].Id,new DateOnly(2026,10,5),1200,
+      BudgetPhases.Fieldwork,"Revenue"))).Succeeded);
+    Assert.True((await ResourcePlanningService.SetAllocationAsync(db,actor,new(w.EngagementId,w.Users["associate"].Id,new DateOnly(2026,10,7),600,
+      BudgetPhases.Completion,"Cash"))).Succeeded);
     Assert.False((await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,r)).Succeeded);
-    Assert.Equal(1200,(await db.StaffAllocations.SingleAsync()).PlannedMinutes);
+    Assert.Equal(2,await db.StaffAllocations.CountAsync());
+    Assert.Equal(1800,(await ResourcePlanningService.GetGridAsync(db,actor,new DateOnly(2026,10,4),1)).Value!.Rows
+      .Single(x=>x.UserId==w.Users["associate"].Id).Weeks.Single().PlannedMinutes);
     r=await PlanningReview(db,w,PlanningFields(w,"ALLOCATION"));
     Assert.True((await ResourcePlanningService.SaveProfileAsync(db,actor,new(w.Users["associate"].Id,"Audit","",2400,80))).Succeeded);
     Assert.False((await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,r)).Succeeded);
+    var secondLine=await PlanningReview(db,w,PlanningFields(w,"ALLOCATION") with
+      {Phase=BudgetPhases.Completion,RiskArea="Cash",PlannedMinutes=300});
+    var secondPublished=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,secondLine);
+    Assert.True(secondPublished.Succeeded,secondPublished.Message);
     var removal=await PlanningReview(db,w,PlanningFields(w,"ALLOCATION") with {PlannedMinutes=0});
     var result=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,removal);Assert.True(result.Succeeded,result.Message);Assert.Null(result.Value!.ResourceId);
-    Assert.Empty(await db.StaffAllocations.ToListAsync());Assert.Single(await db.EngagementStaffAssignments.ToListAsync());
+    var remaining=await db.StaffAllocations.SingleAsync();
+    Assert.Equal((BudgetPhases.Completion,"Cash",300),(remaining.Phase,remaining.RiskArea,remaining.PlannedMinutes));
+    Assert.Single(await db.EngagementStaffAssignments.ToListAsync());
     var retry=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,removal);Assert.Equal(result.Value.Id,retry.Value!.Id);
   }
   [Fact]
@@ -143,7 +157,8 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Assert.False((await ResourcePlanningCommandWorkspace.PreviewAsync(db,actor,new(Guid.NewGuid(),r.Fields))).Succeeded);
     Assert.False((await ResourcePlanningCommandWorkspace.PreviewAsync(db,actor,new(Guid.NewGuid(),allocationFields))).Succeeded);
     Assert.Equal(ErrorCodes.ScopeDenied,(await ResourcePlanningService.SetAllocationAsync(db,actor,
-      new(w.EngagementId,w.Users["associate"].Id,allocationFields.WeekStart!.Value,allocationFields.PlannedMinutes!.Value))).ErrorCode);
+      new(w.EngagementId,w.Users["associate"].Id,allocationFields.WeekStart!.Value,allocationFields.PlannedMinutes!.Value,
+        allocationFields.Phase!,allocationFields.RiskArea))).ErrorCode);
     Assert.False((await ResourcePlanningCommandWorkspace.ExecuteAsync(db,actor,allocationReview)).Succeeded);
     Assert.Empty(await db.StaffAllocations.ToListAsync());
     Assert.False((await ResourcePlanningService.AddCertificationAsync(db,actor,new(w.Users["associate"].Id,"Refused",null,null))).Succeeded);

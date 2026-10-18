@@ -436,9 +436,11 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     {
       Assert.True((await ResourcePlanningService.SaveProfileAsync(db, manager, new(w.Users["senior"].Id, "Audit", "ifrs, sampling, IFRS", 2400, 80m))).Succeeded);
       Assert.True((await ResourcePlanningService.AddAvailabilityAsync(db, manager, new(w.Users["senior"].Id, week.AddDays(1), week.AddDays(2), "LEAVE", 480))).Succeeded);
-      Assert.Equal(ErrorCodes.GateBlocked, (await ResourcePlanningService.SetAllocationAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, week, 1800))).ErrorCode);
+      Assert.Equal(ErrorCodes.GateBlocked, (await ResourcePlanningService.SetAllocationAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, week, 1800,
+        BudgetPhases.Fieldwork, "Revenue"))).ErrorCode);
       Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.SeniorAuditor))).Succeeded);
-      Assert.True((await ResourcePlanningService.SetAllocationAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, week.AddDays(3), 1800))).Succeeded);
+      Assert.True((await ResourcePlanningService.SetAllocationAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, week.AddDays(3), 1800,
+        BudgetPhases.Fieldwork, "Revenue"))).Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, (await ResourcePlanningService.SaveProfileAsync(db, w.Actor("associate", "Staff"), new(w.Users["associate"].Id, "Audit", "", 2400, 80m))).ErrorCode);
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -458,7 +460,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       foreach (var invalidDate in new[] { DateOnly.MinValue, DateOnly.MaxValue })
       {
         var refused = await ResourcePlanningService.SetAllocationAsync(db, manager,
-          new(w.EngagementId, w.Users["senior"].Id, invalidDate, 60));
+          new(w.EngagementId, w.Users["senior"].Id, invalidDate, 60, BudgetPhases.Fieldwork, "Revenue"));
         Assert.Equal("resource.invalid-range", refused.ErrorCode);
       }
       Assert.Equal(allocationCount, await db.StaffAllocations.CountAsync());

@@ -9,7 +9,7 @@ public static partial class UiEndpoints
   public sealed record StaffProfileInput(Guid UserId, string Department, string Skills, int WeeklyCapacityMinutes, string TargetUtilizationPercent);
   public sealed record CertificationInput(Guid UserId, string Name, string? ExpiresOn);
   public sealed record AvailabilityInput(Guid UserId, string StartDate, string EndDate, string Kind, int MinutesPerDay);
-  public sealed record AllocationInput(Guid EngagementId, Guid UserId, string WeekStart, int PlannedMinutes);
+  public sealed record AllocationInput(Guid EngagementId, Guid UserId, string WeekStart, int PlannedMinutes, string Phase, string? RiskArea);
 
   /// <summary>Independent administrative decision against an exact certification source and review revision.</summary>
   public sealed record CertificationReviewInput(Guid CertificationId, Guid RequestId, string SourceDigest,
@@ -73,7 +73,7 @@ public static partial class UiEndpoints
     group.MapPost("/practice/resources/allocations", (AllocationInput input, HttpContext http) =>
       TryDate(input.WeekStart, out var week)
         ? CommandAsync(http, (db, actor, ct) => ResourcePlanningService.SetAllocationAsync(db, actor,
-            new SetAllocationRequest(input.EngagementId, input.UserId, week, input.PlannedMinutes), ct))
+            new SetAllocationRequest(input.EngagementId, input.UserId, week, input.PlannedMinutes, input.Phase, input.RiskArea), ct))
         : Task.FromResult(Invalid("Choose the allocation week.")))
       .Produces<UiValueResponse<bool>>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")

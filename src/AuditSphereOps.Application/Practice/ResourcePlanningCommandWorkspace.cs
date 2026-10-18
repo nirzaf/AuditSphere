@@ -12,12 +12,14 @@ namespace AuditSphereOps.Application.Practice;
 public sealed record ResourcePlanningFields(string Kind, Guid UserId, Guid? EngagementId=null,
   string? Department=null, string? Skills=null, int? WeeklyCapacityMinutes=null, string? TargetUtilizationPercent=null,
   string? Name=null, DateOnly? ExpiresOn=null, DateOnly? StartDate=null, DateOnly? EndDate=null,
-  string? AvailabilityKind=null, int? MinutesPerDay=null, DateOnly? WeekStart=null, int? PlannedMinutes=null);
+  string? AvailabilityKind=null, int? MinutesPerDay=null, DateOnly? WeekStart=null, int? PlannedMinutes=null,
+  string? Phase=null, string? RiskArea=null);
 public sealed record ResourcePlanningCommandRequest(Guid RequestId, ResourcePlanningFields Fields,
   string? RequestHash=null, string? ReviewBasis=null, bool Reviewed=false);
 public sealed record ResourcePlanningBefore(string UserName, string? Department, string? Skills,
   int? WeeklyCapacityMinutes, string? TargetUtilizationPercent, int? PlannedMinutes, string? EngagementLabel,
-  DateOnly? WeekStart, int? CapacityMinutes, int? UnavailableMinutes, int? TotalPlannedMinutes);
+  string? AllocationPhase, string? AllocationRiskArea, DateOnly? WeekStart, int? CapacityMinutes,
+  int? UnavailableMinutes, int? TotalPlannedMinutes);
 public sealed record ResourcePlanningPreview(Guid RequestId, string RequestHash, string ReviewBasis,
   ResourcePlanningFields Fields, ResourcePlanningBefore Before, string Effect);
 public sealed record ResourcePlanningReceiptView(Guid Id, Guid ActorId, Guid TargetUserId, Guid RequestId,
@@ -38,7 +40,7 @@ public static class ResourcePlanningCommandWorkspace
   private static ResourcePlanningFields? Canonical(ResourcePlanningFields? f)
   {
     if(f is null || f.UserId==Guid.Empty || !Text(f.Department,100) || !Text(f.Skills,500) || !Text(f.Name,100) || !Text(f.TargetUtilizationPercent,20)) return null;
-    var n=f with {Kind=f.Kind?.Trim().ToUpperInvariant() ?? "",Department=Trim(f.Department),Skills=Trim(f.Skills),Name=Trim(f.Name),AvailabilityKind=Trim(f.AvailabilityKind)?.ToUpperInvariant()};
+    var n=f with {Kind=f.Kind?.Trim().ToUpperInvariant() ?? "",Department=Trim(f.Department),Skills=Trim(f.Skills),Name=Trim(f.Name),AvailabilityKind=Trim(f.AvailabilityKind)?.ToUpperInvariant(),Phase=Trim(f.Phase)?.ToUpperInvariant(),RiskArea=Trim(f.RiskArea)};
     ResourcePlanningFields? shaped=null;
     switch(n.Kind) {
       case "PROFILE" when n.Department is not null && n.WeeklyCapacityMinutes is >=0 and <=4800 &&
@@ -50,9 +52,10 @@ public static class ResourcePlanningCommandWorkspace
       case "AVAILABILITY" when n.StartDate is DateOnly start && n.EndDate is DateOnly end && end>=start &&
         n.MinutesPerDay is >=1 and <=1440 && n.AvailabilityKind is "LEAVE" or "TRAINING" or "PUBLIC_HOLIDAY":
         shaped=new(n.Kind,n.UserId,StartDate:n.StartDate,EndDate:n.EndDate,AvailabilityKind:n.AvailabilityKind,MinutesPerDay:n.MinutesPerDay);break;
-      case "ALLOCATION" when n.EngagementId is Guid id && id!=Guid.Empty && n.WeekStart is DateOnly week && n.PlannedMinutes is >=0 and <=4800:
+      case "ALLOCATION" when n.EngagementId is Guid id && id!=Guid.Empty && n.WeekStart is DateOnly week && n.PlannedMinutes is >=0 and <=4800 &&
+        (BudgetPhases.Assignable.Contains(n.Phase ?? "", StringComparer.Ordinal) || n.Phase==BudgetPhases.Unassigned && n.PlannedMinutes==0) && Text(n.RiskArea,100):
         n=n with {WeekStart=ResourceGridCalculator.WeekStart(week)};
-        shaped=new(n.Kind,n.UserId,EngagementId:n.EngagementId,WeekStart:n.WeekStart,PlannedMinutes:n.PlannedMinutes);break;
+        shaped=new(n.Kind,n.UserId,EngagementId:n.EngagementId,WeekStart:n.WeekStart,PlannedMinutes:n.PlannedMinutes,Phase:n.Phase,RiskArea:n.RiskArea);break;
     }
     return n==shaped?shaped:null;
   }
@@ -88,7 +91,8 @@ public static class ResourcePlanningCommandWorkspace
       var end=week.AddDays(6);
       var allocations=await db.StaffAllocations.AsNoTracking().Where(x=>x.FirmId==a.FirmId && x.UserId==f.UserId && x.WeekStart==week).OrderBy(x=>x.Id).ToListAsync(ct);
       var availability=await db.StaffAvailabilities.AsNoTracking().Where(x=>x.FirmId==a.FirmId && x.UserId==f.UserId && x.EndDate>=week && x.StartDate<=end).OrderBy(x=>x.Id).ToListAsync(ct);
-      existing=allocations.SingleOrDefault(x=>x.EngagementId==e.Id);
+      var riskArea=f.RiskArea ?? "";
+      existing=allocations.SingleOrDefault(x=>x.EngagementId==e.Id && x.Phase==f.Phase && x.RiskArea==riskArea);
       cell=ResourceGridCalculator.Build(profile?.WeeklyCapacityMinutes ?? 0,availability,allocations,[],week,1).Single();
       label=await db.PracticeClients.AsNoTracking().Where(x=>x.FirmId==a.FirmId && x.Id==e.PracticeClientId).Select(x=>x.CommercialName ?? x.LegalName).SingleAsync(ct);
       label+=" · "+e.ServiceRoute+" "+e.PeriodEnd;
@@ -98,12 +102,13 @@ public static class ResourcePlanningCommandWorkspace
     if(f.Kind=="AVAILABILITY") basisExtra=await db.StaffAvailabilities.AsNoTracking().Where(x=>x.FirmId==a.FirmId && x.UserId==f.UserId && x.EndDate>=f.StartDate && x.StartDate<=f.EndDate).OrderBy(x=>x.Id).ToListAsync(ct);
     var basis=Hashing.Sha256Hex(JsonSerializer.Serialize(new{a.FirmId,a.UserId,a.SessionEpoch,Fields=f,Target=new{user.Id,user.DisplayName,user.Disabled,user.UserKind,user.SessionEpoch},Profile=profile,Extra=basisExtra}));
     var before=new ResourcePlanningBefore(user.DisplayName,profile?.Department,profile?.Skills,profile?.WeeklyCapacityMinutes,
-      profile?.TargetUtilizationPercent.ToString("0.##",CultureInfo.InvariantCulture),existing?.PlannedMinutes,label,f.WeekStart,cell?.CapacityMinutes,cell?.UnavailableMinutes,cell?.PlannedMinutes);
+      profile?.TargetUtilizationPercent.ToString("0.##",CultureInfo.InvariantCulture),existing?.PlannedMinutes,label,
+      existing?.Phase,string.IsNullOrEmpty(existing?.RiskArea)?null:existing?.RiskArea,f.WeekStart,cell?.CapacityMinutes,cell?.UnavailableMinutes,cell?.PlannedMinutes);
     var effect=f.Kind switch {
       "PROFILE"=>"Updates planning department, skills, capacity and utilization target. It changes no authorization role.",
       "CERTIFICATION"=>"Adds a certification record. It does not staff this person or grant access.",
       "AVAILABILITY"=>"Adds an unavailability interval. Capacity is calculated by the existing planning rules; overlapping intervals are not additional leave days.",
-      _=>f.PlannedMinutes==0?"Removes this engagement's allocation for this week. Staffing, authorization and SharePoint permissions are unchanged.":"Sets this engagement's weekly allocation. Over-allocation remains visible; staffing, authorization and SharePoint permissions are unchanged."};
+      _=>f.PlannedMinutes==0?"Removes this engagement's allocation for this week, phase and risk area. Staffing, authorization and SharePoint permissions are unchanged.":$"Sets this engagement's {f.Phase} allocation{(f.RiskArea is null?"":" for "+f.RiskArea)}. Over-allocation remains visible; staffing, authorization and SharePoint permissions are unchanged."};
     return CommandResult<ResourcePlanningPreview>.Ok(new(requestId,RequestHash(a,requestId,f),basis,f,before,effect));
   }
   public static async Task<CommandResult<ResourcePlanningPreview>> PreviewAsync(IAuditSphereDbContext db,ActorContext a,ResourcePlanningCommandRequest? request,CancellationToken ct=default)
@@ -118,8 +123,7 @@ public static class ResourcePlanningCommandWorkspace
   }
   public static async Task<CommandResult<ResourcePlanningReceiptView>> ExecuteAsync(IAuditSphereDbContext db,ActorContext a,ResourcePlanningCommandRequest? request,CancellationToken ct=default)
   {
-    var f=Canonical(request?.Fields);
-    if(request is null || request.RequestId==Guid.Empty || f is null || !request.Reviewed || !Hash(request.RequestHash) || !Hash(request.ReviewBasis) || request.RequestHash!=RequestHash(a,request.RequestId,f)) return Invalid<ResourcePlanningReceiptView>();
+    if(request is null || request.RequestId==Guid.Empty || !request.Reviewed || !Hash(request.RequestHash) || !Hash(request.ReviewBasis)) return Invalid<ResourcePlanningReceiptView>();
     if(!(await Authorize(db,a,ct)).Succeeded) return Denied<ResourcePlanningReceiptView>();
     await using var tx=await db.Database.BeginTransactionAsync(ct);
     // Lock the request namespace before changed-state validation. A matching committed action is recoverable even after target state changed.
@@ -129,6 +133,10 @@ public static class ResourcePlanningCommandWorkspace
       if(prior.RequestHash!=request.RequestHash || prior.ReviewBasis!=request.ReviewBasis) return CommandResult<ResourcePlanningReceiptView>.Fail(ErrorCodes.StaleRevision,"This request belongs to a different reviewed intent.");
       await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptView>.Ok(Receipt(prior));
     }
+    // Check for an exact retained result before current-field canonicalization. This preserves replay recovery
+    // for pending tabs whose immutable request was created before a later contract added fields.
+    var f=Canonical(request.Fields);
+    if(f is null || request.RequestHash!=RequestHash(a,request.RequestId,f)) return Invalid<ResourcePlanningReceiptView>();
     if(!await LockAsync(db,a,f,ct)) return Denied<ResourcePlanningReceiptView>();
     var preview=await BuildAsync(db,a,request.RequestId,f,ct);
     if(!preview.Succeeded) return CommandResult<ResourcePlanningReceiptView>.Fail(preview.ErrorCode!,preview.Message!);
@@ -148,8 +156,9 @@ public static class ResourcePlanningCommandWorkspace
         var absence=await ResourcePlanningService.AddAvailabilityAsync(db,a,new(f.UserId,f.StartDate!.Value,f.EndDate!.Value,f.AvailabilityKind!,f.MinutesPerDay!.Value),ct);
         result=absence.Succeeded?CommandResult.Ok():CommandResult.Fail(absence.ErrorCode!,absence.Message!);resource=absence.Succeeded?absence.Value:null;break;
       default:
-        result=await ResourcePlanningService.SetAllocationAsync(db,a,new(f.EngagementId!.Value,f.UserId,f.WeekStart!.Value,f.PlannedMinutes!.Value),ct);
-        if(result.Succeeded) resource=await db.StaffAllocations.Where(x=>x.FirmId==a.FirmId && x.UserId==f.UserId && x.EngagementId==f.EngagementId && x.WeekStart==f.WeekStart).Select(x=>(Guid?)x.Id).SingleOrDefaultAsync(ct);break;
+        result=await ResourcePlanningService.SetAllocationAsync(db,a,new(f.EngagementId!.Value,f.UserId,f.WeekStart!.Value,f.PlannedMinutes!.Value,f.Phase!,f.RiskArea),ct);
+        if(result.Succeeded) resource=await db.StaffAllocations.Where(x=>x.FirmId==a.FirmId && x.UserId==f.UserId && x.EngagementId==f.EngagementId &&
+          x.WeekStart==f.WeekStart && x.Phase==f.Phase && x.RiskArea==(f.RiskArea ?? "")).Select(x=>(Guid?)x.Id).SingleOrDefaultAsync(ct);break;
     }
     if(!result.Succeeded) return CommandResult<ResourcePlanningReceiptView>.Fail(result.ErrorCode!,result.Message!);
     var receipt=new ResourcePlanningReceipt{Id=Guid.CreateVersion7(),FirmId=a.FirmId,ActorId=a.UserId,ActorEpoch=a.SessionEpoch,TargetUserId=f.UserId,RequestId=request.RequestId,Kind=f.Kind,RequestHash=request.RequestHash!,ReviewBasis=request.ReviewBasis!,PreviewJson=json,ResourceId=resource,CreatedAt=DateTimeOffset.UtcNow};

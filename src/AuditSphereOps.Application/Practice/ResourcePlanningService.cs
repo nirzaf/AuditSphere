@@ -10,10 +10,12 @@ namespace AuditSphereOps.Application.Practice;
 public sealed record SaveStaffProfileRequest(Guid UserId, string Department, string Skills, int WeeklyCapacityMinutes, decimal TargetUtilizationPercent);
 public sealed record AddCertificationRequest(Guid UserId, string Name, string? Issuer, DateOnly? ExpiresOn);
 public sealed record AddAvailabilityRequest(Guid UserId, DateOnly StartDate, DateOnly EndDate, string Kind, int MinutesPerDay);
-public sealed record SetAllocationRequest(Guid EngagementId, Guid UserId, DateOnly WeekStart, int PlannedMinutes);
+public sealed record SetAllocationRequest(Guid EngagementId, Guid UserId, DateOnly WeekStart, int PlannedMinutes,
+  string Phase, string? RiskArea = null);
 
 public sealed record ResourceCertificationView(Guid Id, string Name, DateOnly? ExpiresOn, bool Current);
-public sealed record ResourceAllocationView(Guid EngagementId, string EngagementLabel, DateOnly WeekStart, int PlannedMinutes);
+public sealed record ResourceAllocationView(Guid EngagementId, string EngagementLabel, DateOnly WeekStart,
+  string Phase, string? RiskArea, int PlannedMinutes);
 public sealed record ResourceGridRow(
   Guid UserId, string Name, string Department, IReadOnlyList<string> Skills, IReadOnlyList<ResourceCertificationView> Certifications,
   int WeeklyCapacityMinutes, decimal TargetUtilizationPercent, bool HasProfile, IReadOnlyList<ResourceWeekCell> Weeks,
@@ -119,8 +121,13 @@ public static partial class ResourcePlanningService
 
   public static async Task<CommandResult> SetAllocationAsync(IAuditSphereDbContext db, ActorContext actor, SetAllocationRequest request, CancellationToken ct = default)
   {
+    var phase = request.Phase?.Trim().ToUpperInvariant();
+    var riskArea = request.RiskArea?.Trim() ?? string.Empty;
     if (request.PlannedMinutes is < 0 or > MaxWeeklyMinutes)
       return CommandResult.Fail("resource.invalid", "Planned time must be between 0 and 80 hours in a week.");
+    if (phase is null || (!BudgetPhases.Assignable.Contains(phase, StringComparer.Ordinal) &&
+        !(phase == BudgetPhases.Unassigned && request.PlannedMinutes == 0)) || riskArea.Length > 100 || riskArea.Any(char.IsControl))
+      return CommandResult.Fail("resource.invalid", "Choose a supported work phase and a bounded risk-area label.");
     if (!TryWeekRange(request.WeekStart, 1, out var week, out _))
       return CommandResult.Fail("resource.invalid-range", "Choose a date within a complete supported working week.");
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.EngagementId && x.FirmId == actor.FirmId, ct);
@@ -138,7 +145,7 @@ public static partial class ResourcePlanningService
           x.UserId == request.UserId && x.RevokedAt == null, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Staff the person on this engagement before allocating time.");
     var allocation = await db.StaffAllocations.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagement.Id &&
-      x.UserId == request.UserId && x.WeekStart == week, ct);
+      x.UserId == request.UserId && x.WeekStart == week && x.Phase == phase && x.RiskArea == riskArea, ct);
     if (request.PlannedMinutes == 0)
     {
       if (allocation is not null) db.StaffAllocations.Remove(allocation);
@@ -150,7 +157,7 @@ public static partial class ResourcePlanningService
         allocation = new StaffAllocation
         {
           Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId, EngagementId = engagement.Id,
-          UserId = request.UserId, WeekStart = week
+          UserId = request.UserId, WeekStart = week, Phase = phase, RiskArea = riskArea
         };
         db.StaffAllocations.Add(allocation);
       }
@@ -196,7 +203,9 @@ public static partial class ResourcePlanningService
           time.Where(t => t.UserId == u.Id).Select(t => (t.WorkDate, t.DurationMinutes)).ToList(), start, weeks,
           approvedBillableTime: time.Where(t => t.UserId == u.Id && t.BillableClassification == PracticeTimeStates.Billable)
             .Select(t => (t.WorkDate, t.DurationMinutes)).ToList()),
-        mine.OrderBy(x => x.WeekStart).Select(x => new ResourceAllocationView(x.EngagementId, labels.GetValueOrDefault(x.EngagementId, "Engagement"), x.WeekStart, x.PlannedMinutes)).ToList());
+        mine.OrderBy(x => x.WeekStart).ThenBy(x => x.EngagementId).ThenBy(x => x.Phase).ThenBy(x => x.RiskArea)
+          .Select(x => new ResourceAllocationView(x.EngagementId, labels.GetValueOrDefault(x.EngagementId, "Engagement"),
+            x.WeekStart, x.Phase, string.IsNullOrEmpty(x.RiskArea) ? null : x.RiskArea, x.PlannedMinutes)).ToList());
     }).ToList();
     return CommandResult<ResourceGridView>.Ok(new(start, weeks, rows));
   }

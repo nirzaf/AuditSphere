@@ -11,7 +11,7 @@ import {
   decodePlanningFields,
   decodePlanningReceipt,
 } from './planning-command-contracts';
-import { ResourceEditor, resourceMinutes, validResourceDate } from './resource-editor';
+import { ResourceEditor, resourceMinutes, resourceWeekStart, validResourceDate } from './resource-editor';
 const id = '11111111-1111-4111-8111-111111111111',
   engagement = '22222222-2222-4222-8222-222222222222';
 const workspace = {
@@ -50,6 +50,8 @@ const workspace = {
             engagementId: engagement,
             engagementLabel: 'Synthetic engagement',
             weekStart: '2026-10-04',
+            phase: 'FIELDWORK',
+            riskArea: 'Revenue',
             plannedMinutes: 1800,
           },
         ],
@@ -113,6 +115,22 @@ describe('Resource planning forms', () => {
     expect(validResourceDate('2026-02-29')).toBe(false);
     expect(validResourceDate('2028-02-29')).toBe(true);
     expect(validResourceDate('0000-01-01')).toBe(false);
+    expect(resourceWeekStart('2026-10-07')).toBe('2026-10-04');
+  });
+  it('requires an explicit phase and allows a phase-only allocation', async () => {
+    const f = setup(),
+      a = editor(f, 'allocation');
+    a.model.update((m) => ({ ...m, user: id, engagement, week: '2026-10-04', riskArea: '' }));
+    TestBed.tick();
+    await submit(f, 'allocation');
+    http.expectNone((r) => r.method === 'POST');
+    expect(f.nativeElement.textContent).toContain('Choose a work phase');
+    a.model.update((m) => ({ ...m, phase: 'PLANNING' }));
+    TestBed.tick();
+    const p = await review(f, 'allocation');
+    expect(p.fields.phase).toBe('PLANNING');
+    expect(p.fields.riskArea).toBeNull();
+    f.destroy();
   });
   it('shows allocation, capacity, approved actual and over-allocation distinctly', () => {
     const f = setup();
@@ -125,6 +143,8 @@ describe('Resource planning forms', () => {
     // Utilization is stated on approved billable time, beside all approved hours.
     expect(text).toContain('billable 8 h, 50% utilised');
     expect(text).toContain('Synthetic engagement');
+    expect(text).toContain('Fieldwork');
+    expect(text).toContain('Revenue');
     expect(text).toContain('30 hours');
     expect(text).toContain('does not assign an AuditSphere role');
     expect(
@@ -202,6 +222,8 @@ describe('Resource planning forms', () => {
         targetUtilizationPercent: '75',
         plannedMinutes: 1800,
         engagementLabel: 'Synthetic engagement',
+        allocationPhase: body.fields.phase ?? null,
+        allocationRiskArea: body.fields.riskArea ?? null,
         weekStart: body.fields.weekStart,
         capacityMinutes: 1200,
         unavailableMinutes: 0,
@@ -238,12 +260,14 @@ describe('Resource planning forms', () => {
       a = editor(f, 'allocation'),
       c = editor(f, 'certification');
     c.model.update((m) => ({ ...m, user: id, name: 'Unsubmitted certificate' }));
-    a.model.update((m) => ({ ...m, user: id, engagement, hours: '30', week: '2026-10-04' }));
+    a.model.update((m) => ({ ...m, user: id, engagement, week: '2026-10-07', phase: 'FIELDWORK', riskArea: 'Revenue', hours: '30' }));
     TestBed.tick();
     const p = await review(f, 'allocation');
     await f.componentInstance.confirmReviewed();
     http.expectNone('/api/ui/practice/resources/commands');
     expect(p.fields.plannedMinutes).toBe(1800);
+    expect(p.fields.phase).toBe('FIELDWORK');
+    expect(p.fields.riskArea).toBe('Revenue');
     f.componentInstance.assentModel.set({ reviewed: true });
     const confirming = f.componentInstance.confirmReviewed();
     const req = http.expectOne('/api/ui/practice/resources/commands');
@@ -299,7 +323,7 @@ describe('Resource planning forms', () => {
   it('clears protected fields and ignores late preview after session loss', async () => {
     const f = setup(),
       a = editor(f, 'allocation');
-    a.model.update((m) => ({ ...m, user: id, engagement, week: '2026-10-04' }));
+    a.model.update((m) => ({ ...m, user: id, engagement, week: '2026-10-04', phase: 'FIELDWORK', riskArea: 'Revenue' }));
     TestBed.tick();
     await submit(f, 'allocation');
     const req = http.expectOne('/api/ui/practice/resources/preview'),

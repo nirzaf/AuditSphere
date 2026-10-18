@@ -145,7 +145,17 @@
             ) {
               <li>
                 {{ allocation.engagementLabel }} · Week of {{ allocation.weekStart }} ·
-                {{ hrs(allocation.plannedMinutes) }} hours
+                @if (allocation.phase === 'UNASSIGNED') {
+                  Legacy phase not assigned
+                } @else {
+                  {{ phaseLabel(allocation.phase) }}
+                }
+                @if (allocation.riskArea) {
+                  · {{ allocation.riskArea }}
+                } @else {
+                  · No specific risk area
+                }
+                · {{ hrs(allocation.plannedMinutes) }} hours
               </li>
             }
           </ul>
@@ -193,9 +203,10 @@
       <section class="panel" aria-labelledby="allocation-heading">
         <h2 id="allocation-heading">Allocate to an engagement</h2>
         <p>
-          Only people already staffed on the engagement can be allocated. Enter 0 hours to remove an
-          allocation. An allocation does not assign an AuditSphere role or change SharePoint
-          permissions.
+          Only people already staffed on the engagement can be allocated. Set planned hours by work
+          phase and, when useful, a risk-area label. Existing phase-unassigned hours remain visible
+          and continue to count toward capacity. An allocation does not assign an AuditSphere role or
+          change SharePoint permissions.
         </p>
         <audit-resource-editor
           kind="allocation"

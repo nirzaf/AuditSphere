@@ -26397,9 +26397,25 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("firm_id");
 
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("UNASSIGNED")
+                        .HasColumnName("phase");
+
                     b.Property<int>("PlannedMinutes")
                         .HasColumnType("integer")
                         .HasColumnName("planned_minutes");
+
+                    b.Property<string>("RiskArea")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("")
+                        .HasColumnName("risk_area");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -26425,12 +26441,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "WeekStart");
 
-                    b.HasIndex("FirmId", "EngagementId", "UserId", "WeekStart")
+                    b.HasIndex("FirmId", "EngagementId", "UserId", "WeekStart", "Phase", "RiskArea")
                         .IsUnique();
 
                     b.ToTable("staff_allocations", null, t =>
                         {
-                            t.HasCheckConstraint("ck_staff_allocation_values", "planned_minutes BETWEEN 1 AND 4800 AND extract(dow from week_start) = 0");
+                            t.HasCheckConstraint("ck_staff_allocation_values", "planned_minutes BETWEEN 1 AND 4800 AND extract(dow from week_start) = 0 AND phase IN ('PLANNING','FIELDWORK','COMPLETION','REPORTING','UNASSIGNED') AND risk_area = btrim(risk_area) AND length(risk_area) <= 100");
                         });
                 });
 

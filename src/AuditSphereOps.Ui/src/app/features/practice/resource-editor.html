@@ -39,6 +39,18 @@
             <option value="PUBLIC_HOLIDAY">Public holiday</option>
           </select>
         }
+        @case ('phase') {
+          <select
+            [id]="id(key)"
+            [formField]="fields.phase"
+            [attr.aria-describedby]="id(key + '-error')"
+          >
+            <option value="">Choose a work phase</option>
+            @for (phase of phases; track phase.value) {
+              <option [value]="phase.value">{{ phase.label }}</option>
+            }
+          </select>
+        }
         @default {
           <input
             [id]="id(key)"

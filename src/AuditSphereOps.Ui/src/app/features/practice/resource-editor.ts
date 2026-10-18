@@ -20,6 +20,8 @@ export type ResourceModel = {
   skills: string;
   capacity: string;
   target: string;
+  phase: string;
+  riskArea: string;
   name: string;
   expires: string;
   from: string;
@@ -47,6 +49,12 @@ export function validResourceDate(value: string): boolean {
   const parsed = new Date(value + 'T00:00:00Z');
   return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
 }
+export function resourceWeekStart(value: string): string {
+  if (!validResourceDate(value)) throw new Error('Invalid allocation date');
+  const start = new Date(value + 'T00:00:00Z');
+  start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+  return start.toISOString().slice(0, 10);
+}
 const labels: Record<keyof ResourceModel, string> = {
   user: 'Team member',
   engagement: 'Engagement',
@@ -54,6 +62,8 @@ const labels: Record<keyof ResourceModel, string> = {
   skills: 'Skills (comma separated)',
   capacity: 'Weekly capacity (hours)',
   target: 'Target utilization %',
+  phase: 'Work phase',
+  riskArea: 'Risk area (optional)',
   name: 'Certification',
   expires: 'Expires (optional)',
   from: 'From',
@@ -62,6 +72,12 @@ const labels: Record<keyof ResourceModel, string> = {
   hours: 'Hours',
   week: 'Week of',
 };
+export const RESOURCE_PHASES = [
+  { value: 'PLANNING', label: 'Planning' },
+  { value: 'FIELDWORK', label: 'Fieldwork' },
+  { value: 'COMPLETION', label: 'Completion' },
+  { value: 'REPORTING', label: 'Reporting' },
+] as const;
 export function resourceModel(today: string): ResourceModel {
   return {
     user: '',
@@ -70,6 +86,8 @@ export function resourceModel(today: string): ResourceModel {
     skills: '',
     capacity: '40',
     target: '80',
+    phase: '',
+    riskArea: '',
     name: '',
     expires: '',
     from: today,
@@ -86,6 +104,7 @@ export function resourceModel(today: string): ResourceModel {
   styleUrl: './resource-editor.scss',
 })
 export class ResourceEditor {
+  readonly phases = RESOURCE_PHASES;
   readonly kind = input.required<ResourceFormKind>();
   readonly users = input.required<ResourceStaffOption[]>();
   readonly engagements = input<{ id: string; label: string }[]>([]);
@@ -107,7 +126,7 @@ export class ResourceEditor {
       case 'availability':
         return ['user', 'from', 'to', 'kind', 'hours'];
       case 'allocation':
-        return ['engagement', 'user', 'week', 'hours'];
+        return ['engagement', 'user', 'week', 'phase', 'riskArea', 'hours'];
     }
   });
   readonly button = computed(
@@ -202,6 +221,14 @@ export class ResourceEditor {
       return this.engagements().some((e) => e.id === value)
         ? ''
         : 'Choose a currently available engagement.';
+    if (key === 'phase')
+      return RESOURCE_PHASES.some((phase) => phase.value === value)
+        ? ''
+        : 'Choose a work phase.';
+    if (key === 'riskArea')
+      return /[\x00-\x1f\x7f]/.test(value)
+        ? 'Use a risk-area label without control characters.'
+        : '';
     if (key === 'department' || key === 'name')
       return value.trim() && !/[\x00-\x1f\x7f]/.test(value)
         ? ''

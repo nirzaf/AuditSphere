@@ -307,7 +307,8 @@ public sealed class PlanningAndResourcesJourneyTests
     {
       var partnerActor = new ActorContext(partner.Id, f.FirmId, partner.SessionEpoch, ["Partner"]);
       Assert.True((await ResourcePlanningService.SaveProfileAsync(db, partnerActor, new(senior.Id, "Audit", "IFRS", 1200, 75m))).Succeeded);
-      Assert.True((await ResourcePlanningService.SetAllocationAsync(db, partnerActor, new(f.EngagementId, senior.Id, DateOnly.FromDateTime(DateTime.Today), 1800))).Succeeded);
+      Assert.True((await ResourcePlanningService.SetAllocationAsync(db, partnerActor, new(f.EngagementId, senior.Id,
+        DateOnly.FromDateTime(DateTime.Today), 1800, BudgetPhases.Fieldwork, "Revenue"))).Succeeded);
     }
     await page.GotoAsync($"{origin}/app/practice/resources");
     await page.GetByRole(AriaRole.Heading, new() { Name = "Resource planning" }).WaitForAsync();
