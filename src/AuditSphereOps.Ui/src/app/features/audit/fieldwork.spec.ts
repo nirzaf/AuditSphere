@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
-import { TabDrafts } from '../../core/tab-drafts';
+import { TabDrafts, pendingRequestReference, type DraftRead, type PendingRequestReference } from '../../core/tab-drafts';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuditFieldwork } from './fieldwork';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
@@ -306,19 +306,31 @@ describe('Procedure execution and review workspace', () => {
     inputGeneration: 2, expectedResultRevision: 0, resultId: id2, workpaperId: id3, reviewId: null,
     resultRevision: 1, resultStatus: 'SUBMITTED', decision: null, evidenceDigest: hash64,
     committedAt: '2026-10-02T09:00:00Z' };
-  function open() {
+  function open(store = new Map<string, PendingRequestReference>()) {
     const workspace = signal({ engagementId: id1, canManageFieldwork: true, canViewReviewNotes: true, aggregate: null,
       risks: [], procedures: [{ id: id2, riskId: null, title: 'Cash confirmation', originalWording: null as string | null,
         effectiveWording: null as string | null, definitionRevision: null as number | null }] });
-    const drafts = { readPendingRequest: vi.fn(() => ({ state: 'absent' })), read: vi.fn(() => ({ state: 'absent' })),
-      save: vi.fn(() => true), clear: vi.fn(() => true) };
+    const drafts = {
+      readPendingRequest: vi.fn((scope: { entity: string }): DraftRead<PendingRequestReference> => {
+        const value = store.get(scope.entity);
+        return value ? { state: 'ready', draft: { value, submissionPending: true } } : { state: 'absent' };
+      }),
+      read: vi.fn(() => ({ state: 'absent' })),
+      save: vi.fn((scope: { entity: string }, value: unknown) => {
+        const reference = pendingRequestReference(value);
+        if (reference) store.set(scope.entity, reference);
+        return true;
+      }),
+      clear: vi.fn((entity: string) => { store.delete(entity); return true; }),
+    };
+    const session = { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) };
     const api = { resource: vi.fn(() => ({ data: workspace, loading: signal(false), error: signal(''), reload: vi.fn() })),
       command: vi.fn(), get: vi.fn() };
     TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api },
-      { provide: SessionService, useValue: { current: signal({ userId: id1, firmId: id1, generation: '1', staff: true }), invalidation: signal(0) } },
+      { provide: SessionService, useValue: session },
       { provide: TabDrafts, useValue: drafts }, { provide: Router, useValue: { events: new Subject() } },
       { provide: ActivatedRoute, useValue: { paramMap: new BehaviorSubject(convertToParamMap({ id: id1 })) } }] });
-    const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api, drafts };
+    const page = TestBed.runInInjectionContext(() => new AuditFieldwork()); TestBed.tick(); return { page, workspace, api, drafts, store, session };
   }
   it('appends controlled wording with source lineage, rationale and the current expected revision', async () => {
     const { page, workspace, api, drafts } = open();
@@ -377,8 +389,8 @@ describe('Procedure execution and review workspace', () => {
     expect(api.command).not.toHaveBeenCalled();
     expect(page.procedure.tailoringFailed()).toBe(true);
   });
-  it('requires preview and fresh assent, then recovers an unknown outcome from its exact receipt', async () => {
-    const { page, workspace, api } = open();
+  it('requires fresh assent and restores only the exact unknown receipt after remount', async () => {
+    const { page, workspace, api, store } = open();
     api.get.mockResolvedValueOnce({ procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] })
       .mockResolvedValueOnce(state);
     await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
@@ -404,10 +416,25 @@ describe('Procedure execution and review workspace', () => {
     expect(api.command.mock.calls[1][1]).toMatchObject({ reviewed: true, expectedRequestHash: hash64 });
     expect(page.procedure.procedureUnknown()?.requestId).toBe(previewRequestId);
 
-    api.get.mockResolvedValueOnce({ found: true, receipt });
-    await page.procedure.recoverProcedureCommand();
-    expect(page.procedure.procedureCommandReceipt()?.id).toBe(receipt.id);
-    expect(page.procedure.procedureUnknown()).toBeNull();
+    expect([...store.values()]).toEqual([{ requestId: previewRequestId, requestHash: hash64 }]);
+    TestBed.resetTestingModule();
+    const restored = open(store);
+    restored.api.get.mockImplementation(async (url: string) => url.includes('/commands/state') ? state :
+      { procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
+    await restored.page.procedure.openProcedure(restored.workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
+    expect(restored.page.procedure.procedureAssent).toBe(false);
+    expect(restored.page.procedure.procedureCommandPreview()).toBeNull();
+    expect(restored.page.procedure.procedureUnknownForSelection()?.requestId).toBe(previewRequestId);
+    expect(await restored.page.send('/blocked', {}, 'must not send')).toBe(false);
+    expect(restored.api.command).not.toHaveBeenCalled();
+    restored.api.get.mockResolvedValueOnce({ found: true, receipt: { ...receipt, requestHash: 'e'.repeat(64) } });
+    await restored.page.procedure.recoverProcedureCommand();
+    expect(restored.page.procedure.procedureUnknownForSelection()).not.toBeNull();
+    restored.api.get.mockResolvedValueOnce({ found: true, receipt: { ...receipt, requestId: previewRequestId } });
+    await restored.page.procedure.recoverProcedureCommand();
+    expect(restored.page.procedure.procedureCommandReceipt()?.id).toBe(receipt.id);
+    expect(restored.page.procedure.procedureUnknown()).toBeNull();
+    expect(store.size).toBe(0);
   });
   it('retains an unknown exact receipt when its procedure selection changes in flight', async () => {
     const { page, workspace, api } = open();
@@ -417,7 +444,8 @@ describe('Procedure execution and review workspace', () => {
     await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
     page.procedure.procedureWork = 'Work.';
     page.procedure.procedureConclusion = 'Conclusion.';
-    api.command.mockResolvedValueOnce({ ok: true, value: preview });
+    api.command.mockImplementationOnce((_url: string, body: { requestId: string }) =>
+      ({ ok: true, value: { ...preview, requestId: body.requestId } }));
     await page.procedure.prepareProcedureCommand('SUBMIT_RESULT');
     page.procedure.procedureAssent = true;
 
@@ -431,6 +459,60 @@ describe('Procedure execution and review workspace', () => {
 
     await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
     expect(page.procedure.procedureUnknownForSelection()).toMatchObject({ procedureId: id2, requestHash: hash64 });
+  });
+  it('excludes overlapping procedure, sampling and host writes while preserving risk-link reconciliation', async () => {
+    const { page, workspace, api } = open();
+    api.get.mockImplementation(async (url: string) => url.includes('/commands/state') ? state :
+      { procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
+    await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
+    page.procedure.procedureWork = 'Agreed to source.'; page.procedure.procedureConclusion = 'No exception.';
+    let complete!: (value: unknown) => void;
+    let requestId = '';
+    api.command.mockImplementationOnce((_url: string, body: { requestId: string }) => {
+      requestId = body.requestId; return new Promise(resolve => complete = resolve);
+    });
+    const preparing = page.procedure.prepareProcedureCommand('SUBMIT_RESULT');
+    Object.assign(page.sampling.s, { procedure: id2, schedule: id3, interval: '1', rationale: 'Approved plan.' });
+    await page.sampling.sample();
+    expect(await page.send('/blocked', {}, 'must not send')).toBe(false);
+    expect(api.command).toHaveBeenCalledTimes(1);
+    complete({ ok: true, value: { ...preview, requestId } }); await preparing;
+    expect(page.cmd.busy()).toBe(false);
+    page.riskLink.pending.set([{ engagementId: id1, action: 'LINK_PROCEDURE_RISK', reference: { requestId: id1, requestHash: hash64 } }]);
+    expect(page.fieldworkCommandBlocked()).toBe(true);
+    api.get.mockRejectedValueOnce(new Error('Synthetic lookup unavailable'));
+    await page.riskLink.reconcile('LINK_PROCEDURE_RISK');
+    expect(api.get).toHaveBeenLastCalledWith(`/api/ui/engagements/${id1}/audit-plan/commands/state?action=LINK_PROCEDURE_RISK`, expect.any(Function));
+  });
+  it.each(['unavailable', 'stale'] as const)('blocks unreadable %s checkpoints until a fresh workspace can read them', async problem => {
+    const { page, workspace, drafts, api } = open();
+    drafts.readPendingRequest.mockReturnValue({ state: problem });
+    workspace.set({ ...workspace() }); TestBed.tick();
+    expect(page.procedure.procedureReceiptCheckpointProblem()).toBe(true);
+    expect(await page.send('/blocked', {}, 'must not send')).toBe(false);
+    expect(api.command).not.toHaveBeenCalled();
+    drafts.readPendingRequest.mockReturnValue({ state: 'absent' });
+    workspace.set({ ...workspace() }); TestBed.tick();
+    expect(page.fieldworkCommandBlocked()).toBe(false);
+  });
+  it('does not clear a current-session checkpoint when an earlier session completes late', async () => {
+    const { page, workspace, api, drafts, session } = open();
+    api.get.mockImplementation(async (url: string) => url.includes('/commands/state') ? state :
+      { procedureId: id2, currentResult: null, notes: [], evidence: [], physicalEvidence: [] });
+    await page.procedure.openProcedure(workspace().procedures[0] as Parameters<FieldworkProcedureState['openProcedure']>[0]);
+    page.procedure.procedureWork = 'Work.'; page.procedure.procedureConclusion = 'Conclusion.';
+    api.command.mockImplementationOnce((_url: string, body: { requestId: string }) =>
+      ({ ok: true, value: { ...preview, requestId: body.requestId } }));
+    await page.procedure.prepareProcedureCommand('SUBMIT_RESULT');
+    const requestId = page.procedure.procedureCommandPreview()!.requestId;
+    page.procedure.procedureAssent = true;
+    let complete!: (value: unknown) => void;
+    api.command.mockImplementationOnce(() => new Promise(resolve => complete = resolve));
+    const pending = page.procedure.executeProcedureCommand();
+    session.current.update(actor => ({ ...actor, generation: '2' })); TestBed.tick();
+    complete({ ok: true, value: { ...receipt, requestId } }); await pending;
+    expect(drafts.clear).not.toHaveBeenCalled();
+    expect(page.procedure.procedureCommandReceipt()).toBeNull();
   });
   it('clears the preview when material inputs change after preview', async () => {
     const { page, workspace, api } = open();

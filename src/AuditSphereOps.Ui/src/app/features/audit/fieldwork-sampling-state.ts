@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { Api, CommandState, type Resource } from '../../core/api';
 import { decimalInput, decode } from '../../core/decode';
 import { type Fieldwork, decodeSampleSet, samplingPreviewDecoder, type SampleItem, type SampleSet, type SampleTestDraft, type SamplingPreview } from './fieldwork-contracts';
+import type { FieldworkCommandAcquire } from './fieldwork-command-context';
 
 export class FieldworkSamplingState {
   readonly samplingPreview = signal<SamplingPreview | null>(null);
@@ -22,6 +23,7 @@ export class FieldworkSamplingState {
   readonly api: Api;
   readonly ws: Resource<Fieldwork>;
   readonly cmd: CommandState;
+  private readonly acquireCommand: FieldworkCommandAcquire;
   private readonly captureOwner: () => () => boolean;
   s = { procedure: '', schedule: '', method: 'MUS', interval: '', key: '', size: null as number | null, seed: null as number | null,
     attributeFields: [] as string[], rationale: '' };
@@ -33,9 +35,10 @@ export class FieldworkSamplingState {
 
   constructor(context: {
     id: () => string | null; api: Api; ws: Resource<Fieldwork>; cmd: CommandState;
-    captureOwner: () => () => boolean;
+    acquireCommand: FieldworkCommandAcquire; captureOwner: () => () => boolean;
   }) {
     this.id = context.id; this.api = context.api; this.ws = context.ws; this.cmd = context.cmd;
+    this.acquireCommand = context.acquireCommand;
     this.captureOwner = context.captureOwner;
   }
 
@@ -123,6 +126,8 @@ export class FieldworkSamplingState {
   async sample(): Promise<void> {
     const input = this.samplingInput();
     if (!input) return;
+    const release = this.acquireCommand();
+    if (!release) return;
     const owner = this.captureOwner(), generation = this.generation, operation = ++this.previewOperation;
     const inputFingerprint = this.samplingFingerprint();
     const current = () => owner() && generation === this.generation && operation === this.previewOperation;
@@ -148,13 +153,18 @@ export class FieldworkSamplingState {
         this.cmd.failed.set(true);
         this.cmd.message.set('The preview response could not be verified. Refresh the workspace and try again.');
       }
-    } finally { if (operation === this.previewOperation) this.samplingBusy.set(false); }
+    } finally {
+      release();
+      if (operation === this.previewOperation) this.samplingBusy.set(false);
+    }
   }
   async recordSampling(): Promise<void> {
     if (!this.previewMatchesInputs()) return this.invalid('Sampling inputs changed. Preview and review the selection again.');
     const input = this.samplingInput();
     const preview = this.samplingPreview();
     if (!input || !preview) return;
+    const release = this.acquireCommand();
+    if (!release) return;
     const owner = this.captureOwner(), generation = this.generation, operation = ++this.actionOperation;
     const current = () => owner() && generation === this.generation && operation === this.actionOperation;
     this.samplingBusy.set(true);
@@ -177,7 +187,10 @@ export class FieldworkSamplingState {
           ? `${result.message} Repeating the unchanged preview is idempotent.` : result.message);
         if (result.code === 'generation.stale') this.samplingPreview.set(null);
       }
-    } finally { if (operation === this.actionOperation) this.samplingBusy.set(false); }
+    } finally {
+      release();
+      if (operation === this.actionOperation) this.samplingBusy.set(false);
+    }
   }
   async openSampleSet(selectionId: string): Promise<void> { await this.loadSampleSet(selectionId, 1); }
   async loadSampleSet(selectionId: string, page = 1): Promise<void> {
@@ -198,6 +211,8 @@ export class FieldworkSamplingState {
     if (!set || set.selectionId !== selectionId || this.sampleActionBusy()) return;
     const comment = this.selectionReviewComment.trim();
     if (!comment) return this.invalid('Enter the independent review note before deciding this sample.');
+    const release = this.acquireCommand();
+    if (!release) return;
     const owner = this.captureOwner(), generation = this.generation, operation = ++this.actionOperation;
     const page = set.page;
     const current = () => owner() && generation === this.generation && operation === this.actionOperation &&
@@ -215,7 +230,10 @@ export class FieldworkSamplingState {
         this.cmd.message.set(result.unknown ? `${result.message} Refresh the sample status before deciding again.` : result.message);
       }
       await this.loadSampleSet(selectionId, page);
-    } finally { if (operation === this.actionOperation) this.sampleActionBusy.set(false); }
+    } finally {
+      release();
+      if (operation === this.actionOperation) this.sampleActionBusy.set(false);
+    }
   }
   async recordItemTest(item: SampleItem): Promise<void> {
     const draft = this.itemDraft(item);
@@ -231,6 +249,8 @@ export class FieldworkSamplingState {
       return this.invalid('Enter a valid exception amount with no more than six decimal places.');
     const set = this.sampleSet();
     if (!set || !set.items.some(current => current.selectionItemId === item.selectionItemId) || this.sampleActionBusy()) return;
+    const release = this.acquireCommand();
+    if (!release) return;
     const owner = this.captureOwner(), generation = this.generation, operation = ++this.actionOperation;
     const page = set.page;
     const current = () => owner() && generation === this.generation && operation === this.actionOperation &&
@@ -251,7 +271,10 @@ export class FieldworkSamplingState {
         this.cmd.message.set(result.unknown ? `${result.message} Refresh the item history before recording another revision.` : result.message);
       }
       await this.loadSampleSet(set.selectionId, page);
-    } finally { if (operation === this.actionOperation) this.sampleActionBusy.set(false); }
+    } finally {
+      release();
+      if (operation === this.actionOperation) this.sampleActionBusy.set(false);
+    }
   }
   async reviewItemTest(testId: string, decision: 'REVIEWED' | 'CHANGES_REQUIRED', selectionItemId: string): Promise<void> {
     const draft = this.sampleDrafts.get(selectionItemId);
@@ -259,6 +282,8 @@ export class FieldworkSamplingState {
     if (decision === 'CHANGES_REQUIRED' && !comment) return this.invalid('Enter a reason when returning an item test for changes.');
     const set = this.sampleSet();
     if (!set || !set.items.some(item => item.auditItemTestId === testId && item.selectionItemId === selectionItemId) || this.sampleActionBusy()) return;
+    const release = this.acquireCommand();
+    if (!release) return;
     const owner = this.captureOwner(), generation = this.generation, operation = ++this.actionOperation;
     const page = set.page;
     const current = () => owner() && generation === this.generation && operation === this.actionOperation &&
@@ -273,7 +298,10 @@ export class FieldworkSamplingState {
         this.cmd.message.set(result.unknown ? `${result.message} Refresh the current review state before deciding again.` : result.message);
       }
       await this.loadSampleSet(set.selectionId, page);
-    } finally { if (operation === this.actionOperation) this.sampleActionBusy.set(false); }
+    } finally {
+      release();
+      if (operation === this.actionOperation) this.sampleActionBusy.set(false);
+    }
   }
   private baseSelection(selectionId: string): string { return `/api/ui/selections/${selectionId}`; }
   private baseItem(itemId: string): string { return `/api/ui/selection-items/${itemId}`; }

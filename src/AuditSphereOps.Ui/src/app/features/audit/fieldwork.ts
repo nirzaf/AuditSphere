@@ -13,6 +13,7 @@ import { SHARED } from '../../core/ui';
 import { TabDrafts } from '../../core/tab-drafts';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
 import { FieldworkSamplingState } from './fieldwork-sampling-state';
+import type { FieldworkCommandAcquire, FieldworkCommandRecovery } from './fieldwork-command-context';
 
 @Component({
   selector: 'audit-fieldwork',
@@ -38,7 +39,7 @@ export class AuditFieldwork {
   readonly cmd = new CommandState(this.api);
   readonly riskLink = new PlanningCommandState(() => this.id(), () => this.ws.data(),
     () => !!this.ws.data()?.canManageFieldwork && !this.ws.loading() && !this.ws.error(),
-    () => this.cmd.busy() || this.cmd.uncertain(), () => this.ws.reload(), ['LINK_PROCEDURE_RISK']);
+    () => this.otherFieldworkCommandBlocked(), () => this.ws.reload(), ['LINK_PROCEDURE_RISK']);
   readonly section = signal<number | null>(null);
   readonly toolTab = signal(0);
   readonly procedure: FieldworkProcedureState;
@@ -60,6 +61,7 @@ export class AuditFieldwork {
     const context = {
       api: this.api, tabDrafts: this.tabDrafts, id: this.id, ws: this.ws, cmd: this.cmd,
       session: this.riskLinkSession, send: (url: string, body: unknown, ok: string, after?: () => void) => this.send(url, body, ok, after),
+      acquireCommand: (recovery?: FieldworkCommandRecovery) => this.acquireFieldworkCommand(recovery),
       captureOwner: () => this.captureOwner(), destroyRef: this.destroyRef,
     };
     this.procedure = new FieldworkProcedureState(context);
@@ -125,6 +127,26 @@ export class AuditFieldwork {
     this.previousScopeOutcomeUncertain.set(this.priorScopeCommandUnknown || this.pendingPriorScopeCommands.size > 0);
   }
 
+  private commandBlocked(recovery?: FieldworkCommandRecovery): boolean {
+    return this.cmd.uncertain() || this.riskLink.busy() || this.riskLink.uncertain() ||
+      this.procedure.hasUnresolvedCommand(recovery) || this.sampling.samplingBusy() || this.sampling.sampleActionBusy();
+  }
+  private otherFieldworkCommandBlocked(): boolean {
+    return this.cmd.busy() || this.cmd.uncertain() || this.procedure.hasUnresolvedCommand() ||
+      this.sampling.samplingBusy() || this.sampling.sampleActionBusy();
+  }
+  fieldworkCommandBlocked(recovery?: FieldworkCommandRecovery): boolean {
+    return this.cmd.busy() || this.commandBlocked(recovery);
+  }
+  private acquireFieldworkCommand: FieldworkCommandAcquire = (recovery) => {
+    if (this.fieldworkCommandBlocked(recovery)) return null;
+    const owner = this.captureOwner(), operation = ++this.commandGeneration;
+    this.cmd.busy.set(true);
+    return () => {
+      if (operation === this.commandGeneration && owner()) this.cmd.busy.set(false);
+    };
+  };
+
   count(w: Fieldwork, status: string): number { return w.procedures.filter((p) => p.applicabilityStatus === status).length; }
   reviewed(w: Fieldwork): number { return w.procedures.filter((p) => p.evidenceState === 'REVIEWED_CURRENT').length; }
   riskSelection(p: Fieldwork['procedures'][number]): string { return this.riskLinkSelections.get(p.id) ?? p.riskId ?? ''; }
@@ -160,9 +182,10 @@ export class AuditFieldwork {
     return s === 0 ? w.procedures : w.procedures.filter((p) => (p.sourceSectionNumber ?? -2) === s);
   }
   send(url: string, body: unknown, ok: string, after?: () => void): Promise<boolean> {
-    if (this.cmd.busy() || this.cmd.uncertain()) return Promise.resolve(false);
-    const owner = this.captureOwner(), operation = ++this.commandGeneration;
-    this.cmd.busy.set(true); this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.code.set('');
+    const release = this.acquireFieldworkCommand();
+    if (!release) return Promise.resolve(false);
+    const owner = this.captureOwner(), operation = this.commandGeneration;
+    this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.code.set('');
     return this.api.command(url, body).then(result => {
       if (!owner() || operation !== this.commandGeneration) {
         if (!result.ok && result.unknown) {
@@ -182,7 +205,7 @@ export class AuditFieldwork {
         this.refreshPriorScopeNotice();
         return;
       }
-      this.cmd.busy.set(false);
+      release();
       if (owner()) this.ws.reload();
     });
   }

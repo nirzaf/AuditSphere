@@ -2,12 +2,15 @@ import { DestroyRef, signal } from '@angular/core';
 import { Api, CommandState, type Resource } from '../../core/api';
 import { decode } from '../../core/decode';
 import { SessionService } from '../../core/session';
-import { TabDrafts } from '../../core/tab-drafts';
+import { pendingRequestReference, TabDrafts } from '../../core/tab-drafts';
+import type { FieldworkCommandAcquire, FieldworkCommandRecovery } from './fieldwork-command-context';
 import { decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions,
   decodeTailorProcedureCommand, type Fieldwork, type TailorProcedureCommand } from './fieldwork-contracts';
 
 export type FieldworkSend = (url: string, body: unknown, ok: string, after?: () => void) => Promise<boolean>;
 type PendingProcedureCommand = { engagementId: string; actorUserId: string; actorGeneration: string; procedureId: string; requestId: string; requestHash: string };
+type TailoringOwner = { engagementId: string; actorUserId: string; actorGeneration: string };
+type ProcedureReceiptOwner = { engagementId: string; actorUserId: string; actorGeneration: string };
 
 export class FieldworkProcedureState {
   readonly selectedProgramVersionId = signal('');
@@ -21,6 +24,7 @@ export class FieldworkProcedureState {
   readonly procedureCommandBusy = signal(false);
   readonly procedureUnknown = signal<PendingProcedureCommand | null>(null);
   private readonly procedureUnknowns = signal<PendingProcedureCommand[]>([]);
+  private readonly procedureReceiptStorageProblem = signal<ProcedureReceiptOwner | null>(null);
   readonly tailoringProcedureId = signal('');
   readonly tailoringPending = signal<{ procedureId: string; command: TailorProcedureCommand } | null>(null);
   readonly tailoringBusy = signal(false);
@@ -58,8 +62,10 @@ export class FieldworkProcedureState {
   readonly cmd: CommandState;
   readonly riskLinkSession: SessionService;
   private readonly sendCommand: FieldworkSend;
+  private readonly acquireCommand: FieldworkCommandAcquire;
   private readonly captureOwner: () => () => boolean;
   private readonly destroyRef: DestroyRef;
+  private tailoringPendingOwner: TailoringOwner | null = null;
 
   e = { procedure: '', upload: '', note: '' };
   ph = { index: '', box: '', description: '', location: '', linkTarget: '', moveTo: '' };
@@ -68,10 +74,12 @@ export class FieldworkProcedureState {
 
   constructor(context: {
     api: Api; tabDrafts: TabDrafts; id: () => string | null; ws: Resource<Fieldwork>; cmd: CommandState;
-    session: SessionService; send: FieldworkSend; captureOwner: () => () => boolean; destroyRef: DestroyRef;
+    session: SessionService; send: FieldworkSend; acquireCommand: FieldworkCommandAcquire;
+    captureOwner: () => () => boolean; destroyRef: DestroyRef;
   }) {
     this.api = context.api; this.tabDrafts = context.tabDrafts; this.id = context.id; this.ws = context.ws;
     this.cmd = context.cmd; this.riskLinkSession = context.session; this.sendCommand = context.send;
+    this.acquireCommand = context.acquireCommand;
     this.captureOwner = context.captureOwner; this.destroyRef = context.destroyRef;
     this.destroyRef.onDestroy(() => {
       this.reviewDestroyed = true; ++this.reviewRequest; ++this.selectionGeneration; ++this.commandGeneration; ++this.previewGeneration; ++this.tailoringGeneration;
@@ -107,7 +115,10 @@ export class FieldworkProcedureState {
     ++this.reviewRequest; this.review.set(null); this.reviewError.set('');
     const workspace = this.ws.data();
     if (workspace && this.e.procedure && workspace.procedures.some(p => p.id === this.e.procedure)) void this.selectProcedure(this.e.procedure);
-    if (workspace) this.restorePendingTailoring(workspace);
+    if (workspace) {
+      this.restorePendingTailoring(workspace);
+      this.restorePendingProcedureCommands(workspace);
+    }
   }
 
   private send(url: string, body: unknown, ok: string, after?: () => void): Promise<boolean> {
@@ -137,6 +148,51 @@ export class FieldworkProcedureState {
   private tailoringScope(procedureId: string) {
     return { entity: `audit-procedure-tailoring/${procedureId}`, baseRevision: '0'.repeat(64) };
   }
+  private procedureCommandScope(engagementId: string, procedureId: string) {
+    return { entity: `audit-procedure-command/${engagementId}/${procedureId}`, baseRevision: '0'.repeat(64) };
+  }
+  private restorePendingProcedureCommands(workspace: Fieldwork): void {
+    const engagementId = this.id(), actor = this.riskLinkSession.current();
+    if (!engagementId || !actor?.staff) return;
+    let storageProblem = false;
+    for (const procedure of workspace.procedures) {
+      const saved = this.tabDrafts.readPendingRequest(this.procedureCommandScope(engagementId, procedure.id));
+      if (saved.state === 'unavailable' || saved.state === 'stale') {
+        storageProblem = true;
+        continue;
+      }
+      if (saved.state === 'ready') this.retainUnknown({ engagementId, actorUserId: actor.userId, actorGeneration: actor.generation,
+        procedureId: procedure.id, requestId: saved.draft.value.requestId, requestHash: saved.draft.value.requestHash });
+    }
+    const currentOwner = { engagementId, actorUserId: actor.userId, actorGeneration: actor.generation };
+    if (storageProblem) {
+      this.procedureReceiptStorageProblem.set(currentOwner);
+      this.procedureCommandError.set('A pending procedure receipt checkpoint is unavailable or invalid. Restore readable tab storage and refresh before sending another fieldwork command.');
+    } else {
+      const problem = this.procedureReceiptStorageProblem();
+      if (problem?.engagementId === engagementId && problem.actorUserId === actor.userId && problem.actorGeneration === actor.generation) {
+        this.procedureReceiptStorageProblem.set(null);
+        if (this.procedureCommandError().startsWith('A pending procedure receipt checkpoint is unavailable or invalid.'))
+          this.procedureCommandError.set('');
+      }
+    }
+  }
+  procedureReceiptCheckpointProblem(): boolean {
+    const problem = this.procedureReceiptStorageProblem(), actor = this.riskLinkSession.current();
+    return !!problem && problem.engagementId === this.id() && problem.actorUserId === actor?.userId &&
+      problem.actorGeneration === actor?.generation;
+  }
+  hasUnresolvedCommand(recovery?: FieldworkCommandRecovery): boolean {
+    const actor = this.riskLinkSession.current(), engagementId = this.id();
+    const procedureReceiptPending = this.procedureUnknowns().some(pending => pending.engagementId === engagementId &&
+      pending.actorUserId === actor?.userId && pending.actorGeneration === actor?.generation);
+    const checkpointUnreadable = this.procedureReceiptCheckpointProblem();
+    const tailoringOwner = this.tailoringPendingOwner;
+    const tailoringPending = !!this.tailoringPending() && !!tailoringOwner &&
+      tailoringOwner.engagementId === engagementId && tailoringOwner.actorUserId === actor?.userId &&
+      tailoringOwner.actorGeneration === actor?.generation && (this.tailoringUncertain() || this.tailoringBusy());
+    return checkpointUnreadable || procedureReceiptPending || (recovery !== 'tailoring' && tailoringPending);
+  }
   private restorePendingTailoring(workspace: Fieldwork): void {
     if (this.tailoringPending() || !workspace.canManageFieldwork) return;
     for (const procedure of workspace.procedures) {
@@ -144,6 +200,9 @@ export class FieldworkProcedureState {
       const saved = this.tabDrafts.read(this.tailoringScope(procedure.id), decodeTailorProcedureCommand);
       if (saved.state !== 'ready' || !saved.draft.submissionPending) continue;
       this.tailoringPending.set({ procedureId: procedure.id, command: saved.draft.value });
+      const actor = this.riskLinkSession.current(), engagementId = this.id();
+      this.tailoringPendingOwner = actor && engagementId
+        ? { engagementId, actorUserId: actor.userId, actorGeneration: actor.generation } : null;
       this.tailoringProcedureId.set(procedure.id);
       this.tailoringTitle = saved.draft.value.title;
       this.tailoringWording = saved.draft.value.customWording;
@@ -185,11 +244,14 @@ export class FieldworkProcedureState {
     await this.sendTailoring(procedureId, command);
   }
   async recoverTailoring(): Promise<void> {
-    const pending = this.tailoringPending();
-    if (!pending || !this.tailoringUncertain() || this.tailoringBusy()) return;
-    await this.sendTailoring(pending.procedureId, pending.command);
+    const pending = this.tailoringPending(), owner = this.tailoringPendingOwner, actor = this.riskLinkSession.current();
+    if (!pending || !owner || owner.engagementId !== this.id() || owner.actorUserId !== actor?.userId ||
+        owner.actorGeneration !== actor?.generation || !this.tailoringUncertain() || this.tailoringBusy()) return;
+    await this.sendTailoring(pending.procedureId, pending.command, true);
   }
-  private async sendTailoring(procedureId: string, command: TailorProcedureCommand): Promise<void> {
+  private async sendTailoring(procedureId: string, command: TailorProcedureCommand, retryPending = false): Promise<void> {
+    const release = this.acquireCommand(retryPending ? 'tailoring' : undefined);
+    if (!release) return;
     const generation = ++this.tailoringGeneration;
     const owner = this.captureOwner();
     const current = () => owner() && generation === this.tailoringGeneration && !this.reviewDestroyed;
@@ -198,18 +260,23 @@ export class FieldworkProcedureState {
     this.tailoringMessage.set('');
     this.tailoringBusy.set(true);
     if (!this.tabDrafts.save(scope, command, decodeTailorProcedureCommand, true)) {
+      release();
       this.tailoringBusy.set(false);
       this.tailoringFailed.set(true);
       this.tailoringMessage.set('The request could not be safely retained in this tab, so it was not sent.');
       return;
     }
     this.tailoringPending.set({ procedureId, command });
+    const actor = this.riskLinkSession.current(), engagementId = this.id();
+    this.tailoringPendingOwner = actor && engagementId
+      ? { engagementId, actorUserId: actor.userId, actorGeneration: actor.generation } : null;
     try {
       const result = await this.api.command(`/api/ui/procedures/${procedureId}/tailor`, command);
       if (!current()) return;
       if (result.ok) {
         this.tabDrafts.clear(scope.entity);
         this.tailoringPending.set(null);
+        this.tailoringPendingOwner = null;
         this.tailoringUncertain.set(false);
         this.tailoringProcedureId.set('');
         this.tailoringMessage.set('A new effective wording revision was appended. The original controlled definition is unchanged.');
@@ -220,6 +287,7 @@ export class FieldworkProcedureState {
       } else {
         this.tabDrafts.clear(scope.entity);
         this.tailoringPending.set(null);
+        this.tailoringPendingOwner = null;
         this.tailoringUncertain.set(false);
         this.tailoringProcedureId.set('');
         this.tailoringFailed.set(true);
@@ -232,7 +300,10 @@ export class FieldworkProcedureState {
       if (!current()) return;
       this.tailoringUncertain.set(true);
       this.tailoringMessage.set('The outcome could not be verified. Retry the exact retained request to reconcile it before starting another tailoring change.');
-    } finally { if (generation === this.tailoringGeneration) this.tailoringBusy.set(false); }
+    } finally {
+      release();
+      if (generation === this.tailoringGeneration) this.tailoringBusy.set(false);
+    }
   }
   decide(procedure: ReturnType<typeof decodeFieldwork>['procedures'][number], decision: string): void {
     const rationale = this.applicabilityReason(procedure.id).trim();
@@ -389,6 +460,8 @@ export class FieldworkProcedureState {
       this.procedureSelectedId() === procedureId && !this.reviewDestroyed;
     const request = this.procedureActionRequest(action);
     if (!request) return;
+    const release = this.acquireCommand();
+    if (!release) return;
     this.procedureCommandBusy.set(true);
     this.procedureCommandError.set('');
     this.procedureCommandPreview.set(null);
@@ -401,28 +474,52 @@ export class FieldworkProcedureState {
       this.procedureCommandPreview.set(decode(decodeProcedureCommandPreview, outcome.value));
     } catch {
       if (current()) this.procedureCommandError.set('The procedure command preview could not be verified. Refresh and review again.');
-    } finally { if (generation === this.commandGeneration) this.procedureCommandBusy.set(false); }
+    } finally {
+      release();
+      if (generation === this.commandGeneration) this.procedureCommandBusy.set(false);
+    }
   }
   async executeProcedureCommand(): Promise<void> {
     const procedureId = this.procedureSelectedId(), preview = this.procedureCommandPreview(), request = this.procedurePendingRequest;
     if (!procedureId || !preview || !request || !this.procedureAssent || this.procedureCommandBusy() || this.procedureUnknownForSelection()) return;
+    const requestId = request['requestId'];
+    if (typeof requestId !== 'string' || preview.requestId !== requestId) {
+      this.procedureCommandError.set('The preview identity does not match the retained command. Refresh and review again.');
+      return;
+    }
+    const release = this.acquireCommand();
+    if (!release) return;
     const owner = this.captureOwner(), generation = ++this.commandGeneration, selection = this.selectionGeneration;
     const actor = this.riskLinkSession.current(), engagementId = this.id();
     const current = () => owner() && generation === this.commandGeneration && selection === this.selectionGeneration &&
       this.procedureSelectedId() === procedureId && !this.reviewDestroyed;
     this.procedureCommandBusy.set(true);
     this.procedureCommandError.set('');
+    const reference = pendingRequestReference({ requestId, requestHash: preview.requestHash });
+    const scope = engagementId ? this.procedureCommandScope(engagementId, procedureId) : null;
+    if (!reference || !scope || !this.tabDrafts.save(scope, reference, pendingRequestReference, true)) {
+      release();
+      this.procedureCommandBusy.set(false);
+      this.procedureCommandError.set('The exact request identity could not be safely retained in this tab, so it was not sent.');
+      return;
+    }
+    const pending: PendingProcedureCommand | null = actor && engagementId
+      ? { engagementId, actorUserId: actor.userId, actorGeneration: actor.generation, procedureId,
+          requestId, requestHash: preview.requestHash }
+      : null;
     try {
       const outcome = await this.api.command(`/api/ui/procedures/${procedureId}/commands/actions`,
         { ...request, reviewed: true, expectedRequestHash: preview.requestHash });
-      if (!current()) {
-        if (!outcome.ok && outcome.unknown && actor && engagementId)
-          this.retainUnknown({ engagementId, actorUserId: actor.userId, actorGeneration: actor.generation,
-            procedureId, requestId: request['requestId'] as string, requestHash: preview.requestHash });
-        return;
-      }
       if (outcome.ok) {
-        this.procedureCommandReceipt.set(decode(decodeProcedureCommandReceipt, outcome.value));
+        const receipt = decode(decodeProcedureCommandReceipt, outcome.value);
+        if (receipt.procedureId !== procedureId || receipt.requestId !== requestId || receipt.requestHash !== preview.requestHash)
+          throw new Error('The returned receipt does not match the submitted request identity.');
+        if (owner()) {
+          this.tabDrafts.clear(scope.entity);
+          this.resolveUnknown(requestId);
+        }
+        if (!current()) return;
+        this.procedureCommandReceipt.set(receipt);
         this.procedureCommandPreview.set(null);
         this.procedureAssent = false;
         this.procedurePendingRequest = null;
@@ -430,23 +527,30 @@ export class FieldworkProcedureState {
         await this.loadProcedureCommandState(procedureId);
         await this.selectProcedure(procedureId);
       } else if (outcome.unknown) {
-        if (actor && engagementId) this.retainUnknown({ engagementId, actorUserId: actor.userId, actorGeneration: actor.generation,
-          procedureId, requestId: request['requestId'] as string, requestHash: preview.requestHash });
+        if (pending) this.retainUnknown(pending);
+        if (!current()) return;
         this.procedureCommandError.set(outcome.message);
       } else {
+        if (owner()) {
+          this.tabDrafts.clear(scope.entity);
+          this.resolveUnknown(requestId);
+        }
+        if (!current()) return;
         this.procedureCommandError.set(outcome.message);
       }
     } catch {
-      if (actor && engagementId) this.retainUnknown({ engagementId, actorUserId: actor.userId, actorGeneration: actor.generation,
-        procedureId, requestId: request['requestId'] as string, requestHash: preview.requestHash });
+      if (pending) this.retainUnknown(pending);
       if (current()) this.procedureCommandError.set('The outcome could not be verified. Retain the request identity and recover it before retrying.');
-    } finally { if (generation === this.commandGeneration) this.procedureCommandBusy.set(false); }
+    } finally {
+      release();
+      if (generation === this.commandGeneration) this.procedureCommandBusy.set(false);
+    }
   }
   async recoverProcedureCommand(): Promise<void> {
     const procedureId = this.procedureSelectedId(), pending = this.procedureUnknownForSelection();
     const actor = this.riskLinkSession.current();
     if (!procedureId || !pending || pending.procedureId !== procedureId || pending.engagementId !== this.id() ||
-        pending.actorUserId !== actor?.userId || pending.actorGeneration !== actor?.generation || this.procedureCommandBusy()) return;
+        pending.actorUserId !== actor?.userId || pending.actorGeneration !== actor?.generation || this.procedureCommandBusy() || this.cmd.busy()) return;
     const owner = this.captureOwner(), generation = ++this.commandGeneration, selection = this.selectionGeneration;
     const current = () => owner() && generation === this.commandGeneration && selection === this.selectionGeneration &&
       this.procedureSelectedId() === procedureId && !this.reviewDestroyed;
@@ -455,14 +559,18 @@ export class FieldworkProcedureState {
     try {
       const lookup = await this.api.get(`/api/ui/procedures/${procedureId}/commands/receipts/${pending.requestId}?requestHash=${pending.requestHash}`, decodeProcedureCommandLookup);
       if (!current()) return;
-      if (lookup.found && lookup.receipt) {
+      if (lookup.found && lookup.receipt && lookup.receipt.procedureId === procedureId &&
+          lookup.receipt.requestId === pending.requestId && lookup.receipt.requestHash === pending.requestHash) {
         this.procedureCommandReceipt.set(lookup.receipt);
+        this.tabDrafts.clear(this.procedureCommandScope(pending.engagementId, procedureId).entity);
         this.resolveUnknown(pending.requestId);
         this.ws.reload();
         await this.loadProcedureCommandState(procedureId);
         await this.selectProcedure(procedureId);
       } else {
-        this.procedureCommandError.set('The original outcome is not retained yet. Do not resend a new identity; refresh and reconcile persisted state.');
+        this.procedureCommandError.set(lookup.found
+          ? 'The receipt identity does not match the pending request. Keep the request reference and reconcile with the authorized server state.'
+          : 'The original outcome is not retained yet. Do not resend a new identity; refresh and reconcile persisted state.');
       }
     } catch (e) { if (current()) this.procedureCommandError.set((e as Error).message); }
     finally { if (generation === this.commandGeneration) this.procedureCommandBusy.set(false); }

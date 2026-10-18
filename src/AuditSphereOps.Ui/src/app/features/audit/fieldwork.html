@@ -40,6 +40,9 @@
       @if (w.canManageFieldwork || w.canViewReviewNotes) {
       <section class="panel" aria-labelledby="fieldwork-tools-heading">
         <h2 id="fieldwork-tools-heading">{{ w.canManageFieldwork ? 'Fieldwork tools' : 'Procedure review' }}</h2>
+        @if (procedure.procedureReceiptCheckpointProblem()) {
+          <p role="alert" class="error-text">A pending procedure receipt checkpoint is unavailable or invalid. Restore readable tab storage and refresh before sending another fieldwork command.</p>
+        }
         @if (w.canManageFieldwork) { <a [routerLink]="['/app/engagements',id(),'confirmations']">Confirmation dashboard</a> }
         <mat-tab-group [selectedIndex]="toolTab()" (selectedIndexChange)="toolTab.set($event)">
           @if (w.canManageFieldwork || w.canReviewSelections) {
@@ -65,7 +68,7 @@
                 </fieldset>
               }
               <label>Rationale <input name="sr" [(ngModel)]="sampling.s.rationale" (ngModelChange)="sampling.inputsChanged()" maxlength="500" /></label>
-              <button matButton="filled" type="submit" [disabled]="sampling.samplingBusy()">Preview selection</button>
+              <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || sampling.samplingBusy()">Preview selection</button>
             </form>
             @if (sampling.samplingPreview(); as preview) {
               <section class="panel" aria-labelledby="sampling-preview-heading">
@@ -83,7 +86,7 @@
                 <div class="table-scroll"><table aria-label="Exact selected sampling rows"><thead><tr><th>Stable row ID</th><th>Signed amount</th><th>Selection basis</th></tr></thead>
                   <tbody>@for (item of preview.outcome.items; track item.stableRowId) { <tr><td><code>{{ item.stableRowId }}</code></td><td>{{ item.signedAmount | money }}</td><td>{{ item.inclusionReason }}</td></tr> }</tbody></table></div>
                 <p><small>All selected IDs are shown above. Recording stores the selection, source and selection digests, method version, ordering policy and seed for replay.</small></p>
-                <button matButton="filled" type="button" [disabled]="sampling.samplingBusy() || !sampling.previewMatchesInputs()" (click)="sampling.recordSampling()">Record this exact sample</button>
+                <button matButton="filled" type="button" [disabled]="fieldworkCommandBlocked() || sampling.samplingBusy() || !sampling.previewMatchesInputs()" (click)="sampling.recordSampling()">Record this exact sample</button>
               </section>
             }
             }
@@ -97,8 +100,8 @@
                       <button matButton (click)="sampling.openSampleSet(r.selectionId)" [disabled]="sampling.sampleSetLoading() || sampling.sampleActionBusy()">Open sample set</button>
                       @if (r.canReviewSelection) {
                         <label>Review note <input [(ngModel)]="sampling.selectionReviewComment" [name]="'selection-review-' + r.selectionId" /></label>
-                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'REVIEWED')" [disabled]="sampling.sampleActionBusy()">Approve for execution</button>
-                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'CHANGES_REQUIRED')" [disabled]="sampling.sampleActionBusy()">Return for changes</button>
+                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'REVIEWED')" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">Approve for execution</button>
+                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'CHANGES_REQUIRED')" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">Return for changes</button>
                       } @else if (r.selectionStatus !== 'REVIEWED') {
                         <small>{{ r.preparedByMe ? 'Independent review required before execution.' : 'Awaiting an authorized selection reviewer.' }}</small>
                       }
@@ -141,14 +144,14 @@
                           <label>Contradictory evidence <textarea [(ngModel)]="draft.contradictoryEvidence" [name]="'contradiction-' + item.selectionItemId" rows="2"></textarea></label>
                           <label>Required follow-up <textarea [(ngModel)]="draft.followUp" [name]="'followup-' + item.selectionItemId" rows="2"></textarea></label>
                         }
-                        <button matButton="filled" type="submit" [disabled]="sampling.sampleActionBusy()">{{ item.testRevision ? 'Record a new test revision' : 'Record item test' }}</button>
+                        <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">{{ item.testRevision ? 'Record a new test revision' : 'Record item test' }}</button>
                       </form>
                     }
                     @if (item.canReviewTest && item.auditItemTestId) {
                       <div class="inline-form" aria-label="Independent item-test review">
                         <label>Reviewer note <input [(ngModel)]="draft.reviewerComment" [name]="'test-review-' + item.selectionItemId" /></label>
-                        <button matButton (click)="sampling.reviewItemTest(item.auditItemTestId!, 'REVIEWED', item.selectionItemId)" [disabled]="sampling.sampleActionBusy()">Review item test</button>
-                        <button matButton (click)="sampling.reviewItemTest(item.auditItemTestId!, 'CHANGES_REQUIRED', item.selectionItemId)" [disabled]="sampling.sampleActionBusy() || !draft.reviewerComment.trim()">Return item test</button>
+                        <button matButton (click)="sampling.reviewItemTest(item.auditItemTestId!, 'REVIEWED', item.selectionItemId)" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">Review item test</button>
+                        <button matButton (click)="sampling.reviewItemTest(item.auditItemTestId!, 'CHANGES_REQUIRED', item.selectionItemId)" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy() || !draft.reviewerComment.trim()">Return item test</button>
                       </div>
                     }
                   </article>
@@ -169,7 +172,7 @@
               <label>Procedure <select name="ep" [(ngModel)]="procedure.e.procedure" (ngModelChange)="procedure.selectProcedure($event)"><option value="">Select</option>@for (p of applicable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
               <label>Received upload <select name="eu" [(ngModel)]="procedure.e.upload"><option value="">Select</option>@for (c of w.evidenceCandidates; track c.uploadIntentId) { <option [value]="c.uploadIntentId">{{ c.requestArea }} · {{ c.fileName }} · {{ c.receivedAt.slice(0, 16).replace('T', ' ') }}{{ c.superseded ? ' (superseded)' : '' }}</option> }</select></label>
               <label>Note <input name="en" [(ngModel)]="procedure.e.note" maxlength="500" /></label>
-              <button matButton="filled" type="submit" [disabled]="cmd.busy()">Link evidence</button>
+              <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked()">Link evidence</button>
             </form>
             @if (procedure.review()?.evidence?.length) { <ul aria-label="Linked client evidence">@for (l of procedure.review()!.evidence; track l.linkId) { <li>{{ l.fileName }} <code>{{ l.contentSha256.slice(0, 12) }}</code>{{ l.note ? ' — ' + l.note : '' }}</li> }</ul> }
           </mat-tab>
@@ -179,7 +182,7 @@
               <label>Box <input name="pb" [(ngModel)]="procedure.ph.box" maxlength="40" placeholder="Box 3" /></label>
               <label>Description <input name="pd" [(ngModel)]="procedure.ph.description" maxlength="300" /></label>
               <label>Location <input name="pl" [(ngModel)]="procedure.ph.location" maxlength="200" /></label>
-              <button matButton="filled" type="submit" [disabled]="cmd.busy()">Register file</button>
+              <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked()">Register file</button>
             </form>
             @for (item of w.physicalItems; track item.id) {
               <article class="panel" [attr.data-file-index]="item.fileIndex">
@@ -188,9 +191,9 @@
                 <p><small>Procedures: {{ item.procedureTitles.length ? item.procedureTitles.join(', ') : 'none' }}</small></p>
                 <div class="inline-form">
                   <label>Link to procedure <select [(ngModel)]="procedure.ph.linkTarget" [name]="'pt-' + item.id" [attr.aria-label]="'Procedure for ' + item.fileIndex"><option value="">Select</option>@for (p of applicable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
-                  <button matButton (click)="procedure.linkPhysical(item.id)" [disabled]="cmd.busy() || !procedure.ph.linkTarget" [attr.aria-label]="'Link ' + item.fileIndex">Link</button>
+                  <button matButton (click)="procedure.linkPhysical(item.id)" [disabled]="fieldworkCommandBlocked() || !procedure.ph.linkTarget" [attr.aria-label]="'Link ' + item.fileIndex">Link</button>
                   <label>Move to <input [(ngModel)]="procedure.ph.moveTo" [name]="'mv-' + item.id" [attr.aria-label]="'New location for ' + item.fileIndex" /></label>
-                  <button matButton (click)="procedure.move(item.id)" [disabled]="cmd.busy()" [attr.aria-label]="'Move ' + item.fileIndex">Record move</button>
+                  <button matButton (click)="procedure.move(item.id)" [disabled]="fieldworkCommandBlocked()" [attr.aria-label]="'Move ' + item.fileIndex">Record move</button>
                 </div>
               </article>
             }
@@ -202,7 +205,7 @@
               <label>Step <textarea name="aw" [(ngModel)]="procedure.ah.wording" maxlength="4000" rows="2"></textarea></label>
               <label>Why it is needed <input name="ar" [(ngModel)]="procedure.ah.reason" maxlength="500" /></label>
               <label>Audit area <input name="as" [(ngModel)]="procedure.ah.section" maxlength="100" /></label>
-              <button matButton="filled" type="submit" [disabled]="cmd.busy()">Insert step</button>
+              <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked()">Insert step</button>
             </form>
           </mat-tab>
           }
@@ -223,7 +226,7 @@
                 <label>Field <select name="nf" [(ngModel)]="procedure.n.field"><option value="WORK_PERFORMED">Work performed</option><option value="CONCLUSION">Conclusion</option></select></label>
                 <label>Quoted text <input name="ne" [(ngModel)]="procedure.n.excerpt" maxlength="500" /></label>
                 <label>Note <input name="nb" [(ngModel)]="procedure.n.body" maxlength="4000" /></label>
-                <button matButton="filled" type="submit" [disabled]="cmd.busy()">Add note</button>
+                <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked()">Add note</button>
               </form>
               }
             }
@@ -234,9 +237,9 @@
                 <div class="inline-form">
                   @if (w.canRespondToReviewNotes) {
                     <label>Reply <input [(ngModel)]="procedure.n.reply" [name]="'nr-' + note.noteId" [attr.aria-label]="'Reply to note on ' + note.excerpt" /></label>
-                    <button matButton (click)="procedure.noteEvent(note.noteId, 'RESPONSE')" [disabled]="cmd.busy()">Respond</button>
+                    <button matButton (click)="procedure.noteEvent(note.noteId, 'RESPONSE')" [disabled]="fieldworkCommandBlocked()">Respond</button>
                   }
-                  @if (note.open && w.canAddOrResolveReviewNotes) { <button matButton (click)="procedure.noteEvent(note.noteId, 'RESOLVED')" [disabled]="cmd.busy()" [attr.aria-label]="'Resolve note on ' + note.excerpt">Resolve</button> }
+                  @if (note.open && w.canAddOrResolveReviewNotes) { <button matButton (click)="procedure.noteEvent(note.noteId, 'RESOLVED')" [disabled]="fieldworkCommandBlocked()" [attr.aria-label]="'Resolve note on ' + note.excerpt">Resolve</button> }
                 </div>
               </article>
             }
@@ -272,7 +275,7 @@
               @if (procedure.selectedProgram(options); as selected) {
                 <p>Source SHA-256 <code>{{ selected.sourceHash }}</code> · content SHA-256 <code>{{ selected.contentDigest ?? 'unverified' }}</code> · baseline {{ selected.procedureCount }}</p>
                 @if (selected.blocker) { <p role="status">{{ selected.blocker }}</p> }
-                <button matButton="filled" (click)="procedure.adoptProgram(options)" [disabled]="cmd.busy() || !selected.eligible || !!options.currentAdoptionId || !!options.currentAdoptionBlocker">Adopt exact published version {{ selected.version }}</button>
+                <button matButton="filled" (click)="procedure.adoptProgram(options)" [disabled]="fieldworkCommandBlocked() || !selected.eligible || !!options.currentAdoptionId || !!options.currentAdoptionBlocker">Adopt exact published version {{ selected.version }}</button>
               }
             } @else { <p role="status">No published eligible programme is available. A firm-wide owner must publish a reviewed version first.</p> }
           } @else if (programOptions.loading()) { <p role="status">Loading engagement-scoped published versions…</p> }
@@ -292,11 +295,11 @@
           @if (w.aggregate; as a) {
             <dl class="facts"><dt>Assessment</dt><dd>{{ a.status }}</dd><dt>Current and independently reviewed</dt><dd>{{ w.aggregateCurrentAndReviewed ? 'Yes' : 'No — refresh the assessment before completion' }}</dd>
               <dt>Professional conclusion / reporting impact</dt><dd>{{ a.conclusion }}</dd></dl>
-            @if (a.status !== 'REVIEWED' && !a.preparedByMe) { <button matButton="filled" (click)="send('/api/ui/area-assessments/' + a.id + '/review', {}, 'Aggregate conclusion reviewed.')" [disabled]="cmd.busy()">Review aggregate conclusion</button> }
+            @if (a.status !== 'REVIEWED' && !a.preparedByMe) { <button matButton="filled" (click)="send('/api/ui/area-assessments/' + a.id + '/review', {}, 'Aggregate conclusion reviewed.')" [disabled]="fieldworkCommandBlocked()">Review aggregate conclusion</button> }
           }
           <form (submit)="$event.preventDefault(); aggregate(w)">
             <label>Required: professional aggregate conclusion and reporting impact <textarea name="agg" [(ngModel)]="aggregateConclusion" maxlength="4000" rows="4" required></textarea></label>
-            <button matButton="filled" type="submit" [disabled]="cmd.busy() || !aggregateConclusion.trim()">Record aggregate conclusion</button>
+            <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || !aggregateConclusion.trim()">Record aggregate conclusion</button>
           </form>
         </section>
       }
@@ -322,7 +325,7 @@
                 </details>
                 @if (w.canManageFieldwork && p.originalWording && p.definitionRevision) {
                   <button matButton="outlined" type="button" (click)="procedure.beginTailoring(p)"
-                    [disabled]="procedure.tailoringBusy() || procedure.tailoringUncertain() || procedure.tailoringProcedureId() !== ''">Tailor effective wording</button>
+                    [disabled]="fieldworkCommandBlocked() || procedure.tailoringBusy() || procedure.tailoringUncertain() || procedure.tailoringProcedureId() !== ''">Tailor effective wording</button>
                 }
                 @if (procedure.tailoringProcedureId() === p.id) {
                   <form class="stack-form" (submit)="$event.preventDefault(); procedure.submitTailoring()" aria-label="Tailor controlled procedure wording">
@@ -337,10 +340,10 @@
                       <section class="panel" role="region" aria-label="Uncertain tailoring outcome recovery">
                         <p role="alert">The result is unknown. The exact request identity and wording are retained. Retry that same command to reconcile it before starting another tailoring change.</p>
                         @if (procedure.tailoringPending(); as pending) { <p>Command <code>{{ pending.command.commandId }}</code> · expected revision {{ pending.command.expectedDefinitionRevision }}</p> }
-                        <button matButton="filled" type="button" (click)="procedure.recoverTailoring()" [disabled]="procedure.tailoringBusy()">Retry exact tailoring request</button>
+                        <button matButton="filled" type="button" (click)="procedure.recoverTailoring()" [disabled]="fieldworkCommandBlocked('tailoring') || procedure.tailoringBusy()">Retry exact tailoring request</button>
                       </section>
                     } @else {
-                      <button matButton="filled" type="submit" [disabled]="procedure.tailoringBusy()">Append wording revision</button>
+                      <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || procedure.tailoringBusy()">Append wording revision</button>
                       <button matButton="outlined" type="button" (click)="procedure.cancelTailoring()" [disabled]="procedure.tailoringBusy()">Cancel</button>
                     }
                     @if (procedure.tailoringMessage()) { <p [attr.role]="procedure.tailoringFailed() || procedure.tailoringUncertain() ? 'alert' : 'status'">{{ procedure.tailoringMessage() }}</p> }
@@ -408,7 +411,7 @@
                   <strong>{{ p.applicabilityStatus }}</strong>
                   @if (p.applicabilityStatus === 'PENDING' || p.applicabilityStatus === 'NA_UNVERIFIED' || p.applicabilityStatus === 'APPLICABLE') {
                     @if (p.applicabilityStatus === 'PENDING' || p.applicabilityStatus === 'NA_UNVERIFIED') {
-                      <button matButton="filled" (click)="procedure.decide(p, 'APPLICABLE')" [disabled]="cmd.busy()">Applicable</button>
+                      <button matButton="filled" (click)="procedure.decide(p, 'APPLICABLE')" [disabled]="fieldworkCommandBlocked()">Applicable</button>
                     } @else { <small>Execute from source workflow</small> }
                   }
                   @if (p.canProposeNotApplicable) {
@@ -416,16 +419,16 @@
                     <textarea [id]="'na-reason-' + p.id" [name]="'na-reason-' + p.id" maxlength="1000"
                       [ngModel]="procedure.applicabilityReason(p.id)" (ngModelChange)="procedure.setApplicabilityReason(p.id, $event)"></textarea>
                     <button matButton="filled" (click)="procedure.decide(p, 'PROPOSE_NOT_APPLICABLE')"
-                      [disabled]="cmd.busy() || !procedure.applicabilityReason(p.id).trim()">Propose N/A</button>
+                      [disabled]="fieldworkCommandBlocked() || !procedure.applicabilityReason(p.id).trim()">Propose N/A</button>
                   }
                   @if (p.canApproveNotApplicable) {
                     <p><strong>Pending N/A reason:</strong> {{ p.applicabilityRationale }}</p>
-                    <button matButton="filled" (click)="procedure.decide(p, 'APPROVE_NOT_APPLICABLE')" [disabled]="cmd.busy()">Approve as Partner</button>
+                    <button matButton="filled" (click)="procedure.decide(p, 'APPROVE_NOT_APPLICABLE')" [disabled]="fieldworkCommandBlocked()">Approve as Partner</button>
                     <label [attr.for]="'na-return-' + p.id">Reason to return proposal</label>
                     <textarea [id]="'na-return-' + p.id" [name]="'na-return-' + p.id" maxlength="1000"
                       [ngModel]="procedure.applicabilityReason(p.id)" (ngModelChange)="procedure.setApplicabilityReason(p.id, $event)"></textarea>
                     <button matButton (click)="procedure.decide(p, 'RETURN_NOT_APPLICABLE')"
-                      [disabled]="cmd.busy() || !procedure.applicabilityReason(p.id).trim()">Return proposal</button>
+                      [disabled]="fieldworkCommandBlocked() || !procedure.applicabilityReason(p.id).trim()">Return proposal</button>
                   }
                   @if (p.applicabilityStatus === 'NA_UNVERIFIED') {
                     <p role="status">Historical N/A is unverified against current proposal, Partner and input evidence.</p>
@@ -504,7 +507,7 @@
                     <label>What was observed <textarea name="manual-observation" [(ngModel)]="procedure.procedureObservation" (ngModelChange)="procedure.procedureInputChanged()" maxlength="4000" rows="3"></textarea></label>
                     <label>Legacy free-text references (one per line) <textarea name="legacy-references" [(ngModel)]="procedure.procedureLegacyReferences" (ngModelChange)="procedure.procedureInputChanged()" rows="2"></textarea></label>
                   </fieldset>
-                  <button matButton="filled" type="submit" [disabled]="procedure.procedureCommandBusy() || !procedure.procedureWork.trim() || !procedure.procedureConclusion.trim()">Preview exact submission</button>
+                  <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || procedure.procedureCommandBusy() || !procedure.procedureWork.trim() || !procedure.procedureConclusion.trim()">Preview exact submission</button>
                 </form>
               }
               @if (state.basis.canReview) {
@@ -514,7 +517,7 @@
                   <label>Decision <select name="procedure-decision" [(ngModel)]="procedure.procedureDecision" (ngModelChange)="procedure.procedureInputChanged()">
                     <option value="REVIEWED">Reviewed</option><option value="CHANGES_REQUIRED">Changes required</option></select></label>
                   <label>Review comment (required when returning) <textarea name="procedure-comment" [(ngModel)]="procedure.procedureComment" (ngModelChange)="procedure.procedureInputChanged()" maxlength="20000" rows="3"></textarea></label>
-                  <button matButton="filled" (click)="procedure.prepareProcedureCommand('REVIEW_RESULT')" [disabled]="procedure.procedureCommandBusy() || (procedure.procedureDecision === 'CHANGES_REQUIRED' && !procedure.procedureComment.trim())">Preview exact review</button>
+                  <button matButton="filled" (click)="procedure.prepareProcedureCommand('REVIEW_RESULT')" [disabled]="fieldworkCommandBlocked() || procedure.procedureCommandBusy() || (procedure.procedureDecision === 'CHANGES_REQUIRED' && !procedure.procedureComment.trim())">Preview exact review</button>
                 </section>
               }
               @if (procedure.procedureCommandPreview(); as preview) {
@@ -525,7 +528,7 @@
                   <p>Basis: definition revision {{ preview.basis.definitionRevision }} · input generation {{ preview.basis.inputGeneration }} · current result revision {{ preview.basis.currentResultRevision }}</p>
                   @if (preview.blockers.length) { <ul role="alert">@for (b of preview.blockers; track b) { <li>{{ b }}</li> }</ul> }
                   <label><input type="checkbox" [(ngModel)]="procedure.procedureAssent" /> I reviewed this exact procedure, work, evidence and basis.</label>
-                  <button matButton="filled" (click)="procedure.executeProcedureCommand()" [disabled]="procedure.procedureCommandBusy() || !procedure.procedureAssent || !preview.canProceed">Record exact outcome</button>
+                  <button matButton="filled" (click)="procedure.executeProcedureCommand()" [disabled]="fieldworkCommandBlocked() || procedure.procedureCommandBusy() || !procedure.procedureAssent || !preview.canProceed">Record exact outcome</button>
                 </section>
               }
               @if (procedure.procedureCommandReceipt(); as receipt) {
