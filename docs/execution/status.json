@@ -207,12 +207,13 @@
           },
           "repairedFailure": "39169478960 FAILED only Docs ledger-size budget; archived records intact and active docs validators PASS.",
           "fullRelease": {
-            "runId": "39171610180",
+            "runId": "39171672326",
             "sourceCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39171610180",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39171672326",
             "result": "IN_PROGRESS",
             "note": "Complete unfiltered suites only in CI; no full local run. Workflow resolves requested ref to immutable full SHA.",
-            "observedAtUtc": "2026-10-18T22:18:26Z"
+            "observedAtUtc": "2026-10-18T22:19:01Z",
+            "previousAttempt": "39171610180 FAILED checkout before tests: abbreviated ref was treated as branch/tag. Redispatched with full immutable source SHA; no test failure or test omission."
           }
         }
       },
