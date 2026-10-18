@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Api.Ui;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -176,9 +177,14 @@ public sealed class AuditProgramCommandsApiTests
       Assert.True(adopted.Succeeded, adopted.Message);
 
       await PlanningBasisSeed.EstablishAsync(setup, f.FirmId, f.ClientId, f.EngagementId, preparer, reviewer);
-      procedureId = await setup.AuditProcedures.Where(x => x.EngagementId == f.EngagementId &&
-          x.SourceProcedureId == "AWP-01-01")
-        .Select(x => x.Id).SingleAsync();
+      var procedure = await setup.AuditProcedures.SingleAsync(x => x.EngagementId == f.EngagementId &&
+        x.SourceProcedureId == "AWP-01-01");
+      procedureId = procedure.Id;
+      var applicability = await AuditProgramService.DecideApplicabilityAsync(setup, preparer,
+        new(procedureId, AuditApplicabilityActions.Applicable,
+          "The synthetic engagement includes registration particulars for inspection.",
+          procedure.CurrentApplicabilityRevision, procedure.CurrentDefinitionRevision, Guid.CreateVersion7()));
+      Assert.True(applicability.Succeeded, applicability.Message);
     }
 
     using var factory = Factory(pg, f.Staff);
@@ -224,7 +230,7 @@ public sealed class AuditProgramCommandsApiTests
     Assert.Equal(requestId, receipt.GetProperty("requestId").GetGuid());
     Assert.Equal(requestHash, receipt.GetProperty("requestHash").GetString());
     Assert.Equal(ProcedureCommandActions.SubmitResult, receipt.GetProperty("action").GetString());
-    Assert.Equal(JsonValueKind.String, receipt.GetProperty("actorEpoch").ValueKind);
+    Assert.Equal(f.Staff.SessionEpoch, receipt.GetProperty("actorEpoch").GetInt64());
     Assert.Equal(1L, receipt.GetProperty("resultRevision").GetInt64());
     var receiptId = receipt.GetProperty("id").GetGuid();
 

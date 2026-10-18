@@ -161,8 +161,6 @@ public sealed class PbcHttpTests
     var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture, staff, clientActor);
     using var ownedRoot = new OwnedApiRoot();
     var root = ownedRoot.Path;
-    var bytes = "%PDF-1.7 exact API download"u8.ToArray();
-    var upload = await StartUploadAsync(pg, fixture, clientActor, requestId, bytes);
     using var clientFactory = CreateFactory(pg.ConnectionString, fixture.Client, root);
     using var uploadClient = await SignInAsync(clientFactory, fixture.Client);
     var expiredBytes = "synthetic expired upload"u8.ToArray();
@@ -183,6 +181,8 @@ public sealed class PbcHttpTests
         .Where(x => x.PbcUploadIntentId == expired.UploadIntentId).ToListAsync());
       Assert.Empty(Directory.Exists(root) ? Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories) : []);
     }
+    var bytes = "%PDF-1.7 exact API download"u8.ToArray();
+    var upload = await StartUploadAsync(pg, fixture, clientActor, requestId, bytes);
     using var chunk = await uploadClient.SendAsync(ChunkRequest(upload.UploadIntentId, 0, bytes, upload.Capability));
     Assert.Equal(HttpStatusCode.OK, chunk.StatusCode);
     var contextFactory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));

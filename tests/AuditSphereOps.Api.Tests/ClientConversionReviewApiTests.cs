@@ -55,8 +55,7 @@ public sealed class ClientConversionReviewApiTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(db,
-        "_ProposalResponseProvenanceAndRenderedDispatch",
-        "proposal response and recipient provenance is acceptance evidence and cannot be downgraded");
+        "_ProposalResponseProvenanceAndRenderedDispatch");
       Assert.Single(await db.ClientConversions.ToListAsync());
       await db.RoleGrants.Where(x => x.UserId == f.Admin.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
     }

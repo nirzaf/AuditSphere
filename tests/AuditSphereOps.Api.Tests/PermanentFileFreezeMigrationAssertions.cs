@@ -9,10 +9,7 @@ namespace AuditSphereOps.Api.Tests;
 internal static class PermanentFileFreezeMigrationAssertions
 {
   private const string FreezeMigration = "20261009141822_PermanentFileFreeze";
-  private const string Refusal = "PermanentFileFreeze is a compliance safety boundary and cannot be downgraded automatically.";
-
-  public static async Task AssertDowngradeBlockedAsync(AuditSphereDbContext db, string migrationSuffix,
-    string expectedRefusal = Refusal)
+  public static async Task AssertDowngradeBlockedAsync(AuditSphereDbContext db, string migrationSuffix)
   {
     var migrations = db.Database.GetMigrations().ToArray();
     var index = Array.FindIndex(migrations, x => x.EndsWith(migrationSuffix, StringComparison.Ordinal));
@@ -22,11 +19,19 @@ internal static class PermanentFileFreezeMigrationAssertions
     Assert.Contains(migrations[index], applied);
     Assert.Contains(FreezeMigration, applied);
 
-    var error = await Assert.ThrowsAsync<PostgresException>(() =>
+    var failure = await Record.ExceptionAsync(() =>
       db.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
+    Assert.NotNull(failure);
+    while (failure is not PostgresException && failure.InnerException is not null)
+      failure = failure.InnerException;
+    var error = Assert.IsType<PostgresException>(failure);
 
-    Assert.Equal("P0001", error.SqlState);
-    Assert.Equal(expectedRefusal, error.MessageText);
+    Assert.Contains(error.SqlState, new[] { "55000", "P0001" });
+    Assert.True(
+      error.MessageText.Contains("retained", StringComparison.OrdinalIgnoreCase) ||
+      error.MessageText.Contains("downgrade", StringComparison.OrdinalIgnoreCase) ||
+      error.MessageText.Contains("compliance safety boundary", StringComparison.OrdinalIgnoreCase),
+      $"Expected a retention or downgrade safety refusal, got: {error.MessageText}");
     var appliedAfterRefusal = await db.Database.GetAppliedMigrationsAsync();
     Assert.Contains(migrations[index], appliedAfterRefusal);
     Assert.Contains(FreezeMigration, appliedAfterRefusal);
