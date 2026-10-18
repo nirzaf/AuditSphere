@@ -212,7 +212,7 @@
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39176430358",
             "result": "IN_PROGRESS",
             "note": "Unfiltered Domain/API/E2E plus Angular/build/contracts on full immutable SHA; no full local suites. Adds normal per-test console progress and 15-minute per-case hang termination without dumps; incomplete execution fails acceptance.",
-            "observedJobs": "Angular full specs/build PASS; other jobs still IN_PROGRESS at last observation.",
+            "observedJobs": "Angular full specs/build and build/contracts/publication PASS; Domain/API/E2E still IN_PROGRESS at last observation.",
             "observedAtUtc": "2026-10-18T23:31:58Z"
           },
           "supersededFullRelease": {
