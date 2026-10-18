@@ -221,6 +221,20 @@ public sealed partial class FirmOperationsTests
         .Engagements.Single(x => x.EngagementId == w.EngagementId);
       Assert.Equal(invoiceOnlyBefore, invoiceOnlyAfter);
 
+      var replacementBudget = await PracticeTimeService.ReviseBudgetAsync(db, manager,
+        new ReviseBudgetRequest(w.EngagementId, "QAR",
+          [new BudgetLineRequest("Staff", "AUDIT", 300, BudgetPhases.Fieldwork)], ExpectedVersion: 1));
+      Assert.True(replacementBudget.Succeeded, replacementBudget.Message);
+      var whileReplacementIsDraft = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!
+        .Engagements.Single(x => x.EngagementId == w.EngagementId);
+      Assert.Equal<decimal?>(6000m, whileReplacementIsDraft.BudgetValue);
+      Assert.Equal(300, whileReplacementIsDraft.BudgetVarianceMinutes);
+      Assert.True((await PracticeTimeService.ApproveBudgetAsync(db, partner, replacementBudget.Value)).Succeeded);
+      var afterReplacementApproval = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!
+        .Engagements.Single(x => x.EngagementId == w.EngagementId);
+      Assert.Equal<decimal?>(3000m, afterReplacementApproval.BudgetValue);
+      Assert.Equal(0, afterReplacementApproval.BudgetVarianceMinutes);
+
       var audit = view.Departments.Single(x => x.Department == "Audit");
       Assert.Equal((capacityDays * 480, 300, Math.Round(300m * 100m / (capacityDays * 480), 1)),
         (audit.CapacityMinutes, audit.ChargeableMinutes, audit.UtilizationPercent!.Value));

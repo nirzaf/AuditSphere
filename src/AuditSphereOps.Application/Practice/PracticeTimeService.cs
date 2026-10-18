@@ -724,7 +724,8 @@ public static partial class PracticeTimeService
         return CommandResult<Guid>.Fail("time.rate-missing", "An approved rate card is required for every budget line.");
       resolved.Add((line, card));
     }
-    if (previous is not null) previous.Status = PracticeTimeStates.BudgetSuperseded;
+    if (previous?.Status == PracticeTimeStates.BudgetDraft)
+      previous.Status = PracticeTimeStates.BudgetSuperseded;
     var budget = new EngagementBudget
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, EngagementId = engagement.Id,
@@ -776,6 +777,10 @@ public static partial class PracticeTimeService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft budget can be approved.");
     if (budget.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Budget preparers cannot approve their own version.");
+    var previousApproved = await db.EngagementBudgets.Where(x => x.FirmId == actor.FirmId &&
+      x.EngagementId == budget.EngagementId && x.Status == PracticeTimeStates.BudgetApproved && x.Id != budget.Id)
+      .ToListAsync(ct);
+    foreach (var previous in previousApproved) previous.Status = PracticeTimeStates.BudgetSuperseded;
     budget.Status = PracticeTimeStates.BudgetApproved;
     budget.ApprovedByUserId = actor.UserId;
     budget.ApprovedAt = DateTimeOffset.UtcNow;
