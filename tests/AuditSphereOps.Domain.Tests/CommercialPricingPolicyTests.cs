@@ -378,6 +378,96 @@ public sealed class CommercialPricingPolicyTests
   }
 
   [Fact]
+  public async Task PendingProposalMail_BlocksWhenProspectRecipientChangesBeforeProviderSend()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var proposalId = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True(quote.Succeeded, quote.Message);
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
+    var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
+    var opportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == proposal.OpportunityId);
+
+    await db.Leads.Where(x => x.FirmId == w.FirmId && x.Id == opportunity.LeadId)
+      .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.PrimaryContactEmail, "new-owner@gulf.example.test"));
+
+    var sender = new RecordingSender();
+    await RunWorkerAsync(pg, w, sender);
+
+    Assert.Empty(sender.Plans);
+    await using var verification = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(CommercialDeliveryStates.Queued,
+      (await verification.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notification.Id)).DeliveryState);
+    var operation = await verification.DurableOperations.AsNoTracking()
+      .SingleAsync(x => x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind && x.TargetId == notification.Id);
+    Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+  }
+
+  [Fact]
+  public async Task PendingProposalMail_BlocksWhenClientCommercialRouteIsRevokedBeforeProviderSend()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var proposalId = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var proposal = await db.Proposals.SingleAsync(x => x.Id == proposalId);
+    var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId);
+    var clientId = Guid.NewGuid();
+    var contactId = Guid.NewGuid();
+    var routingId = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = clientId, FirmId = w.FirmId, LegalName = "Synthetic client", Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = w.FirmId });
+    db.ClientContacts.Add(new ClientContact
+    {
+      Id = contactId, FirmId = w.FirmId, PracticeClientId = clientId, FullName = "Client contact",
+      Email = "client-owner@gulf.example.test", Role = "Commercial contact", IsActive = true
+    });
+    db.ClientContactRoutings.Add(new ClientContactRouting
+    {
+      Id = routingId, FirmId = w.FirmId, PracticeClientId = clientId, ClientContactId = contactId,
+      Purpose = CorrespondencePurposes.Commercial, IsPrimaryForPurpose = true,
+      CreatedByUserId = w.Partner.UserId, CreatedAt = DateTimeOffset.UtcNow
+    });
+    proposal.PracticeClientId = clientId;
+    opportunity.PracticeClientId = clientId;
+    await db.SaveChangesAsync();
+
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True(quote.Succeeded, quote.Message);
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
+    Assert.Equal(contactId, notification.RecipientContactId);
+    Assert.Equal(routingId, notification.RecipientRoutingId);
+
+    var revoked = await PracticeCrmService.RevokeContactRoutingAsync(db, w.Partner,
+      new RevokeContactRoutingRequest(clientId, routingId, "Client changed its commercial correspondent."));
+    Assert.True(revoked.Succeeded, revoked.Message);
+
+    var sender = new RecordingSender();
+    await RunWorkerAsync(pg, w, sender);
+
+    Assert.Empty(sender.Plans);
+    await using var verification = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(CommercialDeliveryStates.Queued,
+      (await verification.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notification.Id)).DeliveryState);
+    var operation = await verification.DurableOperations.AsNoTracking()
+      .SingleAsync(x => x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind && x.TargetId == notification.Id);
+    Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+  }
+
+  [Fact]
   public async Task UnknownDeliveryOutcomeStaysReconciliationOnlyAndIsNeverBlindlyResent()
   {
     await using var pg = await PgTestSchema.CreateAsync();

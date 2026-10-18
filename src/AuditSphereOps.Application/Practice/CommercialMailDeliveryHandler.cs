@@ -72,6 +72,10 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     {
       throw new OperationBlockedException("commercial-mail-artifact-missing");
     }
+    if (mail.Kind == CommercialNotificationKinds.Proposal &&
+        !await ProposalRecipientAuthorityIsCurrentAsync(db, mail, ct))
+      throw new OperationBlockedException("mail-recipient-authority-changed", authorization: true);
+
     // The send attempt is durable before the provider call: queued, in-flight, accepted, refused and unknown
     // outcomes remain distinguishable whatever happens next (STE 4.1.2 delivery receipts).
     await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Dispatched, ct);
@@ -99,6 +103,78 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     }
     return Expected(op);
   }
+
+  private static async Task<bool> ProposalRecipientAuthorityIsCurrentAsync(
+    IAuditSphereDbContext db, CommercialNotification mail, CancellationToken ct)
+  {
+    if (mail.ProposalId is not { } proposalId) return false;
+
+    var proposalScope = await (
+      from proposal in db.Proposals.AsNoTracking()
+      join opportunity in db.Opportunities.AsNoTracking() on proposal.OpportunityId equals opportunity.Id
+      where proposal.FirmId == mail.FirmId && proposal.Id == proposalId && opportunity.FirmId == mail.FirmId
+      select new { ProposalClientId = proposal.PracticeClientId, OpportunityClientId = opportunity.PracticeClientId }
+    ).SingleOrDefaultAsync(ct);
+    if (proposalScope is null) return false;
+
+    if (mail.RecipientAuthorityBasis == ProposalRecipientAuthorityBases.ProspectPrimaryContact)
+    {
+      if (mail.PracticeClientId.HasValue || proposalScope.ProposalClientId.HasValue ||
+          proposalScope.OpportunityClientId.HasValue || mail.RecipientContactId.HasValue || mail.RecipientRoutingId.HasValue)
+        return false;
+
+      var currentEmail = await (
+        from proposal in db.Proposals.AsNoTracking()
+        join opportunity in db.Opportunities.AsNoTracking() on proposal.OpportunityId equals opportunity.Id
+        join lead in db.Leads.AsNoTracking() on opportunity.LeadId equals lead.Id
+        where proposal.FirmId == mail.FirmId && proposal.Id == proposalId && lead.FirmId == mail.FirmId
+        select lead.PrimaryContactEmail
+      ).SingleOrDefaultAsync(ct);
+      return EmailsMatch(currentEmail, mail.Recipient);
+    }
+
+    if (mail.RecipientAuthorityBasis != ProposalRecipientAuthorityBases.ClientCommercialRouting ||
+        mail.PracticeClientId is not { } clientId || mail.RecipientContactId is not { } expectedContactId ||
+        mail.RecipientRoutingId is not { } expectedRoutingId ||
+        (proposalScope.ProposalClientId ?? proposalScope.OpportunityClientId) != clientId)
+      return false;
+
+    var now = DateTimeOffset.UtcNow;
+    var today = DateOnly.FromDateTime(now.UtcDateTime);
+    var routes = await (
+      from routing in db.ClientContactRoutings.AsNoTracking()
+      join contact in db.ClientContacts.AsNoTracking() on routing.ClientContactId equals contact.Id
+      where routing.FirmId == mail.FirmId && routing.PracticeClientId == clientId &&
+            routing.Purpose == CorrespondencePurposes.Commercial && routing.RevokedAt == null &&
+            (routing.EffectiveFrom == null || routing.EffectiveFrom <= today) &&
+            (routing.EffectiveTo == null || routing.EffectiveTo >= today) &&
+            contact.FirmId == mail.FirmId && contact.PracticeClientId == clientId && contact.IsActive &&
+            (contact.ValidFrom == null || contact.ValidFrom <= now) &&
+            (contact.ValidTo == null || contact.ValidTo >= now) && !string.IsNullOrWhiteSpace(contact.Email)
+      select new
+      {
+        RoutingId = routing.Id,
+        routing.IsPrimaryForPurpose,
+        ContactId = contact.Id,
+        Email = contact.Email
+      }
+    ).ToListAsync(ct);
+
+    var designated = routes.Count switch
+    {
+      1 => routes[0],
+      > 1 when routes.Count(x => x.IsPrimaryForPurpose) == 1 => routes.Single(x => x.IsPrimaryForPurpose),
+      _ => null
+    };
+    return designated is not null && designated.RoutingId == expectedRoutingId &&
+      designated.ContactId == expectedContactId && EmailsMatch(designated.Email, mail.Recipient);
+  }
+
+  private static bool EmailsMatch(string? current, string? frozen) =>
+    !string.IsNullOrWhiteSpace(current) && !string.IsNullOrWhiteSpace(frozen) &&
+    System.Net.Mail.MailAddress.TryCreate(current.Trim(), out var currentAddress) &&
+    System.Net.Mail.MailAddress.TryCreate(frozen.Trim(), out var frozenAddress) &&
+    string.Equals(currentAddress.Address, frozenAddress.Address, StringComparison.OrdinalIgnoreCase);
 
   public Task<OperationResult> ReconcileAsync(DurableOperation op, CancellationToken ct) =>
     throw new OperationBlockedException("mail-delivery-outcome-uncertain");
