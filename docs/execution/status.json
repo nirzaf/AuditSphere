@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "a67b296f6a3343655dc0badd36dea3961ee9a9da",
+  "headCommit": "3e24eeae54b51477f59d19b61428e8f3cecd7194",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1146,7 +1146,7 @@
       "recordedAtUtc": "2026-10-18T06:04:15Z",
       "sourceCommit": "a67b296f6a3343655dc0badd36dea3961ee9a9da",
       "status": "PARTIAL",
-      "scope": "PM-00 NR-11 negative boundaries across firm, client and group books; no product/runtime behavior changed.",
+      "scope": "PM-00 NR-11 negative boundaries across firm, client and group books; NR-12 disabled PBC reminder worker off-path regression. No product/runtime behavior changed.",
       "runs": [
         {
           "name": "Focused PostgreSQL cross-ledger regression cohort",
@@ -1157,6 +1157,16 @@
           "total": 3,
           "database": "PostgreSQL disposable test schemas",
           "duration": "43s"
+        },
+        {
+          "name": "Disabled PBC reminder PostgreSQL regression",
+          "sourceCommit": "3e24eeae54b51477f59d19b61428e8f3cecd7194",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~DisabledReminderPolicyLeavesRequestHistoryAndOutboxUnchanged'",
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "total": 1,
+          "duration": "42s"
         }
       ],
       "stillOpen": [
