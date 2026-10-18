@@ -1,5 +1,7 @@
 # Microsoft 365 tenant administration permission decision
 
+**Customer deployment procedure:** [CLI runbook](../operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) and [configuration reference](../operations/auditsphere-operations-reference-microsoft365-configuration-current.md). These explain how an authorized operator applies this boundary; the examples grant no customer permission by themselves.
+
 **Status: APPROVED boundary; optional mutation capabilities IMPLEMENTED and disabled by default.**
 The repository owner's tenant-administration request changes the former blanket
 prohibition on tenant-wide Graph scopes. This decision permits only the
@@ -140,6 +142,8 @@ does not satisfy the current boundary. Its test result does not establish the
 current live configuration or acceptance state.
 
 ## Remaining external gates
+
+**New Exchange deployments:** Microsoft now recommends [Application RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac); [Application Access Policies](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-access-policies) are legacy. The current AuditSphere Outbound Mail capability verifier requires an Entra `Mail.Send` application role, while a correctly scoped RBAC-only configuration should not retain a separate unrestricted Entra grant. Exchange grants are additive. The current verifier therefore needs a reviewed compatibility change before claiming an integrated RBAC-only deployment is supported. Preserve/reverify existing approved AAP restrictions; do not infer that an RBAC scope constrains a separate Entra grant or silently create new legacy policies as the new-customer default. This note changes no approved permissions, runtime code or live policy.
 
 Live capability status must be read from the current deployment's persisted
 verification rows. Any capability whose dedicated app registration, certificate,

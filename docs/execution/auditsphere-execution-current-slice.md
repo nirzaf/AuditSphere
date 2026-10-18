@@ -19,6 +19,12 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Customer tenant Microsoft 365 operator documentation (2026-10-18)
+
+The [client-tenant CLI runbook](../operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) now covers registrations, consent, certificate/secret custody, first administrator, exact SharePoint grants, dedicated-site rollout, Exchange sender scope, mail/DNS alternatives, rotation, recovery and a private AI-agent handoff checklist. The [configuration reference](../operations/auditsphere-operations-reference-microsoft365-configuration-current.md) maps the complete base Compose input set and additional runtime/session/signing/provider settings to source owners. The optional isolation override example preserves data mounts and replaces the API parent credential mount with narrow capability mounts; it is not automatically deployed. The existing operator Wiki pages are published with the CLI procedure, configuration inventory and retained signing guidance; the Wiki revision is recorded in the execution ledger.
+
+Shell/PowerShell/Python syntax, input inventory, dummy-input Compose merges and documentation checks are recorded under `m365ClientTenantGuide` in [status.json](status.json). Customer/provider commands were not executed, no live settings were changed, and no application regression was run for this documentation work. Production live-worker composition, missing Azure credential/session wiring and integrated Exchange RBAC verification remain engineering/release gates; SMTP/Resend attachment limitations and privileged-mount prerequisites are explicit. Documentation completion promotes no professional, task-card or tenant-acceptance state.
+
 ## Documentation reconciliation revalidation (2026-10-18)
 
 The documentation reconciliation report was revalidated against `master@d4bbef4d`; PR #46 and the companion PR #47 are already merged. The operative index now keeps Tasks 01–09 at technical-evidence-only, Task 10 `BLOCKED_DECISION`, and Task 11 `PARTIAL`. No task-card, professional-approval or external-gate status was promoted. The R2R index's two links to repository architecture guidance now target the canonical `master` files so the extracted task pack remains internally valid.

@@ -1,5 +1,7 @@
 # Hostinger acceptance deployment
 
+For a new customer tenant, start with the [CLI setup runbook](../../docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) and [configuration inventory](../../docs/operations/auditsphere-operations-reference-microsoft365-configuration-current.md). They explain Entra registrations/consent, certificates, exact SharePoint grants, email authorization/DNS, worker activation and rotation. This guide's dated observations are acceptance history, not new-customer verification. The base Compose API parent credential mount must be narrowed with the reviewed [isolation example](m365-isolation.override.example.yaml) before a privileged client-sites key is staged beneath that parent. Microsoft's current Exchange RBAC recommendation and AuditSphere's legacy mail-verifier compatibility limit are documented in the new runbook.
+
 This is a separate, synthetic-data acceptance environment for the Hostinger VPS. It uses the
 existing host Caddy instance and does not publish the API or PostgreSQL ports publicly. Its
 Compose project, network, database, data-protection keys and upload staging are isolated from

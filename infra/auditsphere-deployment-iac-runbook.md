@@ -1,5 +1,7 @@
 # AuditSphere Infrastructure as Code
 
+For customer Microsoft identities, consent, selected-site grants and email setup, use the [client-tenant CLI runbook](../docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) and [configuration inventory](../docs/operations/auditsphere-operations-reference-microsoft365-configuration-current.md). Current Azure templates do not wire the complete M365 capability certificates/provider settings or mandatory Production installation/Data Protection credentials. Acceptance lists external worker groups but does not supply all required enablement and credentials; template compilation does not prove those workers or the Production API start. Production live M365 worker composition remains a separate engineering/release prerequisite.
+
 This directory is the source-controlled definition of the AuditSphere production topology.
 Production must be reproducible from these files plus approved secret references; it must not
 depend on an operator remembering portal steps. **Status:** every template compiles with

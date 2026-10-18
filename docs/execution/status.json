@@ -2060,5 +2060,13 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     }
+  },
+  "m365ClientTenantGuide": {
+    "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",
+    "guide": "docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md",
+    "verification": "STATIC_PASS: docs gates; 33 inputs; 17 Bash/12 PowerShell/6 Python snippets; dummy-input Compose merges",
+    "applicationTests": "NOT_RUN: documentation only",
+    "customerActions": "NOT_RUN",
+    "wikiCommit": "657e2bf9e678e98de4cd00f20801941635c274b1"
   }
 }
