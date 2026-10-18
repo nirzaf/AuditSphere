@@ -795,81 +795,114 @@
         <figure class="viewer card overflow-hidden" data-key="modules"
           data-title="Application Architecture and Financial Boundaries">
           <script type="text/plain">
-flowchart TD
-    subgraph Clients["Clients & Presentation (Angular 22 SPA)"]
-        StaffUi["Staff Workbench (Material/CDK)<br>Preparer · Reviewer · Partner"]
-        ClientPortalUi["Client PBC Portal (Material/CDK)<br>Scoped Client Coordinator"]
+flowchart TB
+    subgraph ACTORS["Users and external actors"]
+        STAFF["Firm staff: Administrator, Partner, Manager, Preparer"]
+        CLIENT["Client liaison, CFO, management"]
+        OPERATOR["Tenant / deployment operator"]
     end
 
-    subgraph Boundary["API & Security Boundary (ASP.NET Core 10)"]
-        Api["Authenticated /api/ui/* Endpoints<br>OpenAPI 3.1 Contract Drift Guard"]
-        AuthMiddleware["Auth & Scope Enforcement<br>HttpOnly Cookie · CSRF Token · RoleGrant"]
-        Oidc["Microsoft Entra ID OIDC<br>Delegated openid/profile/email (ADR-0003)"]
+    subgraph UI["AuditSphereOps.Ui — Angular 22 + Material/CDK"]
+        STAFF_UI["Staff portal: practice, audit, accounting, consolidation"]
+        CLIENT_UI["Client portal: PBC, finance documents, responses"]
+        ADMIN_UI["Admin: users, tenant, permissions, operations"]
+        UX["Seven-phase engagement tracker and task queues — v2.2"]
     end
 
-    subgraph AppMonolith["AuditSphere Modular Monolith (.NET 10)"]
-        subgraph StaticServices["Static Capability Services (CommandResult)"]
-            CommSvc["Commercial & Onboarding (M1)"]
-            PlanSvc["Governance & Planning (M2)"]
-            FieldSvc["Technical Fieldwork & Testing (M3)"]
-            ReportSvc["Reporting & Deliverables (M4)"]
-            PracticeSvc["Practice & Billing Ledger (M5)"]
-            AcctSvc["Client Accounting Workspace (M20-M25)"]
-            ConsolSvc["Group Consolidation Engine (M26)"]
-        end
-
-        subgraph PureCalc["Pure Calculators (Zero EF / Clock / Network)"]
-            MatCalc["MaterialityCalculator (ADR-0011 Unnorm PBT)"]
-            RiskCalc["RiskMatrixCalculator (Red/Amber/Green)"]
-            FxCalc["CurrencyTranslationCalculator (IAS 21)"]
-            MoneyCalc["PrecisionCalculator (numeric 19,6 ToEven)"]
-        end
-
-        subgraph DurableOps["Durable Operations & Worker"]
-            Worker["AuditSphereOps.Worker<br>Idempotent Retries & Reconciliation"]
-            ArchiveJob["60-Day Regulatory Lock Job (C-12)"]
-            ReceiptJob["Receipt Generation & Sync Worker"]
-        end
+    subgraph API["AuditSphereOps.Api — ASP.NET Core 10"]
+        HTTP["Same-origin /api/ui + /api/setup; SPA /ui"]
+        SESSION["OIDC sign-in, secure cookie, anti-CSRF, session freshness"]
+        CONTRACTS["OpenAPI 3.1, exact decimal-string contracts, bounded uploads"]
     end
 
-    subgraph FinancialDomains["Three Isolated Financial Domains"]
-        FirmLedger[("1. Firm Practice Ledger<br>Timesheets · WIP · Billing Drafts ADR-0007<br>Collections · Practice GL in QAR")]
-        ClientAcct[("2. Client Accounting Workspace<br>TB/GL Intake · Chart Mappings<br>Adjusting Journals AJE · Financial Statements")]
-        GroupConsol[("3. Group Consolidation<br>ClientGroup Perimeters · Matching<br>Eliminations · FX CTA (Never mutates client books)")]
+    subgraph APP["AuditSphereOps.Application — static capability commands/queries"]
+        ACCESS["Trusted actor + scoped RoleGrant and business authorization"]
+        CRM["Commercial CRM, proposals, quotations, dual-key acceptance"]
+        ACTIVATE["Fee agreement, advance gate, engagement activation"]
+        PLAN["Staffing, budgets, materiality, risk, workflow templates"]
+        FIELD["Audit programme, workpapers, sampling, confirmation, review"]
+        PBC["PBC requests, client reviews, evidence and secure documents"]
+        COMPLETE["SRM, Partner opinion, signing, bundles, release, archive"]
+        FIRM["Practice time, billing, collections, firm ledger and reporting"]
+        ACCOUNT["Client source intake, native books, journals, statements"]
+        GROUP["Group consolidation, intercompany, FX, eliminations"]
+        ADMIN["Microsoft tenant administration, directory, selected sites"]
+        DURABLE["Durable intent, idempotency, receipts and recovery"]
     end
 
-    subgraph StorageSecurity["Persistence & External Integration"]
-        Db[("PostgreSQL 18.6 DB<br>EF Core 10 · Capability Split DbContext")]
-        AuthStore[("Authoritative Release Store (ADR-0009)<br>SHA-256 Tamper-Evident Evidence")]
-        SharePointCopy[("Secondary SharePoint Client Copy<br>Scoped Sites.Selected Grant (ADR-0006)")]
-        GraphApp["App-Only Graph Identities<br>User.Read.All · Mail.Send · Sites.Selected"]
+    subgraph LOWER["Domain + Infrastructure (separate projects)"]
+        DOMAIN["Domain rules and pure deterministic calculators"]
+        EF["EF Core 10 / Npgsql — one capability-split AuditSphereDbContext"]
+        ADAPTERS["Providers, rendering, signing credential source"]
     end
 
-    StaffUi --> Api
-    ClientPortalUi --> Api
-    Api --> AuthMiddleware
-    AuthMiddleware --> Oidc
-    AuthMiddleware --> StaticServices
+    subgraph WORK["AuditSphereOps.Worker — isolated executable groups"]
+        LOCAL["general / processing / records: local durable work"]
+        MAIL["mail: separately enabled outbound delivery"]
+        DOC["pbc: Sites.Selected, exact-site evidence transport"]
+        SITES["client-sites: privileged site provisioner, isolated"]
+    end
 
-    CommSvc -->|Dual-Key + 50% Advance Paid C-02| PlanSvc
-    PlanSvc -->|TB Mapped + Partner Signoff C-03| FieldSvc
-    FieldSvc -->|Zero Open Notes + SRM Clearance C-06, C-08| ReportSvc
-    FieldSvc -.->|Hours Pinned to FSLI ADR-0013| PracticeSvc
-    ReportSvc -.->|50% Final Fee Invoice Draft ADR-0007| PracticeSvc
+    subgraph DATA["Authoritative application data / document evidence"]
+        PG[("PostgreSQL 18.6: firm, client, group, audit, receipts, history")]
+        RELEASE["Authoritative issued bytes and manifest, SHA-256 lineage"]
+        FREEZE["Local file freeze and immutable archive evidence"]
+    end
 
-    StaticServices --> PureCalc
-    StaticServices --> Db
-    DurableOps --> Db
+    subgraph EXTERNAL["Externally controlled services (consent and evidence required)"]
+        ENTRA["Microsoft Entra ID / OIDC"]
+        GRAPH["Microsoft Graph: capability-specific app identities"]
+        SP["SharePoint: client sites, workpapers, secondary archive copy"]
+        MAIL_PROVIDER["Configured provider: Graph Mail / SMTP / Resend"]
+    end
 
-    PracticeSvc --> FirmLedger
-    AcctSvc --> ClientAcct
-    ConsolSvc --> GroupConsol
-    ConsolSvc -.->|Read-Only Component Pack Intake| ClientAcct
-
-    ReportSvc -->|Seal Cryptographic PDF ADR-0016| AuthStore
-    DurableOps -->|Replicate Working Copy| SharePointCopy
-    DurableOps --> GraphApp
-
+    STAFF --> STAFF_UI
+    CLIENT --> CLIENT_UI
+    OPERATOR --> ADMIN_UI
+    STAFF_UI --> HTTP
+    CLIENT_UI --> HTTP
+    ADMIN_UI --> HTTP
+    UX --> STAFF_UI
+    HTTP --> SESSION --> ACCESS
+    HTTP --> CONTRACTS
+    SESSION <-->|"server-side sign-in"| ENTRA
+    ACCESS --> CRM --> ACTIVATE --> PLAN --> FIELD --> COMPLETE
+    PLAN --> PBC
+    FIELD --> PBC
+    FIELD -.->|"approved source / FSLI"| ACCOUNT
+    ACCOUNT -.->|"read-only component inputs"| GROUP
+    FIELD -.->|"approved time"| FIRM
+    COMPLETE -.->|"fee/release evidence"| FIRM
+    ACCESS --> ACCOUNT
+    ACCESS --> GROUP
+    ACCESS --> ADMIN
+    ACCESS --> FIRM
+    ACCESS --> DURABLE
+    CRM --> DOMAIN
+    ACCOUNT --> DOMAIN
+    GROUP --> DOMAIN
+    COMPLETE --> DOMAIN
+    ACCESS --> EF
+    DURABLE --> EF
+    EF --> PG
+    COMPLETE --> RELEASE
+    RELEASE --> FREEZE
+    LOCAL --> DURABLE
+    MAIL --> DURABLE
+    DOC --> DURABLE
+    SITES --> DURABLE
+    LOCAL --> EF
+    MAIL --> MAIL_PROVIDER
+    DOC --> GRAPH
+    DOC --> SP
+    SITES --> SP
+    SITES --> GRAPH
+    ADMIN --> GRAPH
+    PBC -.->|"verified provider receipts"| DOC
+    RELEASE -.->|"secondary copy; verify bytes and grants"| DOC
+    ADAPTERS --> GRAPH
+    ADAPTERS --> SP
+    ADAPTERS --> RELEASE
 </script>
         </figure>
 

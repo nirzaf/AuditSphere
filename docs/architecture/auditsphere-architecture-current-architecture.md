@@ -39,6 +39,117 @@ this document wins and the source text remains a historical requirement record.
                  PostgreSQL
 ```
 
+```mermaid
+flowchart TB
+    subgraph ACTORS["Users and external actors"]
+        STAFF["Firm staff: Administrator, Partner, Manager, Preparer"]
+        CLIENT["Client liaison, CFO, management"]
+        OPERATOR["Tenant / deployment operator"]
+    end
+
+    subgraph UI["AuditSphereOps.Ui — Angular 22 + Material/CDK"]
+        STAFF_UI["Staff portal: practice, audit, accounting, consolidation"]
+        CLIENT_UI["Client portal: PBC, finance documents, responses"]
+        ADMIN_UI["Admin: users, tenant, permissions, operations"]
+        UX["Seven-phase engagement tracker and task queues — v2.2"]
+    end
+
+    subgraph API["AuditSphereOps.Api — ASP.NET Core 10"]
+        HTTP["Same-origin /api/ui + /api/setup; SPA /ui"]
+        SESSION["OIDC sign-in, secure cookie, anti-CSRF, session freshness"]
+        CONTRACTS["OpenAPI 3.1, exact decimal-string contracts, bounded uploads"]
+    end
+
+    subgraph APP["AuditSphereOps.Application — static capability commands/queries"]
+        ACCESS["Trusted actor + scoped RoleGrant and business authorization"]
+        CRM["Commercial CRM, proposals, quotations, dual-key acceptance"]
+        ACTIVATE["Fee agreement, advance gate, engagement activation"]
+        PLAN["Staffing, budgets, materiality, risk, workflow templates"]
+        FIELD["Audit programme, workpapers, sampling, confirmation, review"]
+        PBC["PBC requests, client reviews, evidence and secure documents"]
+        COMPLETE["SRM, Partner opinion, signing, bundles, release, archive"]
+        FIRM["Practice time, billing, collections, firm ledger and reporting"]
+        ACCOUNT["Client source intake, native books, journals, statements"]
+        GROUP["Group consolidation, intercompany, FX, eliminations"]
+        ADMIN["Microsoft tenant administration, directory, selected sites"]
+        DURABLE["Durable intent, idempotency, receipts and recovery"]
+    end
+
+    subgraph LOWER["Domain + Infrastructure (separate projects)"]
+        DOMAIN["Domain rules and pure deterministic calculators"]
+        EF["EF Core 10 / Npgsql — one capability-split AuditSphereDbContext"]
+        ADAPTERS["Providers, rendering, signing credential source"]
+    end
+
+    subgraph WORK["AuditSphereOps.Worker — isolated executable groups"]
+        LOCAL["general / processing / records: local durable work"]
+        MAIL["mail: separately enabled outbound delivery"]
+        DOC["pbc: Sites.Selected, exact-site evidence transport"]
+        SITES["client-sites: privileged site provisioner, isolated"]
+    end
+
+    subgraph DATA["Authoritative application data / document evidence"]
+        PG[("PostgreSQL 18.6: firm, client, group, audit, receipts, history")]
+        RELEASE["Authoritative issued bytes and manifest, SHA-256 lineage"]
+        FREEZE["Local file freeze and immutable archive evidence"]
+    end
+
+    subgraph EXTERNAL["Externally controlled services (consent and evidence required)"]
+        ENTRA["Microsoft Entra ID / OIDC"]
+        GRAPH["Microsoft Graph: capability-specific app identities"]
+        SP["SharePoint: client sites, workpapers, secondary archive copy"]
+        MAIL_PROVIDER["Configured provider: Graph Mail / SMTP / Resend"]
+    end
+
+    STAFF --> STAFF_UI
+    CLIENT --> CLIENT_UI
+    OPERATOR --> ADMIN_UI
+    STAFF_UI --> HTTP
+    CLIENT_UI --> HTTP
+    ADMIN_UI --> HTTP
+    UX --> STAFF_UI
+    HTTP --> SESSION --> ACCESS
+    HTTP --> CONTRACTS
+    SESSION <-->|"server-side sign-in"| ENTRA
+    ACCESS --> CRM --> ACTIVATE --> PLAN --> FIELD --> COMPLETE
+    PLAN --> PBC
+    FIELD --> PBC
+    FIELD -.->|"approved source / FSLI"| ACCOUNT
+    ACCOUNT -.->|"read-only component inputs"| GROUP
+    FIELD -.->|"approved time"| FIRM
+    COMPLETE -.->|"fee/release evidence"| FIRM
+    ACCESS --> ACCOUNT
+    ACCESS --> GROUP
+    ACCESS --> ADMIN
+    ACCESS --> FIRM
+    ACCESS --> DURABLE
+    CRM --> DOMAIN
+    ACCOUNT --> DOMAIN
+    GROUP --> DOMAIN
+    COMPLETE --> DOMAIN
+    ACCESS --> EF
+    DURABLE --> EF
+    EF --> PG
+    COMPLETE --> RELEASE
+    RELEASE --> FREEZE
+    LOCAL --> DURABLE
+    MAIL --> DURABLE
+    DOC --> DURABLE
+    SITES --> DURABLE
+    LOCAL --> EF
+    MAIL --> MAIL_PROVIDER
+    DOC --> GRAPH
+    DOC --> SP
+    SITES --> SP
+    SITES --> GRAPH
+    ADMIN --> GRAPH
+    PBC -.->|"verified provider receipts"| DOC
+    RELEASE -.->|"secondary copy; verify bytes and grants"| DOC
+    ADAPTERS --> GRAPH
+    ADAPTERS --> SP
+    ADAPTERS --> RELEASE
+```
+
 - **One modular monolith**, with `Domain`, `Application`, `Infrastructure`, `Api`
   and `Worker`. `AuditSphereOps.Api` is the HTTP host and serves
   `AuditSphereOps.Ui` (Angular) as the canonical presentation. The owner authorized
