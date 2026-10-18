@@ -111,7 +111,7 @@ The [product crosswalk](docs/execution/auditsphere-execution-tracker-practice-ma
 | Checklist | Module / capability | Available implementation | Remaining work |
 | --- | --- | --- | --- |
 | ☐ Partially pending | Practice & commercial | Leads, client profiles/contacts, quotes, pricing, proposals, fee agreements and activation | Complete commercial acceptance, approved layouts/policy and provider delivery evidence. |
-| ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, expandable task checklists, phase-scoped operational due dates, role-authorized canonical action, templates, dependencies and queues | Statutory milestone mapping, required-task graph, recurrence/automation, complete role-by-role and current browser acceptance. |
+| ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, expandable task checklists, phase-scoped operational due dates, saved Audit Plan milestones mapped to phases, role-authorized canonical action, templates, dependencies and queues | Approved/versioned jurisdictional source mapping and legal validation, required-task graph, recurrence/automation, complete role-by-role and current browser acceptance. |
 | ☐ Partially pending | Client collaboration | First sign-in, scoped PBC requests/uploads, comments, financial-package review | Shared write-gate acceptance, exact accepted evidence sets and document/delivery lifecycle. |
 | ☐ Partially pending | People & time | Staffing, resource grid, availability, allocations, time, budgets, rates and utilization | Review-revocation/assignment race and broader resource/time acceptance. |
 | ☐ Partially pending | Firm finance | Protected billing, receipt allocations, expenses, firm ledger, aging, WIP and profitability | Full financial workflow acceptance; firm pricing and end-of-service professional configuration. |
@@ -143,6 +143,7 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | ☑ Completed | Certification disclosure separating verification from expiry | Broader resource and concurrency acceptance remain open. |
 | ☑ Completed | Exact-source certification rules, append-only persistence and Application review workspace | UI/API and staffing integration have focused checks; concurrency and current release acceptance remain open. |
 | ☑ Completed | Purchase-invoice AP-role preview recovery and supplier purchase/credit browser journey | Focused local journeys pass; full accounting acceptance and exact-SHA release verification remain separate gates. |
+| ☑ Completed | Saved Audit Plan milestones displayed beside the seven-phase engagement workflow | Focused Angular spec covers saved-plan dates; read-only browser confirmed the explicit empty state. Statutory cutoff legal validation and broad role/responsive acceptance remain open. |
 
 ### Available screens and feature roadmap
 
@@ -227,7 +228,7 @@ Inventory follows the current [Angular route registry](src/AuditSphereOps.Ui/src
 | ☐ Partially pending | Practice & commercial | [Commercial settings](src/AuditSphereOps.Ui/src/app/features/commercial/settings.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Practice & commercial | [Convert prospect](src/AuditSphereOps.Ui/src/app/features/commercial/client-conversion.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Practice & commercial | [Create blocked engagement](src/AuditSphereOps.Ui/src/app/features/clients/engagement-create.ts) | Owning product/parity criteria and current end-to-end acceptance. |
-| ☐ Partially pending | Practice & commercial | [Engagement](src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Practice & commercial | [Engagement](src/AuditSphereOps.Ui/src/app/features/engagements/engagement.ts) with a seven-phase saved-milestone workflow | Approved/versioned jurisdictional milestone source mapping, role/accessibility and current end-to-end acceptance. |
 | ☐ Partially pending | Practice & commercial | [Leads](src/AuditSphereOps.Ui/src/app/features/commercial/leads.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Practice & commercial | [Opportunities](src/AuditSphereOps.Ui/src/app/features/commercial/opportunities.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Practice & commercial | [PBC requests](src/AuditSphereOps.Ui/src/app/features/engagements/pbc.ts) | Owning product/parity criteria and current end-to-end acceptance. |

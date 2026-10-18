@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "efc1517da2ba155cbda3f6a5c3ef7a804ea82ec3",
+  "headCommit": "4d8f0883197190a5a1326acbe5f89ec088f23d0c",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1070,71 +1070,46 @@
       "archiveRef": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceBatch"
     },
     "ste22F07WorkflowPhaseCues": {
-      "recordedAtUtc": "2026-10-18T05:56:22Z",
-      "sourceCommit": "af3072f7fe49851be4b4a7202e4dca19b86cd6dc",
+      "recordedAtUtc": "2026-10-18T06:25:07Z",
+      "sourceCommit": "4d8f0883197190a5a1326acbe5f89ec088f23d0c",
       "status": "PARTIAL",
-      "scope": "PM-01 phase cues: operational task deadlines and responsible-role-gated canonical action.",
-      "history": "status-archive-2026-10.json#keys.targetedVerification.ste22F07LifecycleProjection",
+      "scope": "PM-01 / WF-02 explicit saved Audit Plan milestone display in the seven-phase engagement workflow.",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.ste22F07WorkflowPhaseCuesBeforeMilestoneDisplay20261018",
       "closedInCode": [
-        "Each phase displays the nearest due date from current open/in-progress bound operational tasks; task dates remain separate from statutory milestones and lifecycle readiness.",
-        "Canonical action requires the responsible-role grant; staffed audit roles also require a matching active engagement assignment, and FinanceManager requires firm-wide scope.",
-        "Focused regression proves nearest-date selection, no date after task completion, unchanged blocked gate, and scoped CommercialManager allow versus Staff/Administrator denial."
+        "Reads the existing engagement-scoped milestone endpoint separately from workflow tasks; route/session changes clear prior plan data.",
+        "Displays saved fieldwork start in phase 3, report and filing dates in phase 6, and archive deadline in phase 7.",
+        "Distinguishes an authorized empty schedule from a role-denied/failed read; an unsupported or mismatched response fails closed.",
+        "Labels statutory filing cutoff as saved plan data, not legal validation; operational task deadlines remain separate."
       ],
       "runs": [
         {
-          "name": "PostgreSQL workflow projection regression",
-          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --no-restore --maxcpucount:1 --filter 'FullyQualifiedName~WorkflowShowsNearestOpenTaskDatesAndOnlyTheResponsibleRoleGetsTheCanonicalAction'",
+          "name": "Focused Angular engagement workflow milestone spec",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/engagements/engagement-workflow.spec.ts'",
           "result": "PASS",
-          "passed": 1,
+          "passed": 3,
           "failed": 0,
-          "total": 1,
-          "database": "PostgreSQL with disposable test schema"
-        },
-        {
-          "name": "Angular workflow contract spec",
-          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/engagements/engagement-workflow-contracts.spec.ts'",
-          "result": "PASS",
-          "passed": 23,
-          "failed": 0,
-          "total": 23
-        },
-        {
-          "name": "API Release build",
-          "command": "dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --configuration Release --no-restore --maxcpucount:1",
-          "result": "PASS",
-          "warnings": 0,
-          "errors": 0
+          "total": 3
         },
         {
           "name": "Angular production build",
           "command": "npm --prefix src/AuditSphereOps.Ui run build -- --configuration production",
           "result": "PASS_WITH_EXISTING_WARNING",
-          "warning": "commercial/settings.scss exceeds its 4.00 kB component-style budget; 7.53 kB."
+          "warning": "Existing commercial/settings.scss component style exceeds the 4.00 kB budget at 7.53 kB; no workflow style warning."
         },
         {
-          "name": "OpenAPI drift",
-          "command": "bash scripts/contracts/verify-openapi.sh",
-          "result": "PASS"
-        },
-        {
-          "name": "Documentation and source integrity gates",
-          "command": "validate-markdown-documentation.py; validate-markdown-filenames.py; validate-narrative-metrics.py; verify-audit-program-source.py; git diff --check",
-          "result": "PASS"
-        },
-        {
-          "name": "Built-in browser synthetic engagement render",
-          "result": "PARTIAL",
-          "observed": "Seven phases, blocked gate/task separation, and scoped CommercialManager canonical action rendered. Sample had no active dated tasks; browser console/network and responsive behavior were not inspected."
+          "name": "Built-in browser local synthetic engagement read",
+          "result": "PASS_SCOPED",
+          "observed": "Read-only page showed no saved milestone schedule, did not substitute operational task dates, and emitted no console errors/warnings. Milestone, workflow, task and assignee reads returned HTTP 200."
         }
       ],
       "notRun": [
         "Full .NET, Angular and Playwright suites locally; they remain CI/CD responsibilities.",
-        "Full role-by-role and responsive browser journey."
+        "Broad role-by-role, responsive and assistive-technology browser acceptance."
       ],
       "stillOpen": [
-        "Map approved statutory milestones to phases; operational task dates do not replace milestone-plan dates.",
-        "Broader role-specific browser and assistive-technology acceptance.",
-        "Full CI/CD release verification and production acceptance remain distinct."
+        "Qualified approval of an applicable, versioned jurisdictional source mapping and any legal validation for statutory filing cutoffs.",
+        "Broader role-specific, responsive and assistive-technology acceptance.",
+        "Current-SHA CI/CD and production/live-provider acceptance; this local UI slice does not establish either."
       ]
     },
     "figmaAngularShell": {

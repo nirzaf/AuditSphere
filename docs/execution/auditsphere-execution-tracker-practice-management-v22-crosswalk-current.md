@@ -32,7 +32,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | Story | Disposition | Note |
 | --- | --- | --- |
 | PM-00 | PARTIAL | This crosswalk and scenario map; NR-11 now has explicit firm/client/consolidation source-book assertions. NR-12 has focused switch-off coverage but no complete switch-to-compatibility matrix. |
-| PM-01 | PARTIAL | Named staff, countdown and phase checklists are delivered. Operational task due dates and role-gated next actions are projected; approved statutory milestone mapping and broad browser acceptance remain. |
+| PM-01 | PARTIAL | Named staff, countdown, phase checklists, operational task dates and saved Audit Plan milestones mapped to phases are delivered. A saved statutory cutoff is displayed as user-entered plan data; approved/versioned jurisdictional source mapping, legal validation and broad browser acceptance remain. |
 | PM-02 | PARTIAL | Board and calendar views are delivered. Editable task groups and dependency authoring outside a template remain. |
 | PM-03 | OWNER_DECISION | DEC-01 and DEC-03 gate the recurrence action. |
 | PM-04 | PARTIAL | Reminder rule administration and escalation remain. |
@@ -69,7 +69,7 @@ This table retains the **older PM v2.2 candidate-gap namespace and scope** for h
 | CRM-11 | OPTIONAL | - | Needs a scope decision; ADR-0017 keeps channels as labels. |
 | CRM-12 | BLOCKED_EXTERNAL | R | Live invitation, revocation and site provisioning. |
 | WF-01 | PARTIAL | R | WorkflowExperience stays off until operationally accepted. |
-| WF-02 | PARTIAL | C | This slice adds the named staffed users and the countdown. A per-phase milestone date and a role-computed next action remain open. |
+| WF-02 | PARTIAL | C | The engagement view shows named staffed users, countdown, role-computed next action, operational task dates and explicitly saved Audit Plan milestones by phase. The plan's statutory cutoff is not independently validated against law; approved source mapping and broad browser acceptance remain open. |
 | WF-03 | ALREADY_COMPLETE | C | Closed: expandable per-phase checklists on the engagement dashboard, from the engagement's operational tasks. |
 | WF-04 | PARTIAL | R | Template-derived dependencies exist; editable groups and ad hoc dependency authoring do not. |
 | WF-05 | ALREADY_COMPLETE | C | Closed: board and calendar arrangements of the work queue, over the same loaded tasks as the list. |
@@ -167,7 +167,7 @@ Names are tests in `tests/AuditSphereOps.Domain.Tests`. A named test covers the 
 ## What can be built next without a decision
 
 - **NR-12 remainder:** preserve the switch-to-compatibility matrix above and add only a focused check for any identified route, approval, retained-history, or UI gap. Do not create a generic all-flags test that duplicates focused behavior.
-- **PM-01 remainder:** map statutory milestones to an approved, versioned source before adding milestone dates. The current seven-phase UI displays operational task deadlines only; role-gated next actions are implemented, while statutory milestone mapping and broad browser acceptance remain open.
+- **PM-01 remainder:** the seven-phase UI now displays only explicitly saved Audit Plan dates under their corresponding phases, separately from operational task deadlines. A statutory cutoff is shown as saved plan data and is not legal validation. Obtain the approved, versioned jurisdictional source mapping and complete broader role, responsive and assistive-technology acceptance.
 
 Everything else that is open waits on a decision listed as not decided in ADR-0018, on live infrastructure, or on a scope choice. Those are not development defects.
 
