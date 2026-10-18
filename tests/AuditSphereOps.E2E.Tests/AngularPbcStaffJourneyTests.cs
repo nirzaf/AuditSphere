@@ -80,8 +80,8 @@ public sealed class AngularPbcStaffJourneyTests
       }
 
       const string followUp = "Please include the bank reconciliation for November.";
-      await newRequestCard.GetByLabel("Request more files", new() { Exact = true }).FillAsync(followUp);
-      await newRequestCard.GetByRole(AriaRole.Button, new() { Name = "Request more files", Exact = true }).ClickAsync();
+      await newRequestCard.GetByLabel("Clarification or additional file request", new() { Exact = true }).FillAsync(followUp);
+      await newRequestCard.GetByRole(AriaRole.Button, new() { Name = "Send request", Exact = true }).ClickAsync();
       await Assertions.Expect(page.GetByText("Additional request recorded and email queued.", new() { Exact = true }))
         .ToBeVisibleAsync();
       await Assertions.Expect(newRequestCard).ToContainTextAsync(followUp);

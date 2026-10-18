@@ -187,7 +187,7 @@ public sealed class AngularPbcScopeParityJourneyTests
       Uri.EscapeDataString($"/ui/app/engagements/{f.EngagementId:D}/pbc"));
     await Assertions.Expect(page.Locator("main")).ToContainTextAsync(privateMarker);
     var requestCard = page.Locator("section.panel").Filter(new() { HasText = privateMarker });
-    await requestCard.GetByLabel("Request more files", new() { Exact = true }).FillAsync(privateDraft);
+    await requestCard.GetByLabel("Clarification or additional file request", new() { Exact = true }).FillAsync(privateDraft);
 
     await using (var db = host.CreateDbContext())
     {
@@ -199,7 +199,7 @@ public sealed class AngularPbcScopeParityJourneyTests
     }
 
     await requestCard.GetByRole(AriaRole.Button,
-      new() { Name = "Request more files", Exact = true }).ClickAsync();
+      new() { Name = "Send request", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Alert))
@@ -207,7 +207,7 @@ public sealed class AngularPbcScopeParityJourneyTests
     var body = await page.Locator("body").InnerTextAsync();
     Assert.DoesNotContain(privateMarker, body, StringComparison.Ordinal);
     Assert.DoesNotContain(privateDraft, body, StringComparison.Ordinal);
-    Assert.False(await page.GetByLabel("Request more files", new() { Exact = true }).IsVisibleAsync());
+    Assert.False(await page.GetByLabel("Clarification or additional file request", new() { Exact = true }).IsVisibleAsync());
     await using (var verify = host.CreateDbContext())
       Assert.False(await verify.PbcCommunications.AnyAsync(x => x.FirmId == f.FirmId && x.Body == privateDraft));
     Assert.Empty(errors);
