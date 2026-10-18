@@ -29,6 +29,8 @@ Built-in browser smoke check on the current Angular dev server at port 4301 used
 
 ## Client portal invoice settlement projection — implementation packet (2026-10-18)
 
+**Implementation commit:** `de8b6655d250867262550e998cd6d5fe46388977`, pushed to `master`.
+
 - **Task and requirement:** implement the buildable projection slice of ASPM-COM-06 / COM-06 in the proposed complete-practice-management specification. The criterion requires distinct invoice lifecycle, posting/sending, cash collection, due/overdue and provider-delivery truth.
 - **Authority and existing behavior:** the portal currently uses `ClientPortalFinanceQuery` and exact client/engagement grants; `BillingStates`, append-only `InvoicePaymentTermsRevision`, `FirmReceivablesAgingPolicy` and `FirmReceivablesAgingQuery` define invoice lifecycle, recorded cash, approved reversals, issued credits, effective due date and UTC-date aging. The criterion audit at ASPM-COM-06 confirms exact grant scope but identifies the missing state projection. Existing provider rules distinguish provider acceptance from delivery.
 - **Delta:** expose actual `PostedAt` and `SentAt`, net recorded cash after approved allocation reversals, issued credit, outstanding amount, the latest effective independently approved due date and shared aging bucket. Do not present a draft/unposted/cancelled invoice as paid or overdue. Invoice-specific provider delivery is not currently linked to the durable mail record, so report it as untracked; do not infer it from `SENT`, `PROVIDER_ACCEPTED`, or receipt-mail state. Include the UTC as-of date used for aging.
