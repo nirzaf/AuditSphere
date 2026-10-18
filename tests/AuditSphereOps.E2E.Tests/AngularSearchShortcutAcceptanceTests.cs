@@ -31,13 +31,14 @@ public sealed class AngularSearchShortcutAcceptanceTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/ui/app"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
 
-    var searchField = page.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace", Exact = true });
+    var searchCombobox = page.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace", Exact = true });
+    var searchField = page.Locator("input").And(page.GetByLabel("Search your workspace", new() { Exact = true }));
     var body = page.Locator("main");
 
     // Slash from page content focuses authorized search without touching the pointer.
     await body.ClickAsync(new LocatorClickOptions { Position = new() { X = 5, Y = 5 } });
     await page.Keyboard.PressAsync("/");
-    await Assertions.Expect(searchField).ToBeFocusedAsync();
+    await Assertions.Expect(searchCombobox).ToBeFocusedAsync();
 
     // Results arrive through the authorized contract and Escape dismisses them in place.
     var searchRegion = page.GetByRole(AriaRole.Region, new() { Name = "Global search", Exact = true });
