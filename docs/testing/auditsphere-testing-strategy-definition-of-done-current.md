@@ -6,6 +6,8 @@
 
 For browser-visible changes, use the built-in browser as the primary dynamic verification where available: open the target page, exercise the relevant flow, check responsive rendering and inspect console/network errors. Use computer use only when the built-in browser is insufficient. Full automated browser journeys remain in CI/CD.
 
+For changed Angular workflows, use the scoped [rendered accessibility checklist](auditsphere-testing-checklist-angular-accessibility-current.md). Record per-surface observations and source identity in `docs/execution/status.json`; a browser accessibility tree or automated rule pass does not replace the required knowledgeable human screen-reader review.
+
 | Tier | Trigger and owner | What runs | What a PASS proves |
 | --- | --- | --- | --- |
 | **Local fast feedback** | Developer/agent once after a coherent behavior slice | Only affected compilation/contract validation and smallest meaningful existing/new test cohort. For docs-only changes, no application test. | The explicitly selected behavior/checks only. |

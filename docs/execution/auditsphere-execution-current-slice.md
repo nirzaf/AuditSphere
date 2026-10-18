@@ -19,6 +19,16 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Atomic Angular quality Tasks 06–07 — partial evidence (2026-10-18)
+
+Task 05 fieldwork procedure/sampling ownership is committed and pushed as `3194fe3b` (`feat(audit-fieldwork): add procedure state management and tailoring commands`). Its focused Angular spec and production build passed, and `git diff --check` passed on that source; full suites remain CI-owned. The build retained existing optional-chain warnings in completion and the commercial SCSS budget warning.
+
+Task 06 is `BLOCKED_DECISION`: published metadata for the proposed dev-only set (`angular-eslint@22.1.0`, `eslint@10.6.0`, `typescript-eslint@8.62.1`) was read. Its declared peer/engine ranges align with the existing Angular CLI 22.2.1, TypeScript 6.0.3 and pinned Node range. The actual project dependency graph, lockfile installation, selected-rule probes and security resolution were not run. The spec and repository conventions require owner review of this exact dependency diff before adding packages; no lint configuration, package, lockfile or CI workflow was changed.
+
+Task 07 is `PARTIAL`. Built-in browser observations on the local Angular page showed the staff shell, fieldwork empty/unadopted state, and an authorized synthetic consolidation scope. At 390×844, fieldwork had no horizontal document overflow. Keyboard Right/Space changed the Material tab and panel; the compact mobile navigation opened, Escape closed it and focus returned to its opener. The journal queue and accounting-evidence queue rendered explicit empty states, so record-specific editor actions were not available. No financial or approval command was submitted. Screen-reader evaluation, 200%/400% zoom, reduced-motion and complete rendered checks for the remaining surfaces are still open. The available API process on port 5029 did not have an independently verified source identity. Browser logs retained errors from an earlier stale API chunk and an initial incorrect `/fieldwork` URL; the correct `/audit-fieldwork` route rendered, so a clean-console claim is not made.
+
+The stable procedure is [the Angular rendered accessibility checklist](../testing/auditsphere-testing-checklist-angular-accessibility-current.md). Exact Task 06–07 observations and blockers are in `targetedVerification.angularQuality` in [status.json](status.json). No whole-product accessibility or full-spec completion is claimed.
+
 ## Relationship Manager search matrix regression (2026-10-18)
 
 The full Domain CI job identified a stale matrix assertion left behind by the client-archive change. The client workspace permits current client-scoped or explicit firm-wide RelationshipManager grants to read client summaries; a firm-wide grant therefore returns matching client identities as well as leads. The corrected existing test still asserts the exact result kinds and excludes professional engagement/PBC/finance results for that role. The search code map now distinguishes client and firm-wide grants from engagement-only grants. Application permissions and production code were not changed.

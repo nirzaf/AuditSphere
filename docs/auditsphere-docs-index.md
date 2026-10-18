@@ -23,7 +23,7 @@ The repository ships Angular as the canonical staff/client presentation. The leg
 | Audit programme execution | [Atomic specification](task_breakdown/source/auditsphere-audit-specification-working-process-atomic-proposed.md) · [Extracted 165-procedure source](task_breakdown/source/auditsphere-audit-working-process-procedures-source.md) |
 | Current state and evidence | [status.json](execution/status.json) · [Current-slice handoff](execution/auditsphere-execution-current-slice.md) · [Pending work](execution/auditsphere-execution-pending-tasks.md) |
 | API and Angular parity work | [Implementation tracker](execution/auditsphere-execution-tracker-api-angular-parity-current.md) · `apiAngularParity` in [status.json](execution/status.json) |
-| Testing and Definition of Done | [Testing strategy](testing/auditsphere-testing-strategy-definition-of-done-current.md) |
+| Testing and Definition of Done | [Testing strategy](testing/auditsphere-testing-strategy-definition-of-done-current.md) · [Angular rendered accessibility checklist](testing/auditsphere-testing-checklist-angular-accessibility-current.md) |
 | Migration history and retirement evidence | [Removal gate](migration/auditsphere-migration-blazor-removal-readiness.md) · [Angular migration](architecture/auditsphere-angular-migration-current.md) |
 | Operations and recovery | [Restore drill](operations/auditsphere-operations-runbook-restore-drill.md) |
 | Client-tenant Entra, Graph, SharePoint and email setup | [Terminal-driven setup overview](operations/auditsphere-operations-guide-terminal-driven-microsoft365-setup-current.md) · [CLI setup runbook](operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) · [Configuration inventory](operations/auditsphere-operations-reference-microsoft365-configuration-current.md) |
@@ -260,6 +260,7 @@ The Record-to-Report workstream covers Modules 20–26 under `docs/task_breakdow
 | [`docs/testing/auditsphere-scope-and-tenant-admin-test-cases.md`](testing/auditsphere-scope-and-tenant-admin-test-cases.md) | Proposed scope-isolation and live Development tenant administration acceptance cases; execution results belong in the ledger. | `CURRENT` |
 
 | [`docs/testing/auditsphere-testing-strategy-definition-of-done-current.md`](testing/auditsphere-testing-strategy-definition-of-done-current.md) | Test strategy and Definition of Done for the restored suites: what counts as verification. | `CURRENT` |
+| [`docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md`](testing/auditsphere-testing-checklist-angular-accessibility-current.md) | Stable rendered keyboard, responsive and human assistive-technology acceptance procedure for changed Angular workflows; execution results stay in `status.json`. | `CURRENT` |
 | [Agent capability checks](testing/auditsphere-testing-guide-agent-capability-checks-current.md) | Bounded task packets, read-only prerequisite checks, opt-in focused verification and evidence reports. | `CURRENT` |
 
 ---
