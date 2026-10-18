@@ -73,4 +73,26 @@ describe('work queue display modes', () => {
     expect(root.textContent).toContain('No due date');
     fixture.destroy();
   });
+
+  it('shows the server feature-off state instead of presenting an empty queue as success', () => {
+    const fixture = TestBed.createComponent(WorkflowWorkQueue);
+    fixture.detectChanges();
+    const unavailable = {
+      code: 'scope.denied',
+      message: 'Workflow task experience is not enabled on this server.',
+    };
+    http.expectOne((r) => r.url.startsWith('/api/ui/work/tasks?'))
+      .flush(unavailable, { status: 403, statusText: 'Forbidden' });
+    http.expectOne('/api/ui/work/reviews?pageSize=50')
+      .flush(unavailable, { status: 403, statusText: 'Forbidden' });
+    TestBed.tick();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('The work queue is unavailable in your current scope or is not enabled on this server.');
+    expect(root.textContent).toContain('The procedure review inbox is unavailable in your current reviewer scope or is not enabled on this server.');
+    expect(root.querySelectorAll('.summary-card')).toHaveLength(0);
+    expect(root.querySelectorAll('.task-card')).toHaveLength(0);
+    fixture.destroy();
+  });
 });
