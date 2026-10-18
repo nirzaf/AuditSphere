@@ -23,6 +23,7 @@ public sealed record PortalClientReceipt(
   Guid? DocumentId,
   string Kind,
   string Amount,
+  string AppliedAmount,
   string Currency,
   string Reference,
   DateTimeOffset ReceivedAt,
@@ -115,8 +116,20 @@ public static class ClientPortalFinanceQuery
           var invoiceId = milestone.InvoiceId.Value;
           var allocations = await db.ReceiptAllocations.AsNoTracking()
             .Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId)
+            .Select(x => new
+            {
+              x.ReceiptId,
+              x.Amount,
+              ApprovedReversedAmount = db.ReceiptAllocationReversals.AsNoTracking()
+                .Where(reversal => reversal.FirmId == actor.FirmId && reversal.ReceiptAllocationId == x.Id &&
+                  reversal.Status == ReceiptAllocationReversalStates.Approved)
+                .Sum(reversal => (decimal?)reversal.Amount) ?? 0m
+            })
             .ToListAsync(ct);
-          var receiptIds = allocations.Select(x => x.ReceiptId).Distinct().ToList();
+          var allocationAmountsByReceipt = allocations.GroupBy(x => x.ReceiptId).ToDictionary(group => group.Key, group =>
+            (Original: group.Sum(x => x.Amount),
+              Applied: MoneyPolicy.Normalize(group.Sum(x => x.Amount - x.ApprovedReversedAmount))));
+          var receiptIds = allocationAmountsByReceipt.Keys.ToList();
           var receipts = await db.Receipts.AsNoTracking()
             .Where(x => x.FirmId == actor.FirmId && receiptIds.Contains(x.Id))
             .OrderBy(x => x.ReceivedAt)
@@ -129,14 +142,15 @@ public static class ClientPortalFinanceQuery
 
           foreach (var receipt in receipts)
           {
-            var allocatedToThisInvoice = allocations.Where(x => x.ReceiptId == receipt.Id).Sum(x => x.Amount);
-            totalPaid += allocatedToThisInvoice;
+            var amounts = allocationAmountsByReceipt[receipt.Id];
+            totalPaid += amounts.Applied;
 
             receiptList.Add(new(
               receipt.Id,
               doc?.Id,
               milestone.Kind,
-              Exact(allocatedToThisInvoice),
+              Exact(amounts.Original),
+              Exact(amounts.Applied),
               agreement.Currency,
               receipt.Reference,
               receipt.ReceivedAt,

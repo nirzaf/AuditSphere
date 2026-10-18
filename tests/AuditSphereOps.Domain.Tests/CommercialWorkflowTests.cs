@@ -1024,6 +1024,9 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(2, agreementFinance.Invoices.Count);
     Assert.Equal(4, agreementFinance.Receipts.Count); // 2 advance receipts + 2 balance receipts
     Assert.Equal("0", agreementFinance.OutstandingBalance);
+    var originalPortalReceipt = Assert.Single(agreementFinance.Receipts, x => x.ReceiptId == partial.Value.ReceiptId);
+    Assert.Equal(5000m, decimal.Parse(originalPortalReceipt.Amount, CultureInfo.InvariantCulture));
+    Assert.Equal(5000m, decimal.Parse(originalPortalReceipt.AppliedAmount, CultureInfo.InvariantCulture));
 
     // An approved cash unapplication must reopen the current advance gate without
     // rewriting the receipt proving that it was previously settled.
@@ -1043,6 +1046,11 @@ public sealed class CommercialWorkflowTests
     Assert.True((await ReceiptAllocationReversalService.ReviewAsync(db, w.FinanceReviewer, rejectedReversal.Value,
       new(false, "The original allocation is valid.", true))).Succeeded);
     Assert.Equal(FeeMilestoneStates.Paid, advanceMilestone.State);
+    var rejectedPortalFinance = await ClientPortalFinanceQuery.GetAsync(db, clientActor);
+    Assert.True(rejectedPortalFinance.Succeeded, rejectedPortalFinance.Message);
+    Assert.Equal("0", Assert.Single(rejectedPortalFinance.Value!.Agreements).OutstandingBalance);
+    Assert.Equal(5000m, decimal.Parse(Assert.Single(rejectedPortalFinance.Value.Agreements[0].Receipts,
+      x => x.ReceiptId == partial.Value.ReceiptId).AppliedAmount, CultureInfo.InvariantCulture));
 
     var approvedReversal = await ReceiptAllocationReversalService.SubmitAsync(db, w.FinanceManager, advanceAllocation.Id,
       new(100m, "SYNTHETIC-ADVANCE-UNAPPLY", "Independently confirmed unapplication.", 1, true));
@@ -1095,6 +1103,13 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(originalPaidAt, advanceMilestone.PaidAt);
     Assert.False(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, w.FirmId, agreementId));
     Assert.Equal(12400m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
+    var reopenedPortalFinance = await ClientPortalFinanceQuery.GetAsync(db, clientActor);
+    Assert.True(reopenedPortalFinance.Succeeded, reopenedPortalFinance.Message);
+    var reopenedPortalAgreement = Assert.Single(reopenedPortalFinance.Value!.Agreements);
+    Assert.Equal(100m, decimal.Parse(reopenedPortalAgreement.OutstandingBalance, CultureInfo.InvariantCulture));
+    var reversedPortalReceipt = Assert.Single(reopenedPortalAgreement.Receipts, x => x.ReceiptId == partial.Value.ReceiptId);
+    Assert.Equal(5000m, decimal.Parse(reversedPortalReceipt.Amount, CultureInfo.InvariantCulture));
+    Assert.Equal(4900m, decimal.Parse(reversedPortalReceipt.AppliedAmount, CultureInfo.InvariantCulture));
     var reopenedReadiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Partner, engagementId);
     Assert.True(reopenedReadiness.Succeeded, reopenedReadiness.Message);
     Assert.NotEqual(OnboardingReadinessStatuses.Paid, reopenedReadiness.Value!.AdvancePayment.Status);

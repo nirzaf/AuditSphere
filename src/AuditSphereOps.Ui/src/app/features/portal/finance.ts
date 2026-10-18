@@ -31,6 +31,7 @@ export const portalFinanceContract = obj({
           documentId: nullable(guid),
           kind: text,
           amount: text,
+          appliedAmount: text,
           currency: text,
           reference: text,
           receivedAt: instant,
@@ -93,12 +94,14 @@ export const portalFinanceContract = obj({
               @if (agr.receipts.length > 0) {
                 <div class="table-section">
                   <h4>Payment receipts</h4>
+                  <p>Currently applied amounts reflect independently approved allocation reversals. Pending or rejected reversals do not change applied cash; the original receipt voucher remains unchanged.</p>
                   <table class="finance-table" aria-label="Payment receipts">
                     <thead>
                       <tr>
                         <th>Type</th>
                         <th>Reference</th>
-                        <th>Amount</th>
+                        <th>Original allocation</th>
+                        <th>Currently applied</th>
                         <th>Date</th>
                         <th>Receipt Voucher</th>
                       </tr>
@@ -109,6 +112,7 @@ export const portalFinanceContract = obj({
                           <td>{{ r.kind === 'ADVANCE' ? 'Advance payment' : 'Final settlement' }}</td>
                           <td><code>{{ r.reference }}</code></td>
                           <td>{{ r.amount }} {{ r.currency }}</td>
+                          <td>{{ r.appliedAmount }} {{ r.currency }}</td>
                           <td>{{ r.receivedAt }}</td>
                           <td>
                             @if (r.downloadUrl) {

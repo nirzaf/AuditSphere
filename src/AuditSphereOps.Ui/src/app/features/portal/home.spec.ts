@@ -6,6 +6,7 @@ import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
 import { PortalDocuments } from './documents';
+import { PortalFinance } from './finance';
 import { ClientPortalHome } from './home';
 
 const id = (n: number) => `40000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
@@ -211,6 +212,24 @@ describe('Client portal workspace paging', () => {
     expect(packageSection().querySelectorAll('a').length).toBe(26);
     expect(packageSection().querySelectorAll('audit-portal-report-action').length).toBe(0);
     http.expectNone((request) => request.method === 'POST');
+    fixture.destroy();
+  });
+
+  it('shows the original receipt allocation separately from currently applied cash', async () => {
+    const fixture = TestBed.createComponent(PortalFinance);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/finance').flush({ agreements: [{
+      agreementId: id(601), engagementId: id(602), agreedFee: '25000', currency: 'QAR', advancePercent: '50',
+      outstandingBalance: '100', invoices: [], receipts: [{ receiptId: id(603), documentId: null, kind: 'ADVANCE',
+        amount: '5000', appliedAmount: '4900', currency: 'QAR', reference: 'SYNTHETIC-ADVANCE',
+        receivedAt: '2026-10-18T08:00:00Z', downloadUrl: null }],
+    }] });
+    await fixture.whenStable(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const cells = root.querySelectorAll('tbody tr td');
+    expect(cells[2].textContent).toContain('5000 QAR');
+    expect(cells[3].textContent).toContain('4900 QAR');
+    expect(root.textContent).toContain('independently approved allocation reversals');
     fixture.destroy();
   });
 

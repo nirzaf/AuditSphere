@@ -121459,6 +121459,7 @@
           "documentId",
           "kind",
           "amount",
+          "appliedAmount",
           "currency",
           "reference",
           "receivedAt",
@@ -121481,6 +121482,9 @@
             "type": "string"
           },
           "amount": {
+            "type": "string"
+          },
+          "appliedAmount": {
             "type": "string"
           },
           "currency": {
