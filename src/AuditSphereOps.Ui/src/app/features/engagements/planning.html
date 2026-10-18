@@ -1,5 +1,6 @@
 <section aria-label="Engagement planning">
     <h2>Engagement team and budget</h2>
+    <p role="status">{{ commandStatus() }}</p>
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" aria-label="Loading planning" />
     }
@@ -92,7 +93,6 @@
               </button>
             </section>
           }
-          <p role="status">{{ commandStatus() }}</p>
         </section>
       }
       @if (staffingPreview(); as preview) {
@@ -239,13 +239,14 @@
             <button
               matButton
               type="submit"
+              #budgetReviewTrigger
               [disabled]="busy() || uncertain() || !!budgetPreview() || !budgetLines.length"
             >
               Review budget preparation
             </button>
           </form>
           @if (budgetPreview(); as preview) {
-            <section aria-label="Reviewed budget preparation">
+            <section #budgetReview tabindex="-1" aria-label="Reviewed budget preparation">
               <h3>Review draft budget · {{ preview.fields.currency }}</h3>
               <p>
                 Previous version {{ preview.fields.expectedVersion }} · Forecast
@@ -295,7 +296,6 @@
               </button>
             </section>
           }
-          <p role="status">{{ commandStatus() }}</p>
         </section>
       }
       @if (!approvalPending() && planning.draft; as draft) {
@@ -326,7 +326,6 @@
           } @else {
             <p>A different authorized manager or partner must approve this draft.</p>
           }
-          <p role="status">{{ commandStatus() }}</p>
         </section>
       }
       @if (approvalPreview(); as preview) {

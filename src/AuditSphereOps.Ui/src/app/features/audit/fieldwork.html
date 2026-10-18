@@ -99,9 +99,12 @@
                     <td [class.error-text]="!r.reproduces">{{ r.reproduces ? 'Matches' : 'Source changed' }}</td><td>
                       <button matButton (click)="sampling.openSampleSet(r.selectionId)" [disabled]="sampling.sampleSetLoading() || sampling.sampleActionBusy()">Open sample set</button>
                       @if (r.canReviewSelection) {
+                        @if (sampling.sampleSet()?.selectionId !== r.selectionId) {
+                          <small>Open this exact sample set before reviewing it.</small>
+                        }
                         <label>Review note <input [(ngModel)]="sampling.selectionReviewComment" [name]="'selection-review-' + r.selectionId" /></label>
-                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'REVIEWED')" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">Approve for execution</button>
-                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'CHANGES_REQUIRED')" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy()">Return for changes</button>
+                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'REVIEWED')" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy() || sampling.sampleSet()?.selectionId !== r.selectionId">Approve for execution</button>
+                        <button matButton (click)="sampling.reviewSelection(r.selectionId, 'CHANGES_REQUIRED')" [disabled]="fieldworkCommandBlocked() || sampling.sampleActionBusy() || sampling.sampleSet()?.selectionId !== r.selectionId">Return for changes</button>
                       } @else if (r.selectionStatus !== 'REVIEWED') {
                         <small>{{ r.preparedByMe ? 'Independent review required before execution.' : 'Awaiting an authorized selection reviewer.' }}</small>
                       }

@@ -136,11 +136,25 @@ public sealed class AngularAdvancedConsolidationAuthorizationJourneyTests
       new() { Name = ownGroupName + " · v1", Exact = true })).ToBeVisibleAsync();
     Assert.Contains(AdvancedConsolidationMethods.AcquisitionNci, await page.Locator("main").InnerTextAsync(),
       StringComparison.Ordinal);
+    await Assertions.Expect(page.GetByRole(AriaRole.Status)).ToContainTextAsync("0 schedules · 0 approved · 0 executions");
+    await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Advanced consolidation schedules", Exact = true }))
+      .ToContainTextAsync("No method schedule has been submitted for this scope.");
+    await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Advanced consolidation executions", Exact = true }))
+      .ToContainTextAsync("No verified execution exists for this scope.");
 
     const string draft = "{\"sources\":[],\"reviewedJournals\":[],\"note\":\"synthetic draft\"}";
     var manifest = page.GetByLabel("Source manifest JSON *", new() { Exact = true });
     await manifest.FillAsync(draft);
     await page.WaitForFunctionAsync("() => Array.from({ length: localStorage.length }, (_, i) => localStorage.getItem(localStorage.key(i))).some(item => item?.includes('synthetic draft'))");
+    var snapshot = page.GetByLabel("Method input and statement JSON *", new() { Exact = true });
+    await manifest.FocusAsync();
+    await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(snapshot).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Tab");
+    await page.Keyboard.PressAsync("Tab");
+    var submit = page.GetByRole(AriaRole.Button, new() { Name = "Submit schedule", Exact = true });
+    await Assertions.Expect(submit).ToBeFocusedAsync();
+    await Assertions.Expect(submit).ToHaveCSSAsync("outline-style", "solid");
 
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__advancedScopeRouteToken = token", documentToken);
@@ -170,7 +184,6 @@ public sealed class AngularAdvancedConsolidationAuthorizationJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = ownGroupName + " · v1", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByLabel("Source manifest JSON *", new() { Exact = true })).ToHaveValueAsync(draft);
-    var submit = page.GetByRole(AriaRole.Button, new() { Name = "Submit schedule", Exact = true });
     await page.GetByLabel("Source manifest JSON *", new() { Exact = true }).FocusAsync();
     await page.Keyboard.PressAsync("Tab");
     await page.Keyboard.PressAsync("Tab");

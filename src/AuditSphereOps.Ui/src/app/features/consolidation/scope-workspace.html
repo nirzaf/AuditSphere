@@ -103,7 +103,7 @@
         }
 
         <div class="table-scroll">
-          <table>
+          <table aria-labelledby="components-heading">
             <thead>
               <tr>
                 <th>Entity</th>
@@ -185,7 +185,7 @@
 
         @if (w.canPrepare) {
           <details style="margin: 1rem 0;">
-            <summary><strong role="button">Create elimination journal</strong></summary>
+            <summary><strong>Create elimination journal</strong></summary>
             <div class="panel" style="margin-top: 0.5rem;">
               <div class="inline-form">
                 <label>
@@ -212,7 +212,7 @@
 
               <h3>Journal lines</h3>
               <div class="table-scroll">
-                <table>
+                <table aria-label="Draft elimination journal lines">
                   <thead>
                     <tr>
                       <th>Taxonomy code *</th>
@@ -271,7 +271,7 @@
         }
 
         <div class="table-scroll">
-          <table>
+          <table aria-labelledby="journals-heading">
             <thead>
               <tr>
                 <th>Journal</th>
@@ -360,7 +360,7 @@
         }
 
         <div class="table-scroll">
-          <table>
+          <table aria-labelledby="runs-heading">
             <thead>
               <tr>
                 <th>Run date</th>
@@ -412,7 +412,7 @@
             <p><small>Run {{ w.latestReport.value!.runId }} · Approved {{ w.latestReport.value!.approvedAt ? w.latestReport.value!.approvedAt!.slice(0, 16).replace('T', ' ') : '' }}</small></p>
 
             <div class="table-scroll">
-              <table>
+              <table aria-label="Authoritative consolidated report">
                 <thead>
                   <tr>
                     <th>Component / Adjustment</th>
@@ -447,7 +447,7 @@
       <section class="panel" id="readiness" aria-labelledby="readiness-heading">
         <h2 id="readiness-heading">Component readiness</h2>
         <div class="table-scroll">
-          <table>
+          <table aria-labelledby="readiness-heading">
             <thead>
               <tr>
                 <th>Member</th>
@@ -656,7 +656,7 @@
             · scope revision {{ matchPage.pinnedGroupRevision }} / current group revision {{ matchPage.currentGroupRevision }}
           </p>
           <div class="table-scroll">
-            <table>
+            <table aria-labelledby="intercompany-heading">
               <thead><tr><th>Match</th><th>Full retained record</th><th>Status</th><th>Independent review</th></tr></thead>
               <tbody>
                 @for (item of matchPage.items; track item.matchId) {

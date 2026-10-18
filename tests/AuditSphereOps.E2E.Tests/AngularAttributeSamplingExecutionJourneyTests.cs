@@ -104,8 +104,17 @@ public sealed class AngularAttributeSamplingExecutionJourneyTests
     await staffPage.GetByLabel("Sample size", new() { Exact = true }).FillAsync("2");
     await staffPage.GetByLabel("Seed", new() { Exact = true }).FillAsync("17017");
     await staffPage.GetByLabel("Account code", new() { Exact = true }).CheckAsync();
-    await staffPage.Locator("input[name='sr']").FillAsync("Select and inspect one row from each account stratum.");
-    await staffPage.GetByRole(AriaRole.Button, new() { Name = "Preview selection", Exact = true }).ClickAsync();
+    var rationale = staffPage.Locator("input[name='sr']");
+    var previewButton = staffPage.GetByRole(AriaRole.Button, new() { Name = "Preview selection", Exact = true });
+    await previewButton.ClickAsync();
+    await Assertions.Expect(staffPage.GetByRole(AriaRole.Alert).Filter(new() { HasText = "Choose a procedure and approved schedule, and enter a rationale." })).ToContainTextAsync(
+      "Choose a procedure and approved schedule, and enter a rationale.");
+    await rationale.FillAsync("Select and inspect one row from each account stratum.");
+    await rationale.FocusAsync();
+    await staffPage.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(previewButton).ToBeFocusedAsync();
+    await Assertions.Expect(previewButton).ToHaveCSSAsync("outline-style", "solid");
+    await staffPage.Keyboard.PressAsync("Enter");
     var preview = staffPage.GetByRole(AriaRole.Region, new() { Name = "Exact selection preview", Exact = true });
     await Assertions.Expect(preview).ToContainTextAsync("2 of 4 rows selected");
     await Assertions.Expect(preview).ToContainTextAsync("4000");
@@ -115,6 +124,12 @@ public sealed class AngularAttributeSamplingExecutionJourneyTests
     await preview.GetByRole(AriaRole.Button, new() { Name = "Record this exact sample", Exact = true }).ClickAsync();
     var selectionPanel = staffPage.GetByRole(AriaRole.Table, new() { Name = "Sampling calculation log", Exact = true });
     await Assertions.Expect(selectionPanel).ToContainTextAsync("SUBMITTED");
+    await Assertions.Expect(selectionPanel.GetByRole(AriaRole.Row)).ToHaveCountAsync(2);
+    await staffPage.SetViewportSizeAsync(390, 844);
+    Assert.True(await staffPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    Assert.True(await selectionPanel.EvaluateAsync<bool>("table => { const region = table.parentElement; if (!region) return false; const rect = region.getBoundingClientRect(); return rect.left >= -1 && rect.right <= innerWidth + 1 && getComputedStyle(region).overflowX === 'auto' && region.scrollWidth > region.clientWidth; }"),
+      "The record-backed sampling log should stay within a bounded horizontal scroll region at 390px.");
+    await staffPage.SetViewportSizeAsync(1280, 900);
     var sampleSet = staffPage.Locator("section[aria-labelledby='sample-execution-heading']");
     await Assertions.Expect(sampleSet).ToContainTextAsync("Execution is locked until an independent reviewer approves this exact sample.");
     await Assertions.Expect(sampleSet.GetByRole(AriaRole.Button,
@@ -149,6 +164,10 @@ public sealed class AngularAttributeSamplingExecutionJourneyTests
     Assert.True(projectedRun.GetProperty("canReviewSelection").GetBoolean(), workspaceJson);
     var reviewerBody = await reviewerPage.Locator("body").InnerTextAsync();
     Assert.True(reviewerBody.Contains("SUBMITTED", StringComparison.Ordinal), reviewerBody);
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Approve for execution", Exact = true })).ToBeDisabledAsync();
+    await Assertions.Expect(reviewerPage.GetByText("Open this exact sample set before reviewing it.", new() { Exact = true })).ToBeVisibleAsync();
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Open sample set", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewerPage.Locator("section[aria-labelledby='sample-execution-heading']")).ToContainTextAsync("SUBMITTED");
     var reviewInput = reviewerPage.GetByLabel("Review note", new() { Exact = true });
     Assert.Equal(1, await reviewInput.CountAsync());
     await reviewInput
@@ -177,7 +196,10 @@ public sealed class AngularAttributeSamplingExecutionJourneyTests
     selectedItemId = Guid.Parse(firstApiItem.GetProperty("selectionItemId").GetString()!);
     var resultSelect = firstItem.Locator("select").First;
     Assert.Equal(1, await resultSelect.EvaluateAsync<int>("element => element.labels.length"));
+    await resultSelect.FocusAsync();
     await resultSelect.SelectOptionAsync("EXCEPTION");
+    await Assertions.Expect(resultSelect).ToHaveValueAsync("EXCEPTION");
+    await Assertions.Expect(resultSelect).ToHaveCSSAsync("outline-style", "solid");
     var textareas = firstItem.Locator("textarea");
     Assert.Equal(4, await textareas.CountAsync());
     await textareas.Nth(0)

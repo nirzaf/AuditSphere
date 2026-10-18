@@ -1,5 +1,8 @@
 import {
+  afterNextRender,
   Component,
+  ElementRef,
+  Injector,
   DestroyRef,
   HostListener,
   effect,
@@ -7,6 +10,7 @@ import {
   input,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
@@ -38,6 +42,23 @@ import type { PlanningStateContext } from './planning-state-context';
 export class EngagementPlanning {
   readonly budgetVariance = budgetVarianceLabel;
   private readonly dialog = inject(MatDialog);
+  private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly renderInjector = inject(Injector);
+  private readonly budgetReviewElement = viewChild<ElementRef<HTMLElement>>('budgetReview');
+  private readonly budgetReviewTrigger = viewChild<unknown, ElementRef<HTMLButtonElement>>('budgetReviewTrigger', { read: ElementRef });
+  private focusedPlanningControl(): Element | null {
+    const element = this.hostElement.nativeElement;
+    const active = element.ownerDocument.activeElement;
+    return active && element.contains(active) ? active : null;
+  }
+  private focusBudgetControl(review: boolean, owner: string, origin: Element): void {
+    afterNextRender(() => {
+      const document = this.hostElement.nativeElement.ownerDocument;
+      if (this.destroyed || owner !== this.owner() ||
+          (document.activeElement !== origin && document.activeElement !== document.body)) return;
+      (review ? this.budgetReviewElement() : this.budgetReviewTrigger())?.nativeElement.focus();
+    }, { injector: this.renderInjector });
+  }
   private navigationPending = false;
   planningDirty(): boolean {
     return (
@@ -186,8 +207,17 @@ export class EngagementPlanning {
   discardEditableBudget(): void { this.budgetState.discardEditableBudget(); }
   removeBudgetLine(index: number): void { this.budgetState.removeBudgetLine(index); }
   addBudgetLine(): void { this.budgetState.addBudgetLine(); }
-  saveBudget(): Promise<void> { return this.budgetState.saveBudget(); }
-  cancelBudgetReview(): void { this.budgetState.cancelBudgetReview(); }
+  async saveBudget(): Promise<void> {
+    const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.budgetPreview();
+    await this.budgetState.saveBudget();
+    if (origin && this.budgetPreview() && this.budgetPreview() !== previous && owner === this.owner())
+      this.focusBudgetControl(true, owner, origin);
+  }
+  cancelBudgetReview(): void {
+    const origin = this.focusedPlanningControl(), owner = this.owner(), previous = this.budgetPreview();
+    this.budgetState.cancelBudgetReview();
+    if (origin && previous && !this.budgetPreview()) this.focusBudgetControl(false, owner, origin);
+  }
   confirmBudgetPreparation(): Promise<void> { return this.budgetState.confirmBudgetPreparation(); }
   reconcileBudgetPreparation(): Promise<void> { return this.budgetState.reconcileBudgetPreparation(); }
   acknowledgeBudgetPreparation(): void { this.budgetState.acknowledgeBudgetPreparation(); }

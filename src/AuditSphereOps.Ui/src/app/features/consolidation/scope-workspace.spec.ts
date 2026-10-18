@@ -464,6 +464,12 @@ describe('Consolidation Scope Workspace Contracts', () => {
     const draftScope = workspacePayload().scope;
     const payload = workspacePayload({ scope: { ...draftScope, status: 'DRAFT' } });
     const { fixture } = open(payload);
+    const disclosure = fixture.nativeElement.querySelector('#journals summary') as HTMLElement;
+    expect(disclosure.textContent).toContain('Create elimination journal');
+    expect(disclosure.querySelector('[role="button"]')).toBeNull();
+    const journalTables = [...fixture.nativeElement.querySelectorAll('#journals table')] as HTMLTableElement[];
+    expect(journalTables[0].getAttribute('aria-label')).toBe('Draft elimination journal lines');
+    expect(journalTables[journalTables.length - 1].getAttribute('aria-labelledby')).toBe('journals-heading');
     const button = [...fixture.nativeElement.querySelectorAll('button')]
       .find((item: HTMLButtonElement) => item.textContent?.includes('Approve perimeter')) as HTMLButtonElement;
     expect(button).toBeTruthy();
