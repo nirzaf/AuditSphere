@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "fb19f4574eaec6bccfb53c9484720293b0bcd6ee",
+  "headCommit": "77613c4a731c9915d9c911c7eadbe31756d45b73",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1118,51 +1118,37 @@
       "jsonPath": "keys.targetedVerification.figmaAngularShell"
     },
     "practiceManagementCrossLedgerBoundaries20261018": {
-      "recordedAtUtc": "2026-10-18T06:31:01Z",
+      "recordedAtUtc": "2026-10-18T06:40:04Z",
       "sourceCommit": "fb19f4574eaec6bccfb53c9484720293b0bcd6ee",
       "status": "PARTIAL",
-      "scope": "PM-00 NR-11 complete for named three-book cases. NR-12 maps five workflow/host switches; Angular work queue 403 UI state is focused-tested, but disabled-route browser and deployment config remain open.",
+      "scope": "NR-11 named three-book cases complete; NR-12 five-switch matrix and Angular 403 state covered. Disabled route and deployed configuration remain open.",
+      "stillOpen": [
+        "NR-12: verify disabled work-queue browser state against known feature-off configuration and deployed effective settings.",
+        "Full release verification remains a CI/CD responsibility."
+      ],
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018"
+    },
+    "workflowDependencyGraphLimit20261018": {
+      "recordedAtUtc": "2026-10-18T06:40:04Z",
+      "sourceCommit": "77613c4a731c9915d9c911c7eadbe31756d45b73",
+      "status": "PARTIAL",
+      "scope": "ASPM-WF-02: task-count overflow rejects before graph mutation; 4,001-edge overflow and broad criterion acceptance remain unverified.",
       "runs": [
         {
-          "name": "Disabled PBC reminder PostgreSQL regression",
-          "sourceCommit": "3e24eeae54b51477f59d19b61428e8f3cecd7194",
-          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~DisabledReminderPolicyLeavesRequestHistoryAndOutboxUnchanged'",
+          "name": "Workflow dependency graph task-bound rejection",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~WorkflowDependencyAmendmentTests.GraphBeyondTaskBoundIsRejectedWithoutPartialApplication'",
           "result": "PASS",
           "passed": 1,
           "failed": 0,
+          "skipped": 0,
           "total": 1,
-          "duration": "42s"
-        },
-        {
-          "name": "NR-11 firm billing and client analytics boundary regressions",
-          "sourceCommit": "efc1517da2ba155cbda3f6a5c3ef7a804ea82ec3",
-          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~Analytics_ReconcileBilledCollectedStandardValueAndCost_FromApprovedRecords|FullyQualifiedName~SalesInvoiceIndependentPostIsAtomicScopedRecoverableAndReconcilesWithNativeGL'",
-          "result": "PASS",
-          "passed": 2,
-          "failed": 0,
-          "total": 2,
-          "database": "PostgreSQL disposable test schemas",
-          "duration": "41s"
-        },
-        {
-          "name": "Angular work-queue disabled-state spec",
-          "sourceCommit": "fb19f4574eaec6bccfb53c9484720293b0bcd6ee",
-          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/practice/work-queue-display.spec.ts'",
-          "result": "PASS",
-          "passed": 2,
-          "failed": 0,
-          "total": 2
+          "duration": "39s",
+          "asserted": "501 tasks refused with GateBlocked; zero dependency revisions, unchanged binding revisions, no dependency-change activity."
         }
       ],
       "stillOpen": [
-        "NR-12 remains partial: browser-check the disabled work-queue route against a known feature-off configuration; verify effective settings on other UI surfaces where applicable.",
-        "Full release verification remains a CI/CD responsibility."
-      ],
-      "browserObservation": {
-        "status": "PARTIAL",
-        "observed": "Read-only /app/work against local API rendered the normal queue and one synthetic task, so WorkflowExperience was enabled in that runtime. No console errors or warnings; no task actions were used.",
-        "notVerified": "Disabled-mode route in a known feature-off configuration."
-      }
+        "Test the 4,001-edge overflow path independently; ASPM-WF-02 and PMCOMP-06 remain partial."
+      ]
     }
   },
   "externalGates": [
