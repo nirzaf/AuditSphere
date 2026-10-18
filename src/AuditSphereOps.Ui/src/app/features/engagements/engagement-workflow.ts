@@ -7,8 +7,9 @@ import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
 import { arr, decode, guid, obj, str } from '../../core/decode';
 import {
-  EngagementWorkflowReport, PhaseChecklist, WorkbenchLink, decodeEngagementWorkflowReport, decodeEngagementWorkflowTasks,
-  EngagementWorkflowTask, phaseChecklists, workbenchLinksFor,
+  EngagementMilestonePlan, EngagementWorkflowReport, PhaseChecklist, WorkbenchLink, WorkflowMilestoneRow,
+  decodeEngagementMilestonePlan, decodeEngagementWorkflowReport, decodeEngagementWorkflowTasks, EngagementWorkflowTask,
+  phaseChecklists, projectWorkflowMilestones, workbenchLinksFor,
 } from './engagement-workflow-contracts';
 import { EngagementReminders } from './engagement-reminders';
 import { WorkflowTaskCreate } from './workflow-task-create';
@@ -36,6 +37,10 @@ const assigneeOptionsDecoder = arr(obj({ userId: guid, displayName: str(200) }),
 export class EngagementWorkflow {
   readonly engagementId = input.required<string>();
   readonly data = signal<EngagementWorkflowReport | null>(null);
+  readonly milestonePlan = signal<EngagementMilestonePlan | null>(null);
+  readonly milestonePlanLoaded = signal(false);
+  readonly milestonePlanLoading = signal(false);
+  readonly milestonePlanError = signal('');
   readonly loading = signal(false);
   readonly error = signal('');
   /** Operational checklists per phase, or null when the task experience is off or closed to this role. */
@@ -56,6 +61,7 @@ export class EngagementWorkflow {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private request?: Subscription;
+  private milestoneRequest?: Subscription;
   private taskRequest?: Subscription;
   private assignmentRequest?: Subscription;
   private destroyed = false;
@@ -67,6 +73,7 @@ export class EngagementWorkflow {
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.request?.unsubscribe();
+        this.milestoneRequest?.unsubscribe();
         this.taskRequest?.unsubscribe();
         this.checklists.set(null);
         this.taskCreationAvailable.set(false);
@@ -78,6 +85,10 @@ export class EngagementWorkflow {
         this.assignmentRequest?.unsubscribe();
         this.checklistError.set('');
         this.data.set(null);
+        this.milestonePlan.set(null);
+        this.milestonePlanLoaded.set(false);
+        this.milestonePlanLoading.set(false);
+        this.milestonePlanError.set('');
         this.error.set('');
         this.loading.set(false);
         if (staff && id) this.load();
@@ -87,6 +98,7 @@ export class EngagementWorkflow {
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       this.request?.unsubscribe();
+      this.milestoneRequest?.unsubscribe();
       this.taskRequest?.unsubscribe();
       this.assignmentRequest?.unsubscribe();
     });
@@ -103,6 +115,11 @@ export class EngagementWorkflow {
 
   phaseStatus(report: EngagementWorkflowReport, index: number): string {
     return report.phases[index - 1]?.status ?? 'NOT_STARTED';
+  }
+
+  scheduledMilestones(): WorkflowMilestoneRow[] {
+    const plan = this.milestonePlan();
+    return plan ? projectWorkflowMilestones(plan) : [];
   }
 
   /**
@@ -233,6 +250,7 @@ export class EngagementWorkflow {
 
     const generation = this.session.invalidation();
     this.loadChecklists(id, generation);
+    this.loadMilestones(id, generation);
     this.request = this.http
       .get<unknown>(`/api/ui/engagements/${id}/workflow`)
       .pipe(timeout(15000))
@@ -262,6 +280,46 @@ export class EngagementWorkflow {
               ? 'The engagement workflow is not available to your role on this engagement.'
               : 'Engagement workflow unavailable.',
           );
+        },
+      });
+  }
+
+  private loadMilestones(id: string, generation: number): void {
+    this.milestoneRequest?.unsubscribe();
+    this.milestonePlan.set(null);
+    this.milestonePlanLoaded.set(false);
+    this.milestonePlanError.set('');
+    this.milestonePlanLoading.set(true);
+    this.milestoneRequest = this.http.get<unknown>(`/api/ui/engagements/${id}/milestones`)
+      .pipe(timeout(15000))
+      .subscribe({
+        next: (value) => {
+          if (this.destroyed || generation !== this.session.invalidation()) return;
+          try {
+            if (value === null) {
+              this.milestonePlan.set(null);
+            } else {
+              const plan = decodeEngagementMilestonePlan(value);
+              if (plan.engagementId.toLowerCase() !== id) throw new Error('Engagement context mismatch');
+              this.milestonePlan.set(plan);
+            }
+            this.milestonePlanLoaded.set(true);
+          } catch {
+            this.milestonePlanError.set('Saved milestone schedule has an unsupported response format.');
+          }
+          this.milestonePlanLoading.set(false);
+        },
+        error: (error) => {
+          if (this.destroyed || generation !== this.session.invalidation()) return;
+          this.milestonePlan.set(null);
+          this.milestonePlanLoading.set(false);
+          if (error.status === 401) {
+            this.session.clear();
+            return;
+          }
+          this.milestonePlanError.set(error.status === 403
+            ? 'The saved milestone schedule is unavailable to your role on this engagement.'
+            : 'Saved milestone schedule unavailable. Refresh the workflow to retry.');
         },
       });
   }

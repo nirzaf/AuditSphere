@@ -103,6 +103,39 @@ export function decodeEngagementWorkflowReport(value: unknown) {
 
 export type EngagementWorkflowReport = ReturnType<typeof decodeEngagementWorkflowReport>;
 
+const milestonePlanDecoder = obj({
+  engagementId: guid,
+  fieldworkStartDate: date,
+  draftReportDate: date,
+  finalReportDate: date,
+  statutoryFilingCutoff: date,
+  archiveDeadlineDate: date,
+});
+
+/** A saved schedule read from the independently authorized Audit Plan endpoint. */
+export function decodeEngagementMilestonePlan(value: unknown) {
+  return decode(milestonePlanDecoder, value);
+}
+export type EngagementMilestonePlan = ReturnType<typeof decodeEngagementMilestonePlan>;
+
+export interface WorkflowMilestoneRow {
+  readonly phaseIndex: number;
+  readonly phaseLabel: string;
+  readonly label: string;
+  readonly date: string;
+}
+
+/** Maps only persisted plan dates to their visible workflow phases; task deadlines remain a separate projection. */
+export function projectWorkflowMilestones(plan: EngagementMilestonePlan): WorkflowMilestoneRow[] {
+  return [
+    { phaseIndex: 3, label: 'Fieldwork starts', date: plan.fieldworkStartDate },
+    { phaseIndex: 6, label: 'Draft report', date: plan.draftReportDate },
+    { phaseIndex: 6, label: 'Final signed report', date: plan.finalReportDate },
+    { phaseIndex: 6, label: 'Statutory filing cutoff', date: plan.statutoryFilingCutoff },
+    { phaseIndex: 7, label: 'Archive deadline', date: plan.archiveDeadlineDate },
+  ].map((row) => ({ ...row, phaseLabel: WORKFLOW_PHASES[row.phaseIndex - 1].label }));
+}
+
 const workflowTaskDecoder = obj({
   id: guid,
   title: str(300),

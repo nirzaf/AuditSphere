@@ -33,6 +33,31 @@
       }
     </ol>
 
+    <section class="phase-card" aria-labelledby="milestone-schedule-heading">
+      <div class="phase-meta">
+        <h4 id="milestone-schedule-heading">Saved engagement milestones</h4>
+        <a matButton [routerLink]="['/app/engagements', report.engagementId, 'audit-plan']">Open Audit Plan</a>
+      </div>
+      <p class="canonical-note">
+        Dates are from the saved Audit Plan. The filing cutoff is not independently validated against jurisdictional law;
+        operational task deadlines remain separate.
+      </p>
+      @if (milestonePlanLoading()) {
+        <p role="status">Loading saved milestones...</p>
+      }
+      @if (milestonePlanError()) {
+        <p role="alert">{{ milestonePlanError() }}</p>
+      } @else if (milestonePlan()) {
+        <ul>
+          @for (milestone of scheduledMilestones(); track milestone.label) {
+            <li>Phase {{ milestone.phaseIndex }} · {{ milestone.phaseLabel }} · {{ milestone.label }}: <time [attr.datetime]="milestone.date">{{ milestone.date }}</time></li>
+          }
+        </ul>
+      } @else if (milestonePlanLoaded()) {
+        <p role="status">No saved milestone schedule is recorded. Operational task deadlines are not used as substitutes.</p>
+      }
+    </section>
+
     <p class="phase-position">
       Phase {{ report.currentPhase.index }} of {{ report.phases.length }}: {{ report.currentPhase.label }}
     </p>
