@@ -235,7 +235,7 @@ sequenceDiagram
     W->>DB: retain exact receipt and complete
   else unknown outcome
     W->>DB: record unknown outcome and reconcile
-    Note over W,DB: no blind retry; expired leases are reclaimed
+    Note over W,DB: No blind retry, expired leases are reclaimed
   end
 ```
 
