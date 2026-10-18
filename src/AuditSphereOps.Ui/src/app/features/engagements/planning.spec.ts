@@ -709,4 +709,67 @@ describe('Planning protected editor clearing', () => {
       .expectOne('/api/ui/engagements/' + id + '/planning')
       .flush(planning);
   });
+  it('keeps staffing and budget actions behind one shared review exclusion boundary', async () => {
+    const component = open();
+    component.staffingPreview.set({
+      engagementId: id,
+      requestId: id,
+      requestHash: 'a'.repeat(64),
+      reviewBasis: 'b'.repeat(64),
+      fields: {
+        action: 'ASSIGN',
+        userId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        level: 'STAFF_ASSOCIATE',
+        assignmentId: null,
+      },
+      userName: 'Staff',
+      authorizationRole: 'Staff',
+      certified: false,
+      removesLocalGrant: false,
+      sharePointEffect: 'Full Control',
+      targetEpoch: '1',
+      engagementGeneration: '0',
+      clientGeneration: '0',
+    });
+    await component.saveBudget();
+    TestBed.inject(HttpTestingController).expectNone((request) => request.method === 'POST');
+
+    component.staffingPreview.set(null);
+    component.budgetPreview.set({
+      engagementId: id,
+      requestId: id,
+      requestHash: 'c'.repeat(64),
+      reviewBasis: 'd'.repeat(64),
+      fields: {
+        currency: 'QAR',
+        expectedVersion: '0',
+        lines: [
+          {
+            role: 'Senior',
+            activity: 'AUDIT',
+            forecastMinutes: 480,
+            phase: 'PLANNING',
+            riskArea: null,
+          },
+        ],
+      },
+      lines: [
+        {
+          role: 'Senior',
+          activity: 'AUDIT',
+          forecastMinutes: 480,
+          phase: 'PLANNING',
+          riskArea: null,
+          rateCardId: id,
+          ratePerHour: '100.125',
+          forecastCost: '801.000000',
+        },
+      ],
+      forecastCost: '801.000000',
+    });
+    component.selectedUser = id;
+    component.reviewed = true;
+    await component.assign();
+    TestBed.inject(HttpTestingController).expectNone((request) => request.method === 'POST');
+  });
 });
