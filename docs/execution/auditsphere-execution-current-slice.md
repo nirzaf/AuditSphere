@@ -19,6 +19,16 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Accessibility records and CI failure repairs (2026-10-19)
+
+This follow-up extends the earlier empty-state checks with current-source, record-backed synthetic journeys. Planning preview now receives meaningful focus without stealing it from another owner, cancel returns focus to the native review button, and one persistent status region announces outcomes. Consolidation tables have accessible names and native disclosures have one control. Sampling history review visibly requires opening the exact set. Finding facts stack at narrow widths rather than overflowing the document.
+
+Built-in-browser checks used the current UI and an owned current-source API with disposable PostgreSQL fixtures. Budget preview/cancel, invalid input, fresh assent, populated consolidation journal lines, keyboard disclosures and bounded horizontal scrolling were inspected. No professional approval or financial command was confirmed interactively. Focused owned-fixture journeys also cover preparation/recovery, exact sampling review/execution and authorization denial. The earlier unknown-source API observations remain separately attributed below.
+
+CI exposed a stale commercial fixture: prospect proposal delivery must occur before client conversion invalidates the prospect recipient authority. The test now follows that ordering while retaining its mail/voucher assertions. Browser regressions required awaiting deferred planning data, retaining a labeled search input after its autocomplete role changes, and testing skip-link reachability from intentional route focus through actual keyboard navigation. Exact receipt recovery passed focused reruns without reproducing its CI failure; added HTTP diagnostics preserve that uncertainty for the next run.
+
+The failed older-source full run was superseded after preserving its reported failures. A fresh immutable-source full regression runs in GitHub Actions with per-test progress and hang diagnostics; every suite remains unfiltered. Full suites were not run locally. See `targetedVerification.angularQuality` in [status.json](status.json) for precise commits, results, artifacts and CI status. Human screen-reader review and the complete supported-state matrix remain open; focused synthetic passes do not establish whole-product accessibility or release acceptance.
+
 ## Angular quality follow-up — fieldwork safety and rendered acceptance (2026-10-19)
 
 This section supersedes the earlier browser-tool limitations below. The built-in browser supports viewport emulation, reduced-motion media and bounded network observations. The named journal, evidence, planning, consolidation, fieldwork and audit-plan routes were inspected at narrow and desktop widths. Genuine browser zoom was checked with a temporary Chrome tab because native zoom controls were unavailable in the built-in browser. Both browsers and their emulation settings were restored after inspection.

@@ -147,8 +147,8 @@
       "notDone": "Hosted CI; Task 10 D1; professional/live acceptance."
     },
     "angularQuality": {
-      "sourceCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
-      "recordedAtUtc": "2026-10-18T22:18:19Z",
+      "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
+      "recordedAtUtc": "2026-10-18T23:31:58Z",
       "result": "PARTIAL",
       "previousEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityBeforeFollowUp20261019",
       "tasks01To06Review": "Tasks 01–04 and 06 implemented per independent source review on 7a566118. Task05 gaps corrected on sourceCommit with focused verification; full release and human accessibility acceptance remain separate.",
@@ -193,9 +193,9 @@
           "shell": "FOCUSED_PASS: staff/client routes, keyboard, responsive navigation and session revocation in current-source E2E; zoom/reflow smoke separately attributed.",
           "journal": "FOCUSED_PASS: exact correction, invalid input, independent review, stale period and unknown receipt recovery in owned E2E; human announcements NOT_VERIFIED.",
           "evidence": "FOCUSED_PASS: exact result link, independent decision, retained values and revocation in owned E2E; human announcements and full dialog-state matrix NOT_VERIFIED.",
-          "planning": "PARTIAL: empty/blocked staffing/budget and responsive read-only rendering; record-backed review and all state transitions NOT_VERIFIED.",
-          "consolidation": "PARTIAL: one component/journal, empty runs, bounded tables and responsive read-only rendering; full record-backed action/state matrix NOT_VERIFIED.",
-          "fieldwork": "PARTIAL: Material tab keyboard and empty/blocked/reflow states; record-backed procedure/sampling/review accessibility NOT_VERIFIED."
+          "planning": "PARTIAL: record-backed preview/cancel/invalid/fresh-assent/unknown-receipt focused journeys pass on both bases; built-in focus/reflow pass. Human AT and every supported state not accepted.",
+          "consolidation": "PARTIAL: populated six-place journal and bounded named tables/disclosures verified in built-in browser; focused denial/action keyboard journeys pass. Full command/state matrix and human AT not accepted.",
+          "fieldwork": "PARTIAL: record-backed exact sampling selection/review/execution journey passes with keyboard preview, fresh decisions, bounded table and explicit open-set prerequisite; human AT and every procedure state not accepted."
         },
         "humanReview": "BLOCKED_EXTERNAL: knowledgeable human screen-reader review with actual AT/browser versions and meaningful announcements is not available.",
         "ci": {
@@ -207,14 +207,109 @@
           },
           "repairedFailure": "39169478960 FAILED only Docs ledger-size budget; archived records intact and active docs validators PASS.",
           "fullRelease": {
+            "runId": "39176430358",
+            "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39176430358",
+            "result": "IN_PROGRESS",
+            "note": "Unfiltered Domain/API/E2E plus Angular/build/contracts on full immutable SHA; no full local suites. Adds normal per-test console progress and 15-minute per-case hang termination without dumps; incomplete execution fails acceptance.",
+            "observedJobs": "Angular full specs/build PASS; other jobs still IN_PROGRESS at last observation.",
+            "observedAtUtc": "2026-10-18T23:31:58Z"
+          },
+          "supersededFullRelease": {
             "runId": "39171672326",
             "sourceCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39171672326",
-            "result": "IN_PROGRESS",
-            "note": "Complete unfiltered suites only in CI; no full local run. Workflow resolves requested ref to immutable full SHA.",
-            "observedAtUtc": "2026-10-18T22:19:01Z",
-            "previousAttempt": "39171610180 FAILED checkout before tests: abbreviated ref was treated as branch/tag. Redispatched with full immutable source SHA; no test failure or test omission."
+            "result": "CANCELLED_SUPERSEDED_WITH_FAILURES",
+            "note": "Old-source run superseded after retaining Domain logs and live E2E failure evidence. API/E2E unfinished; no pass inferred.",
+            "observedAtUtc": "2026-10-18T23:26:03Z",
+            "previousAttempt": "39171610180 FAILED checkout before tests: abbreviated ref was treated as branch/tag. Redispatched with full immutable source SHA; no test failure or test omission.",
+            "observedJobs": "Angular full specs/build and build/contracts PASS. Domain completed 1374 PASS/1 FAIL (commercial fixture now fixed and focused PASS). API unverified; E2E reported six failures, not a final total.",
+            "finalJobs": "Domain FAIL; full release contract FAIL; API/E2E CANCELLED; Angular/build/contracts PASS. No full pass."
+          },
+          "latestFast": {
+            "runId": "39176419861",
+            "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
+            "result": "FAST_CI_PASS",
+            "jobs": "Angular, Docs and .NET Release successful on exact code commit; not full regression acceptance."
+          },
+          "priorFast": {
+            "runId": "39175741276",
+            "sourceCommit": "8c8abcd72014c675cfc35d4c73cc922bca33084b",
+            "result": "FAST_CI_PASS"
           }
+        },
+        "followUp": {
+          "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
+          "result": "IMPLEMENTED_FOCUSED_PASS; full CI and human AT acceptance pending",
+          "changes": [
+            "Planning preview receives named-region focus only while its originating owner/focus remains current; cancel restores its native review button. One persistent command-status live region replaces duplicates.",
+            "Consolidation tables have usable names; native summary disclosures no longer contain duplicate role=button controls.",
+            "Sampling history review is disabled with an exact-set-opening reason until the matching set is open.",
+            "Finding facts stack below 380 CSS px rather than forcing document overflow."
+          ],
+          "angular": "PASS: planning.spec.ts 28/28, scope-workspace.spec.ts 17/17; affected-file lint and production build. Existing optional-chain and commercial SCSS budget warnings remain.",
+          "focusedE2e": [
+            {
+              "scope": "AngularBudgetPreparationJourneyTests; canonical and preview bases",
+              "passed": 2,
+              "failed": 0,
+              "evidence": "/tmp/auditsphere-a11y-results/accessibility-records-final.trx",
+              "note": "These two budget cases passed; this mixed TRX also contains the sampling-select failure, subsequently fixed and passed in sampling-final.trx."
+            },
+            {
+              "scope": "AngularAdvancedConsolidationAuthorizationJourneyTests; both route bases",
+              "passed": 2,
+              "failed": 0,
+              "note": "Initial focused cohort; unchanged tests then passed in committed slice.",
+              "trx": "/tmp/auditsphere-a11y-results/accessibility-records.trx"
+            },
+            {
+              "scope": "AngularAttributeSamplingExecutionJourneyTests exact record-backed selection/review/execution journey",
+              "passed": 1,
+              "failed": 0,
+              "trx": "/tmp/auditsphere-a11y-results/sampling-final.trx"
+            },
+            {
+              "scope": "AngularReviewPointCommandJourneyTests disposition recovery modes",
+              "passed": 6,
+              "failed": 0,
+              "trx": "/tmp/auditsphere-a11y-results/sampling-and-review-recovery.trx",
+              "note": "Receipt CI failure not reproduced. Exact REOPEN/lost-committed case also passed with HTTP status/found diagnostics in ci-browser-repairs.trx; root cause remains unconfirmed. The mixed TRX also contains a sampling failure subsequently fixed and passed separately."
+            },
+            {
+              "scope": "Finding detail isolation/revocation, both planning-navigation bases, initial deep-accessibility proxy and exact review recovery",
+              "passed": 5,
+              "failed": 0,
+              "trx": "/tmp/auditsphere-a11y-results/ci-browser-repairs.trx",
+              "note": "This TRX also contains the search locator failure; fixed method rerun separately. Counts here refer only to the named five cases."
+            },
+            {
+              "scope": "GlobalSearchJourneyTests staff keyboard/context method after stable labeled-input locator fix",
+              "passed": 1,
+              "failed": 0,
+              "trx": "/tmp/auditsphere-a11y-results/search-ci-final.trx",
+              "note": "Also exercised the CI console/blame-hang flags successfully."
+            },
+            {
+              "scope": "AngularAccessibilityDeepAcceptanceTests screen-reader proxy with actual Shift+Tab traversal, wrap and Enter activation",
+              "passed": 1,
+              "failed": 0,
+              "trx": "/tmp/auditsphere-a11y-results/deep-a11y-keyboard-final.trx"
+            }
+          ],
+          "browser": {
+            "tool": "Built-in browser; current UI via dev server4302 with current-source owned API61343. Disposable owned E2E PostgreSQL fixture; simulated external effects.",
+            "planning": "PASS at390 CSS px: invalid-input feedback; exact rate preview; keyboard Enter places focus on named SECTION, Tab reaches fresh assent and cancel restores native review button. No command confirmed.",
+            "consolidation": "PASS at390 CSS px: populated draft balanced journal with six-place values; named bounded horizontal table; native create/line disclosures and inputs keyboard-operable. Document375<=viewport390; no approval attempted.",
+            "console": "Final planning preview after fixes has no new console errors. Earlier pre-fix focus-query TypeError was corrected to read ElementRef explicitly and retested.",
+            "screenshots": [
+              "/tmp/auditsphere-budget-a11y-final.png",
+              "/tmp/auditsphere-consolidation-a11y.png"
+            ],
+            "network": "Focused E2E retains exact request/response checks and no page errors; interactive network history is bounded, not exhaustive.",
+            "cleanup": "PASS: owned development server stopped; A11Y_FIXTURE_DISPOSED confirmed current-source API/disposable DB cleanup; temporary browser tabs closed. Pre-existing API5029 and PostgreSQL5433 left running."
+          },
+          "remaining": "Knowledgeable human review with real screen reader/browser versions and announcement observations remains BLOCKED_EXTERNAL. Full supported-state accessibility matrix is not claimed; native select action was exercised via SelectOption, not established as keyboard-only selection."
         }
       },
       "task05": {
@@ -231,6 +326,13 @@
         "lint": "PASS: five changed production TS/HTML files; no extra rules disabled.",
         "build": "PASS; existing completion optional-chain and commercial/settings.scss budget warnings.",
         "browser": "PASS_READ_ONLY_SMOKE on final UI source via built-in browser: fieldwork h1, Sampling → Client evidence keyboard activation, expected controls, document reflow at1280, no console errors. Existing API source unknown. Record-backed mutation accessibility NOT_VERIFIED."
+      },
+      "ciFailureRepair": {
+        "implementationCommit": "6f00f8e05433130e5ad62c80d91e6f92ab39649b",
+        "scope": "CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
+        "result": "PASS 1/1 focused; full Domain rerun pending",
+        "reason": "Dispatch the existing prospect proposal before converting the prospect to a client, preserving recipient authority checks and all mail/voucher assertions. No production permission change.",
+        "trx": "/tmp/auditsphere-ci-fix/commercial-cycle-ci-fix.trx"
       }
     },
     "fullE2eSuiteOnThisSource": "PASS: 234/234 at bc66c38b6a03010a7d1e468da3537481af81339c; full solution total 1265/1265 in testSuites.runs.e2e, api, and domain.",
