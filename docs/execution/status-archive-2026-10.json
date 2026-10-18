@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
   "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason. On 2026-10-14, the superseded cp11CashFlowSourceAllocations evidence (commit 0b8f7b2d) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed cp11SourceReviewAndPresentation evidence (commit 2bf0e81b) was moved verbatim from status.json for the same reason. On 2026-10-15, the closed CP-11 targetedVerification records currentCashFlowPackageJourney and canonicalPackageRequiredPopulation were moved verbatim from status.json to keep the live ledger below its 100 KB limit; the cash-flow source fence that superseded them is recorded in productionReadinessStoryCp11. On 2026-10-15, closed targetedVerification records workflowTaskDependencyAmendments, workflowDomainEvidencePrerequisites, workflowClientWait, workflowTaskActivity were moved here to keep status.json within its size budget. On 2026-10-15, closed workflowReviewTurnaround and workflowCiRegressionGate records were moved verbatim to keys.targetedVerification to make room for current UX evidence. On 2026-10-15, the detailed AS-PAR-002 migration coverage narrative was moved verbatim from the active item to keys.angularMigrationAsPar002Details20261015; the current ledger retains the open acceptance summary. On 2026-10-17, the superseded detailed AS-PM8 currentFollowUp evidence was moved verbatim to keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017; the live status retains the PARTIAL result and latest commit-pinned release verification. On 2026-10-17, five detailed Angular migration follow-up evidence records (cross-firm isolation, administrator revocation fencing, not-assigned browser denial, administrator group-revocation fencing and administration review freshness) were moved verbatim from status.json to keys.targetedVerification to keep the live ledger below its 100 KB limit; the status file retains result and scope-status pointers. On 2026-10-17, the 2026-10-15 detailed production-readiness baseline was moved verbatim to keys.targetedVerification.productionReadinessStoryCp11Baseline20261015; the live status retains current open gates and follow-up evidence. On 2026-10-17, detailed Atomic Task 01 implementation verification was moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask01 to keep the live ledger below its 100 KB limit; the current ledger retains a partial-status pointer. On 2026-10-17, detailed Atomic Task 02 and Task 03 implementation verification records were moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask02 and atomicAuditWorkingProcessTask03 to keep the live ledger below its 100 KB limit; the current ledger retains partial-status pointers. On 2026-10-18, the older Angular finding-recovery verification was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the PBC exact-version acceptance slice was added to the live ledger. On 2026-10-18, the detailed Angular migration acceptance batch was moved verbatim to keys.targetedVerification.angularMigrationAcceptanceBatch; the live status retains its PARTIAL verdict, open items and archive pointer. On 2026-10-18, the prior detailed ste22F07WorkflowPhaseCues operational-deadline evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesBeforeMilestoneDisplay20261018 before recording the saved Audit Plan milestone display slice. On 2026-10-18, detailed NR-11/NR-12 cross-ledger and feature-off evidence was moved verbatim to keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018 to make room for new exact-SHA evidence; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the latest detailed ste22F07WorkflowPhaseCues evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesLatest20261018; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the detailed staffingCertificationRevocationRace20261018 evidence was moved verbatim to keys.targetedVerification.staffingCertificationRevocationRace20261018; the live ledger retains its result and CI pointer. On 2026-10-18, detailed workflowDependencyGraphLimit20261018 test evidence was moved verbatim from status.json to keep the live ledger below its size limit; a compact status pointer remains. On 2026-10-18, detailed workflowTaskRequiredDesignation20261018 evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the live ledger retains its archive pointer. On 2026-10-18, the older accounting-maintenance recovery evidence and detailed production-readiness follow-up were moved verbatim to the October archive; live status retains pointers and current open gates. On 2026-10-18, detailed ASPM-CRM-01 lead-history evidence was recorded under keys.targetedVerification.aspmCrmLeadHistory20261018; the live status retains its current result and pointer. On 2026-10-18, the compact CRM lead-history pointer was removed after its detailed evidence had been archived; QAR 20,000 commercial fee acceptance evidence was added under keys.targetedVerification.aspmCom03QarAcceptance20261018. On 2026-10-18, FIN-03 all-invoice-type query evidence and the full-release Domain failure diagnosis were added; the EF-wrapped retained-history assertion was corrected and focused-pass. On 2026-10-18, the closed 2026-10-17 baseline run list and its source/timestamp were moved verbatim under keys.targetedVerification.legacyVerificationRuns20261017; status.json retains a pointer. The current Angular quality evidence is recorded separately against source 3194fe3b. On 2026-10-18, the pre-Task-06 Angular-quality observations were moved verbatim to keys.targetedVerification.angularQualityBaseline20261018; the live entry now records the Task 06 implementation and retains Task 07 as partial.",
+  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason. On 2026-10-14, the superseded cp11CashFlowSourceAllocations evidence (commit 0b8f7b2d) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed cp11SourceReviewAndPresentation evidence (commit 2bf0e81b) was moved verbatim from status.json for the same reason. On 2026-10-15, the closed CP-11 targetedVerification records currentCashFlowPackageJourney and canonicalPackageRequiredPopulation were moved verbatim from status.json to keep the live ledger below its 100 KB limit; the cash-flow source fence that superseded them is recorded in productionReadinessStoryCp11. On 2026-10-15, closed targetedVerification records workflowTaskDependencyAmendments, workflowDomainEvidencePrerequisites, workflowClientWait, workflowTaskActivity were moved here to keep status.json within its size budget. On 2026-10-15, closed workflowReviewTurnaround and workflowCiRegressionGate records were moved verbatim to keys.targetedVerification to make room for current UX evidence. On 2026-10-15, the detailed AS-PAR-002 migration coverage narrative was moved verbatim from the active item to keys.angularMigrationAsPar002Details20261015; the current ledger retains the open acceptance summary. On 2026-10-17, the superseded detailed AS-PM8 currentFollowUp evidence was moved verbatim to keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017; the live status retains the PARTIAL result and latest commit-pinned release verification. On 2026-10-17, five detailed Angular migration follow-up evidence records (cross-firm isolation, administrator revocation fencing, not-assigned browser denial, administrator group-revocation fencing and administration review freshness) were moved verbatim from status.json to keys.targetedVerification to keep the live ledger below its 100 KB limit; the status file retains result and scope-status pointers. On 2026-10-17, the 2026-10-15 detailed production-readiness baseline was moved verbatim to keys.targetedVerification.productionReadinessStoryCp11Baseline20261015; the live status retains current open gates and follow-up evidence. On 2026-10-17, detailed Atomic Task 01 implementation verification was moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask01 to keep the live ledger below its 100 KB limit; the current ledger retains a partial-status pointer. On 2026-10-17, detailed Atomic Task 02 and Task 03 implementation verification records were moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask02 and atomicAuditWorkingProcessTask03 to keep the live ledger below its 100 KB limit; the current ledger retains partial-status pointers. On 2026-10-18, the older Angular finding-recovery verification was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the PBC exact-version acceptance slice was added to the live ledger. On 2026-10-18, the detailed Angular migration acceptance batch was moved verbatim to keys.targetedVerification.angularMigrationAcceptanceBatch; the live status retains its PARTIAL verdict, open items and archive pointer. On 2026-10-18, the prior detailed ste22F07WorkflowPhaseCues operational-deadline evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesBeforeMilestoneDisplay20261018 before recording the saved Audit Plan milestone display slice. On 2026-10-18, detailed NR-11/NR-12 cross-ledger and feature-off evidence was moved verbatim to keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018 to make room for new exact-SHA evidence; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the latest detailed ste22F07WorkflowPhaseCues evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesLatest20261018; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the detailed staffingCertificationRevocationRace20261018 evidence was moved verbatim to keys.targetedVerification.staffingCertificationRevocationRace20261018; the live ledger retains its result and CI pointer. On 2026-10-18, detailed workflowDependencyGraphLimit20261018 test evidence was moved verbatim from status.json to keep the live ledger below its size limit; a compact status pointer remains. On 2026-10-18, detailed workflowTaskRequiredDesignation20261018 evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the live ledger retains its archive pointer. On 2026-10-18, the older accounting-maintenance recovery evidence and detailed production-readiness follow-up were moved verbatim to the October archive; live status retains pointers and current open gates. On 2026-10-18, detailed ASPM-CRM-01 lead-history evidence was recorded under keys.targetedVerification.aspmCrmLeadHistory20261018; the live status retains its current result and pointer. On 2026-10-18, the compact CRM lead-history pointer was removed after its detailed evidence had been archived; QAR 20,000 commercial fee acceptance evidence was added under keys.targetedVerification.aspmCom03QarAcceptance20261018. On 2026-10-18, FIN-03 all-invoice-type query evidence and the full-release Domain failure diagnosis were added; the EF-wrapped retained-history assertion was corrected and focused-pass. On 2026-10-18, the closed 2026-10-17 baseline run list and its source/timestamp were moved verbatim under keys.targetedVerification.legacyVerificationRuns20261017; status.json retains a pointer. The current Angular quality evidence is recorded separately against source 3194fe3b. On 2026-10-18, the pre-Task-06 Angular-quality observations were moved verbatim to keys.targetedVerification.angularQualityBaseline20261018; the live entry now records the Task 06 implementation and retains Task 07 as partial. On 2026-10-19, the detailed 2026-10-11 client-site rollout local-verification record was moved verbatim to keys.targetedVerification.clientSitesDefaultRollout20261011; the live ledger retains its source/date, full-suite NOT_RUN state, unresolved external-acceptance note, and archive pointer. On 2026-10-19, the detailed dated API/Angular parity snapshot (all 51 task rows and incremental verification/browser evidence) was moved verbatim to keys.apiAngularParityStatus20261018; the live ledger retains PARTIAL, the uniform implementation-pending/acceptance-unverified states for all 51 tasks, the recorded in-progress release run, pending browser/provider acceptance, the tracker, and an archive pointer.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -18973,6 +18973,530 @@
         },
         "build": "PASS_WITH_EXISTING_WARNINGS: completion optional chains and commercial/settings.scss style budget.",
         "fullSuites": "NOT_RUN_LOCALLY; CI-owned."
+      }
+    },
+    "targetedVerification.clientSitesDefaultRollout20261011": {
+      "sourceCommit": "74a21cf7961b39a9fdfc4684848639b0da11d1b5",
+      "recordedAtUtc": "2026-10-11T21:00:44Z",
+      "database": "auditsphere_tests on 127.0.0.1:5433",
+      "migrationHead": "20261011201129_ClientSiteWorkerHeartbeats",
+      "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
+      "runs": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.clientSitesDefaultRolloutRuns"
+      },
+      "externalAcceptance": "NOT_VERIFIED: no live Microsoft provisioning or membership reconciliation; no production database migration; code was not deployed to the VPS.",
+      "followUpVerification": {
+        "recordedAtUtc": "2026-10-11T21:15:44Z",
+        "domainTestCommit": "31cb175887125d23393f2994bbb8e7454b646ae6",
+        "runs": [
+          {
+            "name": "Client site rollout Domain tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~ClientSharePointSitesTests|FullyQualifiedName~SharePointClientSiteProviderTests|FullyQualifiedName~EngagementWorkspaceProvisioningTests'",
+            "passed": 37,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Workspace provisioning API tests",
+            "sourceCommit": "b6ced08923f3ea26e0ff6c057746ef9eaa9ae55e",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS",
+            "note": "Application and API source were unchanged in the later test-only commit."
+          },
+          {
+            "name": "Client site administration Playwright journey",
+            "sourceCommit": "b6ced08923f3ea26e0ff6c057746ef9eaa9ae55e",
+            "passed": 1,
+            "failed": 0,
+            "browser": "Playwright Chromium against the synthetic PostgreSQL test database",
+            "result": "PASS"
+          },
+          {
+            "name": "Angular client workspace administration spec",
+            "sourceCommit": "b6ced08923f3ea26e0ff6c057746ef9eaa9ae55e",
+            "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include='src/app/features/admin/workspaces.spec.ts'",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS"
+          }
+        ],
+        "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
+        "builtInBrowserSmoke": {
+          "date": "2026-10-12",
+          "result": "Read-only acceptance tenant page rendered the Dedicated client SharePoint sites administration panel; no client site rows were present. The page did not expose its deployed source commit.",
+          "liveProvisioning": "NOT_VERIFIED"
+        }
+      },
+      "latestWorkingTreeVerification": {
+        "recordedAtUtc": "2026-10-11T22:54:16Z",
+        "baseCommit": "00376915402b68cc3340eac3a3730a75bcf05779",
+        "sourceTree": "Uncommitted working tree; includes the no-shared-fallback guard and unrelated in-progress financial statement presentation edits.",
+        "database": "Isolated synthetic PostgreSQL test fixtures",
+        "runs": [
+          {
+            "name": "Client site rollout Domain tests",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-build --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~ClientSharePointSitesTests|FullyQualifiedName~SharePointClientSiteProviderTests|FullyQualifiedName~EngagementWorkspaceProvisioningTests'",
+            "passed": 37,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Workspace provisioning API tests",
+            "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~WorkspaceProvisioningApiTests'",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Client site administration Playwright journey",
+            "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~ClientSharePointSitesJourneyTests'",
+            "passed": 1,
+            "failed": 0,
+            "result": "PASS"
+          },
+          {
+            "name": "Angular workspace administration spec",
+            "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include='src/app/features/admin/workspaces.spec.ts'",
+            "passed": 4,
+            "failed": 0,
+            "result": "PASS"
+          }
+        ],
+        "documentationGates": "PASS: Markdown health, filenames and narrative metrics",
+        "diffCheck": "PASS",
+        "buildWarnings": "NU1900 vulnerability-feed warnings because api.nuget.org was unavailable.",
+        "fullDomainApiE2eSuitesOnThisSource": "NOT_RUN",
+        "externalAcceptance": "NOT_VERIFIED: no live Microsoft client-site provisioning or staff-membership reconciliation; no VPS deployment performed."
+      }
+    },
+    "apiAngularParityStatus20261018": {
+      "specificationFile": "AuditSphere_Atomic_Implementation_Spec.md",
+      "specificationSha256": "d9cf75e432c2813459af4fb2f5eac514b4c27fc1adea409253af31aa2cacd851",
+      "specificationBaseline": "9bbb76ebaaed3018570859ceac1827c1fe38f1ee",
+      "implementationBase": "9b5cb833",
+      "overallResult": "PARTIAL",
+      "evidenceBoundary": "File references prove code presence only. Task acceptance requires focused behavior, contract and applicable browser evidence plus current immutable-SHA CI; no task is complete solely from the earlier static audit. Task IDs in this block are scoped to the 51-task API/Angular parity specification, not R2R or AS-AWP-EXEC.",
+      "tasks": [
+        {
+          "id": "T001",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T002",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T003",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T004",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T005",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T006",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T007",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T008",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T009",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T010",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T011",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T012",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T013",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T014",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T015",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T016",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T017",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T018",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T019",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T020",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T021",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T022",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T023",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T024",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T025",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T026",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T027",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T028",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T029",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T030",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T031",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T032",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T033",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T034",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T035",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T036",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T037",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T038",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T039",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T040",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T041",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T042",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T043",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T044",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T045",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T046",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T047",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T048",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T049",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T050",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        },
+        {
+          "id": "T051",
+          "implementationStatus": "IMPLEMENTED_VERIFICATION_PENDING",
+          "acceptanceStatus": "NOT_VERIFIED"
+        }
+      ],
+      "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
+      "workingTreeBase": "150c7671762ac93f87b2b539cb53f688fb90557e",
+      "localVerification": {
+        "sourceState": "FOCUSED_INCREMENTAL_VERIFICATION: checks cover the affected coherent slices; not a full current-SHA release pass",
+        "allocationDomain": {
+          "result": "PASS",
+          "passed": 1,
+          "filter": "ManualCustomerReceiptPostsOnceAndCanBeAllocatedToClientInvoice"
+        },
+        "allocationUi": {
+          "result": "PASS",
+          "passed": 7,
+          "spec": "open-item-allocations.spec.ts"
+        },
+        "correctionOverviewUi": {
+          "result": "PASS",
+          "passed": 9,
+          "spec": "consolidation/overview.spec.ts"
+        },
+        "browser": {
+          "result": "PASS_READ_ONLY_SMOKE",
+          "environment": "Test on loopback port 5029; auditsphere_browser synthetic fixture; external effects disabled",
+          "observed": [
+            "Authorized group overview",
+            "Scope with independent paged history wrappers",
+            "External pack history and retained source lines",
+            "Approved scope intake stays blocked",
+            "Ownership panel recovered from provider query translation failure; HTTP 200 and visible empty history",
+            "No captured browser console errors"
+          ],
+          "notVerified": [
+            "Full submission/reconciliation/independent approval/pinning browser journey",
+            "Responsive acceptance",
+            "Live provider acceptance"
+          ],
+          "contractRenderer": "Large JSON accessibility snapshot timed out; server request was HTTP 200 and contract verified by served-artifact tests."
+        },
+        "currentCommitReleaseVerification": "IN_PROGRESS: workflow run 39097383073 verifies exact SHA d5c5ca7ee436c86647c18115acae063a299273c1",
+        "testedCodeCommit": "d5c5ca7ee436c86647c18115acae063a299273c1",
+        "negativeRevisionDomain": {
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "scope": "Existing group workflow extended with negative approval revision denial"
+        },
+        "openApiDrift": "PASS: final emitter matches committed contract",
+        "angularBuild": "PASS: existing commercial/settings.scss size warning remains",
+        "remainingDisplayLimit": "RESOLVED in T031 working-tree slice: components and readiness use bounded 100-row pages; exact selected-component lookup is independent of current page.",
+        "matchingOptionsSlice": {
+          "sourceBase": "270c9c9184f942e5b3677dd376018600a1aa64e1",
+          "sourceState": "COMMITTED",
+          "domain": {
+            "result": "PASS",
+            "passed": 2,
+            "scope": "existing readiness 501-record boundary and translation/exceptions; bounded search, exact resolution, period eligibility"
+          },
+          "angular": {
+            "result": "PASS",
+            "passed": 16,
+            "scope": "scope workspace; off-page selections, outside-side eligibility and stale response refusal"
+          },
+          "api": {
+            "result": "PASS",
+            "passed": 2,
+            "scope": "intercompany workflow, exact selection/invalid paging/wrong group denials and all shared UI503 schemas"
+          },
+          "angularBuild": "PASS; existing commercial settings stylesheet budget warning",
+          "openApiDrift": "PASS",
+          "browser": {
+            "result": "FOCUSED_SMOKE_PASS",
+            "environment": "localhost:5029; synthetic auditsphere_browser; external effects disabled",
+            "observed": [
+              "Search no-such-member produced zero members",
+              "Search Doha recovered the authorized member",
+              "No captured console warnings/errors"
+            ],
+            "notVerified": [
+              "501-member browser fixture",
+              "Full independent approval browser journey",
+              "Live provider acceptance"
+            ]
+          },
+          "independentReview": "Backend and Angular reviewed by separate agents; reported off-page outside-side error corrected before final UI test"
+        },
+        "externalPacksSlice": {
+          "sourceBase": "884c7a52768746c304d0f292a65d8a4fac9ba4b9",
+          "sourceState": "COMMITTED",
+          "api": {
+            "result": "PASS",
+            "passed": 1,
+            "filter": "ExternalComponentPacks_PageEveryLineAndSerializeConcurrentReviewWithRetainedLineage"
+          },
+          "angular": {
+            "result": "PASS",
+            "passed": 26,
+            "scope": "external-packs.spec.ts (5 tests), component-correction.spec.ts (5 tests), scope-workspace.spec.ts (16 tests)"
+          },
+          "angularBuild": "PASS; existing commercial settings stylesheet budget warning",
+          "openApiDrift": "PASS"
+        },
+        "historicalVerification": "status-archive-2026-10.json: apiAngularParity.localVerification.supersededBeforeMatchingOptions20261017",
+        "fullRegressionObserved": {
+          "runId": 39062107416,
+          "commit": "884c7a52768746c304d0f292a65d8a4fac9ba4b9",
+          "domain": {
+            "result": "FAIL",
+            "passed": 1348,
+            "failed": 3,
+            "total": 1351
+          },
+          "angular": "PASS",
+          "buildAndContracts": "PASS",
+          "api": "IN_PROGRESS",
+          "e2e": "IN_PROGRESS"
+        },
+        "regressionRepair": {
+          "testedCodeCommit": "3dc3b50cd4a0eb6af59fc3748bf546d83aaff920",
+          "result": "PASS",
+          "passed": 3,
+          "failed": 0,
+          "scope": [
+            "ExistingWorkTaskOwnsWorkflowBinding_TimeLineageAndScopedRevisionFencing",
+            "PortalRequestHistory_ContinuesBoundedOrderedPagesAndDeniesUnassignedClient",
+            "ApprovedClientCreditAllocationDerivesBalancesAndSupportsAuditedUnallocation"
+          ],
+          "notes": "SQL-translatable bounded assignee projection; final portal history continuation asserted; authorized sibling command lookup proves absent/null receipt rather than disclosing foreign intent. No suite skipped or full local run."
+        },
+        "purchaseWorkflowAndBrowser20261018": {
+          "testedCodeCommit": "d5c5ca7ee436c86647c18115acae063a299273c1",
+          "result": "FOCUSED_PASS",
+          "angular": {
+            "purchaseInvoiceWorkflow": "PASS 9/9",
+            "workspaceSearch": "PASS 4/4"
+          },
+          "e2e": {
+            "salesInvoiceAndSupplierPurchaseCredit": "PASS 1/1",
+            "generalLedgerAcceptance": "PASS 2/2"
+          },
+          "angularBuild": "PASS; existing commercial/settings.scss stylesheet budget warning",
+          "browser": {
+            "result": "PASS_READ_ONLY_SMOKE",
+            "environment": "Current Angular dev server on loopback port 4301; existing local API on port 5029; synthetic data",
+            "observed": [
+              "Workspace search returned two authorized Doha results",
+              "Suggestion list did not overlap the workspace content",
+              "No browser console errors"
+            ],
+            "notVerified": [
+              "Full product browser journey",
+              "Responsive acceptance",
+              "Live Microsoft/provider acceptance"
+            ],
+            "writes": "None; read-only navigation and search"
+          },
+          "releaseVerification": {
+            "runId": 39097383073,
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39097383073",
+            "result": "IN_PROGRESS",
+            "verifiedSha": "d5c5ca7ee436c86647c18115acae063a299273c1"
+          }
+        },
+        "pagingHistory": "status-archive-2026-10.json: apiAngularParity.localVerification.pagingSlice20261018"
       }
     }
   }
