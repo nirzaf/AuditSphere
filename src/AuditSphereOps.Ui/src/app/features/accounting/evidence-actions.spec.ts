@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { TabDrafts } from '../../core/tab-drafts';
 import { EvidenceActions } from './evidence-actions';
 import { decodeEvidenceActions, decodeEvidenceLookup, decodeEvidenceReceipt, evidenceActionFields } from './evidence-action-contracts';
 
@@ -75,6 +77,37 @@ describe('native evidence action review and receipt recovery',()=>{
     r.flush({value:receipt(r.request.body.requestId)});await task;expect(c.receipt()).toBeNull();expect(c.preview()).toBeNull();
     http.expectOne('/api/ui/accounting/evidence/INVENTORY/'+resultId+'?page=0').flush({}, {status:403,statusText:'Denied'});
     http.expectOne('/api/ui/accounting/evidence/INVENTORY/'+resultId+'/actions?page=0').flush({}, {status:403,statusText:'Denied'});
+  });
+  it('keeps the original recovery reference when its editor is destroyed before the receipt', async()=>{
+    const {f,c}=await open();await prepare(c);c.reviewed.set(true);
+    const task=c.execute();const request=http.expectOne(root+'/actions');const requestId=request.request.body.requestId;
+    const storedBefore=Object.keys(sessionStorage).map(key=>sessionStorage.getItem(key)).join('');
+    expect(storedBefore).toContain(requestId);
+
+    f.destroy();
+    request.flush({value:receipt(requestId)});
+    await task;
+
+    expect(c.receipt()).toBeNull();
+    expect(c.pending()?.requestId).toBe(requestId);
+    expect(Object.keys(sessionStorage).map(key=>sessionStorage.getItem(key)).join('')).toContain(requestId);
+    http.expectNone(root+'?page=0');
+    http.expectNone(root+'/actions?page=0');
+  });
+  it('rejects a stale navigation-dialog choice after the evidence owner changes', async()=>{
+    const {c}=await open();c.model.set({...fields,reason:'Unsaved current edit'});
+    const closed=new Subject<string>();
+    const dialog=vi.spyOn(TestBed.inject(MatDialog),'open').mockReturnValue({afterClosed:()=>closed,close:vi.fn()} as never);
+    const save=vi.spyOn(TestBed.inject(TabDrafts),'save');
+    const refreshing=c.refresh();
+
+    params.next(convertToParamMap({id:resultId,kind:'UNKNOWN'}));TestBed.tick();
+    expect(dialog.mock.results[0]?.value.close).toHaveBeenCalled();
+    closed.next('save');
+    await refreshing;
+
+    expect(save).not.toHaveBeenCalled();
+    http.expectNone(r=>r.method==='GET'&&r.url.includes('/accounting/evidence/INVENTORY/'));
   });
   it('cancels pending reads and clears protected fields when the session ends',async()=>{
     const {f,c}=await open();c.model.set(fields);TestBed.inject(SessionService).clear();TestBed.tick();expect(c.context()).toBeNull();expect(c.model().reason).toBe('');expect(f.nativeElement.textContent).not.toContain('7.006173');

@@ -149,6 +149,22 @@ describe('Exact native journal editor and receipt recovery', () => {
     expect(c.uncertain()).toBe(false);
     expect(c.preview()).toBeNull();
   });
+  it('does not publish a late journal receipt or clear its recovery reference after destruction', async () => {
+    const { f, c, http } = await open();
+    await prepare(c, http);
+    c.reviewed.set(true);
+    const task = c.execute();
+    const request = http.expectOne(root + '/actions');
+    const requestId = request.request.body.requestId;
+    f.destroy();
+    request.flush({ value: receipt(requestId) });
+    await task;
+
+    expect(c.receipt()).toBeNull();
+    expect(c.pending()?.requestId).toBe(requestId);
+    expect(Object.keys(sessionStorage).map((key) => sessionStorage.getItem(key)).join('')).toContain(requestId);
+    http.expectNone(root + '/workspace?historyPage=1');
+  });
   it('resets preview and assent when a field changes and undo never reverses retained state', async () => {
     const { c, http } = await open();
     await prepare(c, http);

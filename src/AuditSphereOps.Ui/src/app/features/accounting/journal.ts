@@ -1,5 +1,6 @@
 import {
   Component,
+  DestroyRef,
   HostListener,
   computed,
   effect,
@@ -10,7 +11,7 @@ import {
 import { RouterLink } from '@angular/router';
 import { form, FormField, maxLength, required } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { Api, routeGuid, UNKNOWN_OUTCOME } from '../../core/api';
 import { SessionService } from '../../core/session';
@@ -49,6 +50,7 @@ export class AdjustmentJournal implements NavigationProtected {
   private readonly session = inject(SessionService);
   private readonly drafts = inject(TabDrafts);
   private readonly dialog = inject(MatDialog);
+  private readonly destroyRef = inject(DestroyRef);
   readonly id = routeGuid();
   readonly historyPage = signal(1);
   readonly journal = this.api.resource(
@@ -108,14 +110,20 @@ export class AdjustmentJournal implements NavigationProtected {
   readonly dirty = computed(() => JSON.stringify(this.model()) !== this.baseline());
   private readonly baseline = signal(JSON.stringify(empty()));
   private generation = 0;
+  private destroyed = false;
+  private navigationDialog: MatDialogRef<UnsavedChangesDialog> | null = null;
   private request: Request | null = null;
   private checkedAbsent = false;
   constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+      this.invalidateOwner();
+    });
     effect(() => {
       this.id();
       this.session.invalidation();
       untracked(() => {
-        this.generation++;
+        this.invalidateOwner();
         this.model.set(empty());
         this.baseline.set(JSON.stringify(empty()));
         this.preview.set(null);
@@ -190,6 +198,12 @@ export class AdjustmentJournal implements NavigationProtected {
   }
   private base() {
     return '/api/ui/accounting/journals/' + this.id();
+  }
+  private invalidateOwner() {
+    this.generation++;
+    const dialog = this.navigationDialog;
+    this.navigationDialog = null;
+    dialog?.close();
   }
   private scope(pending = false) {
     return {
@@ -440,8 +454,15 @@ export class AdjustmentJournal implements NavigationProtected {
     return true;
   }
   async refresh() {
+    const generation = this.generation;
     if (this.busy()) return;
-    if (!this.uncertain() && this.dirty() && !(await this.confirmNavigation())) return;
+    if (
+      !this.uncertain() &&
+      this.dirty() &&
+      (!(await this.confirmNavigation()) || this.destroyed || generation !== this.generation)
+    )
+      return;
+    if (this.destroyed || generation !== this.generation) return;
     this.preview.set(null);
     this.reviewed.set(false);
     this.historyId.set('');
@@ -454,7 +475,12 @@ export class AdjustmentJournal implements NavigationProtected {
       return false;
     }
     if (!this.dirty()) return true;
-    const decision = await firstValueFrom(this.dialog.open(UnsavedChangesDialog).afterClosed());
+    const generation = this.generation;
+    const dialog = this.dialog.open(UnsavedChangesDialog);
+    this.navigationDialog = dialog;
+    const decision = await firstValueFrom(dialog.afterClosed());
+    if (this.navigationDialog === dialog) this.navigationDialog = null;
+    if (this.destroyed || generation !== this.generation) return false;
     return decision === 'save'
       ? this.saveDraft()
       : decision === 'discard'

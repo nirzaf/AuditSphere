@@ -34,6 +34,20 @@ implemented patterns; acceptance claims always belong to `docs/execution/status.
 - Forms mirror server validation exactly (`maxlength`, required, formats) and
   use typed or template-driven forms per the page's existing style; the server
   re-validates everything.
+- For new forms, prefer Angular Signal Forms with one typed model. Keep an
+  existing reactive or template-driven form coherent when extending or
+  mechanically extracting it; do not mix form APIs within one form without a
+  concrete need.
+- Use `Api.resource`/`toSignal` for signal-owned reads. For long-lived
+  imperative subscriptions, use `takeUntilDestroyed` with the owning
+  `DestroyRef` and place lifetime termination after flattening operators so
+  inner work is also bounded. An explicit subscription is acceptable when it
+  is unsubscribed by its actual owner, as in the existing planning workspace.
+- Promise-based commands, dialogs and async callbacks capture the current
+  route/session/component owner and recheck it after each `await` and before
+  changing signals, drafts, acknowledgments or triggering reloads. Close only
+  dialogs owned by the invalidated component. Teardown cancels UI effects; it
+  does not imply that a dispatched server command was canceled or rolled back.
 - UI kit is Angular Material/CDK plus the shared `SHARED` components
   (`audit-page-header`, `audit-state`, `audit-command-message`, `audit-status`).
   MudBlazor is forbidden; new npm dependencies require owner approval.

@@ -1,9 +1,9 @@
-import { Component, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { form, FormField, maxLength, required } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { Api, routeGuid, UNKNOWN_OUTCOME } from '../../core/api';
 import { SessionService } from '../../core/session';
@@ -19,7 +19,7 @@ type Request = EvidenceActionFields & { requestId: string; reviewBasis: string; 
 @Component({ selector: 'audit-evidence-actions', imports: [RouterLink, FormField, MatButtonModule, ...SHARED],
   templateUrl: './evidence-actions.html', styles: [`.panel { overflow-wrap: anywhere; } label { display: block; margin-block: .75rem; } textarea { width: 100%; box-sizing: border-box; }`] })
 export class EvidenceActions implements NavigationProtected {
-  private readonly api = inject(Api); private readonly session = inject(SessionService); private readonly drafts = inject(TabDrafts); private readonly dialog = inject(MatDialog);
+  private readonly api = inject(Api); private readonly session = inject(SessionService); private readonly drafts = inject(TabDrafts); private readonly dialog = inject(MatDialog); private readonly destroyRef=inject(DestroyRef);
   private readonly route = inject(ActivatedRoute); private readonly params = toSignal(this.route.paramMap, { initialValue: this.route.snapshot?.paramMap });
   readonly id = routeGuid(); readonly kind = computed(() => { const k = this.params()?.get('kind') ?? ''; return ['ECL','INVENTORY','SPECIALIST','ANALYTICAL','JOURNAL_RISK'].includes(k) ? k : null; });
   readonly historyPage = signal(0); readonly procedurePage = signal(0); readonly model = signal<EvidenceActionFields>(empty());
@@ -41,14 +41,16 @@ export class EvidenceActions implements NavigationProtected {
   readonly preview=signal<ReturnType<typeof decodeEvidencePreview>|null>(null); readonly receipt=signal<ReturnType<typeof decodeEvidenceReceipt>|null>(null);
   readonly reviewed=signal(false); readonly busy=signal(false); readonly uncertain=signal(false); readonly message=signal(''); readonly draftAvailable=signal(false);
   readonly pending=signal<PendingRequestReference|null>(null); readonly dirty=computed(()=>JSON.stringify(this.model())!==this.baseline());
-  private readonly baseline=signal(JSON.stringify(empty())); private generation=0; private request:Request|null=null; readonly absent=signal(false);
+  private readonly baseline=signal(JSON.stringify(empty())); private generation=0; private destroyed=false; private navigationDialog:MatDialogRef<UnsavedChangesDialog>|null=null; private request:Request|null=null; readonly absent=signal(false);
   constructor() {
-    effect(()=>{this.id();this.kind();this.session.invalidation();untracked(()=>{this.generation++;this.historyPage.set(0);this.procedurePage.set(0);this.model.set(empty());this.baseline.set(JSON.stringify(empty()));
+    this.destroyRef.onDestroy(()=>{this.destroyed=true;this.invalidateOwner();});
+    effect(()=>{this.id();this.kind();this.session.invalidation();untracked(()=>{this.invalidateOwner();this.historyPage.set(0);this.procedurePage.set(0);this.model.set(empty());this.baseline.set(JSON.stringify(empty()));
       this.preview.set(null);this.receipt.set(null);this.reviewed.set(false);this.busy.set(false);this.uncertain.set(false);this.pending.set(null);this.message.set('');this.request=null;this.absent.set(false);this.draftAvailable.set(false);});});
     effect(()=>{const c=this.context();if(!c)return;untracked(()=>{this.preview.set(null);this.reviewed.set(false);this.draftAvailable.set(this.drafts.read(this.scope(),evidenceActionFields).state==='ready');
       const p=this.drafts.readPendingRequest(this.scope(true));if(p.state==='ready'){this.pending.set(p.draft.value);this.uncertain.set(true);this.message.set(UNKNOWN_OUTCOME);}});});
     effect(()=>{this.model();untracked(()=>{this.preview.set(null);this.reviewed.set(false);});});
   }
+  private invalidateOwner(){this.generation++;const dialog=this.navigationDialog;this.navigationDialog=null;dialog?.close();}
   private base(){return this.kind() && this.id() ? '/api/ui/accounting/evidence/'+this.kind()+'/'+this.id() : null;}
   private scope(pending=false){return {entity:(pending?'evidence-request/':'evidence-fields/')+this.kind()+'/'+this.id(),baseRevision:this.context()?.s.reviewBasis??''};}
   changeAction(event:Event){if(this.busy()||(this.uncertain()&&!this.absent()))return;const action=(event.target as HTMLSelectElement).value;if(action!=='LINK'&&action!=='REVIEW')return;this.model.update(m=>({...m,action,resultId:null,resultBasis:null,decision:''}));}
@@ -83,7 +85,9 @@ export class EvidenceActions implements NavigationProtected {
   restoreDraft(){if(this.busy())return;const d=this.drafts.read(this.scope(),evidenceActionFields);if(d.state!=='ready'){this.message.set('The saved fields are stale or unavailable.');return;}this.model.set(d.draft.value);this.draftAvailable.set(false);this.preview.set(null);this.reviewed.set(false);}
   discardDraft(){if(this.busy()||this.uncertain())return false;this.model.set(JSON.parse(this.baseline()));this.preview.set(null);this.reviewed.set(false);this.drafts.clear(this.scope().entity);return true;}
   async confirmNavigation(){if(this.busy()||this.uncertain()){this.message.set('Resolve the retained request receipt before leaving.');return false;}if(!this.dirty())return true;
-    const d=await firstValueFrom(this.dialog.open(UnsavedChangesDialog).afterClosed());return d==='save'?this.saveDraft():d==='discard'?this.discardDraft():false;}
+    const generation=this.generation;const dialog=this.dialog.open(UnsavedChangesDialog);this.navigationDialog=dialog;const d=await firstValueFrom(dialog.afterClosed());if(this.navigationDialog===dialog)this.navigationDialog=null;
+    if(this.destroyed||generation!==this.generation)return false;return d==='save'?this.saveDraft():d==='discard'?this.discardDraft():false;}
   @HostListener('window:beforeunload',['$event']) beforeUnload(e:BeforeUnloadEvent){if(this.busy()||this.uncertain()||this.dirty()){e.preventDefault();e.returnValue='';}}
-  async refresh(){if(this.busy())return;if(!this.uncertain()&&this.dirty()&&!(await this.confirmNavigation()))return;this.preview.set(null);this.reviewed.set(false);this.detail.reload();this.state.reload();}
+  async refresh(){const generation=this.generation;if(this.busy())return;if(!this.uncertain()&&this.dirty()&&(!(await this.confirmNavigation())||this.destroyed||generation!==this.generation))return;
+    if(this.destroyed||generation!==this.generation)return;this.preview.set(null);this.reviewed.set(false);this.detail.reload();this.state.reload();}
 }
