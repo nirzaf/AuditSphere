@@ -50,6 +50,7 @@ const cell = obj({
   approvedBillableMinutes: nat,
 });
 const allocationPhase = oneOf('PLANNING', 'FIELDWORK', 'COMPLETION', 'REPORTING', 'UNASSIGNED');
+const availabilityKind = oneOf('LEAVE', 'TRAINING', 'PUBLIC_HOLIDAY');
 const row = obj({
   userId: guid,
   name: text,
@@ -60,6 +61,10 @@ const row = obj({
   targetUtilizationPercent: dec,
   hasProfile: bool,
   weeks: arr(cell, 12),
+  availability: arr(
+    obj({ id: guid, startDate: date, endDate: date, kind: availabilityKind, minutesPerDay: nat }),
+    1000,
+  ),
   allocations: arr(
     obj({ engagementId: guid, engagementLabel: text, weekStart: date, phase: allocationPhase,
       riskArea: nullable(text), plannedMinutes: nat }),
@@ -83,12 +88,16 @@ export function resourceWeekStarts(firstWeek: string, weeks: number): string[] {
 export function decodeResources(value: unknown) {
   const result = decode(resourcesResponse, value);
   const starts = resourceWeekStarts(result.grid.firstWeek, result.grid.weeks);
+  const rangeEnd = new Date(Date.parse(starts[starts.length - 1] + 'T00:00:00Z') + 6 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   if (
     result.grid.rows.some(
       (r) =>
         r.weeks.length !== starts.length ||
         r.weeks.some((week, index) => week.weekStart !== starts[index]) ||
-        r.allocations.some((allocation) => !starts.includes(allocation.weekStart)),
+        r.allocations.some((allocation) => !starts.includes(allocation.weekStart)) ||
+        r.availability.some((entry) => entry.startDate > entry.endDate || entry.startDate > rangeEnd || entry.endDate < result.grid.firstWeek),
     )
   )
     throw new Error('Invalid resource grid range');
@@ -174,7 +183,12 @@ export class ResourcePlanning {
   readonly whole = whole;
   readonly phaseLabel = (phase: string) =>
     RESOURCE_PHASES.find((item) => item.value === phase)?.label ?? 'Legacy phase not assigned';
+  readonly availabilityLabel = (kind: string) =>
+    kind === 'LEAVE' ? 'Leave' : kind === 'TRAINING' ? 'Training' : 'Public holiday';
   readonly weekStarts = resourceWeekStarts;
+  readonly hasAvailability = computed(
+    () => this.view.data()?.grid.rows.some((r) => r.availability.length) ?? false,
+  );
   readonly hasAllocations = computed(
     () => this.view.data()?.grid.rows.some((r) => r.allocations.length) ?? false,
   );

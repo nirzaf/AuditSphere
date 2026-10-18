@@ -133,6 +133,26 @@
         </tbody>
       </table>
     </div>
+    <section class="panel" aria-labelledby="recorded-availability-heading">
+      <h2 id="recorded-availability-heading">Recorded unavailability in selected range</h2>
+      <p>These saved entries are planning inputs. They do not imply a separate approval decision.</p>
+      @for (staff of v.grid.rows; track staff.userId) {
+        @if (staff.availability.length) {
+          <h3>{{ staff.name }}</h3>
+          <ul>
+            @for (entry of staff.availability; track entry.id) {
+              <li>
+                {{ availabilityLabel(entry.kind) }} · {{ entry.startDate }} to {{ entry.endDate }} ·
+                {{ hrs(entry.minutesPerDay) }} hours per day
+              </li>
+            }
+          </ul>
+        }
+      }
+      @if (!hasAvailability()) {
+        <p>No recorded unavailability overlaps the selected range.</p>
+      }
+    </section>
     <section class="panel" aria-labelledby="allocations-heading">
       <h2 id="allocations-heading">Recorded engagement allocations</h2>
       @for (staff of v.grid.rows; track staff.userId) {

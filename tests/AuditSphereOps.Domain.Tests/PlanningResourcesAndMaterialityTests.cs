@@ -432,10 +432,13 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     var partner = w.Actor("partner", "Partner");
     var manager = w.Actor("manager", "Manager");
     var week = new DateOnly(2026, 10, 4); // Sunday, the first day of the firm week
+    Guid leaveId;
+    Guid holidayId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.True((await ResourcePlanningService.SaveProfileAsync(db, manager, new(w.Users["senior"].Id, "Audit", "ifrs, sampling, IFRS", 2400, 80m))).Succeeded);
-      Assert.True((await ResourcePlanningService.AddAvailabilityAsync(db, manager, new(w.Users["senior"].Id, week.AddDays(1), week.AddDays(2), "LEAVE", 480))).Succeeded);
+      leaveId = (await ResourcePlanningService.AddAvailabilityAsync(db, manager, new(w.Users["senior"].Id, week.AddDays(1), week.AddDays(2), "LEAVE", 480))).Value;
+      holidayId = (await ResourcePlanningService.AddAvailabilityAsync(db, manager, new(w.Users["senior"].Id, week.AddDays(3), week.AddDays(3), "PUBLIC_HOLIDAY", 480))).Value;
       Assert.Equal(ErrorCodes.GateBlocked, (await ResourcePlanningService.SetAllocationAsync(db, manager, new(w.EngagementId, w.Users["senior"].Id, week, 1800,
         BudgetPhases.Fieldwork, "Revenue"))).ErrorCode);
       Assert.True((await StaffingService.AssignAsync(db, partner, new(w.EngagementId, w.Users["senior"].Id, StaffingLevels.SeniorAuditor))).Succeeded);
@@ -467,9 +470,14 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       var grid = (await ResourcePlanningService.GetGridAsync(db, manager, week, 2)).Value!;
       var row = grid.Rows.Single(x => x.UserId == w.Users["senior"].Id);
       Assert.Equal(["IFRS", "SAMPLING"], row.Skills);
+      Assert.Equal(new[]
+      {
+        new ResourceAvailabilityView(leaveId, week.AddDays(1), week.AddDays(2), "LEAVE", 480),
+        new ResourceAvailabilityView(holidayId, week.AddDays(3), week.AddDays(3), "PUBLIC_HOLIDAY", 480)
+      }, row.Availability);
       var first = row.Weeks[0];
-      Assert.Equal((week, 1440, 960, 1800, true), (first.WeekStart, first.CapacityMinutes, first.UnavailableMinutes, first.PlannedMinutes, first.OverAllocated));
-      Assert.Equal(125.0m, first.PlannedUtilizationPercent);
+      Assert.Equal((week, 960, 1440, 1800, true), (first.WeekStart, first.CapacityMinutes, first.UnavailableMinutes, first.PlannedMinutes, first.OverAllocated));
+      Assert.Equal(187.5m, first.PlannedUtilizationPercent);
       Assert.Equal((2400, 0, false), (row.Weeks[1].CapacityMinutes, row.Weeks[1].PlannedMinutes, row.Weeks[1].OverAllocated));
       var noProfile = grid.Rows.Single(x => x.UserId == w.Users["associate"].Id);
       Assert.False(noProfile.HasProfile);

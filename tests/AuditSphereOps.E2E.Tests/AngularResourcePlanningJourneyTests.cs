@@ -222,10 +222,21 @@ public sealed class AngularResourcePlanningJourneyTests
     await page.GetByRole(AriaRole.Button,new(){Name="Acknowledge planning receipt",Exact=true}).ClickAsync();
     Assert.Equal(1,dispatched);await page.UnrouteAsync(commandRoute);
     await Assertions.Expect(table).ToContainTextAsync("Synthetic qualification");
+    var gridRange=page.GetByRole(AriaRole.Form,new(){Name="Grid range",Exact=true});
+    await gridRange.GetByLabel("First week",new(){Exact=true}).FillAsync("2026-10-18");
+    await gridRange.GetByLabel("Weeks",new(){Exact=true}).FillAsync("4");
+    var rangeResponse=page.WaitForResponseAsync(response=>response.Request.Method=="GET" && response.Url.Contains("/api/ui/practice/resources?start=2026-10-18&weeks=4",StringComparison.Ordinal));
+    await gridRange.GetByRole(AriaRole.Button,new(){Name="Show",Exact=true}).ClickAsync();
+    Assert.Equal(200,(await rangeResponse).Status);
     var availability=page.GetByRole(AriaRole.Form,new(){Name="Record unavailability",Exact=true});
     await availability.GetByLabel("Team member",new(){Exact=true}).SelectOptionAsync(f.Staff.Id.ToString());
+    await availability.GetByLabel("From",new(){Exact=true}).FillAsync("2026-10-19");
+    await availability.GetByLabel("To",new(){Exact=true}).FillAsync("2026-10-20");
+    await availability.GetByLabel("Kind",new(){Exact=true}).SelectOptionAsync("LEAVE");
     await availability.GetByLabel("Hours per day",new(){Exact=true}).FillAsync("8");
     await SubmitAndConfirmAsync(availability.GetByRole(AriaRole.Button,new(){Name="Record unavailability",Exact=true}));
+    await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Recorded unavailability in selected range",Exact=true}))
+      .ToContainTextAsync("Leave · 2026-10-19 to 2026-10-20 · 8 hours per day");
     await using(var db=host.CreateDbContext()) {
       Assert.Single(await db.StaffCertifications.Where(x=>x.UserId==f.Staff.Id && x.Name=="Synthetic qualification").ToListAsync());
       Assert.Single(await db.StaffAvailabilities.Where(x=>x.UserId==f.Staff.Id).ToListAsync());

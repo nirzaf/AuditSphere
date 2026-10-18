@@ -14,12 +14,13 @@ public sealed record SetAllocationRequest(Guid EngagementId, Guid UserId, DateOn
   string Phase, string? RiskArea = null);
 
 public sealed record ResourceCertificationView(Guid Id, string Name, DateOnly? ExpiresOn, bool Current);
+public sealed record ResourceAvailabilityView(Guid Id, DateOnly StartDate, DateOnly EndDate, string Kind, int MinutesPerDay);
 public sealed record ResourceAllocationView(Guid EngagementId, string EngagementLabel, DateOnly WeekStart,
   string Phase, string? RiskArea, int PlannedMinutes);
 public sealed record ResourceGridRow(
   Guid UserId, string Name, string Department, IReadOnlyList<string> Skills, IReadOnlyList<ResourceCertificationView> Certifications,
   int WeeklyCapacityMinutes, decimal TargetUtilizationPercent, bool HasProfile, IReadOnlyList<ResourceWeekCell> Weeks,
-  IReadOnlyList<ResourceAllocationView> Allocations);
+  IReadOnlyList<ResourceAvailabilityView> Availability, IReadOnlyList<ResourceAllocationView> Allocations);
 public sealed record ResourceGridView(DateOnly FirstWeek, int Weeks, IReadOnlyList<ResourceGridRow> Rows);
 
 public sealed record BudgetBreakdownRow(string Phase, string RiskArea, int ForecastMinutes, decimal ForecastCost, int ActualMinutes, decimal ActualCost);
@@ -203,6 +204,8 @@ public static partial class ResourcePlanningService
           time.Where(t => t.UserId == u.Id).Select(t => (t.WorkDate, t.DurationMinutes)).ToList(), start, weeks,
           approvedBillableTime: time.Where(t => t.UserId == u.Id && t.BillableClassification == PracticeTimeStates.Billable)
             .Select(t => (t.WorkDate, t.DurationMinutes)).ToList()),
+        availability.Where(x => x.UserId == u.Id).OrderBy(x => x.StartDate).ThenBy(x => x.EndDate).ThenBy(x => x.Kind).ThenBy(x => x.Id)
+          .Select(x => new ResourceAvailabilityView(x.Id, x.StartDate, x.EndDate, x.Kind, x.MinutesPerDay)).ToList(),
         mine.OrderBy(x => x.WeekStart).ThenBy(x => x.EngagementId).ThenBy(x => x.Phase).ThenBy(x => x.RiskArea)
           .Select(x => new ResourceAllocationView(x.EngagementId, labels.GetValueOrDefault(x.EngagementId, "Engagement"),
             x.WeekStart, x.Phase, string.IsNullOrEmpty(x.RiskArea) ? null : x.RiskArea, x.PlannedMinutes)).ToList());

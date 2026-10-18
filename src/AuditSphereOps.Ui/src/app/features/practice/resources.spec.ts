@@ -45,6 +45,15 @@ const workspace = {
             overAllocated: true,
           },
         ],
+        availability: [
+          {
+            id: '66666666-6666-4666-8666-666666666666',
+            startDate: '2026-10-05',
+            endDate: '2026-10-06',
+            kind: 'LEAVE',
+            minutesPerDay: 480,
+          },
+        ],
         allocations: [
           {
             engagementId: engagement,
@@ -146,6 +155,9 @@ describe('Resource planning forms', () => {
     expect(text).toContain('Fieldwork');
     expect(text).toContain('Revenue');
     expect(text).toContain('30 hours');
+    expect(text).toContain('Recorded unavailability in selected range');
+    expect(text).toContain('Leave · 2026-10-05 to 2026-10-06 · 8 hours per day');
+    expect(text).toContain('These saved entries are planning inputs. They do not imply a separate approval decision.');
     expect(text).toContain('does not assign an AuditSphere role');
     expect(
       f.nativeElement
@@ -178,6 +190,19 @@ describe('Resource planning forms', () => {
     expect(() => resourceWeekStarts('2026-10-04', 0)).toThrow();
     expect(() => resourceWeekStarts('2026-10-04', 13)).toThrow();
     expect(() => decodeResources({ ...workspace, grid: { ...workspace.grid, weeks: 2 } })).toThrow();
+    expect(() => decodeResources({
+      ...workspace,
+      grid: {
+        ...workspace.grid,
+        rows: [{
+          ...workspace.grid.rows[0],
+          availability: [{
+            id: '66666666-6666-4666-8666-666666666666',
+            startDate: '2026-09-01', endDate: '2026-09-02', kind: 'LEAVE', minutesPerDay: 480,
+          }],
+        }],
+      },
+    })).toThrow();
   });
   it('populates selected profile from persisted state and rejects invalid percentage before POST', async () => {
     const f = setup(),

@@ -86018,7 +86018,9 @@
           "engagementId",
           "userId",
           "weekStart",
-          "plannedMinutes"
+          "plannedMinutes",
+          "phase",
+          "riskArea"
         ],
         "type": "object",
         "properties": {
@@ -86040,6 +86042,15 @@
               "string"
             ],
             "format": "int32"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "riskArea": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -127268,6 +127279,8 @@
           "engagementId",
           "engagementLabel",
           "weekStart",
+          "phase",
+          "riskArea",
           "plannedMinutes"
         ],
         "type": "object",
@@ -127283,7 +127296,51 @@
             "type": "string",
             "format": "date"
           },
+          "phase": {
+            "type": "string"
+          },
+          "riskArea": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "plannedMinutes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ResourceAvailabilityView": {
+        "required": [
+          "id",
+          "startDate",
+          "endDate",
+          "kind",
+          "minutesPerDay"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "minutesPerDay": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -127348,6 +127405,7 @@
           "targetUtilizationPercent",
           "hasProfile",
           "weeks",
+          "availability",
           "allocations"
         ],
         "type": "object",
@@ -127396,6 +127454,12 @@
               "$ref": "#/components/schemas/ResourceWeekCell"
             }
           },
+          "availability": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResourceAvailabilityView"
+            }
+          },
           "allocations": {
             "type": "array",
             "items": {
@@ -127441,6 +127505,8 @@
           "targetUtilizationPercent",
           "plannedMinutes",
           "engagementLabel",
+          "allocationPhase",
+          "allocationRiskArea",
           "weekStart",
           "capacityMinutes",
           "unavailableMinutes",
@@ -127488,6 +127554,18 @@
             "format": "int32"
           },
           "engagementLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "allocationPhase": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "allocationRiskArea": {
             "type": [
               "null",
               "string"
@@ -127666,6 +127744,18 @@
               "string"
             ],
             "format": "int32"
+          },
+          "phase": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "riskArea": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
