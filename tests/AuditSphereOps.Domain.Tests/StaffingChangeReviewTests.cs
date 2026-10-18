@@ -6,6 +6,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -148,6 +149,98 @@ public sealed class StaffingChangeReviewTests
     Assert.Equal((historicReceipt.ReviewBasis, historicReceipt.PreviewJson), (currentReceipt.ReviewBasis, currentReceipt.PreviewJson));
     Assert.Equal(new long[] { 1, 2, 3 }, await db.StaffCertificationReviews.AsNoTracking()
       .Where(x => x.CertificationId == firstSource.Id).OrderBy(x => x.Revision).Select(x => x.Revision).ToListAsync());
+  }
+
+  [Fact]
+  public async Task CertificationRevocationCommittedBeforeReviewedStaffingPublicationPreventsAssignment()
+  {
+    await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    var source = new StaffCertification
+    {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, UserId = f.Reviewer.Id, Name = "Synthetic CPA",
+      RecordedAt = DateTimeOffset.UtcNow.AddSeconds(-1), RecordedByUserId = f.Staff.Id
+    };
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.StaffCertifications.Add(source);
+      await setup.SaveChangesAsync();
+      await StaffingCertificationTestEvidence.ReviewAsync(setup, actor, source.Id);
+    }
+
+    var request = new StaffingChangeRequest(Guid.NewGuid(), new("ASSIGN", f.Reviewer.Id, StaffingLevels.AuditManager));
+    await using (var previewDb = new AuditSphereDbContext(pg.Options))
+    {
+      var preview = (await StaffingChangeWorkspace.PreviewAsync(previewDb, actor, f.EngagementId, request)).Value!;
+      request = request with { Reviewed = true, RequestHash = preview.RequestHash, ReviewBasis = preview.ReviewBasis };
+    }
+
+    var revoke = new ReviewStaffCertificationRequest(source.Id, Guid.NewGuid(),
+      StaffCertificationEvidence.SourceDigest(source), ExpectedRevision: 1, Decision: "REVOKED",
+      EvidenceReference: "test://independent-review", Reason: "Synthetic qualification withdrawal before assignment.");
+    var pause = new PauseCertificationReview();
+    await using var reviewDb = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var revokeTask = ResourcePlanningService.ReviewCertificationAsync(reviewDb, actor, revoke, timeout.Token);
+    await pause.Reached.Task.WaitAsync(timeout.Token);
+
+    await using var staffingDb = new AuditSphereDbContext(pg.Options);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    var staffingTask = StaffingChangeWorkspace.ExecuteAsync(staffingDb, actor, f.EngagementId, request, timeout.Token);
+    try
+    {
+      await WaitForFirmSafetyLockWaitAsync(observer, timeout.Token);
+      Assert.False(staffingTask.IsCompleted);
+    }
+    finally
+    {
+      pause.Release.TrySetResult();
+    }
+
+    var revoked = await revokeTask;
+    Assert.True(revoked.Succeeded, revoked.Message);
+    var assignment = await staffingTask;
+    Assert.Equal("staffing.certification", assignment.ErrorCode);
+
+    await using var check = new AuditSphereDbContext(pg.Options);
+    var latest = await check.StaffCertificationReviews.AsNoTracking()
+      .Where(x => x.CertificationId == source.Id).OrderByDescending(x => x.Revision).FirstAsync();
+    Assert.Equal((2L, "REVOKED"), (latest.Revision, latest.Decision));
+    Assert.Empty(await check.EngagementStaffAssignments.Where(x => x.EngagementId == f.EngagementId && x.UserId == f.Reviewer.Id).ToListAsync());
+    Assert.Empty(await check.StaffingChanges.ToListAsync());
+    Assert.False(await check.RoleGrants.AnyAsync(x => x.UserId == f.Reviewer.Id &&
+      x.Reason != null && x.Reason.StartsWith("Engagement staffing: ")));
+  }
+
+  private static async Task WaitForFirmSafetyLockWaitAsync(AuditSphereDbContext observer, CancellationToken ct)
+  {
+    var end = DateTimeOffset.UtcNow.AddSeconds(10);
+    while (DateTimeOffset.UtcNow < end)
+    {
+      await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", ct);
+      if (await observer.Database.SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query LIKE '%firm_safety_states%'").SingleAsync(ct) > 0)
+        return;
+      await Task.Delay(20, ct);
+    }
+    Assert.Fail("Expected staffing publication to wait on the certification review firm lock.");
+  }
+
+  private sealed class PauseCertificationReview : SaveChangesInterceptor
+  {
+    public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+      InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      if (eventData.Context!.ChangeTracker.Entries<StaffCertificationReview>().Any(x => x.State == EntityState.Added))
+      {
+        Reached.TrySetResult();
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
   }
 }
 
