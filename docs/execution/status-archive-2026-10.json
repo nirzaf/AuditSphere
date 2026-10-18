@@ -18843,6 +18843,15 @@
       "remaining": [
         "No known gap remains in the FIN-03 source/query criterion; exact-SHA full release suite remains a separate project-level gate."
       ]
+    },
+    "documentationReconciliationChecks20261018": {
+      "sourceIntegrity": "PASS: Word SHA-256; 20 sections; 165 exact procedures",
+      "documentation": "PASS: 219 Markdown files; 3,017 relative links; 441 paths",
+      "filenames": "PASS: 219 files; 3 conventional exceptions",
+      "narrativeMetrics": "PASS: 6 protected files",
+      "taskBoard": "PASS: 99 generated items; no board diff",
+      "taskPack": "PASS: 75 tasks; 2,899 local links",
+      "diff": "PASS: git diff --check"
     }
   }
 }

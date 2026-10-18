@@ -99,7 +99,42 @@ services:
       - data_protection:/app/data-protection-home
       - pbc_staging:/var/lib/auditsphere/pbc-staging
       - release_checkpoints:/var/lib/auditsphere/release-checkpoints
-      - m365_credentials:/run/auditsphere/m365:ro
+      - type: bind
+        source: /opt/auditsphere/storage/m365-credentials/directory-reader
+        target: /run/auditsphere/m365/directory-reader
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /opt/auditsphere/storage/m365-credentials/selected-site
+        target: /run/auditsphere/m365/selected-site
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /opt/auditsphere/storage/m365-credentials/provisioning
+        target: /run/auditsphere/m365/provisioning
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /opt/auditsphere/storage/m365-credentials/guest-invitation
+        target: /run/auditsphere/m365/guest-invitation
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /opt/auditsphere/storage/m365-credentials/group-membership
+        target: /run/auditsphere/m365/group-membership
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /opt/auditsphere/storage/m365-credentials/outbound-mail
+        target: /run/auditsphere/m365/outbound-mail
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:18080:8080"
     depends_on:
@@ -287,12 +322,6 @@ volumes:
       type: none
       o: bind
       device: /opt/auditsphere/storage/release-checkpoints
-  m365_credentials:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /opt/auditsphere/storage/m365-credentials
   m365_mail_credentials:
     driver: local
     driver_opts:

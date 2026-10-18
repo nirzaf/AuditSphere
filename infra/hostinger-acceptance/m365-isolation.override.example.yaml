@@ -1,7 +1,8 @@
 # Operator-reviewed example; never included automatically.
 # Requires Docker Compose >= 2.24.4 for !override.
 # Copy/include only after adapting paths and reviewing the final merged model.
-# Replaces the API's parent M365 credential mount with individual capability mounts.
+# Compatibility example for older source revisions with the broad API parent mount.
+# Current base compose.yaml already uses these individual capability mounts.
 # The privileged client-sites key is intentionally excluded.
 services:
   api:

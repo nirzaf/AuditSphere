@@ -19,6 +19,12 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Default API Microsoft 365 credential isolation (2026-10-18)
+
+The base Hostinger Compose definition now mounts the API's six allowed capability directories individually and read-only. It excludes the parent credential directory and the privileged client-sites certificate, preserves the three data mounts and leaves all other service settings unchanged. Missing capability host directories fail closed; operators must prepare protected empty directories for disabled capabilities before reviewed recreation. Existing containers retain their previous mounts until recreated and inspected. The compatibility override remains available for older source revisions; the CLI runbook and configuration reference explain the upgrade sequence.
+
+Dummy-input base and override Compose comparisons and documentation checks pass. Actual process visibility is not verified because the local Docker daemon is unavailable; no VPS services, tenant permissions or credentials were changed. The published documentation source is confirmed on remote master with successful fast CI; full release verification and live mount/provider acceptance remain separate. Exact evidence is in `m365ClientTenantGuide` in [status.json](status.json).
+
 ## Customer tenant Microsoft 365 operator documentation (2026-10-18)
 
 The [client-tenant CLI runbook](../operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) now covers registrations, consent, certificate/secret custody, first administrator, exact SharePoint grants, dedicated-site rollout, Exchange sender scope, mail/DNS alternatives, rotation, recovery and a private AI-agent handoff checklist. The [configuration reference](../operations/auditsphere-operations-reference-microsoft365-configuration-current.md) maps the complete base Compose input set and additional runtime/session/signing/provider settings to source owners. The optional isolation override example preserves data mounts and replaces the API parent credential mount with narrow capability mounts; it is not automatically deployed. The existing operator Wiki pages are published with the CLI procedure, configuration inventory and retained signing guidance; the Wiki revision is recorded in the execution ledger.

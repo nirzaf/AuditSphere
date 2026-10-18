@@ -302,7 +302,7 @@ services:
       TenantAdministration__GuestRedirectUrl: https://audit.customer.example/auth/landing
 ```
 
-**Required credential isolation:** the base Compose API mounts the entire parent M365 directory. That includes a `client-sites` key if it is placed beneath the parent, despite the API not having a configured path to use it. Copy/review the [isolation override example](../../infra/hostinger-acceptance/m365-isolation.override.example.yaml) as private `m365-isolation.override.yaml` in the deployment directory. It replaces the API credential mount with six individual capability mounts and excludes the privileged provisioner. Docker Compose 2.24.4+ is required for `!override`. Create protected empty host directories for disabled capability mounts, or omit those individual mounts in the reviewed copy. Inspect the resulting model and running mount destinations before placing the provisioner key. [Compose replacement semantics](https://docs.docker.com/reference/compose-file/merge/#replace-value).
+**Required credential isolation:** current base Compose mounts the six API capability directories individually and read-only, excluding the parent and privileged provisioner directory. Prepare protected empty host directories for disabled capabilities before recreation; missing paths fail closed (`create_host_path: false`). Older running APIs can retain the broad parent mount. Inspect the merged model, recreate only the approved API and verify its actual mount boundary before placing the provisioner key. For an older base revision, copy/review the [isolation override example](../../infra/hostinger-acceptance/m365-isolation.override.example.yaml) as private `m365-isolation.override.yaml` and append it to the same Compose file list used below; this compatibility override requires Docker Compose 2.24.4+. [Compose replacement semantics](https://docs.docker.com/reference/compose-file/merge/#replace-value).
 
 For the remaining host Bash examples, define this array once; include any additional reviewed customer-host override in the same array. Use that identical file list for validation, recreation and later rotations.
 
@@ -316,9 +316,8 @@ for TASK_CAPABILITY in directory-reader selected-site provisioning guest-invitat
     sudo install -d -o root -g "$TASK_CONTAINER_UID" -m 0750 "$TASK_CREDENTIAL_ROOT/$TASK_CAPABILITY"
   fi
 done
-test -f m365-isolation.override.yaml
 test -f customer-host.override.yaml
-TASK_COMPOSE=(docker compose -f compose.yaml -f customer-host.override.yaml -f m365-isolation.override.yaml)
+TASK_COMPOSE=(docker compose -f compose.yaml -f customer-host.override.yaml)
 "${TASK_COMPOSE[@]}" --profile m365-mail --profile m365-pbc config -q
 ```
 
@@ -926,7 +925,7 @@ PY
   'test -r /run/auditsphere/m365/directory-reader/certificate.pem && test -r /run/auditsphere/m365/directory-reader/private-key.pem'
 ```
 
-The client-sites service is in default startup and can provision as soon as its standing policy/credentials are complete; keep its cutoff and credentials staged until the reviewed rollout. Profiles isolate mail/PBC startup; API flags and worker processes are separate controls. Never use `docker compose down -v` for configuration updates. The API has capability keys under its parent M365 mount; privileged client-site keys remain on their separate worker mount. The API's actual host-directory visibility must be checked against your secret-store/mount implementation rather than inferred from its configured paths.
+The client-sites service is in default startup and can provision as soon as its standing policy/credentials are complete; keep its cutoff and credentials staged until the reviewed rollout. Profiles isolate mail/PBC startup; API flags and worker processes are separate controls. Never use `docker compose down -v` for configuration updates. The current API has six narrow capability mounts; privileged client-site keys remain on their separate worker mount. The API's actual host-directory visibility must be checked against your secret-store/mount implementation rather than inferred from its configured paths.
 
 Inspect `/health/ready`, current worker heartbeat, Operations outcomes, and each capability/resource verification after recreation. Resume an UNKNOWN operation only through its existing recovery path after remote reconciliation. Accept success only with the provider-specific receipts and current stored revision. No tenant/provider operation is made atomic with the database by these commands.
 

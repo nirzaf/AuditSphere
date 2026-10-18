@@ -8,13 +8,8 @@
     "scope": "Revalidated operative instructions, links and evidence on master; PR #46/#47 are merged. No application/provider changes.",
     "result": "DOCS_RECONCILED",
     "checks": {
-      "sourceIntegrity": "PASS: Word SHA-256; 20 sections; 165 exact procedures",
-      "documentation": "PASS: 219 Markdown files; 3,017 relative links; 441 paths",
-      "filenames": "PASS: 219 files; 3 conventional exceptions",
-      "narrativeMetrics": "PASS: 6 protected files",
-      "taskBoard": "PASS: 99 generated items; no board diff",
-      "taskPack": "PASS: 75 tasks; 2,899 local links",
-      "diff": "PASS: git diff --check"
+      "result": "PASS",
+      "history": "status-archive-2026-10.json#keys.documentationReconciliationChecks20261018"
     },
     "fastCi": "PASS: run 39134304836 on d4bbef4d; Docs, Angular and .NET Release",
     "fullCi": "IN_PROGRESS at 2026-10-18T14:15Z: run 39132911253 on f5f96d9e; Domain failed, API/E2E running; failure logs unavailable",
@@ -2067,6 +2062,12 @@
     "verification": "STATIC_PASS: docs gates; 33 inputs; 17 Bash/12 PowerShell/6 Python snippets; dummy-input Compose merges",
     "applicationTests": "NOT_RUN: documentation only",
     "customerActions": "NOT_RUN",
-    "wikiCommit": "657e2bf9e678e98de4cd00f20801941635c274b1"
+    "wikiCommit": "657e2bf9e678e98de4cd00f20801941635c274b1",
+    "credentialIsolation": {
+      "baseline": "da2cdd3811fe275bcf9c4344756145934fd4d9f3",
+      "configuration": "PASS: base/override Compose; six RO fail-closed binds; data and other services preserved",
+      "runtime": "BLOCKED_TEST_ENV: local Docker daemon unavailable; VPS unchanged"
+    },
+    "fastCi": "PASS: 39138465591 on da2cdd38; not full regression"
   }
 }

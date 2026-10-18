@@ -1,6 +1,6 @@
 # Hostinger acceptance deployment
 
-For a new customer tenant, start with the [CLI setup runbook](../../docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) and [configuration inventory](../../docs/operations/auditsphere-operations-reference-microsoft365-configuration-current.md). They explain Entra registrations/consent, certificates, exact SharePoint grants, email authorization/DNS, worker activation and rotation. This guide's dated observations are acceptance history, not new-customer verification. The base Compose API parent credential mount must be narrowed with the reviewed [isolation example](m365-isolation.override.example.yaml) before a privileged client-sites key is staged beneath that parent. Microsoft's current Exchange RBAC recommendation and AuditSphere's legacy mail-verifier compatibility limit are documented in the new runbook.
+For a new customer tenant, start with the [CLI setup runbook](../../docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) and [configuration inventory](../../docs/operations/auditsphere-operations-reference-microsoft365-configuration-current.md). They explain Entra registrations/consent, certificates, exact SharePoint grants, email authorization/DNS, worker activation and rotation. This guide's dated observations are acceptance history, not new-customer verification. Current base Compose narrows API credentials to six read-only capability mounts. Prepare protected empty capability directories before approved API recreation; inspect actual mounts before staging privileged keys, since older containers can retain the parent mount. The [isolation example](m365-isolation.override.example.yaml) remains available for older base revisions. Microsoft's current Exchange RBAC recommendation and AuditSphere's legacy mail-verifier compatibility limit are documented in the new runbook.
 
 This is a separate, synthetic-data acceptance environment for the Hostinger VPS. It uses the
 existing host Caddy instance and does not publish the API or PostgreSQL ports publicly. Its
@@ -63,8 +63,13 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
    clients. Configure `CLIENT_SITES_CLIENT_ID`, `CLIENT_SITES_SITE_HOST`,
    `CLIENT_SITES_CUSTODIAN_OBJECT_ID`, and `CLIENT_SITES_ADMINISTRATOR_USER_ID`; place the
    dedicated provisioner certificate/key and separate directory-reader certificate/key under their
-   respective protected host directories. Leave capability configuration incomplete until the
-   exact Entra permissions and site policy are approved. Use synthetic values only.
+   respective protected host directories. On an existing installation, verify that the API no
+   longer mounts the parent credential directory before staging the privileged provisioner key;
+   use the reviewed API-only recreation procedure first if needed. Leave capability configuration incomplete until the
+   exact Entra permissions and site policy are approved. Use synthetic values only. Before any
+   API startup or recreation, create all six protected capability directories, including empty
+   directories for disabled capabilities, using the [host setup procedure](../../docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md#5-configure-the-customer-host).
+   Missing host directories refuse startup; older containers keep their mounts until recreated.
 2. Build the three `linux/amd64` images from the approved source commit using the GitHub Actions
    workflow `Hostinger acceptance images`. It publishes them to private GitHub Container Registry
    packages. On the VPS, authenticate Docker to `ghcr.io` with a GitHub token that has only
@@ -77,8 +82,10 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
    Application containers never apply schema changes at startup.
 4. Start the API, three core workers and isolated client-sites worker with
    `docker compose up -d api worker-general worker-processing worker-records worker-client-sites`.
-   The isolated worker starts with no shared credential mount; absent certificate files or rollout
-   configuration produce a blocked heartbeat and no provisioning. The same explicit cutoff is passed
+   The isolated worker starts with no shared credential mount. Its existing binds allow Docker
+   to create missing host directories; absent certificate files or rollout configuration produce
+   a blocked heartbeat and no provisioning. Prepare those directories with protected ownership
+   before staging credentials. The API's six binds separately refuse missing directories. The same explicit cutoff is passed
    to the API and optional `worker-pbc`, which refuse shared-site folder creation for an eligible client
    until its dedicated site is verified. Verify the worker state in the
    Administration client-sites panel. Verify the API logs and `http://127.0.0.1:18080/health/ready`
@@ -249,9 +256,11 @@ already-authorized disposable file probe.
    before enabling any capability. Do not grant `Directory.ReadWrite.All`, broad SharePoint scopes
    or directory-role assignment.
 2. **Create and install a certificate per Graph identity.** The API and optional M365 workers read
-   only the read-only mount `/run/auditsphere/m365`; its host source is
-   `/opt/auditsphere/storage/m365-credentials`. Create the host directory with owner-only
-   permissions and keep each private key in its capability subdirectory. Upload only the public
+   only individually allowed read-only capability mounts under `/run/auditsphere/m365/`;
+   host directories are `/opt/auditsphere/storage/m365-credentials/<capability>/`. Create protected
+   empty directories for disabled API capabilities as well; absent directories fail closed. Keep
+   each private key in its capability subdirectory and inspect actual mounts after recreation.
+   Upload only the public
    certificate to the matching Entra app. The repository and browser/chat are not credential
    stores. The compose wiring maps certificate paths for Directory Reader, Selected Site,
    provisioning, guest invitation, group membership and outbound mail. All corresponding switches
@@ -455,8 +464,10 @@ changed through its site-admin panel, and no further duplicate provider probe wa
 The live mail profile mounts only the outbound-mail certificate directory through
 `m365_mail_credentials`; it cannot read Directory Reader, User Creation, invitation, group or
 Selected Site keys. The optional PBC profile mounts only its Selected Site certificate directory
-through `m365_selected_site_credentials`. Both mounts are read-only. The API retains the parent
-credential mount because it composes the individually configured capability providers.
+through `m365_selected_site_credentials`. Both mounts are read-only. At that historical activation,
+the API retained the parent credential mount. Current source instead
+uses six narrow read-only API capability mounts; applying source requires explicit API recreation
+and actual mount inspection. Missing capability directories must be prepared privately beforehand.
 
 Before starting the mail profile, inspect current-firm pending durable mail operations and queued
 commercial/PBC notifications, including whether any queued recipient is outside the approved test
