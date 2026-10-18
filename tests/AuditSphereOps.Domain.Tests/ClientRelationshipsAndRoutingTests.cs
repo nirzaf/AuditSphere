@@ -195,7 +195,44 @@ public sealed class ClientRelationshipsAndRoutingTests
     Assert.True(revoke.Succeeded);
 
     var treeAfterRevoke = await PracticeCrmService.GetClientHierarchyAsync(db, partner, holdingId);
-    Assert.Empty(treeAfterRevoke.Value!.Affiliates);
+    var retainedAffiliate = Assert.Single(treeAfterRevoke.Value!.Affiliates);
+    Assert.Equal("REVOKED", retainedAffiliate.EffectiveStatus);
+    Assert.False(retainedAffiliate.IsActive);
+  }
+
+  [Fact]
+  public async Task OrganizationRelationships_PreservesEffectivePeriodAndProjectsCurrentStatus()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var partner = PbcSeed.Actor(seed.Admin, "Partner");
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var futureClientId = Guid.NewGuid();
+    var formerClientId = Guid.NewGuid();
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+    db.PracticeClients.AddRange(
+      new PracticeClient { Id = futureClientId, FirmId = seed.FirmId, LegalName = "Future Affiliate", CreatedAt = DateTimeOffset.UtcNow },
+      new PracticeClient { Id = formerClientId, FirmId = seed.FirmId, LegalName = "Former Affiliate", CreatedAt = DateTimeOffset.UtcNow });
+    await db.SaveChangesAsync();
+
+    var future = await PracticeCrmService.CreateClientRelationshipAsync(db, partner,
+      new CreateClientRelationshipRequest(seed.ClientId, futureClientId, ClientRelationshipKinds.Affiliate,
+        EffectiveFrom: today.AddDays(1)));
+    var former = await PracticeCrmService.CreateClientRelationshipAsync(db, partner,
+      new CreateClientRelationshipRequest(seed.ClientId, formerClientId, ClientRelationshipKinds.Affiliate,
+        EffectiveTo: today.AddDays(-1)));
+    Assert.True(future.Succeeded, future.Message);
+    Assert.True(former.Succeeded, former.Message);
+
+    var hierarchy = await PracticeCrmService.GetClientHierarchyAsync(db, partner, seed.ClientId);
+    Assert.True(hierarchy.Succeeded, hierarchy.Message);
+    var rows = hierarchy.Value!.Affiliates.ToDictionary(x => x.RelatedClientId);
+    Assert.Equal("FUTURE", rows[futureClientId].EffectiveStatus);
+    Assert.Equal("EXPIRED", rows[formerClientId].EffectiveStatus);
+    Assert.True(rows[futureClientId].IsActive);
+    Assert.True(rows[formerClientId].IsActive);
   }
 
   [Fact]

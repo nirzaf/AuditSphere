@@ -17,14 +17,20 @@
       }
     </div>
 
+    <p class="muted">Relationships include retained history. Status is evaluated against the current UTC date and the recorded effective period.</p>
+
     <div class="legal-entity-card">
       <dl>
         <dt>Legal Name</dt>
         <dd>{{ h.legalName }}</dd>
+        <dt>Registration Number</dt>
+        <dd>{{ clientWorkspace()?.registrationNumber ?? 'Not recorded' }}</dd>
         <dt>Tax Registration / TIN</dt>
         <dd>{{ h.taxRegistrationNumber ?? 'Not registered' }}</dd>
         <dt>Entity Type</dt>
         <dd>{{ h.entityType ?? 'Standard Corporation' }}</dd>
+        <dt>Jurisdiction</dt>
+        <dd>{{ clientWorkspace()?.jurisdiction ?? 'Not recorded' }}</dd>
       </dl>
     </div>
 
@@ -45,7 +51,7 @@
                   <td><strong>{{ rel.primaryClientName }}</strong></td>
                   <td>{{ rel.ownershipPercentage !== null ? rel.ownershipPercentage + '%' : '—' }}</td>
                   <td>{{ dateRange(rel.effectiveFrom, rel.effectiveTo) }}</td>
-                  <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
+                  <td><audit-status [value]="rel.effectiveStatus" /></td>
                   <td><a [routerLink]="['/app/clients', rel.primaryClientId]">View parent client</a></td>
                   <td>
                     @if (clientWorkspace()?.canManageContacts && rel.isActive) {
@@ -80,7 +86,7 @@
                   <td><strong>{{ rel.relatedClientName }}</strong></td>
                   <td>{{ rel.ownershipPercentage !== null ? rel.ownershipPercentage + '%' : '—' }}</td>
                   <td>{{ dateRange(rel.effectiveFrom, rel.effectiveTo) }}</td>
-                  <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
+                  <td><audit-status [value]="rel.effectiveStatus" /></td>
                   <td><a [routerLink]="['/app/clients', rel.relatedClientId]">View subsidiary</a></td>
                   <td>
                     @if (clientWorkspace()?.canManageContacts && rel.isActive) {
@@ -116,7 +122,7 @@
                   <td>{{ rel.ownershipPercentage !== null ? rel.ownershipPercentage + '%' : '—' }}</td>
                   <td>{{ rel.notes ?? '—' }}</td>
                   <td>{{ dateRange(rel.effectiveFrom, rel.effectiveTo) }}</td>
-                  <td><audit-status [value]="rel.isActive ? 'ACTIVE' : 'REVOKED'" /></td>
+                  <td><audit-status [value]="rel.effectiveStatus" /></td>
                   <td><a [routerLink]="['/app/clients', rel.relatedClientId]">View affiliate</a></td>
                   <td>
                     @if (clientWorkspace()?.canManageContacts && rel.isActive) {

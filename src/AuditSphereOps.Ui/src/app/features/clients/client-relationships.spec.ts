@@ -37,6 +37,7 @@ const mockHierarchy = {
       notes: 'Majority controlling interest',
       createdAt: '2024-01-01T00:00:00Z',
       isActive: true,
+      effectiveStatus: 'ACTIVE' as const,
     },
   ],
   subsidiaries: [
@@ -53,9 +54,56 @@ const mockHierarchy = {
       notes: 'Wholly owned subsidiary',
       createdAt: '2025-01-01T00:00:00Z',
       isActive: true,
+      effectiveStatus: 'ACTIVE' as const,
     },
   ],
-  affiliates: [],
+  affiliates: [
+    {
+      id: '88888888-8888-4888-8888-888888888888',
+      primaryClientId: clientId,
+      primaryClientName: 'Apex Holding Group Q.P.S.C.',
+      relatedClientId: '99999999-9999-4999-8999-999999999999',
+      relatedClientName: 'Future Affiliate',
+      relationshipKind: 'AFFILIATE',
+      ownershipPercentage: null,
+      effectiveFrom: '2099-01-01',
+      effectiveTo: null,
+      notes: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      isActive: true,
+      effectiveStatus: 'FUTURE' as const,
+    },
+    {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      primaryClientId: clientId,
+      primaryClientName: 'Apex Holding Group Q.P.S.C.',
+      relatedClientId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      relatedClientName: 'Former Affiliate',
+      relationshipKind: 'AFFILIATE',
+      ownershipPercentage: null,
+      effectiveFrom: null,
+      effectiveTo: '2020-01-01',
+      notes: null,
+      createdAt: '2020-01-01T00:00:00Z',
+      isActive: true,
+      effectiveStatus: 'EXPIRED' as const,
+    },
+    {
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      primaryClientId: clientId,
+      primaryClientName: 'Apex Holding Group Q.P.S.C.',
+      relatedClientId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      relatedClientName: 'Revoked Affiliate',
+      relationshipKind: 'AFFILIATE',
+      ownershipPercentage: null,
+      effectiveFrom: null,
+      effectiveTo: null,
+      notes: null,
+      createdAt: '2020-01-01T00:00:00Z',
+      isActive: false,
+      effectiveStatus: 'REVOKED' as const,
+    },
+  ],
 };
 
 const mockRoutings = [
@@ -79,7 +127,7 @@ const mockRoutings = [
 
 const mockClientWorkspace = {
   id: clientId, name: 'Apex Holding Group Q.P.S.C.', status: 'Active',
-  commercialName: null, registrationNumber: null, jurisdiction: null,
+  commercialName: null, registrationNumber: 'CR-2026-0042', jurisdiction: 'Qatar',
   createdAt: '2026-01-01T00:00:00Z', safetyGeneration: '1', canManageContacts: true, canCreateEngagement: false,
   metrics: { engagements: 0, workBlocked: 0, contacts: 1 },
   paging: { engagementPage: 0, engagementPageSize: 10, contactPage: 0, contactPageSize: 50 },
@@ -117,6 +165,7 @@ describe('Client Relationships Contracts', () => {
     expect(h.subsidiaries.length).toBe(1);
     expect(h.subsidiaries[0].relatedClientName).toBe('Apex Logistics W.L.L.');
     expect(h.subsidiaries[0].ownershipPercentage).toBe('100.00');
+    expect(h.affiliates.map(x => x.effectiveStatus)).toEqual(['FUTURE', 'EXPIRED', 'REVOKED']);
 
     const r = decodeClientRoutings(mockRoutings);
     expect(r.length).toBe(1);
@@ -169,8 +218,16 @@ describe('ClientRelationships Component', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Apex Holding Group Q.P.S.C.');
     expect(text).toContain('QA-TIN-987654321');
+    expect(text).toContain('CR-2026-0042');
+    expect(text).toContain('Qatar');
     expect(text).toContain('Global Supreme Corp');
     expect(text).toContain('Apex Logistics W.L.L.');
+    expect(text).toContain('Future Affiliate');
+    expect(text).toContain('future');
+    expect(text).toContain('Former Affiliate');
+    expect(text).toContain('expired');
+    expect(text).toContain('Revoked Affiliate');
+    expect(text).toContain('revoked');
     expect(text).toContain('Nasser Al-Thani');
     expect(text).toContain('FINANCE');
     expect(text).toContain('Assign contact routing');

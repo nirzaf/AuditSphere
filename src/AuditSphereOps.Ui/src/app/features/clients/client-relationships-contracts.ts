@@ -1,4 +1,4 @@
-import { arr, bool, decode, DecodeError, Decoder, guid, instant, nullable, obj, str } from '../../core/decode';
+import { arr, bool, decode, DecodeError, Decoder, guid, instant, nullable, obj, oneOf, str } from '../../core/decode';
 
 const percentageDecoder: Decoder<string | null> = (v, p) => {
   if (v === null || v === undefined) return null;
@@ -20,6 +20,7 @@ export const clientRelationshipDecoder = obj({
   notes: nullable(str(2000)),
   createdAt: instant,
   isActive: bool,
+  effectiveStatus: oneOf('ACTIVE', 'FUTURE', 'EXPIRED', 'REVOKED'),
 });
 
 export const clientHierarchyDecoder = obj({

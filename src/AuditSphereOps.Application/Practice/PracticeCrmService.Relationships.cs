@@ -65,7 +65,8 @@ public sealed record ClientRelationshipDto(
   DateOnly? EffectiveTo,
   string? Notes,
   DateTimeOffset CreatedAt,
-  bool IsActive);
+  bool IsActive,
+  string EffectiveStatus);
 
 public sealed record ClientOrganizationHierarchyDto(
   Guid ClientId,
@@ -329,8 +330,9 @@ public static partial class PracticeCrmService
     if (client is null) return CommandResult<ClientOrganizationHierarchyDto>.Fail(ErrorCodes.ScopeDenied, "Client not found.");
 
     var allRels = await db.ClientRelationships.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && (x.PrimaryClientId == clientId || x.RelatedClientId == clientId) && x.RevokedAt == null)
+      .Where(x => x.FirmId == actor.FirmId && (x.PrimaryClientId == clientId || x.RelatedClientId == clientId))
       .ToListAsync(ct);
+    var asOfDate = DateOnly.FromDateTime(DateTime.UtcNow);
 
     // Counterpart nodes are separate client records with their own scope: the hierarchy may only
     // reveal relationship metadata for counterpart clients the actor can currently access. An
@@ -374,7 +376,8 @@ public static partial class PracticeCrmService
         r.EffectiveTo,
         r.Notes,
         r.CreatedAt,
-        IsActive: r.RevokedAt == null);
+        IsActive: r.RevokedAt == null,
+        EffectiveStatus: RelationshipStatus(r, asOfDate));
 
       if (r.RelationshipKind == ClientRelationshipKinds.Affiliate)
       {
@@ -400,6 +403,14 @@ public static partial class PracticeCrmService
       parents,
       subsidiaries,
       affiliates));
+  }
+
+  private static string RelationshipStatus(ClientRelationship relationship, DateOnly asOfDate)
+  {
+    if (relationship.RevokedAt.HasValue) return "REVOKED";
+    if (relationship.EffectiveFrom.HasValue && relationship.EffectiveFrom.Value > asOfDate) return "FUTURE";
+    if (relationship.EffectiveTo.HasValue && relationship.EffectiveTo.Value < asOfDate) return "EXPIRED";
+    return "ACTIVE";
   }
 
   private static bool IsReachable(IEnumerable<(Guid From, Guid To)> edges, Guid start, Guid target)
