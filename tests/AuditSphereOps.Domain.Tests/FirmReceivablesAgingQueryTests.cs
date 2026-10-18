@@ -18,7 +18,7 @@ public sealed class FirmReceivablesAgingQueryTests
     var adminReviewer = PbcSeed.Actor(seed.Admin, "FinanceReviewer");
     var now = DateTimeOffset.UtcNow;
     var asOf = DateOnly.FromDateTime(now.UtcDateTime).AddDays(1);
-    Guid invoiceId, accountId;
+    Guid invoiceId, accountId, agreementId;
     Guid termsRevisionId, oldAllocationId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -106,6 +106,9 @@ public sealed class FirmReceivablesAgingQueryTests
 
       var agreement = await FeeAgreementService.CreateAgreementAsync(db, PbcSeed.Actor(seed.Admin, "Partner"), proposal.Id);
       Assert.True(agreement.Succeeded, agreement.Message);
+      agreementId = agreement.Value;
+      Assert.True((await FeeAgreementService.LinkEngagementAsync(db, PbcSeed.Actor(seed.Admin, "Partner"),
+        agreementId, seed.EngagementId)).Succeeded);
       var advanceInvoice = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, manager, agreement.Value);
       Assert.True(advanceInvoice.Succeeded, advanceInvoice.Message);
       invoiceId = advanceInvoice.Value;
@@ -114,6 +117,60 @@ public sealed class FirmReceivablesAgingQueryTests
       Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, invoiceId)).Succeeded);
       Assert.True((await BillingService.ApproveInvoiceAsync(db, reviewer, invoiceId)).Succeeded);
       Assert.True((await BillingService.PostInvoiceAsync(db, manager, invoiceId)).Succeeded);
+
+      // This query fixture models an already-posted final milestone, without invoking the service that
+      // correctly refuses balance invoicing until the advance is paid and a release exists.
+      var balanceMilestone = await db.FeeMilestones.SingleAsync(x => x.FirmId == seed.FirmId &&
+        x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Balance);
+      var finalInvoiceId = Guid.NewGuid();
+      balanceMilestone.InvoiceId = finalInvoiceId;
+      balanceMilestone.State = FeeMilestoneStates.Invoiced;
+      db.Invoices.Add(new Invoice
+      {
+        Id = finalInvoiceId, FirmId = seed.FirmId, BillingAccountId = accountId,
+        InvoiceNumber = "SYN-AGING-FINAL", Currency = "QAR", Subtotal = 60m, Total = 60m,
+        Status = BillingStates.InvoicePosted, CreatedByUserId = seed.Admin.Id, PostedAt = now, CreatedAt = now
+      });
+      db.InvoiceLines.Add(new InvoiceLine
+      {
+        Id = Guid.NewGuid(), FirmId = seed.FirmId, InvoiceId = finalInvoiceId,
+        Description = "Synthetic final fee milestone", Quantity = 1m, UnitPrice = 60m, LineTotal = 60m,
+        SourceKind = FeeAgreementService.MilestoneSourceKind, SourceId = balanceMilestone.Id, SourceRevision = 1
+      });
+
+      var timeTaskId = Guid.NewGuid();
+      var rateCardId = Guid.NewGuid();
+      var timeEntryId = Guid.NewGuid();
+      db.WorkTasks.Add(new WorkTask
+      {
+        Id = timeTaskId, FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
+        Title = "Synthetic approved time invoice", CreatedAt = now
+      });
+      db.RateCardVersions.Add(new RateCardVersion
+      {
+        Id = rateCardId, FirmId = seed.FirmId, Version = 1, Role = "Staff", Activity = "Audit", Currency = "QAR",
+        RatePerHour = 100m, Status = PracticeTimeStates.RateApproved, CreatedByUserId = seed.Admin.Id,
+        ApprovedByUserId = seed.Reviewer.Id, ApprovedAt = now, CreatedAt = now
+      });
+      db.TimeEntries.Add(new TimeEntry
+      {
+        Id = timeEntryId, FirmId = seed.FirmId, ClientId = seed.ClientId, EngagementId = seed.EngagementId,
+        TaskId = timeTaskId, UserId = seed.Staff.Id, WorkDate = DateOnly.FromDateTime(now.UtcDateTime),
+        StartMinute = 540, DurationMinutes = 60, Role = "Staff", Activity = "Audit",
+        Narrative = "Synthetic approved time", Status = PracticeTimeStates.TimeApproved, Currency = "QAR",
+        Revision = 1, RateCardVersionId = rateCardId, RatePerHour = 100m,
+        ApprovedByUserId = seed.Reviewer.Id, ApprovedAt = now, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+      var timeInvoice = await BillingService.CreateInvoiceDraftAsync(db, manager,
+        new CreateInvoiceDraftRequest(accountId, "SYN-AGING-TIME", [
+          new InvoiceLineRequest("Approved audit time", 1m, 100m, "TIME", timeEntryId, 1)
+        ]));
+      Assert.True(timeInvoice.Succeeded, timeInvoice.Message);
+      Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, timeInvoice.Value)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(db, reviewer, timeInvoice.Value)).Succeeded);
+      Assert.True((await BillingService.PostInvoiceAsync(db, manager, timeInvoice.Value)).Succeeded);
+
       var unrelatedInvoice = (await BillingService.CreateInvoiceDraftAsync(db, manager,
         new CreateInvoiceDraftRequest(accountId, "SYN-AGING-UNLINKED", [new InvoiceLineRequest("Unlinked non-fee item", 1m, 500m)]))).Value;
       Assert.True((await BillingService.SubmitInvoiceAsync(db, manager, unrelatedInvoice)).Succeeded);
@@ -205,15 +262,22 @@ public sealed class FirmReceivablesAgingQueryTests
 
       var report = await FirmReceivablesAgingQuery.GetAsync(db, manager, asOf);
       Assert.True(report.Succeeded, report.ErrorCode);
-      // ADR-0018: every posted firm invoice is aged. The invoice with no fee milestone appears as OTHER, undated and unattributed.
-      Assert.Equal(2, report.Value!.Rows.Count);
+      // ADR-0018: all posted firm invoices are typed as ADVANCE, FINAL, TIME or OTHER.
+      Assert.Equal(4, report.Value!.Rows.Count);
       var row = report.Value.Rows.Single(x => x.InvoiceId == invoiceId);
       var other = report.Value.Rows.Single(x => x.InvoiceNumber == "SYN-AGING-UNLINKED");
+      var final = report.Value.Rows.Single(x => x.InvoiceNumber == "SYN-AGING-FINAL");
+      var time = report.Value.Rows.Single(x => x.InvoiceNumber == "SYN-AGING-TIME");
+      Assert.Equal("ADVANCE", row.InvoiceType);
       Assert.Equal(("OTHER", 500m, 500m), (other.InvoiceType, other.OriginalAmount, other.Outstanding));
       Assert.Null(other.EngagementId);
       Assert.Null(other.DueDate);
+      Assert.Equal(("FINAL", 60m, 60m, seed.EngagementId),
+        (final.InvoiceType, final.OriginalAmount, final.Outstanding, final.EngagementId));
+      Assert.Equal(("TIME", 100m, 100m, seed.EngagementId),
+        (time.InvoiceType, time.OriginalAmount, time.Outstanding, time.EngagementId));
       Assert.Equal("PBC TEST CLIENT", row.LegalClientName);
-      Assert.Null(row.EngagementId);
+      Assert.Equal(seed.EngagementId, row.EngagementId);
       Assert.Equal(asOf.AddDays(-31), row.DueDate);
       Assert.Equal(100m, row.OriginalAmount);
       Assert.Equal(20m, row.AppliedReceipts);
@@ -226,8 +290,10 @@ public sealed class FirmReceivablesAgingQueryTests
       Assert.Equal("APPROVED", row.PaymentTermsStatus);
       Assert.Contains("Synthetic Finance Contact <finance@example.test>", row.FinanceRecipients);
       Assert.Equal(5m, Assert.Single(report.Value.CurrencySubtotals).ReversedReceipts);
-      Assert.Equal(575m, Assert.Single(report.Value.CurrencySubtotals).Outstanding);
-      Assert.Equal(575m, Assert.Single(report.Value.ClientCurrencySubtotals).Outstanding);
+      Assert.Equal(735m, Assert.Single(report.Value.CurrencySubtotals).Outstanding);
+      Assert.Equal(735m, Assert.Single(report.Value.ClientCurrencySubtotals).Outstanding);
+      Assert.Equal((3, 235m), (Assert.Single(report.Value.EngagementCurrencySubtotals).InvoiceCount,
+        Assert.Single(report.Value.EngagementCurrencySubtotals).Outstanding));
       var export = await FirmReceivablesAgingQuery.ExportAsync(db, manager, asOf);
       Assert.True(export.Succeeded, export.ErrorCode);
       Assert.Contains("firm-receivables-aging-", export.Value!.FileName);
