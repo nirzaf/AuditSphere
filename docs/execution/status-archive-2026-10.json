@@ -2,7 +2,7 @@
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
   "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason. On 2026-10-14, the superseded cp11CashFlowSourceAllocations evidence (commit 0b8f7b2d) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed cp11SourceReviewAndPresentation evidence (commit 2bf0e81b) was moved verbatim from status.json for the same reason. On 2026-10-15, the closed CP-11 targetedVerification records currentCashFlowPackageJourney and canonicalPackageRequiredPopulation were moved verbatim from status.json to keep the live ledger below its 100 KB limit; the cash-flow source fence that superseded them is recorded in productionReadinessStoryCp11. On 2026-10-15, closed targetedVerification records workflowTaskDependencyAmendments, workflowDomainEvidencePrerequisites, workflowClientWait, workflowTaskActivity were moved here to keep status.json within its size budget. On 2026-10-15, closed workflowReviewTurnaround and workflowCiRegressionGate records were moved verbatim to keys.targetedVerification to make room for current UX evidence. On 2026-10-15, the detailed AS-PAR-002 migration coverage narrative was moved verbatim from the active item to keys.angularMigrationAsPar002Details20261015; the current ledger retains the open acceptance summary. On 2026-10-17, the superseded detailed AS-PM8 currentFollowUp evidence was moved verbatim to keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017; the live status retains the PARTIAL result and latest commit-pinned release verification. On 2026-10-17, five detailed Angular migration follow-up evidence records (cross-firm isolation, administrator revocation fencing, not-assigned browser denial, administrator group-revocation fencing and administration review freshness) were moved verbatim from status.json to keys.targetedVerification to keep the live ledger below its 100 KB limit; the status file retains result and scope-status pointers. On 2026-10-17, the 2026-10-15 detailed production-readiness baseline was moved verbatim to keys.targetedVerification.productionReadinessStoryCp11Baseline20261015; the live status retains current open gates and follow-up evidence. On 2026-10-17, detailed Atomic Task 01 implementation verification was moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask01 to keep the live ledger below its 100 KB limit; the current ledger retains a partial-status pointer. On 2026-10-17, detailed Atomic Task 02 and Task 03 implementation verification records were moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask02 and atomicAuditWorkingProcessTask03 to keep the live ledger below its 100 KB limit; the current ledger retains partial-status pointers. On 2026-10-18, the older Angular finding-recovery verification was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the PBC exact-version acceptance slice was added to the live ledger. On 2026-10-18, the detailed Angular migration acceptance batch was moved verbatim to keys.targetedVerification.angularMigrationAcceptanceBatch; the live status retains its PARTIAL verdict, open items and archive pointer. On 2026-10-18, the prior detailed ste22F07WorkflowPhaseCues operational-deadline evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesBeforeMilestoneDisplay20261018 before recording the saved Audit Plan milestone display slice. On 2026-10-18, detailed NR-11/NR-12 cross-ledger and feature-off evidence was moved verbatim to keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018 to make room for new exact-SHA evidence; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the latest detailed ste22F07WorkflowPhaseCues evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesLatest20261018; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the detailed staffingCertificationRevocationRace20261018 evidence was moved verbatim to keys.targetedVerification.staffingCertificationRevocationRace20261018; the live ledger retains its result and CI pointer. On 2026-10-18, detailed workflowDependencyGraphLimit20261018 test evidence was moved verbatim from status.json to keep the live ledger below its size limit; a compact status pointer remains. On 2026-10-18, detailed workflowTaskRequiredDesignation20261018 evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the live ledger retains its archive pointer. On 2026-10-18, the older accounting-maintenance recovery evidence and detailed production-readiness follow-up were moved verbatim to the October archive; live status retains pointers and current open gates. On 2026-10-18, detailed ASPM-CRM-01 lead-history evidence was recorded under keys.targetedVerification.aspmCrmLeadHistory20261018; the live status retains its current result and pointer.",
+  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason. On 2026-10-14, the superseded cp11CashFlowSourceAllocations evidence (commit 0b8f7b2d) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed cp11SourceReviewAndPresentation evidence (commit 2bf0e81b) was moved verbatim from status.json for the same reason. On 2026-10-15, the closed CP-11 targetedVerification records currentCashFlowPackageJourney and canonicalPackageRequiredPopulation were moved verbatim from status.json to keep the live ledger below its 100 KB limit; the cash-flow source fence that superseded them is recorded in productionReadinessStoryCp11. On 2026-10-15, closed targetedVerification records workflowTaskDependencyAmendments, workflowDomainEvidencePrerequisites, workflowClientWait, workflowTaskActivity were moved here to keep status.json within its size budget. On 2026-10-15, closed workflowReviewTurnaround and workflowCiRegressionGate records were moved verbatim to keys.targetedVerification to make room for current UX evidence. On 2026-10-15, the detailed AS-PAR-002 migration coverage narrative was moved verbatim from the active item to keys.angularMigrationAsPar002Details20261015; the current ledger retains the open acceptance summary. On 2026-10-17, the superseded detailed AS-PM8 currentFollowUp evidence was moved verbatim to keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017; the live status retains the PARTIAL result and latest commit-pinned release verification. On 2026-10-17, five detailed Angular migration follow-up evidence records (cross-firm isolation, administrator revocation fencing, not-assigned browser denial, administrator group-revocation fencing and administration review freshness) were moved verbatim from status.json to keys.targetedVerification to keep the live ledger below its 100 KB limit; the status file retains result and scope-status pointers. On 2026-10-17, the 2026-10-15 detailed production-readiness baseline was moved verbatim to keys.targetedVerification.productionReadinessStoryCp11Baseline20261015; the live status retains current open gates and follow-up evidence. On 2026-10-17, detailed Atomic Task 01 implementation verification was moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask01 to keep the live ledger below its 100 KB limit; the current ledger retains a partial-status pointer. On 2026-10-17, detailed Atomic Task 02 and Task 03 implementation verification records were moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask02 and atomicAuditWorkingProcessTask03 to keep the live ledger below its 100 KB limit; the current ledger retains partial-status pointers. On 2026-10-18, the older Angular finding-recovery verification was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the PBC exact-version acceptance slice was added to the live ledger. On 2026-10-18, the detailed Angular migration acceptance batch was moved verbatim to keys.targetedVerification.angularMigrationAcceptanceBatch; the live status retains its PARTIAL verdict, open items and archive pointer. On 2026-10-18, the prior detailed ste22F07WorkflowPhaseCues operational-deadline evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesBeforeMilestoneDisplay20261018 before recording the saved Audit Plan milestone display slice. On 2026-10-18, detailed NR-11/NR-12 cross-ledger and feature-off evidence was moved verbatim to keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018 to make room for new exact-SHA evidence; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the latest detailed ste22F07WorkflowPhaseCues evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesLatest20261018; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the detailed staffingCertificationRevocationRace20261018 evidence was moved verbatim to keys.targetedVerification.staffingCertificationRevocationRace20261018; the live ledger retains its result and CI pointer. On 2026-10-18, detailed workflowDependencyGraphLimit20261018 test evidence was moved verbatim from status.json to keep the live ledger below its size limit; a compact status pointer remains. On 2026-10-18, detailed workflowTaskRequiredDesignation20261018 evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the live ledger retains its archive pointer. On 2026-10-18, the older accounting-maintenance recovery evidence and detailed production-readiness follow-up were moved verbatim to the October archive; live status retains pointers and current open gates. On 2026-10-18, detailed ASPM-CRM-01 lead-history evidence was recorded under keys.targetedVerification.aspmCrmLeadHistory20261018; the live status retains its current result and pointer. On 2026-10-18, the compact CRM lead-history pointer was removed after its detailed evidence had been archived; QAR 20,000 commercial fee acceptance evidence was added under keys.targetedVerification.aspmCom03QarAcceptance20261018. On 2026-10-18, FIN-03 all-invoice-type query evidence and the full-release Domain failure diagnosis were added; the EF-wrapped retained-history assertion was corrected and focused-pass.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -18754,14 +18754,94 @@
       "ci": {
         "fastRunId": "39118460754",
         "sourceCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
-        "statusAtRecordedAt": "IN_PROGRESS",
+        "statusAtRecordedAt": "CANCELLED after superseding push.",
         "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39118460754",
         "olderFullReleaseRunId": "39117606930",
         "olderFullReleaseCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
-        "olderFullReleaseStatusAtRecordedAt": "IN_PROGRESS"
+        "olderFullReleaseStatusAtRecordedAt": "CANCELLED after Domain FAILED (1,368 passed, 2 failed); Angular and build/contracts/publication PASSED; API and Playwright E2E were cancelled before completion.",
+        "currentFastRunId": "39120222007",
+        "currentFastSourceCommit": "1f4e5430092aee635ff8320e6d52f539c6d32203",
+        "currentFastStatusAtRecordedAt": "SUCCESS; Docs Health, Angular and .NET Release passed.",
+        "contractFollowUpRunId": "39119821556",
+        "contractFollowUpSourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
+        "contractFollowUpStatus": "SUCCESS; Angular, Docs Health and .NET Release passed.",
+        "fullReleaseOnCurrentSource": "NOT_RUN"
       },
       "remaining": [
         "No client archive lifecycle/search behavior established; ASPM-CRM-02 remains PARTIAL."
+      ]
+    },
+    "targetedVerification.aspmCom03QarAcceptance20261018": {
+      "recordedAtUtc": "2026-10-18T10:24:48Z",
+      "sourceCommit": "954a623f799b0871afc85937d43267726d74ee7c",
+      "criterion": "ASPM-COM-03",
+      "status": "PARTIAL",
+      "scope": "QAR 20,000 accepted audit-fee example: QAR 10,000 advance and balance; QAR 4,000 partial advance followed by QAR 6,000; idempotency, reversal/recovery, retained receipt/voucher history and balance settlement.",
+      "verification": {
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach'",
+        "result": "Passed 1, Failed 0, Skipped 0; 4 seconds on final run. Two initial expected strings were corrected to match the query’s six-decimal representation.",
+        "assertions": [
+          "8 Partner hours at QAR 1,000 and 16 Manager hours at QAR 750 produce QAR 20,000.",
+          "Agreement creates QAR 10,000 advance and balance milestones.",
+          "After QAR 4,000, QAR 6,000 remains and AdvanceCurrentlyPaidAsync is false.",
+          "After a separate QAR 6,000 allocation, the advance gate is true.",
+          "Finance review/posting, duplicate payment references, reversal/recovery, immutable receipts/vouchers, and QAR 10,000 balance settlement remain covered."
+        ],
+        "browser": "NOT_RUN for this test-only fixture change; activation/readiness browser acceptance remains open."
+      },
+      "ci": {
+        "fastRunId": "39119098499",
+        "sourceCommit": "954a623f799b0871afc85937d43267726d74ee7c",
+        "statusAtRecordedAt": "FAILED: OpenAPI contract drift; effectiveStatus was absent from the generated relationship schema.",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39119098499",
+        "olderFullReleaseRunId": "39117606930",
+        "olderFullReleaseCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
+        "olderFullReleaseStatusAtRecordedAt": "CANCELLED after Domain FAILED (1,368 passed, 2 failed); Angular and build/contracts/publication PASSED; API and Playwright E2E were cancelled before completion.",
+        "followUpRunId": "39119821556",
+        "followUpSourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
+        "followUpStatus": "SUCCESS; Angular, Docs Health and .NET Release passed after contract regeneration.",
+        "currentFastRunId": "39120222007",
+        "currentFastSourceCommit": "1f4e5430092aee635ff8320e6d52f539c6d32203",
+        "currentFastStatusAtRecordedAt": "SUCCESS; Docs Health, Angular and .NET Release passed.",
+        "fullReleaseOnCurrentSource": "NOT_RUN"
+      },
+      "remaining": [
+        "Current-source fast CI passed on 1f4e5430.",
+        "Exact-SHA full release verification has not run.",
+        "Activation/readiness browser acceptance remains unverified.",
+        "Older full run 39117606930 was cancelled after two Domain failures; API/E2E did not complete."
+      ]
+    },
+    "targetedVerification.aspmFin03ReceivablesTypes20261018": {
+      "recordedAtUtc": "2026-10-18T10:42:00Z",
+      "sourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
+      "criterion": "ASPM-FIN-03",
+      "status": "COMPLETE",
+      "scope": "All posted firm invoices are included and typed ADVANCE, FINAL, TIME or OTHER; effective payment terms, receipts, credits and allocation corrections are applied as of the requested UTC date, and client bookkeeping invoices are excluded.",
+      "verification": {
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate'",
+        "result": "Passed 1, Failed 0, Skipped 0; 43 seconds. The tested source is included in 9fad72d0.",
+        "assertions": [
+          "The report returns ADVANCE, FINAL, TIME and OTHER rows; FINAL and TIME retain engagement attribution, while OTHER remains unlinked and has no due date.",
+          "A synthetic approved time entry is invoiced through BillingService; the FINAL row is a query fixture and does not bypass the production balance-invoice creation gate.",
+          "The ADVANCE row applies posted receipts, an approved reversal, an issued credit, approved terms and UTC as-of aging; a correction approved after the as-of date does not rewrite the report.",
+          "The firm-scoped query does not include client bookkeeping invoices."
+        ],
+        "browser": "NOT_RUN; this slice adds query regression coverage and generated contract metadata, without changing browser behavior."
+      },
+      "ci": {
+        "currentFastRunId": "39120222007",
+        "currentFastSourceCommit": "1f4e5430092aee635ff8320e6d52f539c6d32203",
+        "currentFastStatusAtRecordedAt": "SUCCESS; Docs Health, Angular and .NET Release passed.",
+        "fullReleaseVerification": "NOT_RUN on current source.",
+        "olderFullReleaseRunId": "39117606930",
+        "olderFullReleaseStatusAtRecordedAt": "CANCELLED after Domain FAILED (1,368 passed, 2 failed); Angular and build/contracts/publication PASSED; API and Playwright E2E were cancelled before completion.",
+        "previousFastRunId": "39119821556",
+        "previousFastSourceCommit": "9fad72d01586e6fd4981be4a5c0a665b3822156e",
+        "previousFastStatus": "SUCCESS"
+      },
+      "remaining": [
+        "No known gap remains in the FIN-03 source/query criterion; exact-SHA full release suite remains a separate project-level gate."
       ]
     }
   }
