@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "d5c5ca7ee436c86647c18115acae063a299273c1",
+  "headCommit": "af3072f7fe49851be4b4a7202e4dca19b86cd6dc",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -175,50 +175,6 @@
       "result": "PASS",
       "scopeStatus": "PARTIAL",
       "evidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceCrossFirmIsolation"
-    },
-    "ste22F07LifecycleProjection": {
-      "recordedAtUtc": "2026-10-15T09:36:53Z",
-      "source": "AuditSphere STE v2.2 End-to-End Audit and Completion Story, F-07",
-      "baseCommit": "ef42caf924e2652f79702801ee41af76d617d69b",
-      "implementationCommit": "25d11dac997a3692c173594df478453ecfa01c18",
-      "status": "PARTIAL",
-      "closedInCode": [
-        "Lifecycle uses current applicable procedure results/reviews; a current returned result routes projection to Fieldwork, and approved not-applicable work needs no fabricated result",
-        "Manager Review remains current while applicable results await review",
-        "Partner Approval predicate requires current SRM clearance and zero completion blockers, not a pre-recorded opinion",
-        "Signature-anchored countdown remains visible in Report and Delivery; countdown stage requires scheduled freeze plus exact current signed-report/financial-release bundle identity and valid stored-byte and manifest hashes",
-        "Due date alone does not mark local archive; a committed local freeze is required for Archived Read-Only",
-        "Playwright journey observes the seven-phase workflow and canonical stage before and after a synthetic local freeze",
-        "Integrated tests pass: exact bundle to Compliance Countdown; current SRM to Partner Approval before opinion."
-      ],
-      "runs": [
-        {
-          "name": "EngagementLifecycleQueryTests",
-          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --filter FullyQualifiedName~EngagementLifecycleQueryTests --maxcpucount:1",
-          "result": "PASS",
-          "passed": 5,
-          "failed": 0,
-          "total": 5,
-          "database": "loopback auditsphere_tests, PostgreSQL 18.6; disposable schema"
-        },
-        {
-          "name": "Angular completion/file-records Playwright lifecycle journey",
-          "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --configuration Release --filter FullyQualifiedName~PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate --maxcpucount:1",
-          "result": "PASS",
-          "passed": 1,
-          "failed": 0,
-          "total": 1,
-          "database": "loopback auditsphere_tests, PostgreSQL 18.6; owned synthetic test database"
-        }
-      ],
-      "notRun": [
-        "Full Domain, API, Angular, and E2E suites",
-        "Hosted CI, live Microsoft/provider verification, VPS deployment, or production acceptance"
-      ],
-      "stillOpen": [
-        "F-07 lifecycle transitions are locally evidenced; provider protection and production acceptance remain external gates.",
-        "Client confirmation is self-attested; browser-observed download completion is not recorded."
-      ]
     },
     "workflowExperiencePrH": {
       "archivedTo": "docs/execution/status-archive-2026-10.json",
@@ -446,17 +402,6 @@
     "workflowTaskDependencyAmendments": {
       "archivedTo": "docs/execution/status-archive-2026-10.json",
       "key": "targetedVerification.workflowTaskDependencyAmendments"
-    },
-    "ste22ImplementationBacklogIntake": {
-      "recordedAtUtc": "2026-10-13T17:33:04.151103+00:00",
-      "sourceFilename": "AuditSphere-STE-v2.2-implementation-backlog.md",
-      "sourceSha256": "38d5019a0e49ab2e3e7446af25161bac6c8858932a4e0a22719ce0b855666624",
-      "suppliedBaseline": "b8b2743bbf9ff9e1f03fbacd445d60fe9547e5f8",
-      "integratedAgainst": "67d5e24c",
-      "document": "docs/execution/auditsphere-execution-user-stories-ste-v22-implementation-backlog-proposed.md",
-      "disposition": "Proposed baseline preserved; TASK-01 remains partial after verified dependency amendments. Existing ADR decisions preserved; document-local IDs do not replace other DEC/AUD cards.",
-      "nextAction": "Inspect REL-01 release-bundle artifact and existing tests; lifecycle, professional methodology/assignment, signing and external gates remain separately governed.",
-      "verification": "Documentation-only intake; documentation health/naming/narrative metrics and diff checks. No additional application test run or live provider change."
     },
     "releaseBundleSigningReplay": {
       "archivedTo": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.releaseBundleSigningReplay",
@@ -1169,6 +1114,74 @@
         "Human accessibility, operational cutover/rollback and live-provider gates remain"
       ],
       "archiveRef": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.angularMigrationAcceptanceBatch"
+    },
+    "ste22F07WorkflowPhaseCues": {
+      "recordedAtUtc": "2026-10-18T05:56:22Z",
+      "sourceCommit": "af3072f7fe49851be4b4a7202e4dca19b86cd6dc",
+      "status": "PARTIAL",
+      "scope": "PM-01 phase cues: operational task deadlines and responsible-role-gated canonical action.",
+      "history": "status-archive-2026-10.json#keys.targetedVerification.ste22F07LifecycleProjection",
+      "closedInCode": [
+        "Each phase displays the nearest due date from current open/in-progress bound operational tasks; task dates remain separate from statutory milestones and lifecycle readiness.",
+        "Canonical action requires the responsible-role grant; staffed audit roles also require a matching active engagement assignment, and FinanceManager requires firm-wide scope.",
+        "Focused regression proves nearest-date selection, no date after task completion, unchanged blocked gate, and scoped CommercialManager allow versus Staff/Administrator denial."
+      ],
+      "runs": [
+        {
+          "name": "PostgreSQL workflow projection regression",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --configuration Release --no-restore --maxcpucount:1 --filter 'FullyQualifiedName~WorkflowShowsNearestOpenTaskDatesAndOnlyTheResponsibleRoleGetsTheCanonicalAction'",
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "total": 1,
+          "database": "PostgreSQL with disposable test schema"
+        },
+        {
+          "name": "Angular workflow contract spec",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/engagements/engagement-workflow-contracts.spec.ts'",
+          "result": "PASS",
+          "passed": 23,
+          "failed": 0,
+          "total": 23
+        },
+        {
+          "name": "API Release build",
+          "command": "dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --configuration Release --no-restore --maxcpucount:1",
+          "result": "PASS",
+          "warnings": 0,
+          "errors": 0
+        },
+        {
+          "name": "Angular production build",
+          "command": "npm --prefix src/AuditSphereOps.Ui run build -- --configuration production",
+          "result": "PASS_WITH_EXISTING_WARNING",
+          "warning": "commercial/settings.scss exceeds its 4.00 kB component-style budget; 7.53 kB."
+        },
+        {
+          "name": "OpenAPI drift",
+          "command": "bash scripts/contracts/verify-openapi.sh",
+          "result": "PASS"
+        },
+        {
+          "name": "Documentation and source integrity gates",
+          "command": "validate-markdown-documentation.py; validate-markdown-filenames.py; validate-narrative-metrics.py; verify-audit-program-source.py; git diff --check",
+          "result": "PASS"
+        },
+        {
+          "name": "Built-in browser synthetic engagement render",
+          "result": "PARTIAL",
+          "observed": "Seven phases, blocked gate/task separation, and scoped CommercialManager canonical action rendered. Sample had no active dated tasks; browser console/network and responsive behavior were not inspected."
+        }
+      ],
+      "notRun": [
+        "Full .NET, Angular and Playwright suites locally; they remain CI/CD responsibilities.",
+        "Full role-by-role and responsive browser journey."
+      ],
+      "stillOpen": [
+        "Map approved statutory milestones to phases; operational task dates do not replace milestone-plan dates.",
+        "Broader role-specific browser and assistive-technology acceptance.",
+        "Full CI/CD release verification and production acceptance remain distinct."
+      ]
     }
   },
   "externalGates": [
