@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "4d8f0883197190a5a1326acbe5f89ec088f23d0c",
+  "headCommit": "fb19f4574eaec6bccfb53c9484720293b0bcd6ee",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1118,10 +1118,10 @@
       "jsonPath": "keys.targetedVerification.figmaAngularShell"
     },
     "practiceManagementCrossLedgerBoundaries20261018": {
-      "recordedAtUtc": "2026-10-18T06:14:08Z",
-      "sourceCommit": "efc1517da2ba155cbda3f6a5c3ef7a804ea82ec3",
+      "recordedAtUtc": "2026-10-18T06:31:01Z",
+      "sourceCommit": "fb19f4574eaec6bccfb53c9484720293b0bcd6ee",
       "status": "PARTIAL",
-      "scope": "PM-00 NR-11 completed: firm invoice, client source invoice, firm analytics aggregate and consolidation component books. NR-12 focused PBC reminder off-path regression; full compatibility matrix remains open.",
+      "scope": "PM-00 NR-11 complete for named three-book cases. NR-12 maps five workflow/host switches; Angular work queue 403 UI state is focused-tested, but disabled-route browser and deployment config remain open.",
       "runs": [
         {
           "name": "Disabled PBC reminder PostgreSQL regression",
@@ -1143,12 +1143,26 @@
           "total": 2,
           "database": "PostgreSQL disposable test schemas",
           "duration": "41s"
+        },
+        {
+          "name": "Angular work-queue disabled-state spec",
+          "sourceCommit": "fb19f4574eaec6bccfb53c9484720293b0bcd6ee",
+          "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/practice/work-queue-display.spec.ts'",
+          "result": "PASS",
+          "passed": 2,
+          "failed": 0,
+          "total": 2
         }
       ],
       "stillOpen": [
-        "NR-12: inventory every v2.2 feature switch and map affected API contracts, approvals, retained history and UI routes.",
+        "NR-12 remains partial: browser-check the disabled work-queue route against a known feature-off configuration; verify effective settings on other UI surfaces where applicable.",
         "Full release verification remains a CI/CD responsibility."
-      ]
+      ],
+      "browserObservation": {
+        "status": "PARTIAL",
+        "observed": "Read-only /app/work against local API rendered the normal queue and one synthetic task, so WorkflowExperience was enabled in that runtime. No console errors or warnings; no task actions were used.",
+        "notVerified": "Disabled-mode route in a known feature-off configuration."
+      }
     }
   },
   "externalGates": [
