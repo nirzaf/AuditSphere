@@ -72,13 +72,14 @@ public sealed class GlobalSearchJourneyTests
       await page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio" }).First.WaitForAsync(new() { Timeout = 15000 });
       await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-      var search = page.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace" });
+      var searchCombobox = page.GetByRole(AriaRole.Combobox, new() { Name = "Search your workspace" });
+      var search = page.Locator("input").And(page.GetByLabel("Search your workspace"));
       var results = page.GetByRole(AriaRole.Region, new() { Name = "Global search" });
 
       // "/" outside an editable control focuses search.
       await page.Locator("h1").First.ClickAsync();
       await page.Keyboard.PressAsync("/");
-      await Assertions.Expect(search).ToBeFocusedAsync();
+      await Assertions.Expect(searchCombobox).ToBeFocusedAsync();
       await Assertions.Expect(search).ToHaveValueAsync(string.Empty);
 
       var (_, pbcSearchBody) = await PlaywrightResponseCapture.RunAsync(page,

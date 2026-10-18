@@ -265,7 +265,9 @@ jobs:
           fi
           bash scripts/release/run-verification-step.sh "Full $TEST_PROJECT_KEY test project (no --filter)" \
             dotnet test "$TEST_PROJECT" --no-build --no-restore --configuration Release --maxcpucount:1 \
-            --logger "trx;LogFileName=$TEST_PROJECT_KEY.trx" --results-directory "$VERIFICATION_TRX_DIR"
+            --logger "trx;LogFileName=$TEST_PROJECT_KEY.trx" --logger "console;verbosity=normal" \
+            --blame-hang --blame-hang-timeout 15m --blame-hang-dump-type none \
+            --results-directory "$VERIFICATION_TRX_DIR"
 
       - name: Upload ${{ matrix.name }} command logs
         if: ${{ always() }}

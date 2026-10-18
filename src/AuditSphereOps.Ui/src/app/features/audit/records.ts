@@ -106,7 +106,12 @@ export class PopulationRecord {
     }
     @if (rec.data()) { <audit-finding-command-review [flow]="flow" /> }
   `,
-  styles: ['form textarea { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }'],
+  styles: [`
+    form textarea { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+    @media (max-width: 380px) {
+      dl.facts { grid-template-columns: minmax(0, 1fr); }
+    }
+  `],
 })
 export class FindingRecord {
   private readonly api = inject(Api);

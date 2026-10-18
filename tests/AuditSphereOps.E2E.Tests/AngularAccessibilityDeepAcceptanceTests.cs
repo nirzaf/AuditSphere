@@ -62,13 +62,30 @@ public sealed class AngularAccessibilityDeepAcceptanceTests
       Assert.True(string.IsNullOrEmpty(jump), route + ": " + jump);
     }
 
-    // Skip link is the first tab stop and hands focus to main.
+    // Route navigation places focus on main. Verify document order, then reach the skip link
+    // through actual reverse tab navigation rather than assigning focus programmatically.
     await page.GotoAsync(origin + "/ui/app");
     await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-    await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(page.Locator("main")).ToBeFocusedAsync();
+    var firstFocusableName = await page.EvaluateAsync<string>("""
+      () => {
+        const first = [...document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+          .find(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden');
+        return first?.getAttribute('aria-label') || first?.textContent?.trim() || '';
+      }
+      """);
+    Assert.Equal("Skip to main content", firstFocusableName);
     var skip = page.GetByRole(AriaRole.Link, new() { Name = "Skip to main content", Exact = true });
+    var focusableCount = await page.Locator("a[href],button,input,select,textarea,[tabindex]").CountAsync();
+    for (var attempt = 0; attempt <= focusableCount &&
+        !await skip.EvaluateAsync<bool>("element => element === document.activeElement"); attempt++)
+      await page.Keyboard.PressAsync("Shift+Tab");
     await Assertions.Expect(skip).ToBeFocusedAsync();
-    await skip.ClickAsync();
+    // The first document tab stop also follows the final stop when forward navigation wraps.
+    await page.Keyboard.PressAsync("Shift+Tab");
+    await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(skip).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Enter");
     await Assertions.Expect(page.Locator("main")).ToBeFocusedAsync();
 
     // Live regions announce command outcomes: the scoped CSV export reports through role=status.

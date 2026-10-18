@@ -43,9 +43,17 @@ public sealed class AngularPlanningNavigationJourneyTests
         await page.GetByRole(AriaRole.Link, new() { Name = "PBC requests", Exact = true }).ClickAsync();
         await dialog.GetByRole(AriaRole.Button, new() { Name = "Save budget draft and continue", Exact = true }).ClickAsync();
         await Assertions.Expect(page).ToHaveURLAsync(origin + path + "/pbc");
+        var planningRead = page.WaitForResponseAsync(response =>
+            response.Request.Method == "GET" &&
+            response.Url.EndsWith($"/api/ui/engagements/{fixture.EngagementId}/planning", StringComparison.Ordinal));
         await page.GotoAsync(origin + path);
-        await page.GetByText("Team and budget", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
-        await planning.GetByRole(AriaRole.Button, new() { Name = "Restore saved budget fields", Exact = true }).ClickAsync();
+        await page.GetByText("Team and budget", new() { Exact = true }).Or(planning).First.ScrollIntoViewIfNeededAsync();
+        var planningResponse = await planningRead;
+        Assert.True(planningResponse.Ok,
+            $"Planning data did not reload before restoring the saved budget fields (HTTP {(int)planningResponse.Status}).");
+        var restore = planning.GetByRole(AriaRole.Button, new() { Name = "Restore saved budget fields", Exact = true });
+        await Assertions.Expect(restore).ToBeEnabledAsync();
+        await restore.ClickAsync();
         await Assertions.Expect(planning.GetByLabel("Currency", new() { Exact = true })).ToHaveValueAsync("USD");
         await planning.GetByLabel("Forecast minutes", new() { Exact = true }).FillAsync("123");
         await page.SetViewportSizeAsync(390, 844);

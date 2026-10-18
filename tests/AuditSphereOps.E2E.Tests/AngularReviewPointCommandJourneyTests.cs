@@ -71,7 +71,12 @@ public sealed class AngularReviewPointCommandJourneyTests
       await Assertions.Expect(recovery).ToBeVisibleAsync(); await page.UnrouteAsync(pattern); await page.ReloadAsync();
       await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Id); await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Hash);
       await Assertions.Expect(preview).ToHaveCountAsync(0);
-      await recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact disposition receipt", Exact = true }).ClickAsync();
+      var (lookupStatus, lookupBody) = await PlaywrightResponseCapture.RunAsync(page,
+        request => request.Method == "GET" && request.Url.Contains($"/api/ui/reviews/{pointId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
+        () => recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact disposition receipt", Exact = true }).ClickAsync());
+      Assert.True(lookupStatus == 200, $"Exact synthetic receipt lookup returned HTTP {lookupStatus}: {lookupBody}");
+      using var lookupDocument = JsonDocument.Parse(lookupBody);
+      Assert.Equal(mode == "lost-committed", lookupDocument.RootElement.GetProperty("found").GetBoolean());
       Assert.Single(identities);
       if (mode == "lost-uncommitted")
       {
