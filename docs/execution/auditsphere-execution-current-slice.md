@@ -23,6 +23,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 The seven-phase engagement projection now shows each phase's nearest due date from its current, open or in-progress workflow tasks. The UI labels these as task deadlines; they are not statutory milestones and do not satisfy readiness gates. Canonical next-action links are now projected only when the caller has the responsible-role grant and, for staffed audit roles, the matching active engagement assignment. Finance Manager links also require firm-wide scope. A focused PostgreSQL regression covers nearest-date selection, task completion leaving the lifecycle blocked, and authorized versus denied roles. The Angular decoder spec, production build, API Release build and OpenAPI drift check pass; the production build retains the existing commercial stylesheet budget warning. The built-in browser rendered the local synthetic engagement, its blocked lifecycle, task/gate separation, and the scoped Commercial Manager action. The sample had no active dated tasks, so the date label itself was not exercised there; responsive and full role-by-role browser acceptance remain open. No business records were changed. Exact source and verification details are in the current execution tracker and the practice-management criterion audit.
 
+## Practice-management ledger-boundary regression (2026-10-18)
+
+NR-11 now has explicit negative assertions across the three financial domains: a firm-ledger posting leaves the client's native journal and imported GL tables untouched; a client sales-invoice post creates no firm journal or posting; and the approved consolidation workflow preserves the exact component TB rows, imported GL, native-journal evidence and package manifests. The three focused PostgreSQL regressions pass on source commit `a67b296f`. This closes the missing named boundary assertions, not the full NR-11 scenario: a named end-to-end firm-invoice source workflow and a separate reporting-aggregate contamination case remain uncovered.
+
+NR-12 remains partial. The crosswalk now maps the existing focused off-path tests for workflow queues/evidence/dependencies/reminders, PBC follow-up creation, dedicated client-site provisioning, and canonical Angular routing. It still lacks a complete feature-switch inventory and per-switch compatibility matrix for affected contracts, approvals, retained history and UI routes. PM-01 statutory milestone dates also remain gated on an approved, versioned source mapping; the seven-phase UI's current dates are operational task deadlines only.
+
 ## Practice time return and resubmission (2026-10-18)
 
 RES-04 now has an independent return path with a mandatory reviewer reason. A returned entry can be resubmitted as a new review round on the same time-entry identity; its captured rate and billing classification remain unchanged. PostgreSQL retains submission, return and approval events append-only, and unapproved/returned time remains outside billable WIP. The current Angular time workspace displays the latest return reason and supports resubmission.
@@ -298,17 +304,7 @@ The [production-readiness audit](auditsphere-execution-audit-production-readines
 
 ## Source-linked package build from the product (CP-11 accepted-source cash-flow subpath) — 2026-10-14
 
-The engagement-scoped preparer screen lists approved mappings, finalized adjustment plans, reporting periods and validated comparative packages. It supports a paged accepted-ledger line picker and submits exact decimal strings to the durable `BuildFinancialPackage.v1` operation. Input discovery is scope-authorized and the server still validates the selected current/comparative package. The routes are `GET /api/ui/engagements/{id}/financial-package-inputs` and `POST /api/ui/accounting/packages/builds`.
-
-The build screen now polls a bounded status receipt for the exact operation. Only its originator can read that receipt; it returns no payload or error detail, and the package identity appears only after confirmed completion. Terminal failures stop polling and remain visibly distinct from queued or running work.
-
-The synthetic browser journey passed 1/1: it completed the worker build, showed the package link, denied another reviewer the originator-only receipt (403), denied preparer source review, and allowed independent approval of persisted GL links. Cash, equity, note and adjusted trial balance cross-cast at six decimals. Exact-head CI [38607048224](https://github.com/nirzaf/AuditSphere/actions/runs/38607048224) passed docs health, Angular (127 files/722 specs), Release build, focused Domain (141) and API (8) checks, EF drift, API/browser journeys, standalone API publication and OpenAPI drift. The private API, worker and migration images were built and published by [38607048220](https://github.com/nirzaf/AuditSphere/actions/runs/38607048220). The previous failing head [38602425958](https://github.com/nirzaf/AuditSphere/actions/runs/38602425958) had four browser failures; this commit fixes them. See `status.json` under `targetedVerification.currentCashFlowPackageJourney`.
-
-One CP-11 cash-flow subpath, not story completion. Manual-evidenced cash, equity lineage, other source/review paths and remaining CP-11 acceptance remain open. CP-12 remains blocked on approved indirect policy and qualified assessed-zero FX treatment. CP-14 now has optional accepted-GL note provenance; disclosure applicability, independent note review and NOTE_CONTENT remain open. Targeted CP-14: Domain 1/1, Angular 32/32, API Release 0 warnings/errors, EF drift none; full suites not run locally. Exact-head CI focused cohorts passed.
-
-CP-11 retry fix `60f346d5`: predecessor-bound replay; focused PostgreSQL test 1/1. Exact-SHA release verification pending.
-
-Commit 83d3472d also repairs five Domain tests that failed on the prior master: four package-review fixtures now seed the canonical validation population, and the FX test numbers cross-cast to adjusted cash. The exact-head focused Domain cohort passed 141/141; the full Domain suite has not run on this commit.
+Historical implementation narrative: see the [execution handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
 
 ## Accepted GL discovery for schedule preparation — 2026-10-14
 

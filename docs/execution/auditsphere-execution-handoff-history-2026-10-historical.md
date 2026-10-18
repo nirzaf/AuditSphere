@@ -4,6 +4,20 @@
 
 **Purpose:** Preserve dated implementation narratives moved from the compact current-slice handoff. Current results and volatile test/run facts live in `status.json`.
 
+## Source-linked package build from the product (CP-11 accepted-source cash-flow subpath) — 2026-10-14
+
+The engagement-scoped preparer screen lists approved mappings, finalized adjustment plans, reporting periods and validated comparative packages. It supports a paged accepted-ledger line picker and submits exact decimal strings to the durable `BuildFinancialPackage.v1` operation. Input discovery is scope-authorized and the server still validates the selected current/comparative package. The routes are `GET /api/ui/engagements/{id}/financial-package-inputs` and `POST /api/ui/accounting/packages/builds`.
+
+The build screen now polls a bounded status receipt for the exact operation. Only its originator can read that receipt; it returns no payload or error detail, and the package identity appears only after confirmed completion. Terminal failures stop polling and remain visibly distinct from queued or running work.
+
+The synthetic browser journey passed 1/1: it completed the worker build, showed the package link, denied another reviewer the originator-only receipt (403), denied preparer source review, and allowed independent approval of persisted GL links. Cash, equity, note and adjusted trial balance cross-cast at six decimals. Exact-head CI [38607048224](https://github.com/nirzaf/AuditSphere/actions/runs/38607048224) passed docs health, Angular (127 files/722 specs), Release build, focused Domain (141) and API (8) checks, EF drift, API/browser journeys, standalone API publication and OpenAPI drift. The private API, worker and migration images were built and published by [38607048220](https://github.com/nirzaf/AuditSphere/actions/runs/38607048220). The previous failing head [38602425958](https://github.com/nirzaf/AuditSphere/actions/runs/38602425958) had four browser failures; this commit fixes them. See `status.json` under `targetedVerification.currentCashFlowPackageJourney`.
+
+One CP-11 cash-flow subpath, not story completion. Manual-evidenced cash, equity lineage, other source/review paths and remaining CP-11 acceptance remain open. CP-12 remains blocked on approved indirect policy and qualified assessed-zero FX treatment. CP-14 now has optional accepted-GL note provenance; disclosure applicability, independent note review and NOTE_CONTENT remain open. Targeted CP-14: Domain 1/1, Angular 32/32, API Release 0 warnings/errors, EF drift none; full suites not run locally. Exact-head CI focused cohorts passed.
+
+CP-11 retry fix `60f346d5`: predecessor-bound replay; focused PostgreSQL test 1/1. Exact-SHA release verification pending.
+
+Commit 83d3472d also repairs five Domain tests that failed on the prior master: four package-review fixtures now seed the canonical validation population, and the FX test numbers cross-cast to adjusted cash. The exact-head focused Domain cohort passed 141/141; the full Domain suite has not run on this commit.
+
 ## STE v2.2 end-to-end story, first increment (F-15, F-01–F-05, F-09, F-11 label) — 2026-10-15
 
 Source: the STE v2.2 end-to-end audit and completion story reviewed at `b05a6bf6`. This increment implements its first dependency-ordered handoff and the engineering-only P0/P1 deltas that need no professional decision. The overall project remains PARTIAL; no production readiness is claimed.

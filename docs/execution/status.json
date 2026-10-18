@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "af3072f7fe49851be4b4a7202e4dca19b86cd6dc",
+  "headCommit": "a67b296f6a3343655dc0badd36dea3961ee9a9da",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -567,52 +567,6 @@
     "workflowCiRegressionGate": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
       "jsonPath": "keys.targetedVerification.workflowCiRegressionGate"
-    },
-    "figmaAngularShell": {
-      "story": "AS-UX-001",
-      "baseCommit": "fe9c949e5a085477710b6bce86d3acb42ccbbb28",
-      "result": "PARTIAL",
-      "scope": "Angular shell, staff global-search placement and server-derived phase ribbon; no backend, route, schema, dependency, permission or provider changes.",
-      "angularSpecs": {
-        "command": "npm run test:ci",
-        "files": 131,
-        "passed": 759,
-        "failed": 0,
-        "result": "PASS"
-      },
-      "angularBuild": {
-        "command": "npm run build",
-        "result": "PASS_WITH_WARNING",
-        "warning": "Existing src/app/features/commercial/settings.scss exceeds the 4 KB component stylesheet budget by 3.53 KB; the changed engagement-workflow.scss is within budget."
-      },
-      "browser": {
-        "result": "PASS_UNAUTHENTICATED_SHELL_ONLY",
-        "url": "http://127.0.0.1:4300/ui/",
-        "viewportsCssPx": {
-          "1440x900": {
-            "documentWidth": 1425,
-            "horizontalOverflow": false
-          },
-          "768x1024": {
-            "documentWidth": 753,
-            "horizontalOverflow": false
-          },
-          "390x844": {
-            "documentWidth": 375,
-            "horizontalOverflow": false
-          },
-          "320x844": {
-            "documentWidth": 305,
-            "horizontalOverflow": false
-          }
-        },
-        "consoleWarningsOrErrors": 0,
-        "staffSession": "NOT_AVAILABLE",
-        "authenticatedSearchRibbonAndNavigation": "NOT_VERIFIED"
-      },
-      "remaining": "Route inventory, authenticated screenshots and staff interaction, engagement context selector, feature workspaces UX-06–12, zoom/screen-reader/forced-colors review and UX-15 visual sign-off.",
-      "recordedAtUtc": "2026-10-15T12:39:26Z",
-      "implementationCommit": "48e9f2059662d0712f2d1b23d5616b4e8494dad4"
     },
     "angularMigrationAdminRevocationFencing": {
       "result": "PASS",
@@ -1181,6 +1135,34 @@
         "Map approved statutory milestones to phases; operational task dates do not replace milestone-plan dates.",
         "Broader role-specific browser and assistive-technology acceptance.",
         "Full CI/CD release verification and production acceptance remain distinct."
+      ]
+    },
+    "figmaAngularShell": {
+      "status": "ARCHIVED_FOCUSED_EVIDENCE",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.figmaAngularShell"
+    },
+    "practiceManagementCrossLedgerBoundaries20261018": {
+      "recordedAtUtc": "2026-10-18T06:04:15Z",
+      "sourceCommit": "a67b296f6a3343655dc0badd36dea3961ee9a9da",
+      "status": "PARTIAL",
+      "scope": "PM-00 NR-11 negative boundaries across firm, client and group books; no product/runtime behavior changed.",
+      "runs": [
+        {
+          "name": "Focused PostgreSQL cross-ledger regression cohort",
+          "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~LedgerWorkflow_IsBalancedIdempotentAndImmutable|FullyQualifiedName~SalesInvoiceIndependentPostIsAtomicScopedRecoverableAndReconcilesWithNativeGL|FullyQualifiedName~GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem'",
+          "result": "PASS",
+          "passed": 3,
+          "failed": 0,
+          "total": 3,
+          "database": "PostgreSQL disposable test schemas",
+          "duration": "43s"
+        }
+      ],
+      "stillOpen": [
+        "NR-11: named end-to-end firm-invoice source workflow and separate reporting-aggregate contamination case.",
+        "NR-12: inventory every v2.2 feature switch and map affected API contracts, approvals, retained history and UI routes.",
+        "Full release verification remains a CI/CD responsibility."
       ]
     }
   },
