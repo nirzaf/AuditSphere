@@ -45,7 +45,23 @@ public sealed class AngularShellNavigationJourneyTests
     await menu.ClickAsync(); await Assertions.Expect(dialog).ToBeVisibleAsync(); await page.SetViewportSizeAsync(1100,800);
     await Assertions.Expect(dialog).ToHaveCountAsync(0); await Assertions.Expect(page.Locator("aside:has(> audit-workspace-navigation)")).ToBeVisibleAsync();
     await Assertions.Expect(menu).ToBeHiddenAsync(); await Assertions.Expect(page.Locator("main")).ToBeFocusedAsync();
-    await page.SetViewportSizeAsync(320,800); await menu.ClickAsync();
+    await page.SetViewportSizeAsync(320,800);
+    await page.GotoAsync(origin+prefix+"/app/accounting/journals");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Adjustment journals",Exact=true})).ToBeVisibleAsync();
+    await page.GetByRole(AriaRole.Link,new(){Name="Skip to main content",Exact=true}).PressAsync("Enter");
+    await page.Keyboard.PressAsync("Tab");
+    var backToAccounting=page.GetByRole(AriaRole.Link,new(){Name="← Back to accounting workspace",Exact=true});
+    await Assertions.Expect(backToAccounting).ToBeFocusedAsync();
+    Assert.True(await backToAccounting.EvaluateAsync<bool>("""
+      element => {
+        const rect=element.getBoundingClientRect();
+        const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+        return rect.top>=0 && rect.bottom<=innerHeight && (hit===element || element.contains(hit));
+      }
+      """), "The first control after skip navigation must be visible, not covered by the shell header.");
+    await page.GotoAsync(origin+prefix+"/app");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Portfolio",Exact=true})).ToBeVisibleAsync();
+    await menu.ClickAsync();
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     await Assertions.Expect(close).ToBeInViewportAsync();
     await using(var db=host.CreateDbContext())

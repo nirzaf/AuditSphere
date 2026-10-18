@@ -145,9 +145,12 @@ main {
     display: none;
   }
   .app-header {
+    // A wrapped header must scroll away so skip-navigation focus is not covered.
+    position: static;
     flex-wrap: wrap;
     padding: 0.5rem 0.75rem;
   }
+  main { scroll-margin-top: 0; }
   audit-global-search,
   .search-launcher { order: 5; flex: 1 0 100%; max-width: none; }
   .workspace-label,
