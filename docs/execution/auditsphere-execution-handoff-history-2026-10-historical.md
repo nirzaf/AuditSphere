@@ -4,6 +4,21 @@
 
 **Purpose:** Preserve dated implementation narratives moved from the compact current-slice handoff. Current results and volatile test/run facts live in `status.json`.
 
+## Angular quality follow-up — fieldwork safety and rendered acceptance (2026-10-19)
+
+This section supersedes the earlier browser-tool limitations below. The built-in browser supports viewport emulation, reduced-motion media and bounded network observations. The named journal, evidence, planning, consolidation, fieldwork and audit-plan routes were inspected at narrow and desktop widths. Genuine browser zoom was checked with a temporary Chrome tab because native zoom controls were unavailable in the built-in browser. Both browsers and their emulation settings were restored after inspection.
+
+The rendered review found that the wrapped sticky mobile header covered the first focused control after skip navigation. The header now scrolls with narrow layouts, and the main region has no extra mobile scroll offset. Built-in-browser and native-zoom retests confirmed the focused link is unobscured. The existing shell journey now checks this exact failure without replacing its staff/client navigation and revocation checks.
+
+An independent source review confirmed the strictness, editor-lifetime, planning, consolidation and lint slices. Its two fieldwork findings are now corrected: command writers share the host exclusion boundary, and uncertain procedure submissions retain only their exact receipt identity across remounts. Recovery requires current authorized context, rejects mismatched receipts, restores no assent and blocks on unreadable checkpoints. Focused verification is tracked in `targetedVerification.angularQuality` in [status.json](status.json). Historical execution records were archived intact, with discoverable pointers and unresolved gates retained in the active ledger, to repair the documentation-size CI failure.
+
+Task 07 remains partial. The local interactive browser uses the current UI with a pre-existing API whose source identity is unknown; this is separate from owned-fixture journeys that launch the current compiled API. Empty/blocked-state smoke checks do not establish record-backed planning, consolidation or fieldwork acceptance. A knowledgeable human screen-reader review and remaining record-backed accessibility states are still required by [the accessibility checklist](../testing/auditsphere-testing-checklist-angular-accessibility-current.md). No professional approval, provider acceptance, tenant configuration or deployment state was promoted.
+
+Full release verification has been dispatched on the final immutable code commit. Full regressions remain CI-owned. Exact source identities, focused results, browser observations and CI runs are in the execution ledger; earlier pending/cancelled runs do not establish a current full pass.
+
+Earlier Angular quality observations are preserved in [the historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md); they do not override this follow-up.
+
+
 ## Source-linked package build from the product (CP-11 accepted-source cash-flow subpath) — 2026-10-14
 
 The engagement-scoped preparer screen lists approved mappings, finalized adjustment plans, reporting periods and validated comparative packages. It supports a paged accepted-ledger line picker and submits exact decimal strings to the durable `BuildFinancialPackage.v1` operation. Input discovery is scope-authorized and the server still validates the selected current/comparative package. The routes are `GET /api/ui/engagements/{id}/financial-package-inputs` and `POST /api/ui/accounting/packages/builds`.
