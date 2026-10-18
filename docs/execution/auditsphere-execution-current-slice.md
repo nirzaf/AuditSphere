@@ -19,6 +19,16 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Retained lead action history (2026-10-18)
+
+ASPM-CRM-01 now retains append-only lead activity for creation, qualification, opportunity creation, proposal revision/review/marking as sent, acceptance or decline, and the exact client-conversion link. Each event is written with its business command; idempotent retries do not add duplicate events. The lead workspace projects source, current owner and creation time, plus a stable chronological history page capped at 200 events. Authorized staff can request older history with a lead-bound keyset cursor.
+
+Existing leads receive only a clearly marked metadata backfill for source, creation time and owner. It does not invent historical actors or actions, and the workspace identifies this legacy-history gap. The criterion remains PARTIAL because historical commercial actions cannot be reconstructed and manual browser acceptance is unavailable.
+
+Focused evidence on this source: the PostgreSQL Domain cohort passed 4/4, the Angular decoder/workspace spec passed 5/5, the API Release/OpenAPI emitter build passed with zero warnings and errors, OpenAPI drift and EF model-drift checks passed, and the Angular production build passed with the existing `commercial/settings.scss` budget warning (7.53 kB against 4.00 kB). Documentation checks and exact source SHA are recorded in [`status.json`](status.json#targetedVerification.aspmCrmLeadHistory20261018).
+
+Built-in-browser acceptance is **NOT_VERIFIED**. The existing API on port 5029 still serves a blank main area and the browser console reports a missing hashed Angular chunk; I left that long-running process untouched. No live provider, client data, professional decision or production gate was changed or accepted. The full release workflow on the preceding source commit `de8b6655d250867262550e998cd6d5fe46388977` is not a pass: its Domain job failed while API and Playwright jobs remained in progress at the last observation. Current-source CI is still required.
+
 ## Pinned workflow task designation in queues (2026-10-18)
 
 Commit `e4c5fa5f6def0077662b784650ac8d66f53ba956` projects each templated task's Required/Optional designation from its exact firm, pinned template revision and step. Manual tasks return no designation. The Angular My Work list, board and calendar show the value as plain text. It is informational only and does not gate task completion, lifecycle transitions or professional review.

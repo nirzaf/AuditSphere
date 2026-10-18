@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "de8b6655d250867262550e998cd6d5fe46388977",
+  "headCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -111,57 +111,6 @@
     }
   ],
   "targetedVerification": {
-    "angularAccountingMaintenanceRecovery": {
-      "result": "PARTIAL",
-      "candidateBaseCommit": "d735422d",
-      "source": "Uncommitted accounting maintenance recovery chunk; not deployed",
-      "migration": "20261016094656_PeriodMaintenanceReviewedReceipts",
-      "migrationAppliedToDevelopmentOrLive": false,
-      "checks": {
-        "releaseBuild": "PASS: zero warnings/errors",
-        "domain": {
-          "passed": 21,
-          "failed": 0,
-          "skipped": 0,
-          "filter": "FullyQualifiedName~ClientAccountingTests.Maintenance|FullyQualifiedName~AccountingPeriodRecordQueryTests",
-          "report": "scratchpad/parity-verification-20261016/period-domain-final.trx"
-        },
-        "api": {
-          "passed": 3,
-          "failed": 0,
-          "skipped": 0,
-          "filter": "FullyQualifiedName~PeriodMaintenanceReceiptApiTests|FullyQualifiedName~AccountingPeriodRecordApiTests",
-          "report": "scratchpad/parity-verification-20261016/period-api-final.trx"
-        },
-        "angular": {
-          "passed": 910,
-          "files": 143
-        },
-        "angularBuild": "PASS; existing commercial settings stylesheet warning",
-        "efModelDrift": "PASS",
-        "openapi": "PASS regenerated and verified",
-        "browser": {
-          "passed": 5,
-          "failed": 0,
-          "skipped": 0,
-          "filter": "FullyQualifiedName~AngularPeriodMaintenanceJourneyTests",
-          "report": "scratchpad/parity-verification-20261016/period-browser-final.trx",
-          "coverage": "Roll-forward plus restatement create/approve, including dropped response and reload recovery for all three actions"
-        },
-        "docs": "PASS documentation, filenames, metrics, inventory"
-      },
-      "corrections": [
-        "Domain expired grant fixture dates and wrapped downgrade refusal assertion corrected; guards preserved",
-        "E2E initial 3 passed/2 failed exposed canonical decimal scale comparison; exact string-value comparator plus regression specs added"
-      ],
-      "builtInBrowser": "Owned synthetic roll-forward page rendered scoped closed-period history; no business command submitted. Selection interaction did not complete. This is render evidence only.",
-      "retirement": "NOT_READY; no Blazor files removed",
-      "remaining": [
-        "Full action/role/error matrix across six accounting rows",
-        "Global retirement acceptance and external gates",
-        "Commit-pinned full release verification for this chunk"
-      ]
-    },
     "angularBlazorPackageGateFixtureFollowUp": {
       "archive": "status-archive-2026-10.json",
       "key": "keys.targetedVerification.angularBlazorPackageGateFixtureFollowUp",
@@ -1000,29 +949,6 @@
       "browser": "NOT_RUN; no isolated local signed-in workflow with approved asset-schedule fixture was available.",
       "remaining": "CP-11 remains partial: adjustments/reconciliations, policy-permitted manual evidence, schedule rework and full source-kind acceptance remain open. CP-12 indirect methodology remains BLOCKED_PROFESSIONAL."
     },
-    "productionReadinessStoryCp11": {
-      "recordedAtUtc": "2026-10-17T11:52:18Z",
-      "codeCommit": "1ff7bf4881f84b8f68dc7038671a5972ff527da8",
-      "status": "PARTIAL",
-      "baselineArchive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.productionReadinessStoryCp11Baseline20261015",
-      "followUp": {
-        "f02CurrentSourceRegression": "CashFlowContractTests.SourceReview_RevokedActorDuringLockWait_RecordsNothing passed 1/1 locally on the current source using the focused PostgreSQL test command; release CI run 39003733534 also passed this exact test at source commit 1ee3c0e7.",
-        "f09PartnerAssignment": "Current FinancialPackageReviewService requires the current assigned Engagement Partner for Partner decisions. Existing PartnerStage_RequiresACurrentPartnerGrantOnThisEngagement covers assigned, other-engagement, revoked, unassigned and dual-role actors; not rerun in this follow-up.",
-        "currentCi": "Run 39029682104 targets master commit 343aa587: Docs · Health and Build · Angular passed; .NET Release failed only because the committed OpenAPI contract omitted optional calculationRole on CashFlowScheduleSourceAllocationInput. Rebuilt the emitter from current source, regenerated the six-line contract addition, and scripts/contracts/verify-openapi.sh passes locally. Hosted CI has not yet rerun with the corrected contract. Hostinger image-build run 39029682172 succeeded; it built images only and did not deploy."
-      },
-      "openBlockers": [
-        "F-05 indirect cash-flow method and F-06 equity/note source policy require qualified methodology approval (T003).",
-        "F-07 final profile membership and GOLD-R2R fixture approvals remain professional decisions.",
-        "F-09: global Administrator alone cannot record Partner approval; owner acceptance of the dual Administrator/assigned-Partner boundary remains open.",
-        "F-10 offer identity/routing DEC-05 and F-12 branch protection/required-check settings remain owner decisions.",
-        "CP-18 cross-format output quality and approved profiles; CP-19/20 signatory capacity, offline evidence, final report/signing/legal and live-provider acceptance remain open.",
-        "CP-25 live identity, mail, selected-site, recovery and capacity gates remain BLOCKED_EXTERNAL."
-      ],
-      "notRun": [
-        "Full unfiltered Domain, API and E2E suites and release-verification.yml on this exact code commit.",
-        "Authenticated browser journey, persistent database migration, deployment and live-provider acceptance."
-      ]
-    },
     "atomicAuditWorkingProcessTask02": {
       "result": "PARTIAL",
       "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask02",
@@ -1165,6 +1091,42 @@
       "browser": "Client role NOT_VERIFIED; staff redirected from /portal.",
       "ci": "Fast 39115003072 IN_PROGRESS; full release 39115052329 QUEUED.",
       "remaining": "Invoice delivery receipt and client-role browser acceptance; details in current-slice handoff."
+    },
+    "angularAccountingMaintenanceRecovery": {
+      "archivedTo": "docs/execution/status-archive-2026-10.json",
+      "key": "keys.targetedVerification.angularAccountingMaintenanceRecovery",
+      "note": "Full focused accounting-maintenance recovery evidence retained in the October archive."
+    },
+    "productionReadinessStoryCp11": {
+      "recordedAtUtc": "2026-10-17T11:52:18Z",
+      "codeCommit": "1ff7bf4881f84b8f68dc7038671a5972ff527da8",
+      "status": "PARTIAL",
+      "openBlockers": [
+        "F-05 indirect cash-flow method and F-06 equity/note source policy require qualified methodology approval (T003).",
+        "F-07 final profile membership and GOLD-R2R fixture approvals remain professional decisions.",
+        "F-09: global Administrator alone cannot record Partner approval; owner acceptance of the dual Administrator/assigned-Partner boundary remains open.",
+        "F-10 offer identity/routing DEC-05 and F-12 branch protection/required-check settings remain owner decisions.",
+        "CP-18 cross-format output quality and approved profiles; CP-19/20 signatory capacity, offline evidence, final report/signing/legal and live-provider acceptance remain open.",
+        "CP-25 live identity, mail, selected-site, recovery and capacity gates remain BLOCKED_EXTERNAL."
+      ],
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.productionReadinessStoryCp11",
+      "note": "Detailed follow-up and NOT_RUN record are preserved in the archive; professional, live-provider and exact-SHA release gates remain open."
+    },
+    "aspmCrmLeadHistory20261018": {
+      "recordedAtUtc": "2026-10-18T10:01:33Z",
+      "sourceCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
+      "status": "PARTIAL",
+      "domain": "PASS 4/4",
+      "angular": "PASS 5/5",
+      "openApiAndEfDrift": "PASS",
+      "builtInBrowser": "NOT_VERIFIED: existing port 5029 shell is blank with missing hashed Angular chunks.",
+      "fastCiRun": "39117590102",
+      "fullReleaseRun": "39117606930",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCrmLeadHistory20261018",
+      "stillOpen": [
+        "Historical lead actions/actors for existing leads are unknowable.",
+        "Current-source CI and browser acceptance remain pending."
+      ]
     }
   },
   "externalGates": [
@@ -1243,7 +1205,10 @@
       "localEvidence",
       "documentationWork",
       "targetedVerification",
-      "targetedVerification.practiceManagementCrossLedgerBoundariesInitialRun20261018"
+      "targetedVerification.practiceManagementCrossLedgerBoundariesInitialRun20261018",
+      "targetedVerification.angularAccountingMaintenanceRecovery",
+      "targetedVerification.productionReadinessStoryCp11",
+      "targetedVerification.aspmCrmLeadHistory20261018"
     ],
     "archivedOn": "2026-10-08"
   },
