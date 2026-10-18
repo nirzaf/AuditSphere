@@ -19498,6 +19498,66 @@
         },
         "pagingHistory": "status-archive-2026-10.json: apiAngularParity.localVerification.pagingSlice20261018"
       }
+    },
+    "targetedVerification.angularQualityBeforeFollowUp20261019": {
+      "sourceCommit": "d733ec8c665156aabef7a3804602596757fe6311",
+      "recordedAtUtc": "2026-10-18T21:48:28Z",
+      "result": "PARTIAL",
+      "task06": {
+        "status": "FAST_CI_PASS",
+        "implementationCommit": "5268f5fbd1f8be074f76cb89e20fc5d13f4b4b80",
+        "packages": [
+          "angular-eslint@22.1.0",
+          "eslint@10.6.0",
+          "typescript-eslint@8.62.1"
+        ],
+        "approval": "Owner approved exact dev-only set on 2026-10-18.",
+        "installAndAudit": "PASS: npm install; peer resolution clean; audit 0/525.",
+        "probes": "PASS: 6 valid/invalid TS, external HTML and inline probes.",
+        "focusedLint": "PASS: 10 explicit files in 5 feature families.",
+        "productionLint": "PASS, 2.82s; 2 initial findings fixed.",
+        "focusedSpec": "PASS: 10/10 mapping-draft; Escape preserved.",
+        "build": "PASS; existing optional-chain and SCSS-budget warnings.",
+        "workflows": "PASS: actionlint; lint in both existing Angular jobs.",
+        "ci": "PASS: AuditSphereOps CI run 39168122489 on 7c66eeed; Angular, Docs, and .NET Release jobs succeeded. Angular job ran lint, production build, and full Angular specs. .NET job ran Release build, fast database-free guards, EF drift, publication, and OpenAPI drift. Full release-verification workflow was not run.",
+        "ciSourceCommit": "7c66eeed3627b4048ac50eeb8380962825e1b967"
+      },
+      "task07": {
+        "status": "PARTIAL",
+        "implementationCommit": "d733ec8c665156aabef7a3804602596757fe6311",
+        "localFocusedSpec": "PASS: app-navigation.spec.ts 11/11 on the implementation source.",
+        "browser": {
+          "tool": "Built-in in-app browser",
+          "browserVersion": "NOT_EXPOSED",
+          "uiSourceCommit": "d733ec8c665156aabef7a3804602596757fe6311",
+          "uiOrigin": "http://127.0.0.1:4301/ui",
+          "apiSource": "UNKNOWN: pre-existing local API process on port 5029; source SHA was not verified.",
+          "fixture": "Local synthetic staff session; synthetic engagement e1000000-0000-0000-0000-000000000001 and synthetic consolidation scope 63000000-0000-0000-0000-000000000007.",
+          "viewport": "1180x954 CSS px. documentElement.scrollWidth was 1165 on each sampled route; narrow reflow and zoom remain unverified.",
+          "routes": "Journal queue, accounting-evidence queue, engagement/planning, consolidation scope, fieldwork, and audit plan rendered on the current UI source.",
+          "shell": "PASS for expanded sidebar keyboard navigation: pressing Enter on Evidence changed route and focus moved to main#main. The compact-sidebar toggle changed state and was restored. Mobile dialog behavior is supported by earlier evidence and was not re-run on this source.",
+          "fieldworkTabs": "ArrowRight moved focus from Sampling to Client evidence; Space selected Client evidence and exposed its labelled controls, matching the rendered Material tab behavior.",
+          "emptyAndBlockedStates": "Journal and accounting-evidence queues presented labelled empty states. Planning showed no assigned staff and no approved budget; staffing review stayed disabled. Fieldwork showed zero applicable procedures and explicit blockers. Consolidation showed one synthetic component, one journal and zero runs. No business, approval, access, or provider command was submitted.",
+          "sampledStatusContrast": "Rendered text/background ratios: Active 7.24:1, Blocked 6.76:1, Not started 14.78:1. State labels are textual. This is a limited status-chip sample, not a palette-wide contrast audit.",
+          "console": "No browser console errors observed during the current six-route matrix. Earlier stale-chunk errors were not reproduced.",
+          "network": "Routes and API-backed data rendered; detailed HTTP status/network-panel evidence was not available from this browser session."
+        },
+        "observedFix": "Before the fix, keyboard activation of the expanded-sidebar Evidence link changed route while focus remained on the old link. Commit d733ec8c focuses main#main after successful route changes when no navigation dialog is open; the built-in browser retest confirmed Enter navigation now focuses main#main.",
+        "humanReview": "BLOCKED_EXTERNAL: a knowledgeable human screen-reader review with actual AT/browser versions and observations has not been performed.",
+        "notRun": "200%/400% zoom, narrow viewport resizing, reduced-motion mode, session-revocation rendering, record-backed journal/evidence editor validation and unknown-outcome recovery, full state/journey matrix, and human screen-reader review. The browser did not expose supported viewport/zoom controls.",
+        "ci": "Run 39169080992 on d733ec8c: Docs and Angular jobs PASS; .NET Release job was running Restore and build at 2026-10-18T21:48:28Z. Full release-verification workflow was not run.",
+        "ciRun": "39169080992",
+        "detailsArchive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityBaseline20261018"
+      },
+      "fieldwork": {
+        "angularSpec": {
+          "result": "PASS",
+          "passed": 23,
+          "failed": 0
+        },
+        "build": "PASS_WITH_EXISTING_WARNINGS: completion optional chains and commercial/settings.scss style budget.",
+        "fullSuites": "NOT_RUN_LOCALLY; CI-owned."
+      }
     }
   }
 }

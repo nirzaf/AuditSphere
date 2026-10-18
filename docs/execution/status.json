@@ -147,63 +147,89 @@
       "notDone": "Hosted CI; Task 10 D1; professional/live acceptance."
     },
     "angularQuality": {
-      "sourceCommit": "d733ec8c665156aabef7a3804602596757fe6311",
-      "recordedAtUtc": "2026-10-18T21:48:28Z",
+      "sourceCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
+      "recordedAtUtc": "2026-10-18T22:18:19Z",
       "result": "PARTIAL",
+      "previousEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityBeforeFollowUp20261019",
+      "tasks01To06Review": "Tasks 01–04 and 06 implemented per independent source review on 7a566118. Task05 gaps corrected on sourceCommit with focused verification; full release and human accessibility acceptance remain separate.",
       "task06": {
         "status": "FAST_CI_PASS",
         "implementationCommit": "5268f5fbd1f8be074f76cb89e20fc5d13f4b4b80",
-        "packages": [
-          "angular-eslint@22.1.0",
-          "eslint@10.6.0",
-          "typescript-eslint@8.62.1"
-        ],
-        "approval": "Owner approved exact dev-only set on 2026-10-18.",
-        "installAndAudit": "PASS: npm install; peer resolution clean; audit 0/525.",
-        "probes": "PASS: 6 valid/invalid TS, external HTML and inline probes.",
-        "focusedLint": "PASS: 10 explicit files in 5 feature families.",
-        "productionLint": "PASS, 2.82s; 2 initial findings fixed.",
-        "focusedSpec": "PASS: 10/10 mapping-draft; Escape preserved.",
-        "build": "PASS; existing optional-chain and SCSS-budget warnings.",
-        "workflows": "PASS: actionlint; lint in both existing Angular jobs.",
-        "ci": "PASS: AuditSphereOps CI run 39168122489 on 7c66eeed; Angular, Docs, and .NET Release jobs succeeded. Angular job ran lint, production build, and full Angular specs. .NET job ran Release build, fast database-free guards, EF drift, publication, and OpenAPI drift. Full release-verification workflow was not run.",
-        "ciSourceCommit": "7c66eeed3627b4048ac50eeb8380962825e1b967"
+        "ciSourceCommit": "7c66eeed3627b4048ac50eeb8380962825e1b967",
+        "ciRun": "39168122489",
+        "details": "See previousEvidence for approved pins, install, lint probes and focused results."
       },
       "task07": {
         "status": "PARTIAL",
-        "implementationCommit": "d733ec8c665156aabef7a3804602596757fe6311",
-        "localFocusedSpec": "PASS: app-navigation.spec.ts 11/11 on the implementation source.",
-        "browser": {
-          "tool": "Built-in in-app browser",
-          "browserVersion": "NOT_EXPOSED",
-          "uiSourceCommit": "d733ec8c665156aabef7a3804602596757fe6311",
-          "uiOrigin": "http://127.0.0.1:4301/ui",
-          "apiSource": "UNKNOWN: pre-existing local API process on port 5029; source SHA was not verified.",
-          "fixture": "Local synthetic staff session; synthetic engagement e1000000-0000-0000-0000-000000000001 and synthetic consolidation scope 63000000-0000-0000-0000-000000000007.",
-          "viewport": "1180x954 CSS px. documentElement.scrollWidth was 1165 on each sampled route; narrow reflow and zoom remain unverified.",
-          "routes": "Journal queue, accounting-evidence queue, engagement/planning, consolidation scope, fieldwork, and audit plan rendered on the current UI source.",
-          "shell": "PASS for expanded sidebar keyboard navigation: pressing Enter on Evidence changed route and focus moved to main#main. The compact-sidebar toggle changed state and was restored. Mobile dialog behavior is supported by earlier evidence and was not re-run on this source.",
-          "fieldworkTabs": "ArrowRight moved focus from Sampling to Client evidence; Space selected Client evidence and exposed its labelled controls, matching the rendered Material tab behavior.",
-          "emptyAndBlockedStates": "Journal and accounting-evidence queues presented labelled empty states. Planning showed no assigned staff and no approved budget; staffing review stayed disabled. Fieldwork showed zero applicable procedures and explicit blockers. Consolidation showed one synthetic component, one journal and zero runs. No business, approval, access, or provider command was submitted.",
-          "sampledStatusContrast": "Rendered text/background ratios: Active 7.24:1, Blocked 6.76:1, Not started 14.78:1. State labels are textual. This is a limited status-chip sample, not a palette-wide contrast audit.",
-          "console": "No browser console errors observed during the current six-route matrix. Earlier stale-chunk errors were not reproduced.",
-          "network": "Routes and API-backed data rendered; detailed HTTP status/network-panel evidence was not available from this browser session."
+        "implementationCommit": "c2bb4f8427f8fb5f88e4fb32bb1ab88ecc754959",
+        "observedFix": "Wrapped sticky narrow header covered first content control after skip navigation. Narrow header now scrolls; mobile main scroll margin is zero. Built-in 320px and native 400% zoom hit-tests confirmed focused control unobscured.",
+        "angularBuild": "PASS after CSS patch; existing completion optional-chain and commercial SCSS-budget warnings.",
+        "focusedE2e": {
+          "result": "PASS",
+          "passed": 6,
+          "failed": 0,
+          "skipped": 0,
+          "sourceCommit": "c2bb4f8427f8fb5f88e4fb32bb1ab88ecc754959",
+          "scope": "AngularShellNavigationJourneyTests (both route bases), AngularJournalReviewJourneyTests, AngularEvidenceActionsJourneyTests",
+          "environment": "Current compiled API/current production Angular bundle; owned disposable loopback PostgreSQL databases; simulated external effects. No development or live records mutated.",
+          "trx": "/tmp/auditsphere-angular-quality-results/angular-quality-targeted.trx"
         },
-        "observedFix": "Before the fix, keyboard activation of the expanded-sidebar Evidence link changed route while focus remained on the old link. Commit d733ec8c focuses main#main after successful route changes when no navigation dialog is open; the built-in browser retest confirmed Enter navigation now focuses main#main.",
-        "humanReview": "BLOCKED_EXTERNAL: a knowledgeable human screen-reader review with actual AT/browser versions and observations has not been performed.",
-        "notRun": "200%/400% zoom, narrow viewport resizing, reduced-motion mode, session-revocation rendering, record-backed journal/evidence editor validation and unknown-outcome recovery, full state/journey matrix, and human screen-reader review. The browser did not expose supported viewport/zoom controls.",
-        "ci": "Run 39169080992 on d733ec8c: Docs and Angular jobs PASS; .NET Release job was running Restore and build at 2026-10-18T21:48:28Z. Full release-verification workflow was not run.",
-        "ciRun": "39169080992",
-        "detailsArchive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityBaseline20261018"
+        "browser": {
+          "uiSourceCommit": "c2bb4f8427f8fb5f88e4fb32bb1ab88ecc754959",
+          "uiOrigin": "http://127.0.0.1:4301/ui",
+          "apiSource": "UNKNOWN: pre-existing local process on port 5029; separate from current-source owned E2E APIs.",
+          "tool": "Built-in browser; native Chrome fallback only for genuine zoom.",
+          "browserVersion": "Chrome/155.0.0.0 (embedded UA)",
+          "fixture": "Synthetic staff; engagement e1000000-0000-0000-0000-000000000001; consolidation scope 63000000-0000-0000-0000-000000000007.",
+          "reflow": "PASS read-only six-route matrix at widths 320,390,640,1280 CSS px, height844; document widths within viewport. Tables bounded in horizontal scroll regions.",
+          "zoom": "PASS read-only same six routes at genuine native Chrome 200% (919x436 CSS) and 400% (459x218 CSS); no document overflow. Temporary Chrome tab closed and zoom restored to100%.",
+          "keyboard": "PASS mobile menu Enter, focus wrap, Escape and return focus; journal links/tab order and keyboard horizontal table scroll; post-skip focus visible at320 and400% zoom.",
+          "motion": "Reduced-motion media matched; sampled transitions/animations zero or near-zero duration. Emulation and viewport restored.",
+          "network": "Retained API responses200; two canceled navigation requests. Buffer truncated, so not exhaustive network acceptance.",
+          "contrast": "Prior limited rendered chip samples retained in previousEvidence; no whole-palette conformance claim.",
+          "writes": "None through interactive browser; authorized synthetic actions only in owned E2E fixtures."
+        },
+        "matrix": {
+          "shell": "FOCUSED_PASS: staff/client routes, keyboard, responsive navigation and session revocation in current-source E2E; zoom/reflow smoke separately attributed.",
+          "journal": "FOCUSED_PASS: exact correction, invalid input, independent review, stale period and unknown receipt recovery in owned E2E; human announcements NOT_VERIFIED.",
+          "evidence": "FOCUSED_PASS: exact result link, independent decision, retained values and revocation in owned E2E; human announcements and full dialog-state matrix NOT_VERIFIED.",
+          "planning": "PARTIAL: empty/blocked staffing/budget and responsive read-only rendering; record-backed review and all state transitions NOT_VERIFIED.",
+          "consolidation": "PARTIAL: one component/journal, empty runs, bounded tables and responsive read-only rendering; full record-backed action/state matrix NOT_VERIFIED.",
+          "fieldwork": "PARTIAL: Material tab keyboard and empty/blocked/reflow states; record-backed procedure/sampling/review accessibility NOT_VERIFIED."
+        },
+        "humanReview": "BLOCKED_EXTERNAL: knowledgeable human screen-reader review with actual AT/browser versions and meaningful announcements is not available.",
+        "ci": {
+          "previousFast": {
+            "runId": "39171033078",
+            "sourceCommit": "4c808002949b91a9ddc6fb632aadc65ded436829",
+            "result": "FAST_CI_PASS",
+            "jobs": "Angular, Docs and .NET Release successful. Predates fieldwork correction."
+          },
+          "repairedFailure": "39169478960 FAILED only Docs ledger-size budget; archived records intact and active docs validators PASS.",
+          "fullRelease": {
+            "runId": "39171610180",
+            "sourceCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39171610180",
+            "result": "IN_PROGRESS",
+            "note": "Complete unfiltered suites only in CI; no full local run. Workflow resolves requested ref to immutable full SHA.",
+            "observedAtUtc": "2026-10-18T22:18:26Z"
+          }
+        }
       },
-      "fieldwork": {
+      "task05": {
+        "status": "IMPLEMENTED_FOCUSED_PASS",
+        "implementationCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
+        "behavior": "One host-owned command exclusion across procedure, sampling, tailoring and host writes, including unresolved requests. Own risk-link receipt lookup remains reachable. Procedure checkpoints persist only requestId/hash; restored after authorized workspace read without fields/assent. Exact receipt validation, captured-owner cleanup and visible unreadable-storage blocker preserve recovery boundaries.",
         "angularSpec": {
           "result": "PASS",
-          "passed": 23,
-          "failed": 0
+          "passed": 27,
+          "failed": 0,
+          "scope": "fieldwork.spec.ts only",
+          "coverage": "Cross-capability exclusion; remount recovery and mismatched receipt rejection; unavailable/stale checkpoints; late-session cleanup fence; existing six-place amounts, tailoring idempotency, scope changes and stale reads."
         },
-        "build": "PASS_WITH_EXISTING_WARNINGS: completion optional chains and commercial/settings.scss style budget.",
-        "fullSuites": "NOT_RUN_LOCALLY; CI-owned."
+        "lint": "PASS: five changed production TS/HTML files; no extra rules disabled.",
+        "build": "PASS; existing completion optional-chain and commercial/settings.scss budget warnings.",
+        "browser": "PASS_READ_ONLY_SMOKE on final UI source via built-in browser: fieldwork h1, Sampling → Client evidence keyboard activation, expected controls, document reflow at1280, no console errors. Existing API source unknown. Record-backed mutation accessibility NOT_VERIFIED."
       }
     },
     "fullE2eSuiteOnThisSource": "PASS: 234/234 at bc66c38b6a03010a7d1e468da3537481af81339c; full solution total 1265/1265 in testSuites.runs.e2e, api, and domain.",

@@ -32,6 +32,10 @@ Record each row as `PASS`, `PARTIAL`, `FAIL`, `NOT_RUN` or `BLOCKED_EXTERNAL`, w
 
 Do not submit financial, audit, access or approval commands as part of an accessibility smoke check unless the environment and exact synthetic mutation are explicitly authorized. Use existing test harnesses for simulated unknown outcomes.
 
+### Reflow and keyboard focus
+
+Use native browser zoom for the zoom checks; changing device scale alone is not equivalent. Record the resulting CSS viewport alongside the zoom percentage. At narrow widths, activate the skip link and Tab to the first content control: its focus indication and control must remain visible, including below a wrapped header. Check horizontal tables with the keyboard as well as the pointer. Restore browser zoom, viewport and media emulation after inspection.
+
 ## Human assistive-technology review
 
 - [ ] A knowledgeable reviewer uses a screen reader on the changed workflow and records the actual screen reader and browser versions.
