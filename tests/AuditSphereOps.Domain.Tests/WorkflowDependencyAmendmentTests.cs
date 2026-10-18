@@ -132,8 +132,10 @@ public sealed class WorkflowDependencyAmendmentTests
     Assert.Equal(0, await db.WorkflowTaskActivities.CountAsync(x => x.Kind == WorkflowTaskActivityKinds.DependencyChanged));
   }
 
-  [Fact]
-  public async Task GraphBeyondEdgeBoundIsRejectedWithoutPartialApplication()
+  [Theory]
+  [InlineData(4000, false)]
+  [InlineData(4001, true)]
+  public async Task GraphEdgeBoundOverflowIsRejectedWithoutPartialApplication(int existingEdgeCount, bool requestExistingEdge)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var f = await PbcSeed.SeedAsync(pg);
@@ -142,11 +144,14 @@ public sealed class WorkflowDependencyAmendmentTests
     await using var db = new AuditSphereDbContext(pg.Options);
 
     const int taskCount = 90;
-    const int edgeCount = 4001;
     var candidatePairs = Enumerable.Range(0, taskCount - 1)
       .SelectMany(i => Enumerable.Range(i + 1, taskCount - i - 1).Select(j => (Predecessor: i, Successor: j)))
-      .Take(edgeCount).ToArray();
-    Assert.Equal(edgeCount, candidatePairs.Length);
+      .Take(existingEdgeCount).ToArray();
+    Assert.Equal(existingEdgeCount, candidatePairs.Length);
+    var requestedPair = requestExistingEdge
+      ? (Predecessor: 0, Successor: 1)
+      : (Predecessor: taskCount - 2, Successor: taskCount - 1);
+    if (!requestExistingEdge) Assert.DoesNotContain(requestedPair, candidatePairs);
     var dependenciesBySuccessor = candidatePairs.GroupBy(x => x.Successor)
       .ToDictionary(x => x.Key, x => (IReadOnlyList<string>)x.Select(pair => $"STEP-{pair.Predecessor + 1}").ToArray());
     var steps = Enumerable.Range(0, taskCount).Select(i => new WorkflowTemplateStepDraft(
@@ -187,16 +192,16 @@ public sealed class WorkflowDependencyAmendmentTests
     var bindings = await db.WorkflowTaskBindings.AsNoTracking().Where(x => x.EngagementId == f.EngagementId)
       .OrderBy(x => x.Ordinal).ToArrayAsync();
     var tasksByOrdinal = bindings.ToDictionary(x => x.Ordinal - 1, x => x.WorkTaskId);
-    Assert.Equal(edgeCount, await db.WorkflowTaskDependencies.CountAsync(x => x.EngagementId == f.EngagementId));
+    Assert.Equal(existingEdgeCount, await db.WorkflowTaskDependencies.CountAsync(x => x.EngagementId == f.EngagementId));
 
     var request = new WorkflowDependencyChangeRequest(
-      tasksByOrdinal[0], true, ExpectedRevision: 1, ExpectedPredecessorRevision: 1,
+      tasksByOrdinal[requestedPair.Predecessor], true, ExpectedRevision: 1, ExpectedPredecessorRevision: 1,
       Reason: "Do not partially apply an oversized graph.", IdempotencyKey: Guid.NewGuid());
     var result = await PracticeTimeService.ChangeWorkflowDependencyAsync(
-      db, actor, f.EngagementId, tasksByOrdinal[1], request);
+      db, actor, f.EngagementId, tasksByOrdinal[requestedPair.Successor], request);
 
     Assert.Equal(ErrorCodes.GateBlocked, result.ErrorCode);
-    Assert.Equal(edgeCount, await db.WorkflowTaskDependencies.CountAsync(x => x.EngagementId == f.EngagementId));
+    Assert.Equal(existingEdgeCount, await db.WorkflowTaskDependencies.CountAsync(x => x.EngagementId == f.EngagementId));
     Assert.Equal(0, await db.WorkflowTaskDependencyRevisions.CountAsync());
     Assert.All(await db.WorkflowTaskBindings.AsNoTracking().Where(x => x.EngagementId == f.EngagementId)
       .Select(x => x.Revision).ToArrayAsync(), revision => Assert.Equal(1, revision));
