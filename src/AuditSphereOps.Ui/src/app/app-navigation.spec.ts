@@ -50,6 +50,14 @@ describe('responsive workspace navigation', () => {
     await s.router.navigateByUrl('/app');
     expect(s.ref.close).toHaveBeenCalledWith('navigated'); s.fixture.destroy();
   });
+  it('moves focus to the main region after a workspace route change without an open dialog', async () => {
+    const s = await setup();
+    const main = s.fixture.nativeElement.querySelector('#main') as HTMLElement;
+    const mainFocus = vi.spyOn(main, 'focus');
+    expect(await s.router.navigateByUrl('/app')).toBe(true);
+    expect(mainFocus).toHaveBeenCalledOnce();
+    s.fixture.destroy();
+  });
   it('closes when an open menu no longer belongs to the current session', async () => {
     const s = await setup(); await s.app.openNavigation();
     s.session.clear(); await s.fixture.whenStable();

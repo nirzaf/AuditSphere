@@ -102,8 +102,13 @@ export class App {
       else if (ref && (!this.compact() || this.publicSetup())) ref.close('layout');
     });
     this.router.events.pipe(takeUntilDestroyed(this.destroy)).subscribe(event => {
-      if (event instanceof NavigationEnd || (event instanceof NavigationSkipped && event.code === NavigationSkippedCode.IgnoredSameUrlNavigation))
+      if (event instanceof NavigationEnd) {
+        const navigationDialog = this.navigationDialog();
+        if (navigationDialog) navigationDialog.close('navigated');
+        else document.getElementById('main')?.focus();
+      } else if (event instanceof NavigationSkipped && event.code === NavigationSkippedCode.IgnoredSameUrlNavigation) {
         this.navigationDialog()?.close('navigated');
+      }
     });
     void this.session.refresh();
     const timer = setInterval(() => void this.session.refresh(), 5000);
