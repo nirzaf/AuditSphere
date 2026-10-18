@@ -175,8 +175,11 @@ public sealed class StaffingChangeReviewTests
       request = request with { Reviewed = true, RequestHash = preview.RequestHash, ReviewBasis = preview.ReviewBasis };
     }
 
-    var revoke = new ReviewStaffCertificationRequest(source.Id, Guid.NewGuid(),
-      StaffCertificationEvidence.SourceDigest(source), ExpectedRevision: 1, Decision: "REVOKED",
+    StaffCertification persistedSource;
+    await using (var sourceDb = new AuditSphereDbContext(pg.Options))
+      persistedSource = await sourceDb.StaffCertifications.AsNoTracking().SingleAsync(x => x.Id == source.Id);
+    var revoke = new ReviewStaffCertificationRequest(persistedSource.Id, Guid.NewGuid(),
+      StaffCertificationEvidence.SourceDigest(persistedSource), ExpectedRevision: 1, Decision: "REVOKED",
       EvidenceReference: "test://independent-review", Reason: "Synthetic qualification withdrawal before assignment.");
     var pause = new PauseCertificationReview();
     await using var reviewDb = new AuditSphereDbContext(
