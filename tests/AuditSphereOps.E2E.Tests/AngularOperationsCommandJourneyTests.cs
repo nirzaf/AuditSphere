@@ -76,12 +76,58 @@ public sealed class AngularOperationsCommandJourneyTests
     Assert.DoesNotContain(privatePayload, await page.Locator("body").InnerTextAsync());
     var confirm = preview.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed operator command", Exact = true }); await Assertions.Expect(confirm).ToBeDisabledAsync();
     await preview.GetByLabel("I reviewed this exact operator command, current state and effect.", new() { Exact = true }).CheckAsync();
-    if (dropResponse) await page.RouteAsync("**/operations/commands/actions", async route => { var result = await route.FetchAsync(); Assert.Equal(200, result.Status); await route.AbortAsync(); });
+    var actionResponseStatus = 0;
+    var actionResponseHasValue = false;
+    var actionResponseIntercepted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    async Task DropActionResponse(IRoute route)
+    {
+      var request = route.Request;
+      if (request.Method != "POST" || !new Uri(request.Url).AbsolutePath.EndsWith("/operations/commands/actions", StringComparison.Ordinal))
+      {
+        await route.ContinueAsync();
+        return;
+      }
+      try
+      {
+        var result = await route.FetchAsync();
+        actionResponseStatus = result.Status;
+        var body = await result.TextAsync();
+        using var responseJson = JsonDocument.Parse(body);
+        actionResponseHasValue = responseJson.RootElement.TryGetProperty("value", out _);
+        Assert.Equal(200, result.Status);
+        await route.AbortAsync();
+        actionResponseIntercepted.TrySetResult(true);
+      }
+      catch (Exception error)
+      {
+        actionResponseIntercepted.TrySetException(error);
+        throw;
+      }
+    }
+    if (dropResponse) await page.RouteAsync("**/*", DropActionResponse);
     await confirm.ClickAsync();
     if (dropResponse)
     {
       var recovery = page.GetByRole(AriaRole.Region, new() { Name = "Original operator request recovery", Exact = true });
-      await Assertions.Expect(recovery).ToBeVisibleAsync(); await page.UnrouteAsync("**/operations/commands/actions");
+      await Assertions.Expect(recovery).ToBeVisibleAsync();
+      await actionResponseIntercepted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+      await page.UnrouteAsync("**/*", DropActionResponse);
+      await using (var db = host.CreateDbContext())
+      {
+        var requestGuid = Guid.Parse(requestId!);
+        var receipts = await db.OperatorCommandReceipts.AsNoTracking().Where(x => x.RequestId == requestGuid)
+          .Select(x => new { x.FirmId, x.ActorId, x.Action, x.RequestHash }).ToListAsync();
+        var events = await db.OperatorCommandEvents.AsNoTracking().Where(x => x.RequestId == requestGuid)
+          .Select(x => new { x.FirmId, x.ActorId, x.Action, x.RequestHash }).ToListAsync();
+        Assert.True(receipts.Count == 1 && receipts[0].FirmId == firm.FirmId && receipts[0].ActorId == administrator.Id,
+          $"Lost-response command did not persist its actor-scoped receipt. action={action}; http={actionResponseStatus}; " +
+          $"responseHasValue={actionResponseHasValue}; requestId={requestGuid}; receiptCount={receipts.Count}; eventCount={events.Count}; " +
+          $"receiptIdentities={string.Join(';', receipts.Select(x => $"{x.FirmId}/{x.ActorId}/{x.Action}/{x.RequestHash}"))}; " +
+          $"eventIdentities={string.Join(';', events.Select(x => $"{x.FirmId}/{x.ActorId}/{x.Action}/{x.RequestHash}"))}.");
+        var committedReceipt = receipts[0];
+        Assert.Equal(requestHash, committedReceipt.RequestHash);
+        Assert.Equal(action, committedReceipt.Action);
+      }
       if (action == "RETRY")
       {
         // Advance only the owned synthetic projection to prove lookup does not require the command's old queue head.
@@ -105,7 +151,9 @@ public sealed class AngularOperationsCommandJourneyTests
       var sessionEvidence = page.GetByRole(AriaRole.Region, new() { Name = "Recovery session evidence", Exact = true });
       await Assertions.Expect(sessionEvidence).ToContainTextAsync(findings);
       await Assertions.Expect(sessionEvidence).ToContainTextAsync(administrator.Id.ToString("D"));
-      await Assertions.Expect(sessionEvidence.Locator("time")).ToHaveAttributeAsync("datetime", System.Text.RegularExpressions.Regex.Escape("2026-"));
+      var approvedAt = await sessionEvidence.Locator("time").GetAttributeAsync("datetime");
+      Assert.NotNull(approvedAt);
+      Assert.StartsWith("2026-", approvedAt);
       await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Preview recovery restart approval", Exact = true })).ToHaveCountAsync(0);
     }
     Assert.Equal(1, writes); Assert.Empty(errors); Assert.DoesNotContain(privatePayload, await page.Locator("body").InnerTextAsync());

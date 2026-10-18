@@ -47,9 +47,9 @@ public sealed class AngularProcedureCommandJourneyTests
     var path = $"/app/engagements/{f.EngagementId:D}/audit-fieldwork";
     await preparerPage.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Adopt published programme 2026.1", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Adopt exact published version 2026.1", Exact = true })).ToBeVisibleAsync();
     await preparerPage.GetByRole(AriaRole.Button,
-      new() { Name = "Adopt published programme 2026.1", Exact = true }).ClickAsync();
+      new() { Name = "Adopt exact published version 2026.1", Exact = true }).ClickAsync();
     await Assertions.Expect(preparerPage.GetByText("AUDIT-WORKING-PROCESS v2026.1", new() { Exact = true })).ToBeVisibleAsync();
 
     var section = preparerPage.Locator("select[name='section']");
@@ -110,12 +110,49 @@ public sealed class AngularProcedureCommandJourneyTests
     await using var reviewerContext = await browser.NewContextAsync();
     var reviewerPage = await reviewerContext.NewPageAsync();
     reviewerPage.PageError += (_, error) => pageErrors.Add(error);
-    await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    var fieldworkPath = $"/api/ui/engagements/{f.EngagementId:D}/fieldwork";
+    var (reviewerFieldworkStatus, reviewerFieldworkBody) = await PlaywrightResponseCapture.RunAsync(reviewerPage,
+      request => request.Method == "GET" && new Uri(request.Url).AbsolutePath.Equals(fieldworkPath, StringComparison.OrdinalIgnoreCase),
+      async () => await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path)));
+    await using var reviewerProof = host.CreateDbContext();
+    var storedProcedureStatus = await reviewerProof.AuditProcedures.AsNoTracking().Where(x =>
+      x.EngagementId == f.EngagementId && x.SourceProcedureId == "AWP-02-01").Select(x => x.Status).SingleAsync();
+    Assert.Equal(200, reviewerFieldworkStatus);
+    using (var reviewerFieldworkJson = JsonDocument.Parse(reviewerFieldworkBody))
+    {
+      var workspace = reviewerFieldworkJson.RootElement;
+      var target = workspace.GetProperty("procedures").EnumerateArray()
+        .FirstOrDefault(item => item.GetProperty("sourceProcedureId").GetString() == "AWP-02-01");
+      Assert.True(target.ValueKind == JsonValueKind.Object,
+        $"Reviewer fieldwork did not project AWP-02-01. canManageFieldwork={workspace.GetProperty("canManageFieldwork").GetBoolean()}, " +
+        $"canViewReviewNotes={workspace.GetProperty("canViewReviewNotes").GetBoolean()}, " +
+        $"procedureCount={workspace.GetProperty("procedures").GetArrayLength()}, " +
+        $"storedProcedureStatus={storedProcedureStatus}.");
+    }
+    var reviewerSection = reviewerPage.Locator("select[name='section']");
+    var reviewerCashBankSection = reviewerSection.Locator("option").Filter(new() { HasText = "Cash & Bank" });
+    await Assertions.Expect(reviewerCashBankSection).ToHaveCountAsync(1);
+    await reviewerSection.SelectOptionAsync(new SelectOptionValue { Label = await reviewerCashBankSection.InnerTextAsync() });
     var reviewerRow = reviewerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "AWP-02-01" });
-    await reviewerRow.GetByRole(AriaRole.Button, new() { Name = "Open procedure", Exact = true }).ClickAsync();
+    var commandStatePath = $"/api/ui/procedures/{procedureId:D}/commands/state";
+    var (commandStateStatus, commandStateBody) = await PlaywrightResponseCapture.RunAsync(reviewerPage,
+      request => request.Method == "GET" && new Uri(request.Url).AbsolutePath.Equals(commandStatePath, StringComparison.OrdinalIgnoreCase),
+      async () => await reviewerRow.GetByRole(AriaRole.Button, new() { Name = "Open procedure", Exact = true }).ClickAsync());
+    Assert.Equal(200, commandStateStatus);
+    using (var commandStateJson = JsonDocument.Parse(commandStateBody))
+    {
+      var basis = commandStateJson.RootElement.GetProperty("basis");
+      Assert.True(basis.GetProperty("canReview").GetBoolean(),
+        $"Independent reviewer cannot review the just-submitted current result. Status={basis.GetProperty("latestResultStatus").GetString()}, " +
+        $"resultRevision={basis.GetProperty("latestResultRevision").GetInt64()}, blockers={string.Join(" | ", basis.GetProperty("blockers").EnumerateArray().Select(x => x.GetString()))}.");
+    }
     var review = reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Procedure execution and review", Exact = true });
     await Assertions.Expect(review).ToContainTextAsync("Frozen submitted result");
-    await review.GetByLabel("Decision", new() { Exact = true }).SelectOptionAsync("CHANGES_REQUIRED");
+    var decisionControl = review.Locator("select[name='procedure-decision']");
+    Assert.True(await decisionControl.CountAsync() == 1,
+      $"The server state allowed independent review, but the UI did not render its decision control. " +
+      $"Command state: {commandStateBody}; panel: {await review.InnerTextAsync()}; page errors: {string.Join(" | ", pageErrors)}");
+    await decisionControl.SelectOptionAsync("CHANGES_REQUIRED");
     await review.GetByLabel("Review comment (required when returning)", new() { Exact = true })
       .FillAsync("Return the reconciliation conclusion with an explicit statement-level tie-out.");
     await review.GetByRole(AriaRole.Button, new() { Name = "Preview exact review", Exact = true }).ClickAsync();
@@ -126,6 +163,10 @@ public sealed class AngularProcedureCommandJourneyTests
       .ToBeVisibleAsync();
 
     await preparerPage.GotoAsync(origin + path);
+    var preparerSectionAfterReturn = preparerPage.Locator("select[name='section']");
+    var cashBankAfterReturn = preparerSectionAfterReturn.Locator("option").Filter(new() { HasText = "Cash & Bank" });
+    await Assertions.Expect(cashBankAfterReturn).ToHaveCountAsync(1);
+    await preparerSectionAfterReturn.SelectOptionAsync(new SelectOptionValue { Label = await cashBankAfterReturn.InnerTextAsync() });
     var preparerRowAfterReturn = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "AWP-02-01" });
     await preparerRowAfterReturn.GetByRole(AriaRole.Button, new() { Name = "Open procedure", Exact = true }).ClickAsync();
     var returned = preparerPage.GetByRole(AriaRole.Region, new() { Name = "Procedure execution and review", Exact = true });

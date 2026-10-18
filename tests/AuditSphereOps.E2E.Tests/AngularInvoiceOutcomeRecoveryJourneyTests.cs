@@ -21,7 +21,7 @@ public sealed class AngularInvoiceOutcomeRecoveryJourneyTests
     var reviewer = PbcSeed.Actor(f.Reviewer, "FinanceReviewer");
     Guid invoiceId;
     const string invoiceNumber = "SYN-ANG-INVOICE-OUTCOME-001";
-    const string lostResponseMessage = "The last command response was lost. Refresh the invoice and billing history to confirm the saved status or record before preparing another action.";
+    const string lostResponseMessage = "The last command response was lost. Resolve its exact command outcome before preparing another action.";
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.AddRange(

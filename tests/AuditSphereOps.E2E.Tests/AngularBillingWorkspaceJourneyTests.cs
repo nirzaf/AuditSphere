@@ -151,7 +151,8 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await Assertions.Expect(allocationRow.GetByRole(AriaRole.Cell).Nth(1)).ToHaveTextAsync(
       allocationAmount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture) + " QAR");
     Assert.Equal(1, allocationCalls);
-    await page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Verify the saved billing state", Exact = true })).ToHaveCountAsync(0);
 
     await page.GetByLabel("Credit note number", new() { Exact = true }).FillAsync("SYN-ANG-CN-001");
     await page.GetByLabel("Credit amount (QAR)", new() { Exact = true }).FillAsync("10");
@@ -169,9 +170,9 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Verify the saved billing state", Exact = true })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Refresh persisted billing state", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("SYN-ANG-CN-001", new() { Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Verify the saved billing state", Exact = true })).ToHaveCountAsync(0);
     Assert.Equal(1, creditCalls);
-    await page.GetByRole(AriaRole.Button, new() { Name = "Clear unresolved billing draft", Exact = true }).ClickAsync();
     var interceptedReceiptPage = false;
     var interceptedCreditPage = false;
     await page.RouteAsync("**/api/ui/finance/invoices/**", async interception =>

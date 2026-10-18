@@ -222,13 +222,13 @@ public sealed class AngularPracticeProductivityJourneyTests
       if (request.Method == "POST" && request.Url.Contains("/api/ui/", StringComparison.Ordinal))
         mutations.Add(request.Url);
     };
-    var staffQueueResponseTask = staffPage.WaitForResponseAsync(response => response.Ok &&
-      response.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal));
-    await staffPage.GotoAsync(staffOrigin + "/auth/sign-in?returnUrl=%2Fapp%2Fwork");
+    var (staffQueueResponseStatus, staffQueueResponseBody) = await PlaywrightResponseCapture.RunAsync(staffPage,
+      request => request.Method == "GET" && request.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal),
+      () => staffPage.GotoAsync(staffOrigin + "/auth/sign-in?returnUrl=%2Fapp%2Fwork"));
+    Assert.InRange(staffQueueResponseStatus, 200, 299);
     await Assertions.Expect(staffPage.GetByRole(AriaRole.Heading,
       new() { Name = "My work", Exact = true })).ToBeVisibleAsync();
-    var staffQueueResponse = await staffQueueResponseTask;
-    using var staffQueueBody = JsonDocument.Parse(await staffQueueResponse.TextAsync());
+    using var staffQueueBody = JsonDocument.Parse(staffQueueResponseBody);
     Assert.DoesNotContain("AS-PM8 SIBLING CLIENT MUST STAY HIDDEN", staffQueueBody.RootElement.ToString(),
       StringComparison.Ordinal);
     Assert.DoesNotContain("AS-PM8 SIBLING TASK MUST STAY HIDDEN", staffQueueBody.RootElement.ToString(),

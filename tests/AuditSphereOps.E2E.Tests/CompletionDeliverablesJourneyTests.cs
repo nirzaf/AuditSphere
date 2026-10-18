@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
@@ -109,6 +110,23 @@ public sealed class CompletionDeliverablesJourneyTests
       await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId,
         PbcSeed.Actor(manager, "Manager"), PbcSeed.Actor(partner, "Partner"),
         accounts: [("1000", "Cash", 100m, "CASH", "ASSETS"), ("4000", "Revenue", -100m, "REVENUE", "INCOME")]);
+
+    // Package and planning fixtures advance the client input generation. Re-submit and
+    // independently review the procedure against those final inputs before Partner clearance.
+    await using (var db = host.CreateDbContext())
+    {
+      var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.Id == f.ClientId)
+        .Select(x => x.InputGeneration).SingleAsync();
+      var procedureId = await db.AuditProcedures.AsNoTracking().Where(x => x.EngagementId == f.EngagementId)
+        .Select(x => x.Id).SingleAsync();
+      var submitted = await AuditProgramService.SubmitResultAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+        new(procedureId, Math.Max(1, generation), "Reperformed cut-off against the final accepted reporting inputs.",
+          "{}", ["SYNTHETIC-COMPLETION-REVIEW"], "No exceptions identified."));
+      Assert.True(submitted.Succeeded, submitted.Message);
+      var reviewed = await AuditProgramService.ReviewResultAsync(db, PbcSeed.Actor(manager, "Manager"),
+        new(submitted.Value!.AuditProcedureResultId, AuditProcedureReviewDecisions.Reviewed, null));
+      Assert.True(reviewed.Succeeded, reviewed.Message);
+    }
 
     var origin = await StartIdentityAsync(partner);
     using var playwright = await Playwright.CreateAsync();

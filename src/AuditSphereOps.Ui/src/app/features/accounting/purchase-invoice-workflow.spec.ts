@@ -189,6 +189,32 @@ describe('Client purchase draft lifecycle', () => {
     flushHistoryReads();
   });
 
+  it('retains the selected AP role for an immediate preview and requires it again for a reopened draft', () => {
+    const fixture = open(), c = fixture.componentInstance;
+    c.selectSupplier(supplier); c.periodId = period; c.voucher = 'PV-ROLE'; c.supplierReference = 'SUP-ROLE'; c.apRoleId = account;
+    c.receiptDate = '2026-01-20'; c.documentDate = '2026-01-10'; c.accountingDate = '2026-01-20'; c.supplyDate = '2026-01-10'; c.dueDate = '2026-02-10';
+    c.evidence = 'Synthetic AP role evidence'; c.statedNet = '100'; c.statedTax = '0'; c.statedGross = '100';
+    c.lines = [{ accountCode: '6000', description: 'Supplies', quantity: '1', unitPrice: '100', discount: '0' }];
+    c.draftAssent.set(true); c.saveDraft();
+    const save = http.expectOne(`${base}/purchase-invoice-drafts`);
+    expect(save.request.body.payableRoleId).toBeUndefined();
+    save.flush(savedDraft('1', 'Synthetic AP role evidence'));
+    expect(c.apRoleId).toBe(account);
+    flushHistoryReads();
+    fixture.detectChanges();
+    const previewButton = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].find(button => button.textContent?.trim() === 'Preview AP posting')!;
+    expect(previewButton().disabled).toBe(false);
+
+    c.resumeDraft(page('DRAFT', '1').rows[0]);
+    http.expectOne(`${base}/purchase-invoice-drafts/${invoice}`).flush(savedDraft('1', 'Synthetic AP role evidence'));
+    http.expectOne(`${base}/purchase-invoice-drafts?page=0&pageSize=25`).flush(page('DRAFT', '1'));
+    expect(c.apRoleId).toBe('');
+    c.cancelEdit(); fixture.detectChanges();
+    expect(previewButton().disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Choose the approved payable control role before requesting a posting preview.');
+    fixture.destroy();
+  });
+
   it('retains the submit command identity and acknowledges only its exact recovered submission', () => {
     const fixture = open(), c = fixture.componentInstance;
     c.draft.set(savedDraft('1', 'Supplier evidence') as never);

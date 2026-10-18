@@ -53,8 +53,15 @@ public sealed class AngularClientProfileJourneyTests
       await page.EvaluateAsync("token => window.__clientProfileRouteToken = token", documentToken);
       async Task<string> NavigateInPlaceAsync(Guid clientId, string? expectedProfileText = null)
       {
-        await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
-          prefix + "/app/clients/" + clientId.ToString("D"));
+        var apiPath = "/api/ui/clients/" + clientId.ToString("D");
+        var (status, _) = await PlaywrightResponseCapture.RunAsync(page,
+          request => request.Method == "GET" && new Uri(request.Url).AbsolutePath.Equals(apiPath, StringComparison.OrdinalIgnoreCase),
+          async () => await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+            prefix + "/app/clients/" + clientId.ToString("D")));
+        if (expectedProfileText is null)
+          Assert.False(status is >= 200 and < 300, $"A client outside the current scope unexpectedly returned HTTP {status}.");
+        else
+          Assert.True(status is >= 200 and < 300, $"The scoped client profile returned HTTP {status}.");
         if (expectedProfileText is null)
           await Assertions.Expect(page.GetByRole(AriaRole.Heading,
             new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
@@ -101,8 +108,12 @@ public sealed class AngularClientProfileJourneyTests
       await siblingPage.EvaluateAsync("token => window.__clientProfileSiblingRouteToken = token", siblingDocumentToken);
       async Task<string> NavigateSiblingInPlaceAsync(Guid clientId)
       {
-        await siblingPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
-          prefix + "/app/clients/" + clientId.ToString("D"));
+        var apiPath = "/api/ui/clients/" + clientId.ToString("D");
+        var (status, _) = await PlaywrightResponseCapture.RunAsync(siblingPage,
+          request => request.Method == "GET" && new Uri(request.Url).AbsolutePath.Equals(apiPath, StringComparison.OrdinalIgnoreCase),
+          async () => await siblingPage.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }",
+            prefix + "/app/clients/" + clientId.ToString("D")));
+        Assert.False(status is >= 200 and < 300, $"A sibling client unexpectedly returned HTTP {status}.");
         await Assertions.Expect(siblingPage.GetByRole(AriaRole.Heading,
           new() { Name = "Client unavailable", Exact = true })).ToBeVisibleAsync();
         return await siblingPage.Locator("body").InnerTextAsync();

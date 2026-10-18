@@ -100,7 +100,7 @@ public sealed class AngularProposalWorkflowJourneyTests
     var engagementPath = $"/app/engagements/{fixture.EngagementId:D}";
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementPath));
     var lifecycle = page.GetByRole(AriaRole.Region, new() { Name = "Engagement lifecycle progression", Exact = true });
-    await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+    await page.Locator("details.technical-lifecycle").ScrollIntoViewIfNeededAsync();
     await Assertions.Expect(lifecycle).ToContainTextAsync("Stage 2 of 11: Proposal Generation");
 
     await page.GotoAsync(origin + $"/app/practice/proposals/{proposalId:D}");
@@ -115,7 +115,7 @@ public sealed class AngularProposalWorkflowJourneyTests
       "Email queued for lifecycle@example.test; awaiting the isolated mail worker.", new() { Exact = true })).ToBeVisibleAsync();
 
     await page.GotoAsync(origin + engagementPath);
-    await page.GetByText("Canonical Engagement Lifecycle", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+    await page.Locator("details.technical-lifecycle").ScrollIntoViewIfNeededAsync();
     await Assertions.Expect(lifecycle).ToContainTextAsync("Stage 3 of 11: Dual-Key Acceptance Pending");
     await Assertions.Expect(lifecycle).ToContainTextAsync("Client commercial acceptance of proposal required");
     await using (var db = host.CreateDbContext())

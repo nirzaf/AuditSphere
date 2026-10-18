@@ -55,7 +55,10 @@ public sealed class AngularCompletionFileRecordsJourneyTests
 
     await using (var db = host.CreateDbContext())
     {
-      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, partner, "Partner", f.ClientId, f.EngagementId));
+      Assert.True(await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == f.FirmId &&
+        x.UserId == partner.Id && x.Role == "Partner" && x.ClientId == f.ClientId &&
+        x.EngagementId == f.EngagementId && x.RevokedAt == null),
+        "The released-package fixture must retain the assigned Engagement Partner grant.");
       db.AuditDeliverables.Add(report);
       db.EngagementFileFreezes.Add(new EngagementFileFreeze
       {

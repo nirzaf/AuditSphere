@@ -144,7 +144,8 @@ public sealed class AngularCashFlowPackageJourneyTests
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Hide source lines", Exact = true }).ClickAsync();
 
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Add movement", Exact = true }).ClickAsync();
-    await preparerPage.GetByLabel("Noncash (excluded from the cash bridge)", new() { Exact = true }).Nth(1).CheckAsync();
+    var secondMovement = preparerPage.GetByRole(AriaRole.Group).Filter(new() { HasText = "Movement 2" });
+    await secondMovement.GetByLabel("Noncash source provenance (source links only; a selected calculation role governs the bridge)", new() { Exact = true }).CheckAsync();
     await preparerPage.GetByLabel("Description", new() { Exact = true }).Nth(1).FillAsync("Synthetic depreciation expense");
     await preparerPage.GetByLabel("Amount", new() { Exact = true }).Nth(1).FillAsync("10");
     await preparerPage.GetByLabel("Movement date", new() { Exact = true }).Nth(1).FillAsync("2026-06-30");
@@ -153,7 +154,6 @@ public sealed class AngularCashFlowPackageJourneyTests
       .FillAsync("synthetic-reviewed-asset-register");
     await preparerPage.GetByLabel("Classification rationale", new() { Exact = true }).Nth(1)
       .FillAsync("Noncash depreciation amount tied to the exact independently approved asset schedule component.");
-    var secondMovement = preparerPage.GetByRole(AriaRole.Group).Filter(new() { HasText = "Movement 2" });
     await secondMovement.GetByRole(AriaRole.Button, new() { Name = "Choose source lines", Exact = true }).ClickAsync();
     await Assertions.Expect(secondMovement.GetByRole(AriaRole.Button,
       new() { Name = "Hide source lines", Exact = true })).ToBeVisibleAsync();

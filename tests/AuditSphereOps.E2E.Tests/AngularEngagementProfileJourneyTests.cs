@@ -61,7 +61,12 @@ public sealed class AngularEngagementProfileJourneyTests
     await Assertions.Expect(holds).ToContainTextAsync("27 recorded holds · 13 active · 14 released");
     await Assertions.Expect(holds.Locator("tbody tr")).ToHaveCountAsync(10);
     var planning=page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
-    await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+    var planningPath=$"/api/ui/engagements/{f.EngagementId:D}/planning";
+    var (planningStatus, planningResponseBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method=="GET" && new Uri(request.Url).AbsolutePath.Equals(planningPath,StringComparison.OrdinalIgnoreCase),
+      async () => await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync());
+    Assert.True(planningStatus is >= 200 and < 300,
+      $"Engagement planning returned HTTP {planningStatus}: {planningResponseBody}");
     await Assertions.Expect(planning.GetByRole(AriaRole.Heading,new(){Name="Prepare budget version",Exact=true})).ToBeVisibleAsync();
     await planning.GetByLabel("Currency",new(){Exact=true}).FillAsync("USD");
     await planning.GetByLabel("Forecast minutes",new(){Exact=true}).FillAsync("123");

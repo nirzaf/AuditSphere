@@ -327,7 +327,12 @@ public sealed class AngularFinancialArtifactParityJourneyTests
         PbcSeed.Actor(host.Fixture.Admin, "Administrator"), new RevokeRoleGrantRequest(grant.Id));
       Assert.True(revoked.Succeeded, revoked.Message);
     }
-    await refreshPage.GetByRole(AriaRole.Button, new() { Name = "Refresh package", Exact = true }).ClickAsync();
+    var (revokedPackageStatus, revokedPackageBody) = await PlaywrightResponseCapture.RunAsync(refreshPage,
+      request => request.Method == "GET" && request.Url.Contains($"/api/ui/portal/accounting/packages/{packageId:D}", StringComparison.OrdinalIgnoreCase),
+      async () => await refreshPage.GetByRole(AriaRole.Button, new() { Name = "Refresh package", Exact = true })
+        .EvaluateAsync("element => element.click()"));
+    Assert.Equal(401, revokedPackageStatus);
+    Assert.DoesNotContain(hash, revokedPackageBody);
     await refreshPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
       .WaitForAsync(new() { Timeout = 15000 });
     var refreshedRevokedBody = await refreshPage.Locator("body").InnerTextAsync();

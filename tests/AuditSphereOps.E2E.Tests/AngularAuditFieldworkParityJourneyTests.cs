@@ -105,6 +105,9 @@ public sealed class AngularAuditFieldworkParityJourneyTests
         PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId),
         PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner", f.ClientId, f.EngagementId));
       await db.SaveChangesAsync();
+      var publication = await AuditProgramTestHelpers.PublishAsync(db, PbcSeed.Actor(f.Staff, "Partner"),
+        new("2026.1", AuditProgramCatalog.SourceHash));
+      Assert.True(publication.Succeeded, publication.Message);
     }
 
     var origin = await host.StartApiForIdentityAsync(f.Staff, Angular);
@@ -118,7 +121,7 @@ public sealed class AngularAuditFieldworkParityJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(fieldworkPath));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Controlled audit fieldwork", Exact = true })).ToBeVisibleAsync();
-    await page.GetByRole(AriaRole.Button, new() { Name = "Adopt published programme 2026.1", Exact = true }).ClickAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Adopt exact published version 2026.1", Exact = true }).ClickAsync();
     var program = page.GetByRole(AriaRole.Region, new() { Name = "Versioned audit program", Exact = true });
     await Assertions.Expect(program).ToContainTextAsync("AUDIT-WORKING-PROCESS v2026.1");
     await Assertions.Expect(program.GetByText("165", new() { Exact = true })).ToBeVisibleAsync();

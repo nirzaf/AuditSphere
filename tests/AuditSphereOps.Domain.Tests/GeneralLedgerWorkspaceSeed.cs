@@ -8,12 +8,14 @@ namespace AuditSphereOps.Domain.Tests;
 internal static class GeneralLedgerWorkspaceSeed
 {
   internal static async Task<Guid> SeedAsync(AuditSphereDbContext db, PbcSeed.Fixture f,
-    int journals = 75, bool oversized = false, bool seal = true, string kind = "GL")
+    int journals = 75, bool oversized = false, bool seal = true, string kind = "GL",
+    Guid? reportingPeriodId = null)
   {
-    var period = Guid.NewGuid(); var id = Guid.NewGuid(); var hash = id.ToString("N") + id.ToString("N");
-    db.ClientReportingPeriods.Add(new() { Id = period, FirmId = f.FirmId, ClientId = f.ClientId,
-      PeriodCode = period.ToString("N"), StartDate = new(2026,1,1), EndDate = new(2026,12,31),
-      Currency = "QAR", Basis = "IFRS", Status = "ACTIVE", CreatedByUserId = f.Staff.Id, CreatedAt = DateTimeOffset.UtcNow });
+    var period = reportingPeriodId ?? Guid.NewGuid(); var id = Guid.NewGuid(); var hash = id.ToString("N") + id.ToString("N");
+    if (reportingPeriodId is null)
+      db.ClientReportingPeriods.Add(new() { Id = period, FirmId = f.FirmId, ClientId = f.ClientId,
+        PeriodCode = period.ToString("N"), StartDate = new(2026,1,1), EndDate = new(2026,12,31),
+        Currency = "QAR", Basis = "IFRS", Status = "ACTIVE", CreatedByUserId = f.Staff.Id, CreatedAt = DateTimeOffset.UtcNow });
     db.SourceImportBatches.Add(new() { Id = id, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
       PeriodId = period, SourceKind = kind, ProfileVersion = "synthetic-gl-v1", ParserVersion = "synthetic-parser-v1",
       RawFileSha256Hex = hash, NormalizedDatasetDigest = hash, LegalEntityKey = "SYNTHETIC-GL", Currency = "QAR",

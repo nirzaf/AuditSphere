@@ -148,45 +148,60 @@ internal sealed class OwnedHost : IAsyncDisposable
     bool requireProtectionAttestation = false, IReadOnlyDictionary<string, string>? extraSettings = null, int? loopbackPort = null)
   {
     // A named loopback-only port permits built-in browser inspection of this same
-    // disposable fixture. Automated runs continue to reserve an ephemeral port.
+    // disposable fixture. Automated runs reserve an ephemeral port and retry only
+    // a confirmed bind collision, closing the race between reservation and Kestrel bind.
     if (loopbackPort is < 1024 or > 65535) throw new ArgumentOutOfRangeException(nameof(loopbackPort));
-    var url = $"http://127.0.0.1:{loopbackPort ?? ReserveLoopbackPort()}";
-    var logPath = Path.Combine(runRoot, $"api-{identity.UserKind}-{identity.Id:N}.log");
-    var settings = new List<string>
+    var attempts = loopbackPort is null ? 3 : 1;
+    for (var attempt = 1; attempt <= attempts; attempt++)
     {
-      "DOTNET_ENVIRONMENT", "Test",
-      "ASPNETCORE_ENVIRONMENT", "Test",
-      "ASPNETCORE_URLS", url,
-      "ConnectionStrings__AuditSphere", pg.ConnectionString,
-      "Application__FirmId", Fixture.FirmId.ToString("D"),
-      "Application__AllowSimulationAdapters", "true",
-      "ExternalEffects__Enabled", "false",
-      "DevelopmentIdentity__Enabled", "true",
-      "DevelopmentIdentity__Subject", identity.Subject,
-      "DevelopmentIdentity__TenantId", identity.TenantId,
-      "DevelopmentIdentity__Email", identity.Email,
-      "DevelopmentIdentity__DisplayName", identity.DisplayName,
-      "Storage__PbcStagingRoot", StagingRoot,
-      "Storage__PbcProviderSimulationRoot", Path.Combine(runRoot, "provider"),
-      "Storage__ReleaseCheckpointRoot", Path.Combine(runRoot, "checkpoints")
-    };
-    if (requireProtectionAttestation)
-      settings.AddRange(["ReleaseSafety__RequireProtectionAttestation", "true"]);
-    if (enableSetup)
-    {
-      settings.AddRange([
-        "Setup__InstallationId", "synthetic-installation",
-        "Setup__BootstrapProofHash", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(BootstrapProof))).ToLowerInvariant()
-      ]);
+      var url = $"http://127.0.0.1:{loopbackPort ?? ReserveLoopbackPort()}";
+      var logPath = Path.Combine(runRoot, $"api-{identity.UserKind}-{identity.Id:N}-attempt-{attempt}.log");
+      var settings = new List<string>
+      {
+        "DOTNET_ENVIRONMENT", "Test",
+        "ASPNETCORE_ENVIRONMENT", "Test",
+        "ASPNETCORE_URLS", url,
+        "ConnectionStrings__AuditSphere", pg.ConnectionString,
+        "Application__FirmId", Fixture.FirmId.ToString("D"),
+        "Application__AllowSimulationAdapters", "true",
+        "ExternalEffects__Enabled", "false",
+        "DevelopmentIdentity__Enabled", "true",
+        "DevelopmentIdentity__Subject", identity.Subject,
+        "DevelopmentIdentity__TenantId", identity.TenantId,
+        "DevelopmentIdentity__Email", identity.Email,
+        "DevelopmentIdentity__DisplayName", identity.DisplayName,
+        "Storage__PbcStagingRoot", StagingRoot,
+        "Storage__PbcProviderSimulationRoot", Path.Combine(runRoot, "provider"),
+        "Storage__ReleaseCheckpointRoot", Path.Combine(runRoot, "checkpoints")
+      };
+      if (requireProtectionAttestation)
+        settings.AddRange(["ReleaseSafety__RequireProtectionAttestation", "true"]);
+      if (enableSetup)
+      {
+        settings.AddRange([
+          "Setup__InstallationId", "synthetic-installation",
+          "Setup__BootstrapProofHash", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(BootstrapProof))).ToLowerInvariant()
+        ]);
+      }
+      foreach (var (key, value) in extraSettings ?? new Dictionary<string, string>())
+        settings.AddRange([key, value]);
+      var process = StartDotnet(repo, "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", logPath,
+        [.. settings]);
+      processes.Add(process);
+      await pg.RecordProcessAsync($"api-{identity.UserKind}", process);
+      try
+      {
+        await WaitForReadyAsync(process, url, logPath);
+        return url;
+      }
+      catch (InvalidOperationException ex) when (loopbackPort is null && attempt < attempts &&
+        ex.Message.Contains("address already in use", StringComparison.OrdinalIgnoreCase))
+      {
+        processes.Remove(process);
+        process.Dispose();
+      }
     }
-    foreach (var (key, value) in extraSettings ?? new Dictionary<string, string>())
-      settings.AddRange([key, value]);
-    var process = StartDotnet(repo, "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", logPath,
-      [.. settings]);
-    processes.Add(process);
-    await pg.RecordProcessAsync($"api-{identity.UserKind}", process);
-    await WaitForReadyAsync(process, url, logPath);
-    return url;
+    throw new InvalidOperationException("Could not start the owned Web host after retrying confirmed ephemeral-port collisions.");
   }
 
   /// <summary>

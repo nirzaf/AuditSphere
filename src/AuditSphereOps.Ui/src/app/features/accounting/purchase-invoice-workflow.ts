@@ -205,8 +205,10 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
       @if (d.snapshot.lateArrival) { <p role="status">Late-arriving supplier document: receipt date is after the supplier document date.</p> }
       @if (d.snapshot.possibleDuplicateCount) { <p role="status">Possible same-supplier invoice duplicate warning. A reviewer must record a reason to resolve a legitimate duplicate.</p> }
       <table><caption>Captured client purchase lines</caption><thead><tr><th>Account</th><th>Description</th><th>Net</th><th>Tax</th><th>Gross</th></tr></thead><tbody>@for (line of d.snapshot.lines; track line.lineNumber) { <tr><td>{{ line.accountCode }} · {{ line.accountName }}</td><td>{{ line.description }}</td><td>{{ line.net }}</td><td>{{ line.tax }}</td><td>{{ line.gross }}</td></tr> }</tbody></table>
+      <label>Approved AP role ID for preview <input name="previewApRoleId" [(ngModel)]="apRoleId" (ngModelChange)="previewRoleChanged()" [disabled]="busy()" required [pattern]="guidPattern.source" maxlength="36" /></label>
+      @if (!validApRoleId()) { <p role="status">Choose the approved payable control role before requesting a posting preview.</p> }
       <button matButton type="button" [disabled]="busy() || d.createdByUserId !== userId()" (click)="editDraft()">Revise saved purchase draft</button>
-      <button matButton type="button" [disabled]="busy() || !canUseSupplier()" (click)="previewDraft()">Preview AP posting</button>
+      <button matButton type="button" [disabled]="busy() || !canUseSupplier() || !validApRoleId()" (click)="previewDraft()">Preview AP posting</button>
       <button matButton type="button" [disabled]="busy()" (click)="startNewDraft()">Start a separate purchase draft</button>
       @if (preview(); as p) { <p>Exact server preview: {{ p.net }} net + {{ p.tax }} tax = {{ p.gross }} {{ p.currency }}. Late arrival: {{ p.lateArrival ? 'Yes' : 'No' }}.</p>
         @for (warning of p.duplicateWarnings; track warning) { <p role="alert">Possible duplicate: {{ warning }}</p> }
@@ -269,6 +271,7 @@ export class PurchaseInvoiceWorkflow {
   private base(): string { return `/api/ui/accounting/clients/${this.clientId()}`; }
   pendingCommand(): PendingInvoiceCommand | null { return this.pendingDraftSave() ? { ...this.pendingDraftSave()!, kind: 'DRAFT', targetId: typeof this.pendingDraftSave()!.body['invoiceId'] === 'string' ? this.pendingDraftSave()!.body['invoiceId'] as string : null, savedAt: Date.now() } : this.pendingSubmit() ?? this.pendingReview(); }
   hasPendingCommand(): boolean { return this.pendingRecoveryBlocked() || this.pendingDraftSave() !== null || this.pendingSubmit() !== null || this.pendingReview() !== null; }
+  validApRoleId(): boolean { return guid(this.apRoleId); }
   private pendingStorageKey(): string {
     const session = this.session.current();
     return `auditsphere.purchase-invoice-command-v1:${session?.firmId ?? 'none'}:${session?.userId ?? 'none'}:${session?.generation ?? 'none'}:${this.clientId()}`;
@@ -403,10 +406,10 @@ export class PurchaseInvoiceWorkflow {
       }
     });
   }
-  private populateDraft(draft: PurchaseDraft): void {
+  private populateDraft(draft: PurchaseDraft, preserveApRole = false): void {
     const snapshot = draft.snapshot;
     this.periodId = draft.periodId; this.supplierId = draft.supplierId; this.voucher = draft.voucherReference;
-    this.supplierReference = draft.supplierInvoiceReference; this.apRoleId = ''; this.evidence = snapshot.evidenceReference;
+    this.supplierReference = draft.supplierInvoiceReference; if (!preserveApRole) this.apRoleId = ''; this.evidence = snapshot.evidenceReference;
     this.sourceReceiptId = snapshot.sourceReceiptId; this.receiptDate = snapshot.receiptDate; this.documentDate = snapshot.documentDate;
     this.accountingDate = snapshot.accountingDate; this.supplyDate = snapshot.supplyDate; this.dueDate = snapshot.dueDate;
     this.precision = String(snapshot.policy.decimalPlaces); this.midpoint = snapshot.policy.midpointRule;
@@ -485,7 +488,7 @@ export class PurchaseInvoiceWorkflow {
       if (draft.createdByUserId !== pending.actorId || BigInt(draft.revision) !== BigInt(expectedRevision) + 1n) throw new Error('Draft response identity mismatch');
       const saved = this.pendingCommand();
       if (!saved || !this.clearPendingCommand(saved)) return;
-      this.draft.set(draft); this.populateDraft(draft); this.returnReason.set(null);
+      this.draft.set(draft); this.populateDraft(draft, true); this.returnReason.set(null);
       this.editing.set(false); this.revisionConflict.set(false); this.error.set(''); this.loadDrafts(0); this.refresh();
     } catch {
       this.error.set('The saved purchase response did not match this exact revision. Retry the unchanged request to recover its outcome.');
@@ -508,7 +511,7 @@ export class PurchaseInvoiceWorkflow {
           if (!this.clearPendingCommand(pending)) return;
           if (pending.kind === 'DRAFT') {
             const draft = outcome.draft as PurchaseDraft;
-            this.draft.set(draft); this.populateDraft(draft); this.returnReason.set(null); this.editing.set(false);
+            this.draft.set(draft); this.populateDraft(draft, true); this.returnReason.set(null); this.editing.set(false);
             this.preview.set(null); this.previewRequest = null; this.loadDrafts(0); this.refresh();
             this.error.set('The exact saved purchase draft was recovered from its retained command.');
           } else if (pending.kind === 'SUBMIT') {
@@ -556,7 +559,8 @@ export class PurchaseInvoiceWorkflow {
     });
   }
   private submitBody(): Record<string, unknown> | null { const d = this.draft(); if (!d || !guid(this.apRoleId)) return null; return { commandId: crypto.randomUUID(), expectedDraftRevision: d.revision, payableRoleId: this.apRoleId, previewDigest: '' }; }
-  previewDraft(): void { if (!this.canUseSupplier() || this.busy() || this.hasPendingCommand()) return; const d = this.draft(), body = this.submitBody(); if (!d || !body || d.supplierId !== this.supplierId) return; this.busy.set(true); this.previewRequest = body;
+  previewRoleChanged(): void { this.preview.set(null); this.previewRequest = null; this.submitAssent.set(false); }
+  previewDraft(): void { if (!this.canUseSupplier() || this.busy() || this.hasPendingCommand()) return; const d = this.draft(), body = this.submitBody(); if (!d || !body || d.supplierId !== this.supplierId) return; this.preview.set(null); this.submitAssent.set(false); this.busy.set(true); this.previewRequest = body;
     this.operation = this.http.post<PurchasePreview>(`${this.base()}/purchase-invoices/${d.invoiceId}/preview`, body).pipe(timeout(20000)).subscribe({ next: p => { this.busy.set(false); this.preview.set(p); this.submitAssent.set(false); this.error.set(''); }, error: () => { this.busy.set(false); this.error.set('Purchase posting preview failed. Refresh the draft and current AP role.'); this.previewRequest = null; this.submitAssent.set(false); } }); }
   submit(): void { const d = this.draft(), p = this.preview(), b = this.previewRequest; if (!d || !p || !b || this.busy() || this.hasPendingCommand() || !this.submitAssent()) return;
     const body = { ...b, previewDigest: p.digest, reviewed: true };

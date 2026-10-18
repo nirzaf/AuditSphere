@@ -8,7 +8,11 @@ public sealed class AngularSourceAcceptanceJourneyTests
   [Trait("CaseId","ANGULAR-SOURCE-ACCEPTANCE")]
   public async Task IndependentReview_TabRecovery_CurrentSelection_UnknownSaveReloadAndRevocation()
   {
-    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-SOURCE-ACCEPTANCE"); var first=await Seed(host); var second=await Seed(host);
+    await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-SOURCE-ACCEPTANCE"); var first=await Seed(host);
+    Guid periodId;
+    await using (var db=host.CreateDbContext()) periodId=await db.TrialBalanceDatasets.AsNoTracking().Where(x=>x.Id==first).Select(x=>x.PeriodId).SingleAsync()
+      ?? throw new InvalidOperationException("The trial-balance fixture lost its reporting period.");
+    var second=await Seed(host, periodId:periodId);
     var origin=await host.StartApiForIdentityAsync(host.Fixture.Admin,new Dictionary<string,string>{{"AngularUi__Enabled","true"}});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);var page=await browser.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(Route(first)));var evidence=page.GetByLabel("Acceptance evidence reference",new(){Exact=true});var assent=page.GetByLabel("I independently reviewed this exact source and its effect on the selected pointer.",new(){Exact=true});var accept=page.GetByRole(AriaRole.Button,new(){Name="Accept reviewed source",Exact=true});
@@ -31,8 +35,8 @@ public sealed class AngularSourceAcceptanceJourneyTests
     await page.GetByLabel("I independently reviewed this exact source and its effect on the selected pointer.",new(){Exact=true}).CheckAsync();await using(var db=host.CreateDbContext())await db.ClientSafetyStates.Where(x=>x.Id==host.Fixture.ClientId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.InputGeneration,x=>x.InputGeneration+1));await page.GetByRole(AriaRole.Button,new(){Name="Accept reviewed source",Exact=true}).ClickAsync();await Assertions.Expect(page.GetByRole(AriaRole.Status)).ToContainTextAsync("changed");await page.GetByRole(AriaRole.Button,new(){Name="Refresh source acceptance",Exact=true}).ClickAsync();await Assertions.Expect(page.GetByLabel("I independently reviewed this exact source and its effect on the selected pointer.",new(){Exact=true})).Not.ToBeCheckedAsync();await using var proof=host.CreateDbContext();Assert.Empty(await proof.SourceAcceptanceDecisions.ToListAsync());
   }
   private static string Route(Guid id)=>$"/ui/app/accounting/sources/{id}/acceptance";
-  private static async Task<Guid> Seed(OwnedHost host,Guid? importer=null)
+  private static async Task<Guid> Seed(OwnedHost host,Guid? importer=null,Guid? periodId=null)
   {
-    await using var db=host.CreateDbContext();var f=host.Fixture;var period=Guid.NewGuid();db.ClientReportingPeriods.Add(new(){Id=period,FirmId=f.FirmId,ClientId=f.ClientId,PeriodCode=period.ToString("N"),StartDate=new(2026,1,1),EndDate=new(2026,12,31),Currency="QAR",Basis="IFRS",Status="ACTIVE",CreatedByUserId=f.Admin.Id,CreatedAt=DateTimeOffset.UtcNow});var id=Guid.NewGuid();var hash=id.ToString("N")+id.ToString("N");db.TrialBalanceDatasets.Add(new(){Id=id,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,PeriodId=period,LegalEntityKey="SYN-BROWSER-SOURCE",Currency="QAR",Balanced=true,ValidationStatus="Accepted",RawFileSha256Hex=hash,NormalizedDatasetDigest=hash,Sha256Hex=hash,ImportedByUserId=importer??f.Staff.Id,ImportedAt=DateTimeOffset.UtcNow});await db.SaveChangesAsync();await db.TrialBalanceDatasets.Where(x=>x.Id==id).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.ImportState,"SEALED"));return id;
+    await using var db=host.CreateDbContext();var f=host.Fixture;var period=periodId??Guid.NewGuid();if(periodId is null)db.ClientReportingPeriods.Add(new(){Id=period,FirmId=f.FirmId,ClientId=f.ClientId,PeriodCode=period.ToString("N"),StartDate=new(2026,1,1),EndDate=new(2026,12,31),Currency="QAR",Basis="IFRS",Status="ACTIVE",CreatedByUserId=f.Admin.Id,CreatedAt=DateTimeOffset.UtcNow});var id=Guid.NewGuid();var hash=id.ToString("N")+id.ToString("N");db.TrialBalanceDatasets.Add(new(){Id=id,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,PeriodId=period,LegalEntityKey="SYN-BROWSER-SOURCE",Currency="QAR",Balanced=true,ValidationStatus="Accepted",RawFileSha256Hex=hash,NormalizedDatasetDigest=hash,Sha256Hex=hash,ImportedByUserId=importer??f.Staff.Id,ImportedAt=DateTimeOffset.UtcNow});await db.SaveChangesAsync();await db.TrialBalanceDatasets.Where(x=>x.Id==id).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.ImportState,"SEALED"));return id;
   }
 }

@@ -396,8 +396,8 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
     Assert.Equal(token, await page.EvaluateAsync<string>("() => window.__auditRouteParityToken"));
 
     var fieldworkPath = $"/app/engagements/{f.EngagementId:D}/audit-fieldwork";
-    await NavigateAsync(page, fieldworkPath, "Adopt published programme 2026.1");
-    await page.GetByRole(AriaRole.Button, new() { Name = "Adopt published programme 2026.1", Exact = true }).ClickAsync();
+    await NavigateAsync(page, fieldworkPath, "Adopt exact published version 2026.1");
+    await page.GetByRole(AriaRole.Button, new() { Name = "Adopt exact published version 2026.1", Exact = true }).ClickAsync();
     var program = page.GetByRole(AriaRole.Region, new() { Name = "Versioned audit program", Exact = true });
     await Assertions.Expect(program).ToContainTextAsync("AUDIT-WORKING-PROCESS v2026.1");
     await Assertions.Expect(program.GetByText("165", new() { Exact = true })).ToBeVisibleAsync();

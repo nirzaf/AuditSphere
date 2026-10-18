@@ -74,6 +74,7 @@ export function decodeSearch(value: unknown): SearchResult {
             maxlength="100"
             minlength="2"
             [matAutocomplete]="suggestions"
+            [matAutocompleteDisabled]="loading() || !!data() || !!error()"
             (input)="typing(term.value)"
             (keydown.escape)="dismiss()"
             aria-describedby="search-help"

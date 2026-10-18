@@ -11,7 +11,11 @@ public sealed class AngularGeneralLedgerAcceptanceJourneyTests
   public async Task InspectionIndependentAcceptance_UnknownSaveReloadAndRevocation()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-GL-ACCEPTANCE");
-    var first = await Seed(host); var second = await Seed(host);
+    var first = await Seed(host);
+    Guid periodId;
+    await using (var db = host.CreateDbContext())
+      periodId = await db.SourceImportBatches.AsNoTracking().Where(x => x.Id == first).Select(x => x.PeriodId).SingleAsync();
+    var second = await Seed(host, reportingPeriodId: periodId);
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var pw = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(pw);
     var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, e) => errors.Add(e);
@@ -74,9 +78,11 @@ public sealed class AngularGeneralLedgerAcceptanceJourneyTests
   }
 
   private static string Route(Guid id) => $"/ui/app/accounting/gl-sources/{id}/acceptance";
-  private static async Task<Guid> Seed(OwnedHost host, bool self = false)
+  private static async Task<Guid> Seed(OwnedHost host, bool self = false, Guid? reportingPeriodId = null)
   {
     await using var db = host.CreateDbContext();
-    return await GeneralLedgerWorkspaceSeed.SeedAsync(db, self ? host.Fixture with { Staff = host.Fixture.Admin } : host.Fixture, journals: 1);
+    return await GeneralLedgerWorkspaceSeed.SeedAsync(db,
+      self ? host.Fixture with { Staff = host.Fixture.Admin } : host.Fixture,
+      journals: 1, reportingPeriodId: reportingPeriodId);
   }
 }

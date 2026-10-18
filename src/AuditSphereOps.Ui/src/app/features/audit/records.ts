@@ -106,6 +106,7 @@ export class PopulationRecord {
     }
     @if (rec.data()) { <audit-finding-command-review [flow]="flow" /> }
   `,
+  styles: ['form textarea { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }'],
 })
 export class FindingRecord {
   private readonly api = inject(Api);

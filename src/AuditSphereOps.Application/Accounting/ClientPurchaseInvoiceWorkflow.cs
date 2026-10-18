@@ -193,10 +193,10 @@ public static class ClientPurchaseInvoiceWorkflow
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<ClientPurchaseInvoiceDraftPage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    var latestDrafts = db.ClientPurchaseInvoiceDrafts.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId)
-      .GroupBy(x => x.InvoiceId)
-      .Select(group => group.OrderByDescending(x => x.Revision).First());
+    var latestDrafts = db.ClientPurchaseInvoiceDrafts.AsNoTracking().Where(d =>
+      d.FirmId == actor.FirmId && d.ClientId == clientId &&
+      !db.ClientPurchaseInvoiceDrafts.Any(newer => newer.FirmId == d.FirmId && newer.ClientId == d.ClientId &&
+        newer.InvoiceId == d.InvoiceId && newer.Revision > d.Revision));
     var resumable = latestDrafts.Where(d =>
       !db.ClientPurchaseInvoiceSubmissions.Any(s => s.FirmId == actor.FirmId && s.ClientId == clientId && s.DraftId == d.Id) ||
       db.ClientPurchaseInvoiceSubmissions.Any(s => s.FirmId == actor.FirmId && s.ClientId == clientId && s.DraftId == d.Id &&
