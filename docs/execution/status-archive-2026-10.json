@@ -18734,6 +18734,35 @@
         "Current-source fast CI and full release verification are pending.",
         "Broader practice-management, owner/professional and external provider acceptance remain outside this criterion slice."
       ]
+    },
+    "targetedVerification.aspmCrm02RelationshipHistory20261018": {
+      "recordedAtUtc": "2026-10-18T10:15:53Z",
+      "sourceCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
+      "criterion": "ASPM-CRM-02",
+      "status": "PARTIAL",
+      "scope": "Retain revoked organization relationships in the authorized hierarchy; derive ACTIVE/FUTURE/EXPIRED/REVOKED status from current UTC date and stored effective dates; show existing registration number and jurisdiction in the legal-entity panel.",
+      "authorization": "Relationship counterpart details remain disclosed only when the actor has current authorization for both client records. Existing cycle prevention and firm/client scope guards remain unchanged.",
+      "verification": {
+        "domainCommand": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~OrganizationRelationships_BuildsHierarchy_AndEnforcesCycleAndBoundaryInvariants|FullyQualifiedName~OrganizationRelationships_PreservesEffectivePeriodAndProjectsCurrentStatus'",
+        "domainResult": "Passed 2, Failed 0, Skipped 0; 42 seconds.",
+        "angularCommand": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/clients/client-relationships.spec.ts'",
+        "angularResult": "Passed 8 tests in 1 file.",
+        "angularBuild": "npm --prefix src/AuditSphereOps.Ui run build passed; pre-existing commercial/settings.scss budget warning: 7.53 kB vs 4.00 kB.",
+        "openApi": "bash scripts/contracts/verify-openapi.sh passed; OpenAPI contract current.",
+        "browser": "NOT_VERIFIED. Existing tabs at 127.0.0.1:5029 displayed workspace shell/navigation without route content. Existing process left untouched."
+      },
+      "ci": {
+        "fastRunId": "39118460754",
+        "sourceCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
+        "statusAtRecordedAt": "IN_PROGRESS",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39118460754",
+        "olderFullReleaseRunId": "39117606930",
+        "olderFullReleaseCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
+        "olderFullReleaseStatusAtRecordedAt": "IN_PROGRESS"
+      },
+      "remaining": [
+        "No client archive lifecycle/search behavior established; ASPM-CRM-02 remains PARTIAL."
+      ]
     }
   }
 }

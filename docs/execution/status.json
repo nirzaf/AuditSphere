@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
+  "headCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1113,20 +1113,19 @@
       "note": "Detailed follow-up and NOT_RUN record are preserved in the archive; professional, live-provider and exact-SHA release gates remain open."
     },
     "aspmCrmLeadHistory20261018": {
-      "recordedAtUtc": "2026-10-18T10:01:33Z",
-      "sourceCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
       "status": "PARTIAL",
-      "domain": "PASS 4/4",
-      "angular": "PASS 5/5",
-      "openApiAndEfDrift": "PASS",
-      "builtInBrowser": "NOT_VERIFIED: existing port 5029 shell is blank with missing hashed Angular chunks.",
-      "fastCiRun": "39117590102",
-      "fullReleaseRun": "39117606930",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCrmLeadHistory20261018",
-      "stillOpen": [
-        "Historical lead actions/actors for existing leads are unknowable.",
-        "Current-source CI and browser acceptance remain pending."
-      ]
+      "sourceCommit": "9f15c482cef11402875d09a53ede4d21af10a3c6",
+      "fastCiRun": "39117697497 PASS on 6819612a81c902bd278a1842b883e741b084edce",
+      "fullReleaseRun": "39117606930 IN_PROGRESS on 9f15c482cef11402875d09a53ede4d21af10a3c6",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCrmLeadHistory20261018"
+    },
+    "aspmCrm02RelationshipHistory20261018": {
+      "status": "PARTIAL",
+      "sourceCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
+      "focusedTests": "Domain 2/2; Angular 8/8; OpenAPI and Angular build pass.",
+      "browser": "NOT_VERIFIED: port 5029 shell only.",
+      "fastCiRun": "39118460754 IN_PROGRESS",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCrm02RelationshipHistory20261018"
     }
   },
   "externalGates": [

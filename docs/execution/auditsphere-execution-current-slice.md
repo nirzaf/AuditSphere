@@ -19,6 +19,14 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Client relationship dates and retained history (2026-10-18)
+
+Commit `05406665c6d7e8ba1413b189d00d1cc1d5d12ba0` preserves revoked client relationships in the authorized hierarchy and reports `ACTIVE`, `FUTURE`, `EXPIRED`, or `REVOKED` using the current UTC date and the stored effective period. The legal-entity panel now displays the existing registration number and jurisdiction alongside legal name, tax identifier and entity type. Counterpart details remain omitted unless the actor has current authorization for both client records.
+
+Focused evidence on this source: the PostgreSQL Domain tests `OrganizationRelationships_BuildsHierarchy_AndEnforcesCycleAndBoundaryInvariants` and `OrganizationRelationships_PreservesEffectivePeriodAndProjectsCurrentStatus` passed 2/2; the Angular `client-relationships.spec.ts` passed 8/8; `bash scripts/contracts/verify-openapi.sh` passed; and the Angular production build passed with the existing `commercial/settings.scss` component-style budget warning (7.53 kB against 4.00 kB). Built-in-browser verification remains **NOT_VERIFIED** because the existing port 5029 tabs render only the workspace shell with no route content; I left that process untouched. No client records or live provider settings were changed.
+
+ASPM-CRM-02 remains PARTIAL: the product has no established client archival lifecycle or searchable archived-client history. Fast CI for this commit is pending; full release run `39117606930` is pinned to the earlier code commit `9f15c482cef11402875d09a53ede4d21af10a3c6`. Detailed evidence is in [`status.json`](status.json#targetedVerification.aspmCrm02RelationshipHistory20261018). The previous lead-history slice's fast CI passed on commit `6819612a81c902bd278a1842b883e741b084edce` (run `39117697497`); its current browser acceptance remains unverified.
+
 ## Retained lead action history (2026-10-18)
 
 ASPM-CRM-01 now retains append-only lead activity for creation, qualification, opportunity creation, proposal revision/review/marking as sent, acceptance or decline, and the exact client-conversion link. Each event is written with its business command; idempotent retries do not add duplicate events. The lead workspace projects source, current owner and creation time, plus a stable chronological history page capped at 200 events. Authorized staff can request older history with a lead-bound keyset cursor.
