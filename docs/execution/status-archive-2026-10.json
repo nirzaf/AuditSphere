@@ -18355,6 +18355,16 @@
       "builtInBrowser": "PASS: exact preview, unchecked assent, disabled confirm, zero console errors; finding-preview.png; no execution",
       "database": "Owned synthetic fixtures only; no development/live migration",
       "sourceDisposition": "Finding.razor PARITY_VERIFIED; no deletion authorized"
+    },
+    "targetedVerification.practiceManagementCrossLedgerBoundariesInitialRun20261018": {
+      "name": "Focused PostgreSQL cross-ledger regression cohort",
+      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~LedgerWorkflow_IsBalancedIdempotentAndImmutable|FullyQualifiedName~SalesInvoiceIndependentPostIsAtomicScopedRecoverableAndReconcilesWithNativeGL|FullyQualifiedName~GroupWorkflow_UsesApprovedComponentPackagesWithoutMutatingThem'",
+      "result": "PASS",
+      "passed": 3,
+      "failed": 0,
+      "total": 3,
+      "database": "PostgreSQL disposable test schemas",
+      "duration": "43s"
     }
   }
 }
