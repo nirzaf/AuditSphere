@@ -27,7 +27,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "4bf8464174afe69fd2b3751e2317958b3e9332ee",
+  "headCommit": "d5c5ca7ee436c86647c18115acae063a299273c1",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1884,8 +1884,8 @@
         ],
         "contractRenderer": "Large JSON accessibility snapshot timed out; server request was HTTP 200 and contract verified by served-artifact tests."
       },
-      "currentCommitReleaseVerification": "NOT_RUN: new repaired source requires exact-SHA CI/CD; preceding run remains observed separately",
-      "testedCodeCommit": "37457ac4ead06b274be2ac8b99ac1b547677879a",
+      "currentCommitReleaseVerification": "IN_PROGRESS: workflow run 39097383073 verifies exact SHA d5c5ca7ee436c86647c18115acae063a299273c1",
+      "testedCodeCommit": "d5c5ca7ee436c86647c18115acae063a299273c1",
       "negativeRevisionDomain": {
         "result": "PASS",
         "passed": 1,
@@ -1974,6 +1974,40 @@
           "ApprovedClientCreditAllocationDerivesBalancesAndSupportsAuditedUnallocation"
         ],
         "notes": "SQL-translatable bounded assignee projection; final portal history continuation asserted; authorized sibling command lookup proves absent/null receipt rather than disclosing foreign intent. No suite skipped or full local run."
+      },
+      "purchaseWorkflowAndBrowser20261018": {
+        "testedCodeCommit": "d5c5ca7ee436c86647c18115acae063a299273c1",
+        "result": "FOCUSED_PASS",
+        "angular": {
+          "purchaseInvoiceWorkflow": "PASS 9/9",
+          "workspaceSearch": "PASS 4/4"
+        },
+        "e2e": {
+          "salesInvoiceAndSupplierPurchaseCredit": "PASS 1/1",
+          "generalLedgerAcceptance": "PASS 2/2"
+        },
+        "angularBuild": "PASS; existing commercial/settings.scss stylesheet budget warning",
+        "browser": {
+          "result": "PASS_READ_ONLY_SMOKE",
+          "environment": "Current Angular dev server on loopback port 4301; existing local API on port 5029; synthetic data",
+          "observed": [
+            "Workspace search returned two authorized Doha results",
+            "Suggestion list did not overlap the workspace content",
+            "No browser console errors"
+          ],
+          "notVerified": [
+            "Full product browser journey",
+            "Responsive acceptance",
+            "Live Microsoft/provider acceptance"
+          ],
+          "writes": "None; read-only navigation and search"
+        },
+        "releaseVerification": {
+          "runId": 39097383073,
+          "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39097383073",
+          "result": "IN_PROGRESS",
+          "verifiedSha": "d5c5ca7ee436c86647c18115acae063a299273c1"
+        }
       },
       "pagingHistory": "status-archive-2026-10.json: apiAngularParity.localVerification.pagingSlice20261018"
     }

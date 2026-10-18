@@ -19,6 +19,14 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Accounting and browser-journey repair (2026-10-18)
+
+Commit `d5c5ca7ee436c86647c18115acae063a299273c1` fixes the saved purchase-invoice draft preview path: the preparer can supply and validate the approved AP role ID required by preview, and stale preview/assent state is cleared when the role or draft changes. The purchase-invoice draft query now uses a SQL-translatable latest-draft predicate. Search suggestions remain closed while loading, after results, or on errors; long audit-record textareas are constrained to their workspace. Several browser journeys and fixtures were aligned with the current accessible labels and current workflow contracts, without skipping tests.
+
+Focused verification on the pushed source passed: purchase-invoice workflow Angular spec (9/9), workspace search Angular spec (4/4), Angular production build (existing `commercial/settings.scss` stylesheet budget warning), the sales invoice/supplier purchase-credit browser journey (1/1), and General Ledger acceptance journeys (2/2). The built-in browser smoke check used the current Angular dev server on port 4301 with the existing local API on port 5029 and synthetic data: workspace search returned two authorized Doha results, showed no overlapping suggestion list, and reported no console errors. It was read-only; no business records or access settings were changed. The long-running API/static bundle on port 5029 was left untouched.
+
+The full unfiltered release workflow was dispatched against the exact pushed SHA; its run and result are recorded in `status.json`. This focused evidence does not replace full release verification or live-provider acceptance.
+
 ## PBC exact-version reviewer acceptance
 
 Staff acceptance now requires the assigned, independently authorized reviewer to confirm the exact provider-verified upload ID, revision and content hash. The accepted request stores an immutable receipt binding that source to its request submission revision, provider identity/digest, reviewer and time. Database constraints validate the receipt against the request, received upload and completed transfer operation, and prevent rewriting the accepted decision or source. Legacy upload rows remain readable but cannot be accepted without matching current provider evidence.
