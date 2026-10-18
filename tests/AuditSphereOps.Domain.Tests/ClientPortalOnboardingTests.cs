@@ -364,17 +364,16 @@ public sealed class ClientPortalOnboardingTests
     var f = await PbcSeed.SeedAsync(pg);
     var clientUser = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId, onboarded: true);
     var requestId = await SentRequestAsync(pg, f, clientUser.Id);
-    var staffActor = PbcSeed.Actor(f.Staff, "Staff");
     var reviewerActor = PbcSeed.Actor(f.Reviewer, "Staff");
     var clientActor = PbcSeed.Actor(clientUser, "ClientUser");
 
-    // Staff transitions request to UnderReview and then ClarificationRequired
+    // The assigned reviewer transitions the request to UnderReview and then ClarificationRequired.
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       await db.PbcRequests.Where(x => x.Id == requestId).ExecuteUpdateAsync(s => s.SetProperty(x => x.State, PbcStates.UnderReview));
       var current = await db.PbcRequests.SingleAsync(x => x.Id == requestId);
       const string reason = "Bank statement pages 3 and 4 are missing from the scanned copy.";
-      var reject = await PbcService.ChangeStateAsync(db, staffActor, new PbcStateChangeRequest(requestId, PbcStates.ClarificationRequired, current.Revision, ClarificationReason: reason));
+      var reject = await PbcService.ChangeStateAsync(db, reviewerActor, new PbcStateChangeRequest(requestId, PbcStates.ClarificationRequired, current.Revision, ClarificationReason: reason));
       Assert.True(reject.Succeeded, reject.Message);
     }
 

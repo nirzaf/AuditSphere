@@ -21,6 +21,8 @@ public sealed class StaffCertificationReviewPersistenceTests
     db.StaffCertifications.Add(source);
     db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Reviewer, "Manager", clientId: seed.ClientId, engagementId: seed.EngagementId));
     await db.SaveChangesAsync();
+    // Hash the persisted timestamp representation (PostgreSQL stores timestamptz at microsecond precision).
+    await db.Entry(source).ReloadAsync();
     Assert.False((await AuditSphereOps.Application.Practice.ResourcePlanningService.GetCertificationReviewAsync(db,
       PbcSeed.Actor(seed.Reviewer, "Manager"), source.Id)).Succeeded);
     var intent = new AuditSphereOps.Application.Practice.ReviewStaffCertificationRequest(source.Id, Guid.NewGuid(),
