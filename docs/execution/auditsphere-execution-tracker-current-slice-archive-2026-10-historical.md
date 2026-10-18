@@ -6264,10 +6264,10 @@ Verification run in this slice: Release solution build 0 warnings / 0 errors; Do
 
 ## Requirements-alignment slice: advance gate and diagram traceability — 2026-10-09
 
-Owner-directed alignment of `workflow_architecture_suite.html` with `requirements.html` (the source-aligned v2.1 register)
+Owner-directed alignment of the workflow architecture suite with the source requirements register (the source-aligned v2.1 register)
 and with the code. Observed results:
 
-- **Suite ↔ register links repaired.** All 59 baseline links pointed at the non-existent `requirements(2).html`; they now resolve to `requirements.html`. All 22 distinct anchors (`#architecture`, `#boundaries`, `#controls`, `#lifecycle`, `#M1.01`…`#M5.02`) exist as `id` values in the register.
+- **Suite ↔ register links repaired.** All 59 baseline links pointed at the non-existent `requirements(2).html`; they were updated to resolve to the requirements register. All 22 distinct anchors (`#architecture`, `#boundaries`, `#controls`, `#lifecycle`, `#M1.01`…`#M5.02`) exist as `id` values in the register.
 - **Persona cards** carry the register's §1.2 role names: Audit Associate / Junior Auditor, Audit Senior / Audit Manager, Engagement Partner, Client Coordinator / CFO / MD.
 - **Profitability wording corrected** to match `PracticeAnalyticsQuery`: the source-defined charge-out indicator is stated, and the implemented actual-cost analytics (separate staff cost rate, profit, margin, realization, billed/collected) are described instead of being called undefined.
 - **Three externally blocked steps marked `BLOCKED_EXTERNAL`** in the suite: live PBC portal provisioning and the first-sign-in evidence gate (ADR-0003: Microsoft sign-in, not emailed temporary passwords), the five standard engagement folders in the client SharePoint site, and provider-enforced archive immutability.

@@ -3471,7 +3471,7 @@
       },
       "projectCompletionHardening": {
         "sourceCommitBase": "64713e808d165b4ef91ea4be4979e0f98fb2def3",
-        "sourceState": "working tree; separate owner-staged Requirements.html rename preserved",
+        "sourceState": "working tree; separate owner-staged requirements register rename preserved",
         "observedAt": "2026-10-01T21:25:54.166108+00:00",
         "scope": "Passive connected-circuit session-epoch/disabled-identity verification in both shells; protected browser draft clearing; systematic random sampling through Domain/Application/UI with immutable order-bound re-performance; owner-retired documentation references reconciled.",
         "build": "PASS: final Release solution build, zero warnings/errors.",

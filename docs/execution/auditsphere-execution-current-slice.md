@@ -19,6 +19,14 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Reversible client archive history (2026-10-18)
+
+Commit `9cdbfb19e512c8d9e849fe95cfd6f2d38a33b2c7` adds a reversible client archive state backed by append-only actor, UTC time and revision events. Archive/restore is client-grant authorized, locks the client row, checks the expected revision and does not change client status, engagement records, evidence or authorization. Authorized portfolio and global search retain archived clients and label them; the client profile offers a scoped archive/restore action. The migration refuses downgrade while lifecycle events remain and has not been applied to a shared or live database.
+
+Focused verification on this source passed: PostgreSQL Domain tests 2/2 for immutable archive/restore history and RelationshipManager search isolation; Angular client and portfolio workspace specs 20/20; API/OpenAPI emitter Release build with 0 warnings/errors; OpenAPI drift; EF model drift; and all four documentation validators. The fast CI run `39132751124` and exact-SHA full release run `39132763882` were in progress at handoff. Full suites remain CI-only.
+
+Built-in-browser acceptance is **NOT_VERIFIED**: the existing `127.0.0.1:5029` app renders only its workspace shell and serves stale code. I left the user's process and database untouched. The change is pushed to `master`, but ASPM-CRM-02 remains PARTIAL pending CI completion and authenticated browser acceptance. Other unrelated worktree edits (two legacy HTML deletions, an untracked architecture HTML file, and historical execution-record edits) were preserved and excluded from this commit.
+
 ## Firm receivables age all posted invoice categories (2026-10-18)
 
 The ASPM-FIN-03 query regression now exercises posted firm invoices typed as `ADVANCE`, `FINAL`, `TIME`, and `OTHER`, with effective payment terms, posted cash, credits and approved allocation corrections evaluated at the UTC as-of date. The final-invoice row is a synthetic query fixture; it does not bypass the production balance-invoice creation gate. The time-invoice row is produced through the existing billing service from approved synthetic time. Client-bookkeeping invoices remain outside the firm receivables query.
