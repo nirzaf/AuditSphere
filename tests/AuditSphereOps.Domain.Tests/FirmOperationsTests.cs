@@ -181,7 +181,13 @@ public sealed partial class FirmOperationsTests
       billedInvoiceId = invoice.Value;
       Assert.True((await BillingService.SubmitInvoiceAsync(db, finance, invoice.Value)).Succeeded);
       Assert.True((await BillingService.ApproveInvoiceAsync(db, w.A("reviewer", "FinanceReviewer"), invoice.Value)).Succeeded);
+      var clientBookCountsBeforePost = (
+        await db.ClientOperationalJournals.CountAsync(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId),
+        await db.GeneralLedgerTransactions.CountAsync(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId));
       Assert.True((await BillingService.PostInvoiceAsync(db, finance, invoice.Value)).Succeeded);
+      Assert.Equal(clientBookCountsBeforePost, (
+        await db.ClientOperationalJournals.CountAsync(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId),
+        await db.GeneralLedgerTransactions.CountAsync(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId)));
       var receipt = (await BillingService.RecordReceiptAsync(db, finance, new RecordReceiptRequest(account, 2400m, "BANK-1", RequestId: Guid.NewGuid()))).Value;
       Assert.True((await BillingService.AllocateReceiptAsync(db, finance, new AllocateReceiptRequest(receipt, invoice.Value, 2400m, Guid.NewGuid()))).Succeeded);
     }

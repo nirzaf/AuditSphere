@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +38,15 @@ public sealed partial class ClientAccountingTests
   [Fact]
   public async Task SalesInvoiceIndependentPostIsAtomicScopedRecoverableAndReconcilesWithNativeGL()
   {
-    await using var pg=await PgTestSchema.CreateAsync();var s=await SeedAsync(pg);var f=await SeedSalesWorkflow(pg,s);
+    await using var pg=await PgTestSchema.CreateAsync();var s=await SeedAsync(pg);
+    var firmAnalyticsActor=Actor(s.Reviewer,"Partner");
+    IReadOnlyList<EngagementEconomicsRow> firmAnalyticsBefore;
+    await using(var db=new AuditSphereDbContext(pg.Options))
+    {
+      var report=await PracticeAnalyticsQuery.GetAsync(db,firmAnalyticsActor,new DateOnly(2026,1,10),new DateOnly(2026,1,10));
+      Assert.True(report.Succeeded,report.Message);firmAnalyticsBefore=report.Value!.Engagements;
+    }
+    var f=await SeedSalesWorkflow(pg,s);
     var maker=Actor(s.Preparer,"AccountingPreparer");var reviewer=Actor(s.Reviewer,"AccountingReviewer");
     var submit=new ClientSalesInvoiceSubmitRequest(Guid.CreateVersion7(),f.Draft.InvoiceId,1,f.Role,"",null,"Client-approved service record","");
     ClientSalesInvoiceCommandReceipt submitted;
@@ -86,6 +95,9 @@ public sealed partial class ClientAccountingTests
       Assert.Single(await db.ClientSalesInvoiceDecisions.ToListAsync());Assert.Single(await db.ClientOperationalPostingReceipts.ToListAsync());Assert.Single(await db.ClientSalesInvoiceOpenItems.ToListAsync());
       Assert.Empty(await db.FirmJournals.Where(x => x.FirmId == s.FirmId).ToListAsync());
       Assert.Empty(await db.FirmPostings.Where(x => x.FirmId == s.FirmId).ToListAsync());
+      var firmAnalyticsAfter=await PracticeAnalyticsQuery.GetAsync(db,firmAnalyticsActor,new DateOnly(2026,1,10),new DateOnly(2026,1,10));
+      Assert.True(firmAnalyticsAfter.Succeeded,firmAnalyticsAfter.Message);
+      Assert.Equal(firmAnalyticsBefore,firmAnalyticsAfter.Value!.Engagements);
       Assert.False((await ClientOperationalLedgerWorkspace.CreateReversalAsync(db,maker,s.ClientA,lifecycle.JournalId!.Value,new(long.Parse(lifecycle.JournalRevision!),f.Period,"REV-1",new(2026,1,20),"Bypass","Evidence"))).Succeeded);
       var submissionDelete=await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlRawAsync("DELETE FROM client_sales_invoice_submissions"));Assert.Equal("23514",submissionDelete.SqlState);
       var decisionDelete=await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlRawAsync("DELETE FROM client_sales_invoice_decisions"));Assert.Equal("23514",decisionDelete.SqlState);
