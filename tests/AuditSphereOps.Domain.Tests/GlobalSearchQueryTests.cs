@@ -230,7 +230,8 @@ public sealed class GlobalSearchQueryTests
       RecordKinds(await SearchAsync(w, financeManager, "PBC TEST CLIENT")));
     Assert.Equal([GlobalSearchQuery.Kinds.Invoice],
       RecordKinds(await SearchAsync(w, financeReviewer, "PBC TEST CLIENT")));
-    Assert.Equal([GlobalSearchQuery.Kinds.Lead],
+    // This explicit firm-wide relationship grant covers client summaries and leads, not professional engagement work.
+    Assert.Equal([GlobalSearchQuery.Kinds.Client, GlobalSearchQuery.Kinds.Lead],
       RecordKinds(await SearchAsync(w, relationshipManager, Marker)));
     Assert.Equal([GlobalSearchQuery.Kinds.Client, GlobalSearchQuery.Kinds.Engagement, GlobalSearchQuery.Kinds.PbcRequest],
       RecordKinds(await SearchAsync(w, senior, "PBC TEST CLIENT")));

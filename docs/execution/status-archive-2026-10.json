@@ -18852,6 +18852,26 @@
       "taskBoard": "PASS: 99 generated items; no board diff",
       "taskPack": "PASS: 75 tasks; 2,899 local links",
       "diff": "PASS: git diff --check"
+    },
+    "documentationReconciliationPublished20261018": {
+      "inspectedCommit": "d4bbef4dc5717f943810a939eee83d4acb158992",
+      "inspectedAtUtc": "2026-10-18T14:15:16Z",
+      "branch": "master",
+      "report": "docs/execution/auditsphere-execution-report-documentation-reconciliation-current.md",
+      "scope": "Revalidated operative instructions, links and evidence on master; PR #46/#47 are merged. No application/provider changes.",
+      "result": "DOCS_RECONCILED",
+      "checks": {
+        "result": "PASS",
+        "history": "status-archive-2026-10.json#keys.documentationReconciliationChecks20261018"
+      },
+      "fastCi": "PASS: run 39134304836 on d4bbef4d; Docs, Angular and .NET Release",
+      "fullCi": "IN_PROGRESS at 2026-10-18T14:15Z: run 39132911253 on f5f96d9e; Domain failed, API/E2E running; failure logs unavailable",
+      "applicationTests": "NOT_RUN locally; full suites remain CI-only",
+      "professionalApproval": "NONE; D1-DRAFT-01 remains proposed",
+      "cardStatusesChanged": false,
+      "externalGateStatusesChanged": false,
+      "merge": "PR #46 e030f19a and PR #47 8758a8f9 merged to master",
+      "deployment": "NOT_RUN"
     }
   }
 }

@@ -1,24 +1,10 @@
 {
   "schemaVersion": "1",
   "documentationReconciliation": {
-    "inspectedCommit": "d4bbef4dc5717f943810a939eee83d4acb158992",
-    "inspectedAtUtc": "2026-10-18T14:15:16Z",
-    "branch": "master",
-    "report": "docs/execution/auditsphere-execution-report-documentation-reconciliation-current.md",
-    "scope": "Revalidated operative instructions, links and evidence on master; PR #46/#47 are merged. No application/provider changes.",
     "result": "DOCS_RECONCILED",
-    "checks": {
-      "result": "PASS",
-      "history": "status-archive-2026-10.json#keys.documentationReconciliationChecks20261018"
-    },
-    "fastCi": "PASS: run 39134304836 on d4bbef4d; Docs, Angular and .NET Release",
-    "fullCi": "IN_PROGRESS at 2026-10-18T14:15Z: run 39132911253 on f5f96d9e; Domain failed, API/E2E running; failure logs unavailable",
-    "applicationTests": "NOT_RUN locally; full suites remain CI-only",
-    "professionalApproval": "NONE; D1-DRAFT-01 remains proposed",
-    "cardStatusesChanged": false,
-    "externalGateStatusesChanged": false,
-    "merge": "PR #46 e030f19a and PR #47 8758a8f9 merged to master",
-    "deployment": "NOT_RUN"
+    "report": "docs/execution/auditsphere-execution-report-documentation-reconciliation-current.md",
+    "history": "status-archive-2026-10.json#keys.documentationReconciliationPublished20261018",
+    "publication": "APPROVED: f409e762 and da2cdd38 confirmed on remote master; professional/external gates unchanged"
   },
   "specificationVersion": "5.0",
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
@@ -1142,6 +1128,14 @@
       "fullReleaseVerification": "NOT_RUN on current source; full release gate remains separate.",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmFin03ReceivablesTypes20261018",
       "fastCiRun": "39120222007 SUCCESS on 1f4e5430 (Docs Health, Angular, .NET Release); predecessor 39119821556 SUCCESS on 9fad72d0; run 39119098499 FAILED contract drift (fixed in 9fad72d0)."
+    },
+    "searchRoleMatrix20261018": {
+      "baseline": "f854ddee62daac0b4e798daaf3e31457c38a3e2d",
+      "testPatchSha256": "109cd1753cfd671d15969fabcca3260615f0e86bbef839334501d564e90335f2",
+      "test": "GlobalSearchQueryTests.SearchResultKindsFollowCapabilitySpecificRolesAndScopes",
+      "result": "PASS 1/1; Release; PostgreSQL auditsphere_tests on loopback 5433",
+      "priorFailure": "39132911253 Domain on f5f96d9e: 1372 pass, 1 fail; expected Lead, actual Client/Lead",
+      "testValue": "Static: omitting Client or adding professional result kinds fails exact equality. Counterfactual NOT_RUN."
     }
   },
   "externalGates": [
@@ -2062,7 +2056,7 @@
     "verification": "STATIC_PASS: docs gates; 33 inputs; 17 Bash/12 PowerShell/6 Python snippets; dummy-input Compose merges",
     "applicationTests": "NOT_RUN: documentation only",
     "customerActions": "NOT_RUN",
-    "wikiCommit": "657e2bf9e678e98de4cd00f20801941635c274b1",
+    "wikiCommit": "cc0382125852da9b403c72d24e3b11d97cd9ede8",
     "credentialIsolation": {
       "baseline": "da2cdd3811fe275bcf9c4344756145934fd4d9f3",
       "configuration": "PASS: base/override Compose; six RO fail-closed binds; data and other services preserved",
