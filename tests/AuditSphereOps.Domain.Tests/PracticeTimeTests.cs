@@ -279,6 +279,9 @@ public sealed class PracticeTimeTests
     var finance = User(fixture.FirmId, "FinanceReviewer");
     var financeActor = Actor(finance, "FinanceManager");
     var workDate = new DateOnly(2026, 1, 10);
+    Guid taskId;
+    Guid originalRateCardVersionId;
+    Guid revisedRateCardVersionId;
     Guid timeEntryId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -287,9 +290,9 @@ public sealed class PracticeTimeTests
       await db.SaveChangesAsync();
       db.RoleGrants.Add(Grant(fixture.FirmId, finance, "FinanceManager"));
       await db.SaveChangesAsync();
-      var taskId = (await PracticeTimeService.CreateTaskAsync(db, fixture.ManagerActor,
+      taskId = (await PracticeTimeService.CreateTaskAsync(db, fixture.ManagerActor,
         new CreateTaskRequest("Prepare schedules", fixture.ClientId, fixture.EngagementId))).Value;
-      await CreateApprovedRateAsync(db, fixture);
+      originalRateCardVersionId = await CreateApprovedRateAsync(db, fixture);
       timeEntryId = (await PracticeTimeService.SaveTimeDraftAsync(db, fixture.ManagerActor,
         new SaveTimeDraftRequest(taskId, workDate, 9 * 60, 60, "Staff", "Schedules", Currency: "QAR"))).Value;
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.ManagerActor, timeEntryId)).Succeeded);
@@ -311,13 +314,34 @@ public sealed class PracticeTimeTests
       Assert.True(notYetBillable.Succeeded, notYetBillable.Message);
       Assert.Empty(notYetBillable.Value!.Rows);
 
+      var revisedRate = await PracticeTimeService.ReviseRateCardAsync(db, fixture.RateCardManagerActor,
+        new RateCardDraftRequest("Staff", "Schedules", "QAR", 120m, ExpectedVersion: 1));
+      Assert.True(revisedRate.Succeeded, revisedRate.Message);
+      revisedRateCardVersionId = revisedRate.Value;
+      Assert.NotEqual(originalRateCardVersionId, revisedRateCardVersionId);
+      Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, fixture.PartnerActor,
+        revisedRateCardVersionId)).Succeeded);
+
+      var retainedAfterRateRevision = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == timeEntryId);
+      Assert.Equal(originalRateCardVersionId, retainedAfterRateRevision.RateCardVersionId);
+      Assert.Equal(100m, retainedAfterRateRevision.RatePerHour);
+
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.ManagerActor, timeEntryId)).Succeeded);
       Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, timeEntryId)).Succeeded);
-      var approved = await db.TimeEntries.SingleAsync(x => x.Id == timeEntryId);
+      var approved = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == timeEntryId);
       Assert.Equal(PracticeTimeStates.TimeApproved, approved.Status);
       Assert.Equal(2, approved.SubmissionRound);
+      Assert.Equal(originalRateCardVersionId, approved.RateCardVersionId);
       Assert.Equal(100m, approved.RatePerHour);
       Assert.Equal(1, await db.TimeEntries.CountAsync(x => x.Id == timeEntryId));
+
+      var laterEntry = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.ManagerActor,
+        new SaveTimeDraftRequest(taskId, workDate.AddDays(1), 9 * 60, 60,
+          "Staff", "Schedules", Currency: "QAR"));
+      Assert.True(laterEntry.Succeeded, laterEntry.Message);
+      var laterRecord = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == laterEntry.Value);
+      Assert.Equal(revisedRateCardVersionId, laterRecord.RateCardVersionId);
+      Assert.Equal(120m, laterRecord.RatePerHour);
 
       var history = await db.TimeEntryReviewEvents.AsNoTracking().Where(x => x.TimeEntryId == timeEntryId)
         .OrderBy(x => x.SubmissionRound).ThenBy(x => x.CreatedAt).ToListAsync();
