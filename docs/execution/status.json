@@ -1121,26 +1121,8 @@
     "resourceCommandAuthority20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "codeCommit": "d2e24fb0de27e232a9c11415323ca1602b9c72cd",
-      "behavior": "Global profile/certification/availability writers and all planning-console preview/execute/replay/lookup paths require an unscoped planning-role grant. Allocation previews retain firm aggregates, so the console is global; the standalone allocation command preserves exact engagement scope.",
-      "domain": {
-        "commandPassed": 12,
-        "legacyUpgradePassed": 1,
-        "failed": 0,
-        "directory": "/tmp/auditsphere-resource-command-results",
-        "artifacts": [
-          "resource-command-authority.trx",
-          "resource-command-legacy-receipt.trx"
-        ]
-      },
-      "api": {
-        "passed": 1,
-        "failed": 0,
-        "trx": "/tmp/auditsphere-resource-command-results/resource-command-api.trx",
-        "scope": "CSRF, actor-owned recovery, immutable migration evidence and stale HTTP session refusal."
-      },
-      "recovery": "Same-epoch grant narrowing refuses global previews, execution and retained receipts; restored firm-wide authority recovers the same receipt once. Historical phase-absent removal receipt is published under the pre-phase schema and migrated normally, retaining exact JSON and refusing changed fields without mutation.",
-      "attempts": "Missing test ActorContext import corrected before execution. Initial legacy fixture was correctly refused by the current publication guard; replaced with historical-schema publication and normal upgrade. Failure logs retained in /tmp.",
-      "limits": "No full local suites, new browser journey, production migrations or provider effects. Current-source full release results are not yet available; broader role/field-level and human acceptance remain open."
+      "archive": "status-archive-2026-10.json#resourceCommandAuthorityBeforeTimeRateAcceptance20261019",
+      "limits": "Focused command/HTTP/legacy upgrade evidence; broader role/state and current-source full release acceptance remain open."
     },
     "resourceGridKeyboard20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
@@ -1199,6 +1181,25 @@
       },
       "review": "Independent source review found no blocker; loss of a redundant initial scope conservatively requires reload.",
       "limits": "No schema/HTTP contract/UI change, no new browser run, no full local suites or provider effects. Broader time field/rate/client-book and current-source full release acceptance remain open."
+    },
+    "timeRateAcceptance20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "a8a961751711723f354ff81688199aad7239a517",
+      "behavior": "Extended existing return/resubmit fact: independently approved rate revision after return does not rewrite the original captured rate/version; later capture uses the new approved rate/version. Existing history immutability, approval independence and approved-only billing assertions retained.",
+      "domain": {
+        "rateAndCorrectionPassed": 2,
+        "periodAndFsliPassed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "directory": "/tmp/auditsphere-time-rate-results",
+        "artifacts": [
+          "time-rate-retention.trx",
+          "time-period-fsli.trx"
+        ],
+        "scope": "Rate revision retention through review and correction; task deadline/period persistence and cross-client denial; approved FSLI attribution retained through correction."
+      },
+      "review": "Independent read-only review found no blocker. No new period-date policy or duplicated time-entry period field introduced.",
+      "limits": "No product behavior/schema/UI/provider changes. No full local suites. Populated client-book non-mutation, broader field/state acceptance and full current-source release acceptance remain open."
     }
   },
   "externalGates": [
