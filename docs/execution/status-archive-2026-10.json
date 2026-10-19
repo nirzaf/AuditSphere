@@ -20879,6 +20879,25 @@
       "recovery": "Same-epoch grant narrowing refuses global previews, execution and retained receipts; restored firm-wide authority recovers the same receipt once. Historical phase-absent removal receipt is published under the pre-phase schema and migrated normally, retaining exact JSON and refusing changed fields without mutation.",
       "attempts": "Missing test ActorContext import corrected before execution. Initial legacy fixture was correctly refused by the current publication guard; replaced with historical-schema publication and normal upgrade. Failure logs retained in /tmp.",
       "limits": "No full local suites, new browser journey, production migrations or provider effects. Current-source full release results are not yet available; broader role/field-level and human acceptance remain open."
+    },
+    "timeRateAcceptanceBeforeTimeBookIsolation20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "a8a961751711723f354ff81688199aad7239a517",
+      "behavior": "Extended existing return/resubmit fact: independently approved rate revision after return does not rewrite the original captured rate/version; later capture uses the new approved rate/version. Existing history immutability, approval independence and approved-only billing assertions retained.",
+      "domain": {
+        "rateAndCorrectionPassed": 2,
+        "periodAndFsliPassed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "directory": "/tmp/auditsphere-time-rate-results",
+        "artifacts": [
+          "time-rate-retention.trx",
+          "time-period-fsli.trx"
+        ],
+        "scope": "Rate revision retention through review and correction; task deadline/period persistence and cross-client denial; approved FSLI attribution retained through correction."
+      },
+      "review": "Independent read-only review found no blocker. No new period-date policy or duplicated time-entry period field introduced.",
+      "limits": "No product behavior/schema/UI/provider changes. No full local suites. Populated client-book non-mutation, broader field/state acceptance and full current-source release acceptance remain open."
     }
   }
 }

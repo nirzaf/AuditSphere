@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Time rate, period and FSLI acceptance
+## Practice time and client-book isolation
 
-The existing return/resubmit journey now changes the approved rate during review: the original entry retains its snapshot and a later entry captures the revised rate. Focused rate/correction and existing period/FSLI checks passed. Evidence and remaining client-book, field/state and release limits are in `status.json` under `timeRateAcceptance20261019`.
+Existing populated imported-source and native-ledger journeys now verify that independently reviewed billable time and corrections preserve exact client accounting rows and native balances. Focused checks passed; evidence and group/firm-ledger, field/state and release limits are in `status.json` under `timeClientBookIsolation20261019`.
 
 ## Finance settlement accessibility and draft safety
 

@@ -215,3 +215,7 @@ The populated resource grid now has a named keyboard scroll region. Focused comp
 ## Time workspace read authority
 
 Time projections recheck the current session and their original active grant scopes before returning. Deterministic same-epoch scope narrowing and session-change regressions reproduced stale successful reads before the fix, then passed with the existing focused HTTP time cohort. Evidence and remaining time/release limits are in `status.json` under `timeWorkspaceReadFence20261019`.
+
+## Time rate, period and FSLI acceptance
+
+The existing return/resubmit journey now changes the approved rate during review: the original entry retains its snapshot and a later entry captures the revised rate. Focused rate/correction and existing period/FSLI checks passed. Evidence and remaining client-book, field/state and release limits are in `status.json` under `timeRateAcceptance20261019`.

@@ -1185,21 +1185,32 @@
     "timeRateAcceptance20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "codeCommit": "a8a961751711723f354ff81688199aad7239a517",
-      "behavior": "Extended existing return/resubmit fact: independently approved rate revision after return does not rewrite the original captured rate/version; later capture uses the new approved rate/version. Existing history immutability, approval independence and approved-only billing assertions retained.",
+      "archive": "status-archive-2026-10.json#timeRateAcceptanceBeforeTimeBookIsolation20261019",
+      "limits": "Focused rate/period/FSLI acceptance; broader field/state and full release gates remain open."
+    },
+    "timeClientBookIsolation20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "ee829c0aa39b39b6242670580c1beddcfc95efaf",
+      "behavior": "Existing imported GL/TB and posted native-journal journeys now run billable practice time capture60min, independent approval, correction75min and independent reapproval at100QAR/hour. Fresh ordered snapshots retain the same client source and native ledger entities; native ledger projection retains150QAR debit/credit totals.",
       "domain": {
-        "rateAndCorrectionPassed": 2,
-        "periodAndFsliPassed": 2,
+        "passed": 2,
         "failed": 0,
         "skipped": 0,
-        "directory": "/tmp/auditsphere-time-rate-results",
-        "artifacts": [
-          "time-rate-retention.trx",
-          "time-period-fsli.trx"
+        "tests": [
+          "GlCompletenessBridge_IsAccountExactAndPagedWithinScope",
+          "NativeJournalRequiresBalancedDraftIndependentApprovalAndPostsOnce"
         ],
-        "scope": "Rate revision retention through review and correction; task deadline/period persistence and cross-client denial; approved FSLI attribution retained through correction."
+        "trx": "/tmp/auditsphere-time-book-results/time-client-book-isolation.trx"
       },
-      "review": "Independent read-only review found no blocker. No new period-date policy or duplicated time-entry period field introduced.",
-      "limits": "No product behavior/schema/UI/provider changes. No full local suites. Populated client-book non-mutation, broader field/state acceptance and full current-source release acceptance remain open."
+      "review": "Independent source review found no blocker. Populated/nonzero fixture assertions retained, snapshots use fresh AsNoTracking contexts; dedicated synthetic rate maker and separate Partner approve the rate; work preparer has a scoped Staff grant.",
+      "ciObserved": {
+        "source": "510518facb80796aa9b0e05fff912b4ae55985c7",
+        "fastRun": 39244809328,
+        "fastResult": "PASS",
+        "fullRun": 39244821206,
+        "fullResult": "IN_PROGRESS; Angular/build/contracts pass; Domain/API/E2E running"
+      },
+      "limits": "Billable fixture evidence for imported and native client books only; group/firm-ledger non-mutation, other classifications/state combinations and complete workflow acceptance are not established by this cohort. No product/schema/UI/provider change or full local suites. Final-source full release acceptance remains open."
     }
   },
   "externalGates": [
