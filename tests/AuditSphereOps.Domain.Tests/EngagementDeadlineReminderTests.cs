@@ -17,7 +17,7 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class EngagementDeadlineReminderTests
 {
   [Fact]
-  public async Task TaskDatesIncludeOnlyYesterdayTodayAndSevenDaysForActiveTasks()
+  public async Task TaskDatesRetainAllOverdueAndUpcomingSevenDaysForActiveTasks()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var f = await PbcSeed.SeedAsync(pg);
@@ -27,6 +27,7 @@ public sealed class EngagementDeadlineReminderTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       ids["yesterday"] = await CreateTaskAsync(db, actor, f.EngagementId, "Yesterday", today.AddDays(-1), 1);
+      ids["older"] = await CreateTaskAsync(db, actor, f.EngagementId, "Still overdue", today.AddDays(-30), 8);
       ids["today"] = await CreateTaskAsync(db, actor, f.EngagementId, "Today", today, 2);
       ids["seven"] = await CreateTaskAsync(db, actor, f.EngagementId, "Seven days", today.AddDays(7), 3);
       ids["eight"] = await CreateTaskAsync(db, actor, f.EngagementId, "Eight days", today.AddDays(8), 4);
@@ -45,9 +46,9 @@ public sealed class EngagementDeadlineReminderTests
     var result = await EngagementDeadlineReminderQuery.GetAsync(queryDb, actor, f.EngagementId);
     Assert.True(result.Succeeded, result.Message);
     Assert.Equal(today, result.Value!.AsOfDateUtc);
-    Assert.Equal(new[] { ids["yesterday"], ids["today"], ids["seven"] }, result.Value.Items.Select(x => x.SourceId));
-    Assert.Equal(new[] { "OVERDUE", "DUE_TODAY", "UPCOMING" }, result.Value.Items.Select(x => x.Tone));
-    Assert.Equal(new[] { "Task due date has passed.", "Task is due today.", "Task is due within 7 days." },
+    Assert.Equal(new[] { ids["older"], ids["yesterday"], ids["today"], ids["seven"] }, result.Value.Items.Select(x => x.SourceId));
+    Assert.Equal(new[] { "OVERDUE", "OVERDUE", "DUE_TODAY", "UPCOMING" }, result.Value.Items.Select(x => x.Tone));
+    Assert.Equal(new[] { "Task due date has passed.", "Task due date has passed.", "Task is due today.", "Task is due within 7 days." },
       result.Value.Items.Select(x => x.Message));
     Assert.All(result.Value.Items, x => Assert.Equal("/app/work", x.SourceHref));
   }
@@ -154,7 +155,7 @@ public sealed class EngagementDeadlineReminderTests
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
     await using (var db = new AuditSphereDbContext(pg.Options))
       for (var i = 1; i <= 51; i++)
-        await CreateTaskAsync(db, actor, f.EngagementId, $"Reminder {i:D2}", today, i);
+        await CreateTaskAsync(db, actor, f.EngagementId, $"Reminder {i:D2}", today.AddDays(-i), i);
 
     await using var queryDb = new AuditSphereDbContext(pg.Options);
     var result = await EngagementDeadlineReminderQuery.GetAsync(queryDb, actor, f.EngagementId);
@@ -162,6 +163,8 @@ public sealed class EngagementDeadlineReminderTests
     Assert.Equal(50, result.Value!.Items.Count);
     Assert.True(result.Value.Truncated);
     Assert.Equal(50, result.Value.Items.Select(x => x.SourceId).Distinct().Count());
+    Assert.Equal(today.AddDays(-51), result.Value.Items[0].DueDate);
+    Assert.Equal(today.AddDays(-2), result.Value.Items[^1].DueDate);
   }
 
   [Fact]

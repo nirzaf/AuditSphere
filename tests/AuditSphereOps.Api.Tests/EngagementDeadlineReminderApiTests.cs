@@ -18,8 +18,10 @@ public sealed class EngagementDeadlineReminderApiTests
     var f = await PbcSeed.SeedAsync(pg);
     var foreign = await PbcSeed.SeedAsync(pg);
     var actor = PbcSeed.Actor(f.Admin, "Administrator");
-    var dueDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(7);
-    Guid taskId;
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var dueDate = today.AddDays(7);
+    var overdueDate = today.AddDays(-30);
+    Guid taskId, overdueTaskId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var task = await EngagementWorkflowTaskService.CreateAsync(db, actor, f.EngagementId,
@@ -27,6 +29,11 @@ public sealed class EngagementDeadlineReminderApiTests
           dueDate, IdempotencyKey: Guid.NewGuid()));
       Assert.True(task.Succeeded, task.Message);
       taskId = task.Value;
+      var overdueTask = await EngagementWorkflowTaskService.CreateAsync(db, actor, f.EngagementId,
+        new("API 30-day overdue deadline reminder", WorkflowTaskPhases.AuditPlanning, 2,
+          overdueDate, IdempotencyKey: Guid.NewGuid()));
+      Assert.True(overdueTask.Succeeded, overdueTask.Message);
+      overdueTaskId = overdueTask.Value;
     }
 
     using var factory = Factory(pg, f.Admin);
@@ -39,12 +46,17 @@ public sealed class EngagementDeadlineReminderApiTests
     Assert.True(first.Headers.CacheControl!.NoStore);
     var firstBody = await first.Content.ReadFromJsonAsync<EngagementDeadlineReminders>();
     Assert.Equal(f.EngagementId, firstBody!.EngagementId);
-    var reminder = Assert.Single(firstBody.Items);
-    Assert.Equal(taskId, reminder.SourceId);
+    Assert.Equal(2, firstBody.Items.Count);
+    var reminder = Assert.Single(firstBody.Items, x => x.SourceId == taskId);
     Assert.Equal("TASK_DUE", reminder.Kind);
     Assert.Equal(dueDate, reminder.DueDate);
     Assert.Equal("UPCOMING", reminder.Tone);
     Assert.Equal("/app/work", reminder.SourceHref);
+    var overdueReminder = Assert.Single(firstBody.Items, x => x.SourceId == overdueTaskId);
+    Assert.Equal("TASK_DUE", overdueReminder.Kind);
+    Assert.Equal(overdueDate, overdueReminder.DueDate);
+    Assert.Equal("OVERDUE", overdueReminder.Tone);
+    Assert.Equal("/app/work", overdueReminder.SourceHref);
     using var repeat = await client.GetAsync(path);
     Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
     Assert.Equal(HttpStatusCode.MethodNotAllowed, (await client.PostAsync(path, JsonContent.Create(new { }))).StatusCode);
@@ -61,6 +73,7 @@ public sealed class EngagementDeadlineReminderApiTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.Equal(1, await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == taskId));
+      Assert.Equal(1, await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == overdueTaskId));
       Assert.Empty(await db.PbcReminderReceipts.ToListAsync());
       Assert.Empty(await db.PbcCommunications.ToListAsync());
       Assert.Empty(await db.DurableOperations.ToListAsync());

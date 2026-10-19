@@ -48,7 +48,6 @@ public static class EngagementDeadlineReminderQuery
     }
 
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
-    var yesterday = today.DayNumber > DateOnly.MinValue.DayNumber ? today.AddDays(-1) : DateOnly.MinValue;
     var sevenDaysFromToday = today.DayNumber > DateOnly.MaxValue.DayNumber - 7
       ? DateOnly.MaxValue
       : today.AddDays(7);
@@ -59,9 +58,11 @@ public static class EngagementDeadlineReminderQuery
                             equals new { task.FirmId, WorkTaskId = task.Id }
                           where binding.FirmId == actor.FirmId && binding.ClientId == engagement.PracticeClientId &&
                             binding.EngagementId == engagementId && ActiveTaskStates.Contains(task.Status) &&
-                            task.DueDate.HasValue && task.DueDate.Value >= yesterday && task.DueDate.Value <= sevenDaysFromToday
+                            task.DueDate.HasValue && task.DueDate.Value <= sevenDaysFromToday
                           select new { task.Id, task.Title, task.DueDate })
       .Distinct()
+      // An unresolved deadline does not expire from this view merely because it
+      // is older than yesterday. Keep oldest overdue work first within the bound.
       .OrderBy(x => x.DueDate).ThenBy(x => x.Id)
       .Take(51).ToListAsync(ct);
 
