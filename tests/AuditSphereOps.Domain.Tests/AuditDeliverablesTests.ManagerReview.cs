@@ -64,12 +64,14 @@ public sealed partial class AuditDeliverablesTests
     Assert.Empty(linkedReviewInbox.Value!.Reviews);
 
     var changesRequired = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
-      new WorkflowTaskQueueRequest("CHANGES_REQUIRED"));
+      new WorkflowTaskQueueRequest("CHANGES_REQUIRED", IncludeSummary: true));
     Assert.True(changesRequired.Succeeded, changesRequired.Message);
     var changeRow = Assert.Single(changesRequired.Value!.Tasks);
     Assert.Equal(task.Id, changeRow.TaskId);
     Assert.Equal(AuditProcedureResultStatuses.ChangesRequired, changeRow.ReviewState);
     Assert.Equal(reviewComment, changeRow.ReviewComment);
+    Assert.Equal("1", Assert.Single(changesRequired.Value.Summary!.Counts, x => x.View == "CHANGES_REQUIRED").Count);
+    Assert.Equal("0", Assert.Single(changesRequired.Value.Summary.Counts, x => x.View == "UNDER_REVIEW").Count);
 
     var summary = await ManagerReviewSummaryQuery.GetAsync(db, w.A("manager", "Manager"), w.EngagementId);
     Assert.True(summary.Succeeded, summary.Message);
@@ -94,19 +96,43 @@ public sealed partial class AuditDeliverablesTests
     Assert.Empty(clearedQueue.Value!.Tasks);
 
     var underReview = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
-      new WorkflowTaskQueueRequest("UNDER_REVIEW"));
+      new WorkflowTaskQueueRequest("UNDER_REVIEW", IncludeSummary: true));
     Assert.True(underReview.Succeeded, underReview.Message);
     var reviewRow = Assert.Single(underReview.Value!.Tasks);
     Assert.Equal(task.Id, reviewRow.TaskId);
     Assert.Equal("UNDER_REVIEW", reviewRow.ReviewState);
     Assert.Equal(reviewComment, reviewRow.ReviewComment);
+    Assert.Equal("0", Assert.Single(underReview.Value.Summary!.Counts, x => x.View == "CHANGES_REQUIRED").Count);
+    Assert.Equal("1", Assert.Single(underReview.Value.Summary.Counts, x => x.View == "UNDER_REVIEW").Count);
 
     var resubmittedInbox = await ProcedureReviewInboxQuery.GetAsync(db, reviewer, new ProcedureReviewInboxRequest());
     Assert.True(resubmittedInbox.Succeeded, resubmittedInbox.Message);
     Assert.Empty(resubmittedInbox.Value!.Reviews);
 
+    // A later correction can be reviewed while operational rework automation is disabled.
+    // The historical task must not hide a new submission that it no longer represents.
+    var secondCorrection = await AuditProgramService.ReviewResultAsync(db, reviewer,
+      new ReviewProcedureResultRequest(resubmission.Value!.AuditProcedureResultId,
+        AuditProcedureReviewDecisions.ChangesRequired, "Resolve the remaining source discrepancy."),
+      createWorkflowReworkTask: false);
+    Assert.True(secondCorrection.Succeeded, secondCorrection.Message);
+    var secondResubmission = await AuditProgramService.SubmitResultAsync(db, w.A("associate", "Staff"),
+      new SubmitProcedureResultRequest(w.ProcedureId, 1, "Both source discrepancies reconciled.",
+        "{\"result\":\"PASS\"}", ["source:second-corrected-sample"], "Second correction is ready for independent review."));
+    Assert.True(secondResubmission.Succeeded, secondResubmission.Message);
+    var laterInbox = await ProcedureReviewInboxQuery.GetAsync(db, reviewer, new ProcedureReviewInboxRequest());
+    Assert.True(laterInbox.Succeeded, laterInbox.Message);
+    var laterReview = Assert.Single(laterInbox.Value!.Reviews);
+    Assert.Equal(secondResubmission.Value!.AuditProcedureResultId, laterReview.ResultId);
+    Assert.Equal(3, laterReview.Revision);
+    var historicalTaskQueue = await WorkflowTaskQueueQuery.GetAsync(db, reviewer,
+      new WorkflowTaskQueueRequest("UNDER_REVIEW"));
+    Assert.True(historicalTaskQueue.Succeeded, historicalTaskQueue.Message);
+    Assert.Empty(historicalTaskQueue.Value!.Tasks);
+    Assert.Equal(1, await db.WorkTasks.CountAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId));
+
     var independentReview = await AuditProgramService.ReviewResultAsync(db, reviewer,
-      new ReviewProcedureResultRequest(resubmission.Value!.AuditProcedureResultId, AuditProcedureReviewDecisions.Reviewed, null));
+      new ReviewProcedureResultRequest(secondResubmission.Value!.AuditProcedureResultId, AuditProcedureReviewDecisions.Reviewed, null));
     Assert.True(independentReview.Succeeded, independentReview.Message);
     var reviewComplete = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
       new WorkflowTaskQueueRequest("UNDER_REVIEW"));

@@ -1187,6 +1187,15 @@
         "fullResult": "IN_PROGRESS",
         "note": "Full Angular passed; .NET build/Domain/API/E2E active. Earlier fast runs superseded automatically by existing push concurrency; not treated as failures."
       }
+    },
+    "reviewInboxHistory20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "behavior": "Only an exact linked rejected-result + next-submission pair suppresses the reviewer inbox; historical tasks cannot hide later corrected submissions when rework automation is off. Authorization and independent review unchanged.",
+      "before": "review-inbox-history-regression-before.trx: 1 failed; latest inbox empty",
+      "after": "review-inbox-history-after.trx: 1 passed, 0 failed",
+      "artifacts": "/tmp/auditsphere-review-inbox-results",
+      "fixtureAttempt": "Initial attempt used result revision as input generation and was refused; corrected to retained generation before reproducing product defect.",
+      "limits": "No full local suites or new browser run. Between-rejection rework labels, complete queue matrix, human AT and current-source release remain open."
     }
   },
   "externalGates": [
@@ -1699,7 +1708,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Finish the Finance accessibility/navigation verification, then continue accepted-commercial-source browser integration and remaining practice-management criteria. Current-source full release, human AT, methodology and live-provider acceptance remain separate gates."
+    "nextTechnicalSlice": "Continue review/rework routing across repeated corrections and workflow-flag changes, plus remaining practice criteria. Scoped Finance and retained commercial handoff checks passed. Full current-source CI, human AT and live-provider gates remain separate."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

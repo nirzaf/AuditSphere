@@ -58,11 +58,16 @@ public static class ProcedureReviewInboxQuery
         procedure.ApplicabilityStatus == AuditApplicabilityStatuses.Applicable &&
         (procedure.Status == AuditProcedureStatuses.Submitted || procedure.Status == AuditProcedureStatuses.InReview) &&
         procedure.CurrentResultRevision == result.Revision &&
+        // Suppress only the exact resubmission represented by a linked rework task.
+        // Older task history must not hide later submissions when rework automation is disabled.
         !db.WorkflowTaskBindings.Any(binding => binding.FirmId == result.FirmId &&
           binding.ClientId == result.ClientId && binding.EngagementId == result.EngagementId &&
           binding.ReviewProcedureResultId != null && db.AuditProcedureResults.Any(linked =>
-            linked.FirmId == binding.FirmId && linked.Id == binding.ReviewProcedureResultId &&
-            linked.AuditProcedureId == procedure.Id)) &&
+            linked.FirmId == binding.FirmId && linked.ClientId == binding.ClientId &&
+            linked.EngagementId == binding.EngagementId && linked.Id == binding.ReviewProcedureResultId &&
+            linked.AuditProcedureId == procedure.Id &&
+            linked.Status == AuditProcedureResultStatuses.ChangesRequired &&
+            linked.Revision == result.Revision - 1)) &&
         db.RoleGrants.Any(grant => grant.FirmId == result.FirmId && grant.UserId == actor.UserId &&
           grant.RevokedAt == null && (grant.ExpiresAt == null || grant.ExpiresAt > now) &&
           ReviewRoles.Contains(grant.Role) &&
