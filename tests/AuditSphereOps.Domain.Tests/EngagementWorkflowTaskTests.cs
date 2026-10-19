@@ -8,6 +8,9 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -332,6 +335,225 @@ public sealed class EngagementWorkflowTaskTests
       Assert.True(page.Succeeded, page.Message);
       Assert.Contains(page.Value!.Events, x => x.Kind == WorkflowTaskActivityKinds.DueDateChanged &&
         x.PreviousDueDate == originalDate && x.NewDueDate == revisedDate);
+    }
+  }
+
+  [Fact]
+  public async Task CancellationIsScopedReplayableAndPreservesTaskHistoryAndBlockedDependents()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var clientA = Guid.NewGuid();
+    var clientB = Guid.NewGuid();
+    var engagementA = Guid.NewGuid();
+    var engagementB = Guid.NewGuid();
+    var manager = User(firmId, "CancelManager");
+    var staff = User(firmId, "CancelStaff");
+    var siblingManager = User(firmId, "SiblingManager");
+    var managerActor = Actor(manager, "Manager");
+    var staffActor = Actor(staff, "Staff");
+    var siblingManagerActor = Actor(siblingManager, "Manager");
+    await SeedQueueScopeAsync(pg, firmId, [(clientA, engagementA), (clientB, engagementB)],
+      [manager, staff, siblingManager], () =>
+      [
+        Grant(firmId, manager, "Manager", clientA, engagementA),
+        Grant(firmId, staff, "Staff", clientA, engagementA),
+        Grant(firmId, siblingManager, "Manager", clientB, engagementB)
+      ]);
+
+    Guid predecessorTaskId;
+    Guid dependentTaskId;
+    Guid completedTaskId;
+    Guid predecessorBindingId;
+    Guid dependentBindingId;
+    Guid timeEntryId;
+    const string cancellationReason = "Workstream closed after manager review.";
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      predecessorTaskId = await CreateQueueTaskAsync(db, managerActor, engagementA, "Cancelled prerequisite", 1, null);
+      dependentTaskId = await CreateQueueTaskAsync(db, managerActor, engagementA, "Dependent task", 2, null);
+      completedTaskId = await CreateQueueTaskAsync(db, managerActor, engagementA, "Already completed task", 3, null);
+      var siblingTaskId = await CreateQueueTaskAsync(db, siblingManagerActor, engagementB, "Sibling task", 1, null);
+
+      var assigned = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, predecessorTaskId, staff.Id, 1);
+      Assert.True(assigned.Succeeded, assigned.Message);
+      predecessorBindingId = (await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == predecessorTaskId)).Id;
+      var dependency = await PracticeTimeService.ChangeWorkflowDependencyAsync(db, managerActor, engagementA,
+        dependentTaskId, new WorkflowDependencyChangeRequest(predecessorTaskId, true,
+          ExpectedRevision: 1, ExpectedPredecessorRevision: 2, Reason: "Keep the prerequisite explicit.",
+          IdempotencyKey: Guid.NewGuid()));
+      Assert.True(dependency.Succeeded, dependency.Message);
+      dependentBindingId = (await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == dependentTaskId)).Id;
+
+      var savedTime = await PracticeTimeService.SaveTimeDraftAsync(db, staffActor,
+        new SaveTimeDraftRequest(predecessorTaskId, new DateOnly(2026, 10, 12), 540, 45,
+          "Staff", "Planning", PracticeTimeStates.NonBillable, "Time remains attached to cancelled work."));
+      Assert.True(savedTime.Succeeded, savedTime.Message);
+      timeEntryId = savedTime.Value;
+
+      var completed = await EngagementWorkflowTaskService.CompleteAsync(db, managerActor, completedTaskId, 1);
+      Assert.True(completed.Succeeded, completed.Message);
+      var completedBefore = await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == completedTaskId);
+      var completedAt = completedBefore.CompletedAt;
+      var completedRevision = await db.WorkflowTaskBindings.AsNoTracking()
+        .Where(x => x.WorkTaskId == completedTaskId).Select(x => x.Revision).SingleAsync();
+      var completedEvents = await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == completedTaskId);
+
+      var blankReason = await EngagementWorkflowTaskService.CancelAsync(db, managerActor, predecessorTaskId, " \t ", 2);
+      Assert.Equal("workflow.task-invalid", blankReason.ErrorCode);
+      var longReason = await EngagementWorkflowTaskService.CancelAsync(db, managerActor, predecessorTaskId,
+        new string('x', 2001), 2);
+      Assert.Equal("workflow.task-invalid", longReason.ErrorCode);
+      var nonManager = await EngagementWorkflowTaskService.CancelAsync(db, staffActor, predecessorTaskId, cancellationReason, 2);
+      Assert.Equal(ErrorCodes.ScopeDenied, nonManager.ErrorCode);
+      var sibling = await EngagementWorkflowTaskService.CancelAsync(db, siblingManagerActor, predecessorTaskId, cancellationReason, 2);
+      Assert.Equal(ErrorCodes.ScopeDenied, sibling.ErrorCode);
+      var stale = await EngagementWorkflowTaskService.CancelAsync(db, managerActor, predecessorTaskId, cancellationReason, 1);
+      Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+
+      var managerQueue = await WorkflowTaskQueueQuery.GetAsync(db, managerActor, new WorkflowTaskQueueRequest("TEAM"));
+      Assert.True(managerQueue.Succeeded, managerQueue.Message);
+      Assert.True(Assert.Single(managerQueue.Value!.Tasks, x => x.TaskId == predecessorTaskId).CanCancel);
+      var staffQueue = await WorkflowTaskQueueQuery.GetAsync(db, staffActor, new WorkflowTaskQueueRequest("TEAM"));
+      Assert.True(staffQueue.Succeeded, staffQueue.Message);
+      Assert.False(Assert.Single(staffQueue.Value!.Tasks, x => x.TaskId == predecessorTaskId).CanCancel);
+
+      var beforeCancellationEvents = await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == predecessorTaskId);
+      var cancelled = await EngagementWorkflowTaskService.CancelAsync(db, managerActor,
+        predecessorTaskId, cancellationReason, 2);
+      Assert.True(cancelled.Succeeded, cancelled.Message);
+      var afterCancel = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == predecessorTaskId);
+      Assert.Equal(predecessorBindingId, afterCancel.Id);
+      Assert.Equal(3, afterCancel.Revision);
+      Assert.Equal(beforeCancellationEvents + 1,
+        await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == predecessorTaskId));
+      var cancellationEvent = await db.WorkflowTaskActivities.SingleAsync(x =>
+        x.WorkTaskId == predecessorTaskId && x.Kind == WorkflowTaskActivityKinds.Cancelled);
+      Assert.Equal(manager.Id, cancellationEvent.ActorUserId);
+      Assert.Equal(3, cancellationEvent.TaskRevision);
+      Assert.Equal(cancellationReason, cancellationEvent.Reason);
+
+      var replay = await EngagementWorkflowTaskService.CancelAsync(db, managerActor,
+        predecessorTaskId, $"  {cancellationReason}  ", 2);
+      Assert.True(replay.Succeeded, replay.Message);
+      var differentIntent = await EngagementWorkflowTaskService.CancelAsync(db, managerActor,
+        predecessorTaskId, "A different cancellation reason.", 2);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, differentIntent.ErrorCode);
+      Assert.Equal(3, (await db.WorkflowTaskBindings.AsNoTracking()
+        .SingleAsync(x => x.WorkTaskId == predecessorTaskId)).Revision);
+      Assert.Equal(beforeCancellationEvents + 1,
+        await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == predecessorTaskId));
+
+      var closedTaskCancel = await EngagementWorkflowTaskService.CancelAsync(db, managerActor,
+        completedTaskId, "Cannot cancel completed work.", completedRevision);
+      Assert.Equal(ErrorCodes.ProtectedState, closedTaskCancel.ErrorCode);
+      var completedAfter = await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == completedTaskId);
+      Assert.Equal(PracticeTimeStates.TaskCompleted, completedAfter.Status);
+      Assert.Equal(completedAt, completedAfter.CompletedAt);
+      Assert.Equal(completedRevision, await db.WorkflowTaskBindings.AsNoTracking()
+        .Where(x => x.WorkTaskId == completedTaskId).Select(x => x.Revision).SingleAsync());
+      Assert.Equal(completedEvents, await db.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == completedTaskId));
+
+      var completedCancelledTask = await EngagementWorkflowTaskService.CompleteAsync(db, managerActor, predecessorTaskId, 3);
+      Assert.Equal(ErrorCodes.ProtectedState, completedCancelledTask.ErrorCode);
+      var reassignedCancelledTask = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, predecessorTaskId, manager.Id, 3);
+      Assert.Equal(ErrorCodes.ProtectedState, reassignedCancelledTask.ErrorCode);
+      var lateTime = await PracticeTimeService.SaveTimeDraftAsync(db, staffActor,
+        new SaveTimeDraftRequest(predecessorTaskId, new DateOnly(2026, 10, 13), 600, 30,
+          "Staff", "Planning", PracticeTimeStates.NonBillable, "Must remain closed."));
+      Assert.Equal(ErrorCodes.GateBlocked, lateTime.ErrorCode);
+      Assert.Equal(1, await db.TimeEntries.CountAsync(x => x.TaskId == predecessorTaskId));
+      var retainedTime = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == timeEntryId);
+      Assert.Equal(predecessorTaskId, retainedTime.TaskId);
+      Assert.Equal(45, retainedTime.DurationMinutes);
+
+      var stillBlocked = await EngagementWorkflowTaskService.CompleteAsync(db, managerActor, dependentTaskId, 2);
+      Assert.Equal(ErrorCodes.GateBlocked, stillBlocked.ErrorCode);
+      Assert.Equal(1, await db.WorkflowTaskDependencyRevisions.CountAsync(x => x.SuccessorBindingId == dependentBindingId));
+      var cancelledQueue = await WorkflowTaskQueueQuery.GetAsync(db, managerActor,
+        new WorkflowTaskQueueRequest("CANCELLED"));
+      Assert.True(cancelledQueue.Succeeded, cancelledQueue.Message);
+      var cancelledRow = Assert.Single(cancelledQueue.Value!.Tasks, x => x.TaskId == predecessorTaskId);
+      Assert.False(cancelledRow.CanCancel);
+      var activityPage = await WorkflowTaskActivityQuery.GetAsync(db, managerActor, engagementA,
+        predecessorTaskId, new WorkflowTaskActivityRequest());
+      Assert.True(activityPage.Succeeded, activityPage.Message);
+      Assert.Contains(activityPage.Value!.Events, x => x.Kind == WorkflowTaskActivityKinds.Cancelled &&
+        x.TaskRevision == 3 && x.Reason == cancellationReason);
+
+      // Add 500 earlier phase rows in one bounded bulk fixture to put the cancelled task beyond GetAsync's default window.
+      var now = DateTimeOffset.UtcNow;
+      var syntheticTasks = Enumerable.Range(1, 500).Select(i => new WorkTask
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientA, EngagementId = engagementA,
+        Title = $"Earlier phase task {i}", Status = PracticeTimeStates.TaskOpen,
+        Phase = BudgetPhases.Unassigned, CreatedAt = now
+      }).ToArray();
+      var syntheticBindings = syntheticTasks.Select((task, i) => new WorkflowTaskBinding
+      {
+        Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientA, EngagementId = engagementA,
+        WorkTaskId = task.Id, Phase = WorkflowTaskPhases.ArchiveClose, Ordinal = i + 1,
+        SourceKey = $"TEST-CANCEL-RECOVERY:{i + 1:D4}", CreationRequestDigest = new string('a', 64),
+        Generation = 1, DueDatePolicy = "MANUAL", AssignmentSource = "MANUAL",
+        CreatedAt = now, CreatedByUserId = manager.Id
+      }).ToArray();
+      db.WorkTasks.AddRange(syntheticTasks);
+      db.WorkflowTaskBindings.AddRange(syntheticBindings);
+      await db.SaveChangesAsync();
+
+      var defaultWorkspace = await EngagementWorkflowTaskService.GetAsync(db, managerActor, engagementA);
+      Assert.True(defaultWorkspace.Succeeded, defaultWorkspace.Message);
+      Assert.True(defaultWorkspace.Value!.Truncated);
+      Assert.Equal(500, defaultWorkspace.Value.Tasks.Count);
+      Assert.DoesNotContain(defaultWorkspace.Value.Tasks, x => x.Id == predecessorTaskId);
+      var selectedWorkspace = await EngagementWorkflowTaskService.GetAsync(db, managerActor,
+        engagementA, selectedTaskId: predecessorTaskId);
+      Assert.True(selectedWorkspace.Succeeded, selectedWorkspace.Message);
+      Assert.False(selectedWorkspace.Value!.Truncated);
+      var selectedTask = Assert.Single(selectedWorkspace.Value.Tasks);
+      Assert.Equal(predecessorTaskId, selectedTask.Id);
+      Assert.Equal(PracticeTimeStates.TaskCancelled, selectedTask.Status);
+
+      const string tamperedReason = "Tampered cancellation reason.";
+      var mutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE workflow_task_activities SET reason = {tamperedReason} WHERE firm_id = {firmId} AND id = {cancellationEvent.Id}"));
+      var updateError = Assert.IsType<PostgresException>(mutation.GetBaseException());
+      Assert.Equal("P0001", updateError.SqlState);
+      Assert.Contains("append-only", updateError.MessageText, StringComparison.OrdinalIgnoreCase);
+      var deletion = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM workflow_task_activities WHERE firm_id = {firmId} AND id = {cancellationEvent.Id}"));
+      var deleteError = Assert.IsType<PostgresException>(deletion.GetBaseException());
+      Assert.Equal("P0001", deleteError.SqlState);
+      Assert.Contains("append-only", deleteError.MessageText, StringComparison.OrdinalIgnoreCase);
+
+      var migrations = db.Database.GetMigrations().ToArray();
+      var cancellationMigrationIndex = Array.FindIndex(migrations,
+        x => x.EndsWith("_WorkflowTaskCancellation", StringComparison.Ordinal));
+      Assert.True(cancellationMigrationIndex > 0);
+      var cancellationMigrationId = migrations[cancellationMigrationIndex];
+      var previousMigration = migrations[cancellationMigrationIndex - 1];
+      var downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
+        db.GetService<IMigrator>().MigrateAsync(previousMigration));
+      var downgradeError = Assert.IsType<PostgresException>(downgrade.GetBaseException());
+      Assert.Equal("55000", downgradeError.SqlState);
+      Assert.Contains("Workflow task cancellation evidence prevents rollback without losing cancellation history.",
+        downgradeError.MessageText, StringComparison.Ordinal);
+      Assert.Contains(cancellationMigrationId, await db.Database.GetAppliedMigrationsAsync());
+      Assert.True(await db.Database.SqlQueryRaw<bool>("""
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND table_name = 'workflow_task_activities'
+            AND column_name = 'reason'
+        ) AS "Value"
+        """).SingleAsync());
+      var retainedCancellationEvent = await db.WorkflowTaskActivities.AsNoTracking()
+        .SingleAsync(x => x.Id == cancellationEvent.Id);
+      Assert.Equal(cancellationReason, retainedCancellationEvent.Reason);
+
+      Assert.Null((await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == predecessorTaskId)).CompletedAt);
+      Assert.Equal(siblingTaskId, await db.WorkflowTaskBindings.AsNoTracking()
+        .Where(x => x.EngagementId == engagementB).Select(x => x.WorkTaskId).SingleAsync());
     }
   }
 

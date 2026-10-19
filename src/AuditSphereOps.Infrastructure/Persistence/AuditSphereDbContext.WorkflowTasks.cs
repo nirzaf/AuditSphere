@@ -72,6 +72,7 @@ public sealed partial class AuditSphereDbContext
     activity.HasIndex(x => new { x.FirmId, x.WorkTaskId, x.OccurredAt, x.Id })
       .HasDatabaseName("IX_workflow_task_activities_task_time");
     activity.Property(x => x.Kind).HasMaxLength(32);
+    activity.Property(x => x.Reason).HasMaxLength(2000);
     activity.HasOne<Engagement>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId })
       .HasPrincipalKey(x => new { x.FirmId, x.PracticeClientId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -89,7 +90,7 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     activity.ToTable("workflow_task_activities", t =>
       t.HasCheckConstraint("ck_workflow_task_activity_values",
-        "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED','TASK_DUE_DATE_CHANGED','TASK_EVIDENCE_RULE_CHANGED','TASK_DEPENDENCIES_CHANGED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL)) AND ((kind = 'TASK_DUE_DATE_CHANGED') = (previous_due_date IS DISTINCT FROM new_due_date))"));
+        "kind IN ('TASK_CREATED','TASK_ASSIGNED','TASK_REASSIGNED','TASK_COMPLETED','TASK_DUE_DATE_CHANGED','TASK_EVIDENCE_RULE_CHANGED','TASK_DEPENDENCIES_CHANGED','TASK_CANCELLED') AND task_revision >= 1 AND ((kind IN ('TASK_ASSIGNED','TASK_REASSIGNED')) = (assignee_user_id IS NOT NULL)) AND ((kind = 'TASK_DUE_DATE_CHANGED') = (previous_due_date IS DISTINCT FROM new_due_date)) AND ((kind = 'TASK_CANCELLED') = (reason IS NOT NULL AND length(trim(reason)) BETWEEN 1 AND 2000))"));
 
     var dependency = b.Entity<WorkflowTaskDependency>();
     dependency.HasAlternateKey(x => new { x.FirmId, x.Id })

@@ -21,6 +21,8 @@ public static partial class UiEndpoints
     Guid IdempotencyKey);
   public sealed record WorkflowTaskAssignmentInput(Guid AssigneeUserId, long ExpectedRevision);
   public sealed record WorkflowTaskCompletionInput(long ExpectedRevision);
+  /// <summary>The exact reason and reviewed revision for cancelling one operational task.</summary>
+  public sealed record WorkflowTaskCancellationInput(string Reason, long ExpectedRevision);
   public sealed record WorkflowTaskDueDateInput(string? DueDate, long ExpectedRevision);
   public sealed record WorkflowDependencyChangeInput(Guid PredecessorTaskId, bool Required, long ExpectedRevision,
     long ExpectedPredecessorRevision, string Reason, Guid IdempotencyKey);
@@ -87,8 +89,9 @@ public static partial class UiEndpoints
           : Results.NotFound();
       });
 
-    tasks.MapGet("", (Guid engagementId, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => EngagementWorkflowTaskService.GetAsync(db, actor, engagementId, ct)))
+    tasks.MapGet("", (Guid engagementId, Guid? taskId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementWorkflowTaskService.GetAsync(db, actor, engagementId, taskId, ct)))
+      .WithDescription("Returns the authorized engagement's bounded task workspace. Optional taskId resolves one exact task in this same scope for recovery independently of the default first-page window.")
       .WithT046Response<WorkflowTaskWorkspace>(includeNotFound: true);
 
     tasks.MapGet("/assignees", (Guid engagementId, HttpContext http) =>
@@ -170,6 +173,22 @@ public static partial class UiEndpoints
         var result = await EngagementWorkflowTaskService.CompleteAsync(db, actor, taskId, input.ExpectedRevision, ct);
         return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
       })).WithT046Response<UiValueResponse<bool>>(includeConflict: true, includeNotFound: true);
+
+    tasks.MapPost("/{taskId:guid}/cancel", (
+      Guid engagementId, Guid taskId, WorkflowTaskCancellationInput input, HttpContext http) =>
+    {
+      if (input.ExpectedRevision < 1 || string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Trim().Length > 2000)
+        return Task.FromResult(Invalid("Review the current task revision and enter a cancellation reason of 1 to 2000 characters."));
+      return CommandAsync(http, async (db, actor, ct) =>
+      {
+        var scoped = await EngagementWorkflowTaskService.EnsureTaskScopeAsync(db, actor, engagementId, taskId, ct);
+        if (!scoped.Succeeded) return CommandResult<bool>.Fail(scoped.ErrorCode!, scoped.Message!);
+        var result = await EngagementWorkflowTaskService.CancelAsync(db, actor, taskId,
+          input.Reason, input.ExpectedRevision, ct);
+        return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
+      });
+    }).WithDescription("Cancels one active operational task under the current scoped management grant and expected revision. Retains its reason and activity; never approves source work or satisfies a dependent task's prerequisite.")
+      .WithT046Response<UiValueResponse<bool>>(includeConflict: true, includeNotFound: true);
 
     tasks.MapPost("/{taskId:guid}/due-date", (
       Guid engagementId, Guid taskId, WorkflowTaskDueDateInput input, HttpContext http) =>

@@ -51,6 +51,18 @@ describe('workflow task activity contract', () => {
     expect(decoded.events[0].previousDueDate).toBe('2026-10-31');
     expect(decoded.events[0].newDueDate).toBeNull();
   });
+
+  it('decodes retained cancellation reasons and nullable legacy activity reasons', () => {
+    const event = { ...activity.events[0], kind: 'TASK_CANCELLED', reason: 'Scope changed after fieldwork started.' };
+    const decoded = decodeActivity({ ...activity, events: [event], hasMore: false, nextCursor: null }, 'activity');
+    expect(decoded.events[0].reason).toBe(event.reason);
+    expect(decodeActivity(activity, 'legacy activity').events[0].reason).toBeNull();
+    expect(decodeActivity({ ...activity, events: [{ ...activity.events[0], reason: null }] }, 'legacy null reason').events[0].reason).toBeNull();
+    const maximum = 'x'.repeat(2000);
+    expect(decodeActivity({ ...activity, events: [{ ...event, reason: maximum }] }, 'activity').events[0].reason).toBe(maximum);
+    for (const reason of [undefined, null, '', '   ', 'x'.repeat(2001)])
+      expect(() => decodeActivity({ ...activity, events: [{ ...event, reason }] }, 'activity')).toThrow();
+  });
 });
 
 const summaryViews = ['MY_TASKS', 'DUE_TODAY', 'OVERDUE', 'WAITING_FOR_CLIENT', 'UNDER_REVIEW', 'CHANGES_REQUIRED', 'UPCOMING'];
@@ -89,9 +101,11 @@ describe('work overview summary contract', () => {
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
 import { WorkflowWorkQueue } from './work-queue';
+import { WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
 
 describe('workflow queue assignment filters', () => {
   it('sends the current session owner, resets paging when assignment changes, and clears assignment on view changes', () => {
@@ -129,8 +143,10 @@ describe('workflow queue assignment filters', () => {
     title: 'Prepare lead schedule', phase: 'FIELDWORK', ordinal: 1, taskStatus: 'OPEN',
     assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
-    canComplete: false, canChangeDueDate: false, canAssign: true, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
+    canComplete: false, canChangeDueDate: false, canAssign: true, canCancel: false, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
   };
+  const cancelableTask = { ...task, canCancel: true };
+  const legacyTask = Object.fromEntries(Object.entries(task).filter(([key]) => key !== 'canCancel'));
   const start = () => {
     TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])] });
     const userId = '11111111-1111-4111-8111-111111111111';
@@ -144,6 +160,17 @@ describe('workflow queue assignment filters', () => {
     const card = (label: string) => cards().find(x => x.querySelector('.summary-label')?.textContent?.trim() === label)!;
     const countOf = (label: string) => card(label).querySelector('.summary-count')?.textContent?.trim();
     return { fixture, http, session, userId, host, overview, cards, card, countOf, component: fixture.componentInstance };
+  };
+  const openCancellation = (test: ReturnType<typeof start>) => {
+    const { fixture, http, host } = test;
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+      .flush({ view: 'MY_TASKS', tasks: [cancelableTask], hasMore: false, nextCursor: null, summary: summary() });
+    http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+    TestBed.tick();
+    const trigger = host.querySelector<HTMLButtonElement>(`button[data-cancel-task="${task.taskId}"]`)!;
+    trigger.focus(); trigger.click(); fixture.detectChanges(); TestBed.tick();
+    return fixture.debugElement.query(By.directive(WorkflowTaskCancellationPanel)).componentInstance as WorkflowTaskCancellationPanel;
   };
 
   it('shows prerequisite blocking in each layout from server facts without inventing permission or historical blockers', () => {
@@ -160,7 +187,7 @@ describe('workflow queue assignment filters', () => {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [
-          { ...task, requiredTask: true, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId, mappingVersionId: task.engagementId, fsliCode: 'CASH', pbcRequestId: task.taskId, pbcState: 'SENT', reviewState: 'CHANGES_REQUIRED', reviewComment: 'Reconcile the retained cash evidence' },
+          { ...cancelableTask, requiredTask: true, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId, mappingVersionId: task.engagementId, fsliCode: 'CASH', pbcRequestId: task.taskId, pbcState: 'SENT', reviewState: 'CHANGES_REQUIRED', reviewComment: 'Reconcile the retained cash evidence' },
           { ...task, taskId: '55555555-5555-4555-8555-555555555555', title: 'Optional evidence check', requiredTask: false },
           { ...task, taskId: '66666666-6666-4666-8666-666666666666', title: 'Manual follow-up', requiredTask: null },
         ], hasMore: false, nextCursor: null, summary: summary() });
@@ -182,6 +209,8 @@ describe('workflow queue assignment filters', () => {
         expect(host.textContent).toContain('current audit result needs resubmission');
         expect(host.querySelector('a[href$="/pbc"]')?.textContent).toContain('PBC request');
         expect([...host.querySelectorAll('button')].some(button => button.textContent?.includes('View activity'))).toBe(true);
+        expect(host.querySelectorAll('[data-cancel-task]')).toHaveLength(1);
+        expect(host.querySelector('[data-cancel-task]')?.getAttribute('data-cancel-task')).toBe(task.taskId);
         expect(host.textContent).toContain(task.title);
       }
       http.verify({ ignoreCancelled: true });
@@ -193,7 +222,7 @@ describe('workflow queue assignment filters', () => {
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
-        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null, summary: summary({ MY_TASKS: '101', OVERDUE: '1234567' }) });
+        .flush({ view: 'MY_TASKS', tasks: [legacyTask], hasMore: false, nextCursor: null, summary: summary({ MY_TASKS: '101', OVERDUE: '1234567' }) });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
       TestBed.tick();
 
@@ -224,6 +253,7 @@ describe('workflow queue assignment filters', () => {
       expect(buttons).toContain('Review prerequisites');
       expect(buttons).toContain('Review task ordering');
       expect(buttons).toContain('View activity');
+      expect(host.querySelector('[data-cancel-task]')).toBeNull(); // Missing server affordance fails closed.
 
       component.selectView('TEAM'); TestBed.tick();
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true')).flush({ view: 'TEAM', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
@@ -252,6 +282,17 @@ describe('workflow queue assignment filters', () => {
       expect(component.selectedView()).toBe('CHANGES_REQUIRED');
       expect(component.ownerFilter()).toBe('ALL');
       expect(host.textContent).toContain('Changes required — workflow tasks');
+
+      component.selectView('CANCELLED'); TestBed.tick();
+      http.expectOne(tasksUrl('view=CANCELLED&pageSize=50&includeSummary=true'))
+        .flush({ view: 'CANCELLED', tasks: [{ ...task, taskStatus: 'CANCELLED' }], hasMore: false, nextCursor: null, summary: summary() });
+      TestBed.tick();
+      expect(component.selectedView()).toBe('CANCELLED');
+      expect(cards()).toHaveLength(7);
+      for (const layout of ['LIST', 'BOARD', 'CALENDAR'] as const) {
+        component.display.set(layout); fixture.detectChanges(); TestBed.tick();
+        expect(host.textContent).toContain(task.title);
+      }
 
       expect(http.match(request => request.method !== 'GET')).toEqual([]);
       http.verify({ ignoreCancelled: true });
@@ -480,6 +521,186 @@ describe('workflow queue assignment filters', () => {
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null });
       expect(component.assignmentUncertain()).toBe(false);
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('keeps exact cancellation intent after a lost reply and retries only after exact status inspection and renewed assent', async () => {
+    const test = start();
+    const { fixture, http, host } = test;
+    const reason = '  Work stopped after the engagement scope changed.  ';
+    const canonicalReason = reason.trim();
+    const workspaceUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    try {
+      const panel = openCancellation(test);
+      expect(host.querySelector('section[aria-labelledby="cancellation-heading"] h2')?.textContent).toBe('Review task cancellation');
+      expect(host.textContent).toContain(task.clientId);
+      expect(host.textContent).toContain(task.engagementId);
+      expect(host.textContent).toContain(`revision`);
+
+      panel.updateReason('   '); panel.prepareReview();
+      expect(panel.intent()).toBeNull();
+      expect(panel.message()).toContain('non-empty cancellation reason');
+      panel.updateReason('x'.repeat(2001)); panel.prepareReview();
+      expect(panel.intent()).toBeNull();
+      panel.updateReason(reason); panel.prepareReview();
+      fixture.detectChanges(); TestBed.tick();
+      expect(panel.intent()).toEqual({ expectedRevision: task.revision, reason: canonicalReason });
+      expect(host.querySelector('.reviewed-intent .reason')?.textContent).toBe(canonicalReason);
+      expect(host.textContent).toContain('I reviewed this exact task, engagement scope, revision, and reason.');
+      expect(host.textContent).toContain('Confirm task cancellation');
+
+      panel.assent.set(true);
+      const sending = panel.submit();
+      const postUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/cancel`;
+      const post = http.expectOne(postUrl);
+      const exactPayload = { expectedRevision: task.revision, reason: canonicalReason };
+      expect(post.request.body).toEqual(exactPayload);
+      post.flush({}, { status: 503, statusText: 'Service Unavailable' });
+      await sending;
+      fixture.detectChanges(); TestBed.tick();
+      expect(panel.state()).toBe('unknown');
+      expect(host.textContent).toContain('Check cancellation status');
+      expect(host.querySelectorAll('audit-workflow-task-cancellation [role="alert"]')).toHaveLength(1);
+      http.expectNone(request => request.method === 'POST');
+
+      const inconsistentCheck = panel.checkStatus();
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'CANCELLED' }] });
+      await inconsistentCheck;
+      expect(panel.state()).toBe('unknown');
+      expect(panel.observed()).toBeNull();
+      expect(panel.message()).toContain('did not advance the reviewed revision');
+
+      const unchangedCheck = panel.checkStatus();
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
+      await unchangedCheck;
+      expect(panel.state()).toBe('retryable');
+      expect(panel.assent()).toBe(false);
+      expect(panel.intent()).toEqual(exactPayload);
+      http.expectNone(request => request.method === 'POST');
+
+      panel.assent.set(true);
+      const retrying = panel.submit();
+      const retry = http.expectOne(postUrl);
+      expect(retry.request.body).toEqual(exactPayload);
+      retry.flush({ value: true });
+      await retrying;
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      expect(panel.state()).toBe('confirmed');
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('moves focus to retained task activity after cancellation observation is acknowledged', async () => {
+    const test = start();
+    const { fixture, http, host } = test;
+    const reason = 'The engagement scope changed before this task could proceed.';
+    const taskWorkspace = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    try {
+      const panel = openCancellation(test);
+      panel.updateReason(reason); panel.prepareReview(); panel.assent.set(true);
+      const sending = panel.submit();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/cancel`)
+        .flush({}, { status: 503, statusText: 'Service Unavailable' });
+      await sending;
+
+      const checking = panel.checkStatus();
+      http.expectOne(taskWorkspace).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName,
+          revision: task.revision + 1, status: 'CANCELLED' }] });
+      await checking;
+      fixture.detectChanges(); TestBed.tick();
+      expect(panel.state()).toBe('observed');
+
+      const acknowledge = [...host.querySelectorAll<HTMLButtonElement>('audit-workflow-task-cancellation button')]
+        .find(button => button.textContent?.includes('Acknowledge cancellation and review activity'))!;
+      acknowledge.focus();
+      acknowledge.click();
+      fixture.detectChanges(); TestBed.tick();
+      expect(host.querySelector('audit-workflow-task-cancellation')).toBeNull();
+      expect(host.querySelector('#task-activity-heading')?.textContent).toBe('Task activity');
+      expect(document.activeElement).toBe(host.querySelector('#task-activity-heading'));
+
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({}, { status: 503, statusText: 'Service Unavailable' });
+      fixture.detectChanges(); TestBed.tick();
+      expect(host.querySelector('#task-activity-heading')?.textContent).toBe('Task activity');
+      expect(document.activeElement).toBe(host.querySelector('#task-activity-heading'));
+      expect(host.textContent).toContain('Temporarily unavailable. Retry shortly.');
+
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
+        .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId,
+          events: [{ ...activity.events[0], kind: 'TASK_CANCELLED', taskRevision: task.revision + 1, reason }],
+          hasMore: false, nextCursor: null });
+      fixture.detectChanges(); TestBed.tick();
+      expect(host.textContent).toContain(`Cancellation reason: ${reason}`);
+      expect(document.activeElement).toBe(host.querySelector('#task-activity-heading'));
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('keeps a changed-revision cancellation outcome stale and does not offer an exact-payload retry', async () => {
+    const test = start();
+    const { fixture, http, host } = test;
+    const reason = 'Work stopped after the engagement scope changed.';
+    const workspaceUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    try {
+      const panel = openCancellation(test);
+      panel.updateReason(reason); panel.prepareReview(); panel.assent.set(true);
+      const sending = panel.submit();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/cancel`)
+        .flush({}, { status: 503, statusText: 'Service Unavailable' });
+      await sending;
+
+      const checking = panel.checkStatus();
+      http.expectOne(workspaceUrl).flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision + 1, status: 'IN_PROGRESS' }] });
+      await checking;
+      fixture.detectChanges(); TestBed.tick();
+      expect(panel.state()).toBe('stale');
+      expect(host.textContent).toContain('revision changed');
+      expect(host.textContent).not.toContain('Confirm task cancellation');
+      await panel.submit();
+      http.expectNone(request => request.method === 'POST');
+
+      panel.acknowledgeChangedTask(); fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [{ ...cancelableTask, revision: task.revision + 1, taskStatus: 'IN_PROGRESS' }], hasMore: false, nextCursor: null, summary: summary() });
+      http.verify({ ignoreCancelled: true });
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('clears cancellation review on owner change and ignores a late exact-status result', async () => {
+    const test = start();
+    const { fixture, http, session, host, component } = test;
+    const reason = 'Confidential scope change details.';
+    try {
+      const panel = openCancellation(test);
+      panel.updateReason(reason); panel.prepareReview(); panel.assent.set(true);
+      const sending = panel.submit();
+      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/cancel`)
+        .flush({}, { status: 503, statusText: 'Service Unavailable' });
+      await sending;
+      const checking = panel.checkStatus();
+      const delayedStatus = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`);
+
+      session.clear(); TestBed.tick();
+      expect(component.cancellationTask()).toBeNull();
+      const nextOwner = '99999999-9999-4999-8999-999999999999';
+      session.current.set({ userId: nextOwner, firmId: task.clientId, generation: '2', staff: true }); TestBed.tick();
+      delayedStatus.flush({ engagementId: task.engagementId, truncated: false,
+        tasks: [{ id: task.taskId, assigneeUserId: null, assigneeDisplayName: null, revision: task.revision + 1, status: 'CANCELLED' }] });
+      await checking;
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+      expect(component.cancellationTask()).toBeNull();
+      expect(host.querySelector('audit-workflow-task-cancellation')).toBeNull();
+      expect(host.textContent).not.toContain(reason);
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });

@@ -9,8 +9,9 @@ public static class WorkflowTaskActivityKinds
   public const string DueDateChanged = "TASK_DUE_DATE_CHANGED";
   public const string DependencyChanged = "TASK_DEPENDENCIES_CHANGED";
   public const string EvidenceChanged = "TASK_EVIDENCE_RULE_CHANGED";
+  public const string Cancelled = "TASK_CANCELLED";
 
-  public static readonly string[] All = [Created, Assigned, Reassigned, Completed, DueDateChanged, EvidenceChanged, DependencyChanged];
+  public static readonly string[] All = [Created, Assigned, Reassigned, Completed, DueDateChanged, EvidenceChanged, DependencyChanged, Cancelled];
 }
 
 /// <summary>
@@ -32,4 +33,5 @@ public sealed class WorkflowTaskActivity
   public DateOnly? PreviousDueDate { get; set; }
   public DateOnly? NewDueDate { get; set; }
   public DateTimeOffset OccurredAt { get; set; }
+  public string? Reason { get; set; }
 }

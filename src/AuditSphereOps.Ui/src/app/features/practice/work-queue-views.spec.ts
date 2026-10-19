@@ -9,6 +9,7 @@ const tasks = [
   task('d', 'OPEN', '2026-10-18'),
   task('e', 'OPEN', null),
   task('f', 'ON_HOLD', '2026-10-15'),
+  task('g', 'CANCELLED', '2026-10-18'),
 ];
 const ids = (list: { taskId: string }[]) => list.map((x) => x.taskId).sort();
 
@@ -23,8 +24,9 @@ describe('work queue board and calendar', () => {
 
   it('keeps a fixed column order and never drops an unknown status', () => {
     const columns = boardColumns(tasks);
-    expect(columns.map((c) => c.key)).toEqual(['OPEN', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD']);
+    expect(columns.map((c) => c.key)).toEqual(['OPEN', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED']);
     expect(ids(columns[0].tasks)).toEqual(['a', 'd', 'e']);
+    expect(ids(columns[4].tasks)).toEqual(['g']);
     expect(boardColumns([]).map((c) => c.tasks.length)).toEqual([0, 0, 0]);
   });
 
@@ -38,6 +40,7 @@ describe('work queue board and calendar', () => {
     expect(first.days.map((d) => d.weekday)).toEqual(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
     expect(first.days.map((d) => d.workingDay)).toEqual([true, true, true, true, true, false, false]);
     expect(ids(first.days[4].tasks)).toEqual(['b', 'f']);
+    expect(ids(calendar.weeks[1].days[0].tasks)).toEqual(['d', 'g']);
     expect(ids(first.days[6].tasks)).toEqual(['c']);
     expect(ids(calendar.undated)).toEqual(['e']);
   });

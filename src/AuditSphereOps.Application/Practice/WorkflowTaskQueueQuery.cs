@@ -22,7 +22,7 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   bool CanChangeDueDate, bool CanAssign, long Revision,
   Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment,
   int UnmetEvidencePrerequisites = 0, string SourceKey = "", Guid? TemplateRevisionId = null, Guid? TemplateStepId = null,
-  bool? RequiredTask = null);
+  bool? RequiredTask = null, bool CanCancel = false);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor, WorkflowTaskQueueSummary? Summary = null);
 public sealed record WorkflowTaskQueueCount(string View, string Count);
@@ -49,6 +49,7 @@ public static class WorkflowTaskQueueQuery
   private const string WaitingForClient = "WAITING_FOR_CLIENT";
   private const string ChangesRequired = "CHANGES_REQUIRED";
   private const string UnderReview = "UNDER_REVIEW";
+  private const string Cancelled = "CANCELLED";
   private static readonly string[] ClientWaitingPbcStates =
     [PbcStates.Sent, PbcStates.Acknowledged, PbcStates.PartiallyReceived, PbcStates.ClarificationRequired];
 
@@ -56,7 +57,7 @@ public static class WorkflowTaskQueueQuery
     IAuditSphereDbContext db, ActorContext actor, WorkflowTaskQueueRequest request, CancellationToken ct = default)
   {
     var view = request.View?.Trim().ToUpperInvariant();
-    if (view is not (MyTasks or Team or DueToday or Upcoming or Overdue or Completed or WaitingForClient or ChangesRequired or UnderReview) || request.PageSize is < 1 or > 100 ||
+    if (view is not (MyTasks or Team or DueToday or Upcoming or Overdue or Completed or Cancelled or WaitingForClient or ChangesRequired or UnderReview) || request.PageSize is < 1 or > 100 ||
         (request.AfterTaskId is null && request.AfterDueDate.HasValue) || request.AssigneeUserId == Guid.Empty ||
         (request.UnassignedOnly && request.AssigneeUserId.HasValue) ||
         (view == MyTasks && (request.UnassignedOnly ||
@@ -166,6 +167,7 @@ public static class WorkflowTaskQueueQuery
     var changesRequired = query.Where(x => x.ReviewState == AuditProcedureResultStatuses.ChangesRequired);
     var underReview = query.Where(x => x.ReviewState == UnderReview);
     var completed = query.Where(x => x.Status == PracticeTimeStates.TaskCompleted);
+    var cancelled = query.Where(x => x.Status == PracticeTimeStates.TaskCancelled);
     var rowsQuery = view switch
     {
       MyTasks => myTasks,
@@ -176,7 +178,8 @@ public static class WorkflowTaskQueueQuery
       WaitingForClient => waitingForClient,
       ChangesRequired => changesRequired,
       UnderReview => underReview,
-      _ => completed
+      Completed => completed,
+      _ => cancelled
     };
 
     // Assignee selection only narrows the already grant-scoped query. It is never an authority source.
@@ -257,12 +260,13 @@ public static class WorkflowTaskQueueQuery
         pbcComplete && unmetEvidence == 0 && (x.AssigneeUserId == actor.UserId || CanElevatedManage(x.ClientId, x.EngagementId));
       var canChangeDueDate = ActiveTaskStates.Contains(x.Status) && CanElevatedManage(x.ClientId, x.EngagementId);
       var canAssign = ActiveTaskStates.Contains(x.Status) && CanElevatedManage(x.ClientId, x.EngagementId);
+      var canCancel = ActiveTaskStates.Contains(x.Status) && CanElevatedManage(x.ClientId, x.EngagementId);
       return new WorkflowTaskQueueRow(x.Id, x.ClientId, x.ClientName, x.EngagementId,
         x.EngagementServiceRoute, x.EngagementPeriod, x.Title, x.Phase, x.Ordinal, x.Status,
         x.AssigneeUserId, x.AssigneeUserId is { } userId ? assignees.GetValueOrDefault(userId) : null,
         x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, canAssign, x.Revision,
         x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment, unmetEvidence,
-        x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask);
+        x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask, canCancel);
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,

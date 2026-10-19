@@ -210,6 +210,105 @@ public sealed class WorkflowDashboardApiTests
   }
 
   [Fact]
+  public async Task CancellationRequiresCurrentManagementScopeCsrfAndRevisionAndRetainsItsActivity()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-WORKFLOW-CANCELLATION");
+    var f = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    Guid taskId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      taskId = await CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.EngagementId,
+        "Synthetic retained cancellation", 1, DateOnly.FromDateTime(DateTime.UtcNow), f.Staff.Id);
+    var path = $"/api/ui/engagements/{f.EngagementId}/workflow/tasks/{taskId}/cancel";
+    var body = new { reason = "  Duplicate operational coordination is no longer required.  ", expectedRevision = 1 };
+    using var adminFactory = Factory(pg, f.Admin);
+    using var admin = adminFactory.CreateClient(new() { AllowAutoRedirect = false });
+    using var anonymous = await admin.PostAsJsonAsync(path, body);
+    Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+    var csrf = await SignInForCommands(admin);
+    using var staffFactory = Factory(pg, f.Staff);
+    using var staff = staffFactory.CreateClient();
+    var staffCsrf = await SignInForCommands(staff);
+    using var clientFactory = Factory(pg, f.Client);
+    using var client = clientFactory.CreateClient();
+    var clientCsrf = await SignInForCommands(client);
+    using var foreignFactory = Factory(pg, foreign.Admin);
+    using var foreignClient = foreignFactory.CreateClient();
+    var foreignCsrf = await SignInForCommands(foreignClient);
+
+    var managerQueue = (await admin.GetFromJsonAsync<WorkflowTaskQueue>(QueuePath + "?view=TEAM"))!;
+    var managerRow = Assert.Single(managerQueue.Tasks);
+    Assert.Equal(taskId, managerRow.TaskId);
+    Assert.Equal(PracticeTimeStates.TaskInProgress, managerRow.TaskStatus);
+    Assert.True(managerRow.CanCancel);
+    var staffQueue = (await staff.GetFromJsonAsync<WorkflowTaskQueue>(QueuePath + "?view=MY_TASKS"))!;
+    Assert.False(Assert.Single(staffQueue.Tasks).CanCancel);
+    using var forged = await PostCommand(admin, "forged", path, body);
+    Assert.Equal(HttpStatusCode.Forbidden, forged.StatusCode);
+    using var staffDenied = await PostCommand(staff, staffCsrf, path, body);
+    Assert.Equal(HttpStatusCode.Forbidden, staffDenied.StatusCode);
+    using var clientDenied = await PostCommand(client, clientCsrf, path, body);
+    Assert.Equal(HttpStatusCode.Forbidden, clientDenied.StatusCode);
+    using var foreignDenied = await PostCommand(foreignClient, foreignCsrf, path, body);
+    Assert.Equal(HttpStatusCode.Forbidden, foreignDenied.StatusCode);
+    using var wrongRoute = await PostCommand(admin, csrf,
+      $"/api/ui/engagements/{Guid.NewGuid()}/workflow/tasks/{taskId}/cancel", body);
+    Assert.Equal(HttpStatusCode.Forbidden, wrongRoute.StatusCode);
+    using var blank = await PostCommand(admin, csrf, path, new { reason = " ", expectedRevision = 1 });
+    Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
+    using var stale = await PostCommand(admin, csrf, path, new { body.reason, expectedRevision = 2 });
+    Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+    await using (var unchanged = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(PracticeTimeStates.TaskInProgress, (await unchanged.WorkTasks.SingleAsync(x => x.Id == taskId)).Status);
+      Assert.DoesNotContain(await unchanged.WorkflowTaskActivities.ToListAsync(), x => x.Kind == "TASK_CANCELLED");
+    }
+
+    using var accepted = await PostCommand(admin, csrf, path, body);
+    Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+    using var repeat = await PostCommand(admin, csrf, path, body);
+    Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
+    using var differentIntent = await PostCommand(admin, csrf, path,
+      new { reason = "A different cancellation intent must not reuse the old revision.", expectedRevision = 1 });
+    Assert.Equal(HttpStatusCode.Conflict, differentIntent.StatusCode);
+    using var closed = await PostCommand(admin, csrf, path, new { body.reason, expectedRevision = 2 });
+    Assert.Equal(HttpStatusCode.BadRequest, closed.StatusCode);
+    var cancelled = (await admin.GetFromJsonAsync<WorkflowTaskQueue>(QueuePath + "?view=CANCELLED"))!;
+    var retained = Assert.Single(cancelled.Tasks);
+    Assert.Equal(taskId, retained.TaskId);
+    Assert.Equal(PracticeTimeStates.TaskCancelled, retained.TaskStatus);
+    Assert.False(retained.CanCancel);
+    Assert.False(retained.CanComplete);
+    Assert.False(retained.CanAssign);
+    Assert.Equal(2, retained.Revision);
+    var exact = (await admin.GetFromJsonAsync<WorkflowTaskWorkspace>(
+      $"/api/ui/engagements/{f.EngagementId}/workflow/tasks?taskId={taskId}"))!;
+    Assert.False(exact.Truncated);
+    Assert.Equal(taskId, Assert.Single(exact.Tasks).Id);
+    Assert.Equal(PracticeTimeStates.TaskCancelled, Assert.Single(exact.Tasks).Status);
+    var absent = (await admin.GetFromJsonAsync<WorkflowTaskWorkspace>(
+      $"/api/ui/engagements/{f.EngagementId}/workflow/tasks?taskId={Guid.NewGuid()}"))!;
+    Assert.Empty(absent.Tasks);
+    var activity = (await admin.GetFromJsonAsync<WorkflowTaskActivityPage>(
+      $"/api/ui/engagements/{f.EngagementId}/workflow/tasks/{taskId}/activity"))!;
+    var cancellation = Assert.Single(activity.Events, x => x.Kind == "TASK_CANCELLED");
+    Assert.Equal(body.reason.Trim(), cancellation.Reason);
+    Assert.Equal(2, cancellation.TaskRevision);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    var savedEvent = Assert.Single(await proof.WorkflowTaskActivities.Where(x => x.Kind == "TASK_CANCELLED").ToListAsync());
+    Assert.Equal(f.Admin.Id, savedEvent.ActorUserId);
+    Assert.Equal(taskId, savedEvent.WorkTaskId);
+    Assert.Single(await proof.WorkTasks.ToListAsync());
+    Assert.Single(await proof.WorkflowTaskBindings.ToListAsync());
+    Assert.Empty(await proof.MaterialityApprovals.ToListAsync());
+    Assert.Empty(await proof.Approvals.ToListAsync());
+    await proof.Users.Where(x => x.Id == f.Admin.Id).ExecuteUpdateAsync(setters =>
+      setters.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
+    using var revoked = await PostCommand(admin, csrf, path, body);
+    Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
+  }
+
+  [Fact]
   public async Task DisabledExperienceKeepsTheExistingDenialAndConfigurationUnchanged()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-WORKFLOW-DASHBOARD-OFF");
@@ -229,6 +328,10 @@ public sealed class WorkflowDashboardApiTests
     Assert.Equal(string.Empty, anonymousBody);
 
     using var staff = factory.CreateClient(new() { AllowAutoRedirect = false }); await SignIn(staff);
+    using var cancelDisabled = await staff.PostAsJsonAsync(
+      $"/api/ui/engagements/{f.EngagementId}/workflow/tasks/{task}/cancel",
+      new { reason = "Disabled experience must not cancel a task.", expectedRevision = 1 });
+    Assert.Equal(HttpStatusCode.NotFound, cancelDisabled.StatusCode);
     string before;
     await using (var db = new AuditSphereDbContext(pg.Options)) before = await SideEffectFingerprintAsync(db);
     foreach (var query in new[]
@@ -329,6 +432,22 @@ public sealed class WorkflowDashboardApiTests
     ["DevelopmentIdentity:Subject"] = user.Subject, ["DevelopmentIdentity:TenantId"] = user.TenantId,
     ["ExternalEffects:Enabled"] = "false", ["Application:AllowSimulationAdapters"] = "true", ["WorkflowExperience:Enabled"] = enabled.ToString()
   });
+
+  private static async Task<string> SignInForCommands(HttpClient c)
+  {
+    await c.GetAsync("/auth/sign-in");
+    using var session = await c.GetAsync("/api/ui/session");
+    Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    return Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+  }
+
+  private static Task<HttpResponseMessage> PostCommand(HttpClient c, string csrf, string path, object body)
+  {
+    var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };
+    request.Headers.Add("X-XSRF-TOKEN", csrf);
+    return c.SendAsync(request);
+  }
 
   private static async Task SignIn(HttpClient c)
   {

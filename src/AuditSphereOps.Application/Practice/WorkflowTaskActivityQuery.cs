@@ -17,7 +17,7 @@ public sealed record WorkflowTaskActivityRequest(
 public sealed record WorkflowTaskActivityCursor(DateTimeOffset OccurredAt, Guid ActivityId);
 public sealed record WorkflowTaskActivityItem(Guid Id, string Kind, string SourceLabel,
   string ActorDisplayName, string? AssigneeDisplayName, long TaskRevision,
-  DateOnly? PreviousDueDate, DateOnly? NewDueDate, DateTimeOffset OccurredAt);
+  DateOnly? PreviousDueDate, DateOnly? NewDueDate, DateTimeOffset OccurredAt, string? Reason = null);
 public sealed record WorkflowTaskActivityPage(Guid EngagementId, Guid TaskId, DateOnly From, DateOnly To,
   IReadOnlyList<WorkflowTaskActivityItem> Events, bool HasMore, WorkflowTaskActivityCursor? NextCursor);
 
@@ -71,7 +71,7 @@ public static class WorkflowTaskActivityQuery
       {
         activity.Id, activity.Kind, ActorDisplayName = actorUser.DisplayName,
         AssigneeDisplayName = assignedUser == null ? null : assignedUser.DisplayName,
-        activity.TaskRevision, activity.PreviousDueDate, activity.NewDueDate, activity.OccurredAt
+        activity.TaskRevision, activity.PreviousDueDate, activity.NewDueDate, activity.OccurredAt, activity.Reason
       };
 
     if (request.AfterOccurredAt.HasValue)
@@ -84,7 +84,7 @@ public static class WorkflowTaskActivityQuery
     if (hasMore) rows.RemoveAt(rows.Count - 1);
     var events = rows.Select(x => new WorkflowTaskActivityItem(x.Id, x.Kind, "Operational Task",
       x.ActorDisplayName, x.AssigneeDisplayName, x.TaskRevision,
-      x.PreviousDueDate, x.NewDueDate, x.OccurredAt)).ToArray();
+      x.PreviousDueDate, x.NewDueDate, x.OccurredAt, x.Reason)).ToArray();
     var last = rows.Count == 0 ? null : rows[^1];
     return CommandResult<WorkflowTaskActivityPage>.Ok(new WorkflowTaskActivityPage(engagementId, taskId,
       from, to, events, hasMore,

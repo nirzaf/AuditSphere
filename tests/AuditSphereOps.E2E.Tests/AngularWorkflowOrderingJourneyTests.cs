@@ -61,6 +61,88 @@ public sealed class AngularWorkflowOrderingJourneyTests
       Assert.Single(await db.WorkflowTaskDependencyRevisions.ToListAsync()); Assert.Empty(await db.MaterialityApprovals.ToListAsync());
       Assert.Empty(await db.AuditProcedureReviews.ToListAsync()); Assert.False(await db.WorkTasks.AnyAsync(x => x.Status == PracticeTimeStates.TaskCompleted));
     }
+    // Cancelling an operational predecessor preserves its edge and cannot satisfy the dependent task.
+    await page.GetByRole(AriaRole.Button, new() { Name = "Close task ordering", Exact = true }).ClickAsync();
+    var cancelButton = firstRow.GetByRole(AriaRole.Button, new() { Name = "Cancel task", Exact = true });
+    await cancelButton.ClickAsync();
+    var cancellation = page.GetByRole(AriaRole.Region, new() { Name = "Review task cancellation", Exact = true });
+    var cancellationHeading = cancellation.GetByRole(AriaRole.Heading,
+      new() { Name = "Review task cancellation", Exact = true });
+    await Assertions.Expect(cancellationHeading).ToBeFocusedAsync();
+    const string cancellationReason = "The duplicate operational coordination is cancelled; its required successor remains blocked.";
+    await cancellation.GetByLabel("Reason for cancellation", new() { Exact = true }).FillAsync(cancellationReason);
+    await cancellation.GetByRole(AriaRole.Button, new() { Name = "Review cancellation", Exact = true }).ClickAsync();
+    await Assertions.Expect(cancellationHeading).ToBeFocusedAsync();
+    var assent = cancellation.GetByLabel("I reviewed this exact task, engagement scope, revision, and reason.", new() { Exact = true });
+    await Assertions.Expect(assent).Not.ToBeCheckedAsync();
+    await cancellation.GetByRole(AriaRole.Button, new() { Name = "Close cancellation review", Exact = true }).ClickAsync();
+    await Assertions.Expect(cancellation).ToHaveCountAsync(0);
+    await Assertions.Expect(cancelButton).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(cancellation.GetByLabel("Reason for cancellation", new() { Exact = true })).ToHaveValueAsync("");
+    await cancellation.GetByLabel("Reason for cancellation", new() { Exact = true }).FillAsync(cancellationReason);
+    await cancellation.GetByRole(AriaRole.Button, new() { Name = "Review cancellation", Exact = true }).ClickAsync();
+    await Assertions.Expect(cancellationHeading).ToBeFocusedAsync();
+    await Assertions.Expect(assent).Not.ToBeCheckedAsync();
+    await page.SetViewportSizeAsync(320, 844);
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"),
+      "The exact cancellation review must reflow at 320px.");
+    await page.SetViewportSizeAsync(1280, 900);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/work", "workflow-cancellation-review");
+    await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(assent).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Space");
+    var confirmCancellation = cancellation.GetByRole(AriaRole.Button,
+      new() { Name = "Confirm task cancellation", Exact = true });
+    await Assertions.Expect(confirmCancellation).ToBeEnabledAsync();
+    var cancellations = 0;
+    const string cancellationPattern = "**/workflow/tasks/*/cancel";
+    await page.RouteAsync(cancellationPattern, async route => {
+      cancellations++;
+      var response = await route.FetchAsync();
+      Assert.Equal(200, response.Status);
+      await route.FulfillAsync(new() { Status = 503, ContentType = "application/json",
+        Body = "{\"message\":\"Synthetic lost cancellation response after persistence\"}" });
+    });
+    await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(confirmCancellation).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(cancellation.GetByRole(AriaRole.Button,
+      new() { Name = "Check cancellation status", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(cancellationHeading).ToBeFocusedAsync();
+    await Assertions.Expect(confirmCancellation).ToHaveCountAsync(0);
+    await cancellation.GetByRole(AriaRole.Button, new() { Name = "Check cancellation status", Exact = true }).ClickAsync();
+    await Assertions.Expect(cancellation).ToContainTextAsync("Cancellation observed");
+    await Assertions.Expect(cancellationHeading).ToBeFocusedAsync();
+    await cancellation.GetByRole(AriaRole.Button,
+      new() { Name = "Acknowledge cancellation and review activity", Exact = true }).ClickAsync();
+    Assert.Equal(1, cancellations);
+    var activity = page.GetByRole(AriaRole.Region, new() { Name = "Task activity", Exact = true });
+    await Assertions.Expect(activity.GetByRole(AriaRole.Heading, new() { Name = "Task activity", Exact = true })).ToBeFocusedAsync();
+    await Assertions.Expect(activity).ToContainTextAsync("Task cancelled");
+    await Assertions.Expect(activity).ToContainTextAsync(cancellationReason);
+    await Assertions.Expect(row).ToContainTextAsync("1 task prerequisite(s) incomplete");
+    await Assertions.Expect(row.GetByRole(AriaRole.Button, new() { Name = "Complete task", Exact = true })).ToHaveCountAsync(0);
+    await page.GetByRole(AriaRole.Button, new() { Name = "Cancelled", Exact = true }).ClickAsync();
+    var cancelledRow = page.Locator("tbody tr").Filter(new() { HasText = firstTitle });
+    await Assertions.Expect(cancelledRow).ToBeVisibleAsync();
+    await Assertions.Expect(cancelledRow.GetByRole(AriaRole.Button, new() { Name = "Cancel task", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(cancelledRow.GetByRole(AriaRole.Button, new() { Name = "Complete task", Exact = true })).ToHaveCountAsync(0);
+    await page.UnrouteAsync(cancellationPattern);
+    await using (var db = host.CreateDbContext()) {
+      var retained = await db.WorkTasks.SingleAsync(x => x.Id == first);
+      Assert.Equal(PracticeTimeStates.TaskCancelled, retained.Status);
+      var cancelledEvent = Assert.Single(await db.WorkflowTaskActivities.Where(x => x.Kind == "TASK_CANCELLED").ToListAsync());
+      Assert.Equal(first, cancelledEvent.WorkTaskId);
+      Assert.Equal(cancellationReason, cancelledEvent.Reason);
+      Assert.Equal(f.Admin.Id, cancelledEvent.ActorUserId);
+      Assert.Equal(2, await db.WorkTasks.CountAsync());
+      Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync());
+      Assert.Single(await db.WorkflowTaskDependencyRevisions.ToListAsync());
+      Assert.Empty(await db.MaterialityApprovals.ToListAsync());
+      Assert.Empty(await db.AuditProcedureReviews.ToListAsync());
+      Assert.False(await db.WorkTasks.AnyAsync(x => x.Status == PracticeTimeStates.TaskCompleted));
+    }
     await page.SetViewportSizeAsync(390, 844);
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1")); Assert.Empty(errors);
     if (!inspectBefore) await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/work");

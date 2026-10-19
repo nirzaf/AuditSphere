@@ -53,8 +53,13 @@ public static class EngagementWorkflowTaskService
 {
   private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
 
+  public static Task<CommandResult<WorkflowTaskWorkspace>> GetAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default) =>
+    GetAsync(db, actor, engagementId, selectedTaskId: null, ct: ct);
+
   public static async Task<CommandResult<WorkflowTaskWorkspace>> GetAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, Guid? selectedTaskId,
+    CancellationToken ct = default)
   {
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
@@ -64,7 +69,8 @@ public static class EngagementWorkflowTaskService
                       join task in db.WorkTasks.AsNoTracking()
                         on new { binding.FirmId, WorkTaskId = binding.WorkTaskId }
                         equals new { task.FirmId, WorkTaskId = task.Id }
-                      where binding.FirmId == actor.FirmId && binding.EngagementId == engagementId
+                      where binding.FirmId == actor.FirmId && binding.EngagementId == engagementId &&
+                        (!selectedTaskId.HasValue || task.Id == selectedTaskId.Value)
                       orderby binding.Phase, binding.Ordinal, binding.Id
                       select new WorkflowTaskRow(task.Id, task.Title, binding.Phase, binding.Ordinal, task.Status,
                         binding.AssigneeUserIdSnapshot, null, binding.AssignedRole, task.DueDate, binding.PlannedEffortMinutes, task.MappingVersionId,
@@ -203,4 +209,9 @@ public static class EngagementWorkflowTaskService
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, DateOnly? dueDate,
     long expectedRevision, CancellationToken ct = default) =>
     PracticeTimeService.ChangeWorkflowTaskDueDateAsync(db, actor, taskId, dueDate, expectedRevision, ct);
+
+  public static Task<CommandResult> CancelAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, string reason,
+    long expectedRevision, CancellationToken ct = default) =>
+    PracticeTimeService.CancelWorkflowTaskAsync(db, actor, taskId, reason, expectedRevision, ct);
 }
