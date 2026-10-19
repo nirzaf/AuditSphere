@@ -52,7 +52,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
       <p role="status">Invoice total {{ i.total | money }} · credited {{ i.credited | money }} · allocated {{ i.allocated | money }} · balance outstanding {{ i.outstanding | money }}</p>
       <section class="panel" aria-labelledby="invoice-heading">
         <p class="eyebrow">Status: <audit-status [value]="i.status" /> (Rev {{ i.revision }})</p>
-        <h2 id="invoice-heading">{{ i.invoiceNumber }}</h2>
+        <h2 id="invoice-heading" class="invoice-number">{{ i.invoiceNumber }}</h2>
         <button matButton="outlined" (click)="refresh()" [disabled]="busy()">Refresh invoice</button>
         <dl class="facts"><dt>Invoice ID</dt><dd><code>{{ i.id }}</code></dd><dt>Currency</dt><dd>{{ i.currency ?? 'Default' }}</dd><dt>Subtotal</dt><dd>{{ i.subtotal | money }}</dd>
           <dt>Tax</dt><dd>{{ i.tax | money }}</dd><dt>Total amount</dt><dd><strong>{{ i.total | money }}</strong></dd><dt>Balance outstanding</dt><dd><strong>{{ i.outstanding | money }}</strong></dd>
@@ -259,7 +259,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
     </section> }
     <audit-command-message [message]="message()" [failed]="failed()" />
   `,
-  styles: `form { display: grid; gap: .65rem; max-width: 42rem; margin-block: 1rem 1.5rem; } input, select, textarea { max-width: 34rem; width: 100%; min-height: 2.75rem; } textarea { min-height: 5rem; } .check { display: flex; align-items: flex-start; gap: .65rem; } .check input { width: 1.2rem; min-height: 1.2rem; } h3 { margin-block: 1.5rem .5rem; } small, .muted { color: var(--text-muted, #4c5968); } .actions { display:flex; gap:.75rem; flex-wrap:wrap; } .reversal-history { display:grid; gap:.2rem; margin-block:.5rem; }`,
+  styles: `.invoice-number { overflow-wrap: anywhere; } form { display: grid; gap: .65rem; max-width: 42rem; margin-block: 1rem 1.5rem; } input, select, textarea { max-width: 34rem; width: 100%; min-height: 2.75rem; } textarea { min-height: 5rem; } .check { display: flex; align-items: flex-start; gap: .65rem; } .check input { width: 1.2rem; min-height: 1.2rem; } h3 { margin-block: 1.5rem .5rem; } small, .muted { color: var(--text-muted, #4c5968); } .actions { display:flex; gap:.75rem; flex-wrap:wrap; } .reversal-history { display:grid; gap:.2rem; margin-block:.5rem; }`,
 })
 export class InvoiceDetail {
   private readonly api = inject(Api);

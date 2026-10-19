@@ -268,6 +268,132 @@ public sealed class BillingTests
     Assert.Equal(2, await verify.TimeEntries.CountAsync());
   }
 
+  [Fact]
+  public async Task AdvanceInvoiceIdentity_UsesFullAgreementGuidAndRelinksLegacyDraft()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var now = DateTimeOffset.UtcNow;
+    Guid[] agreementIds =
+    [
+      Guid.Parse("a17f0c42-0000-7000-8000-000000000001"),
+      Guid.Parse("a17f0c42-0000-7000-8000-000000000002"),
+      Guid.Parse("a17f0c42-0000-7000-8000-000000000003")
+    ];
+    Assert.Equal(3, agreementIds.Distinct().Count());
+    Assert.Single(agreementIds.Select(id => id.ToString("N")[..8]).Distinct(StringComparer.OrdinalIgnoreCase));
+
+    const decimal agreedFee = 1200m;
+    const decimal advanceAmount = 600m;
+    var milestoneIds = new Guid[agreementIds.Length];
+    await using var db = new AuditSphereDbContext(pg.Options);
+    for (var index = 0; index < agreementIds.Length; index++)
+    {
+      var leadId = Guid.CreateVersion7();
+      var opportunityId = Guid.CreateVersion7();
+      var proposalId = Guid.CreateVersion7();
+      var quotationId = Guid.CreateVersion7();
+      var milestoneId = Guid.CreateVersion7();
+
+      db.Leads.Add(new Lead
+      {
+        Id = leadId, FirmId = fixture.FirmId, Name = $"Synthetic billing lead {index + 1}",
+        Source = "TEST", Status = CrmStates.LeadQualified, CreatedAt = now
+      });
+      db.Opportunities.Add(new Opportunity
+      {
+        Id = opportunityId, FirmId = fixture.FirmId, LeadId = leadId, PracticeClientId = fixture.ClientId,
+        ServiceRoute = "FinancialStatementAudit", EntityScope = "Synthetic test scope",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", ExpectedFee = agreedFee,
+        Currency = "QAR", Stage = CrmStates.OpportunityProposal, CreatedAt = now
+      });
+      db.Proposals.Add(new Proposal
+      {
+        Id = proposalId, FirmId = fixture.FirmId, OpportunityId = opportunityId, PracticeClientId = fixture.ClientId,
+        Status = CrmStates.ProposalDraft, ServiceProfileId = "synthetic-test-profile", Scope = "Synthetic scope",
+        Deliverables = "Synthetic deliverable", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        Fee = agreedFee, Currency = "QAR", CreatedAt = now
+      });
+      db.QuotationVersions.Add(new QuotationVersion
+      {
+        Id = quotationId, FirmId = fixture.FirmId, ProposalId = proposalId, Currency = "QAR",
+        BaseAmount = agreedFee, Fee = agreedFee, InputHash = new string('a', 64),
+        CreatedByUserId = fixture.Manager.Id, CreatedAt = now
+      });
+      db.EngagementFeeAgreements.Add(new EngagementFeeAgreement
+      {
+        Id = agreementIds[index], FirmId = fixture.FirmId, ProposalId = proposalId, QuotationVersionId = quotationId,
+        PracticeClientId = fixture.ClientId, Currency = "QAR", AgreedFee = agreedFee,
+        AdvancePercent = 50m, CreatedByUserId = fixture.Manager.Id, CreatedAt = now
+      });
+      db.FeeMilestones.Add(new FeeMilestone
+      {
+        Id = milestoneId, FirmId = fixture.FirmId, AgreementId = agreementIds[index],
+        Kind = FeeMilestoneKinds.Advance, Amount = advanceAmount, State = FeeMilestoneStates.Planned, CreatedAt = now
+      });
+      milestoneIds[index] = milestoneId;
+    }
+
+    await db.SaveChangesAsync();
+    // These rows establish source identity only; no proposal acceptance, commercial dispatch, or approval evidence is asserted.
+    var issuedInvoiceIds = new Guid[2];
+    for (var index = 0; index < issuedInvoiceIds.Length; index++)
+    {
+      var issued = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, fixture.ManagerActor, agreementIds[index]);
+      Assert.True(issued.Succeeded, issued.Message);
+      db.ChangeTracker.Clear();
+      var replay = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, fixture.ManagerActor, agreementIds[index]);
+      Assert.True(replay.Succeeded, replay.Message);
+      Assert.Equal(issued.Value, replay.Value);
+      issuedInvoiceIds[index] = issued.Value;
+    }
+    Assert.NotEqual(issuedInvoiceIds[0], issuedInvoiceIds[1]);
+
+    var accountId = await db.BillingAccounts.AsNoTracking()
+      .Where(x => x.FirmId == fixture.FirmId && x.PracticeClientId == fixture.ClientId)
+      .Select(x => x.Id).SingleAsync();
+    var legacyNumber = $"AGR-{agreementIds[2].ToString("N")[..8].ToUpperInvariant()}-ADV";
+    var legacyDraft = await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
+      new CreateInvoiceDraftRequest(accountId, legacyNumber,
+      [new InvoiceLineRequest("Legacy advance fee draft", 1m, advanceAmount,
+        FeeAgreementService.MilestoneSourceKind, milestoneIds[2], 1)]));
+    Assert.True(legacyDraft.Succeeded, legacyDraft.Message);
+    var unlinkedMilestone = await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.Id == milestoneIds[2]);
+    Assert.Null(unlinkedMilestone.InvoiceId);
+    Assert.Equal(FeeMilestoneStates.Planned, unlinkedMilestone.State);
+
+    db.ChangeTracker.Clear(); // Model recovery after the draft committed but before the milestone link was saved.
+    var relinked = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, fixture.ManagerActor, agreementIds[2]);
+    Assert.True(relinked.Succeeded, relinked.Message);
+    Assert.Equal(legacyDraft.Value, relinked.Value);
+    db.ChangeTracker.Clear();
+    var relinkReplay = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, fixture.ManagerActor, agreementIds[2]);
+    Assert.True(relinkReplay.Succeeded, relinkReplay.Message);
+    Assert.Equal(legacyDraft.Value, relinkReplay.Value);
+
+    var invoiceIds = new[] { issuedInvoiceIds[0], issuedInvoiceIds[1], legacyDraft.Value };
+    var invoices = await db.Invoices.AsNoTracking().Where(x => invoiceIds.Contains(x.Id)).ToListAsync();
+    Assert.Equal(3, invoices.Count);
+    Assert.Equal($"AGR-{agreementIds[0].ToString("N").ToUpperInvariant()}-ADV",
+      invoices.Single(x => x.Id == issuedInvoiceIds[0]).InvoiceNumber);
+    Assert.Equal($"AGR-{agreementIds[1].ToString("N").ToUpperInvariant()}-ADV",
+      invoices.Single(x => x.Id == issuedInvoiceIds[1]).InvoiceNumber);
+    Assert.Equal(legacyNumber, invoices.Single(x => x.Id == legacyDraft.Value).InvoiceNumber);
+    Assert.Equal(3, invoices.Select(x => x.InvoiceNumber).Distinct(StringComparer.Ordinal).Count());
+
+    var invoiceIdsByMilestone = new[] { issuedInvoiceIds[0], issuedInvoiceIds[1], legacyDraft.Value };
+    for (var index = 0; index < milestoneIds.Length; index++)
+    {
+      var milestoneId = milestoneIds[index];
+      var invoiceId = invoiceIdsByMilestone[index];
+      Assert.Equal(1, await db.BillingSourceAllocations.CountAsync(x => x.FirmId == fixture.FirmId &&
+        x.SourceKind == FeeAgreementService.MilestoneSourceKind && x.SourceId == milestoneId && x.SourceRevision == 1));
+      var milestone = await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.Id == milestoneId);
+      Assert.Equal(invoiceId, milestone.InvoiceId);
+      Assert.Equal(FeeMilestoneStates.Invoiced, milestone.State);
+    }
+  }
+
   private static async Task<Guid> SeedTimeAsync(PgTestSchema pg, Fixture fixture, string status)
   {
     var now = DateTimeOffset.UtcNow;

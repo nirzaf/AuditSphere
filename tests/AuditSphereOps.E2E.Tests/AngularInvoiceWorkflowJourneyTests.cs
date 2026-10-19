@@ -24,7 +24,7 @@ public sealed class AngularInvoiceWorkflowJourneyTests
     var foreignAccountId = Guid.NewGuid();
     var foreignInvoiceId = Guid.NewGuid();
     Guid invoiceId;
-    const string invoiceNumber = "SYN-ANG-INVOICE-WORKFLOW-001";
+    const string invoiceNumber = "AGR-019A0000000070008000000000000001-ADV";
     const string lineDescription = "Synthetic annual audit services";
 
     await using (var db = host.CreateDbContext())
@@ -243,7 +243,10 @@ public sealed class AngularInvoiceWorkflowJourneyTests
       Assert.NotNull(sent.SentAt);
     }
     await managerPage.SetViewportSizeAsync(390, 844);
+    await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading,
+      new() { Name = invoiceNumber, Exact = true })).ToBeVisibleAsync();
     Assert.True(await managerPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     Assert.Empty(errors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(managerOrigin, $"/app/practice/invoices/{invoiceId:D}");
   }
 }

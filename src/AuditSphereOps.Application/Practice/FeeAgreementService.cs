@@ -178,7 +178,8 @@ public static partial class FeeAgreementService
       var description = kind == FeeMilestoneKinds.Advance
         ? $"Advance fee ({agreement.AdvancePercent:0.##}% of agreed fee {agreement.AgreedFee.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency})"
         : $"Balance fee ({percent:0.##}% of agreed fee {agreement.AgreedFee.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency})";
-      var number = $"AGR-{agreement.Id.ToString("N")[..8].ToUpperInvariant()}-{(kind == FeeMilestoneKinds.Advance ? "ADV" : "BAL")}";
+      // UUIDv7 timestamp prefixes repeat across agreements; retain the full stable source identity.
+      var number = $"AGR-{agreement.Id.ToString("N").ToUpperInvariant()}-{(kind == FeeMilestoneKinds.Advance ? "ADV" : "BAL")}";
       var draft = await BillingService.CreateInvoiceDraftAsync(db, actor, new(accountId, number,
         [new InvoiceLineRequest(description, 1m, milestone.Amount, MilestoneSourceKind, milestone.Id, 1)]), ct);
       if (!draft.Succeeded) return CommandResult<Guid>.Fail(draft.ErrorCode!, draft.Message!);
