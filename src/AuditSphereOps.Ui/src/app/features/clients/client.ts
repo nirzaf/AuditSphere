@@ -119,7 +119,7 @@ export class ClientDetail {
     const active = document.activeElement;
     const origin = active instanceof HTMLElement && active.matches('button[data-client-archive]') &&
       this.hostElement.nativeElement.contains(active) ? active : null;
-    const interaction = this.focusInteraction;
+    const interaction = this.focusInteraction, viewRevision = this.viewRevision;
     this.archiveBusy.set(true); this.archiveMessage.set(''); this.archiveFailed.set(false);
     this.archiveRequest = this.http.put<unknown>(`/api/ui/clients/${id}/archive-state`, {
       isArchived, expectedRevision: client.lifecycleRevision,
@@ -133,7 +133,8 @@ export class ClientDetail {
           this.archiveMessage.set(isArchived
             ? 'Client archived. Its profile and authorized engagement history remain searchable.'
             : 'Client restored. Its existing history and authorization remain unchanged.');
-          this.load(origin ? { owner, interaction, origin, isArchived, revision: state.revision } : undefined);
+          this.load(origin && viewRevision === this.viewRevision
+            ? { owner, interaction, origin, isArchived, revision: state.revision } : undefined);
         } catch {
           this.archiveFailed.set(true); this.archiveMessage.set('The server returned an unsupported archive response. Refresh to review the current state.');
         }

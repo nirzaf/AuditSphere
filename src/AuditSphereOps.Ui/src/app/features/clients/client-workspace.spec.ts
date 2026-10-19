@@ -118,6 +118,19 @@ describe('Client profile request and command ownership', () => {
     expect(document.activeElement).toBe(expectedFocus);
     expect(f.componentInstance.data()?.isArchived).toBe(true);
   });
+  it('does not restore archive focus after query-only navigation before acknowledgement', () => {
+    const f = open(); read().flush(payload); TestBed.tick();
+    (f.nativeElement.querySelector('[data-client-archive]') as HTMLButtonElement).focus();
+    f.componentInstance.setArchived(true);
+    const command = TestBed.inject(HttpTestingController).expectOne(`/api/ui/clients/${id}/archive-state`);
+    queries.next(convertToParamMap({ contactPage: '1' })); TestBed.tick();
+    command.flush({ isArchived: true, lastArchivedAt: '2026-10-18T10:00:00Z', revision: '1' }); TestBed.tick();
+    read().flush({ ...payload, isArchived: true, lastArchivedAt: '2026-10-18T10:00:00Z', lifecycleRevision: '1',
+      paging: { ...defaultClientLocation, contactPage: 1 } }); TestBed.tick();
+    expect(f.componentInstance.location()?.contactPage).toBe(1);
+    expect(f.componentInstance.data()?.isArchived).toBe(true);
+    expect(document.activeElement).not.toBe(f.nativeElement.querySelector('[data-client-archive]'));
+  });
   it('cancels superseded reads and rejects mismatched client or page responses', () => {
     const f = open(), old = read(); ids.next(convertToParamMap({id:other})); TestBed.tick();
     expect(old.cancelled).toBe(true); read().flush(payload); TestBed.tick();
