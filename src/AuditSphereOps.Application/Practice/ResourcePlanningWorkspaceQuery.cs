@@ -19,7 +19,7 @@ public static class ResourcePlanningWorkspaceQuery
       .Join(db.PracticeClients.AsNoTracking(), e => e.PracticeClientId, c => c.Id, (e, c) => new { e.Id, Label = (c.CommercialName ?? c.LegalName) + " · " + e.ServiceRoute + " " + e.PeriodEnd })
       .OrderBy(x => x.Label).Take(200).ToListAsync(ct);
     var options = engagements.Select(x => new ResourceEngagementOption(x.Id, x.Label)).ToList();
-    var auth = await ResourcePlanningService.AuthorizeReadAsync(db, actor, ct);
+    var auth = await ResourcePlanningService.AuthorizeFirmWideAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<ResourcePlanningWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<ResourcePlanningWorkspace>.Ok(new(grid.Value!, options));
   }

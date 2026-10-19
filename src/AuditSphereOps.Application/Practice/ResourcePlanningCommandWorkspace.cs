@@ -30,7 +30,7 @@ public sealed record ResourcePlanningReceiptLookup(bool Found, ResourcePlanningR
 public static class ResourcePlanningCommandWorkspace
 {
   private static readonly string[] Roles=["Administrator","Partner","Manager"];
-  private static AuthorizationRequest Authority(ActorContext a)=>new(a.FirmId,RequiredRoles:Roles,InternalOnly:true);
+  private static AuthorizationRequest Authority(ActorContext a)=>new(a.FirmId,RequiredRoles:Roles,InternalOnly:true,RequireFirmWide:true);
   private static Task<CommandResult> Authorize(IAuditSphereDbContext db,ActorContext a,CancellationToken ct)=>AuthorizationDecision.AuthorizeAsync(db,a,Authority(a),ct);
   private static CommandResult<T> Denied<T>()=>CommandResult<T>.Fail(ErrorCodes.ScopeDenied,"Planning action unavailable.");
   private static CommandResult<T> Invalid<T>()=>CommandResult<T>.Fail("request.invalid","Review the bounded planning fields before submitting.");
@@ -119,6 +119,7 @@ public static class ResourcePlanningCommandWorkspace
     await using var tx=await db.Database.BeginTransactionAsync(ct);
     if(!await LockAsync(db,a,f,ct)) return Denied<ResourcePlanningPreview>();
     var result=await BuildAsync(db,a,request.RequestId,f,ct);
+    if(!(await Authorize(db,a,ct)).Succeeded) return Denied<ResourcePlanningPreview>();
     await tx.CommitAsync(ct);return result;
   }
   public static async Task<CommandResult<ResourcePlanningReceiptView>> ExecuteAsync(IAuditSphereDbContext db,ActorContext a,ResourcePlanningCommandRequest? request,CancellationToken ct=default)
@@ -141,7 +142,9 @@ public static class ResourcePlanningCommandWorkspace
         ? submitted!=priorPreview.Fields || request.RequestHash!=RequestHash(a,request.RequestId,submitted)
         : request.Fields!=priorPreview.Fields)
         return CommandResult<ResourcePlanningReceiptView>.Fail(ErrorCodes.StaleRevision,"This request belongs to a different reviewed intent.");
-      await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptView>.Ok(Receipt(prior));
+      var replay=Receipt(prior);
+      if(!(await Authorize(db,a,ct)).Succeeded) return Denied<ResourcePlanningReceiptView>();
+      await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptView>.Ok(replay);
     }
     // New requests without a retained receipt must satisfy the current canonical contract before mutation.
     var f=Canonical(request.Fields);
@@ -173,8 +176,9 @@ public static class ResourcePlanningCommandWorkspace
     var receipt=new ResourcePlanningReceipt{Id=Guid.CreateVersion7(),FirmId=a.FirmId,ActorId=a.UserId,ActorEpoch=a.SessionEpoch,TargetUserId=f.UserId,RequestId=request.RequestId,Kind=f.Kind,RequestHash=request.RequestHash!,ReviewBasis=request.ReviewBasis!,PreviewJson=json,ResourceId=resource,CreatedAt=DateTimeOffset.UtcNow};
     db.ResourcePlanningReceipts.Add(receipt);await db.SaveChangesAsync(ct);
     var persisted=await db.ResourcePlanningReceipts.AsNoTracking().SingleAsync(x=>x.Id==receipt.Id && x.FirmId==a.FirmId && x.ActorId==a.UserId,ct);
+    var view=Receipt(persisted);
     if(!(await Authorize(db,a,ct)).Succeeded) return Denied<ResourcePlanningReceiptView>();
-    await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptView>.Ok(Receipt(persisted));
+    await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptView>.Ok(view);
   }
   public static async Task<CommandResult<ResourcePlanningReceiptLookup>> LookupAsync(IAuditSphereDbContext db,ActorContext a,Guid requestId,string? requestHash,CancellationToken ct=default)
   {
@@ -184,6 +188,8 @@ public static class ResourcePlanningCommandWorkspace
     if(!await LockRequestAsync(db,a,ct)) return Denied<ResourcePlanningReceiptLookup>();
     var r=await db.ResourcePlanningReceipts.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId && x.ActorId==a.UserId && x.RequestId==requestId,ct);
     if(r is not null && r.RequestHash!=requestHash) return Denied<ResourcePlanningReceiptLookup>();
-    await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptLookup>.Ok(new(r is not null,r is null?null:Receipt(r)));
+    var lookup=new ResourcePlanningReceiptLookup(r is not null,r is null?null:Receipt(r));
+    if(!(await Authorize(db,a,ct)).Succeeded) return Denied<ResourcePlanningReceiptLookup>();
+    await tx.CommitAsync(ct);return CommandResult<ResourcePlanningReceiptLookup>.Ok(lookup);
   }
 }

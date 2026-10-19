@@ -39,7 +39,7 @@ public static partial class ResourcePlanningService
 
   public static async Task<CommandResult> SaveProfileAsync(IAuditSphereDbContext db, ActorContext actor, SaveStaffProfileRequest request, CancellationToken ct = default)
   {
-    var auth = await AuthorizeAsync(db, actor, ct);
+    var auth = await AuthorizeFirmWideAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
     if (request.WeeklyCapacityMinutes is < 0 or > MaxWeeklyMinutes || request.TargetUtilizationPercent is < 0 or > 100 ||
         string.IsNullOrWhiteSpace(request.Department) || request.Department.Trim().Length > 100)
@@ -47,7 +47,7 @@ public static partial class ResourcePlanningService
     if (!await db.Users.AnyAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId && x.UserKind == "Staff", ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct))
+    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true), ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var profile = await db.StaffProfiles.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.UserId == request.UserId, ct);
     if (profile is null)
@@ -63,7 +63,7 @@ public static partial class ResourcePlanningService
     profile.UpdatedAt = DateTimeOffset.UtcNow;
     profile.UpdatedByUserId = actor.UserId;
     await db.SaveChangesAsync(ct);
-    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct)).Succeeded)
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true), ct)).Succeeded)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
@@ -71,14 +71,14 @@ public static partial class ResourcePlanningService
 
   public static async Task<CommandResult<Guid>> AddCertificationAsync(IAuditSphereDbContext db, ActorContext actor, AddCertificationRequest request, CancellationToken ct = default)
   {
-    var auth = await AuthorizeAsync(db, actor, ct);
+    var auth = await AuthorizeFirmWideAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100)
       return CommandResult<Guid>.Fail("resource.invalid", "A certification name is required.");
     if (!await db.Users.AnyAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId && x.UserKind == "Staff", ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct))
+    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true), ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var certification = new StaffCertification
     {
@@ -88,7 +88,7 @@ public static partial class ResourcePlanningService
     };
     db.StaffCertifications.Add(certification);
     await db.SaveChangesAsync(ct);
-    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct)).Succeeded)
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true), ct)).Succeeded)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(certification.Id);
@@ -96,7 +96,7 @@ public static partial class ResourcePlanningService
 
   public static async Task<CommandResult<Guid>> AddAvailabilityAsync(IAuditSphereDbContext db, ActorContext actor, AddAvailabilityRequest request, CancellationToken ct = default)
   {
-    var auth = await AuthorizeAsync(db, actor, ct);
+    var auth = await AuthorizeFirmWideAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var kind = (request.Kind ?? string.Empty).Trim().ToUpperInvariant();
     if (request.EndDate < request.StartDate || request.MinutesPerDay is < 1 or > 24 * 60 ||
@@ -105,7 +105,7 @@ public static partial class ResourcePlanningService
     if (!await db.Users.AnyAsync(x => x.Id == request.UserId && x.FirmId == actor.FirmId && x.UserKind == "Staff", ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct))
+    if (!await LockPublicationAsync(db, actor, request.UserId, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true), ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var availability = new StaffAvailability
     {
@@ -114,7 +114,7 @@ public static partial class ResourcePlanningService
     };
     db.StaffAvailabilities.Add(availability);
     await db.SaveChangesAsync(ct);
-    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct)).Succeeded)
+    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true), ct)).Succeeded)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(availability.Id);
@@ -175,7 +175,7 @@ public static partial class ResourcePlanningService
 
   public static async Task<CommandResult<ResourceGridView>> GetGridAsync(IAuditSphereDbContext db, ActorContext actor, DateOnly firstWeek, int weeks, CancellationToken ct = default)
   {
-    var auth = await AuthorizeReadAsync(db, actor, ct);
+    var auth = await AuthorizeFirmWideAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<ResourceGridView>.Fail(auth.ErrorCode!, auth.Message!);
     if (!TryWeekRange(firstWeek, weeks, out var start, out var end))
       return CommandResult<ResourceGridView>.Fail("resource.invalid-range", "Choose 1 to 12 complete supported working weeks.");
@@ -210,18 +210,16 @@ public static partial class ResourcePlanningService
           .Select(x => new ResourceAllocationView(x.EngagementId, labels.GetValueOrDefault(x.EngagementId, "Engagement"),
             x.WeekStart, x.Phase, string.IsNullOrEmpty(x.RiskArea) ? null : x.RiskArea, x.PlannedMinutes)).ToList());
     }).ToList();
-    auth = await AuthorizeReadAsync(db, actor, ct);
+    auth = await AuthorizeFirmWideAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<ResourceGridView>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<ResourceGridView>.Ok(new(start, weeks, rows));
   }
 
-  // Firm-wide resource projections must not compose a scoped planning role with another global role.
-  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+  // Global resource planning requires the planning role on an unscoped grant.
+  internal static Task<CommandResult> AuthorizeFirmWideAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId,
       RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true), ct);
 
-  private static Task<CommandResult> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
-    AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct);
   private static bool TryWeekRange(DateOnly date, int weeks, out DateOnly start, out DateOnly end)
   {
     start = default; end = default;

@@ -1,10 +1,15 @@
 using System.Data.Common;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -16,9 +21,11 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     "AVAILABILITY"=>new(kind,w.Users["associate"].Id,StartDate:new DateOnly(2026,10,5),EndDate:new DateOnly(2026,10,6),AvailabilityKind:"LEAVE",MinutesPerDay:480),
     _=>new(kind,w.Users["associate"].Id,EngagementId:w.EngagementId,WeekStart:new DateOnly(2026,10,7),PlannedMinutes:1800,
       Phase:BudgetPhases.Fieldwork,RiskArea:"Revenue") };
-  private static async Task<ResourcePlanningCommandRequest> PlanningReview(AuditSphereDbContext db,World w,ResourcePlanningFields fields)
+  private static Task<ResourcePlanningCommandRequest> PlanningReview(AuditSphereDbContext db,World w,ResourcePlanningFields fields)
+    => PlanningReview(db,w,fields,w.Actor("partner","Partner"));
+  private static async Task<ResourcePlanningCommandRequest> PlanningReview(AuditSphereDbContext db,World w,ResourcePlanningFields fields,ActorContext reviewer)
   {
-    var result=await ResourcePlanningCommandWorkspace.PreviewAsync(db,w.Actor("partner","Partner"),new(Guid.NewGuid(),fields));
+    var result=await ResourcePlanningCommandWorkspace.PreviewAsync(db,reviewer,new(Guid.NewGuid(),fields));
     Assert.True(result.Succeeded,result.Message);
     var p=result.Value!;return new(p.RequestId,p.Fields,p.RequestHash,p.ReviewBasis,true);
   }
@@ -37,6 +44,161 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     var wrongActor=await ResourcePlanningCommandWorkspace.LookupAsync(db,w.Actor("partner2","Partner"),r.RequestId,r.RequestHash);Assert.False(wrongActor.Value!.Found);
     Assert.False((await ResourcePlanningCommandWorkspace.ExecuteAsync(db,w.Actor("partner","Partner"),r with {Reviewed=false})).Succeeded);
     await using var mutate=new AuditSphereDbContext(pg.Options);await Assert.ThrowsAsync<PostgresException>(async()=>await mutate.ResourcePlanningReceipts.ExecuteDeleteAsync());
+  }
+  [Theory]
+  [InlineData("PROFILE")][InlineData("CERTIFICATION")][InlineData("AVAILABILITY")][InlineData("ALLOCATION")]
+  public async Task PlanningGlobalCommandWorkspaceRequiresFirmWideManagerWhileStandaloneAllocationKeepsExactEngagementScope(string kind)
+  {
+    await using var pg=await PgTestSchema.CreateAsync();var w=await SeedAsync(pg);
+    await using var db=new AuditSphereDbContext(pg.Options);var manager=w.Actor("manager","Manager");
+    Assert.True((await StaffingService.AssignAsync(db,w.Actor("partner","Partner"),new(w.EngagementId,w.Users["associate"].Id,StaffingLevels.StaffAssociate))).Succeeded);
+
+    // The firm-wide Manager may use the global preview and the corresponding standalone writer.
+    switch(kind) {
+      case "PROFILE":
+        Assert.True((await ResourcePlanningService.SaveProfileAsync(db,manager,new(w.Users["associate"].Id,"Audit","IFRS",1800,75m))).Succeeded);
+        break;
+      case "CERTIFICATION":
+        Assert.True((await ResourcePlanningService.AddCertificationAsync(db,manager,new(w.Users["associate"].Id,"Initial certification",null,null))).Succeeded);
+        break;
+      case "AVAILABILITY":
+        Assert.True((await ResourcePlanningService.AddAvailabilityAsync(db,manager,new(w.Users["associate"].Id,new DateOnly(2026,10,5),new DateOnly(2026,10,6),"LEAVE",480))).Succeeded);
+        break;
+      default:
+        Assert.True((await ResourcePlanningService.SetAllocationAsync(db,manager,new(w.EngagementId,w.Users["associate"].Id,new DateOnly(2026,10,4),600,
+          BudgetPhases.Fieldwork,"Revenue"))).Succeeded);
+        break;
+    }
+    var fields=PlanningFields(w,kind);var reviewed=await PlanningReview(db,w,fields,manager);
+
+    // Keep the user's session epoch fixed while replacing the global Manager with an exact engagement Manager
+    // and an unrelated firm-wide Staff grant. Neither grant may combine to authorize a global console action.
+    var globalManager=await db.RoleGrants.Where(x=>x.FirmId==w.FirmId&&x.UserId==w.Users["manager"].Id&&x.Role=="Manager"&&
+      x.ClientId==null&&x.EngagementId==null&&x.RevokedAt==null).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,DateTimeOffset.UtcNow));
+    Assert.Equal(1,globalManager);
+    db.RoleGrants.AddRange(Grant(w.FirmId,w.Users["manager"],"Manager",w.ClientId,w.EngagementId),Grant(w.FirmId,w.Users["manager"],"Staff"));
+    await db.SaveChangesAsync();
+    Assert.Equal(w.Users["manager"].SessionEpoch,await db.Users.Where(x=>x.Id==w.Users["manager"].Id).Select(x=>x.SessionEpoch).SingleAsync());
+
+    var scopedManager=w.Actor("manager","Manager","Staff");
+    var deniedPreview=await ResourcePlanningCommandWorkspace.PreviewAsync(db,scopedManager,new(Guid.NewGuid(),fields));
+    Assert.False(deniedPreview.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,deniedPreview.ErrorCode);Assert.Null(deniedPreview.Value);
+    var deniedExecute=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,scopedManager,reviewed);
+    Assert.False(deniedExecute.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,deniedExecute.ErrorCode);Assert.Null(deniedExecute.Value);
+    var deniedLookup=await ResourcePlanningCommandWorkspace.LookupAsync(db,scopedManager,reviewed.RequestId,reviewed.RequestHash);
+    Assert.False(deniedLookup.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,deniedLookup.ErrorCode);Assert.Null(deniedLookup.Value);
+    Assert.Empty(await db.ResourcePlanningReceipts.ToListAsync());
+
+    switch(kind) {
+      case "PROFILE":
+        var profile=await ResourcePlanningService.SaveProfileAsync(db,scopedManager,new(w.Users["associate"].Id,"Tax","",2400,80m));
+        Assert.False(profile.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,profile.ErrorCode);
+        Assert.Equal(1800,await db.StaffProfiles.Where(x=>x.UserId==w.Users["associate"].Id).Select(x=>x.WeeklyCapacityMinutes).SingleAsync());
+        break;
+      case "CERTIFICATION":
+        var certification=await ResourcePlanningService.AddCertificationAsync(db,scopedManager,new(w.Users["associate"].Id,"Refused certification",null,null));
+        Assert.False(certification.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,certification.ErrorCode);
+        Assert.Equal("Initial certification",(await db.StaffCertifications.SingleAsync()).Name);
+        break;
+      case "AVAILABILITY":
+        var availability=await ResourcePlanningService.AddAvailabilityAsync(db,scopedManager,new(w.Users["associate"].Id,new DateOnly(2026,10,7),new DateOnly(2026,10,8),"TRAINING",240));
+        Assert.False(availability.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,availability.ErrorCode);
+        Assert.Single(await db.StaffAvailabilities.ToListAsync());
+        break;
+      default:
+        var ownAllocation=await ResourcePlanningService.SetAllocationAsync(db,scopedManager,new(w.EngagementId,w.Users["associate"].Id,new DateOnly(2026,10,4),900,
+          BudgetPhases.Fieldwork,"Revenue"));
+        Assert.True(ownAllocation.Succeeded,ownAllocation.Message);
+        var siblingId=Guid.NewGuid();
+        db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement{Id=siblingId,FirmId=w.FirmId,PracticeClientId=w.ClientId,
+          ServiceRoute="Accounting",PeriodStart="2027-01-01",PeriodEnd="2027-12-31",ServiceProfileId="Synthetic",Status="Active",
+          ProfessionalWorkBlocked=false,CreatedAt=DateTimeOffset.UtcNow});
+        await db.SaveChangesAsync();
+        Assert.True((await StaffingService.AssignAsync(db,w.Actor("partner","Partner"),new(siblingId,w.Users["associate"].Id,StaffingLevels.StaffAssociate))).Succeeded);
+        var siblingAllocation=await ResourcePlanningService.SetAllocationAsync(db,scopedManager,new(siblingId,w.Users["associate"].Id,new DateOnly(2026,10,4),600,
+          BudgetPhases.Fieldwork,"Revenue"));
+        Assert.False(siblingAllocation.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,siblingAllocation.ErrorCode);
+        var retained=await db.StaffAllocations.SingleAsync();
+        Assert.Equal(w.EngagementId,retained.EngagementId);Assert.Equal(900,retained.PlannedMinutes);
+        Assert.False(await db.StaffAllocations.AnyAsync(x=>x.EngagementId==siblingId));
+        break;
+    }
+    Assert.Empty(await db.ResourcePlanningReceipts.ToListAsync());
+  }
+  [Fact]
+  public async Task PlanningReceiptReplayAndLookupRequireCurrentFirmWideRoleAndRecoverTheExactReceiptAfterRestoration()
+  {
+    await using var pg=await PgTestSchema.CreateAsync();var w=await SeedAsync(pg);
+    await using var db=new AuditSphereDbContext(pg.Options);var manager=w.Actor("manager","Manager");
+    Assert.True((await StaffingService.AssignAsync(db,w.Actor("partner","Partner"),new(w.EngagementId,w.Users["associate"].Id,StaffingLevels.StaffAssociate))).Succeeded);
+    var request=await PlanningReview(db,w,PlanningFields(w,"CERTIFICATION"),manager);
+    var first=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,manager,request);Assert.True(first.Succeeded,first.Message);
+    var receiptId=first.Value!.Id;var epoch=manager.SessionEpoch;
+
+    // Retain client-scoped Manager and firm-wide Staff, without advancing the session epoch.
+    var revoked=await db.RoleGrants.Where(x=>x.FirmId==w.FirmId&&x.UserId==w.Users["manager"].Id&&x.Role=="Manager"&&
+      x.ClientId==null&&x.EngagementId==null&&x.RevokedAt==null).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,DateTimeOffset.UtcNow));
+    Assert.Equal(1,revoked);
+    db.RoleGrants.AddRange(Grant(w.FirmId,w.Users["manager"],"Manager",w.ClientId),Grant(w.FirmId,w.Users["manager"],"Staff"));
+    await db.SaveChangesAsync();
+    Assert.Equal(epoch,await db.Users.Where(x=>x.Id==w.Users["manager"].Id).Select(x=>x.SessionEpoch).SingleAsync());
+
+    var deniedReplay=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,manager,request);
+    Assert.False(deniedReplay.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,deniedReplay.ErrorCode);Assert.Null(deniedReplay.Value);
+    var deniedLookup=await ResourcePlanningCommandWorkspace.LookupAsync(db,manager,request.RequestId,request.RequestHash);
+    Assert.False(deniedLookup.Succeeded);Assert.Equal(ErrorCodes.ScopeDenied,deniedLookup.ErrorCode);Assert.Null(deniedLookup.Value);
+    Assert.Equal(1,await db.StaffCertifications.CountAsync(x=>x.UserId==w.Users["associate"].Id));
+    Assert.Equal(1,await db.ResourcePlanningReceipts.CountAsync(x=>x.ActorId==w.Users["manager"].Id));
+
+    db.RoleGrants.Add(Grant(w.FirmId,w.Users["manager"],"Manager"));await db.SaveChangesAsync();
+    var recovered=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,manager,request);
+    Assert.True(recovered.Succeeded,recovered.Message);Assert.Equal(receiptId,recovered.Value!.Id);
+    var lookup=await ResourcePlanningCommandWorkspace.LookupAsync(db,manager,request.RequestId,request.RequestHash);
+    Assert.True(lookup.Succeeded,lookup.Message);Assert.True(lookup.Value!.Found);Assert.Equal(receiptId,lookup.Value.Receipt!.Id);
+    Assert.Equal(1,await db.StaffCertifications.CountAsync(x=>x.UserId==w.Users["associate"].Id));
+    Assert.Equal(1,await db.ResourcePlanningReceipts.CountAsync(x=>x.ActorId==w.Users["manager"].Id));
+  }
+  [Fact]
+  public async Task PlanningLegacyAllocationReceiptReplaysOnlyItsExactPhaseAbsentSnapshotWithoutMutation()
+  {
+    // Publish the retained snapshot under its actual pre-phase schema, then upgrade normally.
+    await using var pg=await PgTestSchema.CreateAsync("20261018052243_TimeEntryReturnWorkflow");var w=await SeedAsync(pg);
+    await using var db=new AuditSphereDbContext(pg.Options);var manager=w.Actor("manager","Manager");
+    Assert.True((await StaffingService.AssignAsync(db,w.Actor("partner","Partner"),new(w.EngagementId,w.Users["associate"].Id,StaffingLevels.StaffAssociate))).Succeeded);
+
+    var requestId=Guid.NewGuid();var requestHash=Hashing.Sha256Hex("legacy-allocation-request");var reviewBasis=Hashing.Sha256Hex("legacy-allocation-review-basis");
+    var week=new DateOnly(2026,10,4);
+    var legacyFields=new ResourcePlanningFields("ALLOCATION",w.Users["associate"].Id,EngagementId:w.EngagementId,WeekStart:week,PlannedMinutes:0);
+    var legacyPreview=new ResourcePlanningPreview(requestId,requestHash,reviewBasis,legacyFields,
+      new ResourcePlanningBefore(w.Users["associate"].DisplayName,null,null,null,null,null,"TEST CLIENT",null,null,week,null,null,null),
+      "Removes the retained allocation for this engagement and week.");
+    var savedPreview=JsonNode.Parse(JsonSerializer.Serialize(legacyPreview))!.AsObject();
+    var savedFields=savedPreview["Fields"]!.AsObject();
+    Assert.True(savedFields.Remove("Phase"));Assert.True(savedFields.Remove("RiskArea"));
+    var savedBefore=savedPreview["Before"]!.AsObject();
+    Assert.True(savedBefore.Remove("AllocationPhase"));Assert.True(savedBefore.Remove("AllocationRiskArea"));
+    var previewJson=savedPreview.ToJsonString();
+    var receiptId=Guid.NewGuid();
+    db.ResourcePlanningReceipts.Add(new ResourcePlanningReceipt{Id=receiptId,FirmId=w.FirmId,ActorId=manager.UserId,ActorEpoch=manager.SessionEpoch,
+      TargetUserId=w.Users["associate"].Id,RequestId=requestId,Kind="ALLOCATION",RequestHash=requestHash,ReviewBasis=reviewBasis,
+      PreviewJson=previewJson,ResourceId=null,CreatedAt=DateTimeOffset.UtcNow});
+    await db.SaveChangesAsync();
+    await db.GetService<IMigrator>().MigrateAsync();
+    Assert.Empty(await db.StaffAllocations.ToListAsync());
+
+    var exact=new ResourcePlanningCommandRequest(requestId,legacyFields,requestHash,reviewBasis,Reviewed:true);
+    var replay=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,manager,exact);
+    Assert.True(replay.Succeeded,replay.Message);Assert.Equal(receiptId,replay.Value!.Id);
+    Assert.Null(replay.Value.ResourceId);Assert.Null(replay.Value.Preview.Fields.Phase);Assert.Null(replay.Value.Preview.Fields.RiskArea);
+    var lookup=await ResourcePlanningCommandWorkspace.LookupAsync(db,manager,requestId,requestHash);
+    Assert.True(lookup.Succeeded,lookup.Message);Assert.True(lookup.Value!.Found);Assert.Equal(receiptId,lookup.Value.Receipt!.Id);
+    Assert.Null(lookup.Value.Receipt.ResourceId);Assert.Equal(legacyFields,lookup.Value.Receipt.Preview.Fields);
+
+    var changed=await ResourcePlanningCommandWorkspace.ExecuteAsync(db,manager,exact with {Fields=legacyFields with {PlannedMinutes=60}});
+    Assert.False(changed.Succeeded);Assert.Equal(ErrorCodes.StaleRevision,changed.ErrorCode);Assert.Null(changed.Value);
+    Assert.Empty(await db.StaffAllocations.ToListAsync());
+    Assert.Equal(1,await db.ResourcePlanningReceipts.CountAsync());
+    Assert.Equal(previewJson,await db.ResourcePlanningReceipts.Where(x=>x.Id==receiptId).Select(x=>x.PreviewJson).SingleAsync());
   }
   [Fact]
   public async Task PlanningStaleAllocationOrCapacityCannotOverwriteAndRemovalHasNullResult()
