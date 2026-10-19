@@ -192,8 +192,8 @@
           "route": "http://127.0.0.1:5029/ui/app",
           "sourceIdentity": "UNVERIFIED: served Angular bundle main-U3OPLAO2.js exposed no commit identity.",
           "runtimeFinding": "GET /api/ui/portfolio/workspace returned HTTP 200, but its client rows omitted isArchived, which the served Angular decoder requires. The page displayed its unsupported-response state; this is consistent with a UI/API version mismatch. No source fix was inferred from this runtime.",
-          "accessibilityObservation": "Built-in browser accessibility tree exposed the skip link, named navigation, main landmark and error as role=alert. Tab navigation moved focus to Refresh. At 390x844 CSS pixels, document scroll width was 375 pixels. No console errors were observed; one request was aborted during the intentional page reload.",
-          "limits": "Not source-attributed acceptance. No business records were changed. Other workflow states, 200%/400% zoom and human assistive-technology review were not tested."
+          "accessibilityObservation": "Browser smoke remains NOT_ACCEPTED because bundle/API source identity is unknown. Keyboard: skip link focuses main; mobile nav is a named dialog, hides the background from AT, traps Tab/Shift+Tab, and Escape restores trigger focus. At 320x844 CSS px document width=320; reduced-motion emulation yields 0.01ms motion and auto scroll. Prior 390px check had no overflow; zero JS/console errors; one intentional reload abort.",
+          "limits": "Rendered workspace is unsupported by a UI/API shape mismatch; no product data changed. Human AT, full workflow states, true 200%/400% zoom, expanded locale matrix and production-device review remain open."
         },
         "ci": {
           "historicalEvidence": "status-archive-2026-10.json#keys.angularQualityTask07CiBeforeOperationalReadiness20261019",
