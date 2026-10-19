@@ -21,7 +21,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Accessibility reflow and CI follow-up (2026-10-19)
 
-Current-source navigation dialog keyboard and narrow-layout observations, the focused E2E response-capture repair, and CI run pointers are recorded in [status.json](status.json). Fast CI passed and the exact-source full release run is underway. The in-app browser validated responsive reflow at narrow effective viewport widths; it could not set native browser zoom, so the 200%/400% zoom checklist remains open. Human screen-reader review and business-screen accessibility also remain open; the local API served a mismatched Portfolio response.
+Source commit `84365454` repairs the two response-body-after-navigation E2E failures and stabilizes deferred planning loading. The focused Playwright cohort passed 4/4 and the Angular production build succeeded. CI evidence is in [status.json](status.json): Docs and Angular fast-CI jobs passed; its .NET Release job and the exact-SHA full Domain/API/E2E run remain in progress. The in-app browser validated keyboard behavior, contrast and responsive reflow, but could not set native zoom. Native 200%/400% zoom, human screen-reader review and rendered business-screen acceptance remain open; the local API served a mismatched Portfolio response.
 
 ## Mobile navigation accessibility follow-up (2026-10-19)
 
