@@ -40,6 +40,47 @@ public sealed class AngularBudgetApprovalJourneyTests
     await page.UnrouteAsync(previewPattern);
     Assert.Equal(0,calls);
 
+    if (canonical)
+    {
+      var previewReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      var releasePreview = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+      await page.RouteAsync(previewPattern, async route =>
+      {
+        var response = await route.FetchAsync();
+        Assert.Equal(200, response.Status);
+        previewReached.TrySetResult();
+        await releasePreview.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await route.FulfillAsync(new() { Response = response });
+      });
+
+      await draftAssent.CheckAsync();
+      await Assertions.Expect(reviewButton).ToBeEnabledAsync();
+      await reviewButton.ClickAsync();
+      try
+      {
+        await previewReached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var brand = page.Locator(".app-header .brand-wordmark");
+        await Assertions.Expect(brand).ToBeVisibleAsync();
+        await brand.ClickAsync();
+        var activeElement = await page.EvaluateAsync<string>(
+          "() => { const element = document.activeElement; const tag = element?.tagName ?? 'null'; const name = element?.getAttribute('aria-label') || element?.getAttribute('title') || (tag === 'BODY' ? '' : element?.textContent?.trim().replace(/\\s+/g, ' ').slice(0, 60)); return `${tag}${name ? ` name=\"${name}\"` : ''}`; }");
+        Assert.True(activeElement == "BODY",
+          $"Clicking the nonfocusable header brand should leave focus on BODY while the preview is pending; activeElement was {activeElement}.");
+      }
+      finally
+      {
+        releasePreview.TrySetResult();
+      }
+
+      var delayedReview = planning.GetByRole(AriaRole.Region,new(){Name="Reviewed budget approval",Exact=true});
+      await Assertions.Expect(delayedReview).ToBeVisibleAsync();
+      await Assertions.Expect(delayedReview).Not.ToBeFocusedAsync();
+      await delayedReview.GetByRole(AriaRole.Button,new(){Name="Cancel approval review",Exact=true}).ClickAsync();
+      await Assertions.Expect(delayedReview).ToHaveCountAsync(0);
+      await Assertions.Expect(draftAssent).Not.ToBeCheckedAsync();
+      await page.UnrouteAsync(previewPattern);
+    }
+
     await draftAssent.CheckAsync();
     await Assertions.Expect(reviewButton).ToBeEnabledAsync();
     await page.Keyboard.PressAsync("Tab");

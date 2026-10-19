@@ -35,6 +35,7 @@ import {
 import { PlanningBudgetState } from './planning-budget-state';
 import { PlanningStaffingState } from './planning-staffing-state';
 import type { PlanningStateContext } from './planning-state-context';
+type PlanningFocusOrigin = { element: Element; interaction: number };
 @Component({
   selector: 'audit-engagement-planning',
   imports: [FormField, RouterLink, MatButtonModule, MatProgressBarModule],
@@ -52,16 +53,20 @@ export class EngagementPlanning {
   private readonly staffingReviewElement = viewChild<ElementRef<HTMLElement>>('staffingReview');
   private readonly staffingAssentElement = viewChild<unknown, ElementRef<HTMLInputElement>>('staffingAssent', { read: ElementRef });
   private readonly revokeTriggers = viewChildren<unknown, ElementRef<HTMLButtonElement>>('revokeTrigger', { read: ElementRef });
-  private focusedPlanningControl(): Element | null {
+  private focusInteraction = 0;
+  @HostListener('document:pointerdown')
+  @HostListener('document:keydown')
+  recordFocusInteraction(): void { this.focusInteraction++; }
+  private focusedPlanningControl(): PlanningFocusOrigin | null {
     const element = this.hostElement.nativeElement;
     const active = element.ownerDocument.activeElement;
-    return active && element.contains(active) ? active : null;
+    return active && element.contains(active) ? { element: active, interaction: this.focusInteraction } : null;
   }
-  private focusPlanningControl(target: () => ElementRef<HTMLElement> | undefined, owner: string, origin: Element): void {
+  private focusPlanningControl(target: () => ElementRef<HTMLElement> | undefined, owner: string, origin: PlanningFocusOrigin): void {
     afterNextRender(() => {
       const document = this.hostElement.nativeElement.ownerDocument;
-      if (this.destroyed || owner !== this.owner() ||
-          (document.activeElement !== origin && document.activeElement !== document.body)) return;
+      if (this.destroyed || owner !== this.owner() || origin.interaction !== this.focusInteraction ||
+          (document.activeElement !== origin.element && document.activeElement !== document.body)) return;
       target()?.nativeElement.focus();
     }, { injector: this.renderInjector });
   }
