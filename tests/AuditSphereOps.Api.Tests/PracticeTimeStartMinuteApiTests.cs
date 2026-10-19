@@ -181,6 +181,46 @@ public sealed class PracticeTimeStartMinuteApiTests
       Assert.Null(ownEntry.ApprovedByUserId);
       Assert.Equal(2, await db.TimeEntries.AsNoTracking().CountAsync());
     }
+
+    // Expiry must take effect before the expiry worker marks a grant revoked. A live
+    // engagement Staff grant must not combine with an expired firm-wide Manager grant.
+    var beforeExpiryDecoy = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    Assert.False(beforeExpiryDecoy.FirmWide);
+    Assert.False(beforeExpiryDecoy.IsApprover);
+    Assert.Empty(beforeExpiryDecoy.AwaitingApproval);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var expired = PbcSeed.Grant(f.FirmId, f.Staff, "Manager");
+      expired.GrantedAt = DateTimeOffset.UtcNow.AddDays(-2);
+      expired.ExpiresAt = DateTimeOffset.UtcNow.AddDays(-1);
+      db.RoleGrants.Add(expired);
+      await db.SaveChangesAsync();
+    }
+    // The Application query must not depend on the HTTP actor resolver first revoking
+    // expired grants. Invoke it before that resolver's independent expiry protection.
+    PracticeTimeWorkspace scoped;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var applicationResult = await PracticeTimeWorkspaceQuery.GetAsync(db, PbcSeed.Actor(f.Staff, "Staff"));
+      Assert.True(applicationResult.Succeeded, applicationResult.Message);
+      scoped = applicationResult.Value!;
+    }
+    Assert.False(scoped.FirmWide);
+    Assert.False(scoped.IsApprover);
+    Assert.Empty(scoped.AwaitingApproval);
+    Assert.Equal(beforeExpiryDecoy.OpenTasks.Select(x => x.Id).Order(), scoped.OpenTasks.Select(x => x.Id).Order());
+    Assert.Equal(beforeExpiryDecoy.Engagements.Select(x => x.Id).Order(), scoped.Engagements.Select(x => x.Id).Order());
+    Assert.Equal(beforeExpiryDecoy.MyEntries.Select(x => x.Id).Order(), scoped.MyEntries.Select(x => x.Id).Order());
+    Assert.DoesNotContain(scoped.OpenTasks, x => x.Id == siblingTask || x.Id == foreignTask);
+    // The HTTP boundary independently revokes the expired grant and rejects the old
+    // session. A fresh sign-in then retains the same narrow workspace.
+    using (var expiredSession = await staff.GetAsync(WorkspacePath))
+      Assert.Equal(HttpStatusCode.Unauthorized, expiredSession.StatusCode);
+    await SignIn(staff);
+    var freshWorkspace = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    Assert.False(freshWorkspace.FirmWide);
+    Assert.False(freshWorkspace.IsApprover);
+    Assert.Empty(freshWorkspace.AwaitingApproval);
   }
 
   private static object Draft(Guid taskId, int? startMinute, int durationMinutes, string workDate = WorkDate, bool billable = false) =>

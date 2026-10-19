@@ -31,7 +31,10 @@ public static class PracticeTimeWorkspaceQuery
   {
     var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
     if (!authorization.Succeeded) return CommandResult<PracticeTimeWorkspace>.Fail(authorization.ErrorCode!, authorization.Message!);
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
+    // Scope each projection from current grants, independently of HTTP/worker expiry cleanup.
+    var authorizedAt = DateTimeOffset.UtcNow;
+    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
+        x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > authorizedAt))
       .Select(x => new { x.Role, x.ClientId, x.EngagementId }).ToListAsync(ct);
     var workGrants = grants.Where(x => WorkRoles.Contains(x.Role)).ToArray();
     var approvalGrants = grants.Where(x => ApprovalRoles.Contains(x.Role)).ToArray();
