@@ -238,11 +238,11 @@
             "change": "Existing component/journal API journeys now read eligiblePackages.items and journals.items. Original authorization, composition refusal, return reason, resubmission and independent approval remain; exact journal IDs and page counts added. No production/API contract changed."
           },
           "currentFast": {
-            "runId": "39198081990",
-            "sourceCommit": "03826502422ee26b520ac35b08d4d4705d609a0d",
+            "runId": "39198999276",
+            "sourceCommit": "3c809e9871bf04d2705c4989fb0c547c42ffa89a",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39198081990",
-            "note": "Observed success; predates holding-letter change. Full39194532601 remains API/E2E active on0b0b7241, not current-source acceptance."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39198999276",
+            "note": "Observed success; predates payment snapshot slice. Full39194532601 still API/E2E active on0b0b7241, not current-source acceptance."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -1197,23 +1197,17 @@
       "limits": "Full CI pending on exact0b0b7241, human AT/full supported-state acceptance open; no live-provider/professional acceptance. No full local suite."
     },
     "paymentMailRecipientGuard": {
-      "sourceCommit": "c7a1c5f71216034a7d1e94f45931614cf07898cd",
+      "sourceCommit": "062ee27c49eb7fc5aa63193d6439ceba67566567",
       "result": "FOCUSED_PASS_PARTIAL_CORRESPONDENCE_SAFETY",
-      "criterion": "ASPM-CRM-03 remains PARTIAL + BLOCKED_DECISION; DEC-09 unchanged.",
-      "behavior": "Recipient/artifact checks and DISPATCHED share the firm fence with contact/routing writers; provider I/O starts after release. Detailed prior evidence is archived.",
-      "verification": {
-        "result": "PASS13/13; exact cohort, artifacts and initial repair archived.",
-        "archive": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019"
-      },
-      "independentReview": "Dispatch and expiry-writer fence reviews passed within scope. Initiating-actor mail authorization remains open.",
+      "snapshotFollowUp": "paymentRecipientSnapshots",
+      "holdingLetterFollowUp": "holdingLetterMailSafety",
+      "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.paymentMailBeforeIdentitySnapshot20261019",
       "remaining": [
-        "Exact payment routing snapshot",
         "Initiating-actor mail reauthorization; DEC-09",
+        "Atomicity with every professional fact writer",
+        "Legacy historical authority identity",
         "Current-source full CI, live-provider and professional acceptance"
-      ],
-      "referenceFollowUp": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019.referenceFollowUp",
-      "limits": "No full local suite or live effect; DISPATCHED is authorization, not delivery.",
-      "holdingLetterFollowUp": "holdingLetterMailSafety"
+      ]
     },
     "roleGrantExpiryFence": {
       "sourceCommit": "f5a8730fdd3d3a6395dfc4c740f9f33964acd818",
@@ -1225,18 +1219,25 @@
     "holdingLetterMailSafety": {
       "sourceCommit": "dc2861ea5cc459f74632645f40e165e0c4f5cbda",
       "result": "FOCUSED_PASS",
-      "behavior": "Completion sends recheck current route/mailbox, client/engagement, blocker digest and retained artifact integrity before DISPATCHED; attach original bytes. New queues freeze contact/route IDs and hash. Legacy eligibility requires all three fields null, unchanged mailbox and matching frozen body hash; no backfill/retarget. Partial snapshots block. Existing ordering retained; DEC-09 unresolved.",
+      "verification": "PASS4/4; new/legacy route refusal, retained attachment, blocker and provider receipt checks. Initial analyzer repair and limits archived.",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.holdingLetterMailSafety20261019",
+      "limits": "Legacy route identity is not backfilled; current blocker read is not atomic with every professional writer; full/live acceptance remains open."
+    },
+    "paymentRecipientSnapshots": {
+      "sourceCommit": "062ee27c49eb7fc5aa63193d6439ceba67566567",
+      "result": "FOCUSED_PASS",
+      "behavior": "New receipt/voucher intents freeze contact, route and authority basis under existing Finance/primary/prospect policy and settlement firm fence. Send requires full identity plus mailbox match. All-null legacy snapshots require current same-mailbox authority without backfill. Lead join explicitly same-firm.",
       "verification": {
-        "passed": 4,
+        "passed": 3,
         "failed": 0,
         "skipped": 0,
-        "duration": "46s",
-        "cohort": "CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment (new/legacy); HoldingLetterSupersededByChangedOutstandingSetIsRefusedAtDispatchUntilReissued; DeliveryReceipts_DistinguishRefusalAndProviderAcceptance. Wrong scope, changed/revoked recipient, original intent, exact attachment and resolved blockers asserted.",
-        "trx": "/tmp/auditsphere-holding-mail-results/holding-mail-safety.trx",
-        "initial": "Build rejected Assert.True(EndsWith), fixed equivalent Assert.EndsWith; rerun same cohort."
+        "duration": "20s",
+        "cohort": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach: changed mailbox/new, same mailbox/different authority/new, changed mailbox/legacy. Primary/Finance snapshots, reviewed re-arm, preserved intent/attachments, financial/reversal checks and all three balance messages provider-accepted asserted.",
+        "trx": "/tmp/auditsphere-payment-snapshot-results/payment-recipient-snapshots-final.trx",
+        "initial": "Same three cases passed before strengthening all-balance-message acceptance; first TRX retained in same directory."
       },
-      "review": "Initial legacy-stranding finding resolved by bounded original-format path; independent review found no further issue. Blocker freshness is not atomic with every professional writer.",
-      "limits": "Fake sender/real PostgreSQL only; initiating-actor mail authorization, historical legacy route identity, DEC-09, full current-source CI and live acceptance remain open. No migration/package/UI/config/live change."
+      "review": "Independent bounded source review found no actionable issue.",
+      "limits": "No migration/package/API/UI/live change; no full local suite. Prospect fallback retained in source, not separately exercised. Legacy original route identity remains unknown; broader correspondence gates remain open."
     }
   },
   "externalGates": [

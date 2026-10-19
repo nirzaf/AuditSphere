@@ -19,9 +19,13 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Payment-recipient identity snapshots (2026-10-19)
+
+New receipt/voucher queues retain the selected contact, routing and authority basis. Send-time checks reject a different identity even at the same mailbox. Legacy all-null rows retain current same-mailbox validation without backfilling identities. Focused worker fee-cycle checks pass with financial and reversal assertions intact; exact source and evidence are in `targetedVerification.paymentRecipientSnapshots` in [status.json](status.json). Initiating-actor authorization, DEC-09 and full/live acceptance remain open.
+
 ## Holding-letter mail safety (2026-10-19)
 
-New queues freeze Completion recipient IDs and hash; sends validate scope, current blockers and exact attachment bytes. Legacy queues require the unchanged mailbox and frozen body hash, without backfilling IDs. Focused new/legacy and refusal checks pass. Source, initial analyzer repair and limits are in `targetedVerification.holdingLetterMailSafety` in [status.json](status.json). Initiating-actor mail authorization, DEC-09, atomicity with every professional writer and live/full-release acceptance remain open.
+Focused new/legacy route, scope, exact attachment and blocker checks pass. Detailed behavior, original analyzer repair and limits are retained under `targetedVerification.holdingLetterMailSafety` in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Full/live acceptance remains open.
 
 ## Grant-expiry mutation fence (2026-10-19)
 
@@ -29,9 +33,7 @@ Expiry now uses the shared firm/user/grant fence and refreshes tracked epochs. F
 
 ## Atomic correspondence dispatch claim (2026-10-19)
 
-Recipient/artifact validation and DISPATCHED now commit under the same firm fence used by routing assignment/revocation, contact updates and both creation entry points. The provider call starts after the transaction/context ends. PostgreSQL blocking observations and a provider-callback contact update verify the boundary; prior committed route revocation still prevents sending. Existing reference, fee-cycle and reviewed contact-recovery checks remain intact.
-
-ASPM-CRM-03 remains PARTIAL: payment route snapshots, holding-letter checks, initiating-actor reauthorization/expiry fencing, DEC-09 and live/full-release acceptance remain open. The later grant-expiry follow-up above addresses that writer; broader initiating-actor mail authorization remains open. Exact source, focused results and CI are in `targetedVerification.paymentMailRecipientGuard` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). The earlier notes are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Full suites ran only in CI; human screen-reader acceptance remains open.
+The shared recipient/dispatch firm fence ends before provider I/O. Exact source and concurrency checks are retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md); this does not serialize every professional fact writer.
 
 ## Operational cancellation and recovery (2026-10-19)
 

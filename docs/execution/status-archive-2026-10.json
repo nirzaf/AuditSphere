@@ -19889,6 +19889,41 @@
       },
       "review": "Independent bounded review found no issue in firm/user/grant order, fresh epoch, idempotency or nested StaffingService transaction. Focused tests establish only these behaviors.",
       "limits": "No dependency, model, migration, HTTP/UI, deployment or live-provider change. Full current-source CI remains NOT_RUN."
+    },
+    "targetedVerification.holdingLetterMailSafety20261019": {
+      "sourceCommit": "dc2861ea5cc459f74632645f40e165e0c4f5cbda",
+      "result": "FOCUSED_PASS",
+      "behavior": "Completion sends recheck current route/mailbox, client/engagement, blocker digest and retained artifact integrity before DISPATCHED; attach original bytes. New queues freeze contact/route IDs and hash. Legacy eligibility requires all three fields null, unchanged mailbox and matching frozen body hash; no backfill/retarget. Partial snapshots block. Existing ordering retained; DEC-09 unresolved.",
+      "verification": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "46s",
+        "cohort": "CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment (new/legacy); HoldingLetterSupersededByChangedOutstandingSetIsRefusedAtDispatchUntilReissued; DeliveryReceipts_DistinguishRefusalAndProviderAcceptance. Wrong scope, changed/revoked recipient, original intent, exact attachment and resolved blockers asserted.",
+        "trx": "/tmp/auditsphere-holding-mail-results/holding-mail-safety.trx",
+        "initial": "Build rejected Assert.True(EndsWith), fixed equivalent Assert.EndsWith; rerun same cohort."
+      },
+      "review": "Initial legacy-stranding finding resolved by bounded original-format path; independent review found no further issue. Blocker freshness is not atomic with every professional writer.",
+      "limits": "Fake sender/real PostgreSQL only; initiating-actor mail authorization, historical legacy route identity, DEC-09, full current-source CI and live acceptance remain open. No migration/package/UI/config/live change."
+    },
+    "targetedVerification.paymentMailBeforeIdentitySnapshot20261019": {
+      "sourceCommit": "c7a1c5f71216034a7d1e94f45931614cf07898cd",
+      "result": "FOCUSED_PASS_PARTIAL_CORRESPONDENCE_SAFETY",
+      "criterion": "ASPM-CRM-03 remains PARTIAL + BLOCKED_DECISION; DEC-09 unchanged.",
+      "behavior": "Recipient/artifact checks and DISPATCHED share the firm fence with contact/routing writers; provider I/O starts after release. Detailed prior evidence is archived.",
+      "verification": {
+        "result": "PASS13/13; exact cohort, artifacts and initial repair archived.",
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019"
+      },
+      "independentReview": "Dispatch and expiry-writer fence reviews passed within scope. Initiating-actor mail authorization remains open.",
+      "remaining": [
+        "Exact payment routing snapshot",
+        "Initiating-actor mail reauthorization; DEC-09",
+        "Current-source full CI, live-provider and professional acceptance"
+      ],
+      "referenceFollowUp": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019.referenceFollowUp",
+      "limits": "No full local suite or live effect; DISPATCHED is authorization, not delivery.",
+      "holdingLetterFollowUp": "holdingLetterMailSafety"
     }
   }
 }
