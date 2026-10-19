@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Practice time and client-book isolation
+## CRM authority and keyboard recovery
 
-Existing populated imported-source and native-ledger journeys now verify that independently reviewed billable time and corrections preserve exact client accounting rows and native balances. Focused checks passed; evidence and group/firm-ledger, field/state and release limits are in `status.json` under `timeClientBookIsolation20261019`.
+Opportunity creation rechecks actor/session and owner eligibility under the firm lock before replay or publication. Lead qualification and history paging now preserve intentional keyboard focus, and refresh clears stale confirmations. Focused Domain, component and both-route browser checks passed; built-in current-build evidence and remaining CRM/release limits are in `status.json` under `crmAuthorityAndFocus20261019`.
 
 ## Finance settlement accessibility and draft safety
 

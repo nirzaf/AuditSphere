@@ -1164,22 +1164,7 @@
     "timeWorkspaceReadFence20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "codeCommit": "4b5835f3b3ca507540ab59850211aac20f3c24af",
-      "behavior": "Time workspace rechecks actor/session and requires its initial eligible role/scope tuples to survive a fresh active-grant read. Same-epoch narrowing cannot retain a broader projection through another live grant. Added scopes alone do not fail.",
-      "before": {
-        "failed": 2,
-        "passed": 0,
-        "cause": "Both deterministic post-time_entries authority changes returned a successful workspace before the fence.",
-        "trx": "/tmp/auditsphere-time-workspace-results/time-workspace-before.trx"
-      },
-      "after": {
-        "passed": 4,
-        "failed": 0,
-        "skipped": 0,
-        "filter": "FullyQualifiedName~PracticeTimeStartMinuteApiTests",
-        "trx": "/tmp/auditsphere-time-workspace-results/time-workspace-after.trx",
-        "scope": "Two mid-read authority interleavings plus existing start-minute/interval/overlap and CSRF/scope/rate/independent-review/expiry HTTP checks."
-      },
-      "review": "Independent source review found no blocker; loss of a redundant initial scope conservatively requires reload.",
+      "archive": "status-archive-2026-10.json#timeWorkspaceReadFence20261019BeforeCrmFocus20261019",
       "limits": "No schema/HTTP contract/UI change, no new browser run, no full local suites or provider effects. Broader time field/rate/client-book and current-source full release acceptance remain open."
     },
     "timeRateAcceptance20261019": {
@@ -1191,26 +1176,46 @@
     "timeClientBookIsolation20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "codeCommit": "ee829c0aa39b39b6242670580c1beddcfc95efaf",
-      "behavior": "Existing imported GL/TB and posted native-journal journeys now run billable practice time capture60min, independent approval, correction75min and independent reapproval at100QAR/hour. Fresh ordered snapshots retain the same client source and native ledger entities; native ledger projection retains150QAR debit/credit totals.",
+      "archive": "status-archive-2026-10.json#timeClientBookIsolation20261019BeforeCrmFocus20261019",
+      "limits": "Billable fixture evidence for imported and native client books only; group/firm-ledger non-mutation, other classifications/state combinations and complete workflow acceptance are not established by this cohort. No product/schema/UI/provider change or full local suites. Final-source full release acceptance remains open."
+    },
+    "crmAuthorityAndFocus20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommits": {
+        "authority": "02412412d57daa0007b1ff581b683e311c4d17e5",
+        "ui": "8c1b785252df80158ef0c8f388e3b4263496bd2c"
+      },
+      "authority": "CreateOpportunityAsync rechecks current actor/session and owner eligibility after the firm lock and before exact request replay. Existing replay semantics retained.",
       "domain": {
+        "baselineFailed": 1,
+        "afterPassed": 3,
+        "failed": 0,
+        "directory": "/tmp/auditsphere-crm-authority-results",
+        "artifacts": [
+          "crm-authority-before.trx",
+          "crm-authority-after.trx"
+        ],
+        "scope": "Deterministic actor grant/session revocation and distinct owner disable during firm-lock wait; no opportunity/history write. Exact retry/changed intent retained."
+      },
+      "ui": "Named keyboard-scrollable leads table; Cancel restores exact trigger; successful qualification focuses stable heading only while focus ownership stands; list refresh clears stale confirmation; final history page restores named section focus without stealing later user intent.",
+      "angular": {
+        "leadsPassed": 10,
+        "opportunitiesPassed": 7,
+        "failed": 0,
+        "build": "PASS; existing unrelated warnings",
+        "lint": "PASS affected source files"
+      },
+      "browser": {
         "passed": 2,
         "failed": 0,
-        "skipped": 0,
-        "tests": [
-          "GlCompletenessBridge_IsAccountExactAndPagedWithinScope",
-          "NativeJournalRequiresBalancedDraftIndependentApprovalAndPostsOnce"
-        ],
-        "trx": "/tmp/auditsphere-time-book-results/time-client-book-isolation.trx"
+        "trx": "/tmp/auditsphere-lead-keyboard-results/lead-keyboard-history-final.trx",
+        "scope": "Both route settings; native keyboard qualification/cancel, scroll containment and real discovery-command history expansion200to203. No proposal/client/professional acceptance inferred.",
+        "buildPath": "Explicit AUDITSPHERE_TEST_UI_BUILD_PATH; fixture also explicitly selected current dist instead of staged ui assets.",
+        "builtIn": "Current UI confirmed named focus, exact cancel trigger, success H1 and final history SECTION; viewport390/document375; console warnings/errors0.",
+        "screenshot": "/tmp/auditsphere-crm-history-keyboard-final.png"
       },
-      "review": "Independent source review found no blocker. Populated/nonzero fixture assertions retained, snapshots use fresh AsNoTracking contexts; dedicated synthetic rate maker and separate Partner approve the rate; work preparer has a scoped Staff grant.",
-      "ciObserved": {
-        "source": "510518facb80796aa9b0e05fff912b4ae55985c7",
-        "fastRun": 39244809328,
-        "fastResult": "PASS",
-        "fullRun": 39244821206,
-        "fullResult": "IN_PROGRESS; Angular/build/contracts pass; Domain/API/E2E running"
-      },
-      "limits": "Billable fixture evidence for imported and native client books only; group/firm-ledger non-mutation, other classifications/state combinations and complete workflow acceptance are not established by this cohort. No product/schema/UI/provider change or full local suites. Final-source full release acceptance remains open."
+      "review": "Independent source review found no remaining blocker in this scope. Built-in baseline reproduced BODY focus after both removed controls.",
+      "limits": "No full local suites. Latest100 opportunity display still lacks older-opportunity paging; other core CRM writer lock-wait authority, broader workflow/state and human AT acceptance remain open. Existing full CI on510518fa passed Angular/build/contracts/Domain; API/E2E still running at observation. Final-source full release remains unverified."
     }
   },
   "externalGates": [
@@ -1723,7 +1728,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Check current-source full release results and continue remaining scoped resource/time, field-level and queue-state acceptance. Human AT, methodology and live-provider gates remain separate."
+    "nextTechnicalSlice": "Check current-source CI and close remaining core CRM writer authorization windows after firm locking, preserving current-role checks before replay. Then address bounded older-opportunity discovery and remaining workflow/state acceptance; professional/provider gates remain separate."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

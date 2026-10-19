@@ -219,3 +219,7 @@ Time projections recheck the current session and their original active grant sco
 ## Time rate, period and FSLI acceptance
 
 The existing return/resubmit journey now changes the approved rate during review: the original entry retains its snapshot and a later entry captures the revised rate. Focused rate/correction and existing period/FSLI checks passed. Evidence and remaining client-book, field/state and release limits are in `status.json` under `timeRateAcceptance20261019`.
+
+## Practice time and client-book isolation
+
+Existing populated imported-source and native-ledger journeys now verify that independently reviewed billable time and corrections preserve exact client accounting rows and native balances. Focused checks passed; evidence and group/firm-ledger, field/state and release limits are in `status.json` under `timeClientBookIsolation20261019`.
