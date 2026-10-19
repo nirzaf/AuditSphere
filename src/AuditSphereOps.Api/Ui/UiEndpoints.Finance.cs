@@ -285,6 +285,7 @@ public static partial class UiEndpoints
         : Task.FromResult(Invalid("The billing request identity is invalid."))));
     foreach (var (action, command) in new (string, Func<Application.Operations.IAuditSphereDbContext, Application.Abstractions.ActorContext, Guid, CancellationToken, Task<CommandResult>>)[]
     {
+      ("submit", (db, a, id, ct) => BillingService.SubmitInvoiceAsync(db, a, id, ct)),
       ("approve", (db, a, id, ct) => BillingService.ApproveInvoiceAsync(db, a, id, ct)),
       ("post", (db, a, id, ct) => BillingService.PostInvoiceAsync(db, a, id, ct)),
       ("send", (db, a, id, ct) => BillingService.SendInvoiceAsync(db, a, id, ct)),

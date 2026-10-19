@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -105,12 +105,41 @@ export function decodeFeeAgreement(value: unknown): Workspace {
       throw new Error('Invalid engagement');
   return v as unknown as Workspace;
 }
+const exactKeys = (value: unknown, keys: readonly string[]): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value) &&
+  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string): Workspace {
+  const workspaceKeys = [
+    'proposalId', 'agreementId', 'clientId', 'engagementId', 'fee', 'currency', 'advancePercent',
+    'canCreate', 'canFinance', 'releaseRecorded', 'creationBlockers', 'milestones', 'engagements',
+    'advancePreparation',
+  ];
+  if (!exactKeys(value, workspaceKeys)) throw new Error('Invalid finance fee agreement');
+  const raw = value;
+  const milestones = raw['milestones'];
+  const engagements = raw['engagements'];
+  const creationBlockers = raw['creationBlockers'];
+  if (!Array.isArray(milestones) || milestones.some((item) => !exactKeys(item, [
+    'id', 'kind', 'amount', 'state', 'invoiceId', 'invoiceNumber', 'invoiceStatus', 'allocated',
+    'outstanding', 'paidAt',
+  ])) || !Array.isArray(creationBlockers) || creationBlockers.length !== 0 ||
+      !Array.isArray(engagements) || engagements.length !== 0 ||
+      !exactKeys(raw['advancePreparation'], ['state', 'message']))
+    throw new Error('Invalid sanitized finance fee agreement');
+  const workspace = decodeFeeAgreement(value);
+  if (workspace.agreementId !== expectedAgreementId || workspace.canCreate || !workspace.canFinance ||
+      !guid(workspace.clientId) || new Set(workspace.engagements.map((engagement) => engagement.id)).size !==
+        workspace.engagements.length)
+    throw new Error('Unexpected finance fee agreement identity or authority');
+  return workspace;
+}
 @Component({
   selector: 'audit-fee-agreement',
   imports: [FormsModule, RouterLink, MatButtonModule, MatProgressBarModule, StatusChip],
   template: `
+    @if (financeMode()) { <a routerLink="/app/finance/fee-agreements">← Back to fee settlements</a> }
     <section aria-labelledby="fee-agreement-heading">
-      <h2 id="fee-agreement-heading">Agreed fee and billing milestones</h2>
+      <h2 id="fee-agreement-heading">{{ financeMode() ? 'Fee settlement' : 'Agreed fee and billing milestones' }}</h2>
       @if (loading()) {
         <mat-progress-bar mode="indeterminate" aria-label="Loading fee agreement" />
       }
@@ -118,20 +147,37 @@ export function decodeFeeAgreement(value: unknown): Workspace {
         <p role="alert">{{ error() }}</p>
       }
       <button matButton [disabled]="busy()" (click)="load()">Refresh fee agreement</button>
-      <button
-        matButton
-        [disabled]="busy() || uncertain() || !data()?.canFinance || !tabDraft.scope()"
-        (click)="saveTabDraft()"
-      >
-        Save fee tab draft
-      </button>
-      <button
-        matButton
-        [disabled]="busy() || uncertain() || !data()?.canFinance || !tabDraft.scope()"
-        (click)="recoverTabDraft()"
-      >
-        Recover fee tab draft
-      </button>
+      @if (!financeMode()) {
+        <button
+          matButton
+          [disabled]="busy() || uncertain() || !data()?.canFinance || !tabDraft.scope()"
+          (click)="saveTabDraft()"
+        >
+          Save fee tab draft
+        </button>
+        <button
+          matButton
+          [disabled]="busy() || uncertain() || !data()?.canFinance || !tabDraft.scope()"
+          (click)="recoverTabDraft()"
+        >
+          Recover fee tab draft
+        </button>
+      } @else {
+        <button
+          matButton
+          [disabled]="busy() || uncertain() || !data()?.canFinance || !financeTabDraft.scope()"
+          (click)="saveFinanceTabDraft()"
+        >
+          Save fee settlement draft
+        </button>
+        <button
+          matButton
+          [disabled]="busy() || uncertain() || !data()?.canFinance || !financeTabDraft.scope()"
+          (click)="recoverFinanceTabDraft()"
+        >
+          Recover fee settlement draft
+        </button>
+      }
       @if (data(); as w) {
         <p>
           Fee {{ w.fee }} {{ w.currency }} · {{ w.advancePercent }}% advance; remainder on final
@@ -199,7 +245,7 @@ export function decodeFeeAgreement(value: unknown): Workspace {
                         }}</a>
                         · {{ m.invoiceStatus }}
                       } @else {
-                        Not invoiced
+                        Not linked to an invoice
                       }
                     </td>
                     <td>{{ m.allocated }}</td>
@@ -223,7 +269,7 @@ export function decodeFeeAgreement(value: unknown): Workspace {
                   [disabled]="!w.canFinance || !reviewed || busy() || uncertain()"
                   (click)="invoice('advance')"
                 >
-                  Draft advance invoice
+                  {{ financeMode() ? 'Prepare or recover advance invoice' : 'Draft advance invoice' }}
                 </button>
               } @else if (m.state !== 'PAID') {
                 @if (m.invoiceStatus === 'POSTED' || m.invoiceStatus === 'SENT') {
@@ -325,37 +371,44 @@ export function decodeFeeAgreement(value: unknown): Workspace {
               }
             }
           }
-          @if (!w.engagementId) {
-            <h3>Link accepted engagement</h3>
-            <label
-              >Engagement<select
-                [(ngModel)]="engagementId"
-                (ngModelChange)="reviewed = false"
-                [disabled]="busy()"
+          @if (!financeMode()) {
+            @if (!w.engagementId) {
+              <h3>Link accepted engagement</h3>
+              <label
+                >Engagement<select
+                  [(ngModel)]="engagementId"
+                  (ngModelChange)="reviewed = false"
+                  [disabled]="busy()"
+                >
+                  <option value="">Choose an engagement</option>
+                  @for (e of w.engagements; track e.id) {
+                    <option [value]="e.id">
+                      {{ e.serviceRoute }} · {{ e.periodStart }} to {{ e.periodEnd }}
+                    </option>
+                  }
+                </select></label
               >
-                <option value="">Choose an engagement</option>
-                @for (e of w.engagements; track e.id) {
-                  <option [value]="e.id">
-                    {{ e.serviceRoute }} · {{ e.periodStart }} to {{ e.periodEnd }}
-                  </option>
-                }
-              </select></label
-            >
-            <p>
-              Only this client's engagements are listed. A link cannot be changed after it is
-              recorded.
-            </p>
-            <button
-              matButton
-              [disabled]="!engagementId || !reviewed || busy() || uncertain()"
-              (click)="link()"
-            >
-              Link engagement
-            </button>
-            @if (!w.engagements.length) {
-              <p>No engagements are available for this client yet.</p>
+              <p>
+                Only this client's engagements are listed. A link cannot be changed after it is
+                recorded.
+              </p>
+              <button
+                matButton
+                [disabled]="!engagementId || !reviewed || busy() || uncertain()"
+                (click)="link()"
+              >
+                Link engagement
+              </button>
+              @if (!w.engagements.length) {
+                <p>No engagements are available for this client yet.</p>
+              }
+            } @else {
+              <p>
+                Linked engagement <code>{{ w.engagementId }}</code> · final release
+                {{ w.releaseRecorded ? 'Recorded' : 'Not recorded' }}.
+              </p>
             }
-          } @else {
+          } @else if (w.engagementId) {
             <p>
               Linked engagement <code>{{ w.engagementId }}</code> · final release
               {{ w.releaseRecorded ? 'Recorded' : 'Not recorded' }}.
@@ -373,7 +426,9 @@ export function decodeFeeAgreement(value: unknown): Workspace {
   `,
 })
 export class FeeAgreement {
-  readonly proposalId = input.required<string>();
+  readonly proposalId = input('');
+  readonly agreementId = input('');
+  readonly financeMode = computed(() => !this.proposalId() && !!this.agreementId());
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private read?: Subscription;
@@ -389,8 +444,12 @@ export class FeeAgreement {
     () => ({ amount: this.amount, reference: this.reference, engagementId: this.engagementId }),
     (v) => textFields(v, { amount: 40, reference: 120, engagementId: 36 }),
   );
+  readonly financeTabDraft = new CommercialFormDraft(
+    () => ({ amount: this.amount, reference: this.reference }),
+    (v) => textFields(v, { amount: 40, reference: 120 }),
+  );
   saveTabDraft(): boolean {
-    if (!this.data()?.canFinance || this.busy() || this.uncertain()) return false;
+    if (this.financeMode() || !this.data()?.canFinance || this.busy() || this.uncertain()) return false;
     const saved = this.tabDraft.save();
     this.message.set(
       saved
@@ -399,9 +458,31 @@ export class FeeAgreement {
     );
     return saved;
   }
+  saveFinanceTabDraft(): boolean {
+    if (!this.financeMode() || !this.data()?.canFinance || this.busy() || this.uncertain()) return false;
+    const saved = this.financeTabDraft.save();
+    this.message.set(
+      saved
+        ? 'Unsubmitted fee settlement fields saved without review confirmation.'
+        : 'Fee settlement draft could not be saved.',
+    );
+    return saved;
+  }
+  recoverFinanceTabDraft(): void {
+    const w = this.data();
+    if (!this.financeMode() || !w?.canFinance || this.busy() || this.uncertain()) return;
+    const fields = this.financeTabDraft.recover();
+    if (fields) {
+      this.amount = fields.amount;
+      this.reference = fields.reference;
+      this.engagementId = '';
+      this.reviewed = false;
+      this.message.set('Fee settlement fields recovered. Review the current milestone and action again.');
+    } else this.message.set('No compatible fee settlement draft is available.');
+  }
   recoverTabDraft(): void {
     const w = this.data();
-    if (!w?.canFinance || this.busy() || this.uncertain()) return;
+    if (this.financeMode() || !w?.canFinance || this.busy() || this.uncertain()) return;
     const fields = this.tabDraft.recover();
     if (
       fields &&
@@ -418,17 +499,27 @@ export class FeeAgreement {
   amount = '';
   reference = '';
   engagementId = '';
+  private identity(): { mode: 'proposal' | 'agreement'; id: string } | null {
+    const proposalId = this.proposalId();
+    const agreementId = this.agreementId();
+    if (guid(proposalId) && agreementId === '') return { mode: 'proposal', id: proposalId };
+    if (guid(agreementId) && proposalId === '') return { mode: 'agreement', id: agreementId };
+    return null;
+  }
   constructor() {
     effect(() => {
       this.proposalId();
+      this.agreementId();
       this.session.invalidation();
       const staff = this.session.current()?.staff;
       untracked(() => {
         this.fence++;
         this.tabDraft.reset();
+        this.financeTabDraft.reset();
         this.read?.unsubscribe();
         this.write?.unsubscribe();
         this.data.set(null);
+        this.loading.set(false);
         this.busy.set(false);
         this.uncertain.set(false);
         this.message.set('');
@@ -456,6 +547,7 @@ export class FeeAgreement {
     }
   }
   create(): void {
+    if (this.financeMode() || !guid(this.proposalId()) || this.agreementId()) return;
     this.command('/api/ui/proposals/' + this.proposalId() + '/fee-agreement', {
       reviewed: this.reviewed,
     });
@@ -483,7 +575,7 @@ export class FeeAgreement {
   }
   link(): void {
     const w = this.data();
-    if (w?.agreementId && w.engagements.some((e) => e.id === this.engagementId))
+    if (!this.financeMode() && w?.agreementId && w.engagements.some((e) => e.id === this.engagementId))
       this.command(
         '/api/ui/fee-agreements/' + w.agreementId + '/engagement',
         { engagementId: this.engagementId, reviewed: this.reviewed },
@@ -567,22 +659,34 @@ export class FeeAgreement {
     this.data.set(null);
     this.error.set('');
     this.reviewed = false;
-    if (!guid(this.proposalId()) || !this.session.current()?.staff) return;
+    this.loading.set(false);
+    const identity = this.identity();
+    if (!this.session.current()?.staff) return;
+    if (!identity) {
+      this.error.set('Open exactly one fee agreement from a valid proposal or agreement link.');
+      return;
+    }
     const fence = this.fence;
     this.loading.set(true);
+    const endpoint = identity.mode === 'agreement'
+      ? '/api/ui/finance/fee-agreements/' + encodeURIComponent(identity.id)
+      : '/api/ui/proposals/' + encodeURIComponent(identity.id) + '/fee-agreement';
     this.read = this.http
-      .get<unknown>('/api/ui/proposals/' + this.proposalId() + '/fee-agreement')
+      .get<unknown>(endpoint)
       .pipe(timeout(15000))
       .subscribe({
         next: (value) => {
           if (fence !== this.fence) return;
           try {
-            const w = decodeFeeAgreement(value);
-            if (w.proposalId !== this.proposalId()) throw new Error('Wrong proposal');
+            const w = identity.mode === 'agreement'
+              ? decodeFinanceFeeAgreement(value, identity.id)
+              : decodeFeeAgreement(value);
+            if (identity.mode === 'proposal' && w.proposalId !== identity.id) throw new Error('Wrong proposal');
             this.data.set(w);
             if (!this.amount)
               this.amount = w.milestones.find((m) => m.kind === 'ADVANCE')?.outstanding ?? '';
-            void this.tabDraft.bind(`commercial-fee:${w.proposalId}`, w);
+            if (identity.mode === 'proposal') void this.tabDraft.bind(`commercial-fee:${w.proposalId}`, w);
+            else void this.financeTabDraft.bind(`finance-fee:${w.agreementId}`, w);
           } catch {
             this.error.set('Unsupported fee agreement response.');
           }
@@ -591,9 +695,9 @@ export class FeeAgreement {
         error: (failure) => {
           if (fence !== this.fence) return;
           this.loading.set(false);
-          this.error.set(
-            'Fee agreement unavailable. Current firm-wide commercial access is required.',
-          );
+          this.error.set(identity.mode === 'agreement'
+            ? 'Fee settlement unavailable. Current finance access is required.'
+            : 'Fee agreement unavailable. Current firm-wide commercial access is required.');
           if (failure.status === 401) this.session.clear();
         },
       });

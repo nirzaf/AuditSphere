@@ -235,6 +235,9 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
         <section class="panel" aria-labelledby="workflow-heading">
           <h2 id="workflow-heading">Invoice workflow actions</h2>
           @switch (i.status) {
+            @case ('DRAFT') {
+              <button matButton="filled" (click)="act(i.id, 'submit', 'Invoice submitted for independent review.')" [disabled]="busy() || uncertain()">Submit invoice for review</button>
+            }
             @case ('REVIEW_REQUIRED') {
               @if (i.canApproveInvoice) { <button matButton="filled" (click)="act(i.id, 'approve', 'Invoice approved.')" [disabled]="busy() || uncertain()">Approve invoice</button> }
               @else { <p>Approval requires a separate authorized FinanceReviewer.</p> }

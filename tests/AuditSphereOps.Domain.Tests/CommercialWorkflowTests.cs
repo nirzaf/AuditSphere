@@ -896,91 +896,94 @@ public sealed class CommercialWorkflowTests
     await db.SaveChangesAsync();
     Assert.True((await BillingService.PostInvoiceAsync(db, w.FinanceManager, advanceInvoice.Value)).Succeeded);
 
-    // Gate both authorized callers at the firm fence. The old path already read an empty source;
-    // the corrected path must serialize before that read. One source must produce one receipt
-    // and allocation, while both callers recover the same successful outcome.
-    CommandResult<AdvancePaymentOutcome> partial;
-    CommandResult<AdvancePaymentOutcome> reviewerPartial;
-    var bothPaymentCallersBlocked = false;
-    await using (var paymentGate = new AuditSphereDbContext(pg.Options))
-    await using (var managerPaymentDb = new AuditSphereDbContext(dbOptions))
-    await using (var reviewerPaymentDb = new AuditSphereDbContext(dbOptions))
-    await using (var paymentObserver = new AuditSphereDbContext(pg.Options))
+    // Gate same-source callers before either can observe the payment source. Both payment
+    // kinds use the same firm-fence and recovery assertions.
+    async Task<(CommandResult<AdvancePaymentOutcome> Manager, CommandResult<AdvancePaymentOutcome> Reviewer)> RunConcurrentPaymentAsync(
+      Func<AuditSphereDbContext, ActorContext, decimal, string, CancellationToken, Task<CommandResult<AdvancePaymentOutcome>>> recordPayment,
+      decimal amount, string reference)
     {
-      using var paymentTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-      await paymentGate.Database.OpenConnectionAsync(paymentTimeout.Token);
-      await managerPaymentDb.Database.OpenConnectionAsync(paymentTimeout.Token);
-      await reviewerPaymentDb.Database.OpenConnectionAsync(paymentTimeout.Token);
-      await paymentObserver.Database.OpenConnectionAsync(paymentTimeout.Token);
-      var managerPid = ((NpgsqlConnection)managerPaymentDb.Database.GetDbConnection()).ProcessID;
-      var reviewerPid = ((NpgsqlConnection)reviewerPaymentDb.Database.GetDbConnection()).ProcessID;
-      await using var firmFence = await paymentGate.Database.BeginTransactionAsync(paymentTimeout.Token);
-      Task<CommandResult<AdvancePaymentOutcome>>? managerTask = null;
-      Task<CommandResult<AdvancePaymentOutcome>>? reviewerTask = null;
-      try
+      var bothPaymentCallersBlocked = false;
+      await using (var paymentGate = new AuditSphereDbContext(pg.Options))
+      await using (var managerPaymentDb = new AuditSphereDbContext(dbOptions))
+      await using (var reviewerPaymentDb = new AuditSphereDbContext(dbOptions))
+      await using (var paymentObserver = new AuditSphereDbContext(pg.Options))
       {
-        await paymentGate.FirmSafetyStates.FromSqlInterpolated(
-          $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(paymentTimeout.Token);
-        managerTask = FeeAgreementService.RecordAdvancePaymentAsync(managerPaymentDb, w.FinanceManager,
-          agreementId, 4000m, "TT-1", ct: paymentTimeout.Token);
-        reviewerTask = FeeAgreementService.RecordAdvancePaymentAsync(reviewerPaymentDb, w.FinanceReviewer,
-          agreementId, 4000m, "TT-1", ct: paymentTimeout.Token);
-
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-          await paymentObserver.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", paymentTimeout.Token);
-          bothPaymentCallersBlocked = await paymentObserver.Database.SqlQuery<bool>($"""
-            SELECT EXISTS (
-              SELECT 1 FROM pg_stat_activity AS waiting
-              WHERE waiting.datname = current_database()
-                AND waiting.pid = {managerPid}
-                AND waiting.wait_event_type = 'Lock'
-                AND waiting.query ILIKE '%firm_safety_states%'
-                AND cardinality(pg_blocking_pids(waiting.pid)) > 0
-            ) AND EXISTS (
-              SELECT 1 FROM pg_stat_activity AS waiting
-              WHERE waiting.datname = current_database()
-                AND waiting.pid = {reviewerPid}
-                AND waiting.wait_event_type = 'Lock'
-                AND waiting.query ILIKE '%firm_safety_states%'
-                AND cardinality(pg_blocking_pids(waiting.pid)) > 0
-            ) AS "Value"
-            """).SingleAsync(paymentTimeout.Token);
-          if (bothPaymentCallersBlocked) break;
-          await Task.Delay(TimeSpan.FromMilliseconds(25), paymentTimeout.Token);
-        }
-      }
-      finally
-      {
+        using var paymentTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await paymentGate.Database.OpenConnectionAsync(paymentTimeout.Token);
+        await managerPaymentDb.Database.OpenConnectionAsync(paymentTimeout.Token);
+        await reviewerPaymentDb.Database.OpenConnectionAsync(paymentTimeout.Token);
+        await paymentObserver.Database.OpenConnectionAsync(paymentTimeout.Token);
+        var managerPid = ((NpgsqlConnection)managerPaymentDb.Database.GetDbConnection()).ProcessID;
+        var reviewerPid = ((NpgsqlConnection)reviewerPaymentDb.Database.GetDbConnection()).ProcessID;
+        await using var firmFence = await paymentGate.Database.BeginTransactionAsync(paymentTimeout.Token);
+        Task<CommandResult<AdvancePaymentOutcome>>? managerTask = null;
+        Task<CommandResult<AdvancePaymentOutcome>>? reviewerTask = null;
         try
         {
-          if (paymentGate.Database.CurrentTransaction is not null)
-            await firmFence.RollbackAsync(CancellationToken.None);
+          await paymentGate.FirmSafetyStates.FromSqlInterpolated(
+            $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(paymentTimeout.Token);
+          managerTask = recordPayment(managerPaymentDb, w.FinanceManager, amount, reference, paymentTimeout.Token);
+          reviewerTask = recordPayment(reviewerPaymentDb, w.FinanceReviewer, amount, reference, paymentTimeout.Token);
+
+          var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+          while (DateTimeOffset.UtcNow < deadline)
+          {
+            await paymentObserver.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", paymentTimeout.Token);
+            bothPaymentCallersBlocked = await paymentObserver.Database.SqlQuery<bool>($"""
+              SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity AS waiting
+                WHERE waiting.datname = current_database()
+                  AND waiting.pid = {managerPid}
+                  AND waiting.wait_event_type = 'Lock'
+                  AND waiting.query ILIKE '%firm_safety_states%'
+                  AND cardinality(pg_blocking_pids(waiting.pid)) > 0
+              ) AND EXISTS (
+                SELECT 1 FROM pg_stat_activity AS waiting
+                WHERE waiting.datname = current_database()
+                  AND waiting.pid = {reviewerPid}
+                  AND waiting.wait_event_type = 'Lock'
+                  AND waiting.query ILIKE '%firm_safety_states%'
+                  AND cardinality(pg_blocking_pids(waiting.pid)) > 0
+              ) AS "Value"
+              """).SingleAsync(paymentTimeout.Token);
+            if (bothPaymentCallersBlocked) break;
+            await Task.Delay(TimeSpan.FromMilliseconds(25), paymentTimeout.Token);
+          }
         }
         finally
         {
-          var tasks = new Task?[] { managerTask, reviewerTask }.Where(x => x is not null).Cast<Task>().ToArray();
-          if (tasks.Length > 0)
+          try
           {
-            var allCalls = Task.WhenAll(tasks);
-            try { await allCalls.WaitAsync(TimeSpan.FromSeconds(10)); }
-            catch (TimeoutException)
+            if (paymentGate.Database.CurrentTransaction is not null)
+              await firmFence.RollbackAsync(CancellationToken.None);
+          }
+          finally
+          {
+            var tasks = new Task?[] { managerTask, reviewerTask }.Where(x => x is not null).Cast<Task>().ToArray();
+            if (tasks.Length > 0)
             {
-              paymentTimeout.Cancel();
-              try { await allCalls.WaitAsync(TimeSpan.FromSeconds(5)); }
+              var allCalls = Task.WhenAll(tasks);
+              try { await allCalls.WaitAsync(TimeSpan.FromSeconds(10)); }
+              catch (TimeoutException)
+              {
+                paymentTimeout.Cancel();
+                try { await allCalls.WaitAsync(TimeSpan.FromSeconds(5)); }
+                catch { _ = allCalls.Exception; }
+              }
               catch { _ = allCalls.Exception; }
             }
-            catch { _ = allCalls.Exception; }
           }
         }
-      }
 
-      Assert.True(bothPaymentCallersBlocked,
-        "Both payment callers must be observed waiting on the firm lock held by the test gate.");
-      partial = await managerTask!.WaitAsync(TimeSpan.FromSeconds(5));
-      reviewerPartial = await reviewerTask!.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(bothPaymentCallersBlocked,
+          "Both payment callers must be observed waiting on the firm lock held by the test gate.");
+        return (await managerTask!.WaitAsync(TimeSpan.FromSeconds(5)), await reviewerTask!.WaitAsync(TimeSpan.FromSeconds(5)));
+      }
     }
+
+    var (partial, reviewerPartial) = await RunConcurrentPaymentAsync(
+      (paymentDb, actor, paymentAmount, reference, ct) => FeeAgreementService.RecordAdvancePaymentAsync(
+        paymentDb, actor, agreementId, paymentAmount, reference, ct: ct), 4000m, "TT-1");
 
     Assert.True(partial.Succeeded, partial.Message);
     Assert.True(reviewerPartial.Succeeded, reviewerPartial.Message);
@@ -1311,16 +1314,56 @@ public sealed class CommercialWorkflowTests
     var balRepeated = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-BAL-1");
     Assert.Equal(balPartial.Value.ReceiptId, balRepeated.Value!.ReceiptId);
 
-    // 6. Complete balance payment
-    var balPaid = await FeeAgreementService.RecordBalancePaymentAsync(db, w.FinanceManager, agreementId, 6000m, "TT-BAL-2");
+    // 6. Complete balance payment. Same-source callers from distinct authorized actors must
+    // converge on one receipt, allocation, voucher, and settlement dispatch.
+    var balanceMilestoneId = view.Milestones.Single(x => x.Milestone.Kind == FeeMilestoneKinds.Balance).Milestone.Id;
+    var (balPaid, reviewerBalPaid) = await RunConcurrentPaymentAsync(
+      (paymentDb, actor, paymentAmount, reference, ct) => FeeAgreementService.RecordBalancePaymentAsync(
+        paymentDb, actor, agreementId, paymentAmount, reference, ct: ct), 6000m, "TT-BAL-2");
     Assert.True(balPaid.Succeeded, balPaid.Message);
+    Assert.True(reviewerBalPaid.Succeeded, reviewerBalPaid.Message);
     Assert.True(balPaid.Value!.MilestonePaid && balPaid.Value.EmailQueued);
     Assert.NotNull(balPaid.Value.ReceiptDocumentId);
+    Assert.Equal((true, 10000m, 0m, true, true),
+      (balPaid.Value.MilestonePaid, balPaid.Value.Allocated, balPaid.Value.Outstanding,
+        balPaid.Value.EmailQueued, balPaid.Value.VoucherEmailQueued));
+    Assert.Equal((true, 10000m, 0m, true, true),
+      (reviewerBalPaid.Value!.MilestonePaid, reviewerBalPaid.Value.Allocated, reviewerBalPaid.Value.Outstanding,
+        reviewerBalPaid.Value.EmailQueued, reviewerBalPaid.Value.VoucherEmailQueued));
+    Assert.Equal((balPaid.Value.ReceiptId, balPaid.Value.ReceiptDocumentId, balPaid.Value.VoucherDocumentId),
+      (reviewerBalPaid.Value.ReceiptId, reviewerBalPaid.Value.ReceiptDocumentId, reviewerBalPaid.Value.VoucherDocumentId));
+
+    var finalBalanceReference = $"BAL-{agreementId.ToString("N").ToUpperInvariant()}-TT-BAL-2";
+    var finalBalanceReceipt = await db.Receipts.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.Reference == finalBalanceReference);
+    Assert.Equal(balPaid.Value.ReceiptId, finalBalanceReceipt.Id);
+    var finalBalanceAllocation = await db.ReceiptAllocations.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.ReceiptId == finalBalanceReceipt.Id && x.InvoiceId == balance.Value);
+    Assert.Equal(6000m, finalBalanceAllocation.Amount);
+    Assert.Equal(2, await db.ReceiptAllocations.CountAsync(x => x.FirmId == w.FirmId && x.InvoiceId == balance.Value));
+    Assert.Equal(10000m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, balance.Value));
+
+    Assert.NotNull(balPaid.Value.VoucherDocumentId);
+    var finalBalanceVoucher = await db.CommercialDocuments.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.ReceiptId == finalBalanceReceipt.Id && x.Kind == CommercialDocumentKinds.PaymentVoucher);
+    Assert.Equal(balPaid.Value.VoucherDocumentId, finalBalanceVoucher.Id);
+    Assert.Equal(balanceMilestoneId, finalBalanceVoucher.FeeMilestoneId);
+    var finalBalanceVoucherMail = await db.CommercialNotifications.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.Kind == CommercialNotificationKinds.PaymentVoucher && x.ReceiptId == finalBalanceReceipt.Id);
+    Assert.Equal(finalBalanceVoucher.Id, finalBalanceVoucherMail.DocumentId);
+    Assert.Equal(CommercialDeliveryStates.Queued, finalBalanceVoucherMail.DeliveryState);
+
+    var finalBalanceSettlementReceipt = await db.CommercialDocuments.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.FeeMilestoneId == balanceMilestoneId && x.Kind == CommercialDocumentKinds.PaymentReceipt);
+    Assert.Equal(balPaid.Value.ReceiptDocumentId, finalBalanceSettlementReceipt.Id);
+    var finalBalanceSettlementMail = await db.CommercialNotifications.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.Kind == CommercialNotificationKinds.Receipt && x.FeeMilestoneId == balanceMilestoneId);
+    Assert.Equal(finalBalanceSettlementReceipt.Id, finalBalanceSettlementMail.DocumentId);
+    Assert.Equal(CommercialDeliveryStates.Queued, finalBalanceSettlementMail.DeliveryState);
 
     // 7. Balance receipt document text: full settlement phrasing
     var balReceiptDoc = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == balPaid.Value.ReceiptDocumentId);
     var balReceiptText = DocxText(balReceiptDoc.Bytes);
-    var balanceMilestoneId = view.Milestones.Single(x => x.Milestone.Kind == FeeMilestoneKinds.Balance).Milestone.Id;
     var balanceReference = $"RCT-{balanceMilestoneId:N}".ToUpperInvariant();
     Assert.Equal($"Receipt-{balanceReference}.docx", balReceiptDoc.FileName);
     Assert.Contains(balanceReference, balReceiptText);

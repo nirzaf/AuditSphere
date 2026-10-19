@@ -22,6 +22,7 @@ export const NAVIGATION: NavGroup[] = [
     { label: 'Time', path: '/app/practice/time', icon: 'timer' },
     { label: 'Firm ledger', path: '/app/finance', icon: 'book-open', exact: true },
     { label: 'Firm books', path: '/app/finance/books', icon: 'book-copy' },
+    { label: 'Fee settlements', path: '/app/finance/fee-agreements', icon: 'coins' },
     { label: 'Analytics', path: '/app/practice/analytics', icon: 'chart-no-axes-combined' },
   ] },
   { title: 'Accounting', icon: 'calculator', items: [
