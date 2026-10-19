@@ -182,22 +182,28 @@ public sealed partial class ClientAccountingTests
       dataset.ImportState = TrialBalanceImportStates.Sealed;
       await db.SaveChangesAsync(timeout.Token);
 
+      await using var callerTransaction = await db.Database.BeginTransactionAsync(timeout.Token);
       var created = await AccountingAnalysisService.CreateReconciliationAsync(db, preparer,
         new AccountingReconciliationRequest(scope.ClientA, scope.EngagementA, periodId, bookId, "CASH",
           datasetId, null, ["1000"], new DateOnly(2026, 12, 31)), timeout.Token);
       Assert.True(created.Succeeded, created.Message);
+      Assert.Same(callerTransaction, db.Database.CurrentTransaction);
       reconciliationId = created.Value;
       var added = await AccountingAnalysisService.AddReconciliationItemsAsync(db, preparer, reconciliationId,
         [new("ITEM-PLUS", 10m, "QAR", new DateOnly(2026, 12, 30), "timing", "receipt-plus", "OPEN"),
          new("ITEM-MINUS", -10m, "QAR", new DateOnly(2026, 12, 30), "timing", "receipt-minus", "OPEN")], timeout.Token);
       Assert.True(added.Succeeded, added.Message);
+      Assert.Same(callerTransaction, db.Database.CurrentTransaction);
       openItemId = await db.AccountingReconciliationItems.Where(x =>
         x.ReconciliationId == reconciliationId && x.StableItemId == "ITEM-PLUS")
         .Select(x => x.Id).SingleAsync(timeout.Token);
       var proof = await AccountingAnalysisService.CalculateReconciliationProofAsync(db, preparer, reconciliationId, timeout.Token);
       Assert.True(proof.Succeeded, proof.Message);
       Assert.True(proof.Value!.IsReconciled);
+      Assert.Same(callerTransaction, db.Database.CurrentTransaction);
       proofId = proof.Value.ProofId;
+      await callerTransaction.CommitAsync(timeout.Token);
+      Assert.Null(db.Database.CurrentTransaction);
     }
 
     // Approval and an item edit serialize on period -> reconciliation. The edit waits
