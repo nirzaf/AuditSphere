@@ -33,9 +33,10 @@ public static class PracticeTimeWorkspaceQuery
     if (!authorization.Succeeded) return CommandResult<PracticeTimeWorkspace>.Fail(authorization.ErrorCode!, authorization.Message!);
     // Scope each projection from current grants, independently of HTTP/worker expiry cleanup.
     var authorizedAt = DateTimeOffset.UtcNow;
-    var grants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
-        x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > authorizedAt))
-      .Select(x => new { x.Role, x.ClientId, x.EngagementId }).ToListAsync(ct);
+    var grantQuery = db.RoleGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
+        x.RevokedAt == null)
+      .Select(x => new { x.Role, x.ClientId, x.EngagementId, x.ExpiresAt });
+    var grants = await grantQuery.Where(x => x.ExpiresAt == null || x.ExpiresAt > authorizedAt).ToListAsync(ct);
     var workGrants = grants.Where(x => WorkRoles.Contains(x.Role)).ToArray();
     var approvalGrants = grants.Where(x => ApprovalRoles.Contains(x.Role)).ToArray();
     var firmWide = workGrants.Any(x => x.ClientId is null && x.EngagementId is null);
@@ -121,6 +122,19 @@ public static class PracticeTimeWorkspaceQuery
           x.Status == PracticeTimeStates.TimeSubmitted && x.UserId != actor.UserId).OrderBy(x => x.WorkDate).Take(500).ToListAsync(ct))
         .Where(x => taskById.TryGetValue(x.TaskId, out var task) && task.ClientId == x.ClientId && task.EngagementId == x.EngagementId).Select(Row).ToList();
     }
+    var finalAuthorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
+    if (!finalAuthorization.Succeeded)
+      return CommandResult<PracticeTimeWorkspace>.Fail(finalAuthorization.ErrorCode!, finalAuthorization.Message!);
+    // A surviving narrow grant cannot authorize data read under a revoked broader grant.
+    // Additions are harmless; only loss of a scope used by this projection requires a reload.
+    var finalAuthorizedAt = DateTimeOffset.UtcNow;
+    var finalGrants = await grantQuery.Where(x => x.ExpiresAt == null || x.ExpiresAt > finalAuthorizedAt).ToListAsync(ct);
+    var finalScopes = finalGrants.Where(x => WorkRoles.Contains(x.Role))
+      .Select(x => (x.Role, x.ClientId, x.EngagementId)).ToHashSet();
+    if (workGrants.Any(x => !finalScopes.Contains((x.Role, x.ClientId, x.EngagementId))))
+      return CommandResult<PracticeTimeWorkspace>.Fail(ErrorCodes.ScopeDenied,
+        "Time recording access changed; reload the workspace.");
     return CommandResult<PracticeTimeWorkspace>.Ok(new(firmWide, isApprover, periodOptions, engagementOptions, openTasks, myEntries, awaiting));
   }
 }

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Data.Common;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
@@ -10,6 +11,7 @@ using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace AuditSphereOps.Api.Tests;
 
@@ -223,6 +225,65 @@ public sealed class PracticeTimeStartMinuteApiTests
     Assert.Empty(freshWorkspace.AwaitingApproval);
   }
 
+  [Theory]
+  [InlineData(true, ErrorCodes.ScopeDenied)]
+  [InlineData(false, ErrorCodes.GenerationStale)]
+  public async Task WorkspaceRead_AuthorityChangedAfterTimeEntriesReadReturnsNoProjection(bool revokeManagerGrant, string expectedError)
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TIME-START-MINUTE-READ-FENCE");
+    var f = await PbcSeed.SeedAsync(pg);
+    var siblingClientId = Guid.NewGuid();
+    var siblingEngagementId = Guid.NewGuid();
+    await SeedSiblingScopeAsync(pg, f.FirmId, siblingClientId, siblingEngagementId);
+    var manager = PbcSeed.Actor(f.Staff, "Manager");
+    Guid siblingTask;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      // The exact Staff assignment survives the interleaving; only the grant that
+      // allowed this actor's firm-wide projection is revoked in that case.
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Manager"));
+      await db.SaveChangesAsync();
+      Assert.True((await PracticeTimeService.CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        new CreateTaskRequest("Synthetic sibling timer task", siblingClientId, siblingEngagementId))).Succeeded);
+      siblingTask = await db.WorkTasks.Where(x => x.FirmId == f.FirmId && x.ClientId == siblingClientId)
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    // Establish that the same-scope positive call legitimately sees the firm-wide
+    // projection and sibling before the deterministic mid-read authority change.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var baseline = await PracticeTimeWorkspaceQuery.GetAsync(db, manager);
+      Assert.True(baseline.Succeeded, baseline.Message);
+      Assert.True(baseline.Value!.FirmWide);
+      Assert.Contains(siblingEngagementId, baseline.Value.Engagements.Select(x => x.Id));
+      Assert.Contains(siblingTask, baseline.Value.OpenTasks.Select(x => x.Id));
+    }
+
+    var interceptor = new RevokePracticeTimeReadAuthority(pg, f.FirmId, f.Staff.Id, revokeManagerGrant);
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(interceptor).Options;
+    await using (var db = new AuditSphereDbContext(options))
+    {
+      var result = await PracticeTimeWorkspaceQuery.GetAsync(db, manager);
+      Assert.True(interceptor.InterleavedUpdates == 1, "The authority update must occur after the time-entry query executes.");
+      Assert.False(result.Succeeded);
+      Assert.Equal(expectedError, result.ErrorCode);
+      Assert.Null(result.Value);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var survivingStaff = await db.RoleGrants.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId &&
+        x.UserId == f.Staff.Id && x.Role == "Staff" && x.ClientId == f.ClientId && x.EngagementId == f.EngagementId);
+      Assert.Null(survivingStaff.RevokedAt);
+      var firmManager = await db.RoleGrants.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId &&
+        x.UserId == f.Staff.Id && x.Role == "Manager" && x.ClientId == null && x.EngagementId == null);
+      Assert.Equal(revokeManagerGrant, firmManager.RevokedAt is not null);
+      var persistedUser = await db.Users.AsNoTracking().SingleAsync(x => x.Id == f.Staff.Id);
+      Assert.Equal(manager.SessionEpoch + (revokeManagerGrant ? 0 : 1), persistedUser.SessionEpoch);
+    }
+  }
+
   private static object Draft(Guid taskId, int? startMinute, int durationMinutes, string workDate = WorkDate, bool billable = false) =>
     startMinute is { } start
       ? new { taskId, workDate, durationMinutes, role = "Staff", activity = "Synthetic fieldwork", billable, narrative = "Synthetic timer segment", startMinute = start }
@@ -302,5 +363,30 @@ public sealed class PracticeTimeStartMinuteApiTests
     var r = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(body) };
     if (csrf is not null) r.Headers.Add("X-XSRF-TOKEN", csrf);
     return c.SendAsync(r);
+  }
+
+  private sealed class RevokePracticeTimeReadAuthority(
+    ITestPostgresDatabase pg, Guid firmId, Guid userId, bool revokeManagerGrant) : DbCommandInterceptor
+  {
+    private int interleaved;
+    public int InterleavedUpdates => Volatile.Read(ref interleaved);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (!command.CommandText.Contains("time_entries", StringComparison.OrdinalIgnoreCase) ||
+          Interlocked.CompareExchange(ref interleaved, 1, 0) != 0)
+        return result;
+
+      await using var change = new AuditSphereDbContext(pg.Options);
+      var affected = revokeManagerGrant
+        ? await change.RoleGrants.Where(x => x.FirmId == firmId && x.UserId == userId && x.Role == "Manager" &&
+            x.ClientId == null && x.EngagementId == null && x.RevokedAt == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), cancellationToken)
+        : await change.Users.Where(x => x.FirmId == firmId && x.Id == userId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), cancellationToken);
+      if (affected != 1) throw new InvalidOperationException("The practice-time read interleaving did not update exactly one authority row.");
+      return result;
+    }
   }
 }
