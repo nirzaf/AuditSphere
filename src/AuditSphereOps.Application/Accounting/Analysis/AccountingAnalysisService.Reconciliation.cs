@@ -26,10 +26,19 @@ public static partial class AccountingAnalysisService
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PeriodId &&
-      x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct);
+
+    // Period close checks reconciliation evidence while holding this same row lock. Keep the
+    // period first in the lock order, and leave an enclosing transaction's commit to its owner.
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var period = await LockReconciliationTargetPeriodAsync(db, actor.FirmId, request.ClientId, request.PeriodId, ct);
     if (period is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the client scope.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (period.Status == AccountingWorkflowStates.Closed)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The reporting period is closed.");
     var clientState = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
     if (clientState is null)
@@ -119,6 +128,7 @@ public static partial class AccountingAnalysisService
     _ = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(canonical));
     db.AccountingReconciliations.Add(reconciliation);
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult<Guid>.Ok(reconciliation.Id);
   }
 
@@ -133,6 +143,32 @@ public static partial class AccountingAnalysisService
       new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return auth;
+
+    // Close locks the period before examining reconciliation rows. Use that same order,
+    // then refresh the target and authority while the locks are held.
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var period = await LockReconciliationTargetPeriodAsync(db, actor.FirmId, reconciliation.ClientId, reconciliation.PeriodId, ct);
+    if (period is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the reconciliation scope.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (period.Status == AccountingWorkflowStates.Closed)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The reporting period is closed.");
+
+    var lockedReconciliation = await LockReconciliationForWriteAsync(db, actor.FirmId, reconciliation, ct);
+    if (lockedReconciliation is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    reconciliation = lockedReconciliation;
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (reconciliation.Status == AccountingWorkflowStates.Approved)
+      return CommandResult.Fail(ErrorCodes.ProtectedState,
+        "An approved reconciliation is immutable; the finding must be handled through a correction journal or a new schedule.");
+
     string? sourceCurrency = null;
     if (reconciliation.TrialBalanceDatasetId is { } datasetId)
       sourceCurrency = await db.TrialBalanceDatasets.AsNoTracking()
@@ -184,6 +220,7 @@ public static partial class AccountingAnalysisService
       });
     }
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -209,6 +246,28 @@ public static partial class AccountingAnalysisService
     if (!auth.Succeeded)
       return CommandResult<ReconciliationProofDto>.Fail(auth.ErrorCode!, auth.Message!);
 
+    // Proof publication is a write to the reconciliation state. Serialize it with close,
+    // item edits and approval using the same period -> reconciliation lock order.
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var period = await LockReconciliationTargetPeriodAsync(db, actor.FirmId, reconciliation.ClientId, reconciliation.PeriodId, ct);
+    if (period is null)
+      return CommandResult<ReconciliationProofDto>.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the reconciliation scope.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<ReconciliationProofDto>.Fail(auth.ErrorCode!, auth.Message!);
+    reconciliation = await LockReconciliationForWriteAsync(db, actor.FirmId, reconciliation, ct);
+    if (reconciliation is null)
+      return CommandResult<ReconciliationProofDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<ReconciliationProofDto>.Fail(auth.ErrorCode!, auth.Message!);
+    if (period.Status == AccountingWorkflowStates.Closed)
+      return CommandResult<ReconciliationProofDto>.Fail(ErrorCodes.GateBlocked, "The reporting period is closed.");
+    var approved = reconciliation.Status == AccountingWorkflowStates.Approved;
+    var retainedApprovedResidual = reconciliation.Residual;
+
     var items = await db.AccountingReconciliationItems.AsNoTracking()
       .Where(x => x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId)
       .ToListAsync(ct);
@@ -216,8 +275,29 @@ public static partial class AccountingAnalysisService
     var itemsSum = MoneyPolicy.Normalize(items.Sum(x => x.SignedAmount));
     var residual = MoneyPolicy.Normalize(reconciliation.GlTotal - reconciliation.SourceTotal - itemsSum);
 
-    reconciliation.Residual = residual;
-    reconciliation.Status = residual == 0m ? "RECONCILED" : "UNRECONCILED";
+    var itemManifestDigest = ComputeReconciliationItemManifestDigest(
+      items.Select(x => (x.Id, MoneyPolicy.Normalize(x.SignedAmount), x.LinkedJournalId, x.LinkedJournalRevision)));
+    if (approved)
+    {
+      // Approved schedules may append a matching proof for audit evidence, but the
+      // retained approval and its schedule fields are read-only after review.
+      var approvedProof = await db.AccountingReconciliationProofs.AsNoTracking()
+        .Where(x => x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId)
+        .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+        .FirstOrDefaultAsync(ct);
+      if (residual != retainedApprovedResidual || approvedProof is null || !approvedProof.IsReconciled ||
+          approvedProof.ItemManifestDigest != itemManifestDigest || approvedProof.ItemCount != items.Count ||
+          approvedProof.SourceHash != reconciliation.SourceHash || approvedProof.InputGeneration != reconciliation.InputGeneration ||
+          approvedProof.SourceTotal != reconciliation.SourceTotal || approvedProof.GlTotal != reconciliation.GlTotal ||
+          approvedProof.Residual != retainedApprovedResidual)
+        return CommandResult<ReconciliationProofDto>.Fail(ErrorCodes.ManifestMismatch,
+          "The approved reconciliation inputs no longer match its retained proof; no new proof was appended.");
+    }
+    else
+    {
+      reconciliation.Residual = residual;
+      reconciliation.Status = residual == 0m ? "RECONCILED" : "UNRECONCILED";
+    }
 
     // Every calculation appends an immutable proof; old proofs are never edited.
     var proof = new AccountingReconciliationProof
@@ -228,13 +308,13 @@ public static partial class AccountingAnalysisService
       SourceTotal = reconciliation.SourceTotal, GlTotal = reconciliation.GlTotal,
       ItemsSignedTotal = itemsSum, Residual = residual, IsReconciled = residual == 0m,
       ItemCount = items.Count,
-      ItemManifestDigest = ComputeReconciliationItemManifestDigest(
-        items.Select(x => (x.Id, MoneyPolicy.Normalize(x.SignedAmount), x.LinkedJournalId, x.LinkedJournalRevision))),
+      ItemManifestDigest = itemManifestDigest,
       SourceHash = reconciliation.SourceHash, InputGeneration = reconciliation.InputGeneration,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.AccountingReconciliationProofs.Add(proof);
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
 
     return CommandResult<ReconciliationProofDto>.Ok(new ReconciliationProofDto(
       proof.Id,
@@ -260,10 +340,29 @@ public static partial class AccountingAnalysisService
     if (!auth.Succeeded)
       return auth;
 
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var period = await LockReconciliationTargetPeriodAsync(db, actor.FirmId, reconciliation.ClientId, reconciliation.PeriodId, ct);
+    if (period is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the reconciliation scope.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return auth;
+    reconciliation = await LockReconciliationForWriteAsync(db, actor.FirmId, reconciliation, ct);
+    if (reconciliation is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (period.Status == AccountingWorkflowStates.Closed)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The reporting period is closed.");
+
     var item = await db.AccountingReconciliationItems.SingleOrDefaultAsync(x =>
       x.Id == itemId && x.ReconciliationId == reconciliation.Id && x.FirmId == actor.FirmId, ct);
     if (item is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.AccountingReconciliationItems.Attach(item).ReloadAsync(ct);
     if (reconciliation.Status == AccountingWorkflowStates.Approved || item.SettlementDate is not null ||
         !string.IsNullOrWhiteSpace(item.SettlementReference) || item.Disposition != "PENDING_JOURNAL")
       return CommandResult.Fail(ErrorCodes.ProtectedState,
@@ -277,9 +376,7 @@ public static partial class AccountingAnalysisService
     if (journal.Purpose is not (AdjustmentJournalPurposes.ClientBookCorrection or AdjustmentJournalPurposes.ReportingAdjustment) ||
         journal.PeriodId != reconciliation.PeriodId || journal.BookId != reconciliation.BookId ||
         !string.Equals(journal.Currency, item.Currency, StringComparison.OrdinalIgnoreCase) ||
-        !string.Equals(journal.Basis, await db.ClientReportingPeriods.AsNoTracking()
-          .Where(x => x.Id == reconciliation.PeriodId && x.FirmId == actor.FirmId && x.ClientId == reconciliation.ClientId)
-          .Select(x => x.Basis).SingleOrDefaultAsync(ct), StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(journal.Basis, period.Basis, StringComparison.OrdinalIgnoreCase) ||
         reconciliation.TrialBalanceDatasetId is { } selectedDatasetId && journal.BaseDatasetId != selectedDatasetId)
       return CommandResult.Fail(ErrorCodes.Accounting.ReconciliationRejected,
         "The correction journal must match the reconciliation period, book, basis, currency and selected trial-balance source.");
@@ -298,6 +395,7 @@ public static partial class AccountingAnalysisService
     item.LinkedJournalId = journal.Id;
     item.LinkedJournalRevision = journal.Revision;
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -312,6 +410,28 @@ public static partial class AccountingAnalysisService
       new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, ReviewerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return auth;
+
+    // Serialize the reviewer decision against period close and every reconciliation
+    // writer; refresh the tracked schedule only after both locks are held.
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var period = await LockReconciliationTargetPeriodAsync(db, actor.FirmId, reconciliation.ClientId, reconciliation.PeriodId, ct);
+    if (period is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the reconciliation scope.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, ReviewerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return auth;
+    reconciliation = await LockReconciliationForWriteAsync(db, actor.FirmId, reconciliation, ct);
+    if (reconciliation is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, reconciliation.ClientId, reconciliation.EngagementId, ReviewerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return auth;
+    if (period.Status == AccountingWorkflowStates.Closed)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "The reporting period is closed.");
+    if (reconciliation.Status == AccountingWorkflowStates.Approved)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The reconciliation is already approved and immutable.");
     if (reconciliation.Status != "RECONCILED")
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Only an exactly reconciled source can be approved.");
     if (reconciliation.CreatedByUserId == actor.UserId)
@@ -329,12 +449,14 @@ public static partial class AccountingAnalysisService
     {
       reconciliation.Status = AccountingWorkflowStates.Stale;
       await db.SaveChangesAsync(ct);
+      if (transaction is not null) await transaction.CommitAsync(ct);
       return CommandResult.Fail(ErrorCodes.ManifestMismatch, "The reconciliation source changed; prepare a new source-bound review.");
     }
     if (currentGeneration != reconciliation.InputGeneration)
     {
       reconciliation.Status = AccountingWorkflowStates.Stale;
       await db.SaveChangesAsync(ct);
+      if (transaction is not null) await transaction.CommitAsync(ct);
       return CommandResult.Fail(ErrorCodes.GenerationStale, "The client accounting inputs changed; prepare a new source-bound review.");
     }
 
@@ -372,6 +494,7 @@ public static partial class AccountingAnalysisService
     reconciliation.ReviewedByUserId = actor.UserId;
     reconciliation.ReviewedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
@@ -385,7 +508,7 @@ public static partial class AccountingAnalysisService
     if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 2000)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
         "A revision requires a reason of at most 2000 characters.");
-    var original = await db.AccountingReconciliations.AsNoTracking().SingleOrDefaultAsync(
+    var original = await db.AccountingReconciliations.SingleOrDefaultAsync(
       x => x.Id == reconciliationId && x.FirmId == actor.FirmId, ct);
     if (original is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -393,6 +516,23 @@ public static partial class AccountingAnalysisService
       new AuthorizationRequest(actor.FirmId, original.ClientId, original.EngagementId, PreparerRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var period = await LockReconciliationTargetPeriodAsync(db, actor.FirmId, original.ClientId, original.PeriodId, ct);
+    if (period is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The reporting period is outside the reconciliation scope.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, original.ClientId, original.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    original = await LockReconciliationForWriteAsync(db, actor.FirmId, original, ct);
+    if (original is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, original.ClientId, original.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (period.Status == AccountingWorkflowStates.Closed)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The reporting period is closed.");
     if (original.Status == AccountingWorkflowStates.Approved)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState,
         "An approved reconciliation is immutable; the finding must be handled through a correction journal or a new schedule.");
@@ -423,6 +563,7 @@ public static partial class AccountingAnalysisService
     };
     db.AccountingReconciliations.Add(successor);
     await db.SaveChangesAsync(ct);
+    if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult<Guid>.Ok(successor.Id);
   }
 
@@ -452,10 +593,24 @@ public static partial class AccountingAnalysisService
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
         "Select at least one item to carry forward.");
 
-    var targetPeriod = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(
-      x => x.Id == targetPeriodId && x.FirmId == actor.FirmId && x.ClientId == source.ClientId, ct);
+    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var targetPeriod = await LockReconciliationTargetPeriodAsync(db, actor.FirmId, source.ClientId, targetPeriodId, ct);
     if (targetPeriod is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The target period is outside the client scope.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, source.ClientId, source.EngagementId, PreparerRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    source = await db.AccountingReconciliations.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == sourceReconciliationId && x.FirmId == actor.FirmId && x.ClientId == source.ClientId &&
+      x.EngagementId == source.EngagementId && x.PeriodId == source.PeriodId, ct);
+    if (source is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (source.Status != AccountingWorkflowStates.Approved)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Only an approved reconciliation can carry items forward to the next period.");
+    if (targetPeriod.Status == AccountingWorkflowStates.Closed)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The carry-forward target period is closed.");
     if (targetPeriod.StartDate <= source.AsOfDate)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "The carry-forward target period must start after the source reconciliation as-of date.");
@@ -475,8 +630,6 @@ public static partial class AccountingAnalysisService
         x.Disposition.Trim().ToUpperInvariant() is not ("OPEN" or "CARRIED_FORWARD")))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected,
         "Only outstanding, unsettled items can be carried forward.");
-
-    await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
 
     var carry = new AccountingReconciliation
     {
@@ -508,5 +661,22 @@ public static partial class AccountingAnalysisService
     await db.SaveChangesAsync(ct);
     if (transaction is not null) await transaction.CommitAsync(ct);
     return CommandResult<Guid>.Ok(carry.Id);
+  }
+
+  private static Task<ClientReportingPeriod?> LockReconciliationTargetPeriodAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid clientId, Guid periodId, CancellationToken ct) =>
+    db.ClientReportingPeriods.FromSqlInterpolated(
+      $"SELECT * FROM client_reporting_periods WHERE firm_id = {firmId} AND client_id = {clientId} AND id = {periodId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+
+  private static async Task<AccountingReconciliation?> LockReconciliationForWriteAsync(
+    IClientAccountingDbContext db, Guid firmId, AccountingReconciliation reconciliation, CancellationToken ct)
+  {
+    var locked = await db.AccountingReconciliations.FromSqlInterpolated(
+      $"SELECT * FROM accounting_reconciliations WHERE firm_id = {firmId} AND client_id = {reconciliation.ClientId} AND engagement_id = {reconciliation.EngagementId} AND period_id = {reconciliation.PeriodId} AND id = {reconciliation.Id} FOR UPDATE")
+      .SingleOrDefaultAsync(ct);
+    if (locked is not null)
+      await db.AccountingReconciliations.Attach(locked).ReloadAsync(ct);
+    return locked;
   }
 }
