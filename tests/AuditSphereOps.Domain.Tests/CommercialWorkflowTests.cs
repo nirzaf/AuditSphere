@@ -18,6 +18,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 
@@ -763,13 +764,46 @@ public sealed class CommercialWorkflowTests
     public Task SendAsync(PbcMailPlan plan, CancellationToken ct) { Plans.Add(plan); return Task.CompletedTask; }
   }
 
-  [Fact]
-  public async Task AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach()
+  /// <summary>Creates the pre-snapshot shape written by older payment-notification code.</summary>
+  private sealed class LegacyPaymentRecipientSnapshotInterceptor : SaveChangesInterceptor
+  {
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+      DbContextEventData eventData,
+      InterceptionResult<int> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (eventData.Context is { } context)
+      {
+        foreach (var entry in context.ChangeTracker.Entries<CommercialNotification>()
+          .Where(entry => entry.State == EntityState.Added &&
+            (entry.Entity.Kind == CommercialNotificationKinds.Receipt ||
+             entry.Entity.Kind == CommercialNotificationKinds.PaymentVoucher)))
+        {
+          entry.Entity.RecipientContactId = null;
+          entry.Entity.RecipientRoutingId = null;
+          entry.Entity.RecipientAuthorityBasis = null;
+        }
+      }
+
+      return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+  }
+
+  [Theory]
+  [InlineData(false, false)] // A different Finance mailbox blocks new identity snapshots.
+  [InlineData(true, false)]  // The same mailbox with a different authority identity still blocks.
+  [InlineData(false, true)]  // Legacy all-null snapshots keep same-mailbox compatibility.
+  public async Task AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach(
+    bool replacementUsesSameMailbox, bool legacySnapshot)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var (_, _, proposalId) = await DraftProposalAsync(pg, w);
-    await using var db = new AuditSphereDbContext(pg.Options);
+    var dbOptions = legacySnapshot
+      ? new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+        .AddInterceptors(new LegacyPaymentRecipientSnapshotInterceptor()).Options
+      : pg.Options;
+    await using var db = new AuditSphereDbContext(dbOptions);
 
     var quote = await QuotationService.SaveAsync(db, w.Prep,
       Quote(proposalId, lines: [new("Partner", "Audit", 8m), new("Manager", "Audit", 16m)])); // QAR 20,000 → 10,000 + 10,000
@@ -778,6 +812,14 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
     await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
     Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Prep, proposalId)).Succeeded);
+    var prospectMailBeforeConversion = await db.CommercialNotifications.AsNoTracking()
+      .SingleAsync(x => x.Kind == CommercialNotificationKinds.Proposal && x.ProposalId == proposalId);
+    Assert.Equal("owner@gulf.example.test", prospectMailBeforeConversion.Recipient);
+    Assert.Equal(ProposalRecipientAuthorityBases.ProspectPrimaryContact, prospectMailBeforeConversion.RecipientAuthorityBasis);
+    Assert.Null(prospectMailBeforeConversion.RecipientContactId);
+    Assert.Null(prospectMailBeforeConversion.RecipientRoutingId);
+    var frozenProspectMail = (prospectMailBeforeConversion.Recipient, prospectMailBeforeConversion.RecipientContactId,
+      prospectMailBeforeConversion.RecipientRoutingId, prospectMailBeforeConversion.RecipientAuthorityBasis);
     // Deliver while the frozen prospect contact is still authoritative. Conversion changes the
     // recipient boundary; it must not authorize a delayed prospect notification retroactively.
     var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
@@ -794,6 +836,13 @@ public sealed class CommercialWorkflowTests
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
       new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
     var clientId = (await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"))).Value;
+    var prospectMailAfterConversion = await db.CommercialNotifications.AsNoTracking()
+      .SingleAsync(x => x.Id == prospectMailBeforeConversion.Id);
+    Assert.Equal(frozenProspectMail, (prospectMailAfterConversion.Recipient, prospectMailAfterConversion.RecipientContactId,
+      prospectMailAfterConversion.RecipientRoutingId, prospectMailAfterConversion.RecipientAuthorityBasis));
+    var primaryContactId = await db.ClientContacts.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId && x.PracticeClientId == clientId && x.Primary)
+      .Select(x => x.Id).SingleAsync();
 
     var agreementId = (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).Value;
     Assert.Equal(agreementId, (await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalId)).Value);
@@ -918,9 +967,9 @@ public sealed class CommercialWorkflowTests
     Assert.Contains("6,000.00 QAR", firstVoucher);
     Assert.Equal(2, await db.CommercialNotifications.CountAsync(x => x.Kind == CommercialNotificationKinds.PaymentVoucher));
 
-    // The advance receipt and two payment vouchers froze the original owner mailbox before any
-    // Finance route existed. A later, different Finance recipient must block all three rather
-    // than silently retargeting their immutable mail intents.
+    // The advance receipt and two payment vouchers were queued before any Finance route existed.
+    // New snapshots retain the exact client-primary authority; the interceptor above models only
+    // the older all-null snapshot shape and never touches a persisted notification.
     var advanceMail = await db.CommercialNotifications.AsNoTracking()
       .Where(x => x.PracticeClientId == clientId &&
         (x.Kind == CommercialNotificationKinds.Receipt || x.Kind == CommercialNotificationKinds.PaymentVoucher))
@@ -929,15 +978,37 @@ public sealed class CommercialWorkflowTests
     Assert.Single(advanceMail, x => x.Kind == CommercialNotificationKinds.Receipt);
     Assert.Equal(2, advanceMail.Count(x => x.Kind == CommercialNotificationKinds.PaymentVoucher));
     Assert.All(advanceMail, mail => Assert.Equal("owner@gulf.example.test", mail.Recipient));
+    if (legacySnapshot)
+    {
+      Assert.All(advanceMail, mail =>
+      {
+        Assert.Null(mail.RecipientContactId);
+        Assert.Null(mail.RecipientRoutingId);
+        Assert.Null(mail.RecipientAuthorityBasis);
+      });
+    }
+    else
+    {
+      Assert.All(advanceMail, mail =>
+      {
+        Assert.Equal(primaryContactId, mail.RecipientContactId);
+        Assert.Null(mail.RecipientRoutingId);
+        Assert.Equal(PaymentRecipientAuthorityBases.ClientPrimaryContact, mail.RecipientAuthorityBasis);
+      });
+    }
     var frozenMail = advanceMail.ToDictionary(x => x.Id,
-      x => (x.Recipient, x.DocumentId, x.OfferSha256, x.Subject, x.Body));
+      x => (x.Recipient, x.DocumentId, x.OfferSha256, x.Subject, x.Body,
+        x.RecipientContactId, x.RecipientRoutingId, x.RecipientAuthorityBasis));
 
     var replacementFinanceContact = new ClientContact
     {
       Id = Guid.CreateVersion7(), FirmId = w.FirmId, PracticeClientId = clientId,
-      FullName = "Replacement Finance Contact", Email = "replacement-finance@gulf.example.test", Role = "Finance", IsActive = true
+      FullName = "Replacement Finance Contact",
+      Email = replacementUsesSameMailbox ? "owner@gulf.example.test" : "replacement-finance@gulf.example.test",
+      Role = "Finance", IsActive = true
     };
-    Assert.NotEqual(advanceMail[0].Recipient, replacementFinanceContact.Email);
+    Assert.Equal(replacementUsesSameMailbox, string.Equals(
+      advanceMail[0].Recipient, replacementFinanceContact.Email, StringComparison.OrdinalIgnoreCase));
     db.ClientContacts.Add(replacementFinanceContact);
     await db.SaveChangesAsync();
     var replacementFinanceRouting = await PracticeCrmService.AssignContactRoutingAsync(db, w.Partner,
@@ -956,7 +1027,8 @@ public sealed class CommercialWorkflowTests
     {
       Assert.Equal(CommercialDeliveryStates.Queued, mail.DeliveryState);
       Assert.Null(mail.DeliveredAt);
-      Assert.Equal(frozenMail[mail.Id], (mail.Recipient, mail.DocumentId, mail.OfferSha256, mail.Subject, mail.Body));
+      Assert.Equal(frozenMail[mail.Id], (mail.Recipient, mail.DocumentId, mail.OfferSha256, mail.Subject, mail.Body,
+        mail.RecipientContactId, mail.RecipientRoutingId, mail.RecipientAuthorityBasis));
     });
     var blockedOperations = await db.DurableOperations.AsNoTracking()
       .Where(x => x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind && advanceMailIds.Contains(x.TargetId))
@@ -964,9 +1036,10 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(advanceMail.Count, blockedOperations.Count);
     Assert.All(blockedOperations, operation => Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status));
 
-    // Revoking the replacement restores the existing fallback mailbox. A mismatched
-    // notification client must still be refused even when that other client's primary contact
-    // resolves to the exact frozen address, proving the artifact/agreement scope check.
+    // Revoking the replacement restores the original client-primary authority. Even when the
+    // Finance route had the same mailbox, its different contact/routing/basis must not authorize
+    // these queued intents. A mismatched notification client is also refused when its primary
+    // contact resolves to the frozen address, proving the artifact/agreement scope check.
     var revokeReplacement = await PracticeCrmService.RevokeContactRoutingAsync(db, w.Partner,
       new RevokeContactRoutingRequest(clientId, replacementFinanceRouting.Value, "Restore the existing recipient fallback."));
     Assert.True(revokeReplacement.Succeeded, revokeReplacement.Message);
@@ -1042,7 +1115,9 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(CommercialDeliveryStates.Queued, mismatchedReceipt.DeliveryState);
     Assert.Equal(bindingClient.Id, mismatchedReceipt.PracticeClientId);
     Assert.Equal(frozenMail[receiptMail.Id],
-      (mismatchedReceipt.Recipient, mismatchedReceipt.DocumentId, mismatchedReceipt.OfferSha256, mismatchedReceipt.Subject, mismatchedReceipt.Body));
+      (mismatchedReceipt.Recipient, mismatchedReceipt.DocumentId, mismatchedReceipt.OfferSha256, mismatchedReceipt.Subject,
+        mismatchedReceipt.Body, mismatchedReceipt.RecipientContactId, mismatchedReceipt.RecipientRoutingId,
+        mismatchedReceipt.RecipientAuthorityBasis));
     Assert.Single(sender.Plans);
 
     mutableReceiptMail.PracticeClientId = clientId;
@@ -1061,7 +1136,8 @@ public sealed class CommercialWorkflowTests
     {
       Assert.Equal(CommercialDeliveryStates.ProviderAccepted, mail.DeliveryState);
       Assert.Equal(clientId, mail.PracticeClientId);
-      Assert.Equal(frozenMail[mail.Id], (mail.Recipient, mail.DocumentId, mail.OfferSha256, mail.Subject, mail.Body));
+      Assert.Equal(frozenMail[mail.Id], (mail.Recipient, mail.DocumentId, mail.OfferSha256, mail.Subject, mail.Body,
+        mail.RecipientContactId, mail.RecipientRoutingId, mail.RecipientAuthorityBasis));
       var document = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == mail.DocumentId);
       Assert.Equal(mail.OfferSha256, document.Sha256Hex);
       var plan = Assert.Single(sender.Plans, x => x.Subject == mail.Subject);
@@ -1121,10 +1197,11 @@ public sealed class CommercialWorkflowTests
       Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = clientId,
       FullName = "Finance Department", Email = "finance@gulf.example.test", Role = "Finance", IsActive = true
     };
+    var financeRoutingId = Guid.CreateVersion7();
     db.ClientContacts.Add(financeContact);
     db.ClientContactRoutings.Add(new ClientContactRouting
     {
-      Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = clientId, ClientContactId = financeContact.Id,
+      Id = financeRoutingId, FirmId = w.FirmId, PracticeClientId = clientId, ClientContactId = financeContact.Id,
       Purpose = CorrespondencePurposes.Finance, IsPrimaryForPurpose = true, CreatedByUserId = w.Partner.UserId, CreatedAt = DateTimeOffset.UtcNow
     });
     await db.SaveChangesAsync();
@@ -1167,6 +1244,50 @@ public sealed class CommercialWorkflowTests
       .OrderByDescending(x => x.CreatedAt)
       .FirstAsync();
     Assert.Equal("finance@gulf.example.test", balNotification.Recipient);
+    if (legacySnapshot)
+    {
+      Assert.Null(balNotification.RecipientContactId);
+      Assert.Null(balNotification.RecipientRoutingId);
+      Assert.Null(balNotification.RecipientAuthorityBasis);
+    }
+    else
+    {
+      Assert.Equal(financeContact.Id, balNotification.RecipientContactId);
+      Assert.Equal(financeRoutingId, balNotification.RecipientRoutingId);
+      Assert.Equal(PaymentRecipientAuthorityBases.FinanceRouting, balNotification.RecipientAuthorityBasis);
+    }
+    var frozenBalanceMail = (balNotification.Recipient, balNotification.DocumentId, balNotification.OfferSha256,
+      balNotification.Subject, balNotification.Body, balNotification.RecipientContactId,
+      balNotification.RecipientRoutingId, balNotification.RecipientAuthorityBasis);
+    // Two recorded payments produce two vouchers plus the settlement receipt.
+    var pendingBalanceMail = await db.CommercialNotifications.AsNoTracking().Where(x => x.FirmId == w.FirmId &&
+      x.PracticeClientId == clientId && x.DeliveryState == CommercialDeliveryStates.Queued &&
+      (x.Kind == CommercialNotificationKinds.Receipt || x.Kind == CommercialNotificationKinds.PaymentVoucher)).ToListAsync();
+    Assert.Equal(3, pendingBalanceMail.Count);
+    Assert.All(pendingBalanceMail, mail =>
+    {
+      Assert.Equal("finance@gulf.example.test", mail.Recipient);
+      Assert.Equal(legacySnapshot ? null : (Guid?)financeContact.Id, mail.RecipientContactId);
+      Assert.Equal(legacySnapshot ? null : (Guid?)financeRoutingId, mail.RecipientRoutingId);
+      Assert.Equal(legacySnapshot ? null : PaymentRecipientAuthorityBases.FinanceRouting, mail.RecipientAuthorityBasis);
+    });
+    foreach (var _ in pendingBalanceMail) Assert.True(await worker.ProcessNextAsync());
+    Assert.False(await worker.ProcessNextAsync());
+    var balanceMailIds = pendingBalanceMail.Select(x => x.Id).ToArray();
+    Assert.Equal(3, await db.CommercialNotifications.AsNoTracking().CountAsync(x => balanceMailIds.Contains(x.Id) &&
+      x.DeliveryState == CommercialDeliveryStates.ProviderAccepted));
+    var deliveredBalanceMail = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == balNotification.Id);
+    Assert.Equal(CommercialDeliveryStates.ProviderAccepted, deliveredBalanceMail.DeliveryState);
+    Assert.Equal(frozenBalanceMail, (deliveredBalanceMail.Recipient, deliveredBalanceMail.DocumentId,
+      deliveredBalanceMail.OfferSha256, deliveredBalanceMail.Subject, deliveredBalanceMail.Body,
+      deliveredBalanceMail.RecipientContactId, deliveredBalanceMail.RecipientRoutingId,
+      deliveredBalanceMail.RecipientAuthorityBasis));
+    var balancePlan = Assert.Single(sender.Plans, plan => plan.Subject == deliveredBalanceMail.Subject);
+    Assert.Equal(deliveredBalanceMail.Recipient, balancePlan.Recipient);
+    var balanceAttachment = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == deliveredBalanceMail.DocumentId);
+    Assert.Equal(balanceAttachment.FileName, balancePlan.Attachment?.FileName);
+    Assert.Equal(balanceAttachment.ContentType, balancePlan.Attachment?.ContentType);
+    Assert.Equal(balanceAttachment.Bytes, balancePlan.Attachment?.Bytes);
 
     // 9. Client portal user document download
     var docDownload = await CommercialDocumentService.GetAsync(db, clientActor, balReceiptDoc.Id);

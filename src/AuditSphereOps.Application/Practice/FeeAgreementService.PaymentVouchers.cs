@@ -117,7 +117,8 @@ public static partial class FeeAgreementService
     var dispatch = new CommercialNotification
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Kind = CommercialNotificationKinds.PaymentVoucher, ReceiptId = receipt.Id,
-      PracticeClientId = agreement.PracticeClientId, DocumentId = document.Id, OfferSha256 = document.Sha256Hex, Recipient = recipient,
+      PracticeClientId = agreement.PracticeClientId, DocumentId = document.Id, OfferSha256 = document.Sha256Hex, Recipient = recipient.Email,
+      RecipientContactId = recipient.ContactId, RecipientRoutingId = recipient.RoutingId, RecipientAuthorityBasis = recipient.AuthorityBasis,
       Subject = $"Payment voucher {document.FileName.Replace("Voucher-", string.Empty).Replace(".docx", string.Empty)} — {firmName}",
       Body = $"Dear {client.LegalName},\n\nWe confirm receipt of your payment of {receipt.Amount.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
         $"(reference {receipt.Reference}) against invoice {invoice.InvoiceNumber}.\n\n" +

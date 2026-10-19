@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Practice;
 
+internal sealed record PaymentRecipientSnapshot(string Email, Guid? ContactId, Guid? RoutingId, string AuthorityBasis);
+
 public sealed record FeeAgreementView(
   EngagementFeeAgreement Agreement,
   IReadOnlyList<FeeMilestoneView> Milestones,
@@ -397,7 +399,8 @@ public static partial class FeeAgreementService
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, Kind = CommercialNotificationKinds.Receipt,
         FeeMilestoneId = milestone.Id, PracticeClientId = agreement.PracticeClientId, DocumentId = document.Id,
-        OfferSha256 = document.Sha256Hex, Recipient = recipient,
+        OfferSha256 = document.Sha256Hex, Recipient = recipient.Email,
+        RecipientContactId = recipient.ContactId, RecipientRoutingId = recipient.RoutingId, RecipientAuthorityBasis = recipient.AuthorityBasis,
         Subject = subject,
         Body = body,
         CreatedAt = DateTimeOffset.UtcNow
@@ -452,7 +455,7 @@ public static partial class FeeAgreementService
     return line;
   }
 
-  internal static async Task<string?> ResolveRecipientAsync(IAuditSphereDbContext db, Guid firmId, EngagementFeeAgreement agreement, CancellationToken ct)
+  internal static async Task<PaymentRecipientSnapshot?> ResolveRecipientAsync(IAuditSphereDbContext db, Guid firmId, EngagementFeeAgreement agreement, CancellationToken ct)
   {
     var now = DateTimeOffset.UtcNow;
     var asOf = DateOnly.FromDateTime(now.UtcDateTime);
@@ -468,18 +471,19 @@ public static partial class FeeAgreementService
             (c.ValidFrom == null || c.ValidFrom <= now) &&
             (c.ValidTo == null || c.ValidTo >= now)
       orderby r.IsPrimaryForPurpose descending, r.CreatedAt descending
-      select c.Email
+      select new PaymentRecipientSnapshot(c.Email, c.Id, r.Id, PaymentRecipientAuthorityBases.FinanceRouting)
     ).FirstOrDefaultAsync(ct);
 
-    if (!string.IsNullOrWhiteSpace(financeContact)) return financeContact;
+    if (financeContact is not null) return financeContact;
 
     var contact = await db.ClientContacts.AsNoTracking().Where(x => x.FirmId == firmId && x.PracticeClientId == agreement.PracticeClientId && x.Primary && x.IsActive &&
-      (x.ValidFrom == null || x.ValidFrom <= now) && (x.ValidTo == null || x.ValidTo >= now)).Select(x => x.Email).FirstOrDefaultAsync(ct);
-    if (!string.IsNullOrWhiteSpace(contact)) return contact;
+      (x.ValidFrom == null || x.ValidFrom <= now) && (x.ValidTo == null || x.ValidTo >= now)).Select(x => new PaymentRecipientSnapshot(x.Email, x.Id, null, PaymentRecipientAuthorityBases.ClientPrimaryContact)).FirstOrDefaultAsync(ct);
+    if (contact is not null && !string.IsNullOrWhiteSpace(contact.Email)) return contact;
     var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == agreement.ProposalId && x.FirmId == firmId, ct);
     var lead = await (from o in db.Opportunities.AsNoTracking() join l in db.Leads.AsNoTracking() on o.LeadId equals l.Id
-                      where o.Id == proposal.OpportunityId && o.FirmId == firmId select l.PrimaryContactEmail).FirstOrDefaultAsync(ct);
-    return string.IsNullOrWhiteSpace(lead) ? null : lead;
+                      where o.Id == proposal.OpportunityId && o.FirmId == firmId && l.FirmId == firmId select l.PrimaryContactEmail).FirstOrDefaultAsync(ct);
+    return string.IsNullOrWhiteSpace(lead) ? null
+      : new(lead, null, null, PaymentRecipientAuthorityBases.ProspectPrimaryContact);
   }
 
   private static Task<FirmSafetyState?> LockFirmAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>

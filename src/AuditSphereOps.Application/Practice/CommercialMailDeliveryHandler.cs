@@ -197,7 +197,14 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
 
     // Keep the existing Finance-route / primary-contact / prospect fallback policy. A changed
     // recipient blocks this immutable notification; it is never silently retargeted or rewritten.
-    return EmailsMatch(await FeeAgreementService.ResolveRecipientAsync(db, mail.FirmId, agreement, ct), mail.Recipient);
+    var recipient = await FeeAgreementService.ResolveRecipientAsync(db, mail.FirmId, agreement, ct);
+    if (recipient is null || !EmailsMatch(recipient.Email, mail.Recipient)) return false;
+    // Legacy payment queues froze only the mailbox. Do not invent historical route IDs,
+    // but still require current authority for that exact address and the retained artifact.
+    if (mail.RecipientContactId is null && mail.RecipientRoutingId is null && mail.RecipientAuthorityBasis is null)
+      return true;
+    return mail.RecipientContactId == recipient.ContactId && mail.RecipientRoutingId == recipient.RoutingId &&
+      mail.RecipientAuthorityBasis == recipient.AuthorityBasis;
   }
 
   private static async Task<bool> ProposalRecipientAuthorityIsCurrentAsync(

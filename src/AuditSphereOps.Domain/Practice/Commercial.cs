@@ -233,6 +233,14 @@ public sealed class FeeMilestone
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Existing payment-mail routing paths, retained with each new dispatch intent.</summary>
+public static class PaymentRecipientAuthorityBases
+{
+  public const string FinanceRouting = "CLIENT_FINANCE_ROUTING";
+  public const string ClientPrimaryContact = "CLIENT_PRIMARY_CONTACT";
+  public const string ProspectPrimaryContact = "PROSPECT_PRIMARY_CONTACT";
+}
+
 /// <summary>Queued email owned by the commercial workflow; delivered by the isolated mail worker.</summary>
 public sealed class CommercialNotification
 {
@@ -249,7 +257,7 @@ public sealed class CommercialNotification
   public Guid? DocumentId { get; set; }
   /// <summary>Exact SHA-256 identity of the retained artifact attached to this notification.</summary>
   public string? OfferSha256 { get; set; }
-  /// <summary>Contact selected by the effective Commercial or Completion route; null for a prospect or legacy dispatch snapshot.</summary>
+  /// <summary>Contact selected by the effective correspondence route or primary-contact fallback; null for a prospect or legacy dispatch snapshot.</summary>
   public Guid? RecipientContactId { get; set; }
   /// <summary>Exact routing revision selected at dispatch; null for a prospect or legacy snapshot.</summary>
   public Guid? RecipientRoutingId { get; set; }
