@@ -190,11 +190,8 @@
         "ci": {
           "repairedFailure": "39169478960 FAILED only Docs ledger-size budget; archived records intact and active docs validators PASS.",
           "latestFast": {
-            "runId": "39179961033",
-            "sourceCommit": "c2949973377ec5239af7f7298d613ecde925c4a5",
-            "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39179961033",
-            "jobs": "Docs, Angular build/specs and .NET Release/fast guards/contracts successful. Not full regression acceptance."
+            "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityOlderFastC29420261019",
+            "summary": "Earlier fast-CI pass retained; currentFast carries the later observed fast run."
           },
           "shortcutRepair": {
             "sourceCommit": "40b9655706f4e372ad3c3c9d38d9324ed77245d6",
@@ -221,7 +218,15 @@
             "sourceCommit": "0b0b72412dfd6ce58254b5119afd46859192c86b",
             "result": "IN_PROGRESS",
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39194532601",
-            "note": "Observed live on immutable0b0b7241: full Domain/API/E2E/Angular/build/contracts in CI only. Does not cover later5f3fda73 payment-mail guard or evidence-only docs. No current full acceptance."
+            "note": "Full unfiltered CI on0b0b7241; Domain1376/1376, Angular/build/contracts PASS; API/E2E observed live. Predates payment-mail guard5f3fda73 and new-reference9f476cf3; no full current-source acceptance.",
+            "domain": {
+              "result": "PASS",
+              "passed": 1376,
+              "failed": 0,
+              "skipped": 0,
+              "jobId": "117874733717",
+              "log": "/tmp/auditsphere-domain-full-0b0b7241.log"
+            }
           },
           "workspaceApiRepair": {
             "sourceCommit": "8b927b986799dd79a9434bcb370052610db71dd6",
@@ -248,12 +253,8 @@
           }
         },
         "followUp": {
-          "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
-          "result": "IMPLEMENTED_FOCUSED_PASS; full CI and human AT acceptance pending",
-          "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityRecordBackedChecks20261019",
-          "scope": "Planning preparation, consolidation tables/disclosures and sampling review prerequisite; prior focused cohorts, built-in observations and cleanup retained intact.",
-          "limits": "Full supported-state accessibility and human screen-reader acceptance remain open. Native sampling result selection used SelectOption; keyboard-only option commitment was not established in that environment.",
-          "nativeKeyboardSupersededBy": "samplingKeyboardFollowUp verifies native selection in the current owned fixture; the original source-specific limitation remains historically accurate."
+          "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityOlderFollowUp20261019",
+          "summary": "Earlier rendered checks retained; native sampling limitation was superseded by samplingKeyboardFollowUp. Human AT/full-state gates remain open."
         },
         "reviewFocusFollowUp": {
           "sourceCommit": "a90ead3fe609b06677ed433563fe32479a1c4ace",
@@ -1201,15 +1202,9 @@
       "criterion": "ASPM-CRM-03 remains PARTIAL + BLOCKED_DECISION; DEC-09 precedence unchanged.",
       "behavior": "Receipt/voucher pre-provider gate re-resolves existing Finance-route/primary/prospect mailbox; operation and notification must share client, and immutable document/fee agreement/milestone/payment identities must match. Changed mailbox refuses without overwriting or retargeting queued mail.",
       "verification": {
-        "test": "CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach",
-        "passed": 1,
-        "failed": 0,
-        "skipped": 0,
-        "durationSeconds": 48,
-        "trx": "/tmp/auditsphere-payment-mail-results/payment-mail-recipient-guard.trx",
-        "observations": "Real worker/fake sender: replacement Finance mailbox blocks receipt+2vouchers AUTHORIZATION_BLOCKED and QUEUED with unchanged mail/artifacts; wrong-client claimed-handler probe refused; explicit reviewed re-arm after fallback restoration sends originals once with exact bytes. Original QAR20000/4000/6000, final balance/reversal assertions retained.",
-        "build": "Targeted Domain test build compiled Application/Infrastructure/Worker; no HTTP/UI contract, migration or dependency changes.",
-        "browser": "NOT_APPLICABLE worker-only behavior; no live mail/tenant/provider call and no full local suite."
+        "result": "1 passed0 failed0 skipped; real-worker changed-recipient/scope refusal and reviewed recovery with original fee/reversal assertions.",
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.paymentMailInitialVerification20261019",
+        "note": "Latest same-method reference follow-up below retains these assertions."
       },
       "independentReview": "P2 remains: current mailbox check and DISPATCHED are not one serialized authorization boundary; routing/contact mutation can race between them. No concurrency guarantee claimed.",
       "remaining": [
@@ -1219,7 +1214,16 @@
         "Initiating-actor reauthorization and DEC-09",
         "Current-source full CI and live acceptance"
       ],
-      "nextObservedEngineeringGap": "New settlement receipt reference uses v7 milestone ID[..8], voucher uses v7 receipt ID[..12]; these prefixes omit uniqueness bits. Investigate stable collision-free references for new artifacts without rewriting issued documents."
+      "nextObservedEngineeringGap": "New settlement receipt reference uses v7 milestone ID[..8], voucher uses v7 receipt ID[..12]; these prefixes omit uniqueness bits. Investigate stable collision-free references for new artifacts without rewriting issued documents.",
+      "referenceGapSupersededBy": "referenceFollowUp",
+      "referenceFollowUp": {
+        "sourceCommit": "9f476cf3b1b88e65fb07282d14c0a36445e20512",
+        "result": "FOCUSED_PASS",
+        "decision": "New opaque RCT references retain full unique milestone identity; new PV references retain full unique payment identity. Prefixes of UUIDv7 timestamps cannot supply uniqueness. No statutory/sequential numbering policy is inferred.",
+        "verification": "Same CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach passed1 failed0 skipped0,47s; full identity in filename and DOCX body, distinct advance/balance references, retained earlier receipt bytes/hash unchanged. Existing route-block/recovery, fee, balance and reversal checks remain.",
+        "trx": "/tmp/auditsphere-payment-mail-results/payment-document-reference-identity.trx",
+        "limits": "Only new artifact creation changes; existing-document branches reuse issued identities/content. No migration, dependency, HTTP/UI contract or live effect; complete artifact visual/legal approval and full current-source CI remain open."
+      }
     }
   },
   "externalGates": [

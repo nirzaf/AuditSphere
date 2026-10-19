@@ -19,11 +19,15 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## New payment artifact references (2026-10-19)
+
+New RCT/PV references now include the full retained milestone/payment identity. Truncated UUIDv7 timestamp prefixes did not guarantee distinct references. Issued-document lookup branches continue to reuse existing artifacts; the focused fee cycle checks full references in filenames and DOCX contents, distinct advance/balance receipts and unchanged earlier bytes/hash. This is an opaque internal-reference correction, not an approved statutory numbering policy. Source and checks are in `targetedVerification.paymentMailRecipientGuard.referenceFollowUp` in [status.json](status.json).
+
 ## Payment-mail current-recipient guard (2026-10-19)
 
 Receipts and payment vouchers now re-resolve the existing fee-agreement recipient policy before DISPATCHED. Operation/client/artifact/agreement/payment ownership must agree; changed mailboxes block delivery while retaining the original queued recipient, subject, body and bytes. The extended real-worker fee-cycle test proves denial, wrong-client refusal and explicit reviewed recovery after the original fallback is restored. Existing paid amounts, balance gates and reversals remain unchanged. No live mail or tenant action occurred.
 
-ASPM-CRM-03 remains PARTIAL. Independent review identifies a remaining check-to-dispatch race: routing/contact mutation and dispatch need one shared authorization boundary without holding database locks across the provider call. Holding letters, exact routing snapshots, initiating-actor reauthorization, DEC-09 and live/current-source release acceptance remain open. The active full CI run predates this guard. A separately observed next gap is truncated UUIDv7 receipt/voucher references; investigate new-artifact uniqueness while preserving issued evidence. Exact checks and source are under `targetedVerification.paymentMailRecipientGuard` in [status.json](status.json).
+ASPM-CRM-03 remains PARTIAL. Independent review identifies a remaining check-to-dispatch race: routing/contact mutation and dispatch need one shared authorization boundary without holding database locks across the provider call. Holding letters, exact routing snapshots, initiating-actor reauthorization, DEC-09 and live/current-source release acceptance remain open. The active full CI run predates this guard. The reference-prefix observation is resolved by the follow-up above. Exact checks and source are under `targetedVerification.paymentMailRecipientGuard` in [status.json](status.json).
 
 ## Operational cancellation and recovery (2026-10-19)
 
