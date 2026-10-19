@@ -111,6 +111,7 @@ public static partial class WorkflowReminderRuleService
     var auth = await AuthorizeAsync(db, actor, ConfigureRoles, ct);
     if (!auth.Succeeded) return Fail<WorkflowReminderRuleRevisionView>(auth);
     if (request is null) return Invalid<WorkflowReminderRuleRevisionView>("Provide a complete reminder rule definition.");
+    var requestKey = request.RequestKey.GetValueOrDefault();
     var normalized = NormalizeAndValidate(request.Definition);
     if (!normalized.Succeeded || normalized.Value is null)
       return Invalid<WorkflowReminderRuleRevisionView>(normalized.Message ?? "The reminder rule definition is invalid.");
@@ -123,10 +124,10 @@ public static partial class WorkflowReminderRuleService
 
     var definition = normalized.Value;
     var creationDigest = CreationRequestDigest(request.RuleId, actor.UserId, definition);
-    if (request.RequestKey != Guid.Empty)
+    if (requestKey != Guid.Empty)
     {
       var prior = await db.WorkflowReminderRuleRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
-        x.FirmId == actor.FirmId && x.CreationRequestKey == request.RequestKey, ct);
+        x.FirmId == actor.FirmId && x.CreationRequestKey == requestKey, ct);
       if (prior is not null)
       {
         auth = await AuthorizeAsync(db, actor, ConfigureRoles, ct);
@@ -157,14 +158,14 @@ public static partial class WorkflowReminderRuleService
     {
       if (request.ExpectedRevision.HasValue)
         return Stale<WorkflowReminderRuleRevisionView>("A new reminder rule must not include an existing revision.");
-      if (request.RequestKey == Guid.Empty)
+      if (requestKey == Guid.Empty)
         return Invalid<WorkflowReminderRuleRevisionView>("A request key is required to create a reminder rule.");
       rule = new WorkflowReminderRule
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, CreatedByUserId = actor.UserId,
         CreatedAt = now, Revision = 1
       };
-      revision = NewRevision(actor, rule.Id, 1, definition, now, request.RequestKey, creationDigest);
+      revision = NewRevision(actor, rule.Id, 1, definition, now, requestKey, creationDigest);
       db.WorkflowReminderRules.Add(rule);
       db.WorkflowReminderRuleRevisions.Add(revision);
       db.WorkflowReminderRuleDecisions.Add(Decision(actor, rule.Id, revision.Id,
@@ -219,10 +220,10 @@ public static partial class WorkflowReminderRuleService
     if (latest.Status == WorkflowReminderRuleStatuses.Published && latest.Id != rule.CurrentPublishedRevisionId)
       return CommandResult<WorkflowReminderRuleRevisionView>.Fail(ErrorCodes.GateBlocked, "The current published reminder revision is inconsistent.");
 
-    if (request.RequestKey == Guid.Empty)
+    if (requestKey == Guid.Empty)
       return Invalid<WorkflowReminderRuleRevisionView>("A request key is required to create a reminder revision.");
     revision = NewRevision(actor, rule.Id, revisions[0].Version + 1, definition, now,
-      request.RequestKey, creationDigest);
+      requestKey, creationDigest);
     rule.Revision++;
     db.WorkflowReminderRuleRevisions.Add(revision);
     db.WorkflowReminderRuleDecisions.Add(Decision(actor, rule.Id, revision.Id,

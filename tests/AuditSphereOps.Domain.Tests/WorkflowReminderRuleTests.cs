@@ -28,6 +28,14 @@ public sealed class WorkflowReminderRuleTests
     await using var pg = await PgTestSchema.CreateAsync();
     var (author, reviewer) = await SeedRuleActorsAsync(pg);
     var definition = Definition();
+    await using (var missingKeyDb = new AuditSphereDbContext(pg.Options))
+    {
+      var missingKey = await WorkflowReminderRuleService.SaveDraftAsync(missingKeyDb, author,
+        new(null, definition));
+      Assert.False(missingKey.Succeeded);
+      Assert.Equal("workflow.reminder.invalid", missingKey.ErrorCode);
+      Assert.Empty(await missingKeyDb.WorkflowReminderRules.ToListAsync());
+    }
     var createKey = Guid.NewGuid();
     var createRequest = new WorkflowReminderRuleDraftRequest(null, definition, RequestKey: createKey);
     async Task<CommandResult<WorkflowReminderRuleRevisionView>> CreateWithFreshContextAsync()

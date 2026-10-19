@@ -7,7 +7,7 @@ public sealed record WorkflowReminderRuleDefinition(
 
 public sealed record WorkflowReminderRuleDraftRequest(
   Guid? RuleId, WorkflowReminderRuleDefinition Definition, long? ExpectedRevision = null,
-  Guid RequestKey = default);
+  Guid? RequestKey = null);
 
 public sealed record WorkflowReminderRuleDecisionRequest(
   long ExpectedRevision, string ContentDigest, string Rationale);
