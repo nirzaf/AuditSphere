@@ -214,30 +214,22 @@
             "note": "Terminal failure confirmed; earlier detailed observations retained. No full acceptance."
           },
           "fullRelease": {
-            "runId": "39205734150",
-            "sourceCommit": "c0094149f2ca266b3ab8dbddcf03675de424d0d9",
+            "runId": "39209983436",
+            "sourceCommit": "e34e217e522380dc69f75b30ea0a44bb7cfbe3f4",
             "result": "IN_PROGRESS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39205734150",
-            "note": "Exactc0094149: unfiltered Domain1387/1387, Angular full specs/build and build/contracts/publication PASS; API/E2E active at last observation. Predates upload-intent freshness patch; not full current-source acceptance.",
-            "domain": {
-              "result": "PASS",
-              "passed": 1387,
-              "failed": 0,
-              "skipped": 0,
-              "jobId": "117908490134",
-              "log": "/tmp/auditsphere-domain-full-c0094149.log"
-            }
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39209983436",
+            "note": "Immutable implementation source includes portal keyboard and E2E wait repairs. No full regression pass yet; later documentation-only record does not alter runtime. Prior c009 run retained in archive."
           },
           "workspaceApiRepair": {
             "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
             "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
           },
           "currentFast": {
-            "runId": "39205840882",
-            "sourceCommit": "3e6fd96ba8757d2a82868048660a900e52bf492f",
+            "runId": "39207938382",
+            "sourceCommit": "a363a1c3dbd7ff3cba14a755d694690b1a0fcdca",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39205840882",
-            "note": "Angular/docs/.NET Release success observed; predates capability test-only followup."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39207938382",
+            "note": "Docs, Angular and .NET Release jobs succeeded. Predates portal finance keyboard follow-up; not a full API/E2E regression pass."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -249,6 +241,14 @@
           "previousPracticeGuardFullRelease": {
             "archive": "status-archive-2026-10.json#keys.targetedVerification.fullRelease7cac719cBeforePracticeGuards20261019",
             "summary": "7cac719c Domain1387/1387, Angular and build/contracts PASS; API/E2E last observed active. Does not verify later guard changes."
+          },
+          "transportWaitRepair": {
+            "sourceCommit": "e573516452d22fdfdfaafbf83c704ed2d871b17f",
+            "result": "FOCUSED_PASS",
+            "evidence": "/tmp/auditsphere-a11y-results/portal-planning-logout-focused.trx",
+            "passedCases": 4,
+            "note": "Both route bases for resource planning and portfolio/logout pass. Same cohort initially also contained1finance formatting failure, subsequently repaired and passed separately. Retains HTTP status, exact review/receipt, cleared UI and session401 assertions; no timeout increases. Full-suite hang cause not proven.",
+            "reportedFailure": "Run39194532601 source0b0b7241 E2E306pass1failure plus15min inactivity abort/unknown total; resource preview FinishedAsync timeout; portfolio test active at abort. API still active. Log /tmp/auditsphere-e2e-0b0b7241-terminal.log."
           }
         },
         "followUp": {
@@ -1129,6 +1129,24 @@
       "review": "Independent static review found no blocking scope/transaction issue; reload reads the already locked row without committing or provider effects. It intentionally replaces cached/unsaved intent values.",
       "boundary": "Confirmed service-level reused-context defect. Current HTTP commands create fresh contexts; no production HTTP context-reuse exploit observed. Worker replay checks retain operation/attempt/registration identity; provider sink-call count not separately instrumented.",
       "limits": "Other PBC request-row cached-state paths and whole-family/full supported-state acceptance are not established here. No live-provider/professional acceptance. Full CI on c0094149 predates this patch; current-source full release verification remains required."
+    },
+    "portalFinanceAccessibility20261019": {
+      "sourceCommit": "e34e217e522380dc69f75b30ea0a44bb7cfbe3f4",
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "angular": "home.spec.ts7/7 PASS; production build PASS with existing NG8107/commercial SCSS-budget warnings; finance.ts ESLint PASS.",
+      "e2e": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "filter": "FullyQualifiedName~ClientPortal_FinanceTablesAreScopedAndKeyboardScrollableOnMobile",
+        "trx": "/tmp/auditsphere-a11y-results/portal-finance-mobile-final.trx",
+        "log": "/tmp/auditsphere-finance-mobile-final.log"
+      },
+      "browser": "Owned synthetic client identity, exact engagement grant: Tab reached named invoice and receipt regions; Right moved focused invoices40px; console warn/error empty. E2E390px verifies keyboard scrolling and no document overflow; native browser used default desktop viewport. Screenshot /tmp/auditsphere-finance-keyboard-native.png; tab50closed, fixture disposed, owned release flag removed.",
+      "scope": "Persisted projection fixtures: fee20000, invoice10000, cash4000, invoice outstanding6000; sibling engagement excluded. Lifecycle/aging/provider NOT_TRACKED separate. No approval workflow or positive voucher-download proof; no live effects.",
+      "initialFailures": "Fixture ck_proposal_content refused empty deliverables; populated required fixture content. Next assertion mismatched supported decimal trailing zeros; exact monetary-cell assertions corrected. Failed TRX/logs retained; application validation unchanged.",
+      "limits": "Human AT, complete supported-state matrix, professional/live-provider acceptance and full release remain open."
     }
   },
   "externalGates": [

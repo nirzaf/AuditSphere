@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Portal finance keyboard and CI wait checks (2026-10-19)
+
+Billing tables now expose named keyboard-focusable scroll regions. A synthetic client-role journey and built-in browser verify Tab access, horizontal scrolling and retained focus; narrow-screen layout and separate lifecycle, collection, aging and untracked delivery states are covered. Planning and logout journeys now verify completed UI behavior without redundant transport waits. Focused checks pass; exact evidence, initial fixture corrections and active full release are in `targetedVerification.portalFinanceAccessibility20261019` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). Human AT, full supported-state and release acceptance remain open.
+
 ## Locked upload intent freshness (2026-10-19)
 
 Resume, chunk recording and trusted completion refresh the already locked upload intent before reading token, revision or received state. Existing regressions reproduced stale revision and stale staged-state receipts, then passed after the fix. The original delegation race test also passes with a retained valid token denied after revocation. Exact source, rebuilt API evidence and limits are in `targetedVerification.uploadIntentFreshness20261019` in [status.json](status.json). This corrects reused service contexts; no current HTTP context-reuse path was observed. Whole-family state acceptance, current-source full release and external/professional gates remain open.
