@@ -238,11 +238,11 @@
             "change": "Existing component/journal API journeys now read eligiblePackages.items and journals.items. Original authorization, composition refusal, return reason, resubmission and independent approval remain; exact journal IDs and page counts added. No production/API contract changed."
           },
           "currentFast": {
-            "runId": "39197451185",
-            "sourceCommit": "14f6a72f8e2ad087f1c5b2cfeb0b7f517d816f7e",
+            "runId": "39198081990",
+            "sourceCommit": "03826502422ee26b520ac35b08d4d4705d609a0d",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39197451185",
-            "note": "Observed success; predates expiry follow-up f5a8730f. Full39194532601 still API/E2E active."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39198081990",
+            "note": "Observed success; predates holding-letter change. Full39194532601 remains API/E2E active on0b0b7241, not current-source acceptance."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -1200,38 +1200,43 @@
       "sourceCommit": "c7a1c5f71216034a7d1e94f45931614cf07898cd",
       "result": "FOCUSED_PASS_PARTIAL_CORRESPONDENCE_SAFETY",
       "criterion": "ASPM-CRM-03 remains PARTIAL + BLOCKED_DECISION; DEC-09 unchanged.",
-      "behavior": "Fresh mode/epoch, artifact and recipient checks plus DISPATCHED use one firm-fenced transaction; routing assign/revoke and contact update/direct/workspace creation cooperate. Claim commits and context disposes before provider I/O. Prior committed changes win; later changes do not retarget the authorized frozen plan.",
+      "behavior": "Recipient/artifact checks and DISPATCHED share the firm fence with contact/routing writers; provider I/O starts after release. Detailed prior evidence is archived.",
       "verification": {
-        "result": "PASS13/13,46s; exact cohort/TRX and initial compile repair retained in archive.",
+        "result": "PASS13/13; exact cohort, artifacts and initial repair archived.",
         "archive": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019"
       },
-      "independentReview": "Dispatch fence review found no lock-order/provider-call issue. The observed expiry-writer gap is addressed by roleGrantExpiryFence below; broader initiating-actor mail authorization remains open.",
+      "independentReview": "Dispatch and expiry-writer fence reviews passed within scope. Initiating-actor mail authorization remains open.",
       "remaining": [
         "Exact payment routing snapshot",
-        "Holding-letter recipient recheck",
         "Initiating-actor mail reauthorization; DEC-09",
         "Current-source full CI, live-provider and professional acceptance"
       ],
-      "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.paymentMailBeforeDispatchFence20261019",
-      "referenceFollowUp": {
-        "sourceCommit": "9f476cf3b1b88e65fb07282d14c0a36445e20512",
-        "result": "FOCUSED_PASS",
-        "archive": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019.referenceFollowUp"
-      },
-      "limits": "No schema/package/API/UI or tenant/provider change; no full local suite. DISPATCHED is the authorization linearization point, not a delivery receipt."
+      "referenceFollowUp": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019.referenceFollowUp",
+      "limits": "No full local suite or live effect; DISPATCHED is authorization, not delivery.",
+      "holdingLetterFollowUp": "holdingLetterMailSafety"
     },
     "roleGrantExpiryFence": {
       "sourceCommit": "f5a8730fdd3d3a6395dfc4c740f9f33964acd818",
       "result": "FOCUSED_PASS",
-      "behavior": "Expired-grant revocation takes existing firm -> user -> grant fence, refreshes tracked user/grants, records each expiry and increments latest epoch once. No-expired path is read-only; caller-owned staffing transactions retained. Missing firm fails closed. Does not supply initiating-actor mail authorization or whole-product authorization acceptance.",
+      "verification": "Three distinct focused methods passed across runs; initial analyzer repair and failed direct-blocker assumption retained with actual waiter-chain evidence. No full local suite.",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.roleGrantExpiryFence20261019",
+      "limits": "Only expiry writer is firm-fenced; initiating-actor mail authorization and full current-source CI remain open."
+    },
+    "holdingLetterMailSafety": {
+      "sourceCommit": "dc2861ea5cc459f74632645f40e165e0c4f5cbda",
+      "result": "FOCUSED_PASS",
+      "behavior": "Completion sends recheck current route/mailbox, client/engagement, blocker digest and retained artifact integrity before DISPATCHED; attach original bytes. New queues freeze contact/route IDs and hash. Legacy eligibility requires all three fields null, unchanged mailbox and matching frozen body hash; no backfill/retarget. Partial snapshots block. Existing ordering retained; DEC-09 unresolved.",
       "verification": {
-        "result": "3 distinct methods passed across focused runs; no full local suite.",
-        "initial": "role-expiry-fence.trx: expired-grant authorization/evidence and Staffing_DoesNotReuseExpiredEngagementGrant PASS2; new concurrency method timed out1 because second waiter was required to be directly blocked by root. Initial build also fixed xUnit2031 equivalent Assert.Single predicate syntax.",
-        "rerun": "role-expiry-concurrency.trx: ExpiryWaitsForFirmFenceAndConcurrentCallsAdvanceFreshEpochOnce PASS1,2s. Actual blocker chain observed 77892->77891->77886; second waits behind first, first behind held firm. Both writers preload stale user; one true/one false, one evidence per grant and one expiry epoch bump after independent bump.",
-        "artifacts": "/tmp/auditsphere-role-expiry-results/; logs /tmp/auditsphere-role-expiry-fence.log and /tmp/auditsphere-role-expiry-concurrency.log"
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "46s",
+        "cohort": "CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment (new/legacy); HoldingLetterSupersededByChangedOutstandingSetIsRefusedAtDispatchUntilReissued; DeliveryReceipts_DistinguishRefusalAndProviderAcceptance. Wrong scope, changed/revoked recipient, original intent, exact attachment and resolved blockers asserted.",
+        "trx": "/tmp/auditsphere-holding-mail-results/holding-mail-safety.trx",
+        "initial": "Build rejected Assert.True(EndsWith), fixed equivalent Assert.EndsWith; rerun same cohort."
       },
-      "review": "Independent bounded review found no issue in firm/user/grant order, fresh epoch, idempotency or nested StaffingService transaction. Focused tests establish only these behaviors.",
-      "limits": "No dependency, model, migration, HTTP/UI, deployment or live-provider change. Full current-source CI remains NOT_RUN."
+      "review": "Initial legacy-stranding finding resolved by bounded original-format path; independent review found no further issue. Blocker freshness is not atomic with every professional writer.",
+      "limits": "Fake sender/real PostgreSQL only; initiating-actor mail authorization, historical legacy route identity, DEC-09, full current-source CI and live acceptance remain open. No migration/package/UI/config/live change."
     }
   },
   "externalGates": [

@@ -19876,6 +19876,19 @@
         "limits": "Only new artifact creation changes; existing-document branches reuse issued identities/content. No migration, dependency, HTTP/UI contract or live effect; complete artifact visual/legal approval and full current-source CI remain open."
       },
       "limits": "No schema/package/API/UI or tenant/provider change; no full local suite. DISPATCHED is the authorization linearization point, not a delivery receipt."
+    },
+    "targetedVerification.roleGrantExpiryFence20261019": {
+      "sourceCommit": "f5a8730fdd3d3a6395dfc4c740f9f33964acd818",
+      "result": "FOCUSED_PASS",
+      "behavior": "Expired-grant revocation takes existing firm -> user -> grant fence, refreshes tracked user/grants, records each expiry and increments latest epoch once. No-expired path is read-only; caller-owned staffing transactions retained. Missing firm fails closed. Does not supply initiating-actor mail authorization or whole-product authorization acceptance.",
+      "verification": {
+        "result": "3 distinct methods passed across focused runs; no full local suite.",
+        "initial": "role-expiry-fence.trx: expired-grant authorization/evidence and Staffing_DoesNotReuseExpiredEngagementGrant PASS2; new concurrency method timed out1 because second waiter was required to be directly blocked by root. Initial build also fixed xUnit2031 equivalent Assert.Single predicate syntax.",
+        "rerun": "role-expiry-concurrency.trx: ExpiryWaitsForFirmFenceAndConcurrentCallsAdvanceFreshEpochOnce PASS1,2s. Actual blocker chain observed 77892->77891->77886; second waits behind first, first behind held firm. Both writers preload stale user; one true/one false, one evidence per grant and one expiry epoch bump after independent bump.",
+        "artifacts": "/tmp/auditsphere-role-expiry-results/; logs /tmp/auditsphere-role-expiry-fence.log and /tmp/auditsphere-role-expiry-concurrency.log"
+      },
+      "review": "Independent bounded review found no issue in firm/user/grant order, fresh epoch, idempotency or nested StaffingService transaction. Focused tests establish only these behaviors.",
+      "limits": "No dependency, model, migration, HTTP/UI, deployment or live-provider change. Full current-source CI remains NOT_RUN."
     }
   }
 }

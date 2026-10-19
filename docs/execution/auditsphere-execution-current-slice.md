@@ -19,11 +19,13 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Holding-letter mail safety (2026-10-19)
+
+New queues freeze Completion recipient IDs and hash; sends validate scope, current blockers and exact attachment bytes. Legacy queues require the unchanged mailbox and frozen body hash, without backfilling IDs. Focused new/legacy and refusal checks pass. Source, initial analyzer repair and limits are in `targetedVerification.holdingLetterMailSafety` in [status.json](status.json). Initiating-actor mail authorization, DEC-09, atomicity with every professional writer and live/full-release acceptance remain open.
+
 ## Grant-expiry mutation fence (2026-10-19)
 
-Expiry revocation now cooperates with the existing firm fence, locks the user before grants and refreshes tracked values before the session-epoch increment. The ordinary no-expiry path stays read-only. Focused PostgreSQL checks cover expiry denial/evidence, nested staffing replacement, the real waiter chain, concurrent idempotency and stale tracked-user refresh. The first concurrency probe incorrectly required a direct root blocker; its correction accepts the observed chain through the already-blocked first waiter, retaining all revocation/epoch assertions.
-
-This addresses the expiry-writer gap identified in the preceding correspondence review. It does not supply initiating-actor authorization for queued mail or close the full correspondence criterion. Current source, initial failures, passing rerun, artifacts and CI limits are in `targetedVerification.roleGrantExpiryFence` in [status.json](status.json). No full local suite, schema change or external action occurred.
+Expiry now uses the shared firm/user/grant fence and refreshes tracked epochs. Focused denial, staffing and real concurrency checks pass; original failure evidence and the detailed note are retained in [status.json](status.json) under `targetedVerification.roleGrantExpiryFence` and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Broader initiating-actor mail authorization and full release acceptance remain open.
 
 ## Atomic correspondence dispatch claim (2026-10-19)
 
