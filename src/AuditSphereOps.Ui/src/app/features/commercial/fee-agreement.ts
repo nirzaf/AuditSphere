@@ -681,7 +681,7 @@ export class FeeAgreement implements NavigationProtected {
       '/api/ui/fee-agreements/' + w.agreementId + '/' + kind + '-payment',
       { amount: this.amount, reference: this.reference, reviewed: this.reviewed },
       false,
-      true,
+      kind,
     );
   }
   link(): void {
@@ -693,7 +693,7 @@ export class FeeAgreement implements NavigationProtected {
         true,
       );
   }
-  private command(url: string, body: object, noContent = false, payment = false): void {
+  private command(url: string, body: object, noContent = false, payment: false | 'advance' | 'balance' = false): void {
     if (!this.data() || !this.reviewed || this.busy() || this.uncertain()) return;
     const fence = this.fence;
     this.busy.set(true);
@@ -742,9 +742,9 @@ export class FeeAgreement implements NavigationProtected {
             (payment
               ? r.paid
                 ? r.emailQueued
-                  ? 'Advance paid. Receipt notification queued; delivery remains external.'
-                  : 'Advance paid. Review receipt/profile/contact availability.'
-                : 'Partial payment recorded. Review remaining outstanding amount.'
+                  ? `${payment === 'balance' ? 'Final balance' : 'Advance'} paid. Receipt notification queued; delivery remains external.`
+                  : `${payment === 'balance' ? 'Final balance' : 'Advance'} paid. Review receipt/profile/contact availability.`
+                : `Partial ${payment === 'balance' ? 'final-balance' : 'advance'} payment recorded. Review remaining outstanding amount.`
               : 'Fee action recorded. Invoice drafts still require finance review and posting.') + voucher,
           );
           if (payment) {

@@ -1158,7 +1158,17 @@
         "note": "All jobs passed; predates accessibility/navigation follow-up. No full current-source release acceptance."
       },
       "limits": "No full local suites, deployment or live provider/bank effects. Cancelled/unknown orphan sources remain blocked; full commercial activation, complete source/state acceptance, human AT, policy and professional gates remain open.",
-      "accessibilityCodeCommit": "87aca68d"
+      "accessibilityCodeCommit": "87aca68d",
+      "milestoneFeedback": {
+        "result": "FOCUSED_PASS",
+        "behavior": "Partial and full payment confirmations distinguish advance from final balance; queued notifications never claim delivery. No payment or authorization semantics changed.",
+        "angularPassed": 23,
+        "angularFailed": 0,
+        "log": "/tmp/auditsphere-fee-milestone-feedback-spec.log",
+        "build": "PASS",
+        "lint": "PASS",
+        "fullLocalSuites": "NOT_RUN"
+      }
     }
   },
   "externalGates": [

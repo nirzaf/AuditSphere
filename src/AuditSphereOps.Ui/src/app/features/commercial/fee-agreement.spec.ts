@@ -203,6 +203,36 @@ describe('Advance invoice preparation display', () => {
     );
   });
 
+  it.each(['advance', 'balance'] as const)('identifies the %s milestone in partial and settled payment feedback', async (kind) => {
+    const http = setup();
+    const f = TestBed.createComponent(FeeAgreement);
+    f.componentRef.setInput('agreementId', financeAgreementId);
+    f.detectChanges();
+    http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace());
+    await f.whenStable();
+    for (const paid of [false, true]) {
+      const component = f.componentInstance;
+      component.amount = '4000';
+      component.reference = 'SYN-MILESTONE-' + kind + '-' + paid;
+      component.reviewed = true;
+      component.payment(kind);
+      const request = http.expectOne('/api/ui/fee-agreements/' + financeAgreementId + '/' + kind + '-payment');
+      expect(request.request.body.reference).toBe(component.reference);
+      request.flush({ id, paid, emailQueued: true, receiptDocumentId: paid ? id : null,
+        voucherDocumentId: id, voucherEmailQueued: true });
+      const expected = paid
+        ? (kind === 'balance' ? 'Final balance paid.' : 'Advance paid.')
+        : (kind === 'balance' ? 'Partial final-balance payment recorded.' : 'Partial advance payment recorded.');
+      expect(component.message()).toContain(expected);
+      if (paid) expect(component.message()).toContain('delivery remains external');
+      expect(component.reviewed).toBe(false);
+      expect(component.reference).toBe('');
+      http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace());
+      await f.whenStable();
+    }
+    f.destroy();
+  });
+
   it('loads the sanitized finance agreement and recovers only scoped unsubmitted payment fields', async () => {
     const http = setup();
     const f = TestBed.createComponent(FeeAgreement);
