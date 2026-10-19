@@ -110,6 +110,17 @@ public sealed class AngularAccessibilityDeepAcceptanceTests
       if (!focusInside) await page.WaitForTimeoutAsync(200);
     }
     Assert.True(focusInside, "Focus did not enter the opened dialog.");
+    await Assertions.Expect(dialog.GetByRole(AriaRole.Heading,
+      new() { Name = "Assign AuditSphere access", Exact = true })).ToBeFocusedAsync();
+    // Test both trap boundaries with actual keyboard navigation, without submitting a grant.
+    var firstControl = dialog.GetByLabel("Role", new() { Exact = true });
+    var lastControl = dialog.GetByRole(AriaRole.Button, new() { Name = "Close", Exact = true });
+    await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(firstControl).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Shift+Tab");
+    await Assertions.Expect(lastControl).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(firstControl).ToBeFocusedAsync();
     await page.Keyboard.PressAsync("Escape");
     await Assertions.Expect(dialog).Not.ToBeVisibleAsync();
     await Assertions.Expect(trigger).ToBeFocusedAsync();
@@ -122,6 +133,7 @@ public sealed class AngularAccessibilityDeepAcceptanceTests
     await Assertions.Expect(historyButton).ToHaveAttributeAsync("aria-expanded", "false");
 
     Assert.Empty(pageErrors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/ui/app/administration/users", "accessibility-role-dialog");
   }
 
   [Fact]
