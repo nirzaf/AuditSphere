@@ -110,6 +110,10 @@ public static partial class PracticeCrmService
     var guard = await db.FirmSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    ownerError = await ValidateOwnerAsync(db, actor, request.OwnerUserId, ct);
+    if (ownerError is not null) return CommandResult<Guid>.Fail(ownerError.ErrorCode!, ownerError.Message!);
     var name = request.Name.Trim();
     var source = LeadChannel(request.Source)!;
     var contactName = TrimOrNull(request.PrimaryContactName);
@@ -165,6 +169,8 @@ public static partial class PracticeCrmService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return auth;
     var lead = await db.Leads.SingleOrDefaultAsync(x => x.Id == leadId && x.FirmId == actor.FirmId, ct);
     if (lead is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (lead.Status == CrmStates.LeadQualified) return CommandResult.Ok();
@@ -254,6 +260,8 @@ public static partial class PracticeCrmService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     var createRequestHash = request.RequestId.HasValue
       ? ComputeProposalCreateRequestHash(actor, request)
@@ -323,6 +331,8 @@ public static partial class PracticeCrmService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return auth;
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (proposal.Status == CrmStates.ProposalInternalReview) return CommandResult.Ok();
@@ -360,6 +370,8 @@ public static partial class PracticeCrmService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return auth;
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (proposal.Status == CrmStates.ProposalSent)
@@ -518,6 +530,8 @@ public static partial class PracticeCrmService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return auth;
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (proposal.Status == decision)

@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using System.Data.Common;
+using System.Text.Json;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -225,6 +226,192 @@ public sealed class PracticeCrmTests
     Assert.Empty(await verify.Opportunities.Where(x => x.Id == requestId || x.LeadId == leadId).ToListAsync());
     Assert.False(await verify.LeadActivityEvents.AnyAsync(x => x.FirmId == fixture.FirmId &&
       x.LeadId == leadId && x.Action == LeadActivityActions.OpportunityCreated && x.OpportunityId == requestId));
+  }
+
+  [Theory]
+  [InlineData("CREATE_LEAD")]
+  [InlineData("CREATE_LEAD_OWNER_DISABLED")]
+  [InlineData("CREATE_LEAD_GRANT_ONLY")]
+  [InlineData("QUALIFY_LEAD")]
+  [InlineData("REVISE_PROPOSAL")]
+  [InlineData("APPROVE_PROPOSAL")]
+  [InlineData("SEND_PROPOSAL")]
+  [InlineData("RECORD_RESPONSE")]
+  public async Task CommercialCoreWriter_RechecksAuthorityAfterFirmLockWait(string action)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var commandActor = action == "APPROVE_PROPOSAL" ? fixture.Reviewer : fixture.Actor;
+    var commandRole = action == "APPROVE_PROPOSAL" ? "Partner" : "RelationshipManager";
+    if (action is "APPROVE_PROPOSAL" or "CREATE_LEAD_OWNER_DISABLED" or "CREATE_LEAD_GRANT_ONLY")
+      Assert.NotEqual(fixture.Actor.UserId, fixture.Reviewer.UserId);
+
+    Guid leadId = default, opportunityId = default, proposalId = default;
+    ProposalResponseRequest? responseRequest = null;
+    Guid grantId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      if (action != "CREATE_LEAD" && action != "CREATE_LEAD_OWNER_DISABLED" && action != "CREATE_LEAD_GRANT_ONLY")
+      {
+        var createdLead = await PracticeCrmService.CreateLeadAsync(setup, fixture.Actor,
+          new CreateLeadRequest("Lock-wait authority prospect", "Referral", "Synthetic Contact", "contact@example.test"));
+        Assert.True(createdLead.Succeeded, createdLead.Message);
+        leadId = createdLead.Value;
+      }
+
+      if (action is "REVISE_PROPOSAL" or "APPROVE_PROPOSAL" or "SEND_PROPOSAL" or "RECORD_RESPONSE")
+      {
+        var qualified = await PracticeCrmService.QualifyLeadAsync(setup, fixture.Actor, leadId);
+        Assert.True(qualified.Succeeded, qualified.Message);
+        var createdOpportunity = await PracticeCrmService.CreateOpportunityAsync(setup, fixture.Actor, Opportunity(leadId));
+        Assert.True(createdOpportunity.Succeeded, createdOpportunity.Message);
+        opportunityId = createdOpportunity.Value;
+      }
+
+      if (action is "APPROVE_PROPOSAL" or "SEND_PROPOSAL" or "RECORD_RESPONSE")
+      {
+        var drafted = await PracticeCrmService.ReviseProposalAsync(setup, fixture.Actor,
+          Proposal(opportunityId, expectedRevision: 0) with { RequestId = Guid.NewGuid() });
+        Assert.True(drafted.Succeeded, drafted.Message);
+        proposalId = drafted.Value;
+
+        if (action is "SEND_PROPOSAL" or "RECORD_RESPONSE")
+        {
+          var approved = await PracticeCrmService.ApproveProposalAsync(setup, fixture.Reviewer, proposalId);
+          Assert.True(approved.Succeeded, approved.Message);
+          await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(setup, fixture.Actor, proposalId);
+          var sent = await PracticeCrmService.SendProposalAsync(setup, fixture.Actor, proposalId);
+          Assert.True(sent.Succeeded, sent.Message);
+
+          if (action == "RECORD_RESPONSE")
+          {
+            var offerSha = await setup.Proposals.AsNoTracking().Where(x => x.FirmId == fixture.FirmId && x.Id == proposalId)
+              .Select(x => x.SentOfferSha256).SingleAsync();
+            responseRequest = new ProposalResponseRequest(CrmStates.ProposalAccepted, null, offerSha,
+              "Synthetic Contact", "contact@example.test", "synthetic written response",
+              ProposalResponseChannels.Email);
+          }
+        }
+      }
+
+      grantId = await setup.RoleGrants.AsNoTracking().Where(x => x.FirmId == fixture.FirmId &&
+          x.UserId == commandActor.UserId && x.Role == commandRole && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    async Task<string> SnapshotAsync()
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var leads = await db.Leads.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var activities = await db.LeadActivityEvents.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var opportunities = await db.Opportunities.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var proposals = await db.Proposals.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var quotations = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var quotationApprovals = await db.QuotationApprovals.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var quotationRevocations = await db.QuotationApprovalRevocations.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var documents = await db.CommercialDocuments.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var notifications = await db.CommercialNotifications.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var responses = await db.ProposalResponseRecords.AsNoTracking().Where(x => x.FirmId == fixture.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      return JsonSerializer.Serialize(new
+      {
+        leads, activities, opportunities, proposals, quotations, quotationApprovals,
+        quotationRevocations, documents, notifications, responses
+      });
+    }
+
+    var before = await SnapshotAsync();
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {fixture.FirmId} FOR UPDATE").SingleAsync();
+
+    var lockAttempt = new ObserveFirmLockAttempt();
+    var writerOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(lockAttempt).Options;
+    await using var writer = new AuditSphereDbContext(writerOptions);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+    async Task<(bool Succeeded, string? ErrorCode, Guid? Value)> ExecuteWriterAsync()
+    {
+      switch (action)
+      {
+        case "CREATE_LEAD":
+        case "CREATE_LEAD_OWNER_DISABLED":
+        case "CREATE_LEAD_GRANT_ONLY":
+        {
+          var result = await PracticeCrmService.CreateLeadAsync(writer, commandActor,
+            new CreateLeadRequest("Lock-wait new lead", "Referral", "Synthetic Contact", "contact@example.test",
+              OwnerUserId: action is "CREATE_LEAD_OWNER_DISABLED" or "CREATE_LEAD_GRANT_ONLY" ? fixture.Reviewer.UserId : null,
+              RequestId: Guid.NewGuid()), timeout.Token);
+          return (result.Succeeded, result.ErrorCode, result.Value);
+        }
+        case "QUALIFY_LEAD":
+        {
+          var result = await PracticeCrmService.QualifyLeadAsync(writer, commandActor, leadId, timeout.Token);
+          return (result.Succeeded, result.ErrorCode, null);
+        }
+        case "REVISE_PROPOSAL":
+        {
+          var result = await PracticeCrmService.ReviseProposalAsync(writer, commandActor,
+            Proposal(opportunityId, expectedRevision: 0) with { RequestId = Guid.NewGuid() }, timeout.Token);
+          return (result.Succeeded, result.ErrorCode, result.Value);
+        }
+        case "APPROVE_PROPOSAL":
+        {
+          var result = await PracticeCrmService.ApproveProposalAsync(writer, commandActor, proposalId, timeout.Token);
+          return (result.Succeeded, result.ErrorCode, null);
+        }
+        case "SEND_PROPOSAL":
+        {
+          var result = await PracticeCrmService.SendProposalAsync(writer, commandActor, proposalId, timeout.Token);
+          return (result.Succeeded, result.ErrorCode, null);
+        }
+        case "RECORD_RESPONSE":
+        {
+          var result = await PracticeCrmService.RecordProposalResponseAsync(writer, commandActor, proposalId,
+            responseRequest!, timeout.Token);
+          return (result.Succeeded, result.ErrorCode, null);
+        }
+        default:
+          throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown commercial writer.");
+      }
+    }
+
+    var attempt = ExecuteWriterAsync();
+    await lockAttempt.Reached.Task.WaitAsync(timeout.Token);
+    Assert.True(lockAttempt.Fired);
+    if (action == "CREATE_LEAD_OWNER_DISABLED")
+    {
+      Assert.Equal(1, await blocker.Users.Where(x => x.Id == fixture.Reviewer.UserId && !x.Disabled)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.Disabled, true), timeout.Token));
+    }
+    else
+    {
+      Assert.Equal(1, await blocker.RoleGrants.Where(x => x.Id == grantId && x.RevokedAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token));
+      if (action != "CREATE_LEAD_GRANT_ONLY")
+        Assert.Equal(1, await blocker.Users.Where(x => x.Id == commandActor.UserId)
+          .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), timeout.Token));
+    }
+    await blockerTransaction.CommitAsync(timeout.Token);
+
+    var result = await attempt.WaitAsync(timeout.Token);
+    Assert.False(result.Succeeded);
+    Assert.Equal(action is "CREATE_LEAD_OWNER_DISABLED" or "CREATE_LEAD_GRANT_ONLY"
+        ? ErrorCodes.ScopeDenied : ErrorCodes.GenerationStale,
+      result.ErrorCode);
+    Assert.True(result.Value is null || result.Value == Guid.Empty);
+    Assert.Equal(before, await SnapshotAsync());
   }
 
   [Fact]
