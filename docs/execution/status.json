@@ -187,6 +187,14 @@
           "fieldwork": "PARTIAL: procedure submit/recover/independent return/revise, sampling select/review/execute, native result typeahead/Tab commitment and populated320/390px reflow verified. Human AT and every supported state not accepted."
         },
         "humanReview": "BLOCKED_EXTERNAL: knowledgeable human screen-reader review with actual AT/browser versions and meaningful announcements is not available.",
+        "latestRenderedAttempt20261019": {
+          "result": "NOT_ACCEPTED",
+          "route": "http://127.0.0.1:5029/ui/app",
+          "sourceIdentity": "UNVERIFIED: served Angular bundle main-U3OPLAO2.js exposed no commit identity.",
+          "runtimeFinding": "GET /api/ui/portfolio/workspace returned HTTP 200, but its client rows omitted isArchived, which the served Angular decoder requires. The page displayed its unsupported-response state; this is consistent with a UI/API version mismatch. No source fix was inferred from this runtime.",
+          "accessibilityObservation": "Built-in browser accessibility tree exposed the skip link, named navigation, main landmark and error as role=alert. Tab navigation moved focus to Refresh. At 390x844 CSS pixels, document scroll width was 375 pixels. No console errors were observed; one request was aborted during the intentional page reload.",
+          "limits": "Not source-attributed acceptance. No business records were changed. Other workflow states, 200%/400% zoom and human assistive-technology review were not tested."
+        },
         "ci": {
           "historicalEvidence": "status-archive-2026-10.json#keys.angularQualityTask07CiBeforeOperationalReadiness20261019",
           "currentEvidence": "targetedVerification.commercialFinality20261019.ci and operationalReadiness20261019.ci",
