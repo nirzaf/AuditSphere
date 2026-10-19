@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Reviewed reopening of cancelled operational tasks (2026-10-19)
+
+Current scoped management can reopen cancelled tasks without completed-work evidence using a reviewed reason and revision. The same task, binding, time and evidence remain; historical retries acknowledge their event without overwriting later state. Focused Domain/API/Angular and keyboard browser checks pass, including narrow reflow. The owned native review checked focus, fresh assent and explicit close without submission. Exact source, failed-check repairs, migration and limits are in `targetedVerification.workflowTaskReopening` in [status.json](status.json). Completed-work correction, suspension, missed-period recovery, full CI and human/live acceptance remain open. No shared/deployed database was migrated.
+
 ## Payment-recipient identity snapshots (2026-10-19)
 
 New receipt/voucher queues retain the selected contact, routing and authority basis. Send-time checks reject a different identity even at the same mailbox. Legacy all-null rows retain current same-mailbox validation without backfilling identities. Focused worker fee-cycle checks pass with financial and reversal assertions intact; exact source and evidence are in `targetedVerification.paymentRecipientSnapshots` in [status.json](status.json). Initiating-actor authorization, DEC-09 and full/live acceptance remain open.
@@ -37,9 +41,7 @@ The shared recipient/dispatch firm fence ends before provider I/O. Exact source 
 
 ## Operational cancellation and recovery (2026-10-19)
 
-ASPM-WF-08 now includes current-scoped management cancellation of an active task after exact revision/reason review. Time, bindings, evidence and append-only activity remain; a cancelled required predecessor still blocks its dependent. Exact replay adds no event, and a lost response is observed through a scoped task lookup before any explicit retry. The queue retains a Cancelled view. Keyboard review/close/activity focus and narrow reflow have focused and built-in-browser evidence; migration downgrade refuses retained cancellation history. No shared/live migration or professional approval occurred.
-
-ASPM-WF-08 remains PARTIAL: reopen, suspension, missed-period recovery and broader reconciliation are unfinished. Legacy WF-08 recurrence decisions are separate. The latest full CI run failed and incomplete API/E2E evidence; reported failures are under focused repair. Exact source, checks and limits are in `targetedVerification.workflowTaskCancellation` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). No full local suite ran.
+Original cancellation evidence is retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and archived status record.
 
 ## Browser CI recovery and search interaction (2026-10-19)
 

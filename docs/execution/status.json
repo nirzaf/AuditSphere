@@ -33,13 +33,13 @@
   },
   "remainingLocalWork": [
     {
-      "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
+      "item": "AS-PAR-002 \u2014 remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
       "details": "Whole-application scope, revocation, source-action behavior and dynamic acceptance remain partial. Use apiAngularParity for the attached backlog; the previous verification narrative is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
+      "item": "AS-PAR-009 \u2014 Pricing review, evidence-bound dispatch and client response",
       "status": "PARTIAL",
       "details": "Pricing implementation exists; firm-approved policy, provider delivery evidence and current end-to-end acceptance remain separate gates. Earlier implementation and check history is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -51,43 +51,43 @@
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
+      "item": "STE-NXT-014 \u2014 End-of-service accrual as a provision (ADR-0010)",
       "status": "PARTIAL",
       "details": "End-of-service accrual requires the existing approved treatment, provision and expense account configuration and independent Partner confirmation. Prior technical verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
+      "item": "ADR-0016 \u2014 Certificate signing of the final report (specification 4.4.1, 4.4.2)",
       "status": "PARTIAL",
       "details": "Final report certificate policy, legal acceptance and live deployment remain explicit external/operator gates. Earlier technical signing evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
+      "item": "FSR-002 / FSR-010 / FSR-011 first slice \u2014 typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
       "status": "PARTIAL",
       "details": "Typed and pinned financial statement presentation is implemented incrementally. Professional policy, complete approved schedules/disclosures, report composition and release acceptance remain governed by their current records. Prior slice narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
+      "item": "FSR-005 first slice \u2014 cash-flow movement evidence and adjusted cash cross-cast",
       "status": "PARTIAL",
       "details": "Source-backed cash flow and its professional classification policy remain governed by their current completion records. Historical first-slice verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "CP-13 — signed equity components and transfer workflow",
+      "item": "CP-13 \u2014 signed equity components and transfer workflow",
       "status": "PARTIAL",
       "details": "Equity components and transfer workflows remain subject to source lineage and independent professional acceptance. Historical increment evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
+      "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
       "details": "Workflow implementation does not replace professional approval or production acceptance. Current focused evidence is in targetedVerification; earlier long-form incremental narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) — NOT COMPLETE",
+      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) \u2014 NOT COMPLETE",
       "status": "PARTIAL",
       "details": "The production-readiness backlog remains incomplete; its external and independent acceptance gates are not closed by local parity implementation.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -151,7 +151,7 @@
       "recordedAtUtc": "2026-10-19T03:24:56.955565+00:00",
       "result": "PARTIAL",
       "previousEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityBeforeFollowUp20261019",
-      "tasks01To06Review": "Tasks 01–04 and 06 implemented per independent source review on 7a566118. Task05 gaps corrected on sourceCommit with focused verification; full release and human accessibility acceptance remain separate.",
+      "tasks01To06Review": "Tasks 01\u201304 and 06 implemented per independent source review on 7a566118. Task05 gaps corrected on sourceCommit with focused verification; full release and human accessibility acceptance remain separate.",
       "task06": {
         "status": "FAST_CI_PASS",
         "implementationCommit": "5268f5fbd1f8be074f76cb89e20fc5d13f4b4b80",
@@ -218,7 +218,7 @@
             "sourceCommit": "0b0b72412dfd6ce58254b5119afd46859192c86b",
             "result": "IN_PROGRESS",
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39194532601",
-            "note": "Full unfiltered CI on0b0b7241; Domain1376/1376, Angular/build/contracts PASS; API/E2E still active. Predates payment-mail changes5f3fda73/9f476cf3/c7a1c5f7; no full current-source acceptance.",
+            "note": "Domain1376/1376, Angular/build/contracts PASS; API/E2E still active at observation. Predates subsequent mail/reopening work; not current-source acceptance.",
             "domain": {
               "result": "PASS",
               "passed": 1376,
@@ -238,11 +238,11 @@
             "change": "Existing component/journal API journeys now read eligiblePackages.items and journals.items. Original authorization, composition refusal, return reason, resubmission and independent approval remain; exact journal IDs and page counts added. No production/API contract changed."
           },
           "currentFast": {
-            "runId": "39198999276",
-            "sourceCommit": "3c809e9871bf04d2705c4989fb0c547c42ffa89a",
+            "runId": "39199820035",
+            "sourceCommit": "9f8779b4801532bb5893b1ada64d0d6f8a81bb46",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39198999276",
-            "note": "Observed success; predates payment snapshot slice. Full39194532601 still API/E2E active on0b0b7241, not current-source acceptance."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39199820035",
+            "note": "Observed success; predates reopening slice. No full current-source acceptance."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -296,7 +296,7 @@
         },
         "lint": "PASS: five changed production TS/HTML files; no extra rules disabled.",
         "build": "PASS; existing completion optional-chain and commercial/settings.scss budget warnings.",
-        "browser": "PASS_READ_ONLY_SMOKE on final UI source via built-in browser: fieldwork h1, Sampling → Client evidence keyboard activation, expected controls, document reflow at1280, no console errors. Existing API source unknown. Record-backed mutation accessibility NOT_VERIFIED."
+        "browser": "PASS_READ_ONLY_SMOKE on final UI source via built-in browser: fieldwork h1, Sampling \u2192 Client evidence keyboard activation, expected controls, document reflow at1280, no console errors. Existing API source unknown. Record-backed mutation accessibility NOT_VERIFIED."
       },
       "ciFailureRepair": {
         "implementationCommit": "6f00f8e05433130e5ad62c80d91e6f92ab39649b",
@@ -566,49 +566,49 @@
       "matrix": [
         [
           "01",
-          "01–03",
+          "01\u201303",
           "PASS",
           "DueTodaySummaryCountsTheCompleteAuthorizedPopulationRatherThanTheLoadedPage;DateViewsUseTheUtcCalendarDateAndSummaryStaysScopedDeniedAndReadOnly"
         ],
         [
           "02",
-          "04–06",
+          "04\u201306",
           "PASS",
           "PracticeTimeTests.TimeWorkflow_RequiresReview_UsesIntegerMinutes_AndRejectsOverlap;PracticeTimeStartMinuteApiTests.RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior;AngularPracticeProductivityJourneyTests.DashboardAndForegroundTimerAreReadOnlyUntilEachDraftIsExplicitlySaved"
         ],
         [
           "03",
-          "07–08",
+          "07\u201308",
           "PASS",
           "PortalWorkspaceReturnsParticipantScopedClarificationAndCurrentEligibility;PortalActionEligibilityFailsClosedForReviewStatesAndUploadRouteStillRequiresFirstSignIn"
         ],
         [
           "04",
-          "09–11",
+          "09\u201311",
           "PASS",
           "SevenSourcesUseStableRankAndIdPagingSnapshotAndReadOnlyProjection;InvalidRequestsAndNonManagerScopesFailClosedWithStableMessages"
         ],
         [
           "05",
-          "12–14",
+          "12\u201314",
           "PASS",
           "TaskDatesIncludeOnlyYesterdayTodayAndSevenDaysForActiveTasks;FrozenSuppressesRemindersButPastScheduledFreezeDoesNotAndReadsCreateNoWrites"
         ],
         [
           "06",
-          "15–16",
+          "15\u201316",
           "PASS",
           "AnnualMilestonesUseCurrentSourceRevisionAndStayRestrictedWithoutBlockingReviewedCreation;ChangedOrForeignAnnualReferenceFailsWithoutPublishingANewShell"
         ],
         [
           "07",
-          "17–19",
+          "17\u201319",
           "PASS",
           "StandardValuesNormalizeEachEntryAndKeepCurrencyAndFeeBasisSubtotalsSeparate;CrossClientBillingParentFailsTheWholeReportAndClientScopedFinanceIsDenied"
         ],
         [
           "08",
-          "20–25",
+          "20\u201325",
           "PASS",
           "PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits;PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles"
         ]
@@ -786,7 +786,7 @@
       "sourceCommit": "1ee3c0e7ed743a3b2a838cad102c76428e07c267",
       "run": "https://github.com/nirzaf/AuditSphere/actions/runs/39003733534",
       "workflow": "AuditSphere release verification",
-      "cohort": "Test · .NET Domain (unfiltered)",
+      "cohort": "Test \u00b7 .NET Domain (unfiltered)",
       "result": "PASS",
       "test": "CashFlowContractTests.SourceReview_RevokedActorDuringLockWait_RecordsNothing",
       "evidence": "The test observes the source-review command waiting on the package lock, revokes the reviewer role while the user retains a non-review grant, releases the lock, and verifies ScopeDenied with no source-review row persisted.",
@@ -1156,24 +1156,7 @@
     "workflowTaskCancellation": {
       "sourceCommit": "9b99b4f2f6644c91dabbed4677fa0c4ba63f8eda",
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "criterion": "ASPM-WF-08 remains PARTIAL; legacy WF-08 recurrence/acceptance policy unchanged.",
-      "behavior": "Scoped management cancellation, reviewed revision/canonical reason, append-only actor/reason lineage, exact replay without duplicate, cancelled prerequisite remains blocked, retained time/binding/evidence, exact task recovery beyond default500.",
-      "focused": {
-        "domain": "1 passed0 failed0 skipped; workflow-cancellation-domain.trx",
-        "api": "2 passed0 failed0 skipped; workflow-cancellation-api.trx",
-        "angular": "27 passed0 failed0 skipped in work-queue and work-queue-views specs",
-        "e2e": "1 passed0 failed0 skipped; workflow-cancellation-browser.trx; real committed reply lost, one POST, read-only recovery, activity focus,320/390px reflow",
-        "resultsDirectory": "/tmp/auditsphere-cancellation-results",
-        "buildLintContractsModel": "PASS; Angular existing SCSS budget/optional-chain warnings retained."
-      },
-      "browser": {
-        "result": "PASS owned synthetic fixture; native Tab/Enter review, canonical reason, fresh assent, Space enables confirm, close restores exact row button,390px document375px, no console errors; no interactive submission.",
-        "screenshot": "/tmp/auditsphere-cancellation-native-review.png",
-        "cleanup": "Owned tab closed, viewport restored, fixture/database disposed."
-      },
-      "migration": "WorkflowTaskCancellation source and owned test DB only; immutable update/delete refused, downgrade SQLSTATE55000 preserves cancellation evidence. No shared/live migration.",
-      "review": "Independent read-only review found no scope/recovery bypass; reason canonicalization corrected.",
-      "limits": "Full current-source CI, human AT/full supported-state matrix, reopen/suspension/missed-period recovery remain open. No provider or professional acceptance."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.workflowTaskCancellationBeforeReopening20261019"
     },
     "browserCiRecovery20261019": {
       "sourceCommit": "0b0b72412dfd6ce58254b5119afd46859192c86b",
@@ -1238,6 +1221,23 @@
       },
       "review": "Independent bounded source review found no actionable issue.",
       "limits": "No migration/package/API/UI/live change; no full local suite. Prospect fallback retained in source, not separately exercised. Legacy original route identity remains unknown; broader correspondence gates remain open."
+    },
+    "workflowTaskReopening": {
+      "sourceCommit": "a69ae19a58fd07e10519e7ad31db429c50717fc7",
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "behavior": "Current scoped management can reopen only CANCELLED tasks without completed evidence; same task/binding/time/evidence retained; reviewed reason and revision append TASK_REOPENED. Exact historical cancellation/reopening replies never overwrite later state. Completed-work correction, suspension and missed-period recovery remain open.",
+      "checks": {
+        "domain": "PASS 2/2; workflow-reopen-domain-final.trx",
+        "api": "PASS 1/1; workflow-reopen-api-final.trx",
+        "angular": "PASS 29/29; /tmp/auditsphere-workflow-reopen-angular.log",
+        "browser": "PASS 1/1; workflow-reopen-browser-final.trx; keyboard review/back/fresh assent/confirm, retained DB history, blocked dependent,390px overflow",
+        "resultsDirectory": "/tmp/auditsphere-workflow-reopen-results",
+        "buildContracts": "API/contract emitter and Angular build PASS; OpenAPI drift, EF model drift and targeted ESLint PASS. Existing Angular optional-chain/style-budget warnings retained."
+      },
+      "nativeBrowser": "Owned synthetic fixture: review heading/editor focus, keyboard review, unchecked fresh assent, disabled confirm, Back retains reason, explicit Close restores trigger; console warnings/errors empty. Unsaved review screenshot /tmp/auditsphere-reopen-native-review.png. No native submission; fixture disposed and owned tab closed. Escape does not close this nonmodal section.",
+      "repairs": "E2E Angular-input attribute selector corrected; status asserts canonical data-status plus rendered open; keyboard confirmation waits until enabled/focused. Earlier failures retained in session logs; final targeted journey passed.",
+      "migration": "20261019044215_WorkflowTaskReopening extends activity constraint; downgrade refuses retained reopening evidence. Exercised only in isolated test schemas, not applied to shared/deployed DB.",
+      "limits": "No full local suite; full CI on older0b0b7241 remains API/E2E active, predates this slice. No live/provider/professional/full accessibility acceptance."
     }
   },
   "externalGates": [
@@ -1289,7 +1289,7 @@
     {
       "gate": "P10",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Full §47 real-tenant acceptance and professional sign-off"
+      "required": "Full \u00a747 real-tenant acceptance and professional sign-off"
     },
     {
       "gate": "M365-ADMIN",
@@ -1660,7 +1660,7 @@
       "ASPM-NFR-01..12",
       "ASPM-UAT-01..15"
     ],
-    "lastTechnicalSlice": "9b99b4f2f6644c91dabbed4677fa0c4ba63f8eda",
+    "lastTechnicalSlice": "a69ae19a58fd07e10519e7ad31db429c50717fc7",
     "advanceCashGate": {
       "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
       "result": "FOCUSED_INCREMENTAL_PASS",
