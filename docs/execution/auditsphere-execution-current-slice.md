@@ -19,9 +19,15 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
+
+The existing accessibility journey now checks both Tab-wrap boundaries and Escape focus restoration; focused and built-in-browser checks pass without changing a grant. Human screen-reader announcements and full supported-state acceptance remain open. See `targetedVerification.angularQuality.task07.roleDialogKeyboardFollowUp` in [status.json](status.json).
+
+Milestone issuance now retains draft, source reservation and link in one owned or ambient transaction. Automatic publication acquires the exclusive firm fence before client/target locks. Focused concurrency, rollback and standing-authority checks pass; broader payment and source-consumption acceptance remains open. Drain or epoch-fence old workers before rollout; no deployment occurred. Evidence: `targetedVerification.feeMilestoneAtomicity20261019`.
+
 ## Milestone invoice source identity (2026-10-19)
 
-New invoice numbers retain the full agreement identity so agreements sharing a UUID timestamp prefix do not block one another. Existing linked invoices and retained source allocations still recover their original numbers. Focused source/replay/legacy recovery and invoice role/mobile checks pass; the heading wraps long identities. Evidence and fixture limits are in `targetedVerification.feeInvoiceIdentity20261019` in [status.json](status.json). Full milestone concurrency and current-source release acceptance remain open.
+New invoice numbers retain the full agreement identity so agreements sharing a UUID timestamp prefix do not block one another. Existing linked invoices and retained source allocations still recover their original numbers. Focused source/replay/legacy recovery and invoice role/mobile checks pass; the heading wraps long identities. Evidence and fixture limits are in `targetedVerification.feeInvoiceIdentity20261019` in [status.json](status.json). The atomicity follow-up above covers the tested advance race; broader milestone/payment concurrency and current-source release acceptance remain open.
 
 ## Scope-bound workflow receipt recovery (2026-10-19)
 
@@ -57,9 +63,7 @@ Original cancellation evidence is retained in the [handoff history](auditsphere-
 
 ## Browser CI recovery and search interaction (2026-10-19)
 
-Reported planning/profile failures now register real response capture before navigation or reload, and scroll the deferred editor's actual trigger rather than its enclosing region. Existing role denials, exact receipt identities, field restoration and non-duplication checks remain. Invoice response bodies are captured before browser disposal; finding receipt diagnostics preserve any unresolved API-versus-client failure. The affected planning, invoice, review-point and finding cases pass focused reruns. The earlier resource-planning hang did not reproduce; body completion now has a bounded action-specific failure instead of an indefinite wait. These passes do not resolve the unexplained full-API runner shutdown or establish a full regression pass.
-
-A separate confirmed search defect retained an already-open Material suggestion panel over detailed results. The trigger is now explicitly closed on replacement, error and dismissal without changing scope or result navigation. The regression exercises the real Material panel; removing the closure makes it fail. Current checks and remaining human/full-CI gates are recorded in [status.json](status.json). The original search click and native built-in-browser destination now pass. A fresh full immutable-source run is active in GitHub Actions; API shutdown and prior hang causes remain unproven until broader verification.
+Focused repairs and retained diagnostics are in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and [status.json](status.json). Full API/E2E acceptance and the earlier runner shutdown/hang causes remain unproven.
 
 ## Accessibility records and CI failure repairs (2026-10-19)
 

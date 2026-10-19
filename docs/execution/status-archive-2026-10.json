@@ -20385,6 +20385,70 @@
       },
       "buildLint": "Production Angular build PASS /tmp/auditsphere-recovery-followup-angular-build.log; changed production TS/HTML ESLint PASS. Existing completion optional-chain and commercial style-budget warnings retained. Initial lint invocation included repo-ignored spec and was corrected to production scope; no rules changed.",
       "limits": "No full local suite, migrations, packages, deployed DB/provider/permission changes. Full current-source release, human AT and professional/external gates remain open."
+    },
+    "targetedVerification.feeInvoiceIdentity20261019BeforeAtomicity": {
+      "sourceCommit": "e94a24ea16cb52e9c1c8d2ddb07ebfeda3131ca5",
+      "result": "FOCUSED_PASS",
+      "behavior": "New milestone invoice numbers use full agreement identity instead of repeated UUIDv7 prefix. Existing links and source-allocation relinking retain old numbers. Invoice heading wraps full identity without truncation.",
+      "counterfactual": "New BillingTests.AdvanceInvoiceIdentity_UsesFullAgreementGuidAndRelinksLegacyDraft failed before fix: second same-prefix agreement returned Invoice identity is already used. /tmp/auditsphere-practice-guard-results/fee-invoice-identity-counterfactual.trx",
+      "domain": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/fee-invoice-identity-final.trx"
+      },
+      "e2e": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-a11y-results/invoice-full-identity-mobile.trx"
+      },
+      "verification": "Deterministic3agreement source fixture:2distinct new drafts/replays and legacy draft relink,1source allocation each. Existing invoice approval/post/send role journey retained and passed with full40character number and390px heading/no overflow. Angular build and targeted invoice.ts ESLint PASS; existing warnings retained.",
+      "browser": "Owned native tab52 showed exact full number and computed wrapping:anywhere; warn/error logs empty. /tmp/auditsphere-invoice-full-identity-native.png. Native viewport desktop;390px covered by E2E. No native mutation; fixture/tab disposed and release flag removed.",
+      "limits": "Proposal/quotation rows are draft source fixtures, not commercial acceptance proof. Dedicated number regression covers advances; no complete milestone concurrency, payment-reference, professional/live or current-source full release acceptance. Independent review was source-only."
+    },
+    "targetedVerification.angularQualityConsolidationKeyboardBeforeAtomicity20261019": {
+      "sourceCommit": "f14756bc6897acb4708abf6e34013ba1fef94166",
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityConsolidationFocusBeforeApprovedPair20261019",
+      "verification": "New approved external-pack/component pair journey PASS1/1; signed1200.123456/-1200.000000 and stored0.123456 difference retained; maker has no approval action; separate reviewer keyboard assent/approval; immutable source manifest unchanged, no journals/runs;390px bounded form/table.",
+      "trx": "/tmp/auditsphere-a11y-results/intercompany-approved-keyboard-final.trx",
+      "nativeBrowser": "Owned synthetic reviewer fixture: native Return collapses/expands retained details with focus retained; exact signed amounts, difference/reason and distinct identities visible; warn/error logs empty. Screenshot /tmp/auditsphere-intercompany-approved-native.png. No native mutation; temporary tab closed, fixture released/disposed.",
+      "initialFailure": "All assertions reached; optional handoff refused full paths instead of basenames. Corrected invocation reran same compiled method with no assertion/source change.",
+      "limits": "Approved external-pack component branch only, not every internal financial package state. Human AT/full-state, professional/live acceptance and full current-source CI remain open.",
+      "independentReview": "No source findings: real pack/component service approvals, signed arithmetic, distinct preparer/reviewer and before/after source manifest checked; reviewer did not execute tests."
+    },
+    "targetedVerification.angularQualitySamplingKeyboardBeforeAtomicity20261019": {
+      "sourceCommit": "423d7f578cf475a9e050a8d70d049561b663f17d",
+      "result": "FOCUSED_PASS",
+      "verification": "Existing exact attribute-sampling journey1/1 PASS using real Tab reachability, native result typeahead and Tab commitment, conditional exception fields,25.00 persisted exception and independent reviewer. All prior selection/provenance/replay assertions retained.",
+      "trx": "/tmp/auditsphere-a11y-results/sampling-native-keyboard-committed.trx",
+      "browser": "Owned current-source API54590; synthetic staff; native Tab -> Result, e -> Tab selects Exception and focuses Work performed; conditional exception/evidence/follow-up controls appear; no console errors. No item recorded interactively.",
+      "screenshot": "/tmp/auditsphere-sampling-native-result.png",
+      "testSetup": "Arrow keys did not commit the native option in this Mac environment; then a pre-Tab immediate field-count assertion ran before native change commitment. Both failed probes retained; final test commits through Tab and awaits the same four-field assertion without timeout changes.",
+      "limits": "Closes native option commitment only. Human AT and complete supported-state acceptance remain open. Owned fixture disposed and temporary tab closed."
+    },
+    "targetedVerification.fullRelease499BeforeAtomicity20261019": {
+      "runId": "39212902864",
+      "sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
+      "result": "IN_PROGRESS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39212902864",
+      "note": "499 source: Domain1387/1387, Angular/build/contracts PASS; API/E2E active. Predates invoice-identity fix; not current-source full acceptance.",
+      "domain": {
+        "result": "PASS",
+        "passed": 1387,
+        "failed": 0,
+        "skipped": 0,
+        "jobId": "117930626618",
+        "log": "/tmp/auditsphere-domain-full-49958048.log"
+      }
+    },
+    "targetedVerification.fastCiB207BeforeAtomicity20261019": {
+      "runId": "39214984953",
+      "sourceCommit": "b20770504cf798a5522dbaf770c25a377054699e",
+      "result": "FAST_CI_PASS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39214984953",
+      "note": "Docs, Angular and .NET Release passed; includes invoice identity fix. Predates role-dialog test and atomicity work; not full regression."
     }
   }
 }
