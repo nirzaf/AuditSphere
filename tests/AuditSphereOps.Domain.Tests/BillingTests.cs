@@ -6,6 +6,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -278,9 +279,11 @@ public sealed class BillingTests
     [
       Guid.Parse("a17f0c42-0000-7000-8000-000000000001"),
       Guid.Parse("a17f0c42-0000-7000-8000-000000000002"),
-      Guid.Parse("a17f0c42-0000-7000-8000-000000000003")
+      Guid.Parse("a17f0c42-0000-7000-8000-000000000003"),
+      Guid.Parse("a17f0c42-0000-7000-8000-000000000004"),
+      Guid.Parse("a17f0c42-0000-7000-8000-000000000005")
     ];
-    Assert.Equal(3, agreementIds.Distinct().Count());
+    Assert.Equal(5, agreementIds.Distinct().Count());
     Assert.Single(agreementIds.Select(id => id.ToString("N")[..8]).Distinct(StringComparer.OrdinalIgnoreCase));
 
     const decimal agreedFee = 1200m;
@@ -371,18 +374,99 @@ public sealed class BillingTests
     Assert.True(relinkReplay.Succeeded, relinkReplay.Message);
     Assert.Equal(legacyDraft.Value, relinkReplay.Value);
 
-    var invoiceIds = new[] { issuedInvoiceIds[0], issuedInvoiceIds[1], legacyDraft.Value };
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await blocker.Database.OpenConnectionAsync();
+    await using var gate = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {fixture.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+
+    await using var firstCommandDb = new AuditSphereDbContext(pg.Options);
+    await using var secondCommandDb = new AuditSphereDbContext(pg.Options);
+    using var commandTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+    await firstCommandDb.Database.OpenConnectionAsync(commandTimeout.Token);
+    await secondCommandDb.Database.OpenConnectionAsync(commandTimeout.Token);
+    var firstCommandPid = ((NpgsqlConnection)firstCommandDb.Database.GetDbConnection()).ProcessID;
+    var secondCommandPid = ((NpgsqlConnection)secondCommandDb.Database.GetDbConnection()).ProcessID;
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    var firstConcurrentIssue = FeeAgreementService.IssueAdvanceInvoiceAsync(firstCommandDb,
+      fixture.ManagerActor, agreementIds[3], commandTimeout.Token);
+    var secondConcurrentIssue = FeeAgreementService.IssueAdvanceInvoiceAsync(secondCommandDb,
+      fixture.ManagerActor, agreementIds[3], commandTimeout.Token);
+    using var observationTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    var bothCommandsBlocked = false;
+    CommandResult<Guid>[]? concurrentResults = null;
+    try
+    {
+      await observer.Database.OpenConnectionAsync(observationTimeout.Token);
+      while (!observationTimeout.IsCancellationRequested)
+      {
+        await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", observationTimeout.Token);
+        bothCommandsBlocked = await observer.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS waiting
+            WHERE waiting.datname = current_database()
+              AND waiting.pid = {firstCommandPid}
+              AND waiting.wait_event_type = 'Lock'
+              AND waiting.query ILIKE '%firm_safety_states%'
+              AND cardinality(pg_blocking_pids(waiting.pid)) > 0
+          ) AND EXISTS (
+            SELECT 1 FROM pg_stat_activity AS waiting
+            WHERE waiting.datname = current_database()
+              AND waiting.pid = {secondCommandPid}
+              AND waiting.wait_event_type = 'Lock'
+              AND waiting.query ILIKE '%firm_safety_states%'
+              AND cardinality(pg_blocking_pids(waiting.pid)) > 0
+          ) AS "Value"
+          """).SingleAsync(observationTimeout.Token);
+        if (bothCommandsBlocked) break;
+        await Task.Delay(TimeSpan.FromMilliseconds(25), observationTimeout.Token);
+      }
+    }
+    catch (OperationCanceledException) when (observationTimeout.IsCancellationRequested)
+    {
+      // Release the firm fence before asserting that PostgreSQL did not expose both blocked commands.
+    }
+    finally
+    {
+      await gate.RollbackAsync(CancellationToken.None);
+      try
+      {
+        concurrentResults = await Task.WhenAll(firstConcurrentIssue, secondConcurrentIssue)
+          .WaitAsync(TimeSpan.FromSeconds(20));
+      }
+      catch (TimeoutException)
+      {
+        commandTimeout.Cancel();
+        await Task.WhenAll(firstConcurrentIssue, secondConcurrentIssue).WaitAsync(TimeSpan.FromSeconds(5));
+        throw;
+      }
+    }
+
+    Assert.NotEqual(firstCommandPid, secondCommandPid);
+    Assert.True(bothCommandsBlocked,
+      "PostgreSQL did not show both commands waiting on the firm safety fence with active blockers.");
+    var concurrentOutcomes = concurrentResults ?? throw new InvalidOperationException(
+      "The bounded concurrent issue commands did not produce results.");
+    Assert.True(concurrentOutcomes[0].Succeeded, concurrentOutcomes[0].Message);
+    Assert.True(concurrentOutcomes[1].Succeeded, concurrentOutcomes[1].Message);
+    Assert.Equal(concurrentOutcomes[0].Value, concurrentOutcomes[1].Value);
+    var concurrentInvoiceId = concurrentOutcomes[0].Value;
+
+    var invoiceIds = new[] { issuedInvoiceIds[0], issuedInvoiceIds[1], legacyDraft.Value, concurrentInvoiceId };
     var invoices = await db.Invoices.AsNoTracking().Where(x => invoiceIds.Contains(x.Id)).ToListAsync();
-    Assert.Equal(3, invoices.Count);
+    Assert.Equal(4, invoices.Count);
     Assert.Equal($"AGR-{agreementIds[0].ToString("N").ToUpperInvariant()}-ADV",
       invoices.Single(x => x.Id == issuedInvoiceIds[0]).InvoiceNumber);
     Assert.Equal($"AGR-{agreementIds[1].ToString("N").ToUpperInvariant()}-ADV",
       invoices.Single(x => x.Id == issuedInvoiceIds[1]).InvoiceNumber);
     Assert.Equal(legacyNumber, invoices.Single(x => x.Id == legacyDraft.Value).InvoiceNumber);
-    Assert.Equal(3, invoices.Select(x => x.InvoiceNumber).Distinct(StringComparer.Ordinal).Count());
+    Assert.Equal($"AGR-{agreementIds[3].ToString("N").ToUpperInvariant()}-ADV",
+      invoices.Single(x => x.Id == concurrentInvoiceId).InvoiceNumber);
+    Assert.Equal(4, invoices.Select(x => x.InvoiceNumber).Distinct(StringComparer.Ordinal).Count());
 
-    var invoiceIdsByMilestone = new[] { issuedInvoiceIds[0], issuedInvoiceIds[1], legacyDraft.Value };
-    for (var index = 0; index < milestoneIds.Length; index++)
+    var invoiceIdsByMilestone = new[]
+      { issuedInvoiceIds[0], issuedInvoiceIds[1], legacyDraft.Value, concurrentInvoiceId };
+    for (var index = 0; index < invoiceIdsByMilestone.Length; index++)
     {
       var milestoneId = milestoneIds[index];
       var invoiceId = invoiceIdsByMilestone[index];
@@ -391,6 +475,63 @@ public sealed class BillingTests
       var milestone = await db.FeeMilestones.AsNoTracking().SingleAsync(x => x.Id == milestoneId);
       Assert.Equal(invoiceId, milestone.InvoiceId);
       Assert.Equal(FeeMilestoneStates.Invoiced, milestone.State);
+    }
+
+    var failedInvoiceNumber = $"AGR-{agreementIds[4].ToString("N").ToUpperInvariant()}-ADV";
+    var syntheticLinkFailure = new InvalidOperationException("Synthetic fee milestone link persistence failure.");
+    var failingOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(new RejectFeeMilestoneLink(milestoneIds[4], syntheticLinkFailure)).Options;
+    await using (var failingDb = new AuditSphereDbContext(failingOptions))
+    {
+      var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await FeeAgreementService.IssueAdvanceInvoiceAsync(failingDb, fixture.ManagerActor, agreementIds[4]));
+      Assert.Same(syntheticLinkFailure, thrown);
+    }
+
+    await using (var verifyRollback = new AuditSphereDbContext(pg.Options))
+    {
+      var failedMilestone = await verifyRollback.FeeMilestones.AsNoTracking()
+        .SingleAsync(x => x.Id == milestoneIds[4]);
+      Assert.Null(failedMilestone.InvoiceId);
+      Assert.Equal(FeeMilestoneStates.Planned, failedMilestone.State);
+      Assert.Equal(0, await verifyRollback.Invoices.CountAsync(x => x.FirmId == fixture.FirmId &&
+        x.InvoiceNumber == failedInvoiceNumber));
+      Assert.Equal(0, await verifyRollback.InvoiceLines.CountAsync(x => x.FirmId == fixture.FirmId &&
+        x.SourceKind == FeeAgreementService.MilestoneSourceKind && x.SourceId == milestoneIds[4] &&
+        x.SourceRevision == 1));
+      Assert.Equal(0, await verifyRollback.BillingSourceAllocations.CountAsync(x => x.FirmId == fixture.FirmId &&
+        x.SourceKind == FeeAgreementService.MilestoneSourceKind && x.SourceId == milestoneIds[4] &&
+        x.SourceRevision == 1));
+    }
+
+    await using var retryDb = new AuditSphereDbContext(pg.Options);
+    var retried = await FeeAgreementService.IssueAdvanceInvoiceAsync(retryDb, fixture.ManagerActor, agreementIds[4]);
+    Assert.True(retried.Succeeded, retried.Message);
+    var retriedMilestone = await retryDb.FeeMilestones.AsNoTracking().SingleAsync(x => x.Id == milestoneIds[4]);
+    Assert.Equal(retried.Value, retriedMilestone.InvoiceId);
+    Assert.Equal(FeeMilestoneStates.Invoiced, retriedMilestone.State);
+    Assert.Equal(1, await retryDb.Invoices.CountAsync(x => x.FirmId == fixture.FirmId &&
+      x.InvoiceNumber == failedInvoiceNumber));
+    Assert.Equal(1, await retryDb.InvoiceLines.CountAsync(x => x.FirmId == fixture.FirmId &&
+      x.SourceKind == FeeAgreementService.MilestoneSourceKind && x.SourceId == milestoneIds[4] &&
+      x.SourceRevision == 1));
+    Assert.Equal(1, await retryDb.BillingSourceAllocations.CountAsync(x => x.FirmId == fixture.FirmId &&
+      x.SourceKind == FeeAgreementService.MilestoneSourceKind && x.SourceId == milestoneIds[4] &&
+      x.SourceRevision == 1));
+  }
+
+  private sealed class RejectFeeMilestoneLink(Guid milestoneId, InvalidOperationException failure) : SaveChangesInterceptor
+  {
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+      DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      if (eventData.Context?.ChangeTracker.Entries<FeeMilestone>().Any(entry =>
+        entry.Entity.Id == milestoneId && entry.State == EntityState.Modified &&
+        entry.Property(x => x.InvoiceId).IsModified && entry.Property(x => x.InvoiceId).OriginalValue is null &&
+        entry.Entity.InvoiceId is not null && entry.Entity.State == FeeMilestoneStates.Invoiced) == true)
+        throw failure;
+
+      return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
   }
 

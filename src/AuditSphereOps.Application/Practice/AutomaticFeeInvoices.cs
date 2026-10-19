@@ -18,6 +18,7 @@ public sealed class AutomaticFeeInvoiceHandler(AutomaticFeeInvoicePolicy policy)
 {
   public const string Kind = "DraftContractFeeInvoice.v1";
   public OperationDefinition Definition { get; } = new(Kind, OperationMode.LOCAL, OperationAuthority.LOCAL_VALIDATION);
+  public bool RequiresExclusiveFirmLock => true;
 
   public string NormalizePayload(OperationRequest request)
   {

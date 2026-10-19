@@ -432,6 +432,8 @@ public sealed record WorkerOptions(Guid FirmId, string EnvironmentName = "Develo
 public interface IOperationHandler
 {
   OperationDefinition Definition { get; }
+  // Opt in when publication needs the firm fence exclusively; the store takes it before client and target locks.
+  bool RequiresExclusiveFirmLock => false;
   string NormalizePayload(OperationRequest request);
   // Called under firm/client guards, before locking the operation row.
   Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation operation, CancellationToken ct);

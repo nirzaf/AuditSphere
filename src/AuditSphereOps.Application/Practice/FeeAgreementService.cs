@@ -143,8 +143,26 @@ public static partial class FeeAgreementService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var milestone = await db.FeeMilestones.SingleAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == kind, ct);
-    if (milestone.InvoiceId.HasValue) return CommandResult<Guid>.Ok(milestone.InvoiceId.Value);
+
+    // Ambient callers must take the exclusive firm fence before client/target locks, as the invoice worker does.
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
+    agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == agreementId && x.FirmId == actor.FirmId, ct);
+    if (agreement is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var milestone = await db.FeeMilestones.FromSqlInterpolated($"SELECT * FROM fee_milestones WHERE firm_id = {actor.FirmId} AND agreement_id = {agreementId} AND kind = {kind} FOR UPDATE")
+      .SingleAsync(ct);
+    await db.FeeMilestones.Attach(milestone).ReloadAsync(ct);
+    if (milestone.InvoiceId.HasValue)
+    {
+      if (tx is not null) await tx.CommitAsync(ct);
+      return CommandResult<Guid>.Ok(milestone.InvoiceId.Value);
+    }
 
     if (kind == FeeMilestoneKinds.Balance)
     {
@@ -188,6 +206,7 @@ public static partial class FeeAgreementService
     milestone.InvoiceId = invoiceId;
     milestone.State = FeeMilestoneStates.Invoiced;
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(invoiceId);
   }
 

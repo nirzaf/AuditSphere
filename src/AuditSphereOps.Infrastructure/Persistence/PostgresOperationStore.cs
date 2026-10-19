@@ -25,11 +25,13 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     (NpgsqlConnection)db.Database.GetDbConnection(), (NpgsqlTransaction?)db.Database.CurrentTransaction?.GetDbTransaction());
 
   private static async Task<bool> GuardsAsync(IAuditSphereDbContext db, Guid firm, Guid? client,
-    long? epoch, CancellationToken ct)
+    long? epoch, CancellationToken ct, bool exclusiveFirmLock = false)
   {
     await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
-    var firms = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firm} FOR SHARE")
-      .AsNoTracking().ToListAsync(ct);
+    var firmGuard = exclusiveFirmLock
+      ? db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firm} FOR UPDATE")
+      : db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firm} FOR SHARE");
+    var firms = await firmGuard.AsNoTracking().ToListAsync(ct);
     if (firms.Count != 1 || firms[0].OperatingMode != "LOCAL_ONLY" ||
         (epoch.HasValue && firms[0].DeploymentEpoch != epoch.Value)) return false;
     if (client is null) return true;
@@ -227,7 +229,8 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     if (op.Status != (op.ExecutionMode == OperationMode.LOCAL ? OperationState.CLAIMED : OperationState.VERIFYING)) return false;
     await using var db = await factory.CreateAsync(ct);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    if (!await GuardsAsync(db, op.FirmId, op.ClientId, options.DeploymentEpoch, ct)) return false;
+    if (!await GuardsAsync(db, op.FirmId, op.ClientId, options.DeploymentEpoch, ct,
+          handler.RequiresExclusiveFirmLock)) return false;
     await handler.LockTargetAsync(db, op, ct);
     if (!await OwnsAsync(db, op, options, ct)) return false;
     if (!OperationEncoding.Matches(op, handler)) throw new OperationBlockedException("request-integrity-conflict");

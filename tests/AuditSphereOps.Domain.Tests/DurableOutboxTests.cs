@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics.Metrics;
 using System.Text.Json;
 using AuditSphereOps.Application.Diagnostics;
@@ -6,6 +7,7 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -87,6 +89,104 @@ public sealed class DurableOutboxTests
     var next = await h.ClaimAsync("d").WaitAsync(TimeSpan.FromSeconds(3));
     Assert.Equal(fourth, next!.Id);
     await tx.RollbackAsync();
+  }
+
+  [Fact]
+  public async Task ExclusiveFirmLock_CompletionsQueueAtFirmFenceAndBothPublish()
+  {
+    await using var h = await Harness.CreateAsync();
+    using var operationTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    var handler = new ExclusiveFirmLockProbeHandler();
+    var pidCapture = new CaptureFirmUpdatePids();
+    var completionOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(h.Pg.Options)
+      .AddInterceptors(pidCapture).Options;
+    var completionStore = new PostgresOperationStore(new OperationContextFactory(
+      new TestFactory(completionOptions)));
+
+    foreach (var key in new[] { "exclusive-first", "exclusive-second" })
+    {
+      await using var db = h.Db();
+      await using var tx = await db.Database.BeginTransactionAsync(operationTimeout.Token);
+      var request = h.Request with
+      {
+        Kind = handler.Definition.Kind,
+        IdempotencyKey = key,
+        PayloadJson = JsonSerializer.Serialize(new { value = key })
+      };
+      var enqueued = await h.Store.EnqueueAsync(db, request, handler, operationTimeout.Token);
+      Assert.True(enqueued.Succeeded, enqueued.Message);
+      await tx.CommitAsync(operationTimeout.Token);
+    }
+
+    var first = await h.Store.ClaimAsync(h.Options, [handler.Definition], "exclusive-first", false,
+      operationTimeout.Token);
+    var second = await h.Store.ClaimAsync(h.Options, [handler.Definition], "exclusive-second", false,
+      operationTimeout.Token);
+    Assert.NotNull(first);
+    Assert.NotNull(second);
+    Assert.NotEqual(first!.Id, second!.Id);
+
+    Task<bool>? firstCompletion = null;
+    Task<bool>? secondCompletion = null;
+    try
+    {
+      firstCompletion = completionStore.CompleteAsync(first, h.Options, handler, null, operationTimeout.Token);
+      var firstPid = await pidCapture.FirstFirmUpdateAttempt.Task.WaitAsync(TimeSpan.FromSeconds(5),
+        operationTimeout.Token);
+      await handler.FirstTargetLockReached.Task.WaitAsync(TimeSpan.FromSeconds(5), operationTimeout.Token);
+
+      secondCompletion = completionStore.CompleteAsync(second, h.Options, handler, null, operationTimeout.Token);
+      var secondPid = await pidCapture.SecondFirmUpdateAttempt.Task.WaitAsync(TimeSpan.FromSeconds(3),
+        operationTimeout.Token);
+      Assert.NotEqual(firstPid, secondPid);
+
+      await using var observer = h.Db();
+      using var blockingWait = CancellationTokenSource.CreateLinkedTokenSource(operationTimeout.Token);
+      blockingWait.CancelAfter(TimeSpan.FromSeconds(3));
+      var secondBlockedOnFirstFirmFence = false;
+      try
+      {
+        await WaitForFirmBlockingPidAsync(observer, secondPid, firstPid, blockingWait.Token);
+        secondBlockedOnFirstFirmFence = true;
+      }
+      catch (OperationCanceledException) when (!operationTimeout.IsCancellationRequested)
+      {
+        // The store's own lock timeout is longer; fail this probe while cleanup can still release both tasks.
+      }
+      Assert.True(secondBlockedOnFirstFirmFence,
+        "The second completion did not wait on the first completion's firm safety row lock.");
+
+      handler.ReleaseFirstTarget.TrySetResult();
+      var completed = await Task.WhenAll(firstCompletion!, secondCompletion!).WaitAsync(operationTimeout.Token);
+      Assert.All(completed, result => Assert.True(result));
+    }
+    finally
+    {
+      handler.ReleaseFirstTarget.TrySetResult();
+      operationTimeout.Cancel();
+      var running = new[] { firstCompletion, secondCompletion }.Where(task => task is not null)
+        .Cast<Task<bool>>().ToArray();
+      if (running.Length > 0)
+      {
+        try { await Task.WhenAll(running).WaitAsync(TimeSpan.FromSeconds(8)); }
+        catch { /* Cleanup must release/observe any in-flight completion without masking the assertion. */ }
+      }
+    }
+
+    var operationIds = new[] { first.Id, second.Id };
+    await using var verify = h.Db();
+    var completedOperations = await verify.DurableOperations.AsNoTracking()
+      .Where(operation => operationIds.Contains(operation.Id)).ToListAsync();
+    Assert.Equal(2, completedOperations.Count);
+    Assert.All(completedOperations, operation =>
+    {
+      Assert.Equal(OperationState.COMPLETED, operation.Status);
+      Assert.Equal(operation.Id.ToString("D"), operation.ResultIdentity);
+    });
+    Assert.Equal(2, await verify.OperationEvents.CountAsync(e =>
+      operationIds.Contains(e.OperationId) && e.Kind == "operation.completed.v1"));
+    Assert.Equal(0, await verify.Database.SqlQueryRaw<int>("SELECT count(*)::integer AS \"Value\" FROM simulated_effects")
+      .SingleAsync());
   }
 
   [Fact]
@@ -466,6 +566,94 @@ public sealed class DurableOutboxTests
 
   internal sealed class TestFactory(DbContextOptions<AuditSphereDbContext> options) : IDbContextFactory<AuditSphereDbContext>
   { public AuditSphereDbContext CreateDbContext() => new(options); }
+
+  private sealed class CaptureFirmUpdatePids : DbCommandInterceptor
+  {
+    private int attemptCount;
+    public TaskCompletionSource<int> FirstFirmUpdateAttempt { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<int> SecondFirmUpdateAttempt { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.Ordinal) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
+      {
+        var pid = ((NpgsqlConnection)command.Connection!).ProcessID;
+        switch (Interlocked.Increment(ref attemptCount))
+        {
+          case 1: FirstFirmUpdateAttempt.TrySetResult(pid); break;
+          case 2: SecondFirmUpdateAttempt.TrySetResult(pid); break;
+        }
+      }
+      return ValueTask.FromResult(result);
+    }
+  }
+
+  private sealed class ExclusiveFirmLockProbeHandler : IOperationHandler
+  {
+    private int firstTargetLock;
+    public OperationDefinition Definition { get; } = new("SyntheticExclusiveFirmLock.v1",
+      OperationMode.LOCAL, OperationAuthority.LOCAL_VALIDATION);
+    public bool RequiresExclusiveFirmLock => true;
+    public TaskCompletionSource FirstTargetLockReached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource ReleaseFirstTarget { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public string NormalizePayload(OperationRequest request) => request.PayloadJson;
+
+    public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation operation, CancellationToken ct)
+    {
+      var target = await db.Database.SqlQuery<Guid>($"""
+        SELECT id AS "Value" FROM simulated_targets
+        WHERE id = {operation.TargetId} AND firm_id = {operation.FirmId} FOR UPDATE
+        """).SingleAsync(ct);
+      if (target != operation.TargetId) throw new OperationBlockedException("exclusive-lock-target-changed", true);
+      if (Interlocked.CompareExchange(ref firstTargetLock, 1, 0) == 0)
+      {
+        FirstTargetLockReached.TrySetResult();
+        await ReleaseFirstTarget.Task.WaitAsync(ct);
+      }
+    }
+
+    public async Task<OperationResult> PublishAsync(IAuditSphereDbContext db, DurableOperation operation,
+      OperationResult? verifiedRemoteResult, CancellationToken ct)
+    {
+      if (verifiedRemoteResult is not null)
+        throw new OperationBlockedException("local-lock-probe-received-remote-result");
+      _ = await db.Database.SqlQuery<Guid>($"""
+        SELECT id AS "Value" FROM firm_safety_states WHERE id = {operation.FirmId} FOR UPDATE
+        """).SingleAsync(ct);
+      return new(operation.Id.ToString("D"), Hashing.Sha256Hex("exclusive-firm-lock:" + operation.TargetId));
+    }
+
+    public Task<OperationResult> ExecuteEffectAsync(DurableOperation operation, CancellationToken ct) =>
+      throw new InvalidOperationException("The local lock probe has no external effect.");
+
+    public Task<OperationResult> ReconcileAsync(DurableOperation operation, CancellationToken ct) =>
+      throw new InvalidOperationException("The local lock probe has no remote result to reconcile.");
+  }
+
+  private static async Task WaitForFirmBlockingPidAsync(AuditSphereDbContext observer, int waitingPid, int blockingPid,
+    CancellationToken cancellationToken)
+  {
+    while (true)
+    {
+      await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", cancellationToken);
+      var blocked = await observer.Database.SqlQuery<bool>($"""
+        SELECT EXISTS (
+          SELECT 1 FROM pg_stat_activity AS waiting
+          WHERE waiting.datname = current_database()
+            AND waiting.pid = {waitingPid}
+            AND waiting.wait_event_type = 'Lock'
+            AND waiting.query ILIKE '%firm_safety_states%'
+            AND {blockingPid} = ANY(pg_blocking_pids(waiting.pid))
+        ) AS "Value"
+        """).SingleAsync(cancellationToken);
+      if (blocked) return;
+      await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+    }
+  }
 
   internal sealed class ProbeHandler(IAuditSphereDbContextFactory factory) : IOperationHandler
   {
