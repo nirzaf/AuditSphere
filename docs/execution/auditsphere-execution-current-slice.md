@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Accessibility reflow and CI follow-up (2026-10-19)
+
+Current-source navigation dialog keyboard and narrow-layout observations, the focused E2E response-capture repair, and CI run pointers are recorded in [status.json](status.json). Fast CI passed and the exact-source full release run is underway. The in-app browser validated responsive reflow at narrow effective viewport widths; it could not set native browser zoom, so the 200%/400% zoom checklist remains open. Human screen-reader review and business-screen accessibility also remain open; the local API served a mismatched Portfolio response.
+
 ## Mobile navigation accessibility follow-up (2026-10-19)
 
 The compact navigation dialog now explicitly exposes modal semantics, and its close button uses a foreground that meets contrast on the dark surface. The focused navigation spec passes 11/11. In the built-in browser, 320px reflow, dialog naming/background hiding, focus entry and wrapping, Escape closure/focus restoration, and contrast (6.70:1 active link, 12.02:1 other links, 17.06:1 close button) were observed; 640px reflow has no horizontal overflow. Evidence is in `targetedVerification.angularQuality.task07.browserFollowUp20261019` in [status.json](status.json).
