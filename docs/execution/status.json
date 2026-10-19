@@ -1175,8 +1175,20 @@
         },
         "olderFull": {
           "runId": 39248636107,
-          "result": "INCOMPLETE_RUNNER_TERMINATION",
-          "observed": "API runner shut down exit143 without final summary;213 passed records do not establish suite pass. Domain/Angular/build passed, E2E still running at inspection. Job-only rerun refused by GitHub. New current-source full verification pending dispatch."
+          "result": "SUPERSEDED_CANCELLED_AFTER_RUNNER_FAILURE",
+          "observed": "API runner terminated exit143 without final summary;213 passed records are not suite pass. Domain/Angular/build passed. Remaining E2E cancelled only after replacement39266247908 resolved the correct full SHA and started. Job-only rerun refused."
+        },
+        "currentFast": {
+          "runId": 39266065896,
+          "sourceCommit": "5b907e346ed038c1d8ca215e8c0fb518549b18f9",
+          "result": "IN_PROGRESS",
+          "observed": "Docs and Angular passed; .NET Release running. Not full regression acceptance."
+        },
+        "currentFull": {
+          "runId": 39266247908,
+          "sourceCommit": "5b907e346ed038c1d8ca215e8c0fb518549b18f9",
+          "result": "IN_PROGRESS",
+          "observed": "Correct full SHA resolved; Angular stage running. Earlier39266069176 failed before test execution because abbreviated SHA was interpreted as a branch. Resubmitted using full SHA; no tests skipped or weakened."
         }
       },
       "remaining": "Whole-product accessibility, legal/template DEC-02, fee-plan DEC-06, professional/human AT/provider acceptance and full release remain open."
