@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { afterNextRender, Component, DestroyRef, effect, ElementRef, HostListener, inject, Injector, signal, untracked, viewChild } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, RouterLink } from '@angular/router';
 import { Api, CommandState } from '../../core/api';
 import { arr, bool, date, guid, instant, int, nullable, obj, oneOf, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
@@ -71,6 +71,22 @@ const decodeQueue = obj({
   nextCursor: nullable(obj({ dueDate: nullable(date), taskId: guid })),
   summary: nullable(decodeQueueSummary),
 });
+type ReminderTaskSelection = { engagementId: string; taskId: string };
+const reminderTaskRow = obj({
+  id: guid, title: nonBlank(300), phase: nonBlank(40), ordinal: int, status: nonBlank(40),
+  assigneeUserId: nullable(guid), assigneeDisplayName: nullable(str(200)), assignedRole: nullable(str(100)),
+  dueDate: nullable(date), revision: int,
+});
+const reminderTaskWorkspaceShape = obj({ engagementId: guid, tasks: arr(reminderTaskRow, 500), truncated: bool });
+type ReminderTaskRow = ReturnType<typeof reminderTaskRow>;
+function decodeReminderTaskWorkspace(value: unknown, path: string, selection: ReminderTaskSelection | null): ReminderTaskRow {
+  const workspace = reminderTaskWorkspaceShape(value, path);
+  const task = workspace.tasks[0];
+  if (!selection || workspace.engagementId.toLowerCase() !== selection.engagementId || workspace.truncated ||
+      workspace.tasks.length !== 1 || task.id.toLowerCase() !== selection.taskId)
+    throw new Error(`${path || 'task'}: selected task does not match the current reminder link`);
+  return task;
+}
 const decodeAssigneeOptions = arr(obj({ userId: guid, displayName: nonBlank(200) }), 200);
 type AssignmentIntent = { task: QueueTask; owner: { userId: string; displayName: string }; action: 'assign' | 'reassign'; scope: string };
 type AssignmentObservation = ReturnType<typeof decodeWorkflowTaskWorkspace>['tasks'][number];
@@ -168,6 +184,51 @@ const queueViews: { key: QueueView; label: string }[] = [
       }
     </section>
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="work queue" />
+    @if (reminderTaskLinkError()) { <p role="alert">{{ reminderTaskLinkError() }}</p> }
+    @if (reminderTaskSelection(); as selection) {
+      <section class="activity-panel" aria-labelledby="reminder-task-heading">
+        <h2 id="reminder-task-heading" tabindex="-1">Task selected from deadline reminder</h2>
+        @if (reminderTask.loading()) { <p role="status">Loading the exact selected task.</p> }
+        @if (reminderTask.error()) { <p role="alert">{{ reminderTask.error() }}</p> }
+        @if (reminderTask.data(); as selected) {
+          <dl class="facts">
+            <dt>Task</dt><dd>{{ selected.title }} · {{ selected.id }}</dd>
+            <dt>Engagement</dt><dd>{{ selection.engagementId }}</dd>
+            <dt>Phase</dt><dd>{{ selected.phase }} · #{{ selected.ordinal }}</dd>
+            <dt>Due date</dt><dd>{{ selected.dueDate ?? 'No due date' }}</dd>
+            <dt>Owner</dt><dd>{{ selected.assigneeDisplayName ?? selected.assigneeUserId ?? 'Unassigned' }}</dd>
+            <dt>Status</dt><dd><audit-status [value]="selected.status" /> · revision {{ selected.revision }}</dd>
+          </dl>
+          @if (reminderQueueTask(); as task) {
+            @if (task.canChangeDueDate || task.canComplete || task.canCancel || (task.canReopen && task.taskStatus === 'CANCELLED') || task.canAssign) {
+              <div role="group" aria-label="Actions authorized by the current work queue">
+                @if (task.canChangeDueDate) {
+                  <label class="sr-only" [attr.for]="'reminder-due-date-' + task.taskId">Due date for {{ task.title }}</label>
+                  <input [id]="'reminder-due-date-' + task.taskId" type="date" [value]="task.dueDate ?? ''" #reminderDueDate />
+                  <button matButton (click)="changeDueDate(task.engagementId, task.taskId, task.revision, reminderDueDate.value)">Save date</button>
+                }
+                @if (task.canComplete) {
+                  <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button>
+                }
+                @if (task.canCancel) {
+                  <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
+                    (click)="openCancellation(task, $event)">Cancel task</button>
+                }
+                @if (task.canReopen && task.taskStatus === 'CANCELLED') {
+                  <button matButton [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
+                    (click)="openReopening(task, $event)">Reopen task</button>
+                }
+                @if (task.canAssign) { <button matButton (click)="openAssignment(task)">{{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}</button> }
+              </div>
+            } @else {
+              <p role="status">The selected task is read-only; the current queue has no authorized action for it.</p>
+            }
+          } @else {
+            <p role="status">The selected task is read-only because no currently loaded queue row matches its current status and revision.</p>
+          }
+        }
+      </section>
+    }
     @if (selectedView() !== 'MY_TASKS') {
       <label>Task assignment
         <select [value]="ownerFilter()" (change)="selectOwnerFilter($any($event.target).value)">
@@ -319,12 +380,12 @@ const queueViews: { key: QueueView; label: string }[] = [
       }
       @if (evidenceTask(); as selected) {
         <audit-workflow-task-evidence [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
-          (changed)="queue.reload(); activity.reload()" />
+          (changed)="refreshTaskWorkspaces(); activity.reload()" />
         <button matButton (click)="evidenceTask.set(null)">Close prerequisites</button>
       }
       @if (orderingTask(); as selected) {
         <audit-workflow-task-dependencies [engagementId]="selected.engagementId" [taskId]="selected.taskId" [title]="selected.title"
-          (changed)="queue.reload(); activity.reload()" />
+          (changed)="refreshTaskWorkspaces(); activity.reload()" />
         <button matButton (click)="orderingTask.set(null)">Close task ordering</button>
       }
       @if (assignmentTask(); as selected) {
@@ -415,6 +476,7 @@ const queueViews: { key: QueueView; label: string }[] = [
 export class WorkflowWorkQueue {
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
+  private readonly route = inject(ActivatedRoute);
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderInjector = inject(Injector);
   private readonly cancellationPanel = viewChild(WorkflowTaskCancellationPanel);
@@ -427,6 +489,8 @@ export class WorkflowWorkQueue {
   readonly board = boardColumns;
   readonly calendar = queueCalendar;
   readonly selectedView = signal<QueueView>('MY_TASKS');
+  readonly reminderTaskSelection = signal<ReminderTaskSelection | null>(null);
+  readonly reminderTaskLinkError = signal('');
   readonly activityTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly orderingTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly evidenceTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
@@ -469,6 +533,13 @@ export class WorkflowWorkQueue {
     }
     return `/api/ui/work/tasks?${params.toString()}`;
   }, decodeQueue, 'The work queue is unavailable in your current scope or is not enabled on this server.');
+  readonly reminderTask = this.api.resource(() => {
+    const selection = this.reminderTaskSelection();
+    return selection
+      ? `/api/ui/engagements/${selection.engagementId}/workflow/tasks?taskId=${encodeURIComponent(selection.taskId)}`
+      : null;
+  }, (value, path) => decodeReminderTaskWorkspace(value, path, this.reminderTaskSelection()),
+  'The selected task is unavailable in your current authorized scope.');
   readonly reviews = this.api.resource(() => {
     const params = new URLSearchParams({ pageSize: '50' });
     const after = this.reviewCursor();
@@ -492,6 +563,7 @@ export class WorkflowWorkQueue {
   readonly command = new CommandState(this.api);
 
   constructor() {
+    const routeSubscription = this.route.queryParamMap.subscribe(params => this.readReminderTaskSelection(params));
     effect(() => {
       this.session.invalidation(); this.session.current();
       untracked(() => {
@@ -499,7 +571,10 @@ export class WorkflowWorkQueue {
         this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null; this.resetAssignment();
       });
     });
-    inject(DestroyRef).onDestroy(() => { this.assignmentDestroyed = true; this.workQueueDestroyed = true; ++this.assignmentRequest; });
+    inject(DestroyRef).onDestroy(() => {
+      routeSubscription.unsubscribe();
+      this.assignmentDestroyed = true; this.workQueueDestroyed = true; ++this.assignmentRequest;
+    });
     effect(() => {
       const ordering = this.orderingTask(); const page = this.queue.data();
       if (ordering && !page?.tasks.some(x => x.taskId === ordering.taskId && x.engagementId === ordering.engagementId)) this.orderingTask.set(null);
@@ -515,6 +590,51 @@ export class WorkflowWorkQueue {
 
   labelFor(value: string): string {
     return this.views.find(x => x.key === value)?.label ?? 'Work';
+  }
+
+  refreshTaskWorkspaces(): void {
+    this.queue.reload();
+    this.refreshReminderTask();
+  }
+
+  private refreshReminderTask(): void {
+    if (this.reminderTaskSelection()) this.reminderTask.reload();
+  }
+
+  reminderQueueTask(): QueueTask | null {
+    const selected = this.reminderTaskSelection();
+    const currentTask = selected ? this.reminderTask.data() : null;
+    return selected && currentTask ? this.queue.data()?.tasks.find(task =>
+      task.engagementId.toLowerCase() === selected.engagementId && task.taskId.toLowerCase() === selected.taskId &&
+      task.taskStatus === currentTask.status && task.revision === currentTask.revision) ?? null : null;
+  }
+
+  private readReminderTaskSelection(params: ParamMap): void {
+    const engagementIds = params.getAll('engagementId');
+    const taskIds = params.getAll('taskId');
+    if (engagementIds.length === 0 && taskIds.length === 0) {
+      this.reminderTaskLinkError.set('');
+      this.reminderTaskSelection.set(null);
+      return;
+    }
+    if (engagementIds.length !== 1 || taskIds.length !== 1) {
+      this.reminderTaskSelection.set(null);
+      this.reminderTaskLinkError.set('This task link is invalid. Open the reminder again.');
+      return;
+    }
+    try {
+      const next = {
+        engagementId: guid(engagementIds[0], 'engagementId').toLowerCase(),
+        taskId: guid(taskIds[0], 'taskId').toLowerCase(),
+      };
+      this.reminderTaskLinkError.set('');
+      const current = this.reminderTaskSelection();
+      if (current?.engagementId === next.engagementId && current.taskId === next.taskId) return;
+      this.reminderTaskSelection.set(next);
+    } catch {
+      this.reminderTaskSelection.set(null);
+      this.reminderTaskLinkError.set('This task link is invalid. Open the reminder again.');
+    }
   }
 
   /** Groups an exact count string for display without converting it to a number. */
@@ -624,7 +744,7 @@ export class WorkflowWorkQueue {
   }
 
   cancellationChanged(): void {
-    this.queue.reload();
+    this.refreshTaskWorkspaces();
   }
 
   reviewCancellationActivity(task: QueueTask): void {
@@ -641,7 +761,7 @@ export class WorkflowWorkQueue {
     this.cancellationTask.set(null);
     this.cancellationAction.set('cancel');
     this.cancellationTrigger = null;
-    this.queue.reload();
+    this.refreshTaskWorkspaces();
     if (sameTask && alreadyAtFirstPage) this.activity.reload();
     afterNextRender(() => {
       if (this.workQueueDestroyed || owner !== this.sessionOwnerKey() || interaction !== this.focusInteraction ||
@@ -652,7 +772,7 @@ export class WorkflowWorkQueue {
   }
 
   refreshCancellationQueue(): void {
-    this.queue.reload();
+    this.refreshTaskWorkspaces();
   }
 
   private sessionOwnerKey(): string {
@@ -726,20 +846,21 @@ export class WorkflowWorkQueue {
     if (outcome.ok) {
       this.resetAssignment();
       this.assignmentMessage.set(`Task assigned to ${owner.displayName}.`);
-      this.queue.reload(); this.activity.reload();
+      this.refreshTaskWorkspaces(); this.activity.reload();
       return;
     }
     this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.message);
     if (outcome.unknown || retry) {
       this.assignmentUncertain.set(true); this.assignmentReviewed.set(false);
       this.assignmentMessage.set('The original assignment remains unconfirmed. Check the current task and its activity before retrying or choosing another owner.');
+      this.refreshReminderTask();
     } else if (outcome.status === 409 || /stale|revision/i.test(outcome.code)) {
       this.resetAssignment();
       this.assignmentFailed.set(true);
-      this.queue.reload(); this.activity.reload();
+      this.refreshTaskWorkspaces(); this.activity.reload();
       this.assignmentMessage.set('The task changed before assignment. The queue has been refreshed; reopen it and review the current owner and revision.');
     } else if (outcome.status === 403) {
-      this.resetAssignment(); this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.message); this.queue.reload();
+      this.resetAssignment(); this.assignmentFailed.set(true); this.assignmentMessage.set(outcome.message); this.refreshTaskWorkspaces();
     } else {
       this.assignmentIntent = null; this.assignmentReviewed.set(false);
     }
@@ -768,7 +889,12 @@ export class WorkflowWorkQueue {
         : 'The task still has its original revision. An explicit retry uses the exact original owner and revision, so the server can refuse a concurrent change.');
     } catch (error) {
       if (this.assignmentCurrent(scope, request)) this.assignmentError.set(error instanceof Error ? error.message : 'Current assignment could not be verified.');
-    } finally { if (this.assignmentCurrent(scope, request)) this.assignmentLoading.set(false); }
+    } finally {
+      if (this.assignmentCurrent(scope, request)) {
+        this.assignmentLoading.set(false);
+        this.refreshReminderTask();
+      }
+    }
   }
 
   canRetryAssignment(): boolean {
@@ -787,23 +913,19 @@ export class WorkflowWorkQueue {
     if (!intent || intent.scope !== this.assignmentScope() || !this.assignmentUncertain() || this.assignmentBusy() ||
         !observed || observed.revision <= intent.task.revision) return;
     const owner = observed.assigneeDisplayName ?? observed.assigneeUserId ?? 'Unassigned';
-    this.resetAssignment(); this.queue.reload(); this.activity.reload();
+    this.resetAssignment(); this.refreshTaskWorkspaces(); this.activity.reload();
     this.assignmentMessage.set(`Observed assignment to ${owner} at revision ${observed.revision} acknowledged. Review the refreshed queue before another change.`);
   }
 
   changeDueDate(engagementId: string, taskId: string, revision: number, dueDate: string): void {
     this.command.run(`/api/ui/engagements/${engagementId}/workflow/tasks/${taskId}/due-date`,
-      { dueDate: dueDate || null, expectedRevision: revision }, 'Task due date updated.', () => {
-        this.queue.reload();
-        this.activity.reload();
-      }).finally(this.queue.reload);
+      { dueDate: dueDate || null, expectedRevision: revision }, 'Task due date updated.', () => this.activity.reload())
+      .finally(() => this.refreshTaskWorkspaces());
   }
 
   complete(engagementId: string, taskId: string, revision: number): void {
     this.command.run(`/api/ui/engagements/${engagementId}/workflow/tasks/${taskId}/complete`,
-      { expectedRevision: revision }, 'Task completed.', () => {
-        this.queue.reload();
-        this.activity.reload();
-      }).finally(this.queue.reload);
+      { expectedRevision: revision }, 'Task completed.', () => this.activity.reload())
+      .finally(() => this.refreshTaskWorkspaces());
   }
 }

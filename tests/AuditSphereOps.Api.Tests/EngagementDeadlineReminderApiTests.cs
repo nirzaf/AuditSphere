@@ -51,12 +51,12 @@ public sealed class EngagementDeadlineReminderApiTests
     Assert.Equal("TASK_DUE", reminder.Kind);
     Assert.Equal(dueDate, reminder.DueDate);
     Assert.Equal("UPCOMING", reminder.Tone);
-    Assert.Equal("/app/work", reminder.SourceHref);
+    Assert.Equal($"/app/work?engagementId={f.EngagementId:D}&taskId={taskId:D}", reminder.SourceHref);
     var overdueReminder = Assert.Single(firstBody.Items, x => x.SourceId == overdueTaskId);
     Assert.Equal("TASK_DUE", overdueReminder.Kind);
     Assert.Equal(overdueDate, overdueReminder.DueDate);
     Assert.Equal("OVERDUE", overdueReminder.Tone);
-    Assert.Equal("/app/work", overdueReminder.SourceHref);
+    Assert.Equal($"/app/work?engagementId={f.EngagementId:D}&taskId={overdueTaskId:D}", overdueReminder.SourceHref);
     using var repeat = await client.GetAsync(path);
     Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
     Assert.Equal(HttpStatusCode.MethodNotAllowed, (await client.PostAsync(path, JsonContent.Create(new { }))).StatusCode);

@@ -12,16 +12,22 @@ const userId = '33333333-3333-4333-8333-333333333333';
 const firmId = '44444444-4444-4444-8444-444444444444';
 const route = (id = engagementId) => `/api/ui/engagements/${id}/deadline-reminders`;
 
-const row = (overrides: Record<string, unknown> = {}) => ({
-  sourceId: '55555555-5555-4555-8555-555555555555',
-  kind: 'TASK_DUE',
-  title: 'Prepare planning memo',
-  dueDate: '2026-10-16',
-  tone: 'UPCOMING',
-  message: 'Task is due within 7 days.',
-  sourceHref: '/app/work',
-  ...overrides,
-});
+const taskHref = (engagement = engagementId, task = '55555555-5555-4555-8555-555555555555') =>
+  `/app/work?engagementId=${engagement}&taskId=${task}`;
+const row = (overrides: Record<string, unknown> = {}) => {
+  const sourceId = typeof overrides['sourceId'] === 'string' ? overrides['sourceId'] : '55555555-5555-4555-8555-555555555555';
+  const kind = typeof overrides['kind'] === 'string' ? overrides['kind'] : 'TASK_DUE';
+  return {
+    sourceId,
+    kind,
+    title: 'Prepare planning memo',
+    dueDate: '2026-10-16',
+    tone: 'UPCOMING',
+    message: 'Task is due within 7 days.',
+    sourceHref: overrides['sourceHref'] ?? (kind === 'TASK_DUE' ? taskHref(engagementId, sourceId) : `/app/engagements/${engagementId}/audit-plan`),
+    ...overrides,
+  };
+};
 
 const response = (id = engagementId, items: unknown[] = [], truncated = false) => ({
   engagementId: id,
@@ -72,6 +78,13 @@ describe('Engagement deadline reminders', () => {
     expect(fixture.nativeElement.textContent).toContain('As of 2026-10-15 (UTC). Reminders do not clear workflow gates.');
     expect(fixture.nativeElement.textContent).toContain('Prepare planning memo');
     expect(fixture.nativeElement.textContent).toContain('2026-10-16');
+    const taskLink = fixture.nativeElement.querySelector('a') as HTMLAnchorElement;
+    const target = new URL(taskLink.href);
+    expect(target.pathname).toBe('/app/work');
+    expect([...target.searchParams.entries()]).toEqual([
+      ['engagementId', engagementId], ['taskId', row().sourceId],
+    ]);
+    expect(taskLink.textContent?.trim()).toBe('Open task');
 
     component.refresh();
     http.expectOne(route()).flush(response());
@@ -160,7 +173,7 @@ describe('Engagement deadline reminders', () => {
     expect(second.cancelled).toBe(true);
     expect(component.reminders.data()).toBeNull();
     const current = http.expectOne(route(otherEngagementId));
-    current.flush(response(otherEngagementId, [row()]));
+    current.flush(response(otherEngagementId, [row({ sourceHref: taskHref(otherEngagementId) })]));
     TestBed.tick();
     expect(component.reminders.data()?.engagementId).toBe(otherEngagementId);
     http.expectNone(request => request.method !== 'GET');
@@ -172,6 +185,10 @@ describe('Engagement deadline reminders', () => {
     expect(() => decodeEngagementDeadlineReminders(response(engagementId, [row({ dueDate: '2026-02-31' })]), engagementId)).toThrow();
     expect(() => decodeEngagementDeadlineReminders(response(engagementId, [row({ kind: 'UNKNOWN' })]), engagementId)).toThrow();
     expect(() => decodeEngagementDeadlineReminders(response(engagementId, [row({ sourceHref: 'https://example.test' })]), engagementId)).toThrow();
+    expect(() => decodeEngagementDeadlineReminders(response(engagementId,
+      [row({ sourceHref: taskHref(otherEngagementId) })]), engagementId)).toThrow();
+    expect(() => decodeEngagementDeadlineReminders(response(engagementId,
+      [row({ sourceHref: taskHref(engagementId, '66666666-6666-4666-8666-666666666666') })]), engagementId)).toThrow();
     expect(() => decodeEngagementDeadlineReminders(response(engagementId, Array.from({ length: 51 }, () => row())), engagementId)).toThrow();
   });
 });

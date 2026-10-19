@@ -116,7 +116,8 @@ public static class EngagementDeadlineReminderQuery
     {
       var dueDate = task.DueDate!.Value;
       var (tone, message) = TaskTone(dueDate, today);
-      reminders.Add(new(task.Id, "TASK_DUE", task.Title, dueDate, tone, message, "/app/work"));
+      reminders.Add(new(task.Id, "TASK_DUE", task.Title, dueDate, tone, message,
+        $"/app/work?engagementId={engagementId:D}&taskId={task.Id:D}"));
     }
 
     reminders.AddRange(clientWaitRows.Select(row => new EngagementDeadlineReminder(

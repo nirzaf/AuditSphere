@@ -1,5 +1,5 @@
 import { Component, DestroyRef, inject, input } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
@@ -71,7 +71,7 @@ export function decodeEngagementDeadlineReminders(
     if (isClientWait !== (reminder.dueDate === null) || isClientWait !== (reminder.tone === 'PENDING'))
       throw new Error('Deadline reminder date and tone do not match its kind.');
     const expectedHref = reminder.kind === 'TASK_DUE'
-      ? '/app/work'
+      ? `/app/work?engagementId=${engagementId}&taskId=${reminder.sourceId.toLowerCase()}`
       : isClientWait
         ? `/app/engagements/${engagementId}/pbc`
         : `/app/engagements/${engagementId}/audit-plan`;
@@ -114,7 +114,9 @@ function assertDateOnly(value: string, field: string): void {
                 <span> · {{ reminder.tone }}</span>
                 <p>{{ reminder.dueDate ?? 'No date' }}</p>
                 <p>{{ reminder.message }}</p>
-                <a [routerLink]="reminder.sourceHref">Open reminder source</a>
+                <a [routerLink]="router.parseUrl(reminder.sourceHref)">
+                  {{ reminder.kind === 'TASK_DUE' ? 'Open task' : 'Open reminder source' }}
+                </a>
               </li>
             }
           </ul>
@@ -131,6 +133,7 @@ export class EngagementReminders {
 
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
+  readonly router = inject(Router);
   readonly reminders = this.api.resource(
     () => {
       const id = this.engagementId()?.toLowerCase();

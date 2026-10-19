@@ -108,6 +108,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { SessionService } from '../../core/session';
 import { WorkflowWorkQueue } from './work-queue';
 import { WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
@@ -150,6 +151,12 @@ describe('workflow queue assignment filters', () => {
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
     canComplete: false, canChangeDueDate: false, canAssign: true, canCancel: false, canReopen: false, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
   };
+  const reminderWorkspace = (id: string, title: string, revision: number, status: string, engagementId = task.engagementId) => ({
+    engagementId, truncated: false,
+    tasks: [{ id, title, phase: task.phase, ordinal: task.ordinal, status,
+      assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, assignedRole: null,
+      dueDate: task.dueDate, revision }],
+  });
   const cancelableTask = { ...task, canCancel: true };
   const reopenableTask = { ...task, taskStatus: 'CANCELLED', canCancel: false, canReopen: true };
   const legacyTask = Object.fromEntries(Object.entries(task).filter(([key]) => key !== 'canCancel' && key !== 'canReopen'));
@@ -968,5 +975,104 @@ describe('workflow queue assignment filters', () => {
       expect(component.assignmentMessage()).toContain('Concurrent owner at revision 2 acknowledged');
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('opens the exact reminder task read-only until a queue row matches its current revision and status', async () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
+      provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
+      provideHttpClient(), provideHttpClientTesting(),
+    ] });
+    TestBed.inject(SessionService).current.set({ userId: task.assigneeUserId!, firmId: task.assigneeUserId!, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    const workspaceUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${task.taskId}`;
+    try {
+      const component = await harness.navigateByUrl(
+        `/app/work?engagementId=${task.engagementId}&taskId=${task.taskId}`, WorkflowWorkQueue);
+      const host = harness.routeNativeElement!;
+      const selectedPanel = () => host.querySelector<HTMLElement>('section[aria-labelledby="reminder-task-heading"]')!;
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      http.expectOne(workspaceUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision, task.taskStatus));
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+
+      expect(component.selectedView()).toBe('MY_TASKS');
+      expect(host.textContent).toContain('Task selected from deadline reminder');
+      expect(host.textContent).toContain(task.title);
+      expect(host.textContent).toContain('The selected task is read-only');
+      expect([...selectedPanel().querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
+
+      component.selectView('TEAM'); TestBed.tick();
+      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true'))
+        .flush({ view: 'TEAM', tasks: [{ ...task, revision: task.revision + 1, canComplete: true }],
+          hasMore: false, nextCursor: null, summary: summary() });
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      expect(selectedPanel().textContent).toContain('no currently loaded queue row matches its current status and revision');
+      expect([...selectedPanel().querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
+
+      component.selectView('MY_TASKS'); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      component.selectView('TEAM'); TestBed.tick();
+      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true'))
+        .flush({ view: 'TEAM', tasks: [{ ...task, canComplete: true }], hasMore: false, nextCursor: null, summary: summary() });
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      const completeButton = [...selectedPanel().querySelectorAll<HTMLButtonElement>('button')]
+        .find(button => button.textContent?.trim() === 'Complete task')!;
+      expect(completeButton).toBeTruthy();
+      completeButton.click();
+      const completion = http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/complete`);
+      expect(completion.request.body).toEqual({ expectedRevision: task.revision });
+      completion.flush({ value: true });
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true'))
+        .flush({ view: 'TEAM', tasks: [{ ...task, taskStatus: 'COMPLETED', revision: task.revision + 1,
+          canComplete: false, canChangeDueDate: false, canAssign: false }], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne(workspaceUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision + 1, 'COMPLETED'));
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      expect(selectedPanel().querySelector('audit-status .status-chip')?.textContent?.trim()).toBe('completed');
+      expect(selectedPanel().textContent).toContain(`revision ${task.revision + 1}`);
+      expect([...selectedPanel().querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
+      http.verify({ ignoreCancelled: true });
+    } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('clears the prior reminder task and cancels its exact read when the route query selects another task', async () => {
+    TestBed.configureTestingModule({ imports: [WorkflowWorkQueue], providers: [
+      provideRouter([{ path: 'app/work', component: WorkflowWorkQueue }]),
+      provideHttpClient(), provideHttpClientTesting(),
+    ] });
+    TestBed.inject(SessionService).current.set({ userId: task.assigneeUserId!, firmId: task.assigneeUserId!, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController);
+    const harness = await RouterTestingHarness.create();
+    const workspaceUrl = (taskId: string) => `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${taskId}`;
+    const nextTaskId = '55555555-5555-4555-8555-555555555555';
+    try {
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${task.taskId}`, WorkflowWorkQueue);
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      const priorRead = http.expectOne(workspaceUrl(task.taskId));
+
+      const component = await harness.navigateByUrl(
+        `/app/work?engagementId=${task.engagementId}&taskId=not-a-guid`, WorkflowWorkQueue);
+      expect(priorRead.cancelled).toBe(true);
+      const host = harness.routeNativeElement!;
+      expect(host.textContent).not.toContain(task.title);
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain('This task link is invalid');
+      http.expectNone(request => request.url.includes('/workflow/tasks?taskId=not-a-guid'));
+
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${nextTaskId}`, WorkflowWorkQueue);
+      http.expectOne(workspaceUrl(nextTaskId)).flush(reminderWorkspace(task.taskId, 'Wrong task returned', 1, 'IN_PROGRESS'));
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      expect(component.reminderTaskSelection()).toEqual({ engagementId: task.engagementId, taskId: nextTaskId });
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain('Unsupported response.');
+      expect(host.textContent).not.toContain('Review the new task');
+      expect(host.textContent).not.toContain(task.title);
+      const selectedPanel = host.querySelector<HTMLElement>('section[aria-labelledby="reminder-task-heading"]')!;
+      expect([...selectedPanel.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
+      http.verify({ ignoreCancelled: true });
+    } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
   });
 });
