@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
@@ -132,6 +133,7 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
       caseId: "STE-GAP-001-LETTER-" + serviceRoute.ToUpperInvariant());
     var f = host.Fixture;
     var partner = f.Reviewer;
+    var financeManager = PbcSeed.User(f.FirmId, "Staff");
     var now = DateTimeOffset.UtcNow;
     var leadId = Guid.NewGuid();
     var opportunityId = Guid.NewGuid();
@@ -140,7 +142,10 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
     var offerHash = Hashing.Sha256Hex("synthetic accepted and dispatched offer:" + serviceRoute);
     await using (var db = host.CreateDbContext())
     {
-      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, partner, "Partner"));
+      db.Users.Add(financeManager);
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, partner, "Partner"),
+        PbcSeed.Grant(f.FirmId, financeManager, "FinanceManager", clientId: f.ClientId));
       db.Leads.Add(new Lead
       {
         Id = leadId, FirmId = f.FirmId, Name = "Synthetic letter client", Source = "Referral",
@@ -232,6 +237,12 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
       ["AngularUi__Enabled"] = "true",
       ["AutomaticFeeInvoices:Enabled"] = "false"
     });
+    var financeOrigin = await host.StartApiForIdentityAsync(financeManager, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true",
+      ["AutomaticFeeInvoices:Enabled"] = "false"
+    });
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
@@ -286,6 +297,95 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
         automaticDraftingEnabled: false);
       Assert.True(advanceState.Succeeded, advanceState.Message);
       Assert.Equal(AdvanceInvoicePreparationStates.PendingAutomationDisabled, advanceState.Value!.AdvancePreparation.State);
+    }
+
+    const string financeListPath = "/app/finance/fee-agreements";
+    await using var financeContext = await browser.NewContextAsync();
+    var financePage = await financeContext.NewPageAsync();
+    financePage.PageError += (_, error) => errors.Add(error);
+    var financeNavigation = await financePage.GotoAsync(financeOrigin + "/auth/sign-in?returnUrl=" +
+      Uri.EscapeDataString(financeListPath));
+    Assert.True(financeNavigation?.Status == 200,
+      $"Client-scoped Finance navigation returned {financeNavigation?.Status} at {financePage.Url}.");
+    await financePage.GetByRole(AriaRole.Heading, new() { Name = "Fee settlements", Exact = true }).WaitForAsync();
+    Guid agreementId;
+    await using (var db = host.CreateDbContext())
+    {
+      var financeGrants = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == f.FirmId &&
+        x.UserId == financeManager.Id && x.RevokedAt == null).ToListAsync();
+      var financeGrant = Assert.Single(financeGrants);
+      Assert.Equal("FinanceManager", financeGrant.Role);
+      Assert.Equal(f.ClientId, financeGrant.ClientId);
+      Assert.Null(financeGrant.EngagementId);
+      agreementId = await db.EngagementFeeAgreements.AsNoTracking()
+        .Where(x => x.FirmId == f.FirmId && x.ProposalId == proposalId)
+        .Select(x => x.Id).SingleAsync();
+    }
+    var agreementLinkName = $"Open fee settlement for PBC TEST CLIENT ({agreementId:D})";
+    await Assertions.Expect(financePage.GetByRole(AriaRole.Link,
+      new() { Name = agreementLinkName, Exact = true })).ToBeVisibleAsync();
+    await using (var list = await financeContext.APIRequest.GetAsync(
+      financeOrigin + "/api/ui/finance/fee-agreements?page=0"))
+    {
+      Assert.Equal(200, list.Status);
+      using var json = JsonDocument.Parse(await list.TextAsync());
+      var row = Assert.Single(json.RootElement.GetProperty("rows").EnumerateArray());
+      Assert.Equal(agreementId, row.GetProperty("agreementId").GetGuid());
+      Assert.Equal(f.ClientId, row.GetProperty("clientId").GetGuid());
+    }
+    foreach (var denied in new[]
+    {
+      $"/api/ui/proposals/{proposalId:D}",
+      $"/api/ui/proposals/{proposalId:D}/fee-agreement"
+    })
+    {
+      await using var response = await financeContext.APIRequest.GetAsync(financeOrigin + denied);
+      Assert.Equal(403, response.Status);
+    }
+
+    await financePage.GetByRole(AriaRole.Link, new() { Name = agreementLinkName, Exact = true }).ClickAsync();
+    var financeFees = financePage.Locator("audit-fee-agreement");
+    await Assertions.Expect(financePage.GetByRole(AriaRole.Heading,
+      new() { Name = "Client fee settlement", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(financeFees.GetByRole(AriaRole.Button,
+      new() { Name = "Create fee agreement", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(financeFees.GetByRole(AriaRole.Table,
+      new() { Name = "Persisted fee milestones", Exact = true })).ToBeVisibleAsync();
+    await financeFees.GetByLabel("I reviewed this fee, milestone and selected action.",
+      new() { Exact = true }).CheckAsync();
+    await financeFees.GetByRole(AriaRole.Button,
+      new() { Name = "Prepare or recover advance invoice", Exact = true }).ClickAsync();
+    var invoiceLink = financeFees.Locator("a[href^='/app/practice/invoices/']").First;
+    await Assertions.Expect(invoiceLink).ToBeVisibleAsync();
+    var invoicePath = await invoiceLink.GetAttributeAsync("href");
+    Assert.NotNull(invoicePath);
+    Assert.True(Guid.TryParse(invoicePath!.Split('/').Last(), out var invoiceId),
+      $"Expected the prepared advance to link to the normal invoice route, got {invoicePath}.");
+    Assert.Equal($"/app/practice/invoices/{invoiceId:D}", invoicePath);
+    await using (var db = host.CreateDbContext())
+    {
+      var advance = await db.FeeMilestones.AsNoTracking().SingleAsync(x =>
+        x.FirmId == f.FirmId && x.AgreementId == agreementId && x.Kind == FeeMilestoneKinds.Advance);
+      Assert.Equal(invoiceId, advance.InvoiceId);
+      var invoice = await db.Invoices.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId && x.Id == invoiceId);
+      Assert.Equal(BillingStates.InvoiceDraft, invoice.Status);
+      Assert.Equal(10_000m, invoice.Total);
+      Assert.Null(invoice.ApprovedAt);
+      Assert.Null(invoice.PostedAt);
+    }
+    await financePage.GotoAsync(financeOrigin + invoicePath);
+    await Assertions.Expect(financePage.GetByRole(AriaRole.Heading,
+      new() { Name = "Practice invoice", Exact = true })).ToBeVisibleAsync();
+    await financePage.GetByRole(AriaRole.Button,
+      new() { Name = "Submit invoice for review", Exact = true }).ClickAsync();
+    await Assertions.Expect(financePage.GetByText(
+      "Approval requires a separate authorized FinanceReviewer.", new() { Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var invoice = await db.Invoices.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId && x.Id == invoiceId);
+      Assert.Equal(BillingStates.InvoiceReviewRequired, invoice.Status);
+      Assert.Null(invoice.ApprovedAt);
+      Assert.Null(invoice.PostedAt);
     }
     Assert.Empty(errors);
   }

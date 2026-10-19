@@ -234,7 +234,7 @@ public sealed class AngularFeeSettlementJourneyTests
       await fees.GetByRole(AriaRole.Button, new() { Name = "Record advance payment", Exact = true }).ClickAsync();
     }
     await PayAsync("4000", "SYN-FINANCE-ADVANCE-PARTIAL");
-    await Assertions.Expect(fees.GetByText("Partial payment recorded. Review remaining outstanding amount.", new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(fees.GetByText("Partial advance payment recorded. Review remaining outstanding amount.", new() { Exact = false })).ToBeVisibleAsync();
     await Assertions.Expect(assent).Not.ToBeCheckedAsync();
     await using (var db = host.CreateDbContext())
     {

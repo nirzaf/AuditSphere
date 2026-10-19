@@ -218,7 +218,7 @@ describe('Advance invoice preparation display', () => {
       component.payment(kind);
       const request = http.expectOne('/api/ui/fee-agreements/' + financeAgreementId + '/' + kind + '-payment');
       expect(request.request.body.reference).toBe(component.reference);
-      request.flush({ id, paid, emailQueued: true, receiptDocumentId: paid ? id : null,
+      request.flush({ id, paid, emailQueued: paid, receiptDocumentId: paid ? id : null,
         voucherDocumentId: id, voucherEmailQueued: true });
       const expected = paid
         ? (kind === 'balance' ? 'Final balance paid.' : 'Advance paid.')
