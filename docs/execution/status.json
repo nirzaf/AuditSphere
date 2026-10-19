@@ -214,22 +214,22 @@
             "note": "Terminal failure confirmed; earlier detailed observations retained. No full acceptance."
           },
           "fullRelease": {
-            "runId": "39209983436",
-            "sourceCommit": "e34e217e522380dc69f75b30ea0a44bb7cfbe3f4",
+            "runId": "39212902864",
+            "sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
             "result": "IN_PROGRESS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39209983436",
-            "note": "Immutable e34 implementation: Angular and build/contracts PASS; full .NET suites active at last observation. Predates time-workspace expiry fix; not current-source full acceptance."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39212902864",
+            "note": "Immutable batch includes time-expiry scope and workflow receipt-recovery fixes. No full pass yet. Subsequent evidence-only commit changes no runtime behavior."
           },
           "workspaceApiRepair": {
             "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
             "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
           },
           "currentFast": {
-            "runId": "39210095270",
-            "sourceCommit": "e9d39a22891a40cc971bf9724d495031750f48bf",
+            "runId": "39211255860",
+            "sourceCommit": "e457f510df2aa4435db071970d449f8372d14169",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39210095270",
-            "note": "Docs, Angular and .NET Release passed; predates time-workspace expiry fix. Not full API/E2E verification."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39211255860",
+            "note": "Docs, Angular and .NET Release PASS; includes time-expiry fix, predates workflow recovery guard. Not full regression."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -247,6 +247,10 @@
             "result": "FOCUSED_PASS",
             "archive": "status-archive-2026-10.json#keys.targetedVerification.transportWaitRepairE57320261019",
             "summary": "Both route bases for resource planning and portfolio/logout passed; HTTP/UI/receipt/session assertions retained. Full-suite hang root cause not proven."
+          },
+          "previousWorkflowSourceFullRelease": {
+            "archive": "status-archive-2026-10.json#keys.targetedVerification.fullReleaseE34BeforeWorkflowRecovery20261019",
+            "summary": "e34 Domain1387/1387, Angular/build/contracts PASS; API/E2E last observed active. Does not certify subsequent fixes."
           }
         },
         "followUp": {
@@ -1110,23 +1114,9 @@
     },
     "uploadIntentFreshness20261019": {
       "sourceCommit": "b34d0884284b8e93b41ee4575bffe03a5d90f510",
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "behavior": "Resume, chunk recording and trusted completion explicitly reload their scoped FOR UPDATE intent before deciding capability, revision or current state. Existing transactions, permissions and protocol remain. No schema/package/provider change.",
-      "counterfactual": {
-        "domain": "FAIL1/1: cached completion replay returned STAGED after worker persisted RECEIVED; upload-cached-domain-counterfactual.trx",
-        "api": "FAIL1/1: cached resume returned revision2 where next revision3 was required; upload-cached-api-counterfactual.trx",
-        "source": "fe5e44c1 service unchanged; only regression bodies added."
-      },
-      "verification": {
-        "domain": "PASS2/2; upload-cached-domain-final.trx; received-state replay and original delegation/revoked-capability case.",
-        "api": "PASS1/1; upload-cached-api-final.trx; interleaved HTTP/service rotation, old-token refusal, cached-context final-token chunk, returned/persisted revision and bytes/state equality, privacy and original protocol checks.",
-        "resultsDirectory": "/tmp/auditsphere-practice-guard-results",
-        "apiRerun": "Additional persisted revision assertions were added after the first final API binary compiled; reran only the API method with rebuilt binaries.",
-        "build": "Targeted Domain/API Release compilation PASS; no full local suites."
-      },
-      "review": "Independent static review found no blocking scope/transaction issue; reload reads the already locked row without committing or provider effects. It intentionally replaces cached/unsaved intent values.",
-      "boundary": "Confirmed service-level reused-context defect. Current HTTP commands create fresh contexts; no production HTTP context-reuse exploit observed. Worker replay checks retain operation/attempt/registration identity; provider sink-call count not separately instrumented.",
-      "limits": "Other PBC request-row cached-state paths and whole-family/full supported-state acceptance are not established here. No live-provider/professional acceptance. Full CI on c0094149 predates this patch; current-source full release verification remains required."
+      "result": "FOCUSED_PASS",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.uploadIntentFreshness20261019",
+      "summary": "Locked upload-intent reload fixes reused-context revision/token and received-state decisions; counterfactual and final Domain/API evidence retained. No observed current HTTP context-reuse path; full-family/live acceptance remains open."
     },
     "portalFinanceAccessibility20261019": {
       "sourceCommit": "e34e217e522380dc69f75b30ea0a44bb7cfbe3f4",
@@ -1137,20 +1127,23 @@
     "timeWorkspaceGrantExpiry20261019": {
       "sourceCommit": "306a60a83f104fe008663b590e44f16f582155aa",
       "result": "FOCUSED_PASS",
-      "behavior": "PracticeTimeWorkspaceQuery excludes expired grants before deriving work and review scopes. A current engagement Staff grant cannot combine with expired firm-wide Manager authority. Existing HTTP resolver independently revokes expired grants and rejects the stale session.",
-      "regression": {
-        "project": "tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj",
-        "filter": "FullyQualifiedName~RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior",
-        "result": "PASS",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.timeWorkspaceGrantExpiry20261019",
+      "summary": "Direct-query expired-grant widening reproduced and fixed; focused test preserves independent HTTP expiry/session protection. No observed HTTP exposure; broader time/period/accounting acceptance open."
+    },
+    "workflowEvidenceRecoveryScope20261019": {
+      "sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
+      "result": "FOCUSED_PASS",
+      "angular": "Existing workflow-task-evidence.spec.ts6/6 PASS; baseline5PASS1FAIL at late task-A failure mutating task-B message. Logs /tmp/auditsphere-workflow-evidence-late-read-counterfactual.log and -final.log. Production build and targeted ESLint PASS; existing warnings retained.",
+      "e2e": {
         "passed": 1,
         "failed": 0,
         "skipped": 0,
-        "trx": "/tmp/auditsphere-practice-guard-results/time-query-expired-grant-final.trx",
-        "log": "/tmp/auditsphere-time-query-expired-grant-final.log"
+        "trx": "/tmp/auditsphere-a11y-results/workflow-evidence-scope-recovery.trx",
+        "log": "/tmp/auditsphere-workflow-evidence-scope-recovery.log"
       },
-      "counterfactual": "Same direct Application query assertion failed before fix: FirmWide expectedFalse actualTrue. /tmp/auditsphere-practice-guard-results/time-query-expired-grant-counterfactual.trx. Earlier HTTP-only attempts encountered401/absentXSRF because actor resolution already revokes expired grants; they did not prove an HTTP leak.",
-      "limits": "Query-level defense only; no observed current HTTP exposure. No seeded reporting-period projection, full field/audience matrix or client-book mutation proof. No UI/API schema/migration/provider changes; no full local suites. Current fullCI source predates this fix.",
-      "independentReview": "Source review confirmed expiry predicate and preserved HTTP expiry/session assertions; reviewer did not execute tests."
+      "behavior": "Late receipt-read failures cannot update another task/session. Existing journey preserves B draft after delayed A503, returns to retained A key, recovers actual server receipt, retains1POST/1rule/0materiality approvals and390px bounds. Unit test separately covers session invalidation.",
+      "browser": "Owned synthetic native tab51: selected second-task editor and Tab focus verified; warn/error logs empty. /tmp/auditsphere-workflow-evidence-recovery-native.png. No native mutation; tab closed, fixture disposed, release flag removed.",
+      "limits": "Synthetic controlled transport failure; native check does not reproduce delayed request. No full supported-state/human AT/live acceptance or current-source full CI. Independent review was source-only."
     }
   },
   "externalGates": [
@@ -1573,7 +1566,7 @@
       "ASPM-NFR-01..12",
       "ASPM-UAT-01..15"
     ],
-    "lastTechnicalSlice": "306a60a83f104fe008663b590e44f16f582155aa",
+    "lastTechnicalSlice": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
     "advanceCashGate": {
       "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
       "result": "FOCUSED_INCREMENTAL_PASS",
