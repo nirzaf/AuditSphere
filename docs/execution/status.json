@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "60fefa9aef1f3ecea79603a07564396766ae2f37",
+  "headCommit": "9a16370ef5f5c30d463d97193c50f6d96bfeae0c",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -1136,56 +1136,50 @@
     "commercialDocumentAccess20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "codeCommit": "a56180ed2d81edb3ac50782e49c852e6d8477ea0",
-      "behavior": "Brief/letter shared generator and tender generator reauthorize after firm lock before source/replay reads. Profile/list reauthorize after materialization. Client receipts resolve milestone/agreement/proposal and exact engagement even when both document proposal/quotation IDs are populated; conflicting/partial links deny. Both-null legacy links require a valid source chain and are never filled. Final client account/session and exact unexpired grant are checked together. Staff kind/scope policy remains unchanged. Portal labels the settlement artifact Download receipt, not voucher.",
-      "baseline": {
-        "generationFailed": 4,
-        "readFailed": 3,
-        "passed": 0,
-        "artifacts": [
-          "commercial-documents-before.trx",
-          "commercial-reads-before.trx"
+      "evidenceArchive": "status-archive-2026-10.json#keys.commercialDocumentAccessBeforeFinality20261019",
+      "scope": "Commercial publication/read authority and exact dual-linked/legacy receipt scope. Focused Domain and browser evidence retained intact; parent acceptance remains partial. Fast CI39260118277 passed on76d904c7."
+    },
+    "commercialFinality20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "9a16370ef5f5c30d463d97193c50f6d96bfeae0c",
+      "backendCommit": "2e0134df82d54b5e54b16243ea05b28b8a8e4984",
+      "behavior": "Fee creation/link reauthorize after firm lock; link reloads retained state. Tender reuse verifies stored bytes and embedded exact-input fingerprint; changed or legacy-unverifiable inputs require a new approved quotation. Current artifacts remain readable. Commercial command outcome focus follows request/session/interaction ownership; later user interaction wins. New voucher emails describe exact attachment, not unsupported download. No migration/dependency/provider changes.",
+      "baseline": "Fee: five stale-authority successes plus stale-link trigger exception (retained winner protected). Tender: changed reviewed CV incorrectly reused artifact. Browser: refusal removed trigger and left focus on BODY.",
+      "focused": {
+        "domain": "15 distinct cases passed across initial14/15 and isolated1/1 after correcting duplicate-lead legacy fixture. Voucher wording then3/3 existing variants passed.",
+        "angular": "Affected documents.spec.ts4/4 passed; production Angular build passed with existing SCSS/optional-chain warnings.",
+        "e2e": "TenderGeneration_RefusesChangedReviewedInputsAndKeepsRetainedArtifact1/1 passed after stable deferred section and replay-form refresh waits. Includes current API/owned PostgreSQL, exact retry and byte download, refusal focus and390px overflow.",
+        "build": "Application/API Release passed; zero warnings/errors. No full local suites.",
+        "trxDirectory": "/tmp/auditsphere-commercial-finality-results",
+        "finalTrx": [
+          "commercial-finality-after.trx",
+          "tender-review-after.trx",
+          "voucher-attachment-wording.trx",
+          "tender-review-focus-after-retry.trx"
         ],
-        "observed": "New brief, cached brief replay, tender and same-epoch generation returned stale success. Profile/list released data after same-epoch grant removal. Real dual-linked receipt denied its authorized engagement client. Identity interleavings embedded in the receipt method were reached only after that positive-path repair."
-      },
-      "after": {
-        "domainPassed": 11,
-        "domainFailed": 0,
-        "domainSkipped": 0,
-        "domainTrx": "commercial-documents-after.trx",
-        "scope": "Generation/read denial, dual-linked own receipt, sibling/internal/null-client refusal, valid legacy receipt, mismatched source refusal, epoch and disabled-user interleavings; retained branding/bytes and existing approved-quote/letter/tender positives.",
-        "e2ePassed": 1,
-        "e2eFailed": 0,
-        "e2eSkipped": 0,
-        "e2eTrx": "receipt-download-browser.trx",
-        "e2eScope": "Real authenticated Angular/API/owned PostgreSQL: keyboard download exact retained bytes/hash, sibling and malformed HTTP403, one visible own receipt, 390px no document overflow/PageError. Projection fixtures do not prove receipt/payment approval.",
-        "directory": "/tmp/auditsphere-commercial-document-results",
-        "builds": "Application and API Release PASS, zero warnings/errors; current Application compiled first, then tests/API built with BuildProjectReferences=false reusing unchanged dependencies. Angular build PASS with existing completion optional-chain and commercial SCSS-budget warnings. No full local suites.",
-        "repair": "New E2E fixture first failed compilation on unassigned malformedDocumentId; initialized its synthetic ID and reran only that method."
+        "testRepairs": "Initial tender legacy fixture duplicated lead; separate lead corrected. E2E transient deferred-placeholder and retained-success-text races corrected without removing behavioral assertions. Failed attempts retained locally."
       },
       "browser": {
-        "environment": "Built-in browser, explicit current bundle, same owned client fixture; external effects disabled.",
-        "observed": "Native Tab reached Download receipt; 390px viewport/375px document; sibling absent; no console warnings/errors. Browser downloaded DOCX with OWN-A and no SIBLING-B.",
-        "download": "/tmp/auditsphere-browser-receipt-own-a.docx",
-        "downloadBytes": 1630,
-        "sha256": "963d73859af00c3dd2f6179e073694cd55e33c6ace3ddea77f5b717a88479230",
-        "screenshot": "/tmp/auditsphere-client-receipt-keyboard.png",
-        "cleanup": "Owned tab closed, viewport reset, fixture completed/disposed and owned release marker removed."
+        "observed": "Built-in browser keyboard Enter refused changed tender; active P role=status with actionable message. Exact retained download SHA matched visible persisted artifact; changed browser team absent from Word XML; custom fingerprint present. No console error/warning. Owned fixture/tab disposed.",
+        "screenshot": "/tmp/auditsphere-tender-refusal-focus-after.png",
+        "download": "/tmp/auditsphere-retained-tender-focus-after.docx",
+        "bytes": 2345,
+        "sha256": "04028f899545a3e8d1bd6482e3a186bb493c9670a70fd49f5cb6e3f369c073f5"
       },
-      "review": "Independent source review accepted final generation/read guards, receipt source chain and legacy rule. No API contract, dependencies or migration changed.",
+      "review": "Independent focus review found no blocker. Keyboard and later-interaction ownership covered; pointer activation retaining textarea focus and human assistive-technology acceptance are not claimed.",
       "ci": {
         "precedingFast": {
-          "runId": 39256400538,
-          "sourceCommit": "15ba2d7bb6101ada9e1bf2da7666748a17785f77",
+          "runId": 39260118277,
+          "sourceCommit": "76d904c7576d6a89e7254394fe095f239bac9289",
           "result": "FAST_CI_PASS"
         },
-        "retainedFull": {
+        "olderFull": {
           "runId": 39248636107,
-          "sourceCommit": "1cd06d3622d0270d3cdb8131c32f9373e5292362",
-          "result": "IN_PROGRESS",
-          "observed": "Domain/Angular/build passed; API/E2E still live. Earlier source is not current release acceptance."
+          "result": "INCOMPLETE_RUNNER_TERMINATION",
+          "observed": "API runner shut down exit143 without final summary;213 passed records do not establish suite pass. Domain/Angular/build passed, E2E still running at inspection. Job-only rerun refused by GitHub. New current-source full verification pending dispatch."
         }
       },
-      "limits": "Parent criteria remain PARTIAL. Fee-agreement create/link lock-time authority, tender replay exact reviewed-input binding, truthful voucher-email download wording, full current-source release, human AT and professional/live-provider acceptance remain open."
+      "remaining": "Whole-product accessibility, legal/template DEC-02, fee-plan DEC-06, professional/human AT/provider acceptance and full release remain open."
     }
   },
   "externalGates": [
@@ -1698,7 +1692,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Fix fee-agreement create/link lock-time authority and comprehensive tender exact reviewed-input replay; reconcile voucher-email download wording with receipt-only portal policy. Preserve human/professional/live-provider and full current-source release gates."
+    "nextTechnicalSlice": "Observe current-source CI and full release verification, fix concrete failures, and continue remaining whole-application accessibility/scope acceptance. Fee/link authority, exact tender replay and future voucher wording have focused evidence under commercialFinality20261019; human/professional/live-provider gates remain open."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

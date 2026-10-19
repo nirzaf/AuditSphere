@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Commercial document release and receipt scope
+## Commercial finality and keyboard outcome recovery
 
-Generators and protected reads now recheck current authority at their publication/read boundary. Client receipts use exact milestone/agreement/proposal lineage and current account/grant facts, restoring real dual-linked engagement receipt access while retaining valid legacy evidence and refusing mismatches. The portal labels these artifacts as receipts. Focused source, PostgreSQL, browser/API download and built-in-browser checks passed; exact evidence and remaining fee-agreement, tender replay and acceptance gates are in `status.json` under `commercialDocumentAccess20261019`. Earlier client/quotation/paging evidence is retained in the status and handoff archives.
+Fee-agreement authority is refreshed after locking; linking reloads retained state. Tender replay verifies exact reviewed inputs and immutable DOCX metadata; changed or unverifiable inputs require a new approved quotation while retained artifacts remain readable. Command refusals now retain keyboard focus on their persistent outcome without overriding later user interaction. New voucher mail describes its attachment. Focused Domain, Angular, browser/API and built-in-browser checks passed; evidence, repaired test races, CI runner termination and remaining professional/accessibility gates are in `status.json` under `commercialFinality20261019`. Earlier document/receipt evidence is retained intact in the status archive.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 

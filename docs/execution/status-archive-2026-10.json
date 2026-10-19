@@ -21227,6 +21227,60 @@
       },
       "limits": "No full local suites. Human AT and complete browser/state matrix remain unverified; preceding-source CI is not final-source release acceptance.",
       "lint": "PASS affected HTML. Initial command included repository-ignored spec and failed max-warnings on that selection; corrected to linted HTML only, no config change."
+    },
+    "commercialDocumentAccessBeforeFinality20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "a56180ed2d81edb3ac50782e49c852e6d8477ea0",
+      "behavior": "Brief/letter shared generator and tender generator reauthorize after firm lock before source/replay reads. Profile/list reauthorize after materialization. Client receipts resolve milestone/agreement/proposal and exact engagement even when both document proposal/quotation IDs are populated; conflicting/partial links deny. Both-null legacy links require a valid source chain and are never filled. Final client account/session and exact unexpired grant are checked together. Staff kind/scope policy remains unchanged. Portal labels the settlement artifact Download receipt, not voucher.",
+      "baseline": {
+        "generationFailed": 4,
+        "readFailed": 3,
+        "passed": 0,
+        "artifacts": [
+          "commercial-documents-before.trx",
+          "commercial-reads-before.trx"
+        ],
+        "observed": "New brief, cached brief replay, tender and same-epoch generation returned stale success. Profile/list released data after same-epoch grant removal. Real dual-linked receipt denied its authorized engagement client. Identity interleavings embedded in the receipt method were reached only after that positive-path repair."
+      },
+      "after": {
+        "domainPassed": 11,
+        "domainFailed": 0,
+        "domainSkipped": 0,
+        "domainTrx": "commercial-documents-after.trx",
+        "scope": "Generation/read denial, dual-linked own receipt, sibling/internal/null-client refusal, valid legacy receipt, mismatched source refusal, epoch and disabled-user interleavings; retained branding/bytes and existing approved-quote/letter/tender positives.",
+        "e2ePassed": 1,
+        "e2eFailed": 0,
+        "e2eSkipped": 0,
+        "e2eTrx": "receipt-download-browser.trx",
+        "e2eScope": "Real authenticated Angular/API/owned PostgreSQL: keyboard download exact retained bytes/hash, sibling and malformed HTTP403, one visible own receipt, 390px no document overflow/PageError. Projection fixtures do not prove receipt/payment approval.",
+        "directory": "/tmp/auditsphere-commercial-document-results",
+        "builds": "Application and API Release PASS, zero warnings/errors; current Application compiled first, then tests/API built with BuildProjectReferences=false reusing unchanged dependencies. Angular build PASS with existing completion optional-chain and commercial SCSS-budget warnings. No full local suites.",
+        "repair": "New E2E fixture first failed compilation on unassigned malformedDocumentId; initialized its synthetic ID and reran only that method."
+      },
+      "browser": {
+        "environment": "Built-in browser, explicit current bundle, same owned client fixture; external effects disabled.",
+        "observed": "Native Tab reached Download receipt; 390px viewport/375px document; sibling absent; no console warnings/errors. Browser downloaded DOCX with OWN-A and no SIBLING-B.",
+        "download": "/tmp/auditsphere-browser-receipt-own-a.docx",
+        "downloadBytes": 1630,
+        "sha256": "963d73859af00c3dd2f6179e073694cd55e33c6ace3ddea77f5b717a88479230",
+        "screenshot": "/tmp/auditsphere-client-receipt-keyboard.png",
+        "cleanup": "Owned tab closed, viewport reset, fixture completed/disposed and owned release marker removed."
+      },
+      "review": "Independent source review accepted final generation/read guards, receipt source chain and legacy rule. No API contract, dependencies or migration changed.",
+      "ci": {
+        "precedingFast": {
+          "runId": 39256400538,
+          "sourceCommit": "15ba2d7bb6101ada9e1bf2da7666748a17785f77",
+          "result": "FAST_CI_PASS"
+        },
+        "retainedFull": {
+          "runId": 39248636107,
+          "sourceCommit": "1cd06d3622d0270d3cdb8131c32f9373e5292362",
+          "result": "IN_PROGRESS",
+          "observed": "Domain/Angular/build passed; API/E2E still live. Earlier source is not current release acceptance."
+        }
+      },
+      "limits": "Parent criteria remain PARTIAL. Fee-agreement create/link lock-time authority, tender replay exact reviewed-input binding, truthful voucher-email download wording, full current-source release, human AT and professional/live-provider acceptance remain open."
     }
   }
 }
