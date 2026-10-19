@@ -349,6 +349,35 @@ public sealed class WorkflowDashboardApiTests
     Assert.Single(await proof.WorkflowTaskBindings.ToListAsync());
     Assert.Empty(await proof.MaterialityApprovals.ToListAsync());
     Assert.Empty(await proof.Approvals.ToListAsync());
+
+    // A selected task must remain inspectable after it falls outside the bounded workspace window.
+    var now = DateTimeOffset.UtcNow;
+    var earlierTasks = Enumerable.Range(1, 500).Select(i => new WorkTask {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      Title = $"Earlier assignment recovery task {i}", Status = PracticeTimeStates.TaskOpen,
+      Phase = BudgetPhases.Unassigned, CreatedAt = now
+    }).ToArray();
+    proof.WorkTasks.AddRange(earlierTasks);
+    proof.WorkflowTaskBindings.AddRange(earlierTasks.Select((task, index) => new WorkflowTaskBinding {
+      Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+      WorkTaskId = task.Id, Phase = WorkflowTaskPhases.ArchiveClose, Ordinal = index + 1,
+      SourceKey = $"TEST-ASSIGN-RECOVERY:{index + 1:D4}", CreationRequestDigest = new string('d', 64),
+      Generation = 1, DueDatePolicy = "MANUAL", AssignmentSource = "MANUAL", CreatedAt = now,
+      CreatedByUserId = f.Admin.Id
+    }));
+    await proof.SaveChangesAsync();
+    var bounded = (await admin.GetFromJsonAsync<WorkflowTaskWorkspace>(
+      $"/api/ui/engagements/{f.EngagementId}/workflow/tasks"))!;
+    Assert.True(bounded.Truncated);
+    Assert.Equal(500, bounded.Tasks.Count);
+    Assert.DoesNotContain(bounded.Tasks, task => task.Id == taskId);
+    var beyondWindow = (await admin.GetFromJsonAsync<WorkflowTaskWorkspace>(
+      $"/api/ui/engagements/{f.EngagementId}/workflow/tasks?taskId={taskId}"))!;
+    Assert.False(beyondWindow.Truncated);
+    var exactBeyondWindow = Assert.Single(beyondWindow.Tasks);
+    Assert.Equal(taskId, exactBeyondWindow.Id);
+    Assert.Equal(3, exactBeyondWindow.Revision);
+    Assert.Equal(PracticeTimeStates.TaskOpen, exactBeyondWindow.Status);
     await proof.Users.Where(x => x.Id == f.Admin.Id).ExecuteUpdateAsync(setters =>
       setters.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
     using var revoked = await PostCommand(admin, csrf, path, body);

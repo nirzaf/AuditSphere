@@ -576,6 +576,7 @@ describe('workflow queue assignment filters', () => {
 
   it('fences an unknown assignment and permits only the original request after current task and activity are inspected', async () => {
     const { fixture, http, component } = start();
+    const exactWorkspaceUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${encodeURIComponent(task.taskId)}`;
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
@@ -596,7 +597,8 @@ describe('workflow queue assignment filters', () => {
       expect(component.assignmentTask()?.taskId).toBe(task.taskId);
       http.expectNone(request => request.method === 'POST');
       const checking = component.recoverAssignment();
-      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks`).flush({ engagementId: task.engagementId,
+      // Exact lookup recovers a selected task that may sit beyond the unfiltered 500-task workspace window.
+      http.expectOne(exactWorkspaceUrl).flush({ engagementId: task.engagementId,
         truncated: false, tasks: [{ id: task.taskId, assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, revision: task.revision, status: 'IN_PROGRESS' }] });
       http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
         .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });
@@ -911,6 +913,7 @@ describe('workflow queue assignment filters', () => {
 
   it('requires acknowledgement of an advanced owner and keeps wrong-engagement recovery unresolved', async () => {
     const { fixture, http, component } = start();
+    const exactWorkspaceUrl = `/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${encodeURIComponent(task.taskId)}`;
     try {
       fixture.detectChanges(); TestBed.tick();
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
@@ -925,7 +928,7 @@ describe('workflow queue assignment filters', () => {
         .flush({}, { status: 503, statusText: 'Service Unavailable' }); await saving;
       const current = { id: task.taskId, assigneeUserId: '77777777-7777-4777-8777-777777777777', assigneeDisplayName: 'Concurrent owner', revision: 2, status: 'IN_PROGRESS' };
       const wrongScope = component.recoverAssignment();
-      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks`)
+      http.expectOne(exactWorkspaceUrl)
         .flush({ engagementId: '88888888-8888-4888-8888-888888888888', truncated: false, tasks: [current] });
       http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
         .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });
@@ -933,7 +936,7 @@ describe('workflow queue assignment filters', () => {
       expect(component.assignmentObservation()).toBeNull();
       expect(component.assignmentUncertain()).toBe(true);
       const checking = component.recoverAssignment();
-      http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks`)
+      http.expectOne(exactWorkspaceUrl)
         .flush({ engagementId: task.engagementId, truncated: false, tasks: [current] });
       http.expectOne(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`)
         .flush({ ...activity, engagementId: task.engagementId, taskId: task.taskId, events: [], hasMore: false, nextCursor: null });

@@ -753,7 +753,7 @@ export class WorkflowWorkQueue {
     this.assignmentObservation.set(null); this.assignmentObservedActivity.set([]);
     try {
       const [workspace, history] = await Promise.all([
-        this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks`, decodeWorkflowTaskWorkspace),
+        this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks?taskId=${encodeURIComponent(task.taskId)}`, decodeWorkflowTaskWorkspace),
         this.api.get(`/api/ui/engagements/${task.engagementId}/workflow/tasks/${task.taskId}/activity?pageSize=50`, decodeActivity),
       ]);
       if (!this.assignmentCurrent(scope, request)) return;
