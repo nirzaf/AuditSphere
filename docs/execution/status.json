@@ -225,11 +225,11 @@
             "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
           },
           "currentFast": {
-            "runId": "39203994314",
-            "sourceCommit": "302e40c7d4416557d036c313817352b7f6350a30",
+            "runId": "39205840882",
+            "sourceCommit": "3e6fd96ba8757d2a82868048660a900e52bf492f",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39203994314",
-            "note": "Observed Angular/docs/.NET Release success; predates these practice guard changes. Full7cac719c remains API/E2E active."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39205840882",
+            "note": "Angular/docs/.NET Release success observed; predates capability test-only followup."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -1119,7 +1119,16 @@
         "behavior": "Firm->client->delegation/request locks plus fresh scoped primary-contact authorization. Caller-owned transaction retained. Already-authorized upload commits before revocation returns; upload waiting behind revoke fails current authorization. Locked reload preserves stale tracked revocation timestamp/actor and retained row.",
         "test": "PrimaryContact_DelegatesWithinTheClientOnly_AndRevocationIsImmediate PASS in shared focused Domain cohort. Both orderings observe actual pg_blocking_pids; no timing-only race assertion.",
         "reviewRepair": "Removed proposed DbSet.Local.Remove because it marks Deleted, not detached. Parent used locked ReloadAsync and added stale original-context history assertions before verification.",
-        "limits": "No proof for every portal write/provider race; no live identity/provider changes."
+        "limits": "No proof for every portal write/provider race; no live identity/provider changes.",
+        "capabilityFollowUp": {
+          "sourceCommit": "54e5b1d641c0c9f667d6411ca774e2126804bb9d",
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "trx": "/tmp/auditsphere-practice-guard-results/portal-revoked-upload-capability.trx",
+          "behavior": "Original issued64-hex capability still matches retained hash, but revoked delegate cannot record a chunk or resume exact file. Intent/capability/request revisions and chunk history remain unchanged. Same original regression retains reply/new-upload denial and both observed lock-order cases."
+        }
       },
       "sharedDomainCohort": {
         "result": "PASS",
