@@ -193,6 +193,11 @@ public static partial class PracticeCrmService
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
 
+    auth = await AuthorizeAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    ownerError = await ValidateOwnerAsync(db, actor, request.OwnerUserId, ct);
+    if (ownerError is not null) return CommandResult<Guid>.Fail(ownerError.ErrorCode!, ownerError.Message!);
+
     if (request.RequestId == Guid.Empty)
       return CommandResult<Guid>.Fail("crm.invalid", "A nonempty operation identity is required.");
     if (request.RequestId.HasValue)

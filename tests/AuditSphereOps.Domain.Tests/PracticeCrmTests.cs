@@ -7,9 +7,11 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using System.Data.Common;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -162,6 +164,67 @@ public sealed class PracticeCrmTests
       Assert.Equal(ErrorCodes.ScopeDenied, changedIntent.ErrorCode);
       Assert.Equal(1, await retryDb.Opportunities.CountAsync(x => x.LeadId == leadId));
     }
+  }
+
+  [Theory]
+  [InlineData(true)]
+  [InlineData(false)]
+  public async Task OpportunityCreation_RejectsActorRevokedWhileWaitingForFirmLock(bool revokeActor)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid leadId;
+    Guid grantId;
+    await using (var setupDb = new AuditSphereDbContext(pg.Options))
+    {
+      var lead = await PracticeCrmService.CreateLeadAsync(setupDb, fixture.Actor,
+        new("Revocation wait lead", "Referral"));
+      Assert.True(lead.Succeeded, lead.Message);
+      leadId = lead.Value;
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(setupDb, fixture.Actor, leadId)).Succeeded);
+      grantId = await setupDb.RoleGrants.Where(x => x.FirmId == fixture.FirmId &&
+          x.UserId == fixture.User.Id && x.Role == "RelationshipManager" && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    var requestId = Guid.NewGuid();
+    var request = Opportunity(leadId) with { RequestId = requestId, OwnerUserId = fixture.Reviewer.UserId };
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {fixture.FirmId} FOR UPDATE").SingleAsync();
+
+    var lockAttempt = new ObserveFirmLockAttempt();
+    var writerOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(lockAttempt).Options;
+    await using var writer = new AuditSphereDbContext(writerOptions);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var attempt = PracticeCrmService.CreateOpportunityAsync(writer, fixture.Actor, request, timeout.Token);
+    await lockAttempt.Reached.Task.WaitAsync(timeout.Token);
+
+    if (revokeActor)
+    {
+      await blocker.RoleGrants.Where(x => x.Id == grantId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+      await blocker.Users.Where(x => x.Id == fixture.User.Id)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), timeout.Token);
+    }
+    else
+    {
+      await blocker.Users.Where(x => x.Id == fixture.Reviewer.UserId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.Disabled, true), timeout.Token);
+    }
+    await blockerTransaction.CommitAsync(timeout.Token);
+
+    var result = await attempt.WaitAsync(timeout.Token);
+    Assert.True(lockAttempt.Fired);
+    Assert.False(result.Succeeded);
+    Assert.Equal(revokeActor ? ErrorCodes.GenerationStale : ErrorCodes.ScopeDenied, result.ErrorCode);
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await verify.Opportunities.Where(x => x.Id == requestId || x.LeadId == leadId).ToListAsync());
+    Assert.False(await verify.LeadActivityEvents.AnyAsync(x => x.FirmId == fixture.FirmId &&
+      x.LeadId == leadId && x.Action == LeadActivityActions.OpportunityCreated && x.OpportunityId == requestId));
   }
 
   [Fact]
@@ -916,6 +979,25 @@ public sealed class PracticeCrmTests
       Assert.Equal(clientId, result.Value);
       Assert.Equal(5, (await db.ClientSafetyStates.SingleAsync(x => x.Id == clientId)).InputGeneration);
       Assert.Equal(5, (await db.AcceptanceDecisions.SingleAsync(x => x.PracticeClientId == clientId)).Generation);
+    }
+  }
+
+  private sealed class ObserveFirmLockAttempt : DbCommandInterceptor
+  {
+    public bool Fired { get; private set; }
+    public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
+      {
+        Fired = true;
+        Reached.TrySetResult();
+      }
+      return ValueTask.FromResult(result);
     }
   }
 }
