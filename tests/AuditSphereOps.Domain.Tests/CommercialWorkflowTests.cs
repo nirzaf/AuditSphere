@@ -241,6 +241,107 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(before, await SnapshotAsync());
   }
 
+  [Theory]
+  [InlineData("BRIEF_NEW")]
+  [InlineData("BRIEF_REPLAY")]
+  [InlineData("TENDER")]
+  [InlineData("BRIEF_GRANT_ONLY")]
+  public async Task CommercialDocumentGeneration_RechecksAuthorityAfterFirmLockWait(string action)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var grantOnly = action == "BRIEF_GRANT_ONLY";
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    Guid quotationId;
+
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var quotation = await QuotationService.SaveAsync(setup, w.Prep, Quote(proposalId));
+      Assert.True(quotation.Succeeded, quotation.Message);
+      quotationId = quotation.Value;
+      var submitted = await QuotationService.SubmitAsync(setup, w.Prep, quotationId);
+      Assert.True(submitted.Succeeded, submitted.Message);
+      Assert.Equal(QuotationStates.Approved,
+        await setup.QuotationVersions.AsNoTracking().Where(x => x.Id == quotationId).Select(x => x.Status).SingleAsync());
+
+      var profile = new SaveCommercialProfileRequest("Lock-wait synthetic firm", "Doha", "", "", "#0F766E", "Closing",
+        "Reviewed firm history and registrations", "Reviewed industry credentials", "Reviewed audit methodology");
+      var savedProfile = await CommercialDocumentService.SaveProfileAsync(setup, w.Partner, profile);
+      Assert.True(savedProfile.Succeeded, savedProfile.Message);
+
+      if (action == "BRIEF_REPLAY")
+      {
+        var existing = await CommercialDocumentService.GenerateBriefQuotationAsync(setup, w.Prep, proposalId,
+          expectedQuotationId: quotationId, expectedProfileVersion: 1);
+        Assert.True(existing.Succeeded, existing.Message);
+        Assert.NotEmpty(existing.Value!.Bytes);
+      }
+    }
+
+    Guid grantId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      grantId = await setup.RoleGrants.AsNoTracking().Where(x => x.FirmId == w.FirmId &&
+          x.UserId == w.Prep.UserId && x.Role == "RelationshipManager" && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    async Task<string> SnapshotDocumentsAsync()
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var documents = await db.CommercialDocuments.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      return JsonSerializer.Serialize(documents);
+    }
+
+    var before = await SnapshotDocumentsAsync();
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+      Assert.Equal(action == "BRIEF_REPLAY" ? 1 : 0,
+        await verify.CommercialDocuments.AsNoTracking().CountAsync(x => x.FirmId == w.FirmId));
+
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").SingleAsync();
+
+    var lockAttempt = new ObserveFirmLockAttempt();
+    var writerOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(lockAttempt).Options;
+    await using var writer = new AuditSphereDbContext(writerOptions);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+    async Task<(bool Succeeded, string? ErrorCode, CommercialDocument? Value)> ExecuteWriterAsync()
+    {
+      if (action == "TENDER")
+      {
+        var result = await CommercialDocumentService.GenerateTenderAsync(writer, w.Prep, proposalId,
+          "Reviewed assigned team CVs", "Reviewed delivery timeline", true, timeout.Token,
+          expectedQuotationId: quotationId, expectedProfileVersion: 1);
+        return (result.Succeeded, result.ErrorCode, result.Value);
+      }
+
+      var brief = await CommercialDocumentService.GenerateBriefQuotationAsync(writer, w.Prep, proposalId,
+        timeout.Token, expectedQuotationId: quotationId, expectedProfileVersion: 1);
+      return (brief.Succeeded, brief.ErrorCode, brief.Value);
+    }
+
+    var attempt = ExecuteWriterAsync();
+    await lockAttempt.Reached.Task.WaitAsync(timeout.Token);
+    Assert.True(lockAttempt.Fired);
+    Assert.Equal(1, await blocker.RoleGrants.Where(x => x.Id == grantId && x.RevokedAt == null)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token));
+    if (!grantOnly)
+      Assert.Equal(1, await blocker.Users.Where(x => x.Id == w.Prep.UserId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), timeout.Token));
+    await blockerTransaction.CommitAsync(timeout.Token);
+
+    var outcome = await attempt.WaitAsync(timeout.Token);
+    Assert.False(outcome.Succeeded);
+    Assert.Equal(grantOnly ? ErrorCodes.ScopeDenied : ErrorCodes.GenerationStale, outcome.ErrorCode);
+    Assert.Null(outcome.Value);
+    Assert.Equal(before, await SnapshotDocumentsAsync());
+  }
+
   [Fact]
   public async Task PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits()
   {
@@ -506,6 +607,66 @@ public sealed class CommercialWorkflowTests
     var revised = await CommercialDocumentWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
     Assert.Equal("2", revised.Value!.ProfileVersion);
     Assert.All(revised.Value.Documents, d => Assert.Equal("1", d.ProfileVersion));
+  }
+
+  [Theory]
+  [InlineData("PROFILE")]
+  [InlineData("LIST")]
+  public async Task CommercialDocumentReads_DenySameEpochGrantRevokedAfterProjection(string readKind)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    await using var setup = new AuditSphereDbContext(pg.Options);
+    var quotation = await QuotationService.SaveAsync(setup, w.Prep, Quote(proposalId));
+    Assert.True(quotation.Succeeded, quotation.Message);
+    Assert.True((await QuotationService.SubmitAsync(setup, w.Prep, quotation.Value)).Succeeded);
+    var profile = new SaveCommercialProfileRequest("Read-interleave synthetic firm", "Doha", "", "", "#0F766E", "Closing",
+      "Reviewed history", "Reviewed credentials", "Reviewed methodology");
+    Assert.True((await CommercialDocumentService.SaveProfileAsync(setup, w.Partner, profile)).Succeeded);
+    var brief = await CommercialDocumentService.GenerateBriefQuotationAsync(setup, w.Prep, proposalId,
+      expectedQuotationId: quotation.Value, expectedProfileVersion: 1);
+    Assert.True(brief.Succeeded, brief.Message);
+    Assert.NotEmpty(brief.Value!.Bytes);
+
+    // Establish both protected projections while the exact unscoped grants are current.
+    var profileControl = await CommercialDocumentService.GetProfileAsync(setup, w.Partner);
+    Assert.True(profileControl.Succeeded, profileControl.Message);
+    Assert.NotNull(profileControl.Value);
+    var listControl = await CommercialDocumentService.ListAsync(setup, w.Prep, proposalId);
+    Assert.True(listControl.Succeeded, listControl.Message);
+    Assert.Contains(listControl.Value!, x => x.Id == brief.Value.Id && x.Bytes.Length > 0);
+
+    var actor = readKind == "PROFILE" ? w.Partner : w.Prep;
+    var role = readKind == "PROFILE" ? "Partner" : "RelationshipManager";
+    var targetTable = readKind == "PROFILE" ? "firm_commercial_profiles" : "commercial_documents";
+    var interleaver = new RevokeCommercialGrantAfterRead(pg, w.FirmId, actor.UserId, role, targetTable);
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(interleaver).Options;
+
+    await using (var read = new AuditSphereDbContext(options))
+    {
+      if (readKind == "PROFILE")
+      {
+        var result = await CommercialDocumentService.GetProfileAsync(read, actor);
+        Assert.False(result.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+        Assert.Null(result.Value);
+      }
+      else
+      {
+        var result = await CommercialDocumentService.ListAsync(read, actor, proposalId);
+        Assert.False(result.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, result.ErrorCode);
+        Assert.Null(result.Value);
+      }
+    }
+
+    Assert.Equal(1, interleaver.Calls);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(actor.SessionEpoch,
+      await verify.Users.Where(x => x.FirmId == w.FirmId && x.Id == actor.UserId).Select(x => x.SessionEpoch).SingleAsync());
+    Assert.Equal(0, await verify.RoleGrants.CountAsync(x => x.FirmId == w.FirmId && x.UserId == actor.UserId &&
+      x.Role == role && x.ClientId == null && x.EngagementId == null && x.RevokedAt == null));
   }
 
   [Fact]
@@ -1924,6 +2085,10 @@ public sealed class CommercialWorkflowTests
       "Statutory audit of the sibling engagement", "Tax advisory", "Independent auditor's report and management letter",
       "Client supplies the trial balance", 1m, "QAR", "2026-01-01", "2026-12-31"));
     Assert.True(proposalB.Succeeded, proposalB.Message);
+    // This synthetic sibling source is already paired with the existing client below; keep both persisted lineage links consistent.
+    var siblingProposal = await db.Proposals.SingleAsync(x => x.FirmId == w.FirmId && x.Id == proposalB.Value);
+    siblingProposal.PracticeClientId = clientId;
+    await db.SaveChangesAsync();
 
     var engagementA = Guid.CreateVersion7();
     var engagementB = Guid.CreateVersion7();
@@ -1943,18 +2108,30 @@ public sealed class CommercialWorkflowTests
     // Agreement A's advance/balance milestones already exist from the real agreement command.
     var milestoneA = await db.FeeMilestones.AsNoTracking().SingleAsync(x =>
       x.FirmId == w.FirmId && x.AgreementId == agreementA.Value && x.Kind == FeeMilestoneKinds.Advance);
+    var mismatchMilestone = await db.FeeMilestones.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.AgreementId == agreementA.Value && x.Kind == FeeMilestoneKinds.Balance);
     var milestoneB = new FeeMilestone { Id = Guid.CreateVersion7(), FirmId = w.FirmId, AgreementId = agreementB.Id, Kind = FeeMilestoneKinds.Advance, Amount = 15000m, CreatedAt = DateTimeOffset.UtcNow };
-    db.FeeMilestones.Add(milestoneB);
+    var legacyMilestone = new FeeMilestone { Id = Guid.CreateVersion7(), FirmId = w.FirmId, AgreementId = agreementB.Id, Kind = FeeMilestoneKinds.Balance, Amount = 15000m, CreatedAt = DateTimeOffset.UtcNow };
+    db.FeeMilestones.AddRange(milestoneB, legacyMilestone);
 
-    CommercialDocument Receipt(FeeMilestone milestone) => new()
+    CommercialDocument Receipt(FeeMilestone milestone, Guid proposalId, Guid quotationVersionId) => new()
     {
-      Id = Guid.CreateVersion7(), FirmId = w.FirmId, FeeMilestoneId = milestone.Id, Kind = CommercialDocumentKinds.PaymentReceipt,
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProposalId = proposalId, QuotationVersionId = quotationVersionId,
+      FeeMilestoneId = milestone.Id, Kind = CommercialDocumentKinds.PaymentReceipt,
       TemplateVersion = "receipt-v1", ProfileVersion = 1, FileName = $"receipt-{milestone.Id:N}.docx",
       ContentType = CommercialDocumentRenderer.DocxContentType, Bytes = [1, 2, 3], Sha256Hex = new string('a', 64),
       CreatedByUserId = w.PartnerUser.Id, CreatedAt = DateTimeOffset.UtcNow
     };
-    var receiptA = Receipt(milestoneA);
-    var receiptB = Receipt(milestoneB);
+    var receiptA = Receipt(milestoneA, proposalA, quoteA.Value);
+    var receiptB = Receipt(milestoneB, proposalB.Value, agreementB.QuotationVersionId);
+    var mismatchedReceipt = Receipt(mismatchMilestone, proposalB.Value, agreementB.QuotationVersionId);
+    var legacyReceipt = new CommercialDocument
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, FeeMilestoneId = legacyMilestone.Id, Kind = CommercialDocumentKinds.PaymentReceipt,
+      TemplateVersion = "receipt-v1", ProfileVersion = 1, FileName = $"legacy-receipt-{legacyMilestone.Id:N}.docx",
+      ContentType = CommercialDocumentRenderer.DocxContentType, Bytes = [7, 8, 9], Sha256Hex = new string('c', 64),
+      CreatedByUserId = w.PartnerUser.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
     // An internal commercial artifact (comprehensive proposal) is never a client-downloadable document.
     var internalDoc = new CommercialDocument
     {
@@ -1963,7 +2140,7 @@ public sealed class CommercialWorkflowTests
       ContentType = CommercialDocumentRenderer.DocxContentType, Bytes = [4, 5, 6], Sha256Hex = new string('b', 64),
       CreatedByUserId = w.PartnerUser.Id, CreatedAt = DateTimeOffset.UtcNow
     };
-    db.CommercialDocuments.AddRange(receiptA, receiptB, internalDoc);
+    db.CommercialDocuments.AddRange(receiptA, receiptB, mismatchedReceipt, legacyReceipt, internalDoc);
 
     var engagementScopedUser = User(w.FirmId, "engagement-scoped-client");
     engagementScopedUser.UserKind = "Client";
@@ -1991,8 +2168,11 @@ public sealed class CommercialWorkflowTests
     Assert.StartsWith("25000", scopedAgreement.AgreedFee, StringComparison.Ordinal);
 
     // Its own engagement's official receipt downloads; the sibling engagement's does not.
-    Assert.True((await CommercialDocumentService.GetAsync(db, engagementScopedActor, receiptA.Id)).Succeeded);
+    var scopedReceipt = await CommercialDocumentService.GetAsync(db, engagementScopedActor, receiptA.Id);
+    Assert.True(scopedReceipt.Succeeded, scopedReceipt.Message);
+    Assert.NotEmpty(scopedReceipt.Value!.Bytes);
     Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, engagementScopedActor, receiptB.Id)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, engagementScopedActor, legacyReceipt.Id)).ErrorCode);
     // Internal commercial artifacts are never client-downloadable.
     Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, engagementScopedActor, internalDoc.Id)).ErrorCode);
 
@@ -2000,12 +2180,50 @@ public sealed class CommercialWorkflowTests
     var wideFinance = await ClientPortalFinanceQuery.GetAsync(db, clientWideActor);
     Assert.True(wideFinance.Succeeded, wideFinance.Message);
     Assert.Equal(2, wideFinance.Value!.Agreements.Count);
-    Assert.True((await CommercialDocumentService.GetAsync(db, clientWideActor, receiptB.Id)).Succeeded);
+    var wideReceipt = await CommercialDocumentService.GetAsync(db, clientWideActor, receiptB.Id);
+    Assert.True(wideReceipt.Succeeded, wideReceipt.Message);
+    Assert.NotEmpty(wideReceipt.Value!.Bytes);
+    var legacyRead = await CommercialDocumentService.GetAsync(db, clientWideActor, legacyReceipt.Id);
+    Assert.True(legacyRead.Succeeded, legacyRead.Message);
+    Assert.NotEmpty(legacyRead.Value!.Bytes);
     Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, clientWideActor, internalDoc.Id)).ErrorCode);
+    var mismatched = await CommercialDocumentService.GetAsync(db, clientWideActor, mismatchedReceipt.Id);
+    Assert.False(mismatched.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, mismatched.ErrorCode);
+    Assert.Null(mismatched.Value);
 
     // A null-client ClientUser grant is not a firm-wide fallback.
     Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, nullClientActor, receiptA.Id)).ErrorCode);
     Assert.Empty((await ClientPortalFinanceQuery.GetAsync(db, nullClientActor)).Value!.Agreements);
+
+    // These persisted receipt rows exercise both identity fences against the real dual-linked receipt shape.
+    await AssertReceiptDeniedAfterIdentityChangeAsync(engagementScopedUser, engagementScopedActor, receiptA.Id, disableUser: false);
+    await AssertReceiptDeniedAfterIdentityChangeAsync(clientWideUser, clientWideActor, receiptB.Id, disableUser: true);
+
+    async Task AssertReceiptDeniedAfterIdentityChangeAsync(AppUser user, ActorContext actor, Guid receiptId, bool disableUser)
+    {
+      var positive = await CommercialDocumentService.GetAsync(db, actor, receiptId);
+      Assert.True(positive.Succeeded, positive.Message);
+      Assert.NotEmpty(positive.Value!.Bytes);
+
+      var interleaver = new ChangeClientIdentityBeforeReceiptGrantCheck(pg, w.FirmId, user.Id, disableUser);
+      var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(interleaver).Options;
+      await using (var read = new AuditSphereDbContext(options))
+      {
+        var denied = await CommercialDocumentService.GetAsync(read, actor, receiptId);
+        Assert.False(denied.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+        Assert.Null(denied.Value);
+      }
+
+      Assert.Equal(1, interleaver.Calls);
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      var current = await verify.Users.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.Id == user.Id);
+      Assert.Equal(disableUser, current.Disabled);
+      Assert.Equal(disableUser ? actor.SessionEpoch : actor.SessionEpoch + 1, current.SessionEpoch);
+      Assert.Equal(1, await verify.RoleGrants.CountAsync(x => x.FirmId == w.FirmId && x.UserId == user.Id &&
+        x.Role == "ClientUser" && x.ClientId == clientId && x.RevokedAt == null));
+    }
   }
   /// <summary>
   /// WF-03: the readiness cards are evaluated independently from real commercial records: the client's exact-offer acceptance,
@@ -2155,6 +2373,55 @@ public sealed class CommercialWorkflowTests
         Reached.TrySetResult();
       }
       return ValueTask.FromResult(result);
+    }
+  }
+
+  private sealed class RevokeCommercialGrantAfterRead(
+    ITestPostgresDatabase pg, Guid firmId, Guid userId, string role, string targetTable) : DbCommandInterceptor
+  {
+    private int calls;
+    public int Calls => Volatile.Read(ref calls);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (!command.CommandText.Contains(targetTable, StringComparison.OrdinalIgnoreCase) ||
+          Interlocked.CompareExchange(ref calls, 1, 0) != 0)
+        return result;
+
+      await using var change = new AuditSphereDbContext(pg.Options);
+      var updated = await change.RoleGrants.Where(x => x.FirmId == firmId && x.UserId == userId && x.Role == role &&
+          x.ClientId == null && x.EngagementId == null && x.RevokedAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), cancellationToken);
+      if (updated != 1)
+        throw new InvalidOperationException("The commercial read interleaving did not revoke exactly one active firmwide grant.");
+      return result;
+    }
+  }
+
+  private sealed class ChangeClientIdentityBeforeReceiptGrantCheck(
+    ITestPostgresDatabase pg, Guid firmId, Guid userId, bool disableUser) : DbCommandInterceptor
+  {
+    private int calls;
+    public int Calls => Volatile.Read(ref calls);
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      if (!command.CommandText.Contains("SELECT EXISTS", StringComparison.OrdinalIgnoreCase) ||
+          !command.CommandText.Contains("role_grants", StringComparison.OrdinalIgnoreCase) ||
+          Interlocked.CompareExchange(ref calls, 1, 0) != 0)
+        return result;
+
+      await using var change = new AuditSphereDbContext(pg.Options);
+      var updated = disableUser
+        ? await change.Users.Where(x => x.FirmId == firmId && x.Id == userId)
+          .ExecuteUpdateAsync(update => update.SetProperty(x => x.Disabled, true), cancellationToken)
+        : await change.Users.Where(x => x.FirmId == firmId && x.Id == userId)
+          .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), cancellationToken);
+      if (updated != 1)
+        throw new InvalidOperationException("The client receipt interleaving did not update exactly one user.");
+      return result;
     }
   }
 }

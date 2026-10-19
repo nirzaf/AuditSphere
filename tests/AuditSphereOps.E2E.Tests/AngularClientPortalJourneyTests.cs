@@ -1,7 +1,9 @@
 using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -186,6 +188,225 @@ public sealed class AngularClientPortalJourneyTests
     Assert.Empty(errors);
 
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/ui/portal", "client-portal-finance");
+  }
+
+  [Fact]
+  [Trait("CaseId", "ANGULAR-CLIENT-PORTAL-RECEIPT-SCOPE")]
+  public async Task ClientPortal_ReceiptDownloadUsesDualLinkedAgreementScope()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-CLIENT-PORTAL-RECEIPT-SCOPE");
+    var f = host.Fixture;
+    var now = DateTimeOffset.UtcNow;
+    var ownEngagementId = f.EngagementId;
+    var siblingEngagementId = Guid.NewGuid();
+    var billingAccountId = Guid.NewGuid();
+    Guid ownDocumentId;
+    Guid siblingDocumentId;
+    var malformedDocumentId = Guid.NewGuid();
+    byte[] expectedBytes;
+    string expectedSha256;
+
+    await using (var db = host.CreateDbContext())
+    {
+      // These are persisted projection fixtures only. They do not assert commercial acceptance,
+      // invoice approval, a real transfer, or professional work. The client identity retains only
+      // its PbcSeed grant for ownEngagementId; the sibling engagement belongs to the same client.
+      var client = await db.PracticeClients.SingleAsync(x => x.Id == f.ClientId && x.FirmId == f.FirmId);
+      var clientName = client.LegalName;
+      client.BillingAccountId = billingAccountId;
+      db.Engagements.Add(new Engagement
+      {
+        Id = siblingEngagementId, FirmId = f.FirmId, PracticeClientId = f.ClientId,
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+      });
+      db.BillingAccounts.Add(new BillingAccount
+      {
+        Id = billingAccountId, FirmId = f.FirmId, PracticeClientId = f.ClientId, Currency = "QAR", CreatedAt = now
+      });
+
+      var profile = new FirmCommercialProfile
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, Version = 1, LegalName = "Synthetic receipt fixture firm",
+        Address = "Synthetic test address", ContactEmail = "receipt-fixture@example.test", ContactPhone = "",
+        AccentColorHex = "#0F766E", ClosingText = "Synthetic fixture artifact; no real payment or approval is represented.",
+        CreatedByUserId = f.Staff.Id, CreatedAt = now
+      };
+
+      (Guid ProposalId, Guid QuotationId, Guid AgreementId, Guid MilestoneId, Guid DocumentId, Guid InvoiceId, Guid EngagementId) AddPaidScenario(
+        string suffix, Guid engagementId)
+      {
+        var leadId = Guid.NewGuid();
+        var opportunityId = Guid.NewGuid();
+        var proposalId = Guid.NewGuid();
+        var quotationId = Guid.NewGuid();
+        var agreementId = Guid.NewGuid();
+        var milestoneId = Guid.NewGuid();
+        var invoiceId = Guid.NewGuid();
+        var receiptId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+        var amount = 1000m;
+
+        db.Leads.Add(new Lead
+        {
+          Id = leadId, FirmId = f.FirmId, Name = $"Synthetic receipt lead {suffix}", Source = "TEST", CreatedAt = now
+        });
+        db.Opportunities.Add(new Opportunity
+        {
+          Id = opportunityId, FirmId = f.FirmId, LeadId = leadId, PracticeClientId = f.ClientId,
+          ServiceRoute = "FinancialStatementAudit", EntityScope = $"RECEIPT-SCOPE-{suffix}",
+          PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", ExpectedFee = 2000m, Currency = "QAR", CreatedAt = now
+        });
+        db.Proposals.Add(new Proposal
+        {
+          Id = proposalId, FirmId = f.FirmId, OpportunityId = opportunityId, PracticeClientId = f.ClientId,
+          ServiceProfileId = "SYNTHETIC-RECEIPT-SCOPE", Scope = "Synthetic portal projection fixture", Exclusions = "",
+          Deliverables = "Synthetic fixture only", Dependencies = "", Fee = 2000m, Currency = "QAR",
+          PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", PreparedByUserId = f.Staff.Id, CreatedAt = now
+        });
+        db.QuotationVersions.Add(new QuotationVersion
+        {
+          Id = quotationId, FirmId = f.FirmId, ProposalId = proposalId, Revision = 1, Currency = "QAR",
+          BaseAmount = 2000m, Fee = 2000m, InputHash = new string('a', 64),
+          Status = QuotationStates.Draft, CreatedByUserId = f.Staff.Id, CreatedAt = now
+        });
+        db.EngagementFeeAgreements.Add(new EngagementFeeAgreement
+        {
+          Id = agreementId, FirmId = f.FirmId, ProposalId = proposalId, QuotationVersionId = quotationId,
+          PracticeClientId = f.ClientId, EngagementId = engagementId, Currency = "QAR", AgreedFee = 2000m,
+          AdvancePercent = 50m, CreatedByUserId = f.Staff.Id, CreatedAt = now
+        });
+        db.Invoices.Add(new Invoice
+        {
+          Id = invoiceId, FirmId = f.FirmId, BillingAccountId = billingAccountId,
+          InvoiceNumber = $"INV-PORTAL-RECEIPT-{suffix}", Currency = "QAR", Subtotal = amount, Tax = 0m,
+          Total = amount, Revision = 1, Status = BillingStates.InvoiceSent, PostedAt = now.AddDays(-2),
+          SentAt = now.AddDays(-1), CreatedByUserId = f.Staff.Id, CreatedAt = now.AddDays(-2)
+        });
+        db.Receipts.Add(new Receipt
+        {
+          Id = receiptId, FirmId = f.FirmId, BillingAccountId = billingAccountId, Amount = amount, Currency = "QAR",
+          Reference = $"PORTAL-RECEIPT-{suffix}", Status = BillingStates.ReceiptRecorded,
+          RecordedByUserId = f.Staff.Id, ReceivedAt = now.AddDays(-1)
+        });
+        db.ReceiptAllocations.Add(new ReceiptAllocation
+        {
+          Id = Guid.NewGuid(), FirmId = f.FirmId, ReceiptId = receiptId, InvoiceId = invoiceId,
+          Amount = amount, CreatedAt = now.AddDays(-1)
+        });
+        db.FeeMilestones.Add(new FeeMilestone
+        {
+          Id = milestoneId, FirmId = f.FirmId, AgreementId = agreementId, Kind = FeeMilestoneKinds.Advance,
+          Amount = amount, State = FeeMilestoneStates.Paid, InvoiceId = invoiceId, ReceiptId = receiptId,
+          PaidAt = now.AddDays(-1), CreatedAt = now.AddDays(-2)
+        });
+
+        var bytes = CommercialDocumentRenderer.RenderDocx(new CommercialDocumentModel(profile,
+          "Synthetic portal receipt fixture", $"SYNTHETIC-{suffix}", DateOnly.FromDateTime(now.UtcDateTime), clientName,
+          [new DocumentSection("Scope fixture", ["Synthetic document used to verify client download scope."], null)], false));
+        db.CommercialDocuments.Add(new CommercialDocument
+        {
+          Id = documentId, FirmId = f.FirmId, ProposalId = proposalId, QuotationVersionId = quotationId,
+          FeeMilestoneId = milestoneId, Kind = CommercialDocumentKinds.PaymentReceipt,
+          TemplateVersion = CommercialDocumentRenderer.SettlementReceiptTemplate, ProfileVersion = profile.Version,
+          FileName = $"Receipt-{suffix}.docx", ContentType = CommercialDocumentRenderer.DocxContentType,
+          Bytes = bytes, Sha256Hex = Hashing.Sha256Hex(bytes), CreatedByUserId = f.Staff.Id, CreatedAt = now
+        });
+        return (proposalId, quotationId, agreementId, milestoneId, documentId, invoiceId, engagementId);
+      }
+
+      var own = AddPaidScenario("OWN-A", ownEngagementId);
+      var sibling = AddPaidScenario("SIBLING-B", siblingEngagementId);
+      ownDocumentId = own.DocumentId;
+      siblingDocumentId = sibling.DocumentId;
+
+      // The receipt links to a real second milestone on the authorized agreement but carries a
+      // different proposal identity. It must fail the document-to-agreement lineage check.
+      var malformedMilestoneId = Guid.NewGuid();
+      db.FeeMilestones.Add(new FeeMilestone
+      {
+        Id = malformedMilestoneId, FirmId = f.FirmId, AgreementId = own.AgreementId,
+        Kind = FeeMilestoneKinds.Balance, Amount = 1000m, State = FeeMilestoneStates.Planned, CreatedAt = now
+      });
+      var malformedBytes = CommercialDocumentRenderer.RenderDocx(new CommercialDocumentModel(profile,
+        "Synthetic mismatched receipt fixture", "SYNTHETIC-MISMATCH", DateOnly.FromDateTime(now.UtcDateTime), clientName,
+        [new DocumentSection("Scope fixture", ["Synthetic mismatched lineage fixture."], null)], false));
+      db.CommercialDocuments.Add(new CommercialDocument
+      {
+        Id = malformedDocumentId, FirmId = f.FirmId, ProposalId = sibling.ProposalId, QuotationVersionId = own.QuotationId,
+        FeeMilestoneId = malformedMilestoneId, Kind = CommercialDocumentKinds.PaymentReceipt,
+        TemplateVersion = CommercialDocumentRenderer.SettlementReceiptTemplate, ProfileVersion = profile.Version,
+        FileName = "Receipt-mismatched-lineage.docx", ContentType = CommercialDocumentRenderer.DocxContentType,
+        Bytes = malformedBytes, Sha256Hex = Hashing.Sha256Hex(malformedBytes), CreatedByUserId = f.Staff.Id, CreatedAt = now
+      });
+
+      await db.SaveChangesAsync();
+      var storedOwnDocument = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == ownDocumentId);
+      expectedBytes = storedOwnDocument.Bytes;
+      expectedSha256 = storedOwnDocument.Sha256Hex;
+      Assert.Equal(Hashing.Sha256Hex(expectedBytes), expectedSha256);
+      foreach (var scenario in new[] { own, sibling })
+      {
+        var invoice = await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == scenario.InvoiceId);
+        var allocated = await db.ReceiptAllocations.AsNoTracking()
+          .Where(x => x.FirmId == f.FirmId && x.InvoiceId == scenario.InvoiceId).SumAsync(x => x.Amount);
+        Assert.Equal(invoice.Total, allocated);
+      }
+      foreach (var scenario in new[] { own, sibling })
+      {
+        var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleAsync(x => x.Id == scenario.AgreementId);
+        var document = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == scenario.DocumentId);
+        Assert.Equal<Guid?>(scenario.EngagementId, agreement.EngagementId);
+        Assert.Equal(scenario.ProposalId, agreement.ProposalId);
+        Assert.Equal<Guid?>(scenario.ProposalId, document.ProposalId);
+        Assert.Equal<Guid?>(scenario.QuotationId, document.QuotationVersionId);
+        Assert.Equal<Guid?>(scenario.MilestoneId, document.FeeMilestoneId);
+      }
+    }
+
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(f.Client, settings);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 390, Height = 844 } });
+    var page = await context.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/ui/portal"));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Client portal", Exact = true })).ToBeVisibleAsync();
+
+    var finance = page.Locator("audit-portal-finance");
+    var receiptTable = finance.GetByRole(AriaRole.Table, new() { Name = "Payment receipts", Exact = true });
+    await Assertions.Expect(receiptTable).ToBeVisibleAsync();
+    var receiptRow = receiptTable.Locator("tbody tr");
+    await Assertions.Expect(receiptRow).ToHaveCountAsync(1);
+    await Assertions.Expect(receiptRow).ToContainTextAsync("PORTAL-RECEIPT-OWN-A");
+    Assert.DoesNotContain("PORTAL-RECEIPT-SIBLING-B", await finance.InnerTextAsync());
+    var receiptDownload = receiptRow.GetByRole(AriaRole.Link, new() { Name = "Download receipt", Exact = true });
+    await Assertions.Expect(receiptDownload).ToBeVisibleAsync();
+    Assert.Equal($"/api/commercial/documents/{ownDocumentId:D}/download", await receiptDownload.GetAttributeAsync("href"));
+
+    await receiptDownload.FocusAsync();
+    await Assertions.Expect(receiptDownload).ToBeFocusedAsync();
+    var download = await page.RunAndWaitForDownloadAsync(() => receiptDownload.PressAsync("Enter"));
+    var downloadPath = await download.PathAsync();
+    Assert.NotNull(downloadPath);
+    var downloadedBytes = await File.ReadAllBytesAsync(downloadPath!);
+    Assert.Equal(expectedBytes, downloadedBytes);
+    Assert.Equal(expectedSha256, Hashing.Sha256Hex(downloadedBytes));
+
+    await using (var siblingResponse = await context.APIRequest.GetAsync(
+      origin + $"/api/commercial/documents/{siblingDocumentId:D}/download", new() { MaxRedirects = 0 }))
+      Assert.Equal(403, siblingResponse.Status);
+    await using (var malformedResponse = await context.APIRequest.GetAsync(
+      origin + $"/api/commercial/documents/{malformedDocumentId:D}/download", new() { MaxRedirects = 0 }))
+      Assert.Equal(403, malformedResponse.Status);
+
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+      "The client portal must not overflow horizontally at 390px.");
+    Assert.Empty(errors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/ui/portal", "client-receipt-download");
   }
 
   [Fact]

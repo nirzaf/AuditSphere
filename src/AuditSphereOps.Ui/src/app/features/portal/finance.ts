@@ -135,7 +135,7 @@ export const portalFinanceContract = obj({
                         <th>Original allocation</th>
                         <th>Currently applied</th>
                         <th>Date</th>
-                        <th>Receipt Voucher</th>
+                        <th>Receipt document</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -149,7 +149,7 @@ export const portalFinanceContract = obj({
                           <td>
                             @if (r.downloadUrl) {
                               <a matButton [href]="r.downloadUrl" target="_blank" rel="noopener">
-                                Download official voucher
+                                Download receipt
                               </a>
                             } @else {
                               <span>Retained</span>

@@ -124,8 +124,11 @@ public static partial class CommercialDocumentService
   {
     var auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
     if (!auth.Succeeded) return CommandResult<FirmCommercialProfile?>.Fail(auth.ErrorCode!, auth.Message!);
-    return CommandResult<FirmCommercialProfile?>.Ok(await db.FirmCommercialProfiles.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct));
+    var profile = await db.FirmCommercialProfiles.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+    auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
+    if (!auth.Succeeded) return CommandResult<FirmCommercialProfile?>.Fail(auth.ErrorCode!, auth.Message!);
+    return CommandResult<FirmCommercialProfile?>.Ok(profile);
   }
 
   /// <summary>Brief quotation is available before client/risk acceptance; never generates an engagement letter.</summary>
@@ -154,6 +157,8 @@ public static partial class CommercialDocumentService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
+    if (!auth.Succeeded) return CommandResult<CommercialDocument>.Fail(auth.ErrorCode!, auth.Message!);
 
     var proposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == proposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult<CommercialDocument>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -320,6 +325,8 @@ public static partial class CommercialDocumentService
     if (!auth.Succeeded) return CommandResult<IReadOnlyList<CommercialDocument>>.Fail(auth.ErrorCode!, auth.Message!);
     IReadOnlyList<CommercialDocument> documents = await db.CommercialDocuments.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposalId).OrderByDescending(x => x.CreatedAt).ToListAsync(ct);
+    auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
+    if (!auth.Succeeded) return CommandResult<IReadOnlyList<CommercialDocument>>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<IReadOnlyList<CommercialDocument>>.Ok(documents);
   }
 
@@ -338,19 +345,36 @@ public static partial class CommercialDocumentService
     {
       Guid? documentClientId = null;
       Guid? documentEngagementId = null;
-      if (document.ProposalId.HasValue)
+      if (document.Kind == CommercialDocumentKinds.PaymentReceipt && document.FeeMilestoneId is { } milestoneId)
       {
-        var proposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == document.ProposalId.Value && x.FirmId == actor.FirmId, ct);
-        documentClientId = proposal?.PracticeClientId;
-      }
-      else if (document.FeeMilestoneId.HasValue)
-      {
-        var milestone = await db.FeeMilestones.AsNoTracking().SingleOrDefaultAsync(x => x.Id == document.FeeMilestoneId.Value && x.FirmId == actor.FirmId, ct);
+        var milestone = await db.FeeMilestones.AsNoTracking()
+          .SingleOrDefaultAsync(x => x.Id == milestoneId && x.FirmId == actor.FirmId, ct);
         if (milestone is not null)
         {
-          var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == milestone.AgreementId && x.FirmId == actor.FirmId, ct);
-          documentClientId = agreement?.PracticeClientId;
-          documentEngagementId = agreement?.EngagementId;
+          var agreement = await db.EngagementFeeAgreements.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == milestone.AgreementId && x.FirmId == actor.FirmId, ct);
+          if (agreement is not null)
+          {
+            var proposal = await db.Proposals.AsNoTracking()
+              .SingleOrDefaultAsync(x => x.Id == agreement.ProposalId && x.FirmId == actor.FirmId, ct);
+            var documentLineageMatches =
+              (document.ProposalId is null && document.QuotationVersionId is null) ||
+              (document.ProposalId == agreement.ProposalId && document.QuotationVersionId == agreement.QuotationVersionId);
+            var proposalMatchesAgreement = proposal?.PracticeClientId == agreement.PracticeClientId;
+            var engagementMatchesAgreement = true;
+            if (agreement.EngagementId is { } engagementId)
+            {
+              engagementMatchesAgreement = await db.Engagements.AsNoTracking().AnyAsync(x =>
+                x.Id == engagementId && x.FirmId == actor.FirmId &&
+                x.PracticeClientId == agreement.PracticeClientId, ct);
+            }
+
+            if (documentLineageMatches && proposalMatchesAgreement && engagementMatchesAgreement)
+            {
+              documentClientId = agreement.PracticeClientId;
+              documentEngagementId = agreement.EngagementId;
+            }
+          }
         }
       }
 
@@ -362,14 +386,22 @@ public static partial class CommercialDocumentService
       if (documentClientId.HasValue && document.Kind == CommercialDocumentKinds.PaymentReceipt)
       {
         var now = DateTimeOffset.UtcNow;
-        var hasGrant = await db.RoleGrants.AsNoTracking().AnyAsync(g =>
-          g.FirmId == actor.FirmId &&
-          g.UserId == actor.UserId &&
-          g.Role == "ClientUser" &&
-          g.ClientId == documentClientId.Value &&
-          (g.EngagementId == null || (documentEngagementId.HasValue && g.EngagementId == documentEngagementId.Value)) &&
-          g.RevokedAt == null &&
-          (g.ExpiresAt == null || g.ExpiresAt > now), ct);
+        var clientId = documentClientId.Value;
+        var engagementId = documentEngagementId;
+        var hasGrant = await db.Users.AsNoTracking().AnyAsync(user =>
+          user.Id == actor.UserId &&
+          user.FirmId == actor.FirmId &&
+          user.UserKind == "Client" &&
+          !user.Disabled &&
+          user.SessionEpoch == actor.SessionEpoch &&
+          db.RoleGrants.Any(g =>
+            g.FirmId == actor.FirmId &&
+            g.UserId == actor.UserId &&
+            g.Role == "ClientUser" &&
+            g.ClientId == clientId &&
+            (g.EngagementId == null || (engagementId.HasValue && g.EngagementId == engagementId.Value)) &&
+            g.RevokedAt == null &&
+            (g.ExpiresAt == null || g.ExpiresAt > now)), ct);
         if (hasGrant) return CommandResult<CommercialDocument>.Ok(document);
       }
     }
