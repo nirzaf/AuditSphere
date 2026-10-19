@@ -243,3 +243,7 @@ Client profile/archive and relationship writes now share the role-change firm lo
 ## Commercial paging accessibility
 
 Older opportunities now load independently of activity, retaining drafts and current scope. Keyboard success and recoverable failure preserve owned focus; stale or denied work cannot repopulate the workspace. Focused checks and built-in narrow-screen verification passed. Exact source, CI and limits: `status.json` → `opportunityPagingAccessibility20261019`. Human AT and full release acceptance remain open.
+
+## Commercial finality and keyboard outcome recovery
+
+Fee-agreement authority is refreshed after locking; linking reloads retained state. Tender replay verifies exact reviewed inputs and immutable DOCX metadata; changed or unverifiable inputs require a new approved quotation while retained artifacts remain readable. Command refusals now retain keyboard focus on their persistent outcome without overriding later user interaction. New voucher mail describes its attachment. Focused Domain, Angular, browser/API and built-in-browser checks passed; evidence, repaired test races, CI runner termination and remaining professional/accessibility gates are in `status.json` under `commercialFinality20261019`. Earlier document/receipt evidence is retained intact in the status archive.

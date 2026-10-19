@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Commercial finality and keyboard outcome recovery
+## Deadline visibility and consolidation component approval readiness
 
-Fee-agreement authority is refreshed after locking; linking reloads retained state. Tender replay verifies exact reviewed inputs and immutable DOCX metadata; changed or unverifiable inputs require a new approved quotation while retained artifacts remain readable. Command refusals now retain keyboard focus on their persistent outcome without overriding later user interaction. New voucher mail describes its attachment. Focused Domain, Angular, browser/API and built-in-browser checks passed; evidence, repaired test races, CI runner termination and remaining professional/accessibility gates are in `status.json` under `commercialFinality20261019`. Earlier document/receipt evidence is retained intact in the status archive.
+Active overdue tasks now remain visible regardless of age within the existing oldest-first bound. Consolidation component approval projects the command's exact readiness, disables unavailable actions with a safe explanation, and supports native keyboard access to the scrolling table. Focused Domain/API/Angular, owned browser and built-in-browser evidence is in `status.json` under `operationalReadiness20261019`. Earlier commercial evidence is retained in the status and handoff archives. Stale-scope perimeter approval presentation, the broader reminder catalogue, human accessibility review and full current-source release acceptance remain open.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 

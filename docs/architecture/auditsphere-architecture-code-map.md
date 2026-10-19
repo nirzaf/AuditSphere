@@ -167,6 +167,8 @@ unclassified line is an explicit unmapped issue, never assumed ASSETS.
 
 ## Consolidation — perimeter, components, matching, journals, runs, reports
 
+- `ConsolidationService.GetComponentApprovalReadinessAsync` shares nonmutating command guards with the bounded scope workspace projection. Component rows expose `CanApprove` and a safe `ApprovalBlocker`, including selected off-page rows. Angular strictly decodes both fields, explains blocked approval and refuses local dispatch; the server command remains authoritative. Focused evidence is tracked in `status.json` under `operationalReadiness20261019`.
+
 - Domain: `Domain/Accounting/ClientAccounting.cs` (`ClientGroup`, `ConsolidationScopeVersion`, `ConsolidationComponent`, `ConsolidationRun`, `ExchangeRateSetVersion`, `TranslationPolicyVersion`, `TranslationResult`)
 
 - Application: `Application/Accounting/Consolidation/ConsolidationService.{Groups,Ownership,Scopes,Components,ExternalPacks,Intercompany,Journals,Advanced,Runs,Reports,Authorization}.cs`, `ConsolidationCalculator.cs`, `AdvancedConsolidationCalculator.cs`, `AdvancedConsolidationExecutionCalculator.cs`, `ConsolidationQuery.cs`
@@ -273,6 +275,8 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 Boundary: this is the firm's own books (`Practice/FirmLedger`); it never writes client
 
 accounting or consolidation workspaces.
+
+- Engagement deadlines: `Application/Practice/EngagementDeadlineReminderQuery.cs` retains all unresolved active overdue tasks and the upcoming window, using oldest-first bounded results. It remains a read-only scoped projection, not a reminder rule catalogue or provider delivery mechanism. Focused evidence is in `status.json` under `operationalReadiness20261019`.
 
 ## Commercial quotation, documents and the agreed-fee cycle
 

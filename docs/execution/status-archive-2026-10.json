@@ -21281,6 +21281,85 @@
         }
       },
       "limits": "Parent criteria remain PARTIAL. Fee-agreement create/link lock-time authority, tender replay exact reviewed-input binding, truthful voucher-email download wording, full current-source release, human AT and professional/live-provider acceptance remain open."
+    },
+    "commercialFinalityBeforeDeadlineAndConsolidation20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "9a16370ef5f5c30d463d97193c50f6d96bfeae0c",
+      "backendCommit": "2e0134df82d54b5e54b16243ea05b28b8a8e4984",
+      "behavior": "Fee creation/link reauthorize after firm lock; link reloads retained state. Tender reuse verifies stored bytes and embedded exact-input fingerprint; changed or legacy-unverifiable inputs require a new approved quotation. Current artifacts remain readable. Commercial command outcome focus follows request/session/interaction ownership; later user interaction wins. New voucher emails describe exact attachment, not unsupported download. No migration/dependency/provider changes.",
+      "baseline": "Fee: five stale-authority successes plus stale-link trigger exception (retained winner protected). Tender: changed reviewed CV incorrectly reused artifact. Browser: refusal removed trigger and left focus on BODY.",
+      "focused": {
+        "domain": "15 distinct cases passed across initial14/15 and isolated1/1 after correcting duplicate-lead legacy fixture. Voucher wording then3/3 existing variants passed.",
+        "angular": "Affected documents.spec.ts4/4 passed; production Angular build passed with existing SCSS/optional-chain warnings.",
+        "e2e": "TenderGeneration_RefusesChangedReviewedInputsAndKeepsRetainedArtifact1/1 passed after stable deferred section and replay-form refresh waits. Includes current API/owned PostgreSQL, exact retry and byte download, refusal focus and390px overflow.",
+        "build": "Application/API Release passed; zero warnings/errors. No full local suites.",
+        "trxDirectory": "/tmp/auditsphere-commercial-finality-results",
+        "finalTrx": [
+          "commercial-finality-after.trx",
+          "tender-review-after.trx",
+          "voucher-attachment-wording.trx",
+          "tender-review-focus-after-retry.trx"
+        ],
+        "testRepairs": "Initial tender legacy fixture duplicated lead; separate lead corrected. E2E transient deferred-placeholder and retained-success-text races corrected without removing behavioral assertions. Failed attempts retained locally."
+      },
+      "browser": {
+        "observed": "Built-in browser keyboard Enter refused changed tender; active P role=status with actionable message. Exact retained download SHA matched visible persisted artifact; changed browser team absent from Word XML; custom fingerprint present. No console error/warning. Owned fixture/tab disposed.",
+        "screenshot": "/tmp/auditsphere-tender-refusal-focus-after.png",
+        "download": "/tmp/auditsphere-retained-tender-focus-after.docx",
+        "bytes": 2345,
+        "sha256": "04028f899545a3e8d1bd6482e3a186bb493c9670a70fd49f5cb6e3f369c073f5"
+      },
+      "review": "Independent focus review found no blocker. Keyboard and later-interaction ownership covered; pointer activation retaining textarea focus and human assistive-technology acceptance are not claimed.",
+      "ci": {
+        "precedingFast": {
+          "runId": 39260118277,
+          "sourceCommit": "76d904c7576d6a89e7254394fe095f239bac9289",
+          "result": "FAST_CI_PASS"
+        },
+        "olderFull": {
+          "runId": 39248636107,
+          "result": "SUPERSEDED_CANCELLED_AFTER_RUNNER_FAILURE",
+          "observed": "API runner terminated exit143 without final summary;213 passed records are not suite pass. Domain/Angular/build passed. Remaining E2E cancelled only after replacement39266247908 resolved the correct full SHA and started. Job-only rerun refused."
+        },
+        "currentFast": {
+          "runId": 39266065896,
+          "sourceCommit": "5b907e346ed038c1d8ca215e8c0fb518549b18f9",
+          "result": "IN_PROGRESS",
+          "observed": "Docs and Angular passed; .NET Release running. Not full regression acceptance."
+        },
+        "currentFull": {
+          "runId": 39266247908,
+          "sourceCommit": "5b907e346ed038c1d8ca215e8c0fb518549b18f9",
+          "result": "IN_PROGRESS",
+          "observed": "Correct full SHA resolved; Angular stage running. Earlier39266069176 failed before test execution because abbreviated SHA was interpreted as a branch. Resubmitted using full SHA; no tests skipped or weakened."
+        }
+      },
+      "remaining": "Whole-product accessibility, legal/template DEC-02, fee-plan DEC-06, professional/human AT/provider acceptance and full release remain open."
+    },
+    "angularQualityTask07CiBeforeOperationalReadiness20261019": {
+      "previousEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityCiBeforeFinanceSettlements20261019",
+      "currentFast": {
+        "runId": "39226004915",
+        "sourceCommit": "5964d00450f008dc529e0ef88507b37efca415fb",
+        "result": "FAST_CI_PASS",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39226004915",
+        "note": "All jobs passed. Predates new Finance settlement view; not full release acceptance."
+      },
+      "fullRelease": {
+        "runId": "39217723376",
+        "sourceCommit": "ee09d7172d129818f011bf2a08f27265f4d942d9",
+        "result": "IN_PROGRESS",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39217723376",
+        "note": "ee09 source: Domain1389/1389, Angular/build/contracts PASS; API/E2E active. Predates firm report snapshot fix; not current-source release acceptance.",
+        "domain": {
+          "result": "PASS",
+          "passed": 1389,
+          "failed": 0,
+          "skipped": 0,
+          "jobId": "117945949875",
+          "log": "/tmp/auditsphere-domain-full-ee09d717.log"
+        }
+      }
     }
   }
 }
