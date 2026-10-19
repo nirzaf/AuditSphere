@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
@@ -683,6 +684,11 @@ public static class FirmExpenseService
       return CommandResult<FirmTrialBalanceView>.Fail("ledger.invalid", "Choose a valid YYYY-MM period range and activity page.");
     var auth = await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers, "Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<FirmTrialBalanceView>.Fail(auth.ErrorCode!, auth.Message!);
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<FirmTrialBalanceView>.Fail(ErrorCodes.GateBlocked,
+        "Open this report in a separate read context so its source snapshot and current access can be verified.");
+    // Totals, comparatives and paged activity must describe the same committed posting population.
+    await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
     var periods = await db.FirmPeriods.AsNoTracking().Where(x => x.FirmId == actor.FirmId && string.Compare(x.PeriodCode, toPeriod) <= 0).ToListAsync(ct);
     // Match the existing Angular monthly-series boundary before materializing financial activity.
     // Wide requested ranges are safe when the actual stored reporting span is small.
@@ -820,6 +826,8 @@ public static class FirmExpenseService
     var equity = Balance(LedgerStates.AccountEquity, false);
     var profit = revenue - expenses;
     var cumulativeProfit = Balance(LedgerStates.AccountRevenue, false) - Balance(LedgerStates.AccountExpense, true);
+    // End the snapshot before checking access again, so a concurrent withdrawal is not hidden by repeatable read.
+    await snapshot.CommitAsync(ct);
     var finalAuth = await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers, "Partner", "Administrator"], ct);
     if (!finalAuth.Succeeded)
       return CommandResult<FirmTrialBalanceView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
@@ -8,6 +9,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -597,6 +599,58 @@ public sealed partial class FirmOperationsTests
       Assert.Equal(ErrorCodes.ScopeDenied, (await FirmBooksWorkspaceQuery.GetAsync(db, w.A("staff", "Staff"), expenseId: returned.Value)).ErrorCode);
       Assert.Equal("finance.page-invalid", (await FirmBooksWorkspaceQuery.GetAsync(db, reviewer, expensePage: 0)).ErrorCode);
 
+      Guid priorJanuaryId;
+      await using (var priorPeriods = new AuditSphereDbContext(pg.Options))
+      {
+        var january = await LedgerService.CreateFirmPeriodAsync(priorPeriods, finance, new CreateFirmPeriodRequest("2025-01"));
+        Assert.True(january.Succeeded, january.Message);
+        priorJanuaryId = january.Value;
+        var emptyFebruary = await LedgerService.CreateFirmPeriodAsync(priorPeriods, finance, new CreateFirmPeriodRequest("2025-02"));
+        Assert.True(emptyFebruary.Succeeded, emptyFebruary.Message);
+      }
+      Guid priorJournalId;
+      await using (var priorJournal = new AuditSphereDbContext(pg.Options))
+      {
+        var draft = await LedgerService.CreateFirmJournalDraftAsync(priorJournal, finance,
+          new CreateFirmJournalDraftRequest(priorJanuaryId, "J-PRIOR-2025-01", "MANUAL", "FIN06-PRIOR-2025-01", 1,
+            "MONTHLY_REVENUE", "QAR",
+            [new FirmJournalLineRequest(cash, "Prior-year service receipts", 80m, 0m),
+             new FirmJournalLineRequest(revenueAccount, "Prior-year service revenue", 0m, 80m),
+             new FirmJournalLineRequest(rent, "Prior-year rent", 20m, 0m),
+             new FirmJournalLineRequest(cash, "Prior-year rent payment", 0m, 20m)]));
+        Assert.True(draft.Succeeded, draft.Message);
+        priorJournalId = draft.Value;
+        Assert.True((await LedgerService.SubmitFirmJournalAsync(priorJournal, finance, priorJournalId)).Succeeded);
+        Assert.True((await LedgerService.ApproveFirmJournalAsync(priorJournal, reviewer, priorJournalId)).Succeeded);
+      }
+      await using (var postPrior = new AuditSphereDbContext(pg.Options))
+        Assert.True((await LedgerService.PostFirmJournalAsync(postPrior, finance, priorJournalId)).Succeeded);
+
+      await using (var januaryReportDb = new AuditSphereDbContext(pg.Options))
+      {
+        var january = await FirmExpenseService.TrialBalanceAsync(januaryReportDb, w.A("partner", "Partner"), "2026-01", "2026-01");
+        Assert.True(january.Succeeded, january.Message);
+        var view = january.Value!;
+        Assert.Equal((10_000m, 18_000m, -8_000m), (view.Revenue, view.Expenses, view.Profit));
+        var month = Assert.Single(view.MonthlyProfitLoss);
+        Assert.Equal(((decimal?)80m, (decimal?)20m, (decimal?)60m),
+          (month.PriorYearRevenue, month.PriorYearExpenses, month.PriorYearProfit));
+        Assert.Equal((42_060m, 0m, 50_000m, -7_940m), (view.Assets, view.Liabilities, view.Equity, view.CumulativeProfit));
+        Assert.True(view.Balanced);
+        Assert.True(view.PositionReconciles);
+      }
+      await using (var februaryReportDb = new AuditSphereDbContext(pg.Options))
+      {
+        var february = await FirmExpenseService.TrialBalanceAsync(februaryReportDb, w.A("partner", "Partner"), "2026-02", "2026-02");
+        Assert.True(february.Succeeded, february.Message);
+        var view = february.Value!;
+        Assert.Equal((0m, 6_500m, -6_500m), (view.Revenue, view.Expenses, view.Profit));
+        var month = Assert.Single(view.MonthlyProfitLoss);
+        Assert.Equal((decimal?)0m, month.PriorYearRevenue);
+        Assert.Equal((decimal?)0m, month.PriorYearExpenses);
+        Assert.Equal((decimal?)0m, month.PriorYearProfit);
+        Assert.True(view.PositionReconciles);
+      }
     }
   }
 
@@ -635,5 +689,152 @@ public sealed partial class FirmOperationsTests
 
     var report = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-03", "2026-03");
     Assert.Equal("ledger.currency-mixed", report.ErrorCode);
+  }
+
+  [Fact]
+  public async Task FirmTrialBalance_UsesOnePostedSnapshotAndRechecksSessionAfterSnapshot()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var finance = w.A("finance", "FinanceManager");
+    var reviewer = w.A("reviewer", "FinanceReviewer");
+    var reader = w.A("partner", "Partner");
+    Guid cash, revenue, periodId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      cash = (await LedgerService.CreateFirmAccountAsync(setup, finance,
+        new CreateFirmAccountRequest("1000", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+      revenue = (await LedgerService.CreateFirmAccountAsync(setup, finance,
+        new CreateFirmAccountRequest("4000", "Service revenue", LedgerStates.AccountRevenue, LedgerStates.Credit))).Value;
+      periodId = (await LedgerService.CreateFirmPeriodAsync(setup, finance,
+        new CreateFirmPeriodRequest("2026-03"))).Value;
+    }
+
+    async Task<Guid> CreateApprovedRevenueJournalAsync(string journalNumber, string sourceKey, decimal amount)
+    {
+      await using var journalDb = new AuditSphereDbContext(pg.Options);
+      var draft = await LedgerService.CreateFirmJournalDraftAsync(journalDb, finance,
+        new CreateFirmJournalDraftRequest(periodId, journalNumber, "MANUAL", sourceKey, 1, "MONTHLY_REVENUE", "QAR",
+          [new FirmJournalLineRequest(cash, "Service revenue received", amount, 0m),
+           new FirmJournalLineRequest(revenue, "Service revenue", 0m, amount)]));
+      Assert.True(draft.Succeeded, draft.Message);
+      Assert.True((await LedgerService.SubmitFirmJournalAsync(journalDb, finance, draft.Value)).Succeeded);
+      Assert.True((await LedgerService.ApproveFirmJournalAsync(journalDb, reviewer, draft.Value)).Succeeded);
+      return draft.Value;
+    }
+
+    var firstJournalId = await CreateApprovedRevenueJournalAsync("J-SNAPSHOT-100", "SNAPSHOT-100", 100m);
+    await using (var postFirst = new AuditSphereDbContext(pg.Options))
+      Assert.True((await LedgerService.PostFirmJournalAsync(postFirst, finance, firstJournalId)).Succeeded);
+    var stagedJournalId = await CreateApprovedRevenueJournalAsync("J-SNAPSHOT-50", "SNAPSHOT-50", 50m);
+
+    async Task<CommandResult<FirmTrialBalanceView>> ReadWithInterleavingAsync(Func<CancellationToken, Task> interleave)
+    {
+      var pause = new PauseAfterFirmPostingLinesReader();
+      var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options;
+      using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+      await using var reportDb = new AuditSphereDbContext(options);
+      var pending = FirmExpenseService.TrialBalanceAsync(reportDb, reader, "2026-03", "2026-03", timeout.Token);
+      try
+      {
+        await pause.ReaderCreated.Task.WaitAsync(TimeSpan.FromSeconds(20), timeout.Token);
+        await interleave(timeout.Token);
+      }
+      catch
+      {
+        pause.Release.TrySetResult();
+        try { await pending.WaitAsync(TimeSpan.FromSeconds(20)); }
+        catch { /* Preserve the original barrier/interleaving failure. */ }
+        throw;
+      }
+      pause.Release.TrySetResult();
+      return await pending.WaitAsync(TimeSpan.FromSeconds(20), timeout.Token);
+    }
+
+    var snapshot = await ReadWithInterleavingAsync(async ct =>
+    {
+      await using var postSecond = new AuditSphereDbContext(pg.Options);
+      var posted = await LedgerService.PostFirmJournalAsync(postSecond, finance, stagedJournalId, ct);
+      Assert.True(posted.Succeeded, posted.Message);
+    });
+    Assert.True(snapshot.Succeeded, snapshot.Message);
+    var firstView = snapshot.Value!;
+    Assert.Equal((100m, 0m, 100m), (firstView.Revenue, firstView.Expenses, firstView.Profit));
+    Assert.Equal((100m, 100m, 100m, 100m),
+      (firstView.TotalDebit, firstView.TotalCredit, firstView.Rows.Single(x => x.Code == "1000").ClosingDebit,
+        firstView.Rows.Single(x => x.Code == "4000").ClosingCredit));
+    Assert.True(firstView.Balanced);
+    Assert.True(firstView.PositionReconciles);
+    var firstMonth = Assert.Single(firstView.MonthlyProfitLoss);
+    Assert.Equal((100m, 0m, 100m), (firstMonth.Revenue, firstMonth.Expenses, firstMonth.Profit));
+    Assert.Equal(1, firstView.TotalActivityCount);
+    var firstActivity = Assert.Single(firstView.ProfitLossActivity);
+    Assert.Equal(100m, firstActivity.RevenueActivity);
+
+    await using (var freshDb = new AuditSphereDbContext(pg.Options))
+    {
+      var fresh = await FirmExpenseService.TrialBalanceAsync(freshDb, reader, "2026-03", "2026-03");
+      Assert.True(fresh.Succeeded, fresh.Message);
+      var freshView = fresh.Value!;
+      Assert.Equal((150m, 0m, 150m), (freshView.Revenue, freshView.Expenses, freshView.Profit));
+      Assert.Equal((150m, 150m, 150m, 150m),
+        (freshView.TotalDebit, freshView.TotalCredit, freshView.Rows.Single(x => x.Code == "1000").ClosingDebit,
+          freshView.Rows.Single(x => x.Code == "4000").ClosingCredit));
+      Assert.Equal((150m, 0m, 150m),
+        (Assert.Single(freshView.MonthlyProfitLoss).Revenue, freshView.MonthlyProfitLoss[0].Expenses,
+          freshView.MonthlyProfitLoss[0].Profit));
+      Assert.Equal(2, freshView.TotalActivityCount);
+      Assert.Equal(150m, freshView.ProfitLossActivity.Sum(x => x.RevenueActivity));
+    }
+
+    await using (var ambientDb = new AuditSphereDbContext(pg.Options))
+    {
+      await using var callerTransaction = await ambientDb.Database.BeginTransactionAsync();
+      try
+      {
+        var changed = await ambientDb.Users.Where(x => x.Id == reader.UserId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.DisplayName, "uncommitted report probe"));
+        Assert.Equal(1, changed);
+        var refused = await FirmExpenseService.TrialBalanceAsync(ambientDb, reader, "2026-03", "2026-03");
+        Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+        Assert.Same(callerTransaction, ambientDb.Database.CurrentTransaction);
+        await using var observer = new AuditSphereDbContext(pg.Options);
+        Assert.Equal(w.U["partner"].DisplayName,
+          await observer.Users.Where(x => x.Id == reader.UserId).Select(x => x.DisplayName).SingleAsync());
+      }
+      finally
+      {
+        await callerTransaction.RollbackAsync();
+      }
+    }
+
+    var revoked = await ReadWithInterleavingAsync(async ct =>
+    {
+      await using var revokeSession = new AuditSphereDbContext(pg.Options);
+      var changed = await revokeSession.Users.Where(x => x.Id == reader.UserId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), ct);
+      Assert.Equal(1, changed);
+    });
+    Assert.False(revoked.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, revoked.ErrorCode);
+  }
+
+  private sealed class PauseAfterFirmPostingLinesReader : DbCommandInterceptor
+  {
+    private int paused;
+    public TaskCompletionSource ReaderCreated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_posting_lines", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.Exchange(ref paused, 1) == 0)
+      {
+        ReaderCreated.TrySetResult();
+        await Release.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
+      }
+      return result;
+    }
   }
 }
