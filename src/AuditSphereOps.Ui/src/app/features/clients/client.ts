@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, ElementRef, Injector, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -14,8 +14,14 @@ import { guidPattern } from '../../core/contracts';
 import { Client, ClientLocation, clientLocation, decodeClient, decodeClientArchiveState, clientUtcTime, portalIntentExplanation } from './client-contracts';
 import { ClientRelationships } from './client-relationships';
 export { decodeClient } from './client-contracts';
+type ArchiveFocus = { owner: string; interaction: number; origin: HTMLElement; isArchived: boolean; revision: string };
+
 @Component({
   selector: 'audit-client',
+  host: {
+    '(document:pointerdown)': 'recordFocusInteraction()',
+    '(document:keydown)': 'recordFocusInteraction()',
+  },
   imports: [
     FormsModule,
     MatFormFieldModule,
@@ -32,6 +38,9 @@ export { decodeClient } from './client-contracts';
 export class ClientDetail {
   readonly portfolioNavigation = inject(PortfolioNavigation);
   private readonly http = inject(HttpClient);
+  private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly renderInjector = inject(Injector);
+  private focusInteraction = 0;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   readonly utcTime = clientUtcTime;
@@ -101,10 +110,16 @@ export class ClientDetail {
   private navigate(location: ClientLocation): void {
     void this.router.navigate([], { relativeTo: this.route, queryParams: location });
   }
+  recordFocusInteraction(): void { this.focusInteraction++; }
   setArchived(isArchived: boolean): void {
     const client = this.data();
     if (!client || !client.canManageArchive || this.archiveBusy() || client.isArchived === isArchived) return;
     const id = this.id, owner = this.owner();
+    const document = this.hostElement.nativeElement.ownerDocument;
+    const active = document.activeElement;
+    const origin = active instanceof HTMLElement && active.matches('button[data-client-archive]') &&
+      this.hostElement.nativeElement.contains(active) ? active : null;
+    const interaction = this.focusInteraction;
     this.archiveBusy.set(true); this.archiveMessage.set(''); this.archiveFailed.set(false);
     this.archiveRequest = this.http.put<unknown>(`/api/ui/clients/${id}/archive-state`, {
       isArchived, expectedRevision: client.lifecycleRevision,
@@ -118,7 +133,7 @@ export class ClientDetail {
           this.archiveMessage.set(isArchived
             ? 'Client archived. Its profile and authorized engagement history remain searchable.'
             : 'Client restored. Its existing history and authorization remain unchanged.');
-          this.load();
+          this.load(origin ? { owner, interaction, origin, isArchived, revision: state.revision } : undefined);
         } catch {
           this.archiveFailed.set(true); this.archiveMessage.set('The server returned an unsupported archive response. Refresh to review the current state.');
         }
@@ -137,7 +152,7 @@ export class ClientDetail {
     const s = this.session.current();
     return s?.staff ? `${s.firmId}:${s.userId}:${s.generation}:${this.session.invalidation()}:${this.id}:${this.routeRevision}` : '';
   }
-  load(): void {
+  load(archiveFocus?: ArchiveFocus): void {
     const revision = ++this.viewRevision;
     this.request?.unsubscribe();
     this.data.set(null);
@@ -159,6 +174,8 @@ export class ClientDetail {
           if (decoded.id.toLowerCase() !== id || Object.entries(location).some(([key, n]) => decoded.paging[key as keyof ClientLocation] !== n))
             throw new Error('Wrong client context');
           this.data.set(decoded);
+          if (archiveFocus && decoded.isArchived === archiveFocus.isArchived && decoded.lifecycleRevision === archiveFocus.revision)
+            this.restoreArchiveFocus(archiveFocus, revision);
         } catch { this.error.set('The server returned an unsupported response.'); }
         this.loading.set(false);
       },
@@ -170,4 +187,18 @@ export class ClientDetail {
       },
     });
   }
+  private restoreArchiveFocus(context: ArchiveFocus, revision: number): void {
+    afterNextRender(() => {
+      const host = this.hostElement.nativeElement;
+      const active = host.ownerDocument.activeElement;
+      const client = this.data();
+      if (this.destroyed || context.owner !== this.owner() || revision !== this.viewRevision ||
+          context.interaction !== this.focusInteraction || client?.lifecycleRevision !== context.revision ||
+          client.isArchived !== context.isArchived || (active !== context.origin && active !== host.ownerDocument.body)) return;
+      const target = host.querySelector<HTMLButtonElement>('button[data-client-archive]') ??
+        host.querySelector<HTMLButtonElement>('button[data-client-refresh]');
+      target?.focus();
+    }, { injector: this.renderInjector });
+  }
+
 }

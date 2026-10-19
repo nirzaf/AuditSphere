@@ -9,9 +9,9 @@
     <audit-status [value]="client.status" />
     <span class="client-archive-state" [attr.aria-label]="client.isArchived ? 'Client record archived' : 'Client record current'">{{ client.isArchived ? 'Archived client' : 'Current client' }}</span>
     <a [routerLink]="['/app/clients', client.id, 'assessment']">Acceptance checklist</a>
-    <button matButton  (click)="load()">Refresh client</button>
+    <button matButton data-client-refresh (click)="load()">Refresh client</button>
     @if (client.canManageArchive) {
-      <button matButton="outlined" [disabled]="archiveBusy()" (click)="setArchived(!client.isArchived)">
+      <button matButton="outlined" data-client-archive [disabled]="archiveBusy()" (click)="setArchived(!client.isArchived)">
         {{ archiveBusy() ? 'Saving archive state…' : client.isArchived ? 'Restore client' : 'Archive client' }}
       </button>
     }

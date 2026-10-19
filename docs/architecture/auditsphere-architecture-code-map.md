@@ -239,6 +239,9 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 ## Practice — CRM, time, billing, firm ledger
 
+- Client archive/restore presentation: `src/AuditSphereOps.Ui/src/app/features/clients/client.ts` retains the exact client/session/view/revision and keyboard-focus origin across its confirmed profile reload. Deliberate pointer/key interactions and changed ownership cancel deferred focus; no authorization or retained history is changed.
+
+
 - Domain: `Domain/Practice/`; `Crm.cs` defines append-only `ClientLifecycleEvent` archive/restore history.
 
 - Application: `Application/Practice/PracticeCrmService.cs` (CRM / proposals) and `PracticeCrmService.Relationships.cs` (client-scoped revision-fenced archive/restore), `PracticeLeadQuery.cs` (current-access lead list), `WorkspaceQuery.Client.cs` (client metadata, searchable archive state, scoped counts and bounded pages), `PortfolioQuery.cs` / `.Workspace.cs` (archive-aware portfolio search and export), `Search/GlobalSearchQuery.cs` (client-scope archive search with archived-state label), `ClientContactCreationWorkspace.cs` (reviewed contact creation and actor-owned immutable receipt recovery), `PracticeTimeService.cs` (time / budgets), `BillingService.cs` (billing), `BillingInvoiceWorkspaceQuery.cs` (invoice workspace), `InvoicePaymentTermsService.cs` (evidence-backed maker/checker due-date revisions), `ReceiptAllocationReversalService.cs` (reviewed payment unapply), `FirmReceivablesAgingQuery.cs` (firm-fee ageing and CSV export), `LedgerService.cs` and `FirmFinanceQuery.cs` (firm financial ledger)

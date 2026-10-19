@@ -46,6 +46,38 @@ public sealed class AngularClientProfileJourneyTests
     Assert.DoesNotContain("EXCLUDED PRIVATE PROFILE", await page.Locator("body").InnerTextAsync());
     await page.SetViewportSizeAsync(390,844); Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
 
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Archive client", Exact = true })).ToHaveCountAsync(0);
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Manager", f.ClientId));
+      await db.SaveChangesAsync();
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh client", Exact = true }).ClickAsync();
+    var archiveClient = page.GetByRole(AriaRole.Button, new() { Name = "Archive client", Exact = true });
+    await Assertions.Expect(archiveClient).ToBeEnabledAsync();
+    await archiveClient.FocusAsync();
+    await Assertions.Expect(archiveClient).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Enter");
+    var restoreClient = page.GetByRole(AriaRole.Button, new() { Name = "Restore client", Exact = true });
+    await Assertions.Expect(restoreClient).ToBeVisibleAsync();
+    await Assertions.Expect(restoreClient).ToBeFocusedAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Complementary, new() { Name = "Archived client history", Exact = true }))
+      .ToContainTextAsync("Authorized staff can still search this client");
+    await Assertions.Expect(engagements).ToContainTextAsync("Page 2");
+    await Assertions.Expect(contacts.Locator("tbody tr")).ToHaveCountAsync(25);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path,
+      canonical ? "client-archive-canonical" : "client-archive-ui");
+    await page.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(archiveClient).ToBeVisibleAsync();
+    await Assertions.Expect(archiveClient).ToBeFocusedAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Complementary, new() { Name = "Archived client history", Exact = true })).ToHaveCountAsync(0);
+    await using (var db = host.CreateDbContext())
+    {
+      var events = await db.ClientLifecycleEvents.Where(x => x.ClientId == f.ClientId).OrderBy(x => x.Revision).ToListAsync();
+      Assert.Equal(2, events.Count);
+      Assert.All(events, entry => Assert.Equal(f.Staff.Id, entry.ActorUserId));
+    }
+
     var sibling = await SiblingClientSeed.SeedAsync(host.Database, f.FirmId, "CLIENT-PROFILE-SIBLING");
     try
     {

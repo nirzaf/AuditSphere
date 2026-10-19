@@ -70,12 +70,17 @@ describe('Client profile request and command ownership', () => {
   });
   it('archives and restores with the exact lifecycle revision while keeping history searchable', () => {
     const f = open(); read().flush(payload); TestBed.tick();
+    const archiveButton = f.nativeElement.querySelector('[data-client-archive]') as HTMLButtonElement;
+    archiveButton.focus();
+    expect(document.activeElement).toBe(archiveButton);
     f.componentInstance.setArchived(true);
     const command = TestBed.inject(HttpTestingController).expectOne(`/api/ui/clients/${id}/archive-state`);
     expect(command.request.method).toBe('PUT');
     expect(command.request.body).toEqual({ isArchived: true, expectedRevision: '0' });
     command.flush({ isArchived: true, lastArchivedAt: '2026-10-18T10:00:00Z', revision: '1' }); TestBed.tick();
     read().flush({ ...payload, isArchived: true, lastArchivedAt: '2026-10-18T10:00:00Z', lifecycleRevision: '1' }); TestBed.tick();
+    expect(document.activeElement).toBe(f.nativeElement.querySelector('[data-client-archive]'));
+    expect(document.activeElement?.textContent).toContain('Restore client');
     expect(f.nativeElement.textContent).toContain('Archived client record');
     expect(f.nativeElement.textContent).toContain('authorized engagement history');
     expect(f.componentInstance.data()?.metrics.engagements).toBe(27);
@@ -84,12 +89,34 @@ describe('Client profile request and command ownership', () => {
     expect(restore.request.body).toEqual({ isArchived: false, expectedRevision: '1' });
     restore.flush({ isArchived: false, lastArchivedAt: '2026-10-18T10:00:00Z', revision: '2' }); TestBed.tick();
     read().flush({ ...payload, lastArchivedAt: '2026-10-18T10:00:00Z', lifecycleRevision: '2' }); TestBed.tick();
+    expect(document.activeElement).toBe(f.nativeElement.querySelector('[data-client-archive]'));
+    expect(document.activeElement?.textContent).toContain('Archive client');
     expect(f.componentInstance.data()?.isArchived).toBe(false);
     expect(f.componentInstance.data()?.lastArchivedAt).toBe('2026-10-18T10:00:00Z');
     ids.next(convertToParamMap({ id: other })); TestBed.tick();
     expect(f.componentInstance.archiveMessage()).toBe('');
     expect(f.componentInstance.archiveFailed()).toBe(false);
     read().flush({ ...payload, id: other }); TestBed.tick();
+  });
+  it.each([
+    { eventType: 'pointerdown', moveToBreadcrumb: false },
+    { eventType: 'keydown', moveToBreadcrumb: true },
+  ])('does not steal focus after $eventType during archive refresh', ({ eventType, moveToBreadcrumb }) => {
+    const f = open(); read().flush(payload); TestBed.tick();
+    (f.nativeElement.querySelector('[data-client-archive]') as HTMLButtonElement).focus();
+    f.componentInstance.setArchived(true);
+    TestBed.inject(HttpTestingController).expectOne(`/api/ui/clients/${id}/archive-state`)
+      .flush({ isArchived: true, lastArchivedAt: '2026-10-18T10:00:00Z', revision: '1' });
+    TestBed.tick();
+    document.dispatchEvent(new Event(eventType, { bubbles: true }));
+    const breadcrumb = f.nativeElement.querySelector('nav[aria-label="Breadcrumb"] a') as HTMLAnchorElement;
+    if (moveToBreadcrumb) breadcrumb.focus();
+    const expectedFocus = document.activeElement;
+    expect(expectedFocus).toBe(moveToBreadcrumb ? breadcrumb : document.body);
+    read().flush({ ...payload, isArchived: true, lastArchivedAt: '2026-10-18T10:00:00Z', lifecycleRevision: '1' });
+    TestBed.tick();
+    expect(document.activeElement).toBe(expectedFocus);
+    expect(f.componentInstance.data()?.isArchived).toBe(true);
   });
   it('cancels superseded reads and rejects mismatched client or page responses', () => {
     const f = open(), old = read(); ids.next(convertToParamMap({id:other})); TestBed.tick();
