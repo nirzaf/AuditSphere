@@ -237,13 +237,14 @@ public static class BillingService
       request.BillingAccountId.ToString("D"), BillingCommandWorkspace.Decimal(request.Amount), request.Reference.Trim(),
       request.ReceivedAt?.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var guard = await LockClientAsync(db, actor.FirmId, account.PracticeClientId, ct);
     if (!guard.Succeeded) return CommandResult<Guid>.Fail(guard.ErrorCode!, guard.Message!);
     var lockedAccount = await LoadBillingAccountForUpdateAsync(db, actor.FirmId, account.Id, ct);
     if (lockedAccount is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.BillingAccounts.Attach(lockedAccount).ReloadAsync(ct);
     auth = await AuthorizeBillingAsync(db, actor, lockedAccount.PracticeClientId, BillingRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var replay = await BillingCommandWorkspace.FindReplayAsync(db, actor, lockedAccount.PracticeClientId,
@@ -268,7 +269,7 @@ public static class BillingService
     {
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The billing request identity was claimed concurrently. Recover its retained outcome before retrying.");
     }
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(receipt.Id);
   }
 
@@ -303,7 +304,7 @@ public static class BillingService
     var hash = BillingCommandWorkspace.IntentHash(action, actor.FirmId, account.PracticeClientId,
       request.ReceiptId.ToString("D"), request.InvoiceId.ToString("D"), BillingCommandWorkspace.Decimal(request.Amount));
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var guard = await LockClientAsync(db, actor.FirmId, account.PracticeClientId, ct);
@@ -312,7 +313,13 @@ public static class BillingService
     if (lockedAccount is null) return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var lockedReceipt = await LoadReceiptForUpdateAsync(db, actor.FirmId, request.ReceiptId, ct);
     var lockedInvoice = await LoadInvoiceForUpdateAsync(db, actor.FirmId, request.InvoiceId, ct);
-    if (lockedReceipt is null || lockedInvoice is null || lockedReceipt.BillingAccountId != lockedInvoice.BillingAccountId)
+    if (lockedReceipt is null || lockedInvoice is null)
+      return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // A caller-owned context may already track pre-posting or pre-update entities; the row locks do not refresh them.
+    await db.BillingAccounts.Attach(lockedAccount).ReloadAsync(ct);
+    await db.Receipts.Attach(lockedReceipt).ReloadAsync(ct);
+    await db.Invoices.Attach(lockedInvoice).ReloadAsync(ct);
+    if (lockedReceipt.BillingAccountId != lockedInvoice.BillingAccountId || lockedReceipt.BillingAccountId != lockedAccount.Id)
       return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     auth = await AuthorizeBillingAsync(db, actor, lockedAccount.PracticeClientId, BillingRoles, ct);
     if (!auth.Succeeded) return CommandResult<ReceiptAllocationCommandOutcome>.Fail(auth.ErrorCode!, auth.Message!);
@@ -355,7 +362,7 @@ public static class BillingService
     {
       return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.IdempotencyConflict, "The allocation or billing request identity changed concurrently. Recover its retained outcome before retrying.");
     }
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<ReceiptAllocationCommandOutcome>.Ok(outcome);
   }
 

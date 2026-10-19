@@ -240,16 +240,39 @@ public static partial class FeeAgreementService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(auth.ErrorCode!, auth.Message!);
-    var milestone = await db.FeeMilestones.SingleAsync(x => x.FirmId == actor.FirmId && x.AgreementId == agreementId && x.Kind == kind, ct);
+
+    // The source identity is shared by finance actors; actor-private generic command replay is not its fence.
+    // Ambient owners must acquire the firm fence before any client/target locks and roll back on failure.
+    await using var paymentTx = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == agreementId && x.FirmId == actor.FirmId, ct);
+    if (agreement is null) return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(auth.ErrorCode!, auth.Message!);
+    var milestone = await db.FeeMilestones.FromSqlInterpolated($"SELECT * FROM fee_milestones WHERE firm_id = {actor.FirmId} AND agreement_id = {agreementId} AND kind = {kind} FOR UPDATE")
+      .SingleAsync(ct);
+    await db.FeeMilestones.Attach(milestone).ReloadAsync(ct);
     if (milestone.InvoiceId is null)
       return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, $"Issue the {kind.ToLowerInvariant()} invoice first.");
-    var invoice = await db.Invoices.AsNoTracking().SingleAsync(x => x.Id == milestone.InvoiceId && x.FirmId == actor.FirmId, ct);
+    var invoice = await (from i in db.Invoices.AsNoTracking()
+      join account in db.BillingAccounts.AsNoTracking() on new { i.FirmId, Id = i.BillingAccountId } equals new { account.FirmId, account.Id }
+      where i.FirmId == actor.FirmId && i.Id == milestone.InvoiceId && account.PracticeClientId == agreement.PracticeClientId
+      select i).SingleOrDefaultAsync(ct);
+    if (invoice is null) return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (invoice.Status is not (BillingStates.InvoicePosted or BillingStates.InvoiceSent))
       return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, $"The {kind.ToLowerInvariant()} invoice must be approved and posted before a payment is recorded.");
 
     var prefix = kind == FeeMilestoneKinds.Advance ? "ADV" : "BAL";
-    var storedReference = $"{prefix}-{agreement.Id.ToString("N")[..8].ToUpperInvariant()}-{reference}";
-    var receipt = await db.Receipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.BillingAccountId == invoice.BillingAccountId && x.Reference == storedReference, ct);
+    var storedReference = $"{prefix}-{agreement.Id.ToString("N").ToUpperInvariant()}-{reference}";
+    var legacyReference = $"{prefix}-{agreement.Id.ToString("N")[..8].ToUpperInvariant()}-{reference}";
+    var recovered = await ResolveMilestoneReceiptAsync(db, actor, agreement, milestone, invoice,
+      storedReference, legacyReference, ct);
+    if (!recovered.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(recovered.ErrorCode!, recovered.Message!);
+    var receipt = recovered.Value;
+    if (receipt is not null) storedReference = receipt.Reference;
     if (receipt is not null && (receipt.Amount != amount || (receivedAt.HasValue && receipt.ReceivedAt != receivedAt)))
       return CommandResult<AdvancePaymentOutcome>.Fail("fee.reference-conflict", "This payment reference already records different payment details.");
     if (receipt is null)
@@ -284,12 +307,7 @@ public static partial class FeeAgreementService
       if (!allocation.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(allocation.ErrorCode!, allocation.Message!);
     }
 
-    // Allocation commands have committed before this settlement projection. Reacquire
-    // their firm fence so a reversal cannot race the cash check and PAID transition.
-    await using var settlementTx = db.Database.CurrentTransaction is null
-      ? await db.Database.BeginTransactionAsync(ct) : null;
-    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
-      return CommandResult<AdvancePaymentOutcome>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    // Receipt, allocation and settlement retain the same firm fence; a reversal cannot interleave the cash projection.
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(auth.ErrorCode!, auth.Message!);
@@ -310,7 +328,7 @@ public static partial class FeeAgreementService
     var voucher = await EnsurePaymentVoucherAsync(db, actor, agreement, milestone, invoice, receipt, ct);
     if (outstanding > 0)
     {
-      if (settlementTx is not null) await settlementTx.CommitAsync(ct);
+      if (paymentTx is not null) await paymentTx.CommitAsync(ct);
       return CommandResult<AdvancePaymentOutcome>.Ok(new(receipt.Id, allocated, outstanding, false, null, false,
         $"Partial {kind.ToLowerInvariant()} recorded; {outstanding.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} remains outstanding. {voucher.Message}",
         voucher.DocumentId, voucher.EmailQueued));
@@ -329,7 +347,7 @@ public static partial class FeeAgreementService
       await AuditSphereOps.Application.Documents.ClientPortalService.RefreshCommercialIntentAsync(db, actor.FirmId, agreement.PracticeClientId, ct);
     }
     var settled = await EnsureReceiptDocumentAndEmailAsync(db, actor, agreement, tracked, invoice, receipt, ct);
-    if (settlementTx is not null) await settlementTx.CommitAsync(ct);
+    if (paymentTx is not null) await paymentTx.CommitAsync(ct);
     return settled.Succeeded
       ? CommandResult<AdvancePaymentOutcome>.Ok(settled.Value! with { VoucherDocumentId = voucher.DocumentId, VoucherEmailQueued = voucher.EmailQueued })
       : settled;

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Completion;
@@ -518,6 +519,341 @@ public sealed class BillingTests
     Assert.Equal(1, await retryDb.BillingSourceAllocations.CountAsync(x => x.FirmId == fixture.FirmId &&
       x.SourceKind == FeeAgreementService.MilestoneSourceKind && x.SourceId == milestoneIds[4] &&
       x.SourceRevision == 1));
+
+    // Payment identity recovery covers the same five source-bound invoices without relying on commercial approval history.
+    var paymentInvoiceIds = new[]
+      { issuedInvoiceIds[0], issuedInvoiceIds[1], legacyDraft.Value, concurrentInvoiceId, retried.Value };
+    await using (var profileDb = new AuditSphereDbContext(pg.Options))
+    {
+      profileDb.FirmFinanceProfiles.Add(new FirmFinanceProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, FunctionalCurrency = "QAR",
+        ProfileKind = BillingStates.TestProfile, Approved = true,
+        ApprovedByUserId = fixture.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await profileDb.SaveChangesAsync();
+    }
+
+    await using var cachedBillingDb = new AuditSphereDbContext(pg.Options);
+    var cachedDraft = await cachedBillingDb.Invoices.SingleAsync(x => x.Id == issuedInvoiceIds[0]);
+    Assert.Equal(BillingStates.InvoiceDraft, cachedDraft.Status);
+    foreach (var paymentInvoiceId in paymentInvoiceIds)
+    {
+      await using (var submitDb = new AuditSphereDbContext(pg.Options))
+      {
+        var submitted = await BillingService.SubmitInvoiceAsync(submitDb, fixture.ManagerActor, paymentInvoiceId);
+        Assert.True(submitted.Succeeded, submitted.Message);
+      }
+      await using (var reviewDb = new AuditSphereDbContext(pg.Options))
+      {
+        var approved = await BillingService.ApproveInvoiceAsync(reviewDb, fixture.ReviewerActor, paymentInvoiceId);
+        Assert.True(approved.Succeeded, approved.Message);
+      }
+      await using (var postDb = new AuditSphereDbContext(pg.Options))
+      {
+        var posted = await BillingService.PostInvoiceAsync(postDb, fixture.ManagerActor, paymentInvoiceId);
+        Assert.True(posted.Succeeded, posted.Message);
+      }
+    }
+
+    async Task<CommandResult<AdvancePaymentOutcome>> RecordFeePaymentAsync(
+      Guid agreementId, ActorContext actor, decimal amount, string externalReference)
+    {
+      await using var paymentDb = new AuditSphereDbContext(pg.Options);
+      return await FeeAgreementService.RecordAdvancePaymentAsync(
+        paymentDb, actor, agreementId, amount, externalReference);
+    }
+
+    async Task<Guid> RecordReceiptAsync(
+      ActorContext actor, decimal amount, string storedReference, Guid requestId, DateTimeOffset? receivedAt = null)
+    {
+      await using var receiptDb = new AuditSphereDbContext(pg.Options);
+      var recorded = await BillingService.RecordReceiptAsync(receiptDb, actor,
+        new RecordReceiptRequest(accountId, amount, storedReference, ReceivedAt: receivedAt, RequestId: requestId));
+      Assert.True(recorded.Succeeded, recorded.Message);
+      return recorded.Value;
+    }
+
+    string LegacyPaymentReference(Guid agreementId, string externalReference) =>
+      $"ADV-{agreementId.ToString("N")[..8].ToUpperInvariant()}-{externalReference}";
+
+    Guid LegacyReceiptRequestId(Guid agreementId, string storedReference) =>
+      BillingCommandWorkspace.DeriveRequestId(
+        $"fee-milestone:receipt:{agreementId:N}:{FeeMilestoneKinds.Advance}:{storedReference}");
+
+    // Both same-prefix agreements receive the same 120-character external reference. Assert that both commands
+    // succeed and retain distinct receipt identities before checking their stored references. On the old short-GUID
+    // implementation, the second command incorrectly reuses the first receipt and fails over-allocation here.
+    var longSharedExternalReference = new string('L', 120);
+    var firstSharedPayment = await RecordFeePaymentAsync(
+      agreementIds[0], fixture.ManagerActor, 10m, longSharedExternalReference);
+    Assert.True(firstSharedPayment.Succeeded, firstSharedPayment.Message);
+    var secondSharedPayment = await RecordFeePaymentAsync(
+      agreementIds[1], fixture.ManagerActor, 10m, longSharedExternalReference);
+    Assert.True(secondSharedPayment.Succeeded, secondSharedPayment.Message);
+    Assert.NotEqual(firstSharedPayment.Value!.ReceiptId, secondSharedPayment.Value!.ReceiptId);
+
+    await using (var verifySharedPayments = new AuditSphereDbContext(pg.Options))
+    {
+      var firstReceipt = await verifySharedPayments.Receipts.AsNoTracking()
+        .SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == firstSharedPayment.Value.ReceiptId);
+      var secondReceipt = await verifySharedPayments.Receipts.AsNoTracking()
+        .SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == secondSharedPayment.Value.ReceiptId);
+      Assert.Equal($"ADV-{agreementIds[0].ToString("N").ToUpperInvariant()}-{longSharedExternalReference}", firstReceipt.Reference);
+      Assert.Equal($"ADV-{agreementIds[1].ToString("N").ToUpperInvariant()}-{longSharedExternalReference}", secondReceipt.Reference);
+      Assert.True(firstReceipt.Reference.Length <= 200);
+      Assert.True(secondReceipt.Reference.Length <= 200);
+      Assert.NotEqual(firstReceipt.Reference, secondReceipt.Reference);
+    }
+
+    const string thirdLegacyExternalReference = "LEGACY-PRE-ALLOCATION";
+    var thirdLegacyStoredReference = LegacyPaymentReference(agreementIds[2], thirdLegacyExternalReference);
+    var thirdLegacyRequestId = LegacyReceiptRequestId(agreementIds[2], thirdLegacyStoredReference);
+    var thirdLegacyReceivedAt = new DateTimeOffset(2026, 3, 15, 10, 30, 0, TimeSpan.Zero).AddTicks(1_234_567);
+    var receiptsBeforeThirdLegacy = 0;
+    await using (var beforeLegacy = new AuditSphereDbContext(pg.Options))
+      receiptsBeforeThirdLegacy = await beforeLegacy.Receipts.CountAsync(x => x.FirmId == fixture.FirmId);
+    var thirdLegacyReceiptId = await RecordReceiptAsync(
+      fixture.ManagerActor, 10m, thirdLegacyStoredReference, thirdLegacyRequestId, thirdLegacyReceivedAt);
+    await using (var verifyThirdLegacySource = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.False(await verifyThirdLegacySource.ReceiptAllocations.AsNoTracking().AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.ReceiptId == thirdLegacyReceiptId));
+      var commandReceipt = await verifyThirdLegacySource.BillingCommandReceipts.AsNoTracking().SingleAsync(x =>
+        x.FirmId == fixture.FirmId && x.ClientId == fixture.ClientId && x.ActorId == fixture.Manager.Id &&
+        x.RequestId == thirdLegacyRequestId);
+      var outcome = JsonSerializer.Deserialize<BillingCommandOutcome>(commandReceipt.OutcomeJson);
+      Assert.Equal("RECORD_RECEIPT", commandReceipt.Action);
+      Assert.Equal(thirdLegacyReceiptId, commandReceipt.ResultId);
+      Assert.Equal(thirdLegacyReceiptId, outcome!.ResultId);
+      Assert.Equal(thirdLegacyReceiptId, outcome.ReceiptId);
+      Assert.Equal("10", outcome.Amount);
+      var persistedReceivedAt = await verifyThirdLegacySource.Receipts.AsNoTracking()
+        .Where(x => x.FirmId == fixture.FirmId && x.Id == thirdLegacyReceiptId)
+        .Select(x => x.ReceivedAt).SingleAsync();
+      Assert.NotEqual(thirdLegacyReceivedAt, persistedReceivedAt);
+      Assert.Equal(0, persistedReceivedAt.UtcDateTime.Ticks % 10);
+    }
+
+    // A different currently-authorized finance actor recovers the old source-specific receipt before allocation.
+    var thirdLegacyRecovery = await RecordFeePaymentAsync(
+      agreementIds[2], fixture.ReviewerActor, 10m, thirdLegacyExternalReference);
+    Assert.True(thirdLegacyRecovery.Succeeded, thirdLegacyRecovery.Message);
+    Assert.Equal(thirdLegacyReceiptId, thirdLegacyRecovery.Value!.ReceiptId);
+    await using (var verifyThirdLegacyRecovery = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(receiptsBeforeThirdLegacy + 1,
+        await verifyThirdLegacyRecovery.Receipts.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.Equal(1, await verifyThirdLegacyRecovery.ReceiptAllocations.CountAsync(x =>
+        x.FirmId == fixture.FirmId && x.ReceiptId == thirdLegacyReceiptId && x.InvoiceId == legacyDraft.Value));
+      Assert.False(await verifyThirdLegacyRecovery.ReceiptAllocations.AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.ReceiptId == thirdLegacyReceiptId && x.InvoiceId != legacyDraft.Value));
+    }
+
+    // The same legacy alias already has a receipt proven to belong only to agreement 3. Agreement 4 must ignore that
+    // proven-other row and record its own full-source payment using the same external reference.
+    var provenOtherPayment = await RecordFeePaymentAsync(
+      agreementIds[3], fixture.ManagerActor, 10m, thirdLegacyExternalReference);
+    Assert.True(provenOtherPayment.Succeeded, provenOtherPayment.Message);
+    Assert.NotEqual(thirdLegacyReceiptId, provenOtherPayment.Value!.ReceiptId);
+    await using (var verifyProvenOther = new AuditSphereDbContext(pg.Options))
+    {
+      var receipt = await verifyProvenOther.Receipts.AsNoTracking()
+        .SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == provenOtherPayment.Value.ReceiptId);
+      Assert.Equal($"ADV-{agreementIds[3].ToString("N").ToUpperInvariant()}-{thirdLegacyExternalReference}", receipt.Reference);
+      Assert.Equal(1, await verifyProvenOther.ReceiptAllocations.CountAsync(x =>
+        x.FirmId == fixture.FirmId && x.ReceiptId == thirdLegacyReceiptId && x.InvoiceId == legacyDraft.Value));
+      Assert.False(await verifyProvenOther.ReceiptAllocations.AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.ReceiptId == thirdLegacyReceiptId && x.InvoiceId == concurrentInvoiceId));
+    }
+
+    // A generic legacy receipt with a random request identity can be recovered only through its actual allocation
+    // to this invoice, whose immutable source line is already bound to agreement 4's milestone.
+    const string fourthLegacyExternalReference = "LEGACY-ALLOCATED";
+    var fourthLegacyStoredReference = LegacyPaymentReference(agreementIds[3], fourthLegacyExternalReference);
+    var fourthLegacyReceiptId = await RecordReceiptAsync(
+      fixture.ManagerActor, 1m, fourthLegacyStoredReference, Guid.CreateVersion7());
+    var fourthLegacyAllocationId = Guid.CreateVersion7();
+    await using (var allocateFourthLegacy = new AuditSphereDbContext(pg.Options))
+    {
+      var allocation = await BillingService.AllocateReceiptCommandAsync(allocateFourthLegacy, fixture.ManagerActor,
+        new AllocateReceiptRequest(fourthLegacyReceiptId, concurrentInvoiceId, 1m, fourthLegacyAllocationId));
+      Assert.True(allocation.Succeeded, allocation.Message);
+      Assert.Equal(concurrentInvoiceId, allocation.Value!.InvoiceId);
+      Assert.Equal(fourthLegacyReceiptId, allocation.Value.ReceiptId);
+    }
+    int receiptsBeforeFourthRecovery;
+    int allocationsBeforeFourthRecovery;
+    await using (var beforeFourthRecovery = new AuditSphereDbContext(pg.Options))
+    {
+      receiptsBeforeFourthRecovery = await beforeFourthRecovery.Receipts.CountAsync(x => x.FirmId == fixture.FirmId);
+      allocationsBeforeFourthRecovery = await beforeFourthRecovery.ReceiptAllocations.CountAsync(x => x.FirmId == fixture.FirmId);
+    }
+    var fourthLegacyRecovery = await RecordFeePaymentAsync(
+      agreementIds[3], fixture.ReviewerActor, 1m, fourthLegacyExternalReference);
+    Assert.True(fourthLegacyRecovery.Succeeded, fourthLegacyRecovery.Message);
+    Assert.Equal(fourthLegacyReceiptId, fourthLegacyRecovery.Value!.ReceiptId);
+    await using (var verifyFourthRecovery = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(receiptsBeforeFourthRecovery,
+        await verifyFourthRecovery.Receipts.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.Equal(allocationsBeforeFourthRecovery,
+        await verifyFourthRecovery.ReceiptAllocations.CountAsync(x => x.FirmId == fixture.FirmId));
+    }
+
+    // An unbound short-reference receipt is not enough to identify agreement 5's source payment.
+    const string fifthUnboundExternalReference = "LEGACY-UNBOUND";
+    var fifthUnboundStoredReference = LegacyPaymentReference(agreementIds[4], fifthUnboundExternalReference);
+    var fifthUnboundReceiptId = await RecordReceiptAsync(
+      fixture.ManagerActor, 1m, fifthUnboundStoredReference, Guid.CreateVersion7());
+    int receiptsBeforeUnboundAttempt;
+    int allocationsBeforeUnboundAttempt;
+    await using (var beforeUnboundAttempt = new AuditSphereDbContext(pg.Options))
+    {
+      receiptsBeforeUnboundAttempt = await beforeUnboundAttempt.Receipts.CountAsync(x => x.FirmId == fixture.FirmId);
+      allocationsBeforeUnboundAttempt = await beforeUnboundAttempt.ReceiptAllocations.CountAsync(x => x.FirmId == fixture.FirmId);
+    }
+    var unboundAttempt = await RecordFeePaymentAsync(
+      agreementIds[4], fixture.ManagerActor, 1m, fifthUnboundExternalReference);
+    Assert.False(unboundAttempt.Succeeded);
+    Assert.Equal("fee.reference-conflict", unboundAttempt.ErrorCode);
+    await using (var verifyUnboundDenial = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(receiptsBeforeUnboundAttempt,
+        await verifyUnboundDenial.Receipts.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.Equal(allocationsBeforeUnboundAttempt,
+        await verifyUnboundDenial.ReceiptAllocations.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.False(await verifyUnboundDenial.ReceiptAllocations.AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.ReceiptId == fifthUnboundReceiptId));
+      var milestone = await verifyUnboundDenial.FeeMilestones.AsNoTracking()
+        .SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == milestoneIds[4]);
+      Assert.Equal(retried.Value, milestone.InvoiceId);
+      Assert.Null(milestone.ReceiptId);
+      Assert.Equal(FeeMilestoneStates.Invoiced, milestone.State);
+    }
+
+    // A source row with a well-formed but unrelated intent hash passes the database's format guard;
+    // recovery must still reject it against the recorded receipt identity and amount.
+    var fifthUnboundSourceRequestId = LegacyReceiptRequestId(agreementIds[4], fifthUnboundStoredReference);
+    var unrelatedReceivedAt = new DateTimeOffset(2001, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    var unrelatedSourceHash = BillingCommandWorkspace.IntentHash(
+      "RECORD_RECEIPT", fixture.FirmId, fixture.ClientId, accountId.ToString("D"),
+      BillingCommandWorkspace.Decimal(1m), fifthUnboundStoredReference,
+      unrelatedReceivedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+    await using (var seedInvalidSource = new AuditSphereDbContext(pg.Options))
+    {
+      seedInvalidSource.BillingCommandReceipts.Add(new BillingCommandReceipt
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, ClientId = fixture.ClientId,
+        ActorId = fixture.Manager.Id, ActorEpoch = fixture.ManagerActor.SessionEpoch,
+        RequestId = fifthUnboundSourceRequestId, Action = "RECORD_RECEIPT", RequestHash = unrelatedSourceHash,
+        ResultId = fifthUnboundReceiptId,
+        OutcomeJson = JsonSerializer.Serialize(new BillingCommandOutcome(
+          "RECORD_RECEIPT", fifthUnboundReceiptId, fifthUnboundReceiptId, null, "1", unrelatedReceivedAt)),
+        CreatedAt = now
+      });
+      await seedInvalidSource.SaveChangesAsync();
+    }
+    int receiptsBeforeInvalidHashAttempt;
+    int allocationsBeforeInvalidHashAttempt;
+    await using (var beforeInvalidHashAttempt = new AuditSphereDbContext(pg.Options))
+    {
+      receiptsBeforeInvalidHashAttempt = await beforeInvalidHashAttempt.Receipts.CountAsync(x => x.FirmId == fixture.FirmId);
+      allocationsBeforeInvalidHashAttempt = await beforeInvalidHashAttempt.ReceiptAllocations.CountAsync(x => x.FirmId == fixture.FirmId);
+    }
+    var invalidHashAttempt = await RecordFeePaymentAsync(
+      agreementIds[4], fixture.ReviewerActor, 1m, fifthUnboundExternalReference);
+    Assert.False(invalidHashAttempt.Succeeded);
+    Assert.Equal("fee.reference-conflict", invalidHashAttempt.ErrorCode);
+    await using (var verifyInvalidHashDenial = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(receiptsBeforeInvalidHashAttempt,
+        await verifyInvalidHashDenial.Receipts.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.Equal(allocationsBeforeInvalidHashAttempt,
+        await verifyInvalidHashDenial.ReceiptAllocations.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.False(await verifyInvalidHashDenial.ReceiptAllocations.AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.ReceiptId == fifthUnboundReceiptId));
+      Assert.True(await verifyInvalidHashDenial.BillingCommandReceipts.AsNoTracking().AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.ActorId == fixture.Manager.Id &&
+        x.RequestId == fifthUnboundSourceRequestId && x.RequestHash == unrelatedSourceHash));
+    }
+
+    // A second actor can independently create a command receipt with the same source RequestId. Both ResultIds
+    // now claim the legacy source; replay must report ambiguity without SingleOrDefault throwing or mutating history.
+    var duplicateThirdLegacyReceiptId = await RecordReceiptAsync(
+      fixture.ReviewerActor, 10m, thirdLegacyStoredReference, thirdLegacyRequestId);
+    Assert.NotEqual(thirdLegacyReceiptId, duplicateThirdLegacyReceiptId);
+    int receiptsBeforeDuplicateReplay;
+    int allocationsBeforeDuplicateReplay;
+    int sourceReceiptsBeforeDuplicateReplay;
+    await using (var beforeDuplicateReplay = new AuditSphereDbContext(pg.Options))
+    {
+      receiptsBeforeDuplicateReplay = await beforeDuplicateReplay.Receipts.CountAsync(x => x.FirmId == fixture.FirmId);
+      allocationsBeforeDuplicateReplay = await beforeDuplicateReplay.ReceiptAllocations.CountAsync(x => x.FirmId == fixture.FirmId);
+      sourceReceiptsBeforeDuplicateReplay = await beforeDuplicateReplay.BillingCommandReceipts.CountAsync(x =>
+        x.FirmId == fixture.FirmId && x.ClientId == fixture.ClientId && x.Action == "RECORD_RECEIPT" &&
+        x.RequestId == thirdLegacyRequestId);
+      Assert.Equal(2, sourceReceiptsBeforeDuplicateReplay);
+      Assert.Equal(2, await beforeDuplicateReplay.BillingCommandReceipts.AsNoTracking()
+        .Where(x => x.FirmId == fixture.FirmId && x.ClientId == fixture.ClientId &&
+          x.Action == "RECORD_RECEIPT" && x.RequestId == thirdLegacyRequestId)
+        .Select(x => x.ResultId).Distinct().CountAsync());
+    }
+    var ambiguousThirdReplay = await RecordFeePaymentAsync(
+      agreementIds[2], fixture.ManagerActor, 10m, thirdLegacyExternalReference);
+    Assert.False(ambiguousThirdReplay.Succeeded);
+    Assert.Equal("fee.reference-conflict", ambiguousThirdReplay.ErrorCode);
+    await using (var verifyDuplicateDenial = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(receiptsBeforeDuplicateReplay,
+        await verifyDuplicateDenial.Receipts.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.Equal(allocationsBeforeDuplicateReplay,
+        await verifyDuplicateDenial.ReceiptAllocations.CountAsync(x => x.FirmId == fixture.FirmId));
+      Assert.Equal(sourceReceiptsBeforeDuplicateReplay,
+        await verifyDuplicateDenial.BillingCommandReceipts.CountAsync(x =>
+          x.FirmId == fixture.FirmId && x.ClientId == fixture.ClientId && x.Action == "RECORD_RECEIPT" &&
+          x.RequestId == thirdLegacyRequestId));
+    }
+
+    // Both generic billing commands join an ambient owner transaction and leave its commit decision to the caller.
+    // Rollback must remove the provisional receipt, allocation and command receipts while retaining the first payment's 10.
+    var ambientReceiptRequestId = Guid.CreateVersion7();
+    var ambientAllocationRequestId = Guid.CreateVersion7();
+    var ambientReference = $"AMBIENT-ROLLBACK-{Guid.CreateVersion7():N}";
+    Guid ambientReceiptId;
+    {
+      // The invoice was posted through another context; allocation must refresh this retained draft under its row lock.
+      var ambientDb = cachedBillingDb;
+      await using var ownerTransaction = await ambientDb.Database.BeginTransactionAsync();
+      var currentOwnerTransaction = ambientDb.Database.CurrentTransaction;
+      Assert.NotNull(currentOwnerTransaction);
+
+      var recorded = await BillingService.RecordReceiptAsync(ambientDb, fixture.ManagerActor,
+        new RecordReceiptRequest(accountId, 1m, ambientReference, RequestId: ambientReceiptRequestId));
+      Assert.True(recorded.Succeeded, recorded.Message);
+      ambientReceiptId = recorded.Value;
+      Assert.Same(currentOwnerTransaction, ambientDb.Database.CurrentTransaction);
+
+      var allocated = await BillingService.AllocateReceiptCommandAsync(ambientDb, fixture.ManagerActor,
+        new AllocateReceiptRequest(ambientReceiptId, issuedInvoiceIds[0], 1m, ambientAllocationRequestId));
+      Assert.True(allocated.Succeeded, allocated.Message);
+      Assert.Same(currentOwnerTransaction, ambientDb.Database.CurrentTransaction);
+      await ownerTransaction.RollbackAsync();
+    }
+
+    await using (var verifyAmbientRollback = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.False(await verifyAmbientRollback.Receipts.AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.Id == ambientReceiptId));
+      Assert.False(await verifyAmbientRollback.ReceiptAllocations.AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.ReceiptId == ambientReceiptId));
+      Assert.False(await verifyAmbientRollback.BillingCommandReceipts.AnyAsync(x =>
+        x.FirmId == fixture.FirmId && x.ActorId == fixture.Manager.Id &&
+        (x.RequestId == ambientReceiptRequestId || x.RequestId == ambientAllocationRequestId)));
+      Assert.Equal(10m, await BillingService.GetNetAppliedToInvoiceAsync(
+        verifyAmbientRollback, fixture.FirmId, issuedInvoiceIds[0]));
+    }
   }
 
   private sealed class RejectFeeMilestoneLink(Guid milestoneId, InvalidOperationException failure) : SaveChangesInterceptor
