@@ -766,6 +766,12 @@ public static partial class PracticeCrmService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.PracticeClientId,
+        RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     await db.Users.FromSqlInterpolated(
       $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated(
@@ -822,7 +828,7 @@ public static partial class PracticeCrmService
       "The assigned owner is not an active staff user in this firm.");
   }
 
-  private static Task<FirmSafetyState?> LockFirmAsync(
+  internal static Task<FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
     db.FirmSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);

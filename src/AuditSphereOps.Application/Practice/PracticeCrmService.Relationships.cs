@@ -179,8 +179,19 @@ public static partial class PracticeCrmService
     if (request.ValidFrom.HasValue && request.ValidTo.HasValue && request.ValidFrom.Value > request.ValidTo.Value)
       return CommandResult.Fail("crm.invalid", "Valid from must precede or equal valid to.");
 
+    await using var tx = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct)
+      : null;
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
     var contact = await db.ClientContacts.SingleOrDefaultAsync(x => x.Id == request.ContactId && x.FirmId == actor.FirmId, ct);
     if (contact is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Contact not found.");
+
+    var contactEntry = db.ClientContacts.Attach(contact);
+    await contactEntry.ReloadAsync(ct);
+    if (contactEntry.State == EntityState.Detached || contact.FirmId != actor.FirmId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Contact not found.");
 
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, ClientId: contact.PracticeClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
@@ -199,6 +210,7 @@ public static partial class PracticeCrmService
     contact.IsActive = request.IsActive;
 
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 

@@ -1029,7 +1029,7 @@ public sealed class CommercialWorkflowTests
     var scopeProbe = new DurableOperation
     {
       Id = Guid.CreateVersion7(), OperationKind = CommercialMailDeliveryHandler.Kind, FirmId = w.FirmId,
-      ClientId = bindingClient.Id, TargetId = receiptMail.Id, ExpectedRevision = 1,
+      ClientId = bindingClient.Id, TargetId = receiptMail.Id, ExpectedRevision = 1, ClaimedEpoch = 1,
       CorrelationId = Guid.CreateVersion7(), PayloadJson = System.Text.Json.JsonSerializer.Serialize(new
       {
         notificationId = receiptMail.Id.ToString("D")

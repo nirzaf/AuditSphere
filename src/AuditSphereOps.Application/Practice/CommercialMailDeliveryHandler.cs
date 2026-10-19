@@ -51,8 +51,44 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
 
   public async Task<OperationResult> ExecuteEffectAsync(DurableOperation op, CancellationToken ct)
   {
+    var plan = await PrepareSendAsync(op, ct);
+    try
+    {
+      await sender.SendAsync(plan, ct);
+    }
+    catch (SafeRetryException)
+    {
+      throw; // transient pre-provider failure: the attempt stays DISPATCHED and the operation retries
+    }
+    catch (OperationCanceledException)
+    {
+      throw;
+    }
+    catch (OperationBlockedException)
+    {
+      await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Rejected, ct);
+      throw; // the provider refused the send; the email was not accepted
+    }
+    catch (Exception)
+    {
+      await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Unknown, ct);
+      throw; // the outcome is uncertain: reconciliation — never a blind resend — must resolve it
+    }
+    return Expected(op);
+  }
+
+  private async Task<PbcMailPlan> PrepareSendAsync(DurableOperation op, CancellationToken ct)
+  {
     await using var db = await factory.CreateAsync(ct);
-    var mail = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.FirmId == op.FirmId && x.Id == op.TargetId, ct);
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var firm = await PracticeCrmService.LockFirmAsync(db, op.FirmId, ct);
+    if (firm is null || firm.OperatingMode != "LOCAL_ONLY" || firm.DeploymentEpoch != op.ClaimedEpoch)
+      throw new OperationBlockedException("mail-firm-authority-changed", authorization: true);
+    var mail = await db.CommercialNotifications.AsNoTracking().SingleOrDefaultAsync(
+      x => x.FirmId == op.FirmId && x.Id == op.TargetId, ct);
+    if (mail is null || CommercialDeliveryStates.IsProviderReceipt(mail.DeliveryState) ||
+        string.IsNullOrWhiteSpace(mail.Recipient) || string.IsNullOrWhiteSpace(mail.Subject))
+      throw new OperationBlockedException("mail-scope-or-state-conflict", authorization: true);
     PbcMailAttachment? attachment = null;
     if (mail.DocumentId is { } documentId)
     {
@@ -79,32 +115,15 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
         (op.ClientId != mail.PracticeClientId || !await PaymentRecipientAuthorityIsCurrentAsync(db, mail, ct)))
       throw new OperationBlockedException("mail-recipient-authority-changed", authorization: true);
 
-    // The send attempt is durable before the provider call: queued, in-flight, accepted, refused and unknown
-    // outcomes remain distinguishable whatever happens next (STE 4.1.2 delivery receipts).
-    await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Dispatched, ct);
-    try
-    {
-      await sender.SendAsync(new(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId, attachment), ct);
-    }
-    catch (SafeRetryException)
-    {
-      throw; // transient pre-provider failure: the attempt stays DISPATCHED and the operation retries
-    }
-    catch (OperationCanceledException)
-    {
-      throw;
-    }
-    catch (OperationBlockedException)
-    {
-      await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Rejected, ct);
-      throw; // the provider refused the send; the email was not accepted
-    }
-    catch (Exception)
-    {
-      await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Unknown, ct);
-      throw; // the outcome is uncertain: reconciliation — never a blind resend — must resolve it
-    }
-    return Expected(op);
+    // This commit is the dispatch-authorization boundary. Contact/routing writers take the
+    // same firm fence. Changes committed before it win; later changes do not retarget this
+    // already-authorized attempt. No database transaction or lock spans the provider call.
+    var changed = await db.CommercialNotifications.Where(x => x.FirmId == op.FirmId && x.Id == mail.Id &&
+      x.DeliveryState == mail.DeliveryState).ExecuteUpdateAsync(
+        setters => setters.SetProperty(x => x.DeliveryState, CommercialDeliveryStates.Dispatched), ct);
+    if (changed != 1) throw new OperationBlockedException("mail-state-changed", authorization: true);
+    await tx.CommitAsync(ct);
+    return new(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId, attachment);
   }
 
   private static async Task<bool> PaymentRecipientAuthorityIsCurrentAsync(

@@ -134,6 +134,12 @@ public static partial class PracticeCrmService
     if (request.EffectiveFrom.HasValue && request.EffectiveTo.HasValue && request.EffectiveFrom.Value > request.EffectiveTo.Value)
       return CommandResult<Guid>.Fail("crm.invalid", "Effective from must precede or equal effective to.");
 
+    await using var tx = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct)
+      : null;
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, ClientId: request.PracticeClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -146,20 +152,30 @@ public static partial class PracticeCrmService
     if (!contact.IsActive)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Deactivated contacts cannot receive correspondence routing assignments.");
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
-
     // If setting as primary for purpose, unset any existing primary active routings for this client and purpose
+    List<ClientContactRouting> existingPrimaries = [];
     if (request.IsPrimaryForPurpose)
     {
-      var existingPrimaries = await db.ClientContactRoutings
+      existingPrimaries = await db.ClientContactRoutings
         .Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == request.PracticeClientId &&
           x.Purpose == purpose && x.IsPrimaryForPurpose && x.RevokedAt == null)
         .ToListAsync(ct);
 
       foreach (var ep in existingPrimaries)
       {
-        ep.IsPrimaryForPurpose = false;
+        await db.ClientContactRoutings.Attach(ep).ReloadAsync(ct);
       }
+    }
+
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.PracticeClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
+    foreach (var ep in existingPrimaries)
+    {
+      if (ep.FirmId == actor.FirmId && ep.PracticeClientId == request.PracticeClientId &&
+          ep.Purpose == purpose && ep.IsPrimaryForPurpose && ep.RevokedAt is null)
+        ep.IsPrimaryForPurpose = false;
     }
 
     var routing = new ClientContactRouting
@@ -178,7 +194,7 @@ public static partial class PracticeCrmService
 
     db.ClientContactRoutings.Add(routing);
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
 
     return CommandResult<Guid>.Ok(routing.Id);
   }
@@ -189,21 +205,46 @@ public static partial class PracticeCrmService
     if (string.IsNullOrWhiteSpace(request.Reason))
       return CommandResult.Fail("crm.invalid", "A revocation reason is required.");
 
+    await using var tx = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct)
+      : null;
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.PracticeClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
+
     var routing = await db.ClientContactRoutings.SingleOrDefaultAsync(x => x.Id == request.RoutingId && x.FirmId == actor.FirmId &&
       x.PracticeClientId == request.PracticeClientId, ct);
     if (routing is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Routing assignment not found.");
 
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+    var routingEntry = db.ClientContactRoutings.Attach(routing);
+    await routingEntry.ReloadAsync(ct);
+    if (routingEntry.State == EntityState.Detached || routing.FirmId != actor.FirmId ||
+        routing.PracticeClientId != request.PracticeClientId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Routing assignment not found.");
+
+    if (routing.RevokedAt.HasValue)
+    {
+      auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, ClientId: routing.PracticeClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+      if (!auth.Succeeded) return auth;
+
+      if (tx is not null) await tx.CommitAsync(ct);
+      return CommandResult.Ok();
+    }
+
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, ClientId: routing.PracticeClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return auth;
-
-    if (routing.RevokedAt.HasValue) return CommandResult.Ok();
 
     routing.RevokedAt = DateTimeOffset.UtcNow;
     routing.RevokedByUserId = actor.UserId;
     routing.RevocationReason = request.Reason.Trim();
 
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 

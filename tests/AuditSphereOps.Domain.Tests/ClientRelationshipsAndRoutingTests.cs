@@ -1,8 +1,12 @@
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
+using System.Data.Common;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -575,5 +579,160 @@ public sealed class ClientRelationshipsAndRoutingTests
     Assert.True(subTree.Succeeded);
     Assert.Single(subTree.Value!.Parents);
     Assert.Equal(seed.ClientId, subTree.Value.Parents[0].PrimaryClientId);
+  }
+
+  [Theory]
+  [InlineData("assign-routing")]
+  [InlineData("revoke-routing")]
+  [InlineData("update-contact")]
+  [InlineData("create-contact-direct")]
+  [InlineData("create-contact-workspace")]
+  [Trait("Profile", "Database")]
+  public async Task ContactRouteMutatorsWaitForTheFirmSafetyFence(string mutation)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(seed.Admin, "Administrator");
+    var contactId = Guid.NewGuid();
+    Guid routingId = Guid.Empty;
+    ContactCreationRequest? reviewedCreation = null;
+
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.ClientContacts.Add(new ClientContact
+      {
+        Id = contactId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+        FullName = "Safety fence contact", Email = "safety-fence@example.test",
+        Role = "Finance", IsActive = true
+      });
+      await setup.SaveChangesAsync();
+
+      if (mutation == "revoke-routing")
+      {
+        var assigned = await PracticeCrmService.AssignContactRoutingAsync(setup, actor,
+          new AssignContactRoutingRequest(seed.ClientId, contactId, CorrespondencePurposes.Commercial));
+        Assert.True(assigned.Succeeded, assigned.Message);
+        routingId = assigned.Value;
+      }
+
+      if (mutation == "create-contact-workspace")
+      {
+        var state = await ClientContactCreationWorkspace.StateAsync(setup, actor, seed.ClientId);
+        Assert.True(state.Succeeded, state.Message);
+        var request = new ContactCreationRequest(Guid.NewGuid(), state.Value!.ReviewBasis,
+          new ContactCreationFields("Reviewed fence contact", "reviewed-fence@example.test", "Finance", false));
+        var preview = await ClientContactCreationWorkspace.PreviewAsync(setup, actor, seed.ClientId, request);
+        Assert.True(preview.Succeeded, preview.Message);
+        reviewedCreation = request with { Reviewed = true, ExpectedRequestHash = preview.Value!.RequestHash };
+      }
+    }
+
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await blocker.Database.OpenConnectionAsync();
+    var blockerPid = ((NpgsqlConnection)blocker.Database.GetDbConnection()).ProcessID;
+    await using var tx = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {seed.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+
+    var probe = new FirmLockAttempt();
+    var mutationOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(probe).Options;
+    await using var mutator = new AuditSphereDbContext(mutationOptions);
+    using var mutationTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var mutationTask = ExecuteContactMutationAsync(mutation, mutator, actor, seed, contactId, routingId,
+      reviewedCreation, mutationTimeout.Token);
+    var rootAttempt = probe.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+    if (await Task.WhenAny(rootAttempt, mutationTask) != rootAttempt)
+    {
+      await mutationTask;
+      Assert.Fail($"{mutation} completed without first acquiring the firm safety fence.");
+    }
+
+    var waitingPid = await rootAttempt;
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await WaitForFirmBlockingPidAsync(observer, waitingPid, blockerPid);
+    Assert.False(mutationTask.IsCompleted);
+
+    await tx.CommitAsync();
+    Assert.True(await mutationTask.WaitAsync(TimeSpan.FromSeconds(20)),
+      $"{mutation} should complete successfully once the firm fence is released.");
+  }
+
+  private static async Task<bool> ExecuteContactMutationAsync(
+    string mutation,
+    AuditSphereDbContext db,
+    ActorContext actor,
+    PbcSeed.Fixture seed,
+    Guid contactId,
+    Guid routingId,
+    ContactCreationRequest? reviewedCreation,
+    CancellationToken ct)
+  {
+    switch (mutation)
+    {
+      case "assign-routing":
+        return (await PracticeCrmService.AssignContactRoutingAsync(db, actor,
+          new AssignContactRoutingRequest(seed.ClientId, contactId, CorrespondencePurposes.Commercial), ct)).Succeeded;
+      case "revoke-routing":
+        return (await PracticeCrmService.RevokeContactRoutingAsync(db, actor,
+          new RevokeContactRoutingRequest(seed.ClientId, routingId, "Recipient designation changed."), ct)).Succeeded;
+      case "update-contact":
+        return (await PracticeCrmService.UpdateClientContactAsync(db, actor,
+          new UpdateClientContactRequest(contactId, "Updated safety fence contact", "updated-safety-fence@example.test",
+            "Finance", IsActive: true), ct)).Succeeded;
+      case "create-contact-direct":
+        return (await PracticeCrmService.CreateClientContactAsync(db, actor,
+          new CreateClientContactRequest(seed.ClientId, "Direct safety fence contact",
+            "direct-safety-fence@example.test", "Finance"), ct)).Succeeded;
+      case "create-contact-workspace":
+        return reviewedCreation is not null &&
+          (await ClientContactCreationWorkspace.ExecuteAsync(db, actor, seed.ClientId, reviewedCreation, ct)).Succeeded;
+      default:
+        throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown contact mutation.");
+    }
+  }
+
+  private static async Task WaitForFirmBlockingPidAsync(
+    AuditSphereDbContext observer, int waitingPid, int blockingPid)
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    try
+    {
+      while (true)
+      {
+        await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", timeout.Token);
+        var blocked = await observer.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS waiting
+            WHERE waiting.datname = current_database()
+              AND waiting.pid = {waitingPid}
+              AND waiting.wait_event_type = 'Lock'
+              AND waiting.query ILIKE '%firm_safety_states%'
+              AND {blockingPid} = ANY(pg_blocking_pids(waiting.pid))
+          ) AS "Value"
+          """).SingleAsync(timeout.Token);
+        if (blocked) return;
+        await Task.Delay(TimeSpan.FromMilliseconds(25), timeout.Token);
+      }
+    }
+    catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+    {
+      Assert.Fail($"PostgreSQL did not show session {waitingPid} blocked by firm-fence holder {blockingPid}.");
+    }
+  }
+
+  private sealed class FirmLockAttempt : DbCommandInterceptor
+  {
+    public TaskCompletionSource<int> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
+        Reached.TrySetResult(((NpgsqlConnection)command.Connection!).ProcessID);
+      return ValueTask.FromResult(result);
+    }
   }
 }

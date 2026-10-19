@@ -10,9 +10,12 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
+using System.Data.Common;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -28,6 +31,7 @@ public sealed class CommercialPricingPolicyTests
 
   private sealed record World(Guid FirmId, ActorContext Prep, ActorContext Partner, ActorContext Manager,
     ActorContext Admin, AppUser AdminUser);
+  private sealed record ClientProposalMail(Guid ClientId, Guid ContactId, Guid RoutingId, Guid NotificationId);
 
   private static AppUser User(Guid firmId, string name) => new()
   {
@@ -78,6 +82,47 @@ public sealed class CommercialPricingPolicyTests
       "Client supplies the trial balance", 1m, currency, "2026-01-01", "2026-12-31"));
     Assert.True(proposal.Succeeded, proposal.Message);
     return proposal.Value;
+  }
+
+  private static async Task<ClientProposalMail> PrepareClientProposalMailAsync(PgTestSchema pg, World w)
+  {
+    var proposalId = await DraftProposalAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var proposal = await db.Proposals.SingleAsync(x => x.Id == proposalId);
+    var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId);
+    var clientId = Guid.NewGuid();
+    var contactId = Guid.NewGuid();
+    var routingId = Guid.NewGuid();
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = clientId, FirmId = w.FirmId, LegalName = "Synthetic client", Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = w.FirmId });
+    db.ClientContacts.Add(new ClientContact
+    {
+      Id = contactId, FirmId = w.FirmId, PracticeClientId = clientId, FullName = "Client contact",
+      Email = "client-owner@gulf.example.test", Role = "Commercial contact", IsActive = true
+    });
+    db.ClientContactRoutings.Add(new ClientContactRouting
+    {
+      Id = routingId, FirmId = w.FirmId, PracticeClientId = clientId, ClientContactId = contactId,
+      Purpose = CorrespondencePurposes.Commercial, IsPrimaryForPurpose = true,
+      CreatedByUserId = w.Partner.UserId, CreatedAt = DateTimeOffset.UtcNow
+    });
+    proposal.PracticeClientId = clientId;
+    opportunity.PracticeClientId = clientId;
+    await db.SaveChangesAsync();
+
+    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True(quote.Succeeded, quote.Message);
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
+    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
+    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Partner, proposalId)).Succeeded);
+    var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
+    Assert.Equal(contactId, notification.RecipientContactId);
+    Assert.Equal(routingId, notification.RecipientRoutingId);
+    return new(clientId, contactId, routingId, notification.Id);
   }
 
   private static SaveFirmPricingPolicyRequest Policy(string currency = "QAR", decimal? min = 1000m, decimal? max = 50000m,
@@ -414,45 +459,11 @@ public sealed class CommercialPricingPolicyTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
-    var proposalId = await DraftProposalAsync(pg, w);
+    var mail = await PrepareClientProposalMailAsync(pg, w);
     await using var db = new AuditSphereDbContext(pg.Options);
-    var proposal = await db.Proposals.SingleAsync(x => x.Id == proposalId);
-    var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId);
-    var clientId = Guid.NewGuid();
-    var contactId = Guid.NewGuid();
-    var routingId = Guid.NewGuid();
-    db.PracticeClients.Add(new PracticeClient
-    {
-      Id = clientId, FirmId = w.FirmId, LegalName = "Synthetic client", Status = "Active", CreatedAt = DateTimeOffset.UtcNow
-    });
-    db.ClientSafetyStates.Add(new ClientSafetyState { Id = clientId, FirmId = w.FirmId });
-    db.ClientContacts.Add(new ClientContact
-    {
-      Id = contactId, FirmId = w.FirmId, PracticeClientId = clientId, FullName = "Client contact",
-      Email = "client-owner@gulf.example.test", Role = "Commercial contact", IsActive = true
-    });
-    db.ClientContactRoutings.Add(new ClientContactRouting
-    {
-      Id = routingId, FirmId = w.FirmId, PracticeClientId = clientId, ClientContactId = contactId,
-      Purpose = CorrespondencePurposes.Commercial, IsPrimaryForPurpose = true,
-      CreatedByUserId = w.Partner.UserId, CreatedAt = DateTimeOffset.UtcNow
-    });
-    proposal.PracticeClientId = clientId;
-    opportunity.PracticeClientId = clientId;
-    await db.SaveChangesAsync();
-
-    var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
-    Assert.True(quote.Succeeded, quote.Message);
-    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quote.Value)).Succeeded);
-    Assert.True((await PracticeCrmService.ApproveProposalAsync(db, w.Partner, proposalId)).Succeeded);
-    await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, w.Prep, proposalId);
-    Assert.True((await PracticeCrmService.SendProposalAsync(db, w.Partner, proposalId)).Succeeded);
-    var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.ProposalId == proposalId);
-    Assert.Equal(contactId, notification.RecipientContactId);
-    Assert.Equal(routingId, notification.RecipientRoutingId);
 
     var revoked = await PracticeCrmService.RevokeContactRoutingAsync(db, w.Partner,
-      new RevokeContactRoutingRequest(clientId, routingId, "Client changed its commercial correspondent."));
+      new RevokeContactRoutingRequest(mail.ClientId, mail.RoutingId, "Client changed its commercial correspondent."));
     Assert.True(revoked.Succeeded, revoked.Message);
 
     var sender = new RecordingSender();
@@ -461,10 +472,87 @@ public sealed class CommercialPricingPolicyTests
     Assert.Empty(sender.Plans);
     await using var verification = new AuditSphereDbContext(pg.Options);
     Assert.Equal(CommercialDeliveryStates.Queued,
-      (await verification.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == notification.Id)).DeliveryState);
+      (await verification.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == mail.NotificationId)).DeliveryState);
     var operation = await verification.DurableOperations.AsNoTracking()
-      .SingleAsync(x => x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind && x.TargetId == notification.Id);
+      .SingleAsync(x => x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind && x.TargetId == mail.NotificationId);
     Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+  }
+
+  [Fact]
+  public async Task PendingProposalMail_FencesConcurrentRouteMutationThroughDispatchAndReleasesBeforeProviderCall()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var mail = await PrepareClientProposalMailAsync(pg, w);
+    var pause = new PauseAfterClientRoutingRead();
+    var workerOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(pause).Options;
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(workerOptions));
+
+    string? senderStateBeforeProvider = null;
+    AuditSphereOps.Domain.Shared.CommandResult? providerMutation = null;
+    var sender = new RouteMutatingSender(async (plan, ct) =>
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      senderStateBeforeProvider = await db.CommercialNotifications.AsNoTracking()
+        .Where(x => x.Id == mail.NotificationId).Select(x => x.DeliveryState).SingleAsync(ct);
+      providerMutation = await PracticeCrmService.UpdateClientContactAsync(db, w.Partner,
+        new UpdateClientContactRequest(mail.ContactId, "Client contact", "updated-after-claim@gulf.example.test",
+          "Commercial contact", IsActive: true), ct);
+      Assert.True(providerMutation.Succeeded, providerMutation.Message);
+    });
+    var store = new PostgresOperationStore(factory);
+    var handler = new CommercialMailDeliveryHandler(factory, sender);
+    var options = new WorkerOptions(w.FirmId, "Acceptance", ExternalEffectsEnabled: true, Group: "mail");
+    var worker = new AuditSphereOps.Worker.Worker(
+      new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
+      [new CommercialMailDiscovery(factory, store, handler, options)],
+      NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+
+    var mutationProbe = new FirmLockAttempt();
+    var mutationOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(mutationProbe).Options;
+    await using var mutationDb = new AuditSphereDbContext(mutationOptions);
+    var process = worker.ProcessNextAsync();
+    Task<AuditSphereOps.Domain.Shared.CommandResult>? revoke = null;
+    var pauseReached = pause.Reached.Task;
+    try
+    {
+      var processWait = process.WaitAsync(TimeSpan.FromSeconds(30));
+      var first = await Task.WhenAny(pauseReached, processWait);
+      if (first != pauseReached)
+      {
+        await processWait;
+        Assert.Fail("The worker completed before the recipient-routing authorization read was paused.");
+      }
+      await pauseReached.WaitAsync(TimeSpan.FromSeconds(30));
+
+      revoke = PracticeCrmService.RevokeContactRoutingAsync(mutationDb, w.Partner,
+        new RevokeContactRoutingRequest(mail.ClientId, mail.RoutingId, "Client changed its commercial correspondent."));
+      var mutationPid = await mutationProbe.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+      await using var observer = new AuditSphereDbContext(pg.Options);
+      await WaitForFirmBlockingPidAsync(observer, mutationPid, pause.BackendPid);
+      Assert.False(revoke.IsCompleted);
+    }
+    finally
+    {
+      pause.Release.TrySetResult();
+    }
+
+    await process.WaitAsync(TimeSpan.FromSeconds(30));
+    Assert.NotNull(revoke);
+    Assert.True((await revoke!.WaitAsync(TimeSpan.FromSeconds(15))).Succeeded);
+    Assert.Single(sender.Plans);
+    Assert.Equal("client-owner@gulf.example.test", sender.Plans[0].Recipient);
+    Assert.Equal(CommercialDeliveryStates.Dispatched, senderStateBeforeProvider);
+    Assert.NotNull(providerMutation);
+    Assert.True(providerMutation.Succeeded, providerMutation.Message);
+
+    await using var verification = new AuditSphereDbContext(pg.Options);
+    Assert.NotNull(await verification.ClientContactRoutings.AsNoTracking()
+      .Where(x => x.Id == mail.RoutingId).Select(x => x.RevokedAt).SingleAsync());
+    Assert.Equal("updated-after-claim@gulf.example.test", await verification.ClientContacts.AsNoTracking()
+      .Where(x => x.Id == mail.ContactId).Select(x => x.Email).SingleAsync());
   }
 
   [Fact]
@@ -678,6 +766,85 @@ public sealed class CommercialPricingPolicyTests
     };
     var rearm = await OperationCommandWorkspace.ExecuteAsync(db, admin, reviewed);
     Assert.True(rearm.Succeeded, rearm.Message);
+  }
+
+  private static async Task WaitForFirmBlockingPidAsync(
+    AuditSphereDbContext observer, int waitingPid, int blockingPid)
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    try
+    {
+      while (true)
+      {
+        await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", timeout.Token);
+        var blocked = await observer.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS waiting
+            WHERE waiting.datname = current_database()
+              AND waiting.pid = {waitingPid}
+              AND waiting.wait_event_type = 'Lock'
+              AND waiting.query ILIKE '%firm_safety_states%'
+              AND {blockingPid} = ANY(pg_blocking_pids(waiting.pid))
+          ) AS "Value"
+          """).SingleAsync(timeout.Token);
+        if (blocked) return;
+        await Task.Delay(TimeSpan.FromMilliseconds(25), timeout.Token);
+      }
+    }
+    catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+    {
+      Assert.Fail($"PostgreSQL did not show session {waitingPid} blocked by firm-fence holder {blockingPid}.");
+    }
+  }
+
+  private sealed class PauseAfterClientRoutingRead : DbCommandInterceptor
+  {
+    private int paused;
+    public int BackendPid { get; private set; }
+    public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+      DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("client_contact_routings", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.Exchange(ref paused, 1) == 0)
+      {
+        BackendPid = ((NpgsqlConnection)command.Connection!).ProcessID;
+        Reached.TrySetResult();
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
+
+  private sealed class FirmLockAttempt : DbCommandInterceptor
+  {
+    public TaskCompletionSource<int> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
+        Reached.TrySetResult(((NpgsqlConnection)command.Connection!).ProcessID);
+      return ValueTask.FromResult(result);
+    }
+  }
+
+  private sealed class RouteMutatingSender(Func<PbcMailPlan, CancellationToken, Task> onSend) : IPbcMailSender
+  {
+    public List<PbcMailPlan> Plans { get; } = [];
+
+    public async Task SendAsync(PbcMailPlan plan, CancellationToken ct)
+    {
+      Plans.Add(plan);
+      using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+      timeout.CancelAfter(TimeSpan.FromSeconds(15));
+      await onSend(plan, timeout.Token);
+    }
   }
 
   private sealed class RecordingSender : IPbcMailSender
