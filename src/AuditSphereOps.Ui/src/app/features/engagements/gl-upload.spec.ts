@@ -169,6 +169,26 @@ describe('Native exact GL upload', () => {
     expect(c.review()).toBeNull();
     f.destroy();
   });
+  it('announces secure checkpoint failure and keeps file selection disabled', async () => {
+    vi.spyOn(crypto.subtle, 'digest').mockRejectedValue(new Error('Unavailable'));
+    const f = TestBed.createComponent(GeneralLedgerUpload);
+    f.detectChanges();
+    TestBed.tick();
+    const http = TestBed.inject(HttpTestingController);
+    http
+      .expectOne(root + '?page=1')
+      .flush({ clientId: id, engagementId: id, items: [], totalCount: 0, page: 1, pageSize: 20 });
+    await f.whenStable();
+    TestBed.tick();
+    await vi.waitFor(() => expect(f.componentInstance.scopeError()).toBe(true));
+    f.detectChanges();
+    expect(f.nativeElement.querySelector('input[type="file"]').disabled).toBe(true);
+    expect(f.nativeElement.querySelector('[role="status"]')).toBeNull();
+    expect(f.nativeElement.querySelector('[role="alert"]')?.textContent).toContain(
+      'File selection and import are unavailable',
+    );
+    f.destroy();
+  });
   it('refuses writes if checkpoint storage fails and treats malformed success as unknown', async () => {
     const { f, c, http } = await open();
     await pick(c, http);

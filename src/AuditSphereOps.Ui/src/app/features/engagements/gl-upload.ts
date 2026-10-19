@@ -101,6 +101,7 @@ export class GeneralLedgerUpload implements NavigationProtected {
   readonly reconciled = signal(false);
   readonly availableDraft = signal(false);
   readonly scopeReady = signal(false);
+  readonly scopeError = signal(false);
   readonly fileName = signal('');
   readonly hasFile = signal(false);
   readonly message = signal('');
@@ -179,8 +180,7 @@ export class GeneralLedgerUpload implements NavigationProtected {
       }
       this.scopeReady.set(true);
     } catch {
-      if (this.current(n, g))
-        this.message.set('Secure tab checkpoint setup failed. File import is unavailable in this tab.');
+      if (this.current(n, g)) this.scopeError.set(true);
     }
   }
   private clear() {
@@ -194,6 +194,7 @@ export class GeneralLedgerUpload implements NavigationProtected {
     this.reconciled.set(false);
     this.availableDraft.set(false);
     this.scopeReady.set(false);
+    this.scopeError.set(false);
     this.hasFile.set(false);
     this.fileName.set('');
     this.message.set('');

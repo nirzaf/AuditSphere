@@ -53,8 +53,14 @@
         (change)="pick($event)"
         [disabled]="busy() || !scopeReady()"
     /></label>
-    @if (!scopeReady()) {
+    @if (!scopeReady() && !scopeError()) {
       <p role="status">Preparing secure tab checkpoint; file selection will be available shortly.</p>
+    }
+    @if (scopeError()) {
+      <p role="alert">
+        Secure tab checkpoint setup failed. File selection and import are unavailable in this tab;
+        reload the page before trying again.
+      </p>
     }
     @if (fileName()) {
       <p>Selected file: {{ fileName() }}</p>
