@@ -231,3 +231,7 @@ Opportunity creation rechecks actor/session and owner eligibility under the firm
 ## Core CRM publication authority
 
 Core lead/proposal writers now reauthorize under the firm lock before publication or replay; lead creation also rechecks its owner. Coordinated revocation regressions and existing positive workflow/retry checks passed. Evidence, superseded CI cleanup and remaining commercial/release gates are in `status.json` under `crmCorePublicationFences20261019`. Next is bounded older-opportunity discovery.
+
+## Finance settlement accessibility and draft safety
+
+Standalone Finance settlement now identifies the authorized client, supplies a primary heading and a named keyboard-scrollable milestone region, and protects unsent edits with the existing navigation dialog. Focused browser and component checks passed; exact scope and artifacts are in `status.json` under `feeSettlementFinance20261019`. Commercial acceptance, human review, live providers and current-source full release remain separate gates.

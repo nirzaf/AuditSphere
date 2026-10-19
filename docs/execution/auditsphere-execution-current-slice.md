@@ -19,13 +19,13 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Client and quotation publication authority
+
+Client profile/archive and relationship writes now share the role-change firm lock; current scoped authority is checked before publication. Relationship races serialize, and stale revocation retries preserve original evidence. Quotation save/submit/rule mutations recheck authority under the lock. Focused counterfactual, denial and positive cohorts passed; exact evidence and limits are in `status.json` under `clientAndQuotationPublication20261019`. Parent acceptance remains open.
+
 ## Commercial paging accessibility
 
 Older opportunities now load independently of activity, retaining drafts and current scope. Keyboard success and recoverable failure preserve owned focus; stale or denied work cannot repopulate the workspace. Focused checks and built-in narrow-screen verification passed. Exact source, CI and limits: `status.json` → `opportunityPagingAccessibility20261019`. Human AT and full release acceptance remain open.
-
-## Finance settlement accessibility and draft safety
-
-Standalone Finance settlement now identifies the authorized client, supplies a primary heading and a named keyboard-scrollable milestone region, and protects unsent edits with the existing navigation dialog. Focused browser and component checks passed; exact scope and artifacts are in `status.json` under `feeSettlementFinance20261019`. Commercial acceptance, human review, live providers and current-source full release remain separate gates.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 

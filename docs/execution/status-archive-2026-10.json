@@ -21058,6 +21058,80 @@
         "reason": "Four overlapping, self-created older-revision full runs were confirmed cancelled after verifying the newer full run live. Superseded cancellations are not regression failures."
       },
       "limits": "No full local suites, schema/API/UI/provider changes. Existing full CI is on the preceding source and is not current-commit release acceptance. Full current-source verification remains a CI/nightly gate; no duplicate full run dispatched for this slice. Broader CRM states, older-opportunity paging and professional/provider acceptance remain open."
+    },
+    "opportunityPagingBeforeClientPublication20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "0db1b1ea596d9755d91b7891cb9a5b25fc7ecbba",
+      "behavior": "Existing lead GET pages opportunities independently using scoped UTC timestamp/ID cursor, CreatedAt DESC/Id ASC and 100-row pages. Angular appends/deduplicates without replacing history or drafts; session/route/refresh fence stale responses. Keyboard success focuses first new heading; decode/transient failure restores retry only while interaction ownership holds. Authorization denial clears protected state.",
+      "verification": {
+        "domain": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "filter": "FullyQualifiedName~LeadOpportunities_",
+          "scope": "201 tied timestamps in 100/100/1 pages; microseconds, equivalent timezone cursor, malformed/wrong-time/cross-lead/cross-firm cursors and client-scoped denial."
+        },
+        "angular": {
+          "passed": 16,
+          "failed": 0,
+          "spec": "src/app/features/commercial/opportunities.spec.ts",
+          "scope": "Owner fencing, independent history/draft retention, precision, deduplication, keyboard success/fallback/retry/no-steal and denial."
+        },
+        "e2e": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "filter": "FullyQualifiedName~LeadQualificationConfirmationIdentifiesExactRecordAndKeepsAcceptanceSeparate",
+          "scope": "Both route forms; real API/owned PostgreSQL, qualification cancel/success, history203, opportunities201, first-new focus, malformed400/cross-lead403, no proposal mutation and 390px reflow."
+        },
+        "artifacts": "/tmp/auditsphere-opportunity-page-results",
+        "angularBuild": "PASS; existing completion optional-chain and commercial settings SCSS-budget warnings.",
+        "openApi": "Regenerated actual endpoint contract; drift PASS. No migration/dependency changes."
+      },
+      "browser": {
+        "result": "FOCUSED_PASS",
+        "environment": "Built-in browser, explicit current production bundle, owned loopback API/PostgreSQL fixture, external effects disabled.",
+        "observed": "390px viewport / 375px document; 100/200/201 cards, 203 history events preserved; first-new heading indices100/200 focused, final pager removed, oldest entity visible; no console warnings/errors.",
+        "screenshot": "/tmp/auditsphere-opportunity-paging-keyboard-final.png",
+        "provenance": "First fixture cached prior index during rebuild and requested removed asset. Disposed/restarted after final build; only final fixture used for acceptance."
+      },
+      "review": "Independent review passed after contract regeneration and retry-focus fix. New fixture loop corrected before execution.",
+      "ci": {
+        "precedingFast": {
+          "runId": 39250627019,
+          "sourceCommit": "cbbb4653db46b76defc5756060b465a2d84439a1",
+          "result": "FAST_CI_PASS"
+        },
+        "retainedFull": {
+          "runId": 39248636107,
+          "sourceCommit": "1cd06d3622d0270d3cdb8131c32f9373e5292362",
+          "result": "IN_PROGRESS",
+          "observed": "Domain, Angular and build/contracts pass; API/E2E running, no failed steps observed. Earlier source is not current release acceptance."
+        },
+        "currentFast": {
+          "runId": 39253248908,
+          "sourceCommit": "c08591892a0464ee41797f2cdf9c0bbee3ec6578",
+          "result": "FAST_CI_PASS",
+          "scope": "Angular, Docs and .NET Release jobs all success; not full release acceptance."
+        }
+      },
+      "limits": "No full local suites. Whole-product human screen-reader review and supported-state matrix, other CRM writers, professional/provider and current-source release acceptance remain open. No synthetic check establishes live readiness. Existing sort retained without speculative index/migration; unusually large per-lead histories need measured performance evidence."
+    },
+    "aspmCrm02RelationshipHistoryBeforePublicationFence20261019": {
+      "status": "PARTIAL",
+      "sourceCommit": "f5f96d9e2f660abe03e4773d5314c233b03480e4",
+      "previousSourceCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
+      "focusedTests": "PASS: Domain 2/2 on 9cdbfb19; Angular 26/26 on f5f96d9e.",
+      "buildAndDrift": "PASS: API/OpenAPI Release build, contract and EF model drift.",
+      "documentation": "PASS: four validators; 219 Markdown files and 3,017 links.",
+      "migration": "Generated and model-verified; not applied to a shared or live database.",
+      "browser": "NOT_VERIFIED: port 5029 serves stale shell; process and database left untouched.",
+      "testCorrection": "CI on 9cdbfb19 found an old engagement client fixture missing archive fields; updated without weakening assertions. Focused Angular 26/26.",
+      "fastCiRun": "39132751124 FAILED on 9cdbfb19 from stale fixture; rerun 39132894411 on f5f96d9e was in progress (Docs passed; Angular/.NET pending).",
+      "fullReleaseRun": "39132763882 FAILED on 9cdbfb19 from same fixture; rerun 39132911253 on f5f96d9e in progress.",
+      "acceptanceImageBuild": "39132894382 builds/pushes private GHCR images only; no VPS deployment.",
+      "externalAcceptance": "NOT_VERIFIED: authenticated browser acceptance and live-provider actions not performed.",
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCrm02RelationshipHistory20261018"
     }
   }
 }

@@ -907,20 +907,9 @@
       "note": "Detailed follow-up and NOT_RUN record are preserved in the archive; professional, live-provider and exact-SHA release gates remain open."
     },
     "aspmCrm02RelationshipHistory20261018": {
-      "status": "PARTIAL",
-      "sourceCommit": "f5f96d9e2f660abe03e4773d5314c233b03480e4",
-      "previousSourceCommit": "05406665c6d7e8ba1413b189d00d1cc1d5d12ba0",
-      "focusedTests": "PASS: Domain 2/2 on 9cdbfb19; Angular 26/26 on f5f96d9e.",
-      "buildAndDrift": "PASS: API/OpenAPI Release build, contract and EF model drift.",
-      "documentation": "PASS: four validators; 219 Markdown files and 3,017 links.",
-      "migration": "Generated and model-verified; not applied to a shared or live database.",
-      "browser": "NOT_VERIFIED: port 5029 serves stale shell; process and database left untouched.",
-      "testCorrection": "CI on 9cdbfb19 found an old engagement client fixture missing archive fields; updated without weakening assertions. Focused Angular 26/26.",
-      "fastCiRun": "39132751124 FAILED on 9cdbfb19 from stale fixture; rerun 39132894411 on f5f96d9e was in progress (Docs passed; Angular/.NET pending).",
-      "fullReleaseRun": "39132763882 FAILED on 9cdbfb19 from same fixture; rerun 39132911253 on f5f96d9e in progress.",
-      "acceptanceImageBuild": "39132894382 builds/pushes private GHCR images only; no VPS deployment.",
-      "externalAcceptance": "NOT_VERIFIED: authenticated browser acceptance and live-provider actions not performed.",
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCrm02RelationshipHistory20261018"
+      "result": "PARTIAL",
+      "evidenceArchive": "status-archive-2026-10.json#keys.aspmCrm02RelationshipHistoryBeforePublicationFence20261019",
+      "scope": "Earlier effective/revoked relationship history and scoped counterpart evidence retained; publication-fence evidence is in clientAndQuotationPublication20261019. Parent remains PARTIAL."
     },
     "aspmCom03QarAcceptance20261018": {
       "status": "PARTIAL",
@@ -1164,54 +1153,60 @@
     "opportunityPagingAccessibility20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "codeCommit": "0db1b1ea596d9755d91b7891cb9a5b25fc7ecbba",
-      "behavior": "Existing lead GET pages opportunities independently using scoped UTC timestamp/ID cursor, CreatedAt DESC/Id ASC and 100-row pages. Angular appends/deduplicates without replacing history or drafts; session/route/refresh fence stale responses. Keyboard success focuses first new heading; decode/transient failure restores retry only while interaction ownership holds. Authorization denial clears protected state.",
-      "verification": {
-        "domain": {
-          "passed": 2,
-          "failed": 0,
-          "skipped": 0,
-          "filter": "FullyQualifiedName~LeadOpportunities_",
-          "scope": "201 tied timestamps in 100/100/1 pages; microseconds, equivalent timezone cursor, malformed/wrong-time/cross-lead/cross-firm cursors and client-scoped denial."
-        },
-        "angular": {
-          "passed": 16,
-          "failed": 0,
-          "spec": "src/app/features/commercial/opportunities.spec.ts",
-          "scope": "Owner fencing, independent history/draft retention, precision, deduplication, keyboard success/fallback/retry/no-steal and denial."
-        },
-        "e2e": {
-          "passed": 2,
-          "failed": 0,
-          "skipped": 0,
-          "filter": "FullyQualifiedName~LeadQualificationConfirmationIdentifiesExactRecordAndKeepsAcceptanceSeparate",
-          "scope": "Both route forms; real API/owned PostgreSQL, qualification cancel/success, history203, opportunities201, first-new focus, malformed400/cross-lead403, no proposal mutation and 390px reflow."
-        },
-        "artifacts": "/tmp/auditsphere-opportunity-page-results",
-        "angularBuild": "PASS; existing completion optional-chain and commercial settings SCSS-budget warnings.",
-        "openApi": "Regenerated actual endpoint contract; drift PASS. No migration/dependency changes."
+      "evidenceArchive": "status-archive-2026-10.json#keys.opportunityPagingBeforeClientPublication20261019",
+      "summary": "Scoped opportunity paging and owned success/retry focus; focused PostgreSQL/Angular/browser checks and built-in390px flow pass. Fast CI c0859189passed. Human AT/full release remain open."
+    },
+    "clientAndQuotationPublication20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommits": [
+        "3303722acc5b0422b185d56203d834f62619cc8f",
+        "be280776d1d6feea60ba95a97991630e15efd18a"
+      ],
+      "behavior": "Client profile/archive and relationship create/revoke serialize with role changes on the existing firm lock; preflight and under-lock scoped checks preserve policy. Duplicate/cycle checks are inside the transaction. Revoke reloads tracked state and retains original evidence on retry. Quotation save/submit/rule save/deactivation repeat current authority after firm lock before replay/publication.",
+      "baseline": {
+        "source": "c08591892a0464ee41797f2cdf9c0bbee3ec6578",
+        "authorityFailed": 9,
+        "authorityPassed": 0,
+        "lateSaveCase": "After the first three quotation fixes, SAVE_QUOTATION still returned stale success: 1 FAIL / 4 PASS. Then added the same fence to SaveAsync.",
+        "evidence": "commercial-authority-before.trx; quotation-save-before.trx",
+        "provenance": "Baseline Application compiled before source edits; recorded DLL hash remained unchanged. Initial test compilation failed on missing JSON namespace/xUnit2031, corrected without changing expected behavior. BuildProjectReferences=false rebuilt tests against that pre-fix assembly."
       },
-      "browser": {
-        "result": "FOCUSED_PASS",
-        "environment": "Built-in browser, explicit current production bundle, owned loopback API/PostgreSQL fixture, external effects disabled.",
-        "observed": "390px viewport / 375px document; 100/200/201 cards, 203 history events preserved; first-new heading indices100/200 focused, final pager removed, oldest entity visible; no console warnings/errors.",
-        "screenshot": "/tmp/auditsphere-opportunity-paging-keyboard-final.png",
-        "provenance": "First fixture cached prior index during rebuild and requested removed asset. Disposed/restarted after final build; only final fixture used for acceptance."
+      "after": {
+        "cohorts": [
+          {
+            "passed": 16,
+            "failed": 0,
+            "skipped": 0,
+            "trx": "commercial-authority-after.trx",
+            "scope": "Five client authority cases incl same-epoch grant-only; duplicate/inverse-parent races; four quotation authority cases; existing profile, hierarchy, route-revocation, archive and approved-rate/matrix positives."
+          },
+          {
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0,
+            "trx": "quotation-authority-final.trx",
+            "scope": "Final five quotation authority cases incl SaveAsync and existing approved-rate/matrix positive; overlaps prior cohort."
+          }
+        ],
+        "directory": "/tmp/auditsphere-client-authority-results",
+        "assertions": "Fresh persisted snapshots; PostgreSQL blocking PID for client tests; exact first revocation actor/time/reason retained through stale-context retry. Quotation probe proves lock-command boundary with blocker held through revocation, not observed backend wait-event state.",
+        "build": "Targeted final Application Release PASS, zero warnings/errors; then test project rebuilt against current Application with BuildProjectReferences=false, reusing unchanged compiled dependencies. No API/schema/public signature changes."
       },
-      "review": "Independent review passed after contract regeneration and retry-focus fix. New fixture loop corrected before execution.",
+      "review": "Independent review accepted final client lock order/scoped rechecks and all four quotation fixes. Main found and counterfactually verified SaveAsync gap. Approval/revocation already authorize under firm lock; preflight ordering is a separate consistency improvement.",
       "ci": {
-        "precedingFast": {
-          "runId": 39250627019,
-          "sourceCommit": "cbbb4653db46b76defc5756060b465a2d84439a1",
+        "priorFast": {
+          "runId": 39253248908,
+          "sourceCommit": "c08591892a0464ee41797f2cdf9c0bbee3ec6578",
           "result": "FAST_CI_PASS"
         },
         "retainedFull": {
           "runId": 39248636107,
           "sourceCommit": "1cd06d3622d0270d3cdb8131c32f9373e5292362",
           "result": "IN_PROGRESS",
-          "observed": "Domain, Angular and build/contracts pass; API/E2E running, no failed steps observed. Earlier source is not current release acceptance."
+          "observed": "Domain, Angular, build/contracts passed; API/E2E still live. Earlier source is not final acceptance."
         }
       },
-      "limits": "No full local suites. Whole-product human screen-reader review and supported-state matrix, other CRM writers, professional/provider and current-source release acceptance remain open. No synthetic check establishes live readiness. Existing sort retained without speculative index/migration; unusually large per-lead histories need measured performance evidence."
+      "limits": "No full local suites, new dependencies, migrations, UI/API contract or provider effects. Full current-source release, other commercial/provider writer coverage, human AT and professional/live-provider acceptance remain open; parent criteria stay PARTIAL."
     }
   },
   "externalGates": [
@@ -1724,7 +1719,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Review remaining commercial partial/provider writer authority and supported-state accessibility; retain human AT/professional/live-provider and final-source full CI release gates."
+    "nextTechnicalSlice": "Review remaining commercial document/provider publication and read-time current authority; retain professional/live-provider, human AT and final-source full CI release gates."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",
