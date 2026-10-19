@@ -1458,6 +1458,11 @@ public sealed class CommercialWorkflowTests
     Assert.Single(advanceMail, x => x.Kind == CommercialNotificationKinds.Receipt);
     Assert.Equal(2, advanceMail.Count(x => x.Kind == CommercialNotificationKinds.PaymentVoucher));
     Assert.All(advanceMail, mail => Assert.Equal("owner@gulf.example.test", mail.Recipient));
+    foreach (var voucherMail in advanceMail.Where(x => x.Kind == CommercialNotificationKinds.PaymentVoucher))
+    {
+      Assert.Contains("attached to this email", voucherMail.Body, StringComparison.Ordinal);
+      Assert.DoesNotContain("/api/commercial/documents/", voucherMail.Body, StringComparison.Ordinal);
+    }
     if (legacySnapshot)
     {
       Assert.All(advanceMail, mail =>

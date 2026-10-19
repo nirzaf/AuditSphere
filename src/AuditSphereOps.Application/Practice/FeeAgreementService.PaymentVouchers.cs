@@ -122,7 +122,7 @@ public static partial class FeeAgreementService
       Subject = $"Payment voucher {document.FileName.Replace("Voucher-", string.Empty).Replace(".docx", string.Empty)} — {firmName}",
       Body = $"Dear {client.LegalName},\n\nWe confirm receipt of your payment of {receipt.Amount.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency} " +
         $"(reference {receipt.Reference}) against invoice {invoice.InvoiceNumber}.\n\n" +
-        $"Your official payment voucher is available for authenticated download at /api/commercial/documents/{document.Id}/download and is retained on your engagement record.\n\n{firmName}",
+        $"Your official payment voucher is attached to this email and is retained on your engagement record.\n\n{firmName}",
       CreatedAt = DateTimeOffset.UtcNow
     };
     db.CommercialNotifications.Add(dispatch);

@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -919,6 +920,154 @@ public sealed class AngularCommercialJourneyTests
       Assert.Empty(await db.CommercialDocuments.Where(x => x.ProposalId == proposalId).ToListAsync());
     }
     Assert.Empty(errors);
+  }
+
+  [Fact]
+  [Trait("CaseId", "ANGULAR-COMMERCIAL-TENDER-INPUTS-01")]
+  public async Task TenderGeneration_RefusesChangedReviewedInputsAndKeepsRetainedArtifact()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "ANGULAR-COMMERCIAL-TENDER-INPUTS-01");
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var buildPath = Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH");
+    if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
+
+    Guid proposalId;
+    Guid quotationId;
+    const string teamCvs = "Synthetic assigned Partner and team CV detail for the reviewed proposal";
+    const string timeline = "Synthetic deliverables: fieldwork in March and report by 30 April";
+    await using (var db = host.CreateDbContext())
+    {
+      var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
+      var now = DateTimeOffset.UtcNow;
+      db.RateCardVersions.Add(new RateCardVersion
+      {
+        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, Role = "Partner", Activity = "Audit", Version = 1,
+        Currency = "QAR", RatePerHour = 1200m, Status = PracticeTimeStates.RateApproved,
+        CreatedByUserId = host.Fixture.Admin.Id, ApprovedByUserId = host.Fixture.Reviewer.Id,
+        CreatedAt = now, ApprovedAt = now
+      });
+      await db.SaveChangesAsync();
+
+      var lead = await PracticeCrmService.CreateLeadAsync(db, actor,
+        new("Synthetic tender input client", "Referral", "Synthetic contact", "tender-contact@example.test"));
+      Assert.True(lead.Succeeded, lead.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
+      var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
+        new(lead.Value, "AccountingOnly", "Synthetic accounting entity", "2026-01-01", "2026-12-31", 1200m, "QAR"));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var proposal = await PracticeCrmService.ReviseProposalAsync(db, actor,
+        new(opportunity.Value, "Standard", "Synthetic accounting-only proposal scope", "", "Synthetic annual accounts workplan",
+          "Client supplies accounting records", 1200m, "QAR", "2026-01-01", "2026-12-31", ExpectedRevision: 0,
+          Timeline: "Synthetic fieldwork after year end"));
+      Assert.True(proposal.Succeeded, proposal.Message);
+      proposalId = proposal.Value;
+
+      var quotation = await QuotationService.SaveAsync(db, actor,
+        new(proposalId, [new("Partner", "Audit", 1m)], 1m, 0m, 0m, false, null));
+      Assert.True(quotation.Succeeded, quotation.Message);
+      quotationId = quotation.Value;
+      Assert.True((await QuotationService.SubmitAsync(db, actor, quotationId)).Succeeded);
+      Assert.True((await CommercialDocumentService.SaveProfileAsync(db, actor,
+        new("Synthetic tender firm", "Synthetic address", "", "", "#0F766E", "",
+          "Synthetic firm history and registrations", "Synthetic industry credentials", "Synthetic audit methodology"))).Succeeded);
+    }
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 390, Height = 844 } });
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+    var proposalPath = $"/ui/app/practice/proposals/{proposalId:D}";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(proposalPath));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Proposal", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Synthetic tender input client", Exact = true })).ToBeVisibleAsync();
+    await page.Locator("#proposal-fee-agreement").ScrollIntoViewIfNeededAsync();
+    var documents = page.Locator("audit-commercial-documents");
+    await Assertions.Expect(documents.GetByRole(AriaRole.Heading,
+      new() { Name = "Commercial documents", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
+    var cvInput = documents.GetByRole(AriaRole.Textbox, new() { Name = "Assigned Partner and team CVs", Exact = true });
+    var timelineInput = documents.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables timeline", Exact = true });
+    var assent = documents.GetByRole(AriaRole.Checkbox,
+      new() { Name = "I reviewed this quotation, firm profile and document action.", Exact = true });
+    var generate = documents.GetByRole(AriaRole.Button, new() { Name = "Generate comprehensive proposal", Exact = true });
+    const string tenderSuccess = "Immutable document available. Exact reviewed inputs reuse the retained artifact.";
+
+    await cvInput.FillAsync(teamCvs);
+    await timelineInput.FillAsync(timeline);
+    await assent.CheckAsync();
+    await generate.ClickAsync();
+    await Assertions.Expect(documents.GetByText(tenderSuccess, new() { Exact = true })).ToBeVisibleAsync();
+    var tenderLink = documents.GetByRole(AriaRole.Link,
+      new() { NameRegex = new Regex(@"^ComprehensiveProposal-.*\.docx$", RegexOptions.IgnoreCase) });
+    await Assertions.Expect(tenderLink).ToBeVisibleAsync();
+
+    CommercialDocument retained;
+    await using (var db = host.CreateDbContext())
+    {
+      retained = Assert.Single(await db.CommercialDocuments.AsNoTracking().Where(x => x.ProposalId == proposalId &&
+        x.QuotationVersionId == quotationId && x.Kind == CommercialDocumentKinds.ComprehensiveProposal).ToListAsync());
+      Assert.Equal<Guid?>(quotationId, retained.QuotationVersionId);
+      Assert.NotEmpty(retained.Bytes);
+      Assert.Equal(Hashing.Sha256Hex(retained.Bytes), retained.Sha256Hex);
+    }
+    var downloadHref = await tenderLink.GetAttributeAsync("href");
+    Assert.Equal($"/api/commercial/documents/{retained.Id:D}/download", downloadHref);
+    var tenderDownload = await page.RunAndWaitForDownloadAsync(() => tenderLink.ClickAsync());
+    Assert.EndsWith(".docx", tenderDownload.SuggestedFilename);
+    Assert.Null(await tenderDownload.FailureAsync());
+    await using (var stream = await tenderDownload.CreateReadStreamAsync())
+    using (var downloadedBytes = new MemoryStream())
+    {
+      await stream.CopyToAsync(downloadedBytes);
+      Assert.Equal(retained.Bytes, downloadedBytes.ToArray());
+    }
+
+    await Assertions.Expect(cvInput).ToHaveValueAsync(teamCvs);
+    await Assertions.Expect(timelineInput).ToHaveValueAsync(timeline);
+    await assent.CheckAsync();
+    await generate.ClickAsync();
+    await Assertions.Expect(documents.GetByText(tenderSuccess, new() { Exact = true })).ToBeVisibleAsync();
+    // The success text is retained from the first generation; wait for this replay's
+    // refresh to replace the reviewed form before editing the next request.
+    await Assertions.Expect(assent).Not.ToBeCheckedAsync();
+    await Assertions.Expect(tenderLink).ToHaveAttributeAsync("href", $"/api/commercial/documents/{retained.Id:D}/download");
+    await using (var db = host.CreateDbContext())
+    {
+      var artifacts = await db.CommercialDocuments.AsNoTracking().Where(x => x.ProposalId == proposalId &&
+        x.Kind == CommercialDocumentKinds.ComprehensiveProposal).ToListAsync();
+      var replayed = Assert.Single(artifacts);
+      Assert.Equal(retained.Id, replayed.Id);
+      Assert.Equal(retained.Sha256Hex, replayed.Sha256Hex);
+      Assert.Equal(retained.Bytes, replayed.Bytes);
+    }
+
+    await cvInput.FillAsync("Changed synthetic assigned team CV detail");
+    await assent.CheckAsync();
+    await generate.ClickAsync();
+    await Assertions.Expect(documents.GetByText(
+      "Generation refused. Review current quotation/profile and retained artifacts. Changed or unverifiable tender inputs require a newly approved quotation revision.",
+      new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(documents.GetByRole(AriaRole.Status)).ToBeFocusedAsync();
+    await documents.GetByRole(AriaRole.Button, new() { Name = "Refresh document state", Exact = true }).ClickAsync();
+    await Assertions.Expect(tenderLink).ToBeVisibleAsync();
+    await Assertions.Expect(tenderLink).ToHaveAttributeAsync("href", $"/api/commercial/documents/{retained.Id:D}/download");
+    await using (var db = host.CreateDbContext())
+    {
+      var artifacts = await db.CommercialDocuments.AsNoTracking().Where(x => x.ProposalId == proposalId &&
+        x.Kind == CommercialDocumentKinds.ComprehensiveProposal).ToListAsync();
+      var unchanged = Assert.Single(artifacts);
+      Assert.Equal(retained.Id, unchanged.Id);
+      Assert.Equal(retained.Sha256Hex, unchanged.Sha256Hex);
+      Assert.Equal(retained.Bytes, unchanged.Bytes);
+      Assert.Equal(Hashing.Sha256Hex(unchanged.Bytes), unchanged.Sha256Hex);
+    }
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"));
+    Assert.Empty(pageErrors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, proposalPath, "tender-reviewed-inputs");
   }
 
 }

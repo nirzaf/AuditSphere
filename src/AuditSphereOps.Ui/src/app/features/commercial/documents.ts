@@ -1,4 +1,16 @@
-import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  DestroyRef,
+  ElementRef,
+  effect,
+  inject,
+  Injector,
+  input,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,6 +29,11 @@ interface Artifact {
   contentType: string;
   sha256: string;
   createdAt: string;
+}
+interface DocumentFocusOrigin {
+  element: HTMLButtonElement;
+  interaction: number;
+  owner: string;
 }
 interface Workspace {
   proposalId: string;
@@ -81,6 +98,10 @@ export function decodeDocuments(value: unknown): Workspace {
 @Component({
   selector: 'audit-commercial-documents',
   imports: [FormsModule, MatButtonModule, MatProgressBarModule],
+  host: {
+    '(document:pointerdown)': 'recordFocusInteraction()',
+    '(document:keydown)': 'recordFocusInteraction()',
+  },
   template: `
     <section aria-labelledby="commercial-documents-heading">
       <h2 id="commercial-documents-heading">Commercial documents</h2>
@@ -129,7 +150,7 @@ export function decodeDocuments(value: unknown): Workspace {
         <button
           matButton
           [disabled]="busy() || uncertain() || !reviewed || w.commonBlockers.length > 0"
-          (click)="generate('quotation')"
+          (click)="generate('quotation', $event.currentTarget)"
         >
           Generate brief quotation
         </button>
@@ -142,7 +163,7 @@ export function decodeDocuments(value: unknown): Workspace {
         <button
           matButton
           [disabled]="busy() || uncertain() || !reviewed || w.letterBlockers.length > 0"
-          (click)="generate('letter')"
+          (click)="generate('letter', $event.currentTarget)"
         >
           Generate engagement letter
         </button>
@@ -191,7 +212,7 @@ export function decodeDocuments(value: unknown): Workspace {
             !timeline.trim() ||
             w.tenderBlockers.length > 0
           "
-          (click)="generate('tender')"
+          (click)="generate('tender', $event.currentTarget)"
         >
           Generate comprehensive proposal
         </button>
@@ -222,7 +243,7 @@ export function decodeDocuments(value: unknown): Workspace {
           </button>
         }
       }
-      <p role="status">{{ message() }}</p>
+      <p #documentOutcome tabindex="-1" role="status">{{ message() }}</p>
     </section>
   `,
 })
@@ -230,9 +251,13 @@ export class CommercialDocuments {
   readonly proposalId = input.required<string>();
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
+  private readonly hostElement = inject(ElementRef<HTMLElement>);
+  private readonly renderInjector = inject(Injector);
   private read?: Subscription;
   private write?: Subscription;
   private fence = 0;
+  private focusInteraction = 0;
+  private readonly documentOutcome = viewChild<ElementRef<HTMLElement>>('documentOutcome');
   readonly data = signal<Workspace | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
@@ -300,7 +325,44 @@ export class CommercialDocuments {
       );
     }
   }
-  generate(kind: 'quotation' | 'letter' | 'tender'): void {
+  recordFocusInteraction(): void {
+    this.focusInteraction++;
+  }
+  private documentFocusOwner(): string {
+    const session = this.session.current();
+    return `${this.fence}:${this.proposalId()}:${this.session.invalidation()}:${session?.firmId ?? ''}:${session?.userId ?? ''}:${session?.generation ?? ''}:${session?.staff ?? false}`;
+  }
+  private documentFocusOrigin(trigger?: EventTarget | null): DocumentFocusOrigin | null {
+    const host = this.hostElement.nativeElement;
+    const document = host.ownerDocument;
+    if (
+      !(trigger instanceof HTMLButtonElement) ||
+      !host.contains(trigger) ||
+      (document.activeElement !== trigger && document.activeElement !== document.body)
+    )
+      return null;
+    return {
+      element: trigger,
+      interaction: this.focusInteraction,
+      owner: this.documentFocusOwner(),
+    };
+  }
+  private focusDocumentOutcome(origin: DocumentFocusOrigin): void {
+    afterNextRender(
+      () => {
+        const document = this.hostElement.nativeElement.ownerDocument;
+        if (
+          origin.owner !== this.documentFocusOwner() ||
+          origin.interaction !== this.focusInteraction ||
+          (document.activeElement !== origin.element && document.activeElement !== document.body)
+        )
+          return;
+        this.documentOutcome()?.nativeElement.focus();
+      },
+      { injector: this.renderInjector },
+    );
+  }
+  generate(kind: 'quotation' | 'letter' | 'tender', trigger?: EventTarget | null): void {
     const w = this.data();
     if (
       !w ||
@@ -312,6 +374,7 @@ export class CommercialDocuments {
     )
       return;
     const fence = this.fence;
+    const focusOrigin = this.documentFocusOrigin(trigger);
     this.busy.set(true);
     this.message.set('Generating reviewed document…');
     this.write = this.http
@@ -333,11 +396,15 @@ export class CommercialDocuments {
             this.uncertain.set(true);
             this.data.set(null);
             this.message.set('Outcome unconfirmed. Refresh persisted artifacts.');
+            if (focusOrigin) this.focusDocumentOutcome(focusOrigin);
             return;
           }
           this.message.set(
-            'Immutable document available. An existing document is reused for the same quotation.',
+            kind === 'tender'
+              ? 'Immutable document available. Exact reviewed inputs reuse the retained artifact.'
+              : 'Immutable document available. An existing document is reused for the same quotation.',
           );
+          if (focusOrigin) this.focusDocumentOutcome(focusOrigin);
           this.load();
         },
         error: (failure) => {
@@ -349,9 +416,12 @@ export class CommercialDocuments {
           this.message.set(
             this.uncertain()
               ? 'Outcome unconfirmed. Refresh and review persisted artifacts before another command.'
-              : 'Generation refused. Refresh and resolve current quotation, profile, acceptance, Partner authority or signature/seal prerequisites.',
+              : kind === 'tender' && failure.status === 400 && failure.error?.code === 'revision.stale'
+                ? 'Generation refused. Review current quotation/profile and retained artifacts. Changed or unverifiable tender inputs require a newly approved quotation revision.'
+                : 'Generation refused. Refresh and resolve current quotation, profile, acceptance, Partner authority or signature/seal prerequisites.',
           );
           if (failure.status === 401) this.session.clear();
+          else if (focusOrigin) this.focusDocumentOutcome(focusOrigin);
         },
       });
   }
