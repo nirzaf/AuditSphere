@@ -210,15 +210,44 @@ public static class ClientPortalService
   public static async Task<CommandResult> RevokeDelegationAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid delegationId, CancellationToken ct = default)
   {
-    var delegation = await db.PbcRequestDelegations.SingleOrDefaultAsync(x => x.Id == delegationId && x.FirmId == actor.FirmId, ct);
+    var snapshot = await db.PbcRequestDelegations.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == delegationId && x.FirmId == actor.FirmId, ct);
+    if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null ||
+        await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {snapshot.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+          .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var delegation = await db.PbcRequestDelegations.FromSqlInterpolated($"""
+      SELECT * FROM pbc_request_delegations WHERE firm_id = {actor.FirmId} AND id = {delegationId} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
     if (delegation is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var request = await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == delegation.PbcRequestId && x.FirmId == actor.FirmId, ct);
+    // A tracking query can return a snapshot from an earlier command; reload it only after locking the row.
+    await db.PbcRequestDelegations.Attach(delegation).ReloadAsync(ct);
+    if (delegation.ClientId != snapshot.ClientId ||
+        delegation.EngagementId != snapshot.EngagementId || delegation.PbcRequestId != snapshot.PbcRequestId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var request = await db.PbcRequests.FromSqlInterpolated($"""
+      SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {delegation.PbcRequestId} FOR UPDATE
+      """).AsNoTracking().SingleOrDefaultAsync(ct);
+    if (request is null || request.ClientId != delegation.ClientId || request.EngagementId != delegation.EngagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
     var auth = await AuthorizeDelegatorAsync(db, actor, request, ct);
     if (!auth.Succeeded) return auth;
-    if (delegation.RevokedAt is not null) return CommandResult.Ok();
+    if (delegation.RevokedAt is not null)
+    {
+      if (tx is not null) await tx.CommitAsync(ct);
+      return CommandResult.Ok();
+    }
     delegation.RevokedAt = DateTimeOffset.UtcNow;
     delegation.RevokedByUserId = actor.UserId;
     await db.SaveChangesAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 

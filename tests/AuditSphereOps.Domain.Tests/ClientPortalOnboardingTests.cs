@@ -220,15 +220,173 @@ public sealed class ClientPortalOnboardingTests
     Assert.Contains(await ClientPortalService.ParticipantRequests(db, colleagueActor).Select(x => x.Id).ToListAsync(), x => x == requestId);
     Assert.DoesNotContain(await ClientPortalService.ParticipantRequests(db, colleagueActor).Select(x => x.Id).ToListAsync(), x => x == otherRequest);
     Assert.True((await PbcService.ReplyAsync(db, colleagueActor, requestId, "Here is the file.")).Succeeded);
-    Assert.True((await PbcService.StartUploadAsync(db, colleagueActor, Upload(requestId))).Succeeded);
     // The delegate cannot re-delegate.
     Assert.Equal(ErrorCodes.ScopeDenied, (await ClientPortalService.DelegateRequestAsync(db, colleagueActor, requestId, nonPrimary.Id)).ErrorCode);
 
-    // Revocation takes effect on the next command.
-    Assert.True((await ClientPortalService.RevokeDelegationAsync(db, primary, delegated.Value)).Succeeded);
-    Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.ReplyAsync(db, colleagueActor, requestId, "Another file.")).ErrorCode);
-    Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.StartUploadAsync(db, colleagueActor, Upload(requestId))).ErrorCode);
-    Assert.Empty(await ClientPortalService.ParticipantRequests(db, colleagueActor).ToListAsync());
+    // An upload already past authorization commits before revocation can acquire the shared client fence.
+    await UploadCommitsBeforeDelegationRevocationAsync(pg, f, primary, colleagueActor, requestId, delegated.Value);
+    await using (var afterFirstRevocation = new AuditSphereDbContext(pg.Options))
+    {
+      var retained = await afterFirstRevocation.PbcRequestDelegations.AsNoTracking()
+        .SingleAsync(x => x.Id == delegated.Value);
+      Assert.Null((await db.PbcRequestDelegations.SingleAsync(x => x.Id == delegated.Value)).RevokedAt);
+      Assert.True((await ClientPortalService.RevokeDelegationAsync(db, primary, delegated.Value)).Succeeded);
+      var refreshed = await afterFirstRevocation.PbcRequestDelegations.AsNoTracking()
+        .SingleAsync(x => x.Id == delegated.Value);
+      Assert.Equal(retained.RevokedAt, refreshed.RevokedAt);
+      Assert.Equal(retained.RevokedByUserId, refreshed.RevokedByUserId);
+      Assert.Equal(retained.RevokedAt, (await db.PbcRequestDelegations.SingleAsync(x => x.Id == delegated.Value)).RevokedAt);
+      Assert.Equal(ErrorCodes.ScopeDenied,
+        (await PbcService.ReplyAsync(afterFirstRevocation, colleagueActor, requestId, "Another file.")).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied,
+        (await PbcService.StartUploadAsync(afterFirstRevocation, colleagueActor, Upload(requestId))).ErrorCode);
+      Assert.Empty(await ClientPortalService.ParticipantRequests(afterFirstRevocation, colleagueActor).ToListAsync());
+    }
+
+    // Conversely, once revocation holds the fence, a later upload waits and then fails its fresh authorization check.
+    Guid secondDelegationId;
+    await using (var delegateAgain = new AuditSphereDbContext(pg.Options))
+    {
+      var secondDelegation = await ClientPortalService.DelegateRequestAsync(delegateAgain, primary, requestId, colleague.Id);
+      Assert.True(secondDelegation.Succeeded, secondDelegation.Message);
+      Assert.NotEqual(delegated.Value, secondDelegation.Value);
+      secondDelegationId = secondDelegation.Value;
+    }
+    await DelegationRevocationCommitsBeforeLaterUploadAsync(pg, f, primary, colleagueActor, requestId, secondDelegationId);
+    await using var afterSecondRevocation = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await ClientPortalService.ParticipantRequests(afterSecondRevocation, colleagueActor).ToListAsync());
+  }
+
+  private static async Task UploadCommitsBeforeDelegationRevocationAsync(
+    PgTestSchema pg, PbcSeed.Fixture f, ActorContext primary, ActorContext delegateActor, Guid requestId, Guid delegationId)
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+    await using var requestBlocker = new AuditSphereDbContext(pg.Options);
+    await using var requestBlockerTx = await requestBlocker.Database.BeginTransactionAsync(timeout.Token);
+    await requestBlocker.PbcRequests.FromSqlInterpolated($"""
+      SELECT * FROM pbc_requests WHERE firm_id = {f.FirmId} AND id = {requestId} FOR UPDATE
+      """).AsNoTracking().SingleAsync(timeout.Token);
+    var requestBlockerPid = ((NpgsqlConnection)requestBlocker.Database.GetDbConnection()).ProcessID;
+
+    await using var uploadDb = new AuditSphereDbContext(pg.Options);
+    await using var revokeDb = new AuditSphereDbContext(pg.Options);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await uploadDb.Database.OpenConnectionAsync(timeout.Token);
+    await revokeDb.Database.OpenConnectionAsync(timeout.Token);
+    var uploadPid = ((NpgsqlConnection)uploadDb.Database.GetDbConnection()).ProcessID;
+    var revokePid = ((NpgsqlConnection)revokeDb.Database.GetDbConnection()).ProcessID;
+    Task<CommandResult<PbcUploadReceipt>>? uploadTask = null;
+    Task<CommandResult>? revokeTask = null;
+    var blockerReleased = false;
+    try
+    {
+      uploadTask = PbcService.StartUploadAsync(uploadDb, delegateActor, Upload(requestId), timeout.Token);
+      await WaitUntilBlockedByAsync(observer, uploadPid, requestBlockerPid,
+        "The upload must reach the request lock after acquiring the client fence.", timeout.Token);
+
+      revokeTask = ClientPortalService.RevokeDelegationAsync(revokeDb, primary, delegationId, timeout.Token);
+      await WaitUntilBlockedByAsync(observer, revokePid, uploadPid,
+        "Revocation must wait for the in-flight upload's client fence.", timeout.Token);
+      Assert.False(revokeTask.IsCompleted, "Revocation must not complete while the authorized upload is still uncommitted.");
+
+      await requestBlockerTx.CommitAsync(timeout.Token);
+      blockerReleased = true;
+      var upload = await uploadTask.WaitAsync(timeout.Token);
+      Assert.True(upload.Succeeded, upload.Message);
+      var revoked = await revokeTask.WaitAsync(timeout.Token);
+      Assert.True(revoked.Succeeded, revoked.Message);
+    }
+    finally
+    {
+      if (!blockerReleased) await requestBlockerTx.RollbackAsync(CancellationToken.None);
+      if (uploadTask is not null && !uploadTask.IsCompleted)
+        try { await uploadTask.WaitAsync(TimeSpan.FromSeconds(10)); } catch { }
+      if (revokeTask is not null && !revokeTask.IsCompleted)
+        try { await revokeTask.WaitAsync(TimeSpan.FromSeconds(10)); } catch { }
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var persistedIntent = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId, timeout.Token);
+    var persistedDelegation = await verify.PbcRequestDelegations.AsNoTracking().SingleAsync(x => x.Id == delegationId, timeout.Token);
+    var request = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId, timeout.Token);
+    Assert.Equal(PbcStates.PartiallyReceived, request.State);
+    Assert.NotNull(persistedDelegation.RevokedAt);
+    Assert.True(persistedIntent.CreatedAt <= persistedDelegation.RevokedAt!.Value);
+  }
+
+  private static async Task DelegationRevocationCommitsBeforeLaterUploadAsync(
+    PgTestSchema pg, PbcSeed.Fixture f, ActorContext primary, ActorContext delegateActor, Guid requestId, Guid delegationId)
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+    await using var before = new AuditSphereDbContext(pg.Options);
+    var beforeRequest = await before.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId, timeout.Token);
+    var beforeIntentCount = await before.PbcUploadIntents.CountAsync(x => x.PbcRequestId == requestId, timeout.Token);
+
+    await using var delegationBlocker = new AuditSphereDbContext(pg.Options);
+    await using var delegationBlockerTx = await delegationBlocker.Database.BeginTransactionAsync(timeout.Token);
+    await delegationBlocker.PbcRequestDelegations.FromSqlInterpolated($"""
+      SELECT * FROM pbc_request_delegations WHERE firm_id = {f.FirmId} AND id = {delegationId} FOR UPDATE
+      """).AsNoTracking().SingleAsync(timeout.Token);
+    var delegationBlockerPid = ((NpgsqlConnection)delegationBlocker.Database.GetDbConnection()).ProcessID;
+
+    await using var revokeDb = new AuditSphereDbContext(pg.Options);
+    await using var uploadDb = new AuditSphereDbContext(pg.Options);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await revokeDb.Database.OpenConnectionAsync(timeout.Token);
+    await uploadDb.Database.OpenConnectionAsync(timeout.Token);
+    var revokePid = ((NpgsqlConnection)revokeDb.Database.GetDbConnection()).ProcessID;
+    var uploadPid = ((NpgsqlConnection)uploadDb.Database.GetDbConnection()).ProcessID;
+    Task<CommandResult>? revokeTask = null;
+    Task<CommandResult<PbcUploadReceipt>>? uploadTask = null;
+    var blockerReleased = false;
+    try
+    {
+      revokeTask = ClientPortalService.RevokeDelegationAsync(revokeDb, primary, delegationId, timeout.Token);
+      await WaitUntilBlockedByAsync(observer, revokePid, delegationBlockerPid,
+        "Revocation must reach the delegation row after acquiring the firm and client fences.", timeout.Token);
+
+      uploadTask = PbcService.StartUploadAsync(uploadDb, delegateActor, Upload(requestId), timeout.Token);
+      await WaitUntilBlockedByAsync(observer, uploadPid, revokePid,
+        "The later upload must wait for revocation's client fence.", timeout.Token);
+      Assert.False(uploadTask.IsCompleted, "The upload must not pass the revocation fence.");
+
+      await delegationBlockerTx.CommitAsync(timeout.Token);
+      blockerReleased = true;
+      var revoked = await revokeTask.WaitAsync(timeout.Token);
+      Assert.True(revoked.Succeeded, revoked.Message);
+      var upload = await uploadTask.WaitAsync(timeout.Token);
+      Assert.Equal(ErrorCodes.ScopeDenied, upload.ErrorCode);
+    }
+    finally
+    {
+      if (!blockerReleased) await delegationBlockerTx.RollbackAsync(CancellationToken.None);
+      if (revokeTask is not null && !revokeTask.IsCompleted)
+        try { await revokeTask.WaitAsync(TimeSpan.FromSeconds(10)); } catch { }
+      if (uploadTask is not null && !uploadTask.IsCompleted)
+        try { await uploadTask.WaitAsync(TimeSpan.FromSeconds(10)); } catch { }
+    }
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var afterRequest = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId, timeout.Token);
+    Assert.Equal(beforeRequest.Revision, afterRequest.Revision);
+    Assert.Equal(beforeIntentCount, await verify.PbcUploadIntents.CountAsync(x => x.PbcRequestId == requestId, timeout.Token));
+    Assert.NotNull(await verify.PbcRequestDelegations.AsNoTracking()
+      .Where(x => x.Id == delegationId).Select(x => x.RevokedAt).SingleAsync(timeout.Token));
+  }
+
+  private static async Task WaitUntilBlockedByAsync(
+    AuditSphereDbContext observer, int waiterPid, int blockerPid, string message, CancellationToken ct)
+  {
+    var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+      await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", ct);
+      if (await observer.Database.SqlQuery<bool>(
+          $"SELECT {blockerPid} = ANY(pg_blocking_pids({waiterPid})) AS \"Value\"").SingleAsync(ct))
+        return;
+      await Task.Delay(20, ct);
+    }
+    Assert.Fail(message);
   }
   [Fact]
   public async Task PortalWorkspace_HidesOtherParticipants_AndFrozenFileRefusesClientReplies()
