@@ -19,6 +19,12 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Payment-mail current-recipient guard (2026-10-19)
+
+Receipts and payment vouchers now re-resolve the existing fee-agreement recipient policy before DISPATCHED. Operation/client/artifact/agreement/payment ownership must agree; changed mailboxes block delivery while retaining the original queued recipient, subject, body and bytes. The extended real-worker fee-cycle test proves denial, wrong-client refusal and explicit reviewed recovery after the original fallback is restored. Existing paid amounts, balance gates and reversals remain unchanged. No live mail or tenant action occurred.
+
+ASPM-CRM-03 remains PARTIAL. Independent review identifies a remaining check-to-dispatch race: routing/contact mutation and dispatch need one shared authorization boundary without holding database locks across the provider call. Holding letters, exact routing snapshots, initiating-actor reauthorization, DEC-09 and live/current-source release acceptance remain open. The active full CI run predates this guard. A separately observed next gap is truncated UUIDv7 receipt/voucher references; investigate new-artifact uniqueness while preserving issued evidence. Exact checks and source are under `targetedVerification.paymentMailRecipientGuard` in [status.json](status.json).
+
 ## Operational cancellation and recovery (2026-10-19)
 
 ASPM-WF-08 now includes current-scoped management cancellation of an active task after exact revision/reason review. Time, bindings, evidence and append-only activity remain; a cancelled required predecessor still blocks its dependent. Exact replay adds no event, and a lost response is observed through a scoped task lookup before any explicit retry. The queue retains a Cancelled view. Keyboard review/close/activity focus and narrow reflow have focused and built-in-browser evidence; migration downgrade refuses retained cancellation history. No shared/live migration or professional approval occurred.
@@ -77,13 +83,7 @@ Source integrity, Markdown health, naming, narrative-metric, task-pack, generate
 
 The earlier reversible client archive slice and its historical CI limits are retained verbatim in [the historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#reversible-client-archive-history-2026-10-18).
 
-## Firm receivables age all posted invoice categories (2026-10-18)
-
-The ASPM-FIN-03 query regression now exercises posted firm invoices typed as `ADVANCE`, `FINAL`, `TIME`, and `OTHER`, with effective payment terms, posted cash, credits and approved allocation corrections evaluated at the UTC as-of date. The final-invoice row is a synthetic query fixture; it does not bypass the production balance-invoice creation gate. The time-invoice row is produced through the existing billing service from approved synthetic time. Client-bookkeeping invoices remain outside the firm receivables query.
-
-Focused PostgreSQL verification passed 1/1 in `FirmReceivablesAgingQueryTests.ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate` (43 seconds). This completes the FIN-03 source/query criterion; exact-SHA full release verification remains pending. The prior full release run `39117606930` on `9f15c482` recorded 1,368 passed and two failed Domain tests: the QAR 12,400 string-format fixture (corrected and focused-pass on `954a623f`) and an EF execution-strategy wrapper around the expected retained-history PostgreSQL `55000` refusal. The latter assertion now checks the underlying SQLSTATE and passed its focused test 1/1. I cancelled that stale run after the Domain failure; its API and E2E jobs did not complete and provide no pass evidence. Detailed run evidence is recorded in [`status.json`](status.json) and [`status-archive-2026-10.json`](status-archive-2026-10.json).
-
-Fast CI run `39120222007` passed on `1f4e5430`: Docs Health, Angular and .NET Release all succeeded. Run `39119821556` had already passed the regenerated OpenAPI `effectiveStatus` contract on parent `9fad72d0`, correcting run `39119098499`'s drift failure on `954a623f`. The full release suite has not run on the current source. The documentation/status commit will trigger a fresh fast gate before full release verification. No full test suite was run locally.
+The earlier firm receivables query slice and historical CI observations remain intact in [the historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#firm-receivables-age-all-posted-invoice-categories-2026-10-18).
 
 ## Client relationship dates and retained history (2026-10-18)
 
