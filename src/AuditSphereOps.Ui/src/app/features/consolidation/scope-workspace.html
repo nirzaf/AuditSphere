@@ -509,19 +509,23 @@
 
         @if (intercompanyMatchOptions.loading()) { <p role="status">Loading bounded group members and taxonomy options…</p> }
         @if (intercompanyMatchOptions.error()) { <p class="error-text" role="alert">{{ intercompanyMatchOptions.error() }}</p> }
-        @if (intercompanyMatchOptions.data(); as options) {
-          <p>
-            Scope revision {{ options.pinnedGroupRevision }} · current group revision {{ options.currentGroupRevision }}
-            · reporting currency <code>{{ options.reportingCurrency }}</code>
-            @if (options.periodStartDate && options.periodEndDate) {
-              · membership overlaps scope reporting period <code>{{ options.periodStartDate }}</code>–<code>{{ options.periodEndDate }}</code>
+        @if (intercompany.displayOptions(); as options) {
+          @if (intercompanyMatchOptions.data(); as currentOptions) {
+            <p>
+              Scope revision {{ currentOptions.pinnedGroupRevision }} · current group revision {{ currentOptions.currentGroupRevision }}
+              · reporting currency <code>{{ currentOptions.reportingCurrency }}</code>
+              @if (currentOptions.periodStartDate && currentOptions.periodEndDate) {
+                · membership overlaps scope reporting period <code>{{ currentOptions.periodStartDate }}</code>–<code>{{ currentOptions.periodEndDate }}</code>
+              }
+            </p>
+            @if (!isCurrentIntercompanyRevision(w, currentOptions)) {
+              <p class="error-text" role="alert">The group perimeter changed after this scope was approved. Refresh and review a current scope before recording or approving matches.</p>
             }
-          </p>
+          } @else {
+            <p><small>Showing the last validated member and taxonomy options for editing. Review assent and submission require a current options response.</small></p>
+          }
           @if (options.membershipBlocker) {
             <p class="error-text" role="alert">{{ options.membershipBlocker }}</p>
-          }
-          @if (!isCurrentIntercompanyRevision(w, options)) {
-            <p class="error-text" role="alert">The group perimeter changed after this scope was approved. Refresh and review a current scope before recording or approving matches.</p>
           }
           <label>Find a group member
             <input name="intercompanyMemberSearch" [ngModel]="intercompanyMemberSearch()" (ngModelChange)="searchIntercompanyMembers($event)" maxlength="100" />
@@ -539,7 +543,7 @@
           }
 
           @if (w.canPrepare) {
-            <form class="panel" style="margin: 1rem 0;" (ngSubmit)="submitIntercompanyMatch(w, options)" aria-label="Record intercompany match">
+            <form class="panel" style="margin: 1rem 0;" (ngSubmit)="submitIntercompanyMatch(w, options)" aria-label="Record intercompany match" [attr.aria-busy]="intercompanyMatchOptions.loading() ? 'true' : 'false'">
               <h3>Record a match for independent review</h3>
               <p><small>Amounts are exact signed decimal strings, with up to six fractional digits. Review the current group revision before submitting.</small></p>
               <div class="inline-form">
@@ -637,7 +641,7 @@
               </div>
 
               <label style="display: block; margin: .75rem 0;">
-                <input type="checkbox" name="reviewedIntercompanyMatch" [(ngModel)]="intercompanyForm.reviewed">
+                <input type="checkbox" name="reviewedIntercompanyMatch" [(ngModel)]="intercompanyForm.reviewed" [disabled]="!intercompany.canReviewAssent(w, options)">
                 I reviewed both counterparties, exact amounts, taxonomies, evidence and the current group revision.
               </label>
               <button matButton="filled" type="submit" [disabled]="cmd.busy() || !canSubmitIntercompanyMatch(w, options)">Submit for independent review</button>

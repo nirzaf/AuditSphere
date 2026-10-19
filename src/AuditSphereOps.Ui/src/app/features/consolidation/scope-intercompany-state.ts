@@ -52,6 +52,7 @@ export class ScopeIntercompanyState {
   private resolvedMemberRequests = new WeakMap<IntercompanyMatchOptions, { seller: string; buyer: string }>();
   private intercompanyApprovalChecks: Record<string, boolean> = {};
   intercompanyForm: IntercompanyForm = ScopeIntercompanyState.newIntercompanyForm();
+  readonly displayOptions = signal<IntercompanyMatchOptions | null>(null);
   readonly intercompanyMatchOptions: Resource<IntercompanyMatchOptions>;
   readonly intercompanyMatches: Resource<IntercompanyExceptionsPage>;
 
@@ -87,6 +88,7 @@ export class ScopeIntercompanyState {
             options.resolvedBuyer !== null && (selected?.scopeId !== scopeId?.toLowerCase() || options.resolvedBuyer.clientId !== selected?.buyer))
           throw new Error('Intercompany options belong to a different scope, page or selected member.');
         this.resolvedMemberRequests.set(options, { seller: selected?.seller ?? '', buyer: selected?.buyer ?? '' });
+        this.displayOptions.set(options);
         return options;
       },
       'Intercompany match options are unavailable in this group scope.',
@@ -128,6 +130,7 @@ export class ScopeIntercompanyState {
     this.intercompanyMembersPageNumber.set(1);
     this.intercompanyMemberSearch.set('');
     this.selectedIntercompanyMembers.set(null);
+    this.displayOptions.set(null);
     this.intercompanyUnresolvedOnly.set(false);
     this.intercompanyPageNumber.set(1);
     this.intercompanyForm = ScopeIntercompanyState.newIntercompanyForm();
@@ -204,6 +207,15 @@ export class ScopeIntercompanyState {
       options.pinnedGroupRevision === workspace.scope.groupRevision && options.currentGroupRevision === options.pinnedGroupRevision;
   }
 
+  isCurrentOptions(options: IntercompanyMatchOptions): boolean {
+    return this.intercompanyMatchOptions.data() === options &&
+      !this.intercompanyMatchOptions.loading() && !this.intercompanyMatchOptions.error();
+  }
+
+  canReviewAssent(workspace: ScopeWorkspace, options: IntercompanyMatchOptions): boolean {
+    return workspace.canPrepare && this.isCurrentOptions(options) && this.isCurrentRevision(workspace, options);
+  }
+
   isCurrentPageRevision(workspace: ScopeWorkspace, page: IntercompanyExceptionsPage): boolean {
     const options = this.intercompanyMatchOptions.data();
     return page.scopeVersionId === workspace.scope.id && page.groupId === workspace.scope.groupId &&
@@ -213,7 +225,7 @@ export class ScopeIntercompanyState {
 
   canSubmit(workspace: ScopeWorkspace, options: IntercompanyMatchOptions): boolean {
     const form = this.intercompanyForm;
-    if (!workspace.canPrepare || !this.isCurrentRevision(workspace, options) || options.periodStartDate === null || options.periodEndDate === null ||
+    if (!this.canReviewAssent(workspace, options) || options.periodStartDate === null || options.periodEndDate === null ||
         options.periodStartDate > options.periodEndDate || options.membershipBlocker !== null ||
         !INTERCOMPANY_NATURES.includes(form.accountNature as typeof INTERCOMPANY_NATURES[number]) ||
         !form.periodCode.trim() || form.periodCode.trim().length > 100 || !form.transactionReference.trim() || form.transactionReference.trim().length > 200 ||
@@ -304,6 +316,7 @@ export class ScopeIntercompanyState {
       { expectedGroupRevision: page.currentGroupRevision, reviewed: true },
       'Intercompany match approved. No component book or elimination journal was created.', () => {
         this.setApprovalReviewed(item.matchId, false);
+        this.invalidateReview();
         this.reloadWorkspace();
         this.intercompanyMatchOptions.reload();
         this.intercompanyMatches.reload();

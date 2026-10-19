@@ -19,6 +19,7 @@ export { formatOwnershipPercent } from './scope-amounts';
   selector: 'audit-consolidation-scope-workspace',
   imports: [FormsModule, RouterLink, MatButtonModule, ConsolidationOwnership, ConsolidationComponentCorrection, ConsolidationExternalPacks, ...SHARED],
   templateUrl: './scope-workspace.html',
+  styles: ['.inline-form { min-width: 0; max-width: 100%; }'],
 })
 export class ConsolidationScopeWorkspace {
   private readonly api = inject(Api);
