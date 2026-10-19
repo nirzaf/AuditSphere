@@ -238,11 +238,11 @@
             "change": "Existing component/journal API journeys now read eligiblePackages.items and journals.items. Original authorization, composition refusal, return reason, resubmission and independent approval remain; exact journal IDs and page counts added. No production/API contract changed."
           },
           "currentFast": {
-            "runId": "39196377953",
-            "sourceCommit": "f2140bb545bcf8ceec86775c0e87f1eeeaa5e1d7",
+            "runId": "39197451185",
+            "sourceCommit": "14f6a72f8e2ad087f1c5b2cfeb0b7f517d816f7e",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39196377953",
-            "note": "Observed success; predates c7a1c5f7 fence. Full release run39194532601 still API/E2E active."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39197451185",
+            "note": "Observed success; predates expiry follow-up f5a8730f. Full39194532601 still API/E2E active."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -1202,33 +1202,36 @@
       "criterion": "ASPM-CRM-03 remains PARTIAL + BLOCKED_DECISION; DEC-09 unchanged.",
       "behavior": "Fresh mode/epoch, artifact and recipient checks plus DISPATCHED use one firm-fenced transaction; routing assign/revoke and contact update/direct/workspace creation cooperate. Claim commits and context disposes before provider I/O. Prior committed changes win; later changes do not retarget the authorized frozen plan.",
       "verification": {
-        "result": "PASS",
-        "passed": 13,
-        "failed": 0,
-        "skipped": 0,
-        "duration": "46s",
-        "cohort": "ContactRouteMutatorsWaitForTheFirmSafetyFence (5); PendingProposalMail_ (3); AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach (1); ClientContactCreationTests (4). PostgreSQL pg_blocking_pids proves waiting; provider callback updates contact after DISPATCHED; earlier revocation denies send.",
-        "trx": "/tmp/auditsphere-correspondence-fence-results/correspondence-fence.trx",
-        "log": "/tmp/auditsphere-correspondence-fence.log",
-        "initialAttempt": "Compile failed on missing ActorContext import in new test helper; import fixed, same cohort rebuilt and passed."
+        "result": "PASS13/13,46s; exact cohort/TRX and initial compile repair retained in archive.",
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019"
       },
-      "independentReview": "No concrete issue found in outer transaction lock order, fresh-context mode/epoch claim, provider lock release or unknown/retry handling. Existing RoleGrantExpiry does not cooperate with firm fence: actor grant expiry can race command commit. Not claimed resolved; broader actor reauthorization remains open.",
+      "independentReview": "Dispatch fence review found no lock-order/provider-call issue. The observed expiry-writer gap is addressed by roleGrantExpiryFence below; broader initiating-actor mail authorization remains open.",
       "remaining": [
         "Exact payment routing snapshot",
         "Holding-letter recipient recheck",
-        "Initiating-actor reauthorization including expiry/commit fence; DEC-09",
+        "Initiating-actor mail reauthorization; DEC-09",
         "Current-source full CI, live-provider and professional acceptance"
       ],
       "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.paymentMailBeforeDispatchFence20261019",
       "referenceFollowUp": {
         "sourceCommit": "9f476cf3b1b88e65fb07282d14c0a36445e20512",
         "result": "FOCUSED_PASS",
-        "decision": "New opaque RCT references retain full unique milestone identity; new PV references retain full unique payment identity. Prefixes of UUIDv7 timestamps cannot supply uniqueness. No statutory/sequential numbering policy is inferred.",
-        "verification": "Same CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach passed1 failed0 skipped0,47s; full identity in filename and DOCX body, distinct advance/balance references, retained earlier receipt bytes/hash unchanged. Existing route-block/recovery, fee, balance and reversal checks remain.",
-        "trx": "/tmp/auditsphere-payment-mail-results/payment-document-reference-identity.trx",
-        "limits": "Only new artifact creation changes; existing-document branches reuse issued identities/content. No migration, dependency, HTTP/UI contract or live effect; complete artifact visual/legal approval and full current-source CI remain open."
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019.referenceFollowUp"
       },
       "limits": "No schema/package/API/UI or tenant/provider change; no full local suite. DISPATCHED is the authorization linearization point, not a delivery receipt."
+    },
+    "roleGrantExpiryFence": {
+      "sourceCommit": "f5a8730fdd3d3a6395dfc4c740f9f33964acd818",
+      "result": "FOCUSED_PASS",
+      "behavior": "Expired-grant revocation takes existing firm -> user -> grant fence, refreshes tracked user/grants, records each expiry and increments latest epoch once. No-expired path is read-only; caller-owned staffing transactions retained. Missing firm fails closed. Does not supply initiating-actor mail authorization or whole-product authorization acceptance.",
+      "verification": {
+        "result": "3 distinct methods passed across focused runs; no full local suite.",
+        "initial": "role-expiry-fence.trx: expired-grant authorization/evidence and Staffing_DoesNotReuseExpiredEngagementGrant PASS2; new concurrency method timed out1 because second waiter was required to be directly blocked by root. Initial build also fixed xUnit2031 equivalent Assert.Single predicate syntax.",
+        "rerun": "role-expiry-concurrency.trx: ExpiryWaitsForFirmFenceAndConcurrentCallsAdvanceFreshEpochOnce PASS1,2s. Actual blocker chain observed 77892->77891->77886; second waits behind first, first behind held firm. Both writers preload stale user; one true/one false, one evidence per grant and one expiry epoch bump after independent bump.",
+        "artifacts": "/tmp/auditsphere-role-expiry-results/; logs /tmp/auditsphere-role-expiry-fence.log and /tmp/auditsphere-role-expiry-concurrency.log"
+      },
+      "review": "Independent bounded review found no issue in firm/user/grant order, fresh epoch, idempotency or nested StaffingService transaction. Focused tests establish only these behaviors.",
+      "limits": "No dependency, model, migration, HTTP/UI, deployment or live-provider change. Full current-source CI remains NOT_RUN."
     }
   },
   "externalGates": [

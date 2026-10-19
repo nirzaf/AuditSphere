@@ -19,11 +19,17 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Grant-expiry mutation fence (2026-10-19)
+
+Expiry revocation now cooperates with the existing firm fence, locks the user before grants and refreshes tracked values before the session-epoch increment. The ordinary no-expiry path stays read-only. Focused PostgreSQL checks cover expiry denial/evidence, nested staffing replacement, the real waiter chain, concurrent idempotency and stale tracked-user refresh. The first concurrency probe incorrectly required a direct root blocker; its correction accepts the observed chain through the already-blocked first waiter, retaining all revocation/epoch assertions.
+
+This addresses the expiry-writer gap identified in the preceding correspondence review. It does not supply initiating-actor authorization for queued mail or close the full correspondence criterion. Current source, initial failures, passing rerun, artifacts and CI limits are in `targetedVerification.roleGrantExpiryFence` in [status.json](status.json). No full local suite, schema change or external action occurred.
+
 ## Atomic correspondence dispatch claim (2026-10-19)
 
 Recipient/artifact validation and DISPATCHED now commit under the same firm fence used by routing assignment/revocation, contact updates and both creation entry points. The provider call starts after the transaction/context ends. PostgreSQL blocking observations and a provider-callback contact update verify the boundary; prior committed route revocation still prevents sending. Existing reference, fee-cycle and reviewed contact-recovery checks remain intact.
 
-ASPM-CRM-03 remains PARTIAL: payment route snapshots, holding-letter checks, initiating-actor reauthorization/expiry fencing, DEC-09 and live/full-release acceptance remain open. Independent review found an existing expiry-worker authorization race; this recipient fence does not claim to solve it. Exact source, focused results and CI are in `targetedVerification.paymentMailRecipientGuard` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). The earlier notes are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Full suites ran only in CI; human screen-reader acceptance remains open.
+ASPM-CRM-03 remains PARTIAL: payment route snapshots, holding-letter checks, initiating-actor reauthorization/expiry fencing, DEC-09 and live/full-release acceptance remain open. The later grant-expiry follow-up above addresses that writer; broader initiating-actor mail authorization remains open. Exact source, focused results and CI are in `targetedVerification.paymentMailRecipientGuard` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). The earlier notes are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Full suites ran only in CI; human screen-reader acceptance remains open.
 
 ## Operational cancellation and recovery (2026-10-19)
 

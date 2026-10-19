@@ -19842,6 +19842,40 @@
         "trx": "/tmp/auditsphere-payment-mail-results/payment-document-reference-identity.trx",
         "limits": "Only new artifact creation changes; existing-document branches reuse issued identities/content. No migration, dependency, HTTP/UI contract or live effect; complete artifact visual/legal approval and full current-source CI remain open."
       }
+    },
+    "targetedVerification.correspondenceFenceBeforeExpiryFollowUp20261019": {
+      "sourceCommit": "c7a1c5f71216034a7d1e94f45931614cf07898cd",
+      "result": "FOCUSED_PASS_PARTIAL_CORRESPONDENCE_SAFETY",
+      "criterion": "ASPM-CRM-03 remains PARTIAL + BLOCKED_DECISION; DEC-09 unchanged.",
+      "behavior": "Fresh mode/epoch, artifact and recipient checks plus DISPATCHED use one firm-fenced transaction; routing assign/revoke and contact update/direct/workspace creation cooperate. Claim commits and context disposes before provider I/O. Prior committed changes win; later changes do not retarget the authorized frozen plan.",
+      "verification": {
+        "result": "PASS",
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "46s",
+        "cohort": "ContactRouteMutatorsWaitForTheFirmSafetyFence (5); PendingProposalMail_ (3); AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach (1); ClientContactCreationTests (4). PostgreSQL pg_blocking_pids proves waiting; provider callback updates contact after DISPATCHED; earlier revocation denies send.",
+        "trx": "/tmp/auditsphere-correspondence-fence-results/correspondence-fence.trx",
+        "log": "/tmp/auditsphere-correspondence-fence.log",
+        "initialAttempt": "Compile failed on missing ActorContext import in new test helper; import fixed, same cohort rebuilt and passed."
+      },
+      "independentReview": "No concrete issue found in outer transaction lock order, fresh-context mode/epoch claim, provider lock release or unknown/retry handling. Existing RoleGrantExpiry does not cooperate with firm fence: actor grant expiry can race command commit. Not claimed resolved; broader actor reauthorization remains open.",
+      "remaining": [
+        "Exact payment routing snapshot",
+        "Holding-letter recipient recheck",
+        "Initiating-actor reauthorization including expiry/commit fence; DEC-09",
+        "Current-source full CI, live-provider and professional acceptance"
+      ],
+      "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.paymentMailBeforeDispatchFence20261019",
+      "referenceFollowUp": {
+        "sourceCommit": "9f476cf3b1b88e65fb07282d14c0a36445e20512",
+        "result": "FOCUSED_PASS",
+        "decision": "New opaque RCT references retain full unique milestone identity; new PV references retain full unique payment identity. Prefixes of UUIDv7 timestamps cannot supply uniqueness. No statutory/sequential numbering policy is inferred.",
+        "verification": "Same CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach passed1 failed0 skipped0,47s; full identity in filename and DOCX body, distinct advance/balance references, retained earlier receipt bytes/hash unchanged. Existing route-block/recovery, fee, balance and reversal checks remain.",
+        "trx": "/tmp/auditsphere-payment-mail-results/payment-document-reference-identity.trx",
+        "limits": "Only new artifact creation changes; existing-document branches reuse issued identities/content. No migration, dependency, HTTP/UI contract or live effect; complete artifact visual/legal approval and full current-source CI remain open."
+      },
+      "limits": "No schema/package/API/UI or tenant/provider change; no full local suite. DISPATCHED is the authorization linearization point, not a delivery receipt."
     }
   }
 }
