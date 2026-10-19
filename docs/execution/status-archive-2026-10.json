@@ -21395,6 +21395,52 @@
         "currentSource": "NOT_RUN before push; retained full5b run remains live and is not current-source acceptance."
       },
       "remaining": "Perimeter Approve button still enabled on stale scope (observed separately; command remains authoritative). Full-source release, human AT/all-state acceptance, versioned reminder/escalation catalogue, professional and external gates remain open."
+    },
+    "perimeterAndReminderPolicyBeforeFairScanning20261019": {
+      "codeCommit": "7c2207f2fc13a1666140ca95c298fd245ad8345f",
+      "perimeterCommit": "aff366e7629a546e7fb640b6c82f6eb0ceb64593",
+      "result": "FOCUSED_PASS; not full release acceptance",
+      "behavior": [
+        "Shared scope approval readiness projects existing command blockers; native disabled approval describes the visible reason; current route and workspace guard dispatch.",
+        "Delivery-time policy blocks disabled reminders; quiet no-effect deferral refunds failure budget atomically, retains history/token; accepted sends are not requeued solely for quiet hours."
+      ],
+      "verification": {
+        "domainPerimeter": "Passed 2, failed 0; scoped group workflow and pinned translation.",
+        "angular": "Passed 18, failed 0; scope-workspace spec.",
+        "api": "Three distinct scoped methods pass across initial cohort and one fixture repair rerun.",
+        "reminderAndOutbox": "Passed 15, failed 0, skipped 0; PbcReminderTests plus ordinary delivery, expired-lease fence, SafeRetry limit, remote rollback reconciliation and post-verification deferral. TRX /tmp/auditsphere-reminder-policy-results/reminder-deferral-final.trx.",
+        "browser": "Final perimeter theory passed 2, failed 0, skipped 0 after real-response transport capture repair. Existing component case passed in preceding scoped cohort. /tmp/auditsphere-perimeter-readiness-results/perimeter-readiness-browser-transport-after.trx.",
+        "builtInBrowser": "Owned synthetic API: disabled stale perimeter, visible blocker with aria-describedby, native Tab reaches section links; console warnings/errors empty. Screenshot /tmp/auditsphere-perimeter-readiness-built-in-20261019.png. Owned tab closed; fixture released.",
+        "responsive": "Automated 390px overflow check; built-in desktop only; human AT open.",
+        "builds": "Application, Infrastructure, Worker, API Release builds pass; Angular production build passed with existing warnings; OpenAPI drift current.",
+        "independentReview": "Mill/Cicero protocol and keyboard review; Euclid response capture and fence assertions; CI fixture-only repair reviewed."
+      },
+      "failedEvidenceRetained": [
+        "Disabled delivery baseline sent mail before fix; quiet MaxAttempts=1 dead-lettered and post-send quiet transition requeued before repair.",
+        "Angular reused fixture and API actor fixture repaired; original assertions retained.",
+        "Browser Contains URL capture matched child data; exact root matching repaired it. A subsequent response-body eviction was repaired using existing real FetchAsync capture; final two-case rerun passes."
+      ],
+      "ci": {
+        "fastPrevious": {
+          "run": 39270438330,
+          "source": "5698283d9d9c869140ab535767fef0d5de8a0030",
+          "result": "SUCCESS"
+        },
+        "fullRetained": {
+          "run": 39266247908,
+          "source": "5b907e346ed038c1d8ca215e8c0fb518549b18f9",
+          "result": "IN_PROGRESS; Domain, Angular and build/contracts pass; API and E2E active. Predates this slice."
+        },
+        "current": {
+          "run": 39276646599,
+          "source": "0df73b21b77c9db86c6549ad577d2b4c7faedce9",
+          "result": "FAIL: four component-correction fixture assertions stopped at strict decoder; root readiness fields absent. Added required false/null fields; original assertions retained; affected spec passes 5/5. Replacement push CI pending."
+        }
+      },
+      "limits": [
+        "No full suites locally. No migration, dependency, deployment, tenant permission or live-provider change.",
+        "General versioned reminder catalogue, broader workflow accessibility, human AT, professional and external acceptance remain open."
+      ]
     }
   }
 }
