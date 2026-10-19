@@ -19,17 +19,17 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Locked upload intent freshness (2026-10-19)
+
+Resume, chunk recording and trusted completion refresh the already locked upload intent before reading token, revision or received state. Existing regressions reproduced stale revision and stale staged-state receipts, then passed after the fix. The original delegation race test also passes with a retained valid token denied after revocation. Exact source, rebuilt API evidence and limits are in `targetedVerification.uploadIntentFreshness20261019` in [status.json](status.json). This corrects reused service contexts; no current HTTP context-reuse path was observed. Whole-family state acceptance, current-source full release and external/professional gates remain open.
+
 ## Practice completion safeguards (2026-10-19)
 
 Client archive/restore preserves keyboard focus across a confirmed reload without stealing deliberate focus or crossing ownership. Lost assignment replies resolve the exact task beyond the workspace window. Ambiguous effective staff-cost rates make cost-derived figures unavailable. Portal delegation revocation now serializes with active uploads and preserves retained revocation history. Focused Angular, API, PostgreSQL and browser checks pass; pre-fix archive focus loss was reproduced. Exact source/evidence is in `targetedVerification.practiceCompletionGuards20261019` in [status.json](status.json). Full current-source release, human accessibility, professional and live-provider acceptance remain open.
 
-## Approved component intercompany accessibility (2026-10-19)
+## Earlier workflow and consolidation checks (2026-10-19)
 
-The existing regular-scope journey now includes approved external component packs, a maker's exact signed match and an independent review through keyboard controls. Retained component source manifests remain unchanged; the match creates no journal or run. Native disclosure keyboard/focus checks and narrow reflow are evidenced separately. See `angularQuality.task07.consolidationFocusFollowUp` in [status.json](status.json). Internal-package/full-state and human assistive-technology acceptance remain open; this synthetic path supplies no professional or live-provider acceptance.
-
-## Reviewed reopening of cancelled operational tasks (2026-10-19)
-
-Current scoped management can reopen cancelled tasks without completed-work evidence using a reviewed reason and revision. The same task, binding, time and evidence remain; historical retries acknowledge their event without overwriting later state. Focused Domain/API/Angular and keyboard browser checks pass, including narrow reflow. The owned native review checked focus, fresh assent and explicit close without submission. Exact source, failed-check repairs, migration and limits are in `targetedVerification.workflowTaskReopening` in [status.json](status.json). Completed-work correction, suspension, missed-period recovery, full CI and human/live acceptance remain open. No shared/deployed database was migrated.
+Reviewed operational reopening and approved-component keyboard evidence are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and their scoped records in [status.json](status.json). Broader workflow, human accessibility and full release gates remain open.
 
 ## Atomic correspondence dispatch claim (2026-10-19)
 

@@ -20226,6 +20226,56 @@
         "jobId": "117899328393",
         "log": "/tmp/auditsphere-domain-full-7cac719c.log"
       }
+    },
+    "targetedVerification.practiceCompletionGuardsBeforeUploadIntentFreshness20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "clientArchiveFocus": {
+        "sourceCommit": "8ff14f6b01e26fbf3ac4bcb96b7f19ed5ac03c49",
+        "behavior": "Confirmed archive/restore refresh restores focus only for matching owner/session/client/view/archive revision, absent deliberate pointer/key intent or intervening view load. Current staff-only read assertions precede scoped Manager grant; retained history, pages, sibling isolation and revocation covered.",
+        "angular": "PASS11/11; /tmp/auditsphere-client-archive-focus-angular-final.log; includes query-only view change before acknowledgement, body and actual breadcrumb focus retention",
+        "browser": "PASS2/2 on canonical and /ui bases; /tmp/auditsphere-a11y-results/client-archive-focus-final.trx",
+        "counterfactual": "Pre-patch production bundle FAIL2/2 on lost Restore button focus; /tmp/auditsphere-a11y-results/client-archive-focus-counterfactual.trx",
+        "native": "Owned synthetic archived client: native Tab reaches Restore; retained metadata/history visible; warn/error logs empty; no native mutation; screenshot /tmp/auditsphere-client-archive-native.png; owned tab/fixture closed/disposed.",
+        "review": "Independent source review found no owner/interaction/stale-response defect; unit assertions strengthened to retain actual breadcrumb focus and body focus after deliberate input.",
+        "navigationFollowUpCommit": "a617e9e70c7913a66bb10766ab28ca360f0ba9a8"
+      },
+      "assignmentRecovery": {
+        "sourceCommit": "b785ab656aeafc9282ab640fa542f90c7561774e",
+        "behavior": "Unknown assignment recovery requests encoded exact taskId through existing scope-fenced workspace lookup, retaining original intent/history/revision checks.",
+        "angular": "PASS29/29; /tmp/auditsphere-assignment-exact-task-angular.log",
+        "api": "PASS1/1; /tmp/auditsphere-practice-guard-results/assignment-exact-task-api.trx; unfiltered500-row workspace excludes target; exact lookup returns only its current revision/state. Existing denial/replay/professional-history assertions retained.",
+        "limits": "Native lost-reply assignment journey not separately executed; exact URL/spec plus actual API before-bound behavior verified."
+      },
+      "staffCostRateAmbiguity": {
+        "sourceCommit": "b445bc5fa23d1b78b12fce3768505d1950c3d2fc",
+        "behavior": "Conflicting rates on latest applicable effective date for same staff/normalized currency make actual cost/profit/margin unavailable. Identical amounts retain result; other figures unchanged. No RecordedAt winner, FX, WIP or audience policy invented. Existing definitions disclose unavailability.",
+        "test": "Analytics_ReconcileBilledCollectedStandardValueAndCost_FromApprovedRecords PASS in shared focused Domain cohort; pre-fix counterfactual NOT_RUN."
+      },
+      "portalDelegationRevocation": {
+        "sourceCommit": "b1e1b37ce82b764a246ee7caca8e492a3bdd8c39",
+        "behavior": "Firm->client->delegation/request locks plus fresh scoped primary-contact authorization. Caller-owned transaction retained. Already-authorized upload commits before revocation returns; upload waiting behind revoke fails current authorization. Locked reload preserves stale tracked revocation timestamp/actor and retained row.",
+        "test": "PrimaryContact_DelegatesWithinTheClientOnly_AndRevocationIsImmediate PASS in shared focused Domain cohort. Both orderings observe actual pg_blocking_pids; no timing-only race assertion.",
+        "reviewRepair": "Removed proposed DbSet.Local.Remove because it marks Deleted, not detached. Parent used locked ReloadAsync and added stale original-context history assertions before verification.",
+        "limits": "No proof for every portal write/provider race; no live identity/provider changes.",
+        "capabilityFollowUp": {
+          "sourceCommit": "54e5b1d641c0c9f667d6411ca774e2126804bb9d",
+          "result": "PASS",
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "trx": "/tmp/auditsphere-practice-guard-results/portal-revoked-upload-capability.trx",
+          "behavior": "Original issued64-hex capability still matches retained hash, but revoked delegate cannot record a chunk or resume exact file. Intent/capability/request revisions and chunk history remain unchanged. Same original regression retains reply/new-upload denial and both observed lock-order cases."
+        }
+      },
+      "sharedDomainCohort": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/portal-revocation-and-cost-rates.trx"
+      },
+      "buildLint": "Production Angular build PASS /tmp/auditsphere-recovery-followup-angular-build.log; changed production TS/HTML ESLint PASS. Existing completion optional-chain and commercial style-budget warnings retained. Initial lint invocation included repo-ignored spec and was corrected to production scope; no rules changed.",
+      "limits": "No full local suite, migrations, packages, deployed DB/provider/permission changes. Full current-source release, human AT and professional/external gates remain open."
     }
   }
 }
