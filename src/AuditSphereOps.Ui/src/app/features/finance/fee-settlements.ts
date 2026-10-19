@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,6 +7,7 @@ import { Api } from '../../core/api';
 import { arr, bool, decode, dec, guid, instant, nat, obj, str } from '../../core/decode';
 import type { Decoder } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { NavigationProtected } from '../../core/unsaved-changes';
 import { FeeAgreement } from '../commercial/fee-agreement';
 
 export interface FeeAgreementQueueRow {
@@ -137,13 +138,21 @@ export class FeeSettlements {
 
 @Component({
   selector: 'audit-fee-agreement-route',
-  imports: [FeeAgreement],
-  template: '<audit-fee-agreement [agreementId]="agreementId()" />',
+  imports: [FeeAgreement, ...SHARED],
+  template: `
+    <audit-page-header title="Client fee settlement" eyebrow="Finance"
+      description="Review the agreed fee and its invoice and payment milestones." />
+    <audit-fee-agreement [agreementId]="agreementId()" />
+  `,
 })
-export class FeeAgreementDetailRoute {
+export class FeeAgreementDetailRoute implements NavigationProtected {
   private readonly route = inject(ActivatedRoute);
+  private readonly feeAgreement = viewChild(FeeAgreement);
   readonly agreementId = toSignal(
     this.route.paramMap.pipe(map((params) => params.get('id') ?? '')),
     { initialValue: this.route.snapshot.paramMap.get('id') ?? '' },
   );
+  confirmNavigation(): boolean | Promise<boolean> {
+    return this.feeAgreement()?.confirmNavigation() ?? true;
+  }
 }

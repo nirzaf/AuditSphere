@@ -90,6 +90,7 @@ describe('Finance fee settlements', () => {
       proposalId: otherAgreementId,
       agreementId,
       clientId,
+      clientName: 'Synthetic client',
       engagementId: null,
       fee: '10000.00',
       currency: 'QAR',
@@ -106,6 +107,8 @@ describe('Finance fee settlements', () => {
       advancePreparation: { state: 'PENDING_AUTOMATION_DISABLED', message: 'Finance prepares the draft manually.' },
     });
     await harness.fixture.whenStable();
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent).toContain('Client fee settlement');
+    expect(harness.routeNativeElement?.textContent).toContain('Synthetic client');
     expect(harness.routeNativeElement?.querySelector('h2')?.textContent).toContain('Fee settlement');
     expect(harness.routeNativeElement?.querySelector('tbody tr')?.textContent).toContain('ADVANCE');
     expect(list).toBeTruthy();

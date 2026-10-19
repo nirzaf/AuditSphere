@@ -186,7 +186,10 @@ public sealed class AngularFeeSettlementJourneyTests
     var path = listPath + "/" + agreementId;
     await page.GetByRole(AriaRole.Link, new() { Name = $"Open fee settlement for PBC TEST CLIENT ({agreementId})", Exact = true }).ClickAsync();
     var fees = page.Locator("audit-fee-agreement");
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Client fee settlement", Level = 1, Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(fees.GetByRole(AriaRole.Table, new() { Name = "Persisted fee milestones", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(fees).ToContainTextAsync("PBC TEST CLIENT");
+    await Assertions.Expect(fees).ToContainTextAsync(agreementId.ToString("D"));
     Assert.DoesNotContain("PRIVATE-COMMERCIAL-METADATA", await fees.InnerTextAsync());
     await Assertions.Expect(fees.GetByRole(AriaRole.Button, new() { Name = "Create fee agreement", Exact = true })).ToHaveCountAsync(0);
     var assent = fees.GetByLabel("I reviewed this fee, milestone and selected action.", new() { Exact = true });
@@ -238,7 +241,23 @@ public sealed class AngularFeeSettlementJourneyTests
       Assert.Equal(4000m, await BillingService.GetNetAppliedToInvoiceAsync(db, f.FirmId, invoiceId));
       Assert.False(await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, f.FirmId, agreementId));
     }
+    await page.SetViewportSizeAsync(390, 844);
+    Assert.True(await page.EvaluateAsync<bool>("document.documentElement.scrollWidth <= window.innerWidth"),
+      "The narrow fee workspace must contain its table overflow without widening the document.");
+    var milestoneScroll = fees.GetByRole(AriaRole.Region, new() { Name = "Fee milestone details", Exact = true });
+    await milestoneScroll.FocusAsync();
+    await Assertions.Expect(milestoneScroll).ToBeFocusedAsync();
+    await milestoneScroll.PressAsync("ArrowRight");
+    var scrolledByKeyboard = false;
+    for (var attempt = 0; attempt < 40; attempt++)
+    {
+      scrolledByKeyboard = await milestoneScroll.EvaluateAsync<bool>("element => element.scrollLeft > 0");
+      if (scrolledByKeyboard) break;
+      await Task.Delay(25);
+    }
+    Assert.True(scrolledByKeyboard, "The focused milestone region must scroll horizontally through native keyboard input.");
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "finance-fee-partial");
+    await page.SetViewportSizeAsync(1280, 900);
     await PayAsync("6000", "SYN-FINANCE-ADVANCE-FINAL");
     await Assertions.Expect(fees.GetByText("Advance paid", new() { Exact = false }).Last).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())

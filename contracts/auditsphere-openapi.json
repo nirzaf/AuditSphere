@@ -107785,6 +107785,12 @@
           },
           "advancePreparation": {
             "$ref": "#/components/schemas/AdvanceInvoicePreparation"
+          },
+          "clientName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

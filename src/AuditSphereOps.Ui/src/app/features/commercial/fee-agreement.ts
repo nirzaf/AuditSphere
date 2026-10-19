@@ -3,9 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { Subscription, timeout } from 'rxjs';
+import { firstValueFrom, Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
+import { NavigationProtected, UnsavedChangesDialog } from '../../core/unsaved-changes';
 import { CommercialFormDraft, textFields } from './commercial-form-draft';
 import { exactDecimal, guidPattern } from '../../core/contracts';
 import { StatusChip } from '../../core/ui';
@@ -31,6 +33,7 @@ interface Workspace {
   proposalId: string;
   agreementId: string | null;
   clientId: string | null;
+  clientName?: string | null;
   engagementId: string | null;
   fee: string;
   currency: string;
@@ -110,7 +113,7 @@ const exactKeys = (value: unknown, keys: readonly string[]): value is Record<str
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string): Workspace {
   const workspaceKeys = [
-    'proposalId', 'agreementId', 'clientId', 'engagementId', 'fee', 'currency', 'advancePercent',
+    'proposalId', 'agreementId', 'clientId', 'clientName', 'engagementId', 'fee', 'currency', 'advancePercent',
     'canCreate', 'canFinance', 'releaseRecorded', 'creationBlockers', 'milestones', 'engagements',
     'advancePreparation',
   ];
@@ -119,6 +122,7 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
   const milestones = raw['milestones'];
   const engagements = raw['engagements'];
   const creationBlockers = raw['creationBlockers'];
+  const clientName = raw['clientName'];
   if (!Array.isArray(milestones) || milestones.some((item) => !exactKeys(item, [
     'id', 'kind', 'amount', 'state', 'invoiceId', 'invoiceNumber', 'invoiceStatus', 'allocated',
     'outstanding', 'paidAt',
@@ -128,7 +132,8 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
     throw new Error('Invalid sanitized finance fee agreement');
   const workspace = decodeFeeAgreement(value);
   if (workspace.agreementId !== expectedAgreementId || workspace.canCreate || !workspace.canFinance ||
-      !guid(workspace.clientId) || new Set(workspace.engagements.map((engagement) => engagement.id)).size !==
+      !guid(workspace.clientId) || typeof clientName !== 'string' || clientName.trim().length === 0 ||
+      clientName.length > 300 || new Set(workspace.engagements.map((engagement) => engagement.id)).size !==
         workspace.engagements.length)
     throw new Error('Unexpected finance fee agreement identity or authority');
   return workspace;
@@ -138,8 +143,17 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
   imports: [FormsModule, RouterLink, MatButtonModule, MatProgressBarModule, StatusChip],
   template: `
     @if (financeMode()) { <a routerLink="/app/finance/fee-agreements">← Back to fee settlements</a> }
-    <section aria-labelledby="fee-agreement-heading">
+    <section [class.finance-mode]="financeMode()" aria-labelledby="fee-agreement-heading">
       <h2 id="fee-agreement-heading">{{ financeMode() ? 'Fee settlement' : 'Agreed fee and billing milestones' }}</h2>
+      @if (financeMode()) {
+        @if (data(); as identity) {
+          <dl class="finance-identity">
+            <div><dt>Client</dt><dd>{{ identity.clientName }}</dd></div>
+            <div><dt>Client ID</dt><dd><code>{{ identity.clientId }}</code></dd></div>
+            <div><dt>Fee agreement ID</dt><dd><code>{{ identity.agreementId }}</code></dd></div>
+          </dl>
+        }
+      }
       @if (loading()) {
         <mat-progress-bar mode="indeterminate" aria-label="Loading fee agreement" />
       }
@@ -188,7 +202,7 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
           not initiate a bank payment.
         </p>
         <label
-          ><input type="checkbox" [(ngModel)]="reviewed" [disabled]="busy()" />I reviewed this fee,
+          ><input type="checkbox" [(ngModel)]="reviewed" (ngModelChange)="feeAssentChanged()" [disabled]="busy()" />I reviewed this fee,
           milestone and selected action.</label
         >
         @if (!w.agreementId) {
@@ -209,19 +223,22 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
             Create fee agreement
           </button>
         } @else {
-          <div class="table-scroll">
+          <div class="table-scroll"
+            [attr.role]="financeMode() ? 'region' : null"
+            [attr.aria-label]="financeMode() ? 'Fee milestone details' : null"
+            [attr.tabindex]="financeMode() ? 0 : null">
             <table>
               <caption>
                 Persisted fee milestones
               </caption>
               <thead>
                 <tr>
-                  <th>Milestone</th>
-                  <th>Amount</th>
-                  <th>State</th>
-                  <th>Invoice</th>
-                  <th>Paid</th>
-                  <th>Outstanding</th>
+                  <th scope="col">Milestone</th>
+                  <th scope="col">Amount</th>
+                  <th scope="col">State</th>
+                  <th scope="col">Invoice</th>
+                  <th scope="col">Paid</th>
+                  <th scope="col">Outstanding</th>
                 </tr>
               </thead>
               <tbody>
@@ -277,14 +294,14 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
                   <label
                     >Amount received<input
                       [(ngModel)]="amount"
-                      (ngModelChange)="reviewed = false"
+                      (ngModelChange)="feeFieldsChanged()"
                       inputmode="decimal"
                       [disabled]="busy()"
                   /></label>
                   <label
                     >Bank or transfer reference<input
                       [(ngModel)]="reference"
-                      (ngModelChange)="reviewed = false"
+                      (ngModelChange)="feeFieldsChanged()"
                       maxlength="120"
                       [disabled]="busy()"
                   /></label>
@@ -340,14 +357,14 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
                   <label
                     >Amount received<input
                       [(ngModel)]="amount"
-                      (ngModelChange)="reviewed = false"
+                      (ngModelChange)="feeFieldsChanged()"
                       inputmode="decimal"
                       [disabled]="busy()"
                   /></label>
                   <label
                     >Bank or transfer reference<input
                       [(ngModel)]="reference"
-                      (ngModelChange)="reviewed = false"
+                      (ngModelChange)="feeFieldsChanged()"
                       maxlength="120"
                       [disabled]="busy()"
                   /></label>
@@ -424,16 +441,32 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
       <p role="status">{{ message() }}</p>
     </section>
   `,
+  styles: `
+    :host { display:block; min-width:0; max-width:100%; }
+    section { min-width:0; max-width:100%; }
+    section.finance-mode { overflow-wrap:anywhere; }
+    .finance-mode .finance-identity { display:grid; gap:.4rem; min-width:0; }
+    .finance-mode .finance-identity > div { min-width:0; }
+    .finance-mode .finance-identity dd { margin-inline-start:0; overflow-wrap:anywhere; }
+    .finance-mode .finance-identity code { overflow-wrap:anywhere; }
+    .finance-mode .table-scroll { min-width:0; max-width:100%; overflow-x:auto; overscroll-behavior-inline:contain; }
+    .finance-mode table { width:100%; min-width:42rem; border-collapse:collapse; }
+    .finance-mode th, .finance-mode td { padding:.55rem .65rem; text-align:start; vertical-align:top; overflow-wrap:anywhere; }
+  `,
 })
-export class FeeAgreement {
+export class FeeAgreement implements NavigationProtected {
   readonly proposalId = input('');
   readonly agreementId = input('');
   readonly financeMode = computed(() => !this.proposalId() && !!this.agreementId());
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
+  private readonly dialog = inject(MatDialog);
   private read?: Subscription;
   private write?: Subscription;
   private fence = 0;
+  private destroyed = false;
+  private navigationDialog: MatDialogRef<UnsavedChangesDialog> | null = null;
+  private readonly navigationDialogOwner = signal<string | null>(null);
   readonly data = signal<Workspace | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
@@ -506,14 +539,91 @@ export class FeeAgreement {
     if (guid(agreementId) && proposalId === '') return { mode: 'agreement', id: agreementId };
     return null;
   }
+  private navigationOwner(): string {
+    const session = this.session.current();
+    const scope = this.financeTabDraft.scope();
+    return JSON.stringify({
+      fence: this.fence,
+      identity: this.identity(),
+      sessionEpoch: this.session.invalidation(),
+      session: session && [session.firmId, session.userId, session.generation, session.staff],
+      scope: scope && [scope.entity, scope.baseRevision],
+      workspace: this.data(),
+      draft: this.financeTabDraft.recover(),
+      fields: [this.amount, this.reference, this.engagementId],
+      reviewed: this.reviewed,
+      busy: this.busy(),
+      uncertain: this.uncertain(),
+    });
+  }
+  private closeNavigationDialog(): void {
+    this.navigationDialogOwner.set(null);
+    const dialog = this.navigationDialog;
+    this.navigationDialog = null;
+    dialog?.close();
+  }
+  private invalidateNavigationOwner(): void {
+    this.fence++;
+    this.closeNavigationDialog();
+  }
+  feeFieldsChanged(): void {
+    this.reviewed = false;
+    if (this.navigationDialogOwner()) this.closeNavigationDialog();
+  }
+  feeAssentChanged(): void {
+    if (this.navigationDialogOwner()) this.closeNavigationDialog();
+  }
+  async confirmNavigation(): Promise<boolean> {
+    if (!this.financeMode()) return true;
+    if (this.navigationDialog) return false;
+    if (this.busy() || this.uncertain()) {
+      this.message.set(this.busy()
+        ? 'A fee action is in progress. Wait for it to finish before leaving this page.'
+        : 'The fee action outcome is unconfirmed. Refresh and reconcile persisted state before leaving this page.');
+      return false;
+    }
+    if (!this.financeTabDraft.dirty()) return true;
+    if (!this.financeTabDraft.scope() || !this.data()?.canFinance) {
+      this.message.set('The current finance scope is still loading. Keep this page open until it is ready.');
+      return false;
+    }
+    const owner = this.navigationOwner();
+    const dialog = this.dialog.open(UnsavedChangesDialog);
+    this.navigationDialog = dialog;
+    this.navigationDialogOwner.set(owner);
+    const choice = await firstValueFrom(dialog.afterClosed());
+    const ownsResponse = this.navigationDialog === dialog && this.navigationDialogOwner() === owner;
+    if (this.navigationDialog === dialog) {
+      this.navigationDialog = null;
+      if (this.navigationDialogOwner() === owner) this.navigationDialogOwner.set(null);
+    }
+    if (!ownsResponse || this.destroyed || owner !== this.navigationOwner() || this.busy() || this.uncertain()) return false;
+    if (choice === 'save') {
+      const saved = this.saveFinanceTabDraft();
+      if (saved) this.reviewed = false;
+      return saved;
+    }
+    if (choice === 'discard') {
+      const discarded = this.financeTabDraft.discard();
+      if (!discarded) this.message.set('The fee settlement draft could not be cleared. Keep this page open.');
+      if (discarded) this.reviewed = false;
+      return discarded;
+    }
+    return false;
+  }
   constructor() {
+    effect(() => {
+      const owner = this.navigationDialogOwner();
+      if (owner !== null && owner !== this.navigationOwner())
+        untracked(() => this.closeNavigationDialog());
+    });
     effect(() => {
       this.proposalId();
       this.agreementId();
       this.session.invalidation();
       const staff = this.session.current()?.staff;
       untracked(() => {
-        this.fence++;
+        this.invalidateNavigationOwner();
         this.tabDraft.reset();
         this.financeTabDraft.reset();
         this.read?.unsubscribe();
@@ -529,7 +639,8 @@ export class FeeAgreement {
       });
     });
     inject(DestroyRef).onDestroy(() => {
-      this.fence++;
+      this.destroyed = true;
+      this.invalidateNavigationOwner();
       this.read?.unsubscribe();
       this.write?.unsubscribe();
     });
@@ -636,7 +747,10 @@ export class FeeAgreement {
                 : 'Partial payment recorded. Review remaining outstanding amount.'
               : 'Fee action recorded. Invoice drafts still require finance review and posting.') + voucher,
           );
-          if (payment) this.reference = '';
+          if (payment) {
+            this.reference = '';
+            if (this.financeMode()) this.financeTabDraft.submitted();
+          }
           this.load();
         },
         error: (failure) => {

@@ -33,7 +33,7 @@ public sealed record AdvanceInvoicePreparation(string State, string Message);
 public sealed record FeeAgreementWorkspace(Guid ProposalId, Guid? AgreementId, Guid? ClientId, Guid? EngagementId,
   string Fee, string Currency, string AdvancePercent, bool CanCreate, bool CanFinance, bool ReleaseRecorded,
   IReadOnlyList<string> CreationBlockers, IReadOnlyList<FeeMilestoneItem> Milestones, IReadOnlyList<FeeEngagementOption> Engagements,
-  AdvanceInvoicePreparation AdvancePreparation);
+  AdvanceInvoicePreparation AdvancePreparation, string? ClientName = null);
 
 public static class FeeAgreementWorkspaceQuery
 {

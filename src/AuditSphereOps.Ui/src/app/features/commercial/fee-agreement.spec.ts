@@ -1,9 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
-import { afterEach, describe, expect, it } from 'vitest';
+import { Subject } from 'rxjs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { routes } from '../../app.routes';
 import { SessionService } from '../../core/session';
+import { unsavedChangesGuard } from '../../core/unsaved-changes.guard';
 import { FeeAgreement, advancePreparationStates, decodeFeeAgreement } from './fee-agreement';
 const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const financeAgreementId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -61,6 +65,7 @@ const financeWorkspace = (overrides: Record<string, unknown> = {}) => ({
   ...workspace,
   proposalId: lineageProposalId,
   agreementId: financeAgreementId,
+  clientName: 'PBC TEST CLIENT',
   canCreate: false,
   canFinance: true,
   engagements: [],
@@ -130,10 +135,13 @@ describe('Fee agreement contract', () => {
   });
 });
 describe('Advance invoice preparation display', () => {
-  function setup(): HttpTestingController {
+  function setup(dialogOpen = vi.fn()): HttpTestingController {
     TestBed.configureTestingModule({
       imports: [FeeAgreement],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+        { provide: MatDialog, useValue: { open: dialogOpen } },
+      ],
     });
     TestBed.inject(SessionService).current.set({ userId: id, firmId: id, generation: '1', staff: true });
     return TestBed.inject(HttpTestingController);
@@ -206,6 +214,15 @@ describe('Advance invoice preparation display', () => {
 
     const host = f.nativeElement as HTMLElement;
     expect(host.querySelector('h2')?.textContent).toContain('Fee settlement');
+    expect(host.textContent).toContain('PBC TEST CLIENT');
+    expect(host.textContent).toContain('Client ID');
+    expect(host.textContent).toContain(id);
+    expect(host.textContent).toContain('Fee agreement ID');
+    expect(host.textContent).toContain(financeAgreementId);
+    expect(host.querySelector('[role="region"][aria-label="Fee milestone details"][tabindex="0"]')).not.toBeNull();
+    const headers = [...host.querySelectorAll('thead th')];
+    expect(headers).toHaveLength(6);
+    expect(headers.every((header) => header.getAttribute('scope') === 'col')).toBe(true);
     expect(host.querySelector('tbody tr')?.textContent).toContain('ADVANCE');
     expect(host.querySelector('tbody tr')?.textContent).toContain('Not linked to an invoice');
     expect(host.textContent).not.toContain(lineageProposalId);
@@ -239,6 +256,60 @@ describe('Advance invoice preparation display', () => {
     expect(recovered.componentInstance.reviewed).toBe(false);
   });
 
+  it('rejects duplicate and stale deferred navigation choices for a finance draft', async () => {
+    const detailRoute = routes.find((route) => route.path === 'app/finance/fee-agreements/:id');
+    expect(detailRoute?.canDeactivate).toContain(unsavedChangesGuard);
+    const choice = new Subject<'save' | 'discard' | 'keep'>();
+    const close = vi.fn();
+    const open = vi.fn(() => ({ afterClosed: () => choice.asObservable(), close }));
+    const http = setup(open);
+    const f = TestBed.createComponent(FeeAgreement);
+    f.componentRef.setInput('agreementId', financeAgreementId);
+    f.detectChanges();
+    http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace());
+    await f.whenStable();
+    f.detectChanges();
+    await expect.poll(() => f.componentInstance.financeTabDraft.scope()?.entity)
+      .toBe(`finance-fee:${financeAgreementId}`);
+
+    const component = f.componentInstance;
+    const retainedFields = { amount: '3000.00', reference: 'SYN-PREVIOUS-DRAFT' };
+    component.amount = retainedFields.amount;
+    component.reference = retainedFields.reference;
+    expect(component.saveFinanceTabDraft()).toBe(true);
+    component.busy.set(true);
+    expect(await component.confirmNavigation()).toBe(false);
+    component.busy.set(false);
+    component.uncertain.set(true);
+    expect(await component.confirmNavigation()).toBe(false);
+    component.uncertain.set(false);
+    expect(open).not.toHaveBeenCalled();
+    component.amount = '4000.00';
+    component.reference = 'SYN-FEE-NAVIGATION';
+    component.feeFieldsChanged();
+    const firstNavigation = component.confirmNavigation();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(await component.confirmNavigation()).toBe(false);
+    expect(open).toHaveBeenCalledTimes(1);
+
+    component.amount = '6000.00';
+    component.feeFieldsChanged();
+    expect(close).toHaveBeenCalledTimes(1);
+    choice.next('save');
+    expect(await firstNavigation).toBe(false);
+    expect(component.financeTabDraft.recover()).toEqual(retainedFields);
+    expect(component.reviewed).toBe(false);
+
+    const saveNavigation = component.confirmNavigation();
+    choice.next('save');
+    expect(await saveNavigation).toBe(true);
+    expect(component.financeTabDraft.recover()).toEqual({ amount: '6000.00', reference: 'SYN-FEE-NAVIGATION' });
+    const discardNavigation = component.confirmNavigation();
+    choice.next('discard');
+    expect(await discardNavigation).toBe(true);
+    expect(component.financeTabDraft.recover()).toBeNull();
+  });
+
   it('fails closed on a mismatched agreement, unsanitized authority, or extra CRM fields', () => {
     const http = setup();
     const invalidResponses = [
@@ -246,7 +317,9 @@ describe('Advance invoice preparation display', () => {
       financeWorkspace({ canCreate: true }),
       financeWorkspace({ creationBlockers: ['not sanitized'] }),
       financeWorkspace({ engagements: [{ id: linkedEngagementId, serviceRoute: 'FinancialStatementAudit', periodStart: '2026-01-01', periodEnd: '2026-12-31' }] }),
-      { ...financeWorkspace(), clientName: 'Unexpected CRM field' },
+      financeWorkspace({ clientName: '' }),
+      financeWorkspace({ clientName: 'x'.repeat(301) }),
+      { ...financeWorkspace(), clientEmail: 'unexpected@example.invalid' },
     ];
     for (const response of invalidResponses) {
       const f = TestBed.createComponent(FeeAgreement);

@@ -180,6 +180,9 @@ public static class FeeSettlementWorkspaceQuery
     var authorizationBeforeRead = await AuthorizationDecision.AuthorizeAsync(db, actor,
       FinanceRequest(actor.FirmId, agreement.PracticeClientId), ct);
     if (!authorizationBeforeRead.Succeeded) return Denied<FeeAgreementWorkspace>();
+    var clientName = await db.PracticeClients.AsNoTracking()
+      .Where(client => client.FirmId == actor.FirmId && client.Id == agreement.PracticeClientId)
+      .Select(client => client.LegalName).SingleAsync(ct);
 
     if (agreement.EngagementId is { } engagementId &&
         !await db.Engagements.AsNoTracking().AnyAsync(engagement => engagement.FirmId == actor.FirmId &&
@@ -311,6 +314,7 @@ public static class FeeSettlementWorkspaceQuery
         Exact(view.Outstanding),
         view.Milestone.PaidAt)).ToArray(),
       Engagements: [],
-      AdvancePreparation: preparation));
+      AdvancePreparation: preparation,
+      ClientName: clientName));
   }
 }
