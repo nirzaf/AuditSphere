@@ -328,7 +328,8 @@ public sealed class AngularPortfolioJourneyTests
       response => response.Url.EndsWith("/api/ui/sign-out", StringComparison.Ordinal)
         && response.Request.Method == "POST");
     Assert.Equal(204, signedOut.Status);
-    await signedOut.FinishedAsync();
+    // A 204 has no body. Observe the actual cleared UI and rejected session below instead
+    // of waiting for a redundant transport-completion signal that can stall in CI.
     await Assertions.Expect(logoutPage.GetByRole(AriaRole.Heading, new() {Name = "Access unavailable"})).ToBeVisibleAsync();
     Assert.Equal(401, (await logoutContext.APIRequest.GetAsync(origin + "/api/ui/session")).Status);
     Assert.Empty(errors);

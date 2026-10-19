@@ -167,12 +167,9 @@ public sealed class AngularResourcePlanningJourneyTests
         response.Request.Method == "POST" && response.Url.EndsWith("/api/ui/practice/resources/preview", StringComparison.Ordinal));
       await submitButton.PressAsync("Enter");
       var response = await previewResponse;
-      try { await response.FinishedAsync().WaitAsync(TimeSpan.FromSeconds(30)); }
-      catch (TimeoutException exception)
-      {
-        throw new TimeoutException($"Planning preview '{action}' returned HTTP {response.Status} but its body did not finish within 30 seconds.", exception);
-      }
       Assert.Equal(200, response.Status);
+      // The rendered exact review below proves that Angular received and decoded the body.
+      // A second Playwright transport-completion wait can stall despite that completed UI.
       try
       {
         await ConfirmAndAcknowledgeAsync();
@@ -181,7 +178,7 @@ public sealed class AngularResourcePlanningJourneyTests
       {
         var message = await page.Locator(".command-result").AllTextContentsAsync();
         throw new InvalidOperationException(
-          $"Planning preview returned HTTP {response.Status}; message={string.Join(" | ", message)}", e);
+          $"Planning preview '{action}' returned HTTP {response.Status}; message={string.Join(" | ", message)}", e);
       }
     }
     var profile=page.GetByRole(AriaRole.Form,new(){Name="Save profile",Exact=true});
