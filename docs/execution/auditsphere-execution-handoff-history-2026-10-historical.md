@@ -195,3 +195,7 @@ Focused source-snapshot, report/export and exact cancellation-receipt evidence i
 ## Prior payment, accessibility and report checks (2026-10-19)
 
 Focused payment source, evidence-review keyboard, report and recovery concurrency evidence is retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Human AT and full current-source release acceptance remain open.
+
+## Repeated correction routing
+
+Current rejected results remain visible on the latest retained rework task when automation is off; newer linked tasks avoid duplicate correction rows. Later submissions remain discoverable without changing source bindings or professional decisions. Focused Domain and browser checks passed; evidence and remaining human/full-release gates are in `status.json` under `reviewInboxHistory20261019`.

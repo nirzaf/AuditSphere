@@ -20718,6 +20718,38 @@
         "scope": "Automation-off later rejection remains visible with current reviewer comment on the latest retained task. A newer exact-scope linked rejection task alone represents the next correction and its summary; original binding unchanged. Subsequent submission follows exact linked task or reviewer inbox; independent review unchanged.",
         "review": "Independent source review: no blockers."
       }
+    },
+    "resourceAvailabilityProjectionBeforeReadAuthority20261019": {
+      "recordedAtUtc": "2026-10-18T08:04:42Z",
+      "sourceCommit": "5dcb656e1dae5dc34ec8e23f84e2dca4b884dc63",
+      "status": "FOCUSED_PASS",
+      "domain": {
+        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea'",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "angular": {
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/practice/resources.spec.ts'",
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0
+      },
+      "browserJourney": {
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularResourcePlanningJourneyTests.KeyboardFormsCapacityAvailabilityAndAllocationsRemainServerOwned'",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "note": "Both canonical and /ui modes passed after UI rebuild."
+      },
+      "apiReleaseBuild": "PASS; 0 warnings, 0 errors",
+      "angularProductionBuild": "PASS_WITH_EXISTING_WARNING; settings.scss exceeds size budget.",
+      "openApiDrift": "PASS",
+      "builtInBrowser": "BLOCKED_STALE_LOCAL_SHELL: blank main at 127.0.0.1:5029.",
+      "fastCiRun": "39109639455",
+      "fastCiStatusAtRecord": "SUCCESS",
+      "fullReleaseVerification": "NOT_RUN",
+      "verificationLevel": "FAST_CI_PASS"
     }
   }
 }

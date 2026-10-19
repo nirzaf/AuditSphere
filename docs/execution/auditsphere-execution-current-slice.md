@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Repeated correction routing
+## Resource read authority
 
-Current rejected results remain visible on the latest retained rework task when automation is off; newer linked tasks avoid duplicate correction rows. Later submissions remain discoverable without changing source bindings or professional decisions. Focused Domain and browser checks passed; evidence and remaining human/full-release gates are in `status.json` under `reviewInboxHistory20261019`.
+Firm-wide resource reads now require the planning role on an unscoped grant and recheck current authority after grid and workspace projection. Focused PostgreSQL checks cover last-read revocation, session changes, mixed grants and existing capacity/budget behavior. Exact evidence is in `status.json` under `resourceReadAuthority20261019`. Command-scope, browser and full-release acceptance remain open.
 
 ## Finance settlement accessibility and draft safety
 

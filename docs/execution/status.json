@@ -866,36 +866,7 @@
       "fastCi": "Superseded by passing run 39109639455 on 5dcb656e"
     },
     "resourceAvailabilityProjection20261018": {
-      "recordedAtUtc": "2026-10-18T08:04:42Z",
-      "sourceCommit": "5dcb656e1dae5dc34ec8e23f84e2dca4b884dc63",
-      "status": "FOCUSED_PASS",
-      "domain": {
-        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ResourceGrid_ShowsCapacityUnavailabilityAndOverAllocation_AndBudgetsReconcileByPhaseAndRiskArea'",
-        "passed": 1,
-        "failed": 0,
-        "skipped": 0
-      },
-      "angular": {
-        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/practice/resources.spec.ts'",
-        "passed": 15,
-        "failed": 0,
-        "skipped": 0
-      },
-      "browserJourney": {
-        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularResourcePlanningJourneyTests.KeyboardFormsCapacityAvailabilityAndAllocationsRemainServerOwned'",
-        "passed": 2,
-        "failed": 0,
-        "skipped": 0,
-        "note": "Both canonical and /ui modes passed after UI rebuild."
-      },
-      "apiReleaseBuild": "PASS; 0 warnings, 0 errors",
-      "angularProductionBuild": "PASS_WITH_EXISTING_WARNING; settings.scss exceeds size budget.",
-      "openApiDrift": "PASS",
-      "builtInBrowser": "BLOCKED_STALE_LOCAL_SHELL: blank main at 127.0.0.1:5029.",
-      "fastCiRun": "39109639455",
-      "fastCiStatusAtRecord": "SUCCESS",
-      "fullReleaseVerification": "NOT_RUN",
-      "verificationLevel": "FAST_CI_PASS"
+      "evidence": "status-archive-2026-10.json#keys.resourceAvailabilityProjectionBeforeReadAuthority20261019"
     },
     "workflowDependencyGraphLimit20261018": {
       "recordedAtUtc": "2026-10-18T08:46:21Z",
@@ -1214,6 +1185,30 @@
         "scope": "Full Angular, build/contracts and Domain passed; API/E2E remain active. Predates this code commit."
       },
       "limits": "No full local suites, live providers or professional acceptance. All queue views together, human assistive-technology acceptance and current-source full release remain open."
+    },
+    "resourceReadAuthority20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "d88d2be6127e947426642df46c642d3c8453bc31",
+      "behavior": "Grid and composed workspace reads require an unscoped planning-role grant and reauthorize after their last projection. Scoped Manager plus firm-wide Staff cannot compose global planning access. Central denial/session-stale errors are retained.",
+      "before": {
+        "failed": 5,
+        "trx": "/tmp/auditsphere-resource-read-results/resource-read-authority-regression-before.trx",
+        "scope": "Four deterministic last-read grant/epoch interleavings and mixed-grant read exposed successful projections."
+      },
+      "after": {
+        "passed": 6,
+        "failed": 0,
+        "trx": "/tmp/auditsphere-resource-read-results/resource-read-authority-after.trx",
+        "scope": "Four grid/workspace interleavings; scoped denial then firm-wide success; existing capacity, availability, range and phase/risk budget regression. Resource counts unchanged in interleavings."
+      },
+      "harness": "Initial run missed unquoted SQL identifiers and failed Calls=0; matcher corrected before product reproduction. Original resource-read-authority-before.trx retained.",
+      "ci": {
+        "run": "39238571174",
+        "source": "aa8f2597",
+        "result": "FAST_CI_PASS",
+        "note": "Predates this fix; current-source full release remains unverified."
+      },
+      "limits": "No full local suites, browser run, provider effect, schema or HTTP contract changes. Resource command preview/mutation/receipt scope audit and broader resource acceptance remain open."
     }
   },
   "externalGates": [
@@ -1726,7 +1721,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Close the resource-grid mid-read authorization recheck gap, then continue remaining practice criteria and complete queue-state acceptance. Full current-source CI, human AT and live-provider gates remain separate."
+    "nextTechnicalSlice": "Audit resource planning command previews, mutations and retained receipts against current grant scope, then continue resource/time and queue acceptance. Full current-source CI, human AT and live-provider gates remain separate."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",
