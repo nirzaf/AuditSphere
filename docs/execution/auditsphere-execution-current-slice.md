@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Time workspace grant expiry (2026-10-19)
+
+The time workspace now excludes expired grants before deriving work and review scopes. A direct Application query regression reproduced expired firm-wide authority widening a valid engagement grant, then passed after the fix. HTTP actor resolution already revoked expired grants; its session refusal and fresh-sign-in protections remain verified. Exact evidence and limits are in `targetedVerification.timeWorkspaceGrantExpiry20261019` in [status.json](status.json). Full release and broader time/accounting isolation acceptance remain open.
+
 ## Portal finance keyboard and CI wait checks (2026-10-19)
 
 Billing tables now expose named keyboard-focusable scroll regions. A synthetic client-role journey and built-in browser verify Tab access, horizontal scrolling and retained focus; narrow-screen layout and separate lifecycle, collection, aging and untracked delivery states are covered. Planning and logout journeys now verify completed UI behavior without redundant transport waits. Focused checks pass; exact evidence, initial fixture corrections and active full release are in `targetedVerification.portalFinanceAccessibility20261019` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). Human AT, full supported-state and release acceptance remain open.
@@ -29,7 +33,7 @@ Resume, chunk recording and trusted completion refresh the already locked upload
 
 ## Practice completion safeguards (2026-10-19)
 
-Client archive/restore preserves keyboard focus across a confirmed reload without stealing deliberate focus or crossing ownership. Lost assignment replies resolve the exact task beyond the workspace window. Ambiguous effective staff-cost rates make cost-derived figures unavailable. Portal delegation revocation now serializes with active uploads and preserves retained revocation history. Focused Angular, API, PostgreSQL and browser checks pass; pre-fix archive focus loss was reproduced. Exact source/evidence is in `targetedVerification.practiceCompletionGuards20261019` in [status.json](status.json). Full current-source release, human accessibility, professional and live-provider acceptance remain open.
+Earlier archive/restore focus, task-receipt lookup, staff-cost ambiguity and portal delegation safeguards are retained in the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md) and their [status.json](status.json) records. Broader state and release gates remain open.
 
 ## Earlier workflow and consolidation checks (2026-10-19)
 

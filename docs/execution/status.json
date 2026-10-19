@@ -218,18 +218,18 @@
             "sourceCommit": "e34e217e522380dc69f75b30ea0a44bb7cfbe3f4",
             "result": "IN_PROGRESS",
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39209983436",
-            "note": "Immutable implementation source includes portal keyboard and E2E wait repairs. No full regression pass yet; later documentation-only record does not alter runtime. Prior c009 run retained in archive."
+            "note": "Immutable e34 implementation: Angular and build/contracts PASS; full .NET suites active at last observation. Predates time-workspace expiry fix; not current-source full acceptance."
           },
           "workspaceApiRepair": {
             "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
             "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
           },
           "currentFast": {
-            "runId": "39207938382",
-            "sourceCommit": "a363a1c3dbd7ff3cba14a755d694690b1a0fcdca",
+            "runId": "39210095270",
+            "sourceCommit": "e9d39a22891a40cc971bf9724d495031750f48bf",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39207938382",
-            "note": "Docs, Angular and .NET Release jobs succeeded. Predates portal finance keyboard follow-up; not a full API/E2E regression pass."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39210095270",
+            "note": "Docs, Angular and .NET Release passed; predates time-workspace expiry fix. Not full API/E2E verification."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -245,10 +245,8 @@
           "transportWaitRepair": {
             "sourceCommit": "e573516452d22fdfdfaafbf83c704ed2d871b17f",
             "result": "FOCUSED_PASS",
-            "evidence": "/tmp/auditsphere-a11y-results/portal-planning-logout-focused.trx",
-            "passedCases": 4,
-            "note": "Both route bases for resource planning and portfolio/logout pass. Same cohort initially also contained1finance formatting failure, subsequently repaired and passed separately. Retains HTTP status, exact review/receipt, cleared UI and session401 assertions; no timeout increases. Full-suite hang cause not proven.",
-            "reportedFailure": "Run39194532601 source0b0b7241 E2E306pass1failure plus15min inactivity abort/unknown total; resource preview FinishedAsync timeout; portfolio test active at abort. API still active. Log /tmp/auditsphere-e2e-0b0b7241-terminal.log."
+            "archive": "status-archive-2026-10.json#keys.targetedVerification.transportWaitRepairE57320261019",
+            "summary": "Both route bases for resource planning and portfolio/logout passed; HTTP/UI/receipt/session assertions retained. Full-suite hang root cause not proven."
           }
         },
         "followUp": {
@@ -1133,20 +1131,26 @@
     "portalFinanceAccessibility20261019": {
       "sourceCommit": "e34e217e522380dc69f75b30ea0a44bb7cfbe3f4",
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "angular": "home.spec.ts7/7 PASS; production build PASS with existing NG8107/commercial SCSS-budget warnings; finance.ts ESLint PASS.",
-      "e2e": {
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.portalFinanceAccessibility20261019",
+      "summary": "Named table keyboard regions, client-role mobile E2E and native keyboard checks passed. Projection-only fixture, initial corrections and evidence retained; human AT/full release remain open."
+    },
+    "timeWorkspaceGrantExpiry20261019": {
+      "sourceCommit": "306a60a83f104fe008663b590e44f16f582155aa",
+      "result": "FOCUSED_PASS",
+      "behavior": "PracticeTimeWorkspaceQuery excludes expired grants before deriving work and review scopes. A current engagement Staff grant cannot combine with expired firm-wide Manager authority. Existing HTTP resolver independently revokes expired grants and rejects the stale session.",
+      "regression": {
+        "project": "tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj",
+        "filter": "FullyQualifiedName~RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior",
         "result": "PASS",
         "passed": 1,
         "failed": 0,
         "skipped": 0,
-        "filter": "FullyQualifiedName~ClientPortal_FinanceTablesAreScopedAndKeyboardScrollableOnMobile",
-        "trx": "/tmp/auditsphere-a11y-results/portal-finance-mobile-final.trx",
-        "log": "/tmp/auditsphere-finance-mobile-final.log"
+        "trx": "/tmp/auditsphere-practice-guard-results/time-query-expired-grant-final.trx",
+        "log": "/tmp/auditsphere-time-query-expired-grant-final.log"
       },
-      "browser": "Owned synthetic client identity, exact engagement grant: Tab reached named invoice and receipt regions; Right moved focused invoices40px; console warn/error empty. E2E390px verifies keyboard scrolling and no document overflow; native browser used default desktop viewport. Screenshot /tmp/auditsphere-finance-keyboard-native.png; tab50closed, fixture disposed, owned release flag removed.",
-      "scope": "Persisted projection fixtures: fee20000, invoice10000, cash4000, invoice outstanding6000; sibling engagement excluded. Lifecycle/aging/provider NOT_TRACKED separate. No approval workflow or positive voucher-download proof; no live effects.",
-      "initialFailures": "Fixture ck_proposal_content refused empty deliverables; populated required fixture content. Next assertion mismatched supported decimal trailing zeros; exact monetary-cell assertions corrected. Failed TRX/logs retained; application validation unchanged.",
-      "limits": "Human AT, complete supported-state matrix, professional/live-provider acceptance and full release remain open."
+      "counterfactual": "Same direct Application query assertion failed before fix: FirmWide expectedFalse actualTrue. /tmp/auditsphere-practice-guard-results/time-query-expired-grant-counterfactual.trx. Earlier HTTP-only attempts encountered401/absentXSRF because actor resolution already revokes expired grants; they did not prove an HTTP leak.",
+      "limits": "Query-level defense only; no observed current HTTP exposure. No seeded reporting-period projection, full field/audience matrix or client-book mutation proof. No UI/API schema/migration/provider changes; no full local suites. Current fullCI source predates this fix.",
+      "independentReview": "Source review confirmed expiry predicate and preserved HTTP expiry/session assertions; reviewer did not execute tests."
     }
   },
   "externalGates": [
@@ -1569,7 +1573,7 @@
       "ASPM-NFR-01..12",
       "ASPM-UAT-01..15"
     ],
-    "lastTechnicalSlice": "b34d0884284b8e93b41ee4575bffe03a5d90f510",
+    "lastTechnicalSlice": "306a60a83f104fe008663b590e44f16f582155aa",
     "advanceCashGate": {
       "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
       "result": "FOCUSED_INCREMENTAL_PASS",
