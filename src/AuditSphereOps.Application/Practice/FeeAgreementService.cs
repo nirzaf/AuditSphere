@@ -327,7 +327,9 @@ public static partial class FeeAgreementService
       x.FirmId == actor.FirmId && x.FeeMilestoneId == milestone.Id && x.Kind == CommercialDocumentKinds.PaymentReceipt, ct);
     if (document is null)
     {
-      var receiptNumber = $"RCT-{milestone.Id.ToString("N")[..8].ToUpperInvariant()}";
+      // UUIDv7 prefixes contain a timestamp, not a unique milestone identity. Keep the complete
+      // retained identity for new references; the existing-document branch above never reissues history.
+      var receiptNumber = $"RCT-{milestone.Id.ToString("N").ToUpperInvariant()}";
       var balance = agreement.AgreedFee - invoice.Total;
       var isAdvance = milestone.Kind == FeeMilestoneKinds.Advance;
       // The settlement receipt identifies every constituent payment with its own amount, date and reference. It never presents the last

@@ -65,7 +65,9 @@ public static partial class FeeAgreementService
       var remaining = MoneyPolicy.Normalize(Math.Max(0m, invoice.Total - appliedThrough));
       var milestoneLabel = milestone.Kind == FeeMilestoneKinds.Advance ? $"Advance ({agreement.AdvancePercent:0.##}%)" : "Final balance";
       string Money(decimal value) => $"{value.ToString("N2", CultureInfo.InvariantCulture)} {agreement.Currency}";
-      var voucherNumber = $"PV-{receipt.Id.ToString("N")[..12].ToUpperInvariant()}";
+      // A UUIDv7 timestamp prefix can be shared by concurrent payments. The full retained
+      // payment identity gives new vouchers distinct, stable references without changing issued ones.
+      var voucherNumber = $"PV-{receipt.Id.ToString("N").ToUpperInvariant()}";
       var model = new CommercialDocumentModel(profile, "Official payment voucher", voucherNumber,
         DateOnly.FromDateTime(receipt.ReceivedAt.UtcDateTime), client.LegalName,
         [

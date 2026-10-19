@@ -870,7 +870,11 @@ public sealed class CommercialWorkflowTests
     var again = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 6000m, "TT-2");
     Assert.Equal(paid.Value.ReceiptDocumentId, again.Value!.ReceiptDocumentId);
     var receiptDoc = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Kind == CommercialDocumentKinds.PaymentReceipt);
+    var advanceMilestoneId = view.Milestones.Single(x => x.Milestone.Kind == FeeMilestoneKinds.Advance).Milestone.Id;
+    var advanceReference = $"RCT-{advanceMilestoneId:N}".ToUpperInvariant();
+    Assert.Equal($"Receipt-{advanceReference}.docx", receiptDoc.FileName);
     var receiptText = DocxText(receiptDoc.Bytes);
+    Assert.Contains(advanceReference, receiptText);
     Assert.Contains("10,000.00 QAR", receiptText);
     Assert.Contains("Balance due on delivery of the final report", receiptText);
     var notification = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
@@ -894,6 +898,12 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(2, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
     var vouchers = await db.CommercialDocuments.AsNoTracking().Where(x => x.Kind == CommercialDocumentKinds.PaymentVoucher).ToListAsync();
     Assert.Equal(2, vouchers.Count);
+    foreach (var voucher in vouchers)
+    {
+      var reference = $"PV-{voucher.ReceiptId!.Value:N}".ToUpperInvariant();
+      Assert.Equal($"Voucher-{reference}.docx", voucher.FileName);
+      Assert.Contains(reference, DocxText(voucher.Bytes));
+    }
     var voucherReceipts = await db.Receipts.AsNoTracking().Where(x => vouchers.Select(v => v.ReceiptId).Contains(x.Id)).ToListAsync();
     Assert.Equal(10000m, voucherReceipts.Sum(x => x.Amount));
     var firstVoucher = DocxText(vouchers.Single(x => x.ReceiptId == partial.Value.ReceiptId).Bytes);
@@ -1138,6 +1148,15 @@ public sealed class CommercialWorkflowTests
     // 7. Balance receipt document text: full settlement phrasing
     var balReceiptDoc = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == balPaid.Value.ReceiptDocumentId);
     var balReceiptText = DocxText(balReceiptDoc.Bytes);
+    var balanceMilestoneId = view.Milestones.Single(x => x.Milestone.Kind == FeeMilestoneKinds.Balance).Milestone.Id;
+    var balanceReference = $"RCT-{balanceMilestoneId:N}".ToUpperInvariant();
+    Assert.Equal($"Receipt-{balanceReference}.docx", balReceiptDoc.FileName);
+    Assert.Contains(balanceReference, balReceiptText);
+    Assert.NotEqual(receiptDoc.FileName, balReceiptDoc.FileName);
+    var retainedAdvance = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == receiptDoc.Id);
+    Assert.Equal(receiptDoc.FileName, retainedAdvance.FileName);
+    Assert.Equal(receiptDoc.Sha256Hex, retainedAdvance.Sha256Hex);
+    Assert.Equal(receiptDoc.Bytes, retainedAdvance.Bytes);
     Assert.Contains("Total outstanding balance", balReceiptText);
     Assert.Contains("0.00 QAR", balReceiptText);
     Assert.Contains("paid in full", balReceiptText);
