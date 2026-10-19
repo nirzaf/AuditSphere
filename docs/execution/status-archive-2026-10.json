@@ -20583,6 +20583,93 @@
       "sourceCommit": "82697eea",
       "result": "CANCELLED_SUPERSEDED",
       "observed": "Angular and Docs passed; .NET active before newer push superseded it."
+    },
+    "targetedVerification.angularQualityCiBeforeFinanceSettlements20261019": {
+      "repairedFailure": "39169478960 FAILED only Docs ledger-size budget; archived records intact and active docs validators PASS.",
+      "latestFast": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityOlderFastC29420261019",
+        "summary": "Earlier fast-CI pass retained; currentFast carries the later observed fast run."
+      },
+      "shortcutRepair": {
+        "sourceCommit": "40b9655706f4e372ad3c3c9d38d9324ed77245d6",
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-a11y-results/search-shortcut-ci-repair.trx",
+        "behavior": "Retains initial combobox/focus assertion; subsequent Escape, focus retention and form-field slash checks target the same native labeled input. No production behavior or assertions removed."
+      },
+      "priorCi": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityPriorCi20261019",
+        "summary": "Earlier fast passes and cancelled superseded full run with reported failures retained intact. No prior run certifies current source."
+      },
+      "precedingFullRelease": {
+        "runId": "39176430358",
+        "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
+        "result": "FAIL_INCOMPLETE",
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityPrecedingFullRelease20261019",
+        "note": "Terminal failure confirmed; earlier detailed observations retained. No full acceptance."
+      },
+      "fullRelease": {
+        "runId": "39217723376",
+        "sourceCommit": "ee09d7172d129818f011bf2a08f27265f4d942d9",
+        "result": "IN_PROGRESS",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39217723376",
+        "note": "ee09 source: Domain1389/1389, Angular/build/contracts PASS; API/E2E active. Predates firm report snapshot fix; not current-source release acceptance.",
+        "domain": {
+          "result": "PASS",
+          "passed": 1389,
+          "failed": 0,
+          "skipped": 0,
+          "jobId": "117945949875",
+          "log": "/tmp/auditsphere-domain-full-ee09d717.log"
+        }
+      },
+      "workspaceApiRepair": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
+        "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
+      },
+      "currentFast": {
+        "runId": "39225926725",
+        "sourceCommit": "c5e5952150a5a071cdfd41334d9bb3ba9fb52818",
+        "result": "QUEUED",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39225926725",
+        "note": "Observed queued; no current-source full acceptance. Previous a2af fast pass archived intact; finance run superseded by this push."
+      },
+      "previousFailedFullRelease": {
+        "runId": "39182161418",
+        "sourceCommit": "8b927b986799dd79a9434bcb370052610db71dd6",
+        "result": "FAIL_INCOMPLETE",
+        "summary": "Domain1375/1375, Angular/build/contracts PASS; API runner shutdown143/no total; E2E306pass7fail plus hang abort/unknown total. No full acceptance.",
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFailedFullRelease8b92720261019"
+      },
+      "previousPracticeGuardFullRelease": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.fullRelease7cac719cBeforePracticeGuards20261019",
+        "summary": "7cac719c Domain1387/1387, Angular and build/contracts PASS; API/E2E last observed active. Does not verify later guard changes."
+      },
+      "transportWaitRepair": {
+        "sourceCommit": "e573516452d22fdfdfaafbf83c704ed2d871b17f",
+        "result": "FOCUSED_PASS",
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.transportWaitRepairE57320261019",
+        "summary": "Both route bases for resource planning and portfolio/logout passed; HTTP/UI/receipt/session assertions retained. Full-suite hang root cause not proven."
+      },
+      "previousWorkflowSourceFullRelease": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.fullReleaseE34BeforeWorkflowRecovery20261019",
+        "summary": "e34 Domain1387/1387, Angular/build/contracts PASS; API/E2E last observed active. Does not certify subsequent fixes."
+      },
+      "previousWorkflowSourceFullRelease499": {
+        "runId": "39212902864",
+        "sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
+        "result": "IN_PROGRESS",
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.fullRelease499BeforeAtomicity20261019",
+        "summary": "Domain1387/1387, Angular/build/contracts PASS; API/E2E still active at latest check. Preserved running handle; predates later fixes."
+      },
+      "roleDialogFast": {
+        "runId": "39217369923",
+        "sourceCommit": "9f977805d75a9655f7aa9bba87e79c97fb33740b",
+        "result": "CANCELLED",
+        "note": "Docs/Angular PASS; .NET build cancelled after later master push. Not a full fast pass."
+      }
     }
   }
 }

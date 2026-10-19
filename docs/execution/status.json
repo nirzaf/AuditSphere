@@ -188,30 +188,13 @@
         },
         "humanReview": "BLOCKED_EXTERNAL: knowledgeable human screen-reader review with actual AT/browser versions and meaningful announcements is not available.",
         "ci": {
-          "repairedFailure": "39169478960 FAILED only Docs ledger-size budget; archived records intact and active docs validators PASS.",
-          "latestFast": {
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityOlderFastC29420261019",
-            "summary": "Earlier fast-CI pass retained; currentFast carries the later observed fast run."
-          },
-          "shortcutRepair": {
-            "sourceCommit": "40b9655706f4e372ad3c3c9d38d9324ed77245d6",
-            "result": "PASS",
-            "passed": 1,
-            "failed": 0,
-            "skipped": 0,
-            "trx": "/tmp/auditsphere-a11y-results/search-shortcut-ci-repair.trx",
-            "behavior": "Retains initial combobox/focus assertion; subsequent Escape, focus retention and form-field slash checks target the same native labeled input. No production behavior or assertions removed."
-          },
-          "priorCi": {
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityPriorCi20261019",
-            "summary": "Earlier fast passes and cancelled superseded full run with reported failures retained intact. No prior run certifies current source."
-          },
-          "precedingFullRelease": {
-            "runId": "39176430358",
-            "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
-            "result": "FAIL_INCOMPLETE",
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityPrecedingFullRelease20261019",
-            "note": "Terminal failure confirmed; earlier detailed observations retained. No full acceptance."
+          "previousEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityCiBeforeFinanceSettlements20261019",
+          "currentFast": {
+            "runId": "39226004915",
+            "sourceCommit": "5964d00450f008dc529e0ef88507b37efca415fb",
+            "result": "FAST_CI_PASS",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39226004915",
+            "note": "All jobs passed. Predates new Finance settlement view; not full release acceptance."
           },
           "fullRelease": {
             "runId": "39217723376",
@@ -227,51 +210,6 @@
               "jobId": "117945949875",
               "log": "/tmp/auditsphere-domain-full-ee09d717.log"
             }
-          },
-          "workspaceApiRepair": {
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
-            "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
-          },
-          "currentFast": {
-            "runId": "39225926725",
-            "sourceCommit": "c5e5952150a5a071cdfd41334d9bb3ba9fb52818",
-            "result": "QUEUED",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39225926725",
-            "note": "Observed queued; no current-source full acceptance. Previous a2af fast pass archived intact; finance run superseded by this push."
-          },
-          "previousFailedFullRelease": {
-            "runId": "39182161418",
-            "sourceCommit": "8b927b986799dd79a9434bcb370052610db71dd6",
-            "result": "FAIL_INCOMPLETE",
-            "summary": "Domain1375/1375, Angular/build/contracts PASS; API runner shutdown143/no total; E2E306pass7fail plus hang abort/unknown total. No full acceptance.",
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFailedFullRelease8b92720261019"
-          },
-          "previousPracticeGuardFullRelease": {
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.fullRelease7cac719cBeforePracticeGuards20261019",
-            "summary": "7cac719c Domain1387/1387, Angular and build/contracts PASS; API/E2E last observed active. Does not verify later guard changes."
-          },
-          "transportWaitRepair": {
-            "sourceCommit": "e573516452d22fdfdfaafbf83c704ed2d871b17f",
-            "result": "FOCUSED_PASS",
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.transportWaitRepairE57320261019",
-            "summary": "Both route bases for resource planning and portfolio/logout passed; HTTP/UI/receipt/session assertions retained. Full-suite hang root cause not proven."
-          },
-          "previousWorkflowSourceFullRelease": {
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.fullReleaseE34BeforeWorkflowRecovery20261019",
-            "summary": "e34 Domain1387/1387, Angular/build/contracts PASS; API/E2E last observed active. Does not certify subsequent fixes."
-          },
-          "previousWorkflowSourceFullRelease499": {
-            "runId": "39212902864",
-            "sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
-            "result": "IN_PROGRESS",
-            "archive": "status-archive-2026-10.json#keys.targetedVerification.fullRelease499BeforeAtomicity20261019",
-            "summary": "Domain1387/1387, Angular/build/contracts PASS; API/E2E still active at latest check. Preserved running handle; predates later fixes."
-          },
-          "roleDialogFast": {
-            "runId": "39217369923",
-            "sourceCommit": "9f977805d75a9655f7aa9bba87e79c97fb33740b",
-            "result": "CANCELLED",
-            "note": "Docs/Angular PASS; .NET build cancelled after later master push. Not a full fast pass."
           }
         },
         "followUp": {
@@ -1187,6 +1125,40 @@
       "priorCohort": "6 PASS before hash correction, including generic billing workflow and client isolation; /tmp/auditsphere-practice-guard-results/fee-payment-source-final.trx",
       "review": "Independent source review found no blocking issue.",
       "limits": "No complete browser payment workflow/current-source full release/live bank proof; pathological Min/Max explicit dates may refuse replay. More than two legacy aliases fail closed; no global bank-reference uniqueness claimed."
+    },
+    "feeSettlementFinance20261019": {
+      "result": "PARTIAL",
+      "functionalCodeCommit": "d224819f74764b6ac6831a2c17616f4c95ef8fe1",
+      "behavior": "Separate client-scoped Finance list/detail reuses existing fee and billing commands. Commercial creation/linking rights unchanged; no CRM details. Normal draft submission adapter; exact retained draft/posted invoice recovery without duplicates.",
+      "functionalVerification": {
+        "e2ePassed": 1,
+        "e2eFailed": 0,
+        "trx": "/tmp/auditsphere-finance-fee-results/finance-fee-functional-d224.trx",
+        "scope": "Real owned API/Angular/PostgreSQL: 20/1 paging, sibling read and CSRF-valid payment denial, CRM denial, draft/posted source recovery, independent invoice review/post, 4000 partial + 6000 full advance, revocation clears. Existing-agreement source fixture only; no acceptance/Partner clearance is asserted."
+      },
+      "balanceConcurrency": {
+        "passed": 3,
+        "failed": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/fee-balance-concurrency-final.trx",
+        "scope": "Existing three recipient-snapshot theory variants; final balance same-source race returns identical receipts/documents and one allocation/voucher/notification set. Existing reversals, credit and provider-simulation checks retained."
+      },
+      "accessibility": {
+        "result": "FOCUSED_PASS",
+        "scope": "Primary heading, authorized client identity, named keyboard-focusable milestone region, 390px document reflow and native ArrowRight scrolling passed in the focused real browser journey. Unsent-draft guard covered by component tests; final built-in-browser handoff expired before a second interactive inspection. Earlier built-in inspection found the corrected defects.",
+        "e2ePassed": 1,
+        "e2eFailed": 0,
+        "trx": "/tmp/auditsphere-finance-fee-results/finance-fee-accessibility-final.trx",
+        "angular": "FeeAgreement 21/21 and Finance page 4/4 passed across focused runs; Angular build, changed-production-file lint and OpenAPI drift passed.",
+        "limitations": "No full local suites. No claim of full accessibility conformance or complete commercial acceptance."
+      },
+      "ci": {
+        "runId": "39230620972",
+        "sourceCommit": "d224819f",
+        "result": "FAST_CI_PASS",
+        "note": "All jobs passed; predates accessibility/navigation follow-up. No full current-source release acceptance."
+      },
+      "limits": "No full local suites, deployment or live provider/bank effects. Cancelled/unknown orphan sources remain blocked; full commercial activation, complete source/state acceptance, human AT, policy and professional gates remain open.",
+      "accessibilityCodeCommit": "87aca68d"
     }
   },
   "externalGates": [
@@ -1699,7 +1671,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Continue scoped accessibility evidence and current-source hosted release verification; broader financial/payment and practice criteria remain PARTIAL. Preserve human AT, professional and external acceptance gates."
+    "nextTechnicalSlice": "Finish the Finance accessibility/navigation verification, then continue accepted-commercial-source browser integration and remaining practice-management criteria. Current-source full release, human AT, methodology and live-provider acceptance remain separate gates."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

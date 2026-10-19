@@ -19,13 +19,13 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Payment source safety and evidence review accessibility (2026-10-19)
+## Finance settlement accessibility and draft safety
 
-Milestone cash recording now holds one firm-first transaction across source resolution, receipt and allocation, with full agreement references and fail-closed legacy recovery. Focused regression evidence is in `targetedVerification.feePaymentSource20261019` in [status.json](status.json). The evidence-action keyboard regression reproduced missing focus, then passed after the bounded correction. Built-in preview/cancel/fresh assent and focused receipt/revocation checks pass; human AT and current-source full release acceptance remain open.
+Standalone Finance settlement now identifies the authorized client, supplies a primary heading and a named keyboard-scrollable milestone region, and protects unsent edits with the existing navigation dialog. Focused browser and component checks passed; exact scope and artifacts are in `status.json` under `feeSettlementFinance20261019`. Commercial acceptance, human review, live providers and current-source full release remain separate gates.
 
-## Firm report and recovery concurrency (2026-10-19)
+## Prior payment, accessibility and report checks (2026-10-19)
 
-Focused source-snapshot, report/export and exact cancellation-receipt evidence is retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Broader cash-source and current-release acceptance remain open.
+Focused payment source, evidence-review keyboard, report and recovery concurrency evidence is retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Human AT and full current-source release acceptance remain open.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 
