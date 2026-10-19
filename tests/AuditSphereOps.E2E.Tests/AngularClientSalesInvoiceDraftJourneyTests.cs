@@ -92,12 +92,28 @@ public sealed class AngularClientSalesInvoiceDraftJourneyTests
     await drafts.GetByLabel("Sales unit price", new() { Exact = true }).FillAsync("50.25");
     await drafts.GetByLabel("Sales line discount", new() { Exact = true }).FillAsync("0");
     await drafts.GetByRole(AriaRole.Checkbox, new() { Name = "I checked the client, customer, dates, declared calculation policy and exact draft lines.", Exact = true }).CheckAsync();
-    var secondResponse = await page.RunAndWaitForResponseAsync(async () => await drafts.GetByRole(AriaRole.Button, new() { Name = "Save client sales draft", Exact = true }).ClickAsync(), response => response.Request.Method == "POST" && response.Url.EndsWith("/sales-invoice-drafts"));
-    Assert.Equal(200, secondResponse.Status);
-    using var secondBody = JsonDocument.Parse(secondResponse.Request.PostData!);
+    var secondResponseStatus = 0;
+    var secondRequestBody = "";
+    var secondResponseBody = "";
+    var secondResponseCaptured = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync(routePattern, async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      var response = await route.FetchAsync();
+      secondResponseStatus = response.Status;
+      secondRequestBody = route.Request.PostData!;
+      secondResponseBody = await response.TextAsync();
+      await route.FulfillAsync(new() { Response = response });
+      secondResponseCaptured.TrySetResult();
+    });
+    await drafts.GetByRole(AriaRole.Button, new() { Name = "Save client sales draft", Exact = true }).ClickAsync();
+    await secondResponseCaptured.Task.WaitAsync(TimeSpan.FromSeconds(30));
+    await page.UnrouteAsync(routePattern);
+    Assert.Equal(200, secondResponseStatus);
+    using var secondBody = JsonDocument.Parse(secondRequestBody);
     Assert.Equal("1", secondBody.RootElement.GetProperty("lines")[0].GetProperty("quantity").GetString());
     Assert.Equal("50.25", secondBody.RootElement.GetProperty("lines")[0].GetProperty("unitPrice").GetString());
-    using var secondResult = JsonDocument.Parse(await secondResponse.TextAsync());
+    using var secondResult = JsonDocument.Parse(secondResponseBody);
     Assert.Equal("50.25", secondResult.RootElement.GetProperty("snapshot").GetProperty("gross").GetString());
     await Assertions.Expect(drafts.GetByRole(AriaRole.Heading, new() { Name = "DRAFT-UI-001 · Preparation revision 2", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(drafts.GetByText("Preserved preparation gross: 50.25 QAR", new() { Exact = true })).ToBeVisibleAsync();
