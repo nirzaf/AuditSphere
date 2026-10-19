@@ -194,6 +194,17 @@ public sealed class AngularWorkflowOrderingJourneyTests
     await Assertions.Expect(cancelledRow).ToHaveCountAsync(0);
     var workQueueViews = page.GetByRole(AriaRole.Navigation,
       new() { Name = "Work queue views", Exact = true });
+    await Assertions.Expect(reopeningHeading).ToBeFocusedAsync();
+    var reviewReopeningActivity = reopening.GetByRole(AriaRole.Button,
+      new() { Name = "Review reopening activity", Exact = true });
+    await reviewReopeningActivity.FocusAsync();
+    await Assertions.Expect(reviewReopeningActivity).ToBeFocusedAsync();
+    await page.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(reopeningComponent).ToHaveCountAsync(0);
+    await Assertions.Expect(activity.GetByRole(AriaRole.Heading,
+      new() { Name = "Task activity", Exact = true })).ToBeFocusedAsync();
+    await Assertions.Expect(activity).ToContainTextAsync("Task reopened");
+    await Assertions.Expect(activity).ToContainTextAsync(reopeningReason);
     await workQueueViews.GetByRole(AriaRole.Button, new() { Name = "My tasks", Exact = true }).ClickAsync();
     var reopenedRow = page.Locator("tbody tr").Filter(new() { HasText = firstTitle });
     await Assertions.Expect(reopenedRow).ToBeVisibleAsync();
