@@ -49,8 +49,17 @@ public sealed class AngularEngagementProfileJourneyTests
     await using var context=await browser.NewContextAsync(); var page=await context.NewPageAsync();
     var errors=new List<string>(); page.PageError+=(_,e)=>errors.Add(e);
     var path=prefix+"/app/engagements/"+f.EngagementId;
-    await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Engagement details",Exact=true})).ToBeVisibleAsync();
+    var planningPath=$"/api/ui/engagements/{f.EngagementId:D}/planning";
+    var (planningStatus, planningResponseBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method=="GET" && new Uri(request.Url).AbsolutePath.Equals(planningPath,StringComparison.OrdinalIgnoreCase),
+      async () =>
+      {
+        await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Engagement details",Exact=true})).ToBeVisibleAsync();
+        await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+      });
+    Assert.True(planningStatus is >= 200 and < 300,
+      $"Engagement planning returned HTTP {planningStatus}: {planningResponseBody}");
     var profile=page.GetByRole(AriaRole.Region,new(){Name="Engagement profile",Exact=true});
     await Assertions.Expect(profile).ToContainTextAsync("Synthetic annual audit profile");
     await Assertions.Expect(profile).ToContainTextAsync("2026-01-02 12:30 UTC");
@@ -61,12 +70,6 @@ public sealed class AngularEngagementProfileJourneyTests
     await Assertions.Expect(holds).ToContainTextAsync("27 recorded holds · 13 active · 14 released");
     await Assertions.Expect(holds.Locator("tbody tr")).ToHaveCountAsync(10);
     var planning=page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
-    var planningPath=$"/api/ui/engagements/{f.EngagementId:D}/planning";
-    var (planningStatus, planningResponseBody) = await PlaywrightResponseCapture.RunAsync(page,
-      request => request.Method=="GET" && new Uri(request.Url).AbsolutePath.Equals(planningPath,StringComparison.OrdinalIgnoreCase),
-      async () => await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync());
-    Assert.True(planningStatus is >= 200 and < 300,
-      $"Engagement planning returned HTTP {planningStatus}: {planningResponseBody}");
     await Assertions.Expect(planning.GetByRole(AriaRole.Heading,new(){Name="Prepare budget version",Exact=true})).ToBeVisibleAsync();
     await planning.GetByLabel("Currency",new(){Exact=true}).FillAsync("USD");
     await planning.GetByLabel("Forecast minutes",new(){Exact=true}).FillAsync("123");
@@ -105,8 +108,17 @@ public sealed class AngularEngagementProfileJourneyTests
     using var playwright=await Playwright.CreateAsync(); await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);
     var page=await browser.NewPageAsync(); var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
     var path=(canonical?"":"/ui")+"/app/engagements/"+f.EngagementId;
-    await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
-    await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+    var planningPath=$"/api/ui/engagements/{f.EngagementId:D}/planning";
+    var (planningStatus,planningResponseBody)=await PlaywrightResponseCapture.RunAsync(page,
+      request=>request.Method=="GET" && new Uri(request.Url).AbsolutePath.Equals(planningPath,StringComparison.OrdinalIgnoreCase),
+      async()=>
+      {
+        await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Engagement details",Exact=true})).ToBeVisibleAsync();
+        await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+      });
+    Assert.True(planningStatus is >= 200 and < 300,
+      $"Engagement planning returned HTTP {planningStatus}: {planningResponseBody}");
     var planning=page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
     await Assertions.Expect(planning.GetByRole(AriaRole.Heading,new(){Name="Assign staff",Exact=true})).ToBeVisibleAsync();
     await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Review budget approval",Exact=true})).ToBeVisibleAsync();

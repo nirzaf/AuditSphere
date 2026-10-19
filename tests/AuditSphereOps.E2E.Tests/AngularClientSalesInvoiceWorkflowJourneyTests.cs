@@ -326,11 +326,13 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     await supplierCreditRefresh.ClickAsync();
     Assert.Equal(200, (await supplierCreditOptions).Status);
     await supplierCredits.Locator("select[name='supplier']").SelectOptionAsync(supplierId.ToString());
-    var postedPurchasesResponse = await makerPage.RunAndWaitForResponseAsync(
-      async () => await supplierCredits.GetByRole(AriaRole.Button, new() { Name = "Load posted purchases", Exact = true }).ClickAsync(),
-      response => response.Request.Method == "GET" && response.Url.EndsWith("/purchase-invoices", StringComparison.Ordinal));
-    Assert.Equal(200, postedPurchasesResponse.Status);
-    var purchaseHistoryJson = await postedPurchasesResponse.TextAsync();
+    var (postedPurchasesStatus, purchaseHistoryJson) = await PlaywrightResponseCapture.RunAsync(
+      makerPage,
+      request => request.Method == "GET" && request.Url.EndsWith(
+        $"/api/ui/accounting/clients/{f.ClientId}/purchase-invoices", StringComparison.Ordinal),
+      async () => await supplierCredits.GetByRole(AriaRole.Button,
+        new() { Name = "Load posted purchases", Exact = true }).ClickAsync());
+    Assert.Equal(200, postedPurchasesStatus);
     Assert.True(purchaseHistoryJson.Contains(purchaseInvoiceId.ToString(), StringComparison.OrdinalIgnoreCase), $"The posted-purchase history did not include the invoice {purchaseInvoiceId}: {purchaseHistoryJson}");
     await Assertions.Expect(supplierCredits.Locator($"select[name='originalInvoice'] option[value='{purchaseInvoiceId}']")).ToHaveCountAsync(1);
     await supplierCredits.Locator("select[name='originalInvoice']").SelectOptionAsync(purchaseInvoiceId.ToString());

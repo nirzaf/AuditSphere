@@ -64,7 +64,21 @@ public sealed class AngularFindingCommandJourneyTests
       await Assertions.Expect(recovery).ToBeVisibleAsync(); await page.UnrouteAsync(pattern); await page.ReloadAsync();
       await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Id); await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Hash);
       await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Exact finding preview", Exact = true })).ToHaveCountAsync(0);
-      await recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact finding receipt", Exact = true }).ClickAsync();
+      var (lookupStatus, lookupBody) = await PlaywrightResponseCapture.RunAsync(page,
+        request => request.Method == "GET" && request.Url.Contains($"/api/ui/findings/{findingId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
+        () => recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact finding receipt", Exact = true }).ClickAsync());
+      Assert.True(lookupStatus == 200, $"Exact synthetic finding receipt lookup returned HTTP {lookupStatus}: {lookupBody}");
+      using var lookupDocument = JsonDocument.Parse(lookupBody);
+      var found = lookupDocument.RootElement.GetProperty("found").GetBoolean();
+      Assert.Equal(mode == "lost-committed", found);
+      if (found)
+      {
+        var receipt = lookupDocument.RootElement.GetProperty("receipt");
+        Assert.Equal(findingId.ToString("D"), receipt.GetProperty("findingId").GetString());
+        Assert.Equal(action, receipt.GetProperty("action").GetString());
+        Assert.Equal(identities[0].Id, receipt.GetProperty("requestId").GetString());
+        Assert.Equal(identities[0].Hash, receipt.GetProperty("requestHash").GetString());
+      }
       Assert.Single(identities);
       if (mode == "lost-uncommitted")
       {

@@ -47,7 +47,17 @@ public sealed class AngularBudgetPreparationJourneyTests
     await page.Keyboard.PressAsync("Enter");
     await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Verify budget request receipt",Exact=true})).ToBeVisibleAsync();
     await Assertions.Expect(planning.GetByText("The outcome is not confirmed. Refresh to see the persisted state before repeating this action.",new(){Exact=true})).ToBeVisibleAsync();
-    await page.ReloadAsync();await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+    var (restoredPlanningStatus, restoredPlanningBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && new Uri(request.Url).AbsolutePath.Equals(
+        $"/api/ui/engagements/{f.EngagementId}/planning", StringComparison.OrdinalIgnoreCase),
+      async () =>
+      {
+        await page.ReloadAsync();
+        await page.GetByText("Team and budget",new(){Exact=true})
+          .Or(planning.GetByLabel("Currency",new(){Exact=true})).First.ScrollIntoViewIfNeededAsync();
+      });
+    Assert.True(restoredPlanningStatus is >= 200 and < 300,
+      $"Planning recovery returned HTTP {restoredPlanningStatus}: {restoredPlanningBody}");
     await planning.GetByRole(AriaRole.Button,new(){Name="Verify budget request receipt",Exact=true}).ClickAsync();
     await Assertions.Expect(planning.GetByRole(AriaRole.Region,new(){Name="Budget preparation receipt",Exact=true})).ToContainTextAsync("801.000000");
     await planning.GetByRole(AriaRole.Button,new(){Name="Acknowledge budget preparation",Exact=true}).ClickAsync();

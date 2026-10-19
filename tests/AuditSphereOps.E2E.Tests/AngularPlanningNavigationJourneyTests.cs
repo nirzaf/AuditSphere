@@ -43,14 +43,17 @@ public sealed class AngularPlanningNavigationJourneyTests
         await page.GetByRole(AriaRole.Link, new() { Name = "PBC requests", Exact = true }).ClickAsync();
         await dialog.GetByRole(AriaRole.Button, new() { Name = "Save budget draft and continue", Exact = true }).ClickAsync();
         await Assertions.Expect(page).ToHaveURLAsync(origin + path + "/pbc");
-        var planningRead = page.WaitForResponseAsync(response =>
-            response.Request.Method == "GET" &&
-            response.Url.EndsWith($"/api/ui/engagements/{fixture.EngagementId}/planning", StringComparison.Ordinal));
-        await page.GotoAsync(origin + path);
-        await page.GetByText("Team and budget", new() { Exact = true }).Or(planning).First.ScrollIntoViewIfNeededAsync();
-        var planningResponse = await planningRead;
-        Assert.True(planningResponse.Ok,
-            $"Planning data did not reload before restoring the saved budget fields (HTTP {(int)planningResponse.Status}).");
+        var planningPath = $"/api/ui/engagements/{fixture.EngagementId}/planning";
+        var (planningStatus, planningBody) = await PlaywrightResponseCapture.RunAsync(page,
+            request => request.Method == "GET" && new Uri(request.Url).AbsolutePath.Equals(planningPath, StringComparison.OrdinalIgnoreCase),
+            async () =>
+            {
+                await page.GotoAsync(origin + path);
+                await page.GetByText("Team and budget", new() { Exact = true })
+                    .Or(planning.GetByLabel("Currency", new() { Exact = true })).First.ScrollIntoViewIfNeededAsync();
+            });
+        Assert.True(planningStatus is >= 200 and < 300,
+            $"Planning data did not reload before restoring the saved budget fields (HTTP {planningStatus}): {planningBody}");
         var restore = planning.GetByRole(AriaRole.Button, new() { Name = "Restore saved budget fields", Exact = true });
         await Assertions.Expect(restore).ToBeEnabledAsync();
         await restore.ClickAsync();
