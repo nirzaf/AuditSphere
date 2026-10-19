@@ -60,6 +60,21 @@ public sealed class OperationDispatcher(IOperationStore store, DurableOperationR
       outcome = "completed";
     }
     catch (OperationOwnershipLostException) { outcome = "ownership-lost"; /* Recovery belongs to the current owner/reaper. */ }
+    catch (OperationDeferredException ex)
+    {
+      var beforeProviderEffect = !op.IsReconciliation &&
+        (op.Status is OperationState.CLAIMED or OperationState.REMOTE_STARTED);
+      var next = beforeProviderEffect
+        ? OperationState.RETRY_WAIT
+        : op.IsReconciliation
+          ? OperationState.PROVIDER_BLOCKED
+          : op.Status == OperationState.VERIFYING
+            ? OperationState.RESULT_UNCERTAIN
+            : OperationState.PROVIDER_BLOCKED;
+      await DispositionAsync(op, next, OperationDeferredException.ErrorCode,
+        beforeProviderEffect ? ex.RetryAfter : null);
+      outcome = beforeProviderEffect ? "policy-deferred" : "policy-deferred-after-effect";
+    }
     catch (SafeRetryException ex)
     {
       var next = op.IsReconciliation ? OperationState.PROVIDER_BLOCKED :

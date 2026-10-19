@@ -217,10 +217,33 @@ public sealed class DurableOutboxTests
     Assert.False(await h.Store.RenewAsync(old, h.Options, default));
     Assert.False(await h.Store.TransitionAsync(old, h.Options, OperationState.PROVIDER_BLOCKED, "test", null, default));
     Assert.False(await h.Store.ValidateAsync(old, h.Options, h.Handler, default));
+    var expiredBeforeDeferredRetry = await h.OperationAsync(old.Id);
+    Assert.Equal(OperationState.CLAIMED, expiredBeforeDeferredRetry.Status);
+    Assert.Equal(1, expiredBeforeDeferredRetry.AttemptCount);
+    Assert.Equal(old.AttemptToken, expiredBeforeDeferredRetry.AttemptToken);
+    Assert.False(await h.Store.TransitionAsync(old, h.Options, OperationState.RETRY_WAIT,
+      OperationDeferredException.ErrorCode, TimeSpan.FromMinutes(10), default));
+    var expiredAfterDeferredRetry = await h.OperationAsync(old.Id);
+    Assert.Equal(expiredBeforeDeferredRetry.Status, expiredAfterDeferredRetry.Status);
+    Assert.Equal(expiredBeforeDeferredRetry.AttemptCount, expiredAfterDeferredRetry.AttemptCount);
+    Assert.Equal(expiredBeforeDeferredRetry.AttemptToken, expiredAfterDeferredRetry.AttemptToken);
+    Assert.Equal(expiredBeforeDeferredRetry.LeaseOwner, expiredAfterDeferredRetry.LeaseOwner);
     Assert.Equal(1, await h.Store.ReapAsync(h.Options, default));
     await h.MakeDueAsync();
     var replacement = (await h.ClaimAsync("new"))!;
     Assert.Equal(old.AttemptToken + 1, replacement.AttemptToken);
+    var replacementBeforeDeferredRetry = await h.OperationAsync(old.Id);
+    Assert.Equal(OperationState.CLAIMED, replacementBeforeDeferredRetry.Status);
+    Assert.Equal(replacement.AttemptCount, replacementBeforeDeferredRetry.AttemptCount);
+    Assert.Equal(replacement.AttemptToken, replacementBeforeDeferredRetry.AttemptToken);
+    Assert.Equal(replacement.LeaseOwner, replacementBeforeDeferredRetry.LeaseOwner);
+    Assert.False(await h.Store.TransitionAsync(old, h.Options, OperationState.RETRY_WAIT,
+      OperationDeferredException.ErrorCode, TimeSpan.FromMinutes(10), default));
+    var replacementAfterDeferredRetry = await h.OperationAsync(old.Id);
+    Assert.Equal(replacementBeforeDeferredRetry.Status, replacementAfterDeferredRetry.Status);
+    Assert.Equal(replacementBeforeDeferredRetry.AttemptCount, replacementAfterDeferredRetry.AttemptCount);
+    Assert.Equal(replacementBeforeDeferredRetry.AttemptToken, replacementAfterDeferredRetry.AttemptToken);
+    Assert.Equal(replacementBeforeDeferredRetry.LeaseOwner, replacementAfterDeferredRetry.LeaseOwner);
     Assert.False(await h.Store.TransitionAsync(old, h.Options, OperationState.REMOTE_STARTED, null, null, default));
     await h.FinishAsync(replacement);
     // Even a stale caller claiming to be at the completion stage cannot overwrite success.
@@ -234,6 +257,25 @@ public sealed class DurableOutboxTests
     await using var db = h.Db();
     Assert.Equal(2, await db.OperationAttempts.CountAsync());
     Assert.Equal(1, await db.OperationEvents.CountAsync(e => e.Kind == "operation.completed.v1"));
+  }
+
+  [Fact]
+  public async Task PolicyDeferralAfterVerification_MarksResultUncertainWithoutRefundingAttempt()
+  {
+    await using var h = await Harness.CreateAsync();
+    h.Handler.Fault = "defer-publish";
+    var id = (await h.EnqueueAsync()).Value;
+
+    Assert.True(await h.Dispatcher().ProcessNextAsync());
+
+    var result = await h.OperationAsync(id);
+    Assert.Equal(OperationState.RESULT_UNCERTAIN, result.Status);
+    Assert.Equal(OperationDeferredException.ErrorCode, result.ErrorCode);
+    Assert.Equal(1, result.AttemptCount);
+    Assert.Equal(1, result.AttemptToken);
+    Assert.Equal(1, await h.EffectCountAsync());
+    await using var db = h.Db();
+    Assert.False(await db.OperationEvents.AnyAsync(e => e.OperationId == id && e.Kind == "operation.completed.v1"));
   }
 
   [Fact]
@@ -700,6 +742,7 @@ public sealed class DurableOutboxTests
     public Task<OperationResult> PublishAsync(IAuditSphereDbContext db, DurableOperation op, OperationResult? remote, CancellationToken ct)
     {
       if (remote != Expected(op)) throw new OperationBlockedException("wrong-effect");
+      if (Fault == "defer-publish") throw new OperationDeferredException(TimeSpan.FromMinutes(10));
       db.OperationEvents.Add(new() { Id = Guid.NewGuid(), OperationId = op.Id, Token = op.AttemptToken,
         Executor = "probe", Kind = "probe.published.v1", OccurredAt = DateTimeOffset.UtcNow });
       if (FailPublication) throw new InvalidOperationException("Injected local failure after external success");

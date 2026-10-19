@@ -151,7 +151,11 @@ if (liveMail)
       throw new InvalidOperationException("Mail:Provider must be Graph, Smtp or Resend.");
   }
   builder.Services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
-  builder.Services.AddSingleton<PbcMailDeliveryHandler>();
+  builder.Services.AddSingleton<PbcMailDeliveryHandler>(sp => new PbcMailDeliveryHandler(
+    sp.GetRequiredService<IAuditSphereDbContextFactory>(),
+    sp.GetRequiredService<IPbcMailSender>(),
+    sp.GetRequiredService<PbcReminderOptions>(),
+    sp.GetRequiredService<TimeProvider>()));
   builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new PbcMailDiscovery(
     sp.GetRequiredService<IAuditSphereDbContextFactory>(),
     sp.GetRequiredService<IOperationStore>(),

@@ -226,12 +226,11 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
         await route.ContinueAsync();
     });
 
-    var initialWorkspaceResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
-      new Uri(response.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}");
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
-    var initialResponse = await initialWorkspaceResponse;
+    var initialResponse = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && new Uri(request.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}",
+      () => page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path)));
     Assert.Equal(200, initialResponse.Status);
-    using (var initialWorkspace = JsonDocument.Parse(await initialResponse.TextAsync()))
+    using (var initialWorkspace = JsonDocument.Parse(initialResponse.Body))
     {
       Assert.True(initialWorkspace.RootElement.GetProperty("canApproveScope").GetBoolean());
       Assert.Equal(JsonValueKind.Null, initialWorkspace.RootElement.GetProperty("scopeApprovalBlocker").ValueKind);
@@ -286,12 +285,11 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
         .Select(x => x.GroupRevision).SingleAsync());
     }
 
-    var refreshedWorkspaceResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
-      new Uri(response.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}");
-    await page.ReloadAsync();
-    var refreshedResponse = await refreshedWorkspaceResponse;
+    var refreshedResponse = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && new Uri(request.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}",
+      () => page.ReloadAsync());
     Assert.Equal(200, refreshedResponse.Status);
-    using (var staleWorkspace = JsonDocument.Parse(await refreshedResponse.TextAsync()))
+    using (var staleWorkspace = JsonDocument.Parse(refreshedResponse.Body))
     {
       Assert.False(staleWorkspace.RootElement.GetProperty("canApproveScope").GetBoolean());
       Assert.Contains("group perimeter changed", staleWorkspace.RootElement.GetProperty("scopeApprovalBlocker").GetString(),

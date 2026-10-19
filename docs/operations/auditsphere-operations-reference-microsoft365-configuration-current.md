@@ -151,6 +151,8 @@ These settings exist in Worker code but are not all base-Compose variables. Sele
 | `PbcReminders:BatchSize` | Worker default 50; preserve validated bounds |
 | `PbcReminders:PublicBaseUrl` | Exact public HTTPS customer URL when live reminders are enabled |
 
+Reminder policy is checked at delivery time by the isolated `Worker:Group=mail` process. A quiet-hours deferral is known to have no provider effect: it does not consume an execution attempt, keeps the current attempt token, and records the deferral in operation audit history. A provider-accepted send is not requeued solely because quiet hours begin afterward. These options are read at worker startup, so configuration changes require restarting the isolated mail worker. A disabled reminder policy blocks queued delivery and requires authorized recovery.
+
 Exchange API-side permission verification, sender-only restriction, Graph transport acceptance, Exchange delivery, and recipient action are separate facts. No IMAP/POP inbox synchronization, mailbox-read permission or provider delivery webhook is implied by these configuration keys.
 
 ## Current Azure infrastructure limits

@@ -189,6 +189,10 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     string? error, TimeSpan? delay, CancellationToken ct)
   {
     options.Validate([]);
+    var policyDeferred = error == OperationDeferredException.ErrorCode;
+    var refundDeferredAttempt = policyDeferred && next == OperationState.RETRY_WAIT && !op.IsReconciliation &&
+      (op.Status is OperationState.CLAIMED or OperationState.REMOTE_STARTED);
+    if (policyDeferred && next == OperationState.RETRY_WAIT && !refundDeferredAttempt) return false;
     var active = op.Status is OperationState.CLAIMED or OperationState.REMOTE_STARTED or OperationState.VERIFYING or OperationState.CANCEL_REQUESTED;
     var allowed = next switch
     {
@@ -208,6 +212,7 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     var seconds = Math.Max(0, delay?.TotalSeconds ?? 0);
     var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
       UPDATE durable_operations SET status = {next.ToString()}, error_code = {error},
+        attempt_count = CASE WHEN {refundDeferredAttempt} THEN GREATEST(0, attempt_count - 1) ELSE attempt_count END,
         next_attempt_at = statement_timestamp() + make_interval(secs => {seconds}),
         lease_owner = CASE WHEN {retainLease} THEN lease_owner ELSE NULL END,
         lease_expires_at = CASE WHEN {retainLease} THEN lease_expires_at ELSE NULL END
@@ -219,6 +224,7 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     op.Status = next;
+    if (refundDeferredAttempt) op.AttemptCount = Math.Max(0, op.AttemptCount - 1);
     return true;
   }
 

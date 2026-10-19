@@ -456,6 +456,13 @@ public sealed class SafeRetryException(TimeSpan? retryAfter = null) : Exception(
   public TimeSpan? RetryAfter { get; } = retryAfter;
 }
 
+// A policy deferral proves that no provider effect occurred and does not consume an execution attempt.
+public sealed class OperationDeferredException(TimeSpan retryAfter) : Exception("policy-deferred")
+{
+  public const string ErrorCode = "policy-deferred";
+  public TimeSpan RetryAfter { get; } = retryAfter;
+}
+
 public sealed class OperationOwnershipLostException() : Exception("operation-ownership-lost");
 
 public interface IOperationStore

@@ -72,7 +72,7 @@ public sealed class PbcReminderTests
 
     var sender = new RecordingSender();
     var handler = new PbcMailDeliveryHandler(
-      new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options)), sender);
+      new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options)), sender, EnabledOptions, clock);
     var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
     var store = new PostgresOperationStore(factory);
     var worker = new AuditSphereOps.Worker.Worker(
@@ -122,8 +122,9 @@ public sealed class PbcReminderTests
     var requestId = await CreateDueSentRequestAsync(pg, fixture, "2026-10-13");
     var workerOptions = LiveMailOptions(fixture.FirmId);
     var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var clock = new FixedTimeProvider(NoonUtc);
     var reminderDiscovery = new PbcReminderDiscovery(factory, workerOptions, EnabledOptions,
-      new FixedTimeProvider(NoonUtc));
+      clock);
     Assert.Equal(1, await reminderDiscovery.EnqueuePendingAsync());
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -133,7 +134,7 @@ public sealed class PbcReminderTests
     }
 
     var sender = new RecordingSender();
-    var handler = new PbcMailDeliveryHandler(factory, sender);
+    var handler = new PbcMailDeliveryHandler(factory, sender, EnabledOptions, clock);
     var store = new PostgresOperationStore(factory);
     var worker = new AuditSphereOps.Worker.Worker(
       new OperationDispatcher(store, new DurableOperationRegistry([handler], workerOptions), workerOptions),
@@ -150,6 +151,233 @@ public sealed class PbcReminderTests
     Assert.True(inbox.Succeeded, inbox.Message);
     Assert.Contains(Assert.Single(inbox.Value!.Requests, x => x.Id == requestId).Timeline,
       x => x.Label == "Email blocked before delivery to client");
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task QueuedReminderIsBlockedAndShownWhenPolicyIsDisabledAtDispatch(bool explicitlyDisabled)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateDueSentRequestAsync(pg, fixture, "2026-10-13");
+    var workerOptions = LiveMailOptions(fixture.FirmId);
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var reminderDiscovery = new PbcReminderDiscovery(factory, workerOptions, EnabledOptions,
+      new FixedTimeProvider(NoonUtc));
+    Assert.Equal(1, await reminderDiscovery.EnqueuePendingAsync());
+
+    Guid receiptId;
+    Guid communicationId;
+    string actionKey;
+    DateTimeOffset receiptCreatedAt;
+    await using (var queued = new AuditSphereDbContext(pg.Options))
+    {
+      var request = await queued.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId);
+      Assert.Equal(PbcStates.Sent, request.State);
+      Assert.Equal(1, request.Revision);
+      var receipt = await queued.PbcReminderReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId);
+      receiptId = receipt.Id;
+      communicationId = receipt.CommunicationId;
+      actionKey = receipt.ActionKey;
+      receiptCreatedAt = receipt.CreatedAt;
+      var communication = await queued.PbcCommunications.AsNoTracking().SingleAsync(x => x.Id == communicationId);
+      Assert.Equal(PbcDeliveryStates.Queued, communication.DeliveryState);
+      Assert.Null(communication.ProviderCorrelationId);
+      Assert.Null(communication.DeliveredAt);
+    }
+
+    var sender = new RecordingSender();
+    // Keep the two-argument default-disabled baseline while also covering explicit policy disablement.
+    var handler = explicitlyDisabled
+      ? new PbcMailDeliveryHandler(factory, sender, EnabledOptions with { Enabled = false }, new FixedTimeProvider(NoonUtc))
+      : new PbcMailDeliveryHandler(factory, sender);
+    var store = new PostgresOperationStore(factory);
+    var worker = new AuditSphereOps.Worker.Worker(
+      new OperationDispatcher(store, new DurableOperationRegistry([handler], workerOptions), workerOptions),
+      [reminderDiscovery, new PbcMailDiscovery(factory, store, handler, workerOptions)],
+      NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+    await worker.DrainAsync();
+
+    Assert.Empty(sender.Plans);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var operation = await verify.DurableOperations.AsNoTracking().SingleAsync(x =>
+      x.OperationKind == PbcMailDeliveryHandler.Kind && x.TargetId == communicationId);
+    Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+    var requestAfter = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId);
+    Assert.Equal(PbcStates.Sent, requestAfter.State);
+    Assert.Equal(1, requestAfter.Revision);
+    var receiptAfter = await verify.PbcReminderReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId);
+    Assert.Equal(receiptId, receiptAfter.Id);
+    Assert.Equal(communicationId, receiptAfter.CommunicationId);
+    Assert.Equal(actionKey, receiptAfter.ActionKey);
+    Assert.Equal(receiptCreatedAt, receiptAfter.CreatedAt);
+    var communicationAfter = await verify.PbcCommunications.AsNoTracking().SingleAsync(x => x.Id == communicationId);
+    Assert.Equal(PbcDeliveryStates.Queued, communicationAfter.DeliveryState);
+    Assert.Null(communicationAfter.ProviderCorrelationId);
+    Assert.Null(communicationAfter.DeliveredAt);
+    var inbox = await PbcInboxWorkspaceQuery.GetAsync(verify,
+      PbcSeed.Actor(fixture.Staff, "Staff"), fixture.EngagementId);
+    Assert.True(inbox.Succeeded, inbox.Message);
+    Assert.Contains(Assert.Single(inbox.Value!.Requests, x => x.Id == requestId).Timeline,
+      x => x.Label == "Email blocked before delivery to client");
+  }
+
+  [Fact]
+  public async Task QueuedReminderEnteringQuietHoursSafeRetriesUntilNextOpening()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateDueSentRequestAsync(pg, fixture, "2026-10-13");
+    var workerOptions = LiveMailOptions(fixture.FirmId);
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var clock = new MutableTimeProvider(NoonUtc);
+    var reminderDiscovery = new PbcReminderDiscovery(factory, workerOptions, EnabledOptions, clock);
+    Assert.Equal(1, await reminderDiscovery.EnqueuePendingAsync());
+
+    var sender = new RecordingSender();
+    var handler = new PbcMailDeliveryHandler(factory, sender, EnabledOptions, clock);
+    var store = new PostgresOperationStore(factory);
+    Assert.Equal(1, await new PbcMailDiscovery(factory, store, handler, workerOptions).EnqueuePendingAsync(CancellationToken.None));
+    var registry = new DurableOperationRegistry([handler], workerOptions);
+    var claimed = await store.ClaimAsync(workerOptions, registry.Definitions,
+      "pbc-reminder-quiet-boundary-test", reconciliation: false, ct: CancellationToken.None);
+    Assert.NotNull(claimed);
+    Assert.True(await store.ValidateAsync(claimed!, workerOptions, handler, CancellationToken.None));
+
+    clock.SetUtcNow(new DateTimeOffset(2026, 10, 12, 22, 0, 0, TimeSpan.Zero));
+    var retry = await Assert.ThrowsAsync<OperationDeferredException>(
+      () => handler.ExecuteEffectAsync(claimed!, CancellationToken.None));
+    Assert.Equal(TimeSpan.FromHours(9), retry.RetryAfter);
+    Assert.Empty(sender.Plans);
+
+    await using (var waiting = new AuditSphereDbContext(pg.Options))
+    {
+      var communication = await waiting.PbcCommunications.AsNoTracking().SingleAsync(x =>
+        x.PbcRequestId == requestId && x.Kind == PbcCommunicationKinds.Email);
+      Assert.Equal(PbcDeliveryStates.Queued, communication.DeliveryState);
+      Assert.Null(communication.ProviderCorrelationId);
+      Assert.Null(communication.DeliveredAt);
+    }
+
+    clock.SetUtcNow(new DateTimeOffset(2026, 10, 13, 7, 0, 0, TimeSpan.Zero));
+    await handler.ExecuteEffectAsync(claimed!, CancellationToken.None);
+    Assert.Single(sender.Plans);
+  }
+
+  [Fact]
+  public async Task QuietHoursWorkerDefersTheSameReminderAndSendsOnceWhenTheWindowOpens()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateDueSentRequestAsync(pg, fixture, "2026-10-13");
+    var options = LiveMailOptions(fixture.FirmId) with { MaxAttempts = 1 };
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    Assert.Equal(1, await new PbcReminderDiscovery(factory, options, EnabledOptions,
+      new FixedTimeProvider(NoonUtc)).EnqueuePendingAsync());
+    var clock = new MutableTimeProvider(NoonUtc.AddHours(10));
+    var sender = new RecordingSender();
+    var handler = new PbcMailDeliveryHandler(factory, sender, EnabledOptions, clock);
+    var store = new PostgresOperationStore(factory);
+    var worker = new AuditSphereOps.Worker.Worker(
+      new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
+      [new PbcMailDiscovery(factory, store, handler, options)],
+      NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+    await worker.DrainAsync();
+    Assert.Empty(sender.Plans);
+    Guid operationId, communicationId, receiptId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x => x.OperationKind == PbcMailDeliveryHandler.Kind);
+      operationId = operation.Id;
+      communicationId = operation.TargetId;
+      Assert.Equal(OperationState.RETRY_WAIT, operation.Status);
+      Assert.Equal(0, operation.AttemptCount);
+      Assert.Equal(1, operation.AttemptToken);
+      Assert.True(operation.NextAttemptAt > DateTimeOffset.UtcNow.AddHours(8));
+      var firstHistory = await db.OperationAttempts.AsNoTracking().Where(x => x.OperationId == operationId).ToListAsync();
+      Assert.Single(firstHistory);
+      Assert.Equal(operation.AttemptToken, firstHistory[0].Token);
+      var receipt = await db.PbcReminderReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId);
+      receiptId = receipt.Id;
+      Assert.Equal(communicationId, receipt.CommunicationId);
+      Assert.Equal(PbcDeliveryStates.Queued,
+        (await db.PbcCommunications.AsNoTracking().SingleAsync(x => x.Id == communicationId)).DeliveryState);
+      // Only this disposable fixture's scheduler clock is advanced; no intent,
+      // receipt, scope, lease or approval is rewritten to make it eligible.
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        UPDATE durable_operations SET next_attempt_at = statement_timestamp() - interval '1 second'
+        WHERE id = {operationId}
+        """);
+    }
+    clock.SetUtcNow(NoonUtc.AddHours(19));
+    await worker.DrainAsync();
+    await worker.DrainAsync();
+    Assert.Single(sender.Plans);
+    await using var completed = new AuditSphereDbContext(pg.Options);
+    var completedOperation = await completed.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == operationId);
+    Assert.Equal(OperationState.COMPLETED, completedOperation.Status);
+    Assert.Equal(1, completedOperation.AttemptCount);
+    Assert.Equal(2, completedOperation.AttemptToken);
+    Assert.Equal(PbcDeliveryStates.Sent,
+      (await completed.PbcCommunications.AsNoTracking().SingleAsync(x => x.Id == communicationId)).DeliveryState);
+    var completedReceipts = await completed.PbcReminderReceipts.AsNoTracking().Where(x => x.PbcRequestId == requestId).ToListAsync();
+    Assert.Equal(receiptId, Assert.Single(completedReceipts).Id);
+    Assert.Equal(communicationId, completedReceipts[0].CommunicationId);
+    var attemptHistory = await completed.OperationAttempts.AsNoTracking().Where(x => x.OperationId == operationId)
+      .OrderBy(x => x.Token).ToListAsync();
+    Assert.Equal([1L, 2L], attemptHistory.Select(x => x.Token));
+    var request = await completed.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId);
+    Assert.Equal(PbcStates.Sent, request.State);
+    Assert.Equal(1, request.Revision);
+  }
+
+  [Fact]
+  public async Task ReminderAcceptedAtNoonCompletesIfQuietHoursBeginBeforePublish()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateDueSentRequestAsync(pg, fixture, "2026-10-13");
+    var options = LiveMailOptions(fixture.FirmId);
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    Assert.Equal(1, await new PbcReminderDiscovery(factory, options, EnabledOptions,
+      new FixedTimeProvider(NoonUtc)).EnqueuePendingAsync());
+    Guid receiptId, communicationId;
+    await using (var queued = new AuditSphereDbContext(pg.Options))
+    {
+      var queuedReceipt = await queued.PbcReminderReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId);
+      receiptId = queuedReceipt.Id;
+      communicationId = queuedReceipt.CommunicationId;
+    }
+
+    var clock = new MutableTimeProvider(NoonUtc);
+    var sender = new RecordingSender(() => clock.SetUtcNow(new DateTimeOffset(2026, 10, 12, 22, 0, 0, TimeSpan.Zero)));
+    var handler = new PbcMailDeliveryHandler(factory, sender, EnabledOptions, clock);
+    var store = new PostgresOperationStore(factory);
+    var worker = new AuditSphereOps.Worker.Worker(
+      new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
+      [new PbcMailDiscovery(factory, store, handler, options)],
+      NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+
+    await worker.DrainAsync();
+    await worker.DrainAsync();
+
+    Assert.Single(sender.Plans);
+    await using var completed = new AuditSphereDbContext(pg.Options);
+    var operation = await completed.DurableOperations.AsNoTracking().SingleAsync(x => x.TargetId == communicationId);
+    Assert.Equal(OperationState.COMPLETED, operation.Status);
+    Assert.Equal(1, operation.AttemptCount);
+    Assert.Equal(1, operation.AttemptToken);
+    var mail = await completed.PbcCommunications.AsNoTracking().SingleAsync(x => x.Id == communicationId);
+    Assert.Equal(PbcDeliveryStates.Sent, mail.DeliveryState);
+    Assert.NotNull(mail.ProviderCorrelationId);
+    Assert.NotNull(mail.DeliveredAt);
+    var receipt = await completed.PbcReminderReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId);
+    Assert.Equal(receiptId, receipt.Id);
+    Assert.Equal(communicationId, receipt.CommunicationId);
+    var request = await completed.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId);
+    Assert.Equal(PbcStates.Sent, request.State);
+    Assert.Equal(1, request.Revision);
   }
 
   [Fact]
@@ -207,12 +435,24 @@ public sealed class PbcReminderTests
     public override DateTimeOffset GetUtcNow() => now;
   }
 
+  private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
+  {
+    private DateTimeOffset current = now;
+    public override DateTimeOffset GetUtcNow() => current;
+    public void SetUtcNow(DateTimeOffset value) => current = value;
+  }
+
   private sealed class RecordingSender : IPbcMailSender
   {
     public List<PbcMailPlan> Plans { get; } = [];
+    private readonly Action? onSend;
+
+    public RecordingSender(Action? onSend = null) => this.onSend = onSend;
+
     public Task SendAsync(PbcMailPlan plan, CancellationToken ct)
     {
       Plans.Add(plan);
+      onSend?.Invoke();
       return Task.CompletedTask;
     }
   }
