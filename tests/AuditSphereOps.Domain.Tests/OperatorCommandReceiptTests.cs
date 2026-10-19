@@ -51,6 +51,77 @@ public sealed class OperatorCommandReceiptTests
       await db.OperationEvents.CountAsync());
   }
 
+  [Fact]
+  public async Task ConcurrentCancelWithSameRequestWaitsAndPublishesOneExactReceipt()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var world = await OperatorCommandReceiptSeed.SeedAsync(pg, OperationCommandActions.Cancel);
+    OperationCommandRequest request;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+      request = await OperatorCommandReceiptSeed.ReviewAsync(setup, world);
+
+    var pause = new PauseAfterReceipt();
+    var firstOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options;
+    await using var firstDb = new AuditSphereDbContext(firstOptions);
+    await using var secondDb = new AuditSphereDbContext(pg.Options);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    await secondDb.Database.OpenConnectionAsync(timeout.Token);
+    await observer.Database.OpenConnectionAsync(timeout.Token);
+
+    Task<CommandResult<OperationCommandReceiptView>>? firstTask = null;
+    Task<CommandResult<OperationCommandReceiptView>>? secondTask = null;
+    try
+    {
+      firstTask = OperationCommandWorkspace.ExecuteAsync(firstDb, world.Actor, request, timeout.Token);
+      var blockingPid = await pause.Reached.Task.WaitAsync(timeout.Token);
+      var waitingPid = ((Npgsql.NpgsqlConnection)secondDb.Database.GetDbConnection()).ProcessID;
+      Assert.NotEqual(blockingPid, waitingPid);
+
+      secondTask = OperationCommandWorkspace.ExecuteAsync(secondDb, world.Actor, request, timeout.Token);
+      await WaitForBlockingPidAsync(observer, waitingPid, blockingPid, timeout.Token);
+      Assert.False(secondTask.IsCompleted);
+
+      pause.Release.TrySetResult(true);
+      var first = await firstTask.WaitAsync(timeout.Token);
+      var second = await secondTask.WaitAsync(timeout.Token);
+      Assert.True(first.Succeeded, first.Message);
+      Assert.True(second.Succeeded, second.Message);
+      Assert.NotNull(first.Value);
+      Assert.Equal(JsonSerializer.Serialize(first.Value), JsonSerializer.Serialize(second.Value));
+      Assert.Equal(request.RequestId, first.Value.RequestId);
+      Assert.Equal(request.ExpectedRequestHash, first.Value.RequestHash);
+
+      Assert.Equal(1, await observer.OperatorCommandReceipts.AsNoTracking().CountAsync(x =>
+        x.FirmId == world.Actor.FirmId && x.ActorId == world.Actor.UserId && x.RequestId == request.RequestId, timeout.Token));
+      Assert.Equal(1, await observer.OperatorCommandEvents.AsNoTracking().CountAsync(x =>
+        x.FirmId == world.Actor.FirmId && x.ActorId == world.Actor.UserId && x.RequestId == request.RequestId, timeout.Token));
+      Assert.Equal(1, await observer.OperationEvents.AsNoTracking().CountAsync(x =>
+        x.OperationId == world.OperationId && x.Kind == "operation.cancelled.v1", timeout.Token));
+      var operation = await observer.DurableOperations.AsNoTracking().SingleAsync(x =>
+        x.FirmId == world.Actor.FirmId && x.Id == world.OperationId, timeout.Token);
+      Assert.Equal(OperationState.CANCELLED_WITH_DISPOSITION, operation.Status);
+      Assert.Equal(request.Input.Disposition, operation.CancellationDisposition);
+    }
+    finally
+    {
+      pause.Release.TrySetResult(true);
+      var tasks = new Task?[] { firstTask, secondTask }.Where(x => x is not null).Cast<Task>().ToArray();
+      if (tasks.Length > 0)
+      {
+        var all = Task.WhenAll(tasks);
+        try { await all.WaitAsync(TimeSpan.FromSeconds(10)); }
+        catch (TimeoutException)
+        {
+          timeout.Cancel();
+          try { await all.WaitAsync(TimeSpan.FromSeconds(5)); }
+          catch { _ = all.Exception; }
+        }
+        catch { _ = all.Exception; }
+      }
+    }
+  }
+
   [Theory]
   [InlineData(OperationCommandActions.Retry)]
   [InlineData(OperationCommandActions.Cancel)]
@@ -174,6 +245,40 @@ public sealed class OperatorCommandReceiptTests
       }
       return result;
     }
+  }
+
+  private sealed class PauseAfterReceipt : SaveChangesInterceptor
+  {
+    private int fired;
+    public TaskCompletionSource<int> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result,
+      CancellationToken ct = default)
+    {
+      if (eventData.Context is AuditSphereDbContext db && db.ChangeTracker.Entries<OperatorCommandReceipt>().Any() &&
+          Interlocked.Exchange(ref fired, 1) == 0)
+      {
+        var pid = ((Npgsql.NpgsqlConnection)db.Database.GetDbConnection()).ProcessID;
+        Reached.TrySetResult(pid);
+        await Release.Task.WaitAsync(ct);
+      }
+      return result;
+    }
+  }
+
+  private static async Task WaitForBlockingPidAsync(AuditSphereDbContext observer, int waitingPid, int blockingPid,
+    CancellationToken ct)
+  {
+    var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+      await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", ct);
+      if (await observer.Database.SqlQuery<bool>($"SELECT {blockingPid} = ANY(pg_blocking_pids({waitingPid})) AS \"Value\"")
+            .SingleAsync(ct)) return;
+      await Task.Delay(TimeSpan.FromMilliseconds(20), ct);
+    }
+    Assert.Fail($"PostgreSQL did not report backend {waitingPid} blocked by {blockingPid}.");
   }
 
   [Theory]
