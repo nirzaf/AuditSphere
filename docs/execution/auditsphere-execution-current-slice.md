@@ -19,6 +19,10 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Approved component intercompany accessibility (2026-10-19)
+
+The existing regular-scope journey now includes approved external component packs, a maker's exact signed match and an independent review through keyboard controls. Retained component source manifests remain unchanged; the match creates no journal or run. Native disclosure keyboard/focus checks and narrow reflow are evidenced separately. See `angularQuality.task07.consolidationFocusFollowUp` in [status.json](status.json). Internal-package/full-state and human assistive-technology acceptance remain open; this synthetic path supplies no professional or live-provider acceptance.
+
 ## Reviewed reopening of cancelled operational tasks (2026-10-19)
 
 Current scoped management can reopen cancelled tasks without completed-work evidence using a reviewed reason and revision. The same task, binding, time and evidence remain; historical retries acknowledge their event without overwriting later state. Focused Domain/API/Angular and keyboard browser checks pass, including narrow reflow. The owned native review checked focus, fresh assent and explicit close without submission. Exact source, failed-check repairs, migration and limits are in `targetedVerification.workflowTaskReopening` in [status.json](status.json). Completed-work correction, suspension, missed-period recovery, full CI and human/live acceptance remain open. No shared/deployed database was migrated.

@@ -183,7 +183,7 @@
           "journal": "FOCUSED_PASS: exact correction, invalid input, independent review, stale period and unknown receipt recovery in owned E2E; human announcements NOT_VERIFIED.",
           "evidence": "FOCUSED_PASS: exact result link, independent decision, retained values and revocation in owned E2E; human announcements and full dialog-state matrix NOT_VERIFIED.",
           "planning": "PARTIAL: record-backed preparation, independent approval, assignment and revocation keyboard review/cancel/fresh assent/error/unknown recovery pass on both bases, including exact-row cancel focus. Built-in390px approval/staffing flow pass. Human AT/full-state acceptance open.",
-          "consolidation": "PARTIAL: retained outside-perimeter match via real form/API, signed six-place amounts, maker/checker restriction, native checkbox/disclosure focus, held-options submission safety and populated390px reflow verified. Bounded table scrolls by keyboard. In-perimeter approved-package/full-state and human AT acceptance remain open.",
+          "consolidation": "PARTIAL: outside-perimeter retained match plus approved external-component in-perimeter maker/checker keyboard journeys pass; exact signed six-place source values, native disclosure focus and390px reflow covered. Internal-package/full supported states and human AT acceptance remain open.",
           "fieldwork": "PARTIAL: procedure submit/recover/independent return/revise, sampling select/review/execute, native result typeahead/Tab commitment and populated320/390px reflow verified. Human AT and every supported state not accepted."
         },
         "humanReview": "BLOCKED_EXTERNAL: knowledgeable human screen-reader review with actual AT/browser versions and meaningful announcements is not available.",
@@ -218,7 +218,15 @@
             "sourceCommit": "7cac719c2ca950bb981273af80fd8c9ab14237cd",
             "result": "IN_PROGRESS",
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39202743735",
-            "note": "Resolved exact requested SHA; Angular full specs/build and build/contracts/publication PASS; unfiltered Domain/API/E2E still running. Older0b0b7241 run39194532601 also API/E2E active, preserved in archive. No full acceptance. A separate mistyped-ref dispatch39202734400 was cancelled before verification; it supplies no evidence."
+            "note": "Exact7cac719c: unfiltered Domain, Angular full specs/build, build/contracts/publication PASS; API/E2E still running. Later commits add test-only followups. Older0b0b7241 run retained separately; no full current-source acceptance.",
+            "domain": {
+              "result": "PASS",
+              "passed": 1387,
+              "failed": 0,
+              "skipped": 0,
+              "jobId": "117899328393",
+              "log": "/tmp/auditsphere-domain-full-7cac719c.log"
+            }
           },
           "workspaceApiRepair": {
             "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
@@ -255,9 +263,15 @@
           "summary": "Planning preview no longer steals deliberately moved focus; counterfactual failed and corrected focused cohort passed. Detailed evidence and remaining human/full-state limits retained intact in archive."
         },
         "consolidationFocusFollowUp": {
-          "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityConsolidationFocus20261019",
-          "sourceCommit": "d4e8002ca0c138740b55f51fe714b53f495559df",
-          "summary": "Intercompany option refresh retains form focus while current-resource fences disable assent/submit. Native disclosure/scroll and390px reflow, exact signed amount and outside-perimeter refusal evidenced; human AT/full-state/independent review remain open."
+          "sourceCommit": "f14756bc6897acb4708abf6e34013ba1fef94166",
+          "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityConsolidationFocusBeforeApprovedPair20261019",
+          "verification": "New approved external-pack/component pair journey PASS1/1; signed1200.123456/-1200.000000 and stored0.123456 difference retained; maker has no approval action; separate reviewer keyboard assent/approval; immutable source manifest unchanged, no journals/runs;390px bounded form/table.",
+          "trx": "/tmp/auditsphere-a11y-results/intercompany-approved-keyboard-final.trx",
+          "nativeBrowser": "Owned synthetic reviewer fixture: native Return collapses/expands retained details with focus retained; exact signed amounts, difference/reason and distinct identities visible; warn/error logs empty. Screenshot /tmp/auditsphere-intercompany-approved-native.png. No native mutation; temporary tab closed, fixture released/disposed.",
+          "initialFailure": "All assertions reached; optional handoff refused full paths instead of basenames. Corrected invocation reran same compiled method with no assertion/source change.",
+          "limits": "Approved external-pack component branch only, not every internal financial package state. Human AT/full-state, professional/live acceptance and full current-source CI remain open.",
+          "independentReview": "No source findings: real pack/component service approvals, signed arithmetic, distinct preparer/reviewer and before/after source manifest checked; reviewer did not execute tests."
         },
         "samplingKeyboardFollowUp": {
           "sourceCommit": "423d7f578cf475a9e050a8d70d049561b663f17d",
@@ -1203,19 +1217,8 @@
     "workflowTaskReopening": {
       "sourceCommit": "a69ae19a58fd07e10519e7ad31db429c50717fc7",
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "behavior": "Current scoped management can reopen only CANCELLED tasks without completed evidence; same task/binding/time/evidence retained; reviewed reason and revision append TASK_REOPENED. Exact historical cancellation/reopening replies never overwrite later state. Completed-work correction, suspension and missed-period recovery remain open.",
-      "checks": {
-        "domain": "PASS 2/2; workflow-reopen-domain-final.trx",
-        "api": "PASS 1/1; workflow-reopen-api-final.trx",
-        "angular": "PASS 29/29; /tmp/auditsphere-workflow-reopen-angular.log",
-        "browser": "PASS 1/1; workflow-reopen-browser-final.trx; keyboard review/back/fresh assent/confirm, retained DB history, blocked dependent,390px overflow",
-        "resultsDirectory": "/tmp/auditsphere-workflow-reopen-results",
-        "buildContracts": "API/contract emitter and Angular build PASS; OpenAPI drift, EF model drift and targeted ESLint PASS. Existing Angular optional-chain/style-budget warnings retained."
-      },
-      "nativeBrowser": "Owned synthetic fixture: review heading/editor focus, keyboard review, unchecked fresh assent, disabled confirm, Back retains reason, explicit Close restores trigger; console warnings/errors empty. Unsaved review screenshot /tmp/auditsphere-reopen-native-review.png. No native submission; fixture disposed and owned tab closed. Escape does not close this nonmodal section.",
-      "repairs": "E2E Angular-input attribute selector corrected; status asserts canonical data-status plus rendered open; keyboard confirmation waits until enabled/focused. Earlier failures retained in session logs; final targeted journey passed.",
-      "migration": "20261019044215_WorkflowTaskReopening extends activity constraint; downgrade refuses retained reopening evidence. Exercised only in isolated test schemas, not applied to shared/deployed DB.",
-      "limits": "No full local suite; full CI on older0b0b7241 remains API/E2E active, predates this slice. No live/provider/professional/full accessibility acceptance.",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.workflowTaskReopeningDetailed20261019",
+      "summary": "Cancelled-only reviewed reopening implemented; both historical replay directions preserve later state and immutable history. Focused Domain2/API1/Angular29/browser1 pass. Retained-activity keyboard followup passes separately on d407de24. Migration only exercised in owned test schemas. No full/live/professional acceptance.",
       "activityKeyboardFollowUp": {
         "sourceCommit": "d407de247274a356591cbab9a7597b1616e29e46",
         "result": "PASS",
@@ -1224,8 +1227,7 @@
         "skipped": 0,
         "trx": "/tmp/auditsphere-workflow-reopen-results/workflow-reopen-activity-focus.trx",
         "behavior": "Keyboard activates Review reopening activity after confirmed response; focus reaches activity heading; retained TASK_REOPENED label and exact reason are visible. Existing DB, dependencies and390px checks retained. Initial probe incorrectly expected Close in confirmed state; corrected to actual retained-activity flow, no production change."
-      },
-      "independentReview": "No source finding: current scoped authorization/session, locked reload/revision replay, retained evidence, API scope and guarded downgrade reviewed independently. Static review is not test/professional acceptance."
+      }
     }
   },
   "externalGates": [

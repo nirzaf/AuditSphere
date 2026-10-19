@@ -19985,6 +19985,38 @@
       "lint": "PASS: five changed production TS/HTML files; no extra rules disabled.",
       "build": "PASS; existing completion optional-chain and commercial/settings.scss budget warnings.",
       "browser": "PASS_READ_ONLY_SMOKE on final UI source via built-in browser: fieldwork h1, Sampling \u2192 Client evidence keyboard activation, expected controls, document reflow at1280, no console errors. Existing API source unknown. Record-backed mutation accessibility NOT_VERIFIED."
+    },
+    "targetedVerification.angularQualityConsolidationFocusBeforeApprovedPair20261019": {
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityConsolidationFocus20261019",
+      "sourceCommit": "d4e8002ca0c138740b55f51fe714b53f495559df",
+      "summary": "Intercompany option refresh retains form focus while current-resource fences disable assent/submit. Native disclosure/scroll and390px reflow, exact signed amount and outside-perimeter refusal evidenced; human AT/full-state/independent review remain open."
+    },
+    "targetedVerification.workflowTaskReopeningDetailed20261019": {
+      "sourceCommit": "a69ae19a58fd07e10519e7ad31db429c50717fc7",
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "behavior": "Current scoped management can reopen only CANCELLED tasks without completed evidence; same task/binding/time/evidence retained; reviewed reason and revision append TASK_REOPENED. Exact historical cancellation/reopening replies never overwrite later state. Completed-work correction, suspension and missed-period recovery remain open.",
+      "checks": {
+        "domain": "PASS 2/2; workflow-reopen-domain-final.trx",
+        "api": "PASS 1/1; workflow-reopen-api-final.trx",
+        "angular": "PASS 29/29; /tmp/auditsphere-workflow-reopen-angular.log",
+        "browser": "PASS 1/1; workflow-reopen-browser-final.trx; keyboard review/back/fresh assent/confirm, retained DB history, blocked dependent,390px overflow",
+        "resultsDirectory": "/tmp/auditsphere-workflow-reopen-results",
+        "buildContracts": "API/contract emitter and Angular build PASS; OpenAPI drift, EF model drift and targeted ESLint PASS. Existing Angular optional-chain/style-budget warnings retained."
+      },
+      "nativeBrowser": "Owned synthetic fixture: review heading/editor focus, keyboard review, unchecked fresh assent, disabled confirm, Back retains reason, explicit Close restores trigger; console warnings/errors empty. Unsaved review screenshot /tmp/auditsphere-reopen-native-review.png. No native submission; fixture disposed and owned tab closed. Escape does not close this nonmodal section.",
+      "repairs": "E2E Angular-input attribute selector corrected; status asserts canonical data-status plus rendered open; keyboard confirmation waits until enabled/focused. Earlier failures retained in session logs; final targeted journey passed.",
+      "migration": "20261019044215_WorkflowTaskReopening extends activity constraint; downgrade refuses retained reopening evidence. Exercised only in isolated test schemas, not applied to shared/deployed DB.",
+      "limits": "No full local suite; full CI on older0b0b7241 remains API/E2E active, predates this slice. No live/provider/professional/full accessibility acceptance.",
+      "activityKeyboardFollowUp": {
+        "sourceCommit": "d407de247274a356591cbab9a7597b1616e29e46",
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-workflow-reopen-results/workflow-reopen-activity-focus.trx",
+        "behavior": "Keyboard activates Review reopening activity after confirmed response; focus reaches activity heading; retained TASK_REOPENED label and exact reason are visible. Existing DB, dependencies and390px checks retained. Initial probe incorrectly expected Close in confirmed state; corrected to actual retained-activity flow, no production change."
+      },
+      "independentReview": "No source finding: current scoped authorization/session, locked reload/revision replay, retained evidence, API scope and guarded downgrade reviewed independently. Static review is not test/professional acceptance."
     }
   }
 }
