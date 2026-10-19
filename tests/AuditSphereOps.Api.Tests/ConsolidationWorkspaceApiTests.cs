@@ -928,11 +928,14 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.False(ws.GetProperty("canReview").GetBoolean());
     Assert.Equal("Alpha Group", ws.GetProperty("scope").GetProperty("groupName").GetString());
     Assert.Equal(0, ws.GetProperty("components").GetArrayLength());
-    Assert.True(ws.GetProperty("eligiblePackages").GetArrayLength() >= 1);
+    var eligiblePage = ws.GetProperty("eligiblePackages");
+    Assert.Equal(1, eligiblePage.GetProperty("page").GetInt32());
+    Assert.True(eligiblePage.GetProperty("totalCount").GetInt32() >= 1);
+    Assert.True(eligiblePage.GetProperty("items").GetArrayLength() >= 1);
 
     // 2. Submit component
     var eligiblePackage = (await Read(prepClient, $"/api/ui/consolidation/scopes/{scopeId}"))
-      .GetProperty("eligiblePackages").EnumerateArray()
+      .GetProperty("eligiblePackages").GetProperty("items").EnumerateArray()
       .Single(x => x.GetProperty("packageId").GetGuid() == packageId);
     var submitRes = await Post(prepClient, prepCsrf, $"/api/ui/consolidation/scopes/{scopeId}/components", new
     {
@@ -1069,8 +1072,12 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(HttpStatusCode.OK, returnRes.StatusCode);
 
     var wsReturned = await Read(revClient, $"/api/ui/consolidation/scopes/{scopeId}");
-    Assert.Equal("Returned", wsReturned.GetProperty("journals")[0].GetProperty("status").GetString());
-    Assert.Equal("Please attach intercompany signed statement", wsReturned.GetProperty("journals")[0].GetProperty("returnReason").GetString());
+    var returnedPage = wsReturned.GetProperty("journals");
+    Assert.Equal(1, returnedPage.GetProperty("totalCount").GetInt32());
+    var returnedJournal = Assert.Single(returnedPage.GetProperty("items").EnumerateArray());
+    Assert.Equal(journalId, returnedJournal.GetProperty("id").GetGuid());
+    Assert.Equal("Returned", returnedJournal.GetProperty("status").GetString());
+    Assert.Equal("Please attach intercompany signed statement", returnedJournal.GetProperty("returnReason").GetString());
 
     // Preparer resubmits journal
     var resubmitRes = await Post(prepClient, prepCsrf, $"/api/ui/consolidation/journals/{journalId}/resubmit", new { });
@@ -1081,7 +1088,11 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(HttpStatusCode.OK, approveRes.StatusCode);
 
     var wsApproved = await Read(revClient, $"/api/ui/consolidation/scopes/{scopeId}");
-    Assert.Equal("APPROVED", wsApproved.GetProperty("journals")[0].GetProperty("status").GetString());
+    var approvedPage = wsApproved.GetProperty("journals");
+    Assert.Equal(1, approvedPage.GetProperty("totalCount").GetInt32());
+    var approvedJournal = Assert.Single(approvedPage.GetProperty("items").EnumerateArray());
+    Assert.Equal(journalId, approvedJournal.GetProperty("id").GetGuid());
+    Assert.Equal("APPROVED", approvedJournal.GetProperty("status").GetString());
   }
 
   [Fact]
