@@ -75,7 +75,7 @@ export const portalFinanceContract = obj({
 
             <div class="financial-tables">
               @if (agr.invoices.length > 0) {
-                <div class="table-section">
+                <div class="table-section" tabindex="0" role="region" aria-label="Scrollable fee invoices">
                   <h4>Invoices</h4>
                   <table class="finance-table" aria-label="Fee invoices">
                     <thead>
@@ -124,7 +124,7 @@ export const portalFinanceContract = obj({
               }
 
               @if (agr.receipts.length > 0) {
-                <div class="table-section">
+                <div class="table-section" tabindex="0" role="region" aria-label="Scrollable payment receipts">
                   <h4>Payment receipts</h4>
                   <p>Currently applied amounts reflect independently approved allocation reversals. Pending or rejected reversals do not change applied cash; the original receipt voucher remains unchanged.</p>
                   <table class="finance-table" aria-label="Payment receipts">

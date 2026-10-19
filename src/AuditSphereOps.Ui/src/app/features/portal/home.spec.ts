@@ -231,6 +231,12 @@ describe('Client portal workspace paging', () => {
     await fixture.whenStable(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     const receiptCells = root.querySelectorAll('table[aria-label="Payment receipts"] tbody tr td');
+    for (const label of ['Scrollable fee invoices', 'Scrollable payment receipts']) {
+      const region = root.querySelector<HTMLElement>(`[role="region"][aria-label="${label}"]`)!;
+      expect(region.tabIndex).toBe(0);
+      region.focus();
+      expect(document.activeElement).toBe(region);
+    }
     expect(receiptCells[2].textContent).toContain('5000 QAR');
     expect(receiptCells[3].textContent).toContain('4900 QAR');
     expect(root.textContent).toContain('independently approved allocation reversals');
