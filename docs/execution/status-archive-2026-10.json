@@ -20017,6 +20017,200 @@
         "behavior": "Keyboard activates Review reopening activity after confirmed response; focus reaches activity heading; retained TASK_REOPENED label and exact reason are visible. Existing DB, dependencies and390px checks retained. Initial probe incorrectly expected Close in confirmed state; corrected to actual retained-activity flow, no production change."
       },
       "independentReview": "No source finding: current scoped authorization/session, locked reload/revision replay, retained evidence, API scope and guarded downgrade reviewed independently. Static review is not test/professional acceptance."
+    },
+    "targetedVerification.asPm8AtomicDetailedBeforePracticeGuards20261019": {
+      "sourceCommit": "6e4d8682fa4886223422990f010f6d40e8729fe6",
+      "result": "PARTIAL",
+      "latestReleaseVerification": {
+        "run": "https://github.com/nirzaf/AuditSphere/actions/runs/38988587433",
+        "sourceCommit": "512696edfe67ef29bfa2323c3bf4f226b0c13999",
+        "status": "IN_PROGRESS",
+        "angular": "PASS: 1288/1288",
+        "domain": "PASS: 1328/1328",
+        "releaseBuildContractsAndPublication": "PASS",
+        "api": "INTERRUPTED_INFRASTRUCTURE: runner shutdown signal; exit 143; no test result artifact",
+        "focusedApiCohort": {
+          "sourceCommit": "512696edfe67ef29bfa2323c3bf4f226b0c13999",
+          "classes": [
+            "PortalActionCenterApiTests",
+            "ClientPortalBrandingApiTests",
+            "FirmPortalLogoSettingsApiTests",
+            "FirmUnbilledTimeApiTests",
+            "EngagementActivityApiTests",
+            "EngagementDeadlineReminderApiTests"
+          ],
+          "passed": 14,
+          "failed": 0,
+          "skipped": 0,
+          "durationSeconds": 113,
+          "environment": "Loopback PostgreSQL auditsphere_tests on port 5433",
+          "limitation": "Focused feature evidence only; does not replace the interrupted unfiltered API release job."
+        },
+        "playwrightE2E": "IN_PROGRESS",
+        "acceptance": "AS-PM8 remains PARTIAL until the API cohort is rerun successfully and the full Playwright E2E job completes successfully on a commit-pinned run."
+      },
+      "matrix": [
+        [
+          "01",
+          "01\u201303",
+          "PASS",
+          "DueTodaySummaryCountsTheCompleteAuthorizedPopulationRatherThanTheLoadedPage;DateViewsUseTheUtcCalendarDateAndSummaryStaysScopedDeniedAndReadOnly"
+        ],
+        [
+          "02",
+          "04\u201306",
+          "PASS",
+          "PracticeTimeTests.TimeWorkflow_RequiresReview_UsesIntegerMinutes_AndRejectsOverlap;PracticeTimeStartMinuteApiTests.RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior;AngularPracticeProductivityJourneyTests.DashboardAndForegroundTimerAreReadOnlyUntilEachDraftIsExplicitlySaved"
+        ],
+        [
+          "03",
+          "07\u201308",
+          "PASS",
+          "PortalWorkspaceReturnsParticipantScopedClarificationAndCurrentEligibility;PortalActionEligibilityFailsClosedForReviewStatesAndUploadRouteStillRequiresFirstSignIn"
+        ],
+        [
+          "04",
+          "09\u201311",
+          "PASS",
+          "SevenSourcesUseStableRankAndIdPagingSnapshotAndReadOnlyProjection;InvalidRequestsAndNonManagerScopesFailClosedWithStableMessages"
+        ],
+        [
+          "05",
+          "12\u201314",
+          "PASS",
+          "TaskDatesIncludeOnlyYesterdayTodayAndSevenDaysForActiveTasks;FrozenSuppressesRemindersButPastScheduledFreezeDoesNotAndReadsCreateNoWrites"
+        ],
+        [
+          "06",
+          "15\u201316",
+          "PASS",
+          "AnnualMilestonesUseCurrentSourceRevisionAndStayRestrictedWithoutBlockingReviewedCreation;ChangedOrForeignAnnualReferenceFailsWithoutPublishingANewShell"
+        ],
+        [
+          "07",
+          "17\u201319",
+          "PASS",
+          "StandardValuesNormalizeEachEntryAndKeepCurrencyAndFeeBasisSubtotalsSeparate;CrossClientBillingParentFailsTheWholeReportAndClientScopedFinanceIsDenied"
+        ],
+        [
+          "08",
+          "20\u201325",
+          "PASS",
+          "PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits;PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles"
+        ]
+      ],
+      "commands": {
+        "build": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
+        "e2e": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularPracticeProductivityJourneyTests' --logger 'console;verbosity=minimal'",
+        "angularTests": "npm ci && npm run test:ci",
+        "angularBuild": "npm run build (cwd: src/AuditSphereOps.Ui)",
+        "ef": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
+        "openapi": "bash scripts/contracts/verify-openapi.sh",
+        "full": "dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --maxcpucount:1 --logger 'console;verbosity=minimal'",
+        "docs": "python3 scripts/docs/validate-markdown-documentation.py; python3 scripts/docs/validate-markdown-filenames.py; python3 scripts/docs/validate-narrative-metrics.py; python3 scripts/ui/inventory.py --check; git diff --check",
+        "domain": {
+          "project": "tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj",
+          "classFilters": [
+            "EngagementWorkflowTaskTests",
+            "PracticeTimeTests",
+            "PbcReminderTests",
+            "AnnualEngagementPreparationTests",
+            "CommercialWorkflowTests",
+            "FirmUnbilledTimeTests",
+            "EngagementActivityTimelineTests",
+            "EngagementDeadlineReminderTests",
+            "FirmPortalLogoSchemaTests"
+          ]
+        },
+        "api": {
+          "project": "tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj",
+          "classFilters": [
+            "PortalActionCenterApiTests",
+            "ClientPortalBrandingApiTests",
+            "FirmPortalLogoSettingsApiTests",
+            "FirmUnbilledTimeApiTests",
+            "EngagementActivityApiTests",
+            "EngagementDeadlineReminderApiTests"
+          ]
+        }
+      },
+      "runs": [
+        [
+          "build",
+          0,
+          "0w/0e",
+          "167.94s"
+        ],
+        [
+          "domain",
+          0,
+          "56/56",
+          "42s"
+        ],
+        [
+          "api",
+          0,
+          "14/14",
+          "106s"
+        ],
+        [
+          "e2e",
+          0,
+          "1/1",
+          "65s"
+        ],
+        [
+          "angularTests",
+          0,
+          "839/839; cwd src/AuditSphereOps.Ui",
+          "unknown"
+        ],
+        [
+          "angularBuild",
+          0,
+          "existing settings.scss budget 7.53/4.00kB",
+          "8s"
+        ],
+        [
+          "ef",
+          0,
+          "clean",
+          null
+        ],
+        [
+          "openapi",
+          0,
+          "match",
+          null
+        ],
+        [
+          "full",
+          130,
+          "34m partial; rerun cancelled 18m, overlapping API tests; no final count"
+        ],
+        [
+          "docs",
+          0
+        ],
+        [
+          "ci",
+          0,
+          "38808307291@d0aeac96"
+        ],
+        [
+          "apiRegression",
+          0,
+          "2/2;45s;b440bc77",
+          "TermsRequireIndependentReviewAndReportAndExportUseAuthorizedAsOfState;ScopeWorkspace_CanQueryDetail_AndBlocksComponentApprovalWithoutSelectedComposition"
+        ]
+      ],
+      "dotnetFocusedTemplate": "dotnet test {project} --no-build --no-restore --configuration Release --maxcpucount:1 --filter '{filter}'",
+      "package": "AS-PM8",
+      "filterRule": "OR by FullyQualifiedName",
+      "matrixCommit": "sourceCommit",
+      "currentFollowUp": {
+        "historicalEvidence": "Moved verbatim to docs/execution/status-archive-2026-10.json under keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017. Current result remains PARTIAL; see latestReleaseVerification."
+      }
     }
   }
 }

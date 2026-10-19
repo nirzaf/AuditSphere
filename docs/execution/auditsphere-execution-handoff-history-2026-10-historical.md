@@ -122,3 +122,15 @@ ASPM-CRM-03 remains PARTIAL: payment route snapshots, holding-letter checks, ini
 ASPM-WF-08 now includes current-scoped management cancellation of an active task after exact revision/reason review. Time, bindings, evidence and append-only activity remain; a cancelled required predecessor still blocks its dependent. Exact replay adds no event, and a lost response is observed through a scoped task lookup before any explicit retry. The queue retains a Cancelled view. Keyboard review/close/activity focus and narrow reflow have focused and built-in-browser evidence; migration downgrade refuses retained cancellation history. No shared/live migration or professional approval occurred.
 
 ASPM-WF-08 remains PARTIAL: reopen, suspension, missed-period recovery and broader reconciliation are unfinished. Legacy WF-08 recurrence decisions are separate. The latest full CI run failed and incomplete API/E2E evidence; reported failures are under focused repair. Exact source, checks and limits are in `targetedVerification.workflowTaskCancellation` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). No full local suite ran.
+
+## Payment-recipient identity snapshots (2026-10-19)
+
+New receipt/voucher queues retain the selected contact, routing and authority basis. Send-time checks reject a different identity even at the same mailbox. Legacy all-null rows retain current same-mailbox validation without backfilling identities. Focused worker fee-cycle checks pass with financial and reversal assertions intact; exact source and evidence are in `targetedVerification.paymentRecipientSnapshots` in [status.json](status.json). Initiating-actor authorization, DEC-09 and full/live acceptance remain open.
+
+## Holding-letter mail safety (2026-10-19)
+
+Focused new/legacy route, scope, exact attachment and blocker checks pass. Detailed behavior, original analyzer repair and limits are retained under `targetedVerification.holdingLetterMailSafety` in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Full/live acceptance remains open.
+
+## Grant-expiry mutation fence (2026-10-19)
+
+Expiry now uses the shared firm/user/grant fence and refreshes tracked epochs. Focused denial, staffing and real concurrency checks pass; original failure evidence and the detailed note are retained in [status.json](status.json) under `targetedVerification.roleGrantExpiryFence` and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Broader initiating-actor mail authorization and full release acceptance remain open.

@@ -233,11 +233,11 @@
             "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
           },
           "currentFast": {
-            "runId": "39202724008",
-            "sourceCommit": "7cac719c2ca950bb981273af80fd8c9ab14237cd",
+            "runId": "39203994314",
+            "sourceCommit": "302e40c7d4416557d036c313817352b7f6350a30",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39202724008",
-            "note": "Angular, docs and .NET Release jobs observed SUCCESS. Predates test-only retained-activity follow-up."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39203994314",
+            "note": "Observed Angular/docs/.NET Release success; predates these practice guard changes. Full7cac719c remains API/E2E active."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -527,34 +527,6 @@
     "asPm8Atomic": {
       "sourceCommit": "6e4d8682fa4886223422990f010f6d40e8729fe6",
       "result": "PARTIAL",
-      "latestReleaseVerification": {
-        "run": "https://github.com/nirzaf/AuditSphere/actions/runs/38988587433",
-        "sourceCommit": "512696edfe67ef29bfa2323c3bf4f226b0c13999",
-        "status": "IN_PROGRESS",
-        "angular": "PASS: 1288/1288",
-        "domain": "PASS: 1328/1328",
-        "releaseBuildContractsAndPublication": "PASS",
-        "api": "INTERRUPTED_INFRASTRUCTURE: runner shutdown signal; exit 143; no test result artifact",
-        "focusedApiCohort": {
-          "sourceCommit": "512696edfe67ef29bfa2323c3bf4f226b0c13999",
-          "classes": [
-            "PortalActionCenterApiTests",
-            "ClientPortalBrandingApiTests",
-            "FirmPortalLogoSettingsApiTests",
-            "FirmUnbilledTimeApiTests",
-            "EngagementActivityApiTests",
-            "EngagementDeadlineReminderApiTests"
-          ],
-          "passed": 14,
-          "failed": 0,
-          "skipped": 0,
-          "durationSeconds": 113,
-          "environment": "Loopback PostgreSQL auditsphere_tests on port 5433",
-          "limitation": "Focused feature evidence only; does not replace the interrupted unfiltered API release job."
-        },
-        "playwrightE2E": "IN_PROGRESS",
-        "acceptance": "AS-PM8 remains PARTIAL until the API cohort is rerun successfully and the full Playwright E2E job completes successfully on a commit-pinned run."
-      },
       "matrix": [
         [
           "01",
@@ -605,118 +577,11 @@
           "PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits;PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles"
         ]
       ],
-      "commands": {
-        "build": "dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1",
-        "e2e": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore --configuration Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularPracticeProductivityJourneyTests' --logger 'console;verbosity=minimal'",
-        "angularTests": "npm ci && npm run test:ci",
-        "angularBuild": "npm run build (cwd: src/AuditSphereOps.Ui)",
-        "ef": "dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --no-build --configuration Release",
-        "openapi": "bash scripts/contracts/verify-openapi.sh",
-        "full": "dotnet test AuditSphereOps.slnx --no-build --no-restore --configuration Release --maxcpucount:1 --logger 'console;verbosity=minimal'",
-        "docs": "python3 scripts/docs/validate-markdown-documentation.py; python3 scripts/docs/validate-markdown-filenames.py; python3 scripts/docs/validate-narrative-metrics.py; python3 scripts/ui/inventory.py --check; git diff --check",
-        "domain": {
-          "project": "tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj",
-          "classFilters": [
-            "EngagementWorkflowTaskTests",
-            "PracticeTimeTests",
-            "PbcReminderTests",
-            "AnnualEngagementPreparationTests",
-            "CommercialWorkflowTests",
-            "FirmUnbilledTimeTests",
-            "EngagementActivityTimelineTests",
-            "EngagementDeadlineReminderTests",
-            "FirmPortalLogoSchemaTests"
-          ]
-        },
-        "api": {
-          "project": "tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj",
-          "classFilters": [
-            "PortalActionCenterApiTests",
-            "ClientPortalBrandingApiTests",
-            "FirmPortalLogoSettingsApiTests",
-            "FirmUnbilledTimeApiTests",
-            "EngagementActivityApiTests",
-            "EngagementDeadlineReminderApiTests"
-          ]
-        }
-      },
-      "runs": [
-        [
-          "build",
-          0,
-          "0w/0e",
-          "167.94s"
-        ],
-        [
-          "domain",
-          0,
-          "56/56",
-          "42s"
-        ],
-        [
-          "api",
-          0,
-          "14/14",
-          "106s"
-        ],
-        [
-          "e2e",
-          0,
-          "1/1",
-          "65s"
-        ],
-        [
-          "angularTests",
-          0,
-          "839/839; cwd src/AuditSphereOps.Ui",
-          "unknown"
-        ],
-        [
-          "angularBuild",
-          0,
-          "existing settings.scss budget 7.53/4.00kB",
-          "8s"
-        ],
-        [
-          "ef",
-          0,
-          "clean",
-          null
-        ],
-        [
-          "openapi",
-          0,
-          "match",
-          null
-        ],
-        [
-          "full",
-          130,
-          "34m partial; rerun cancelled 18m, overlapping API tests; no final count"
-        ],
-        [
-          "docs",
-          0
-        ],
-        [
-          "ci",
-          0,
-          "38808307291@d0aeac96"
-        ],
-        [
-          "apiRegression",
-          0,
-          "2/2;45s;b440bc77",
-          "TermsRequireIndependentReviewAndReportAndExportUseAuthorizedAsOfState;ScopeWorkspace_CanQueryDetail_AndBlocksComponentApprovalWithoutSelectedComposition"
-        ]
-      ],
-      "dotnetFocusedTemplate": "dotnet test {project} --no-build --no-restore --configuration Release --maxcpucount:1 --filter '{filter}'",
-      "package": "AS-PM8",
-      "filterRule": "OR by FullyQualifiedName",
       "matrixCommit": "sourceCommit",
       "currentFollowUp": {
         "historicalEvidence": "Moved verbatim to docs/execution/status-archive-2026-10.json under keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017. Current result remains PARTIAL; see latestReleaseVerification."
-      }
+      },
+      "history": "status-archive-2026-10.json#keys.targetedVerification.asPm8AtomicDetailedBeforePracticeGuards20261019"
     },
     "angularAuditPlanningRecovery": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.angularAuditPlanningRecovery",
@@ -1228,6 +1093,47 @@
         "trx": "/tmp/auditsphere-workflow-reopen-results/workflow-reopen-activity-focus.trx",
         "behavior": "Keyboard activates Review reopening activity after confirmed response; focus reaches activity heading; retained TASK_REOPENED label and exact reason are visible. Existing DB, dependencies and390px checks retained. Initial probe incorrectly expected Close in confirmed state; corrected to actual retained-activity flow, no production change."
       }
+    },
+    "practiceCompletionGuards20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "clientArchiveFocus": {
+        "sourceCommit": "8ff14f6b01e26fbf3ac4bcb96b7f19ed5ac03c49",
+        "behavior": "Confirmed archive/restore refresh restores focus only for matching owner/session/client/view/archive revision, absent deliberate pointer/key intent or intervening view load. Current staff-only read assertions precede scoped Manager grant; retained history, pages, sibling isolation and revocation covered.",
+        "angular": "PASS11/11; /tmp/auditsphere-client-archive-focus-angular-final.log; includes query-only view change before acknowledgement, body and actual breadcrumb focus retention",
+        "browser": "PASS2/2 on canonical and /ui bases; /tmp/auditsphere-a11y-results/client-archive-focus-final.trx",
+        "counterfactual": "Pre-patch production bundle FAIL2/2 on lost Restore button focus; /tmp/auditsphere-a11y-results/client-archive-focus-counterfactual.trx",
+        "native": "Owned synthetic archived client: native Tab reaches Restore; retained metadata/history visible; warn/error logs empty; no native mutation; screenshot /tmp/auditsphere-client-archive-native.png; owned tab/fixture closed/disposed.",
+        "review": "Independent source review found no owner/interaction/stale-response defect; unit assertions strengthened to retain actual breadcrumb focus and body focus after deliberate input.",
+        "navigationFollowUpCommit": "a617e9e70c7913a66bb10766ab28ca360f0ba9a8"
+      },
+      "assignmentRecovery": {
+        "sourceCommit": "b785ab656aeafc9282ab640fa542f90c7561774e",
+        "behavior": "Unknown assignment recovery requests encoded exact taskId through existing scope-fenced workspace lookup, retaining original intent/history/revision checks.",
+        "angular": "PASS29/29; /tmp/auditsphere-assignment-exact-task-angular.log",
+        "api": "PASS1/1; /tmp/auditsphere-practice-guard-results/assignment-exact-task-api.trx; unfiltered500-row workspace excludes target; exact lookup returns only its current revision/state. Existing denial/replay/professional-history assertions retained.",
+        "limits": "Native lost-reply assignment journey not separately executed; exact URL/spec plus actual API before-bound behavior verified."
+      },
+      "staffCostRateAmbiguity": {
+        "sourceCommit": "b445bc5fa23d1b78b12fce3768505d1950c3d2fc",
+        "behavior": "Conflicting rates on latest applicable effective date for same staff/normalized currency make actual cost/profit/margin unavailable. Identical amounts retain result; other figures unchanged. No RecordedAt winner, FX, WIP or audience policy invented. Existing definitions disclose unavailability.",
+        "test": "Analytics_ReconcileBilledCollectedStandardValueAndCost_FromApprovedRecords PASS in shared focused Domain cohort; pre-fix counterfactual NOT_RUN."
+      },
+      "portalDelegationRevocation": {
+        "sourceCommit": "b1e1b37ce82b764a246ee7caca8e492a3bdd8c39",
+        "behavior": "Firm->client->delegation/request locks plus fresh scoped primary-contact authorization. Caller-owned transaction retained. Already-authorized upload commits before revocation returns; upload waiting behind revoke fails current authorization. Locked reload preserves stale tracked revocation timestamp/actor and retained row.",
+        "test": "PrimaryContact_DelegatesWithinTheClientOnly_AndRevocationIsImmediate PASS in shared focused Domain cohort. Both orderings observe actual pg_blocking_pids; no timing-only race assertion.",
+        "reviewRepair": "Removed proposed DbSet.Local.Remove because it marks Deleted, not detached. Parent used locked ReloadAsync and added stale original-context history assertions before verification.",
+        "limits": "No proof for every portal write/provider race; no live identity/provider changes."
+      },
+      "sharedDomainCohort": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/portal-revocation-and-cost-rates.trx"
+      },
+      "buildLint": "Production Angular build PASS /tmp/auditsphere-recovery-followup-angular-build.log; changed production TS/HTML ESLint PASS. Existing completion optional-chain and commercial style-budget warnings retained. Initial lint invocation included repo-ignored spec and was corrected to production scope; no rules changed.",
+      "limits": "No full local suite, migrations, packages, deployed DB/provider/permission changes. Full current-source release, human AT and professional/external gates remain open."
     }
   },
   "externalGates": [
@@ -1650,7 +1556,7 @@
       "ASPM-NFR-01..12",
       "ASPM-UAT-01..15"
     ],
-    "lastTechnicalSlice": "a69ae19a58fd07e10519e7ad31db429c50717fc7",
+    "lastTechnicalSlice": "b785ab656aeafc9282ab640fa542f90c7561774e",
     "advanceCashGate": {
       "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
       "result": "FOCUSED_INCREMENTAL_PASS",
