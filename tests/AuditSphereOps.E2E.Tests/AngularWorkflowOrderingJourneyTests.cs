@@ -187,10 +187,10 @@ public sealed class AngularWorkflowOrderingJourneyTests
     await Assertions.Expect(confirmReopening).ToBeEnabledAsync();
     await confirmReopening.FocusAsync();
     await Assertions.Expect(confirmReopening).ToBeFocusedAsync();
-    var reopeningResponseTask = page.WaitForResponseAsync(response => response.Request.Method == "POST" && response.Url.EndsWith("/reopen"));
-    await page.Keyboard.PressAsync("Enter");
-    var reopeningResponse = await reopeningResponseTask;
-    Assert.True(reopeningResponse.Ok, await reopeningResponse.TextAsync());
+    var (reopeningStatus, reopeningBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "POST" && request.Url.EndsWith("/reopen", StringComparison.Ordinal),
+      async () => await page.Keyboard.PressAsync("Enter"));
+    Assert.True(reopeningStatus is >= 200 and < 300, reopeningBody);
     await Assertions.Expect(cancelledRow).ToHaveCountAsync(0);
     var workQueueViews = page.GetByRole(AriaRole.Navigation,
       new() { Name = "Work queue views", Exact = true });

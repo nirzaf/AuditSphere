@@ -32,8 +32,9 @@ public sealed class AngularPlanningNavigationJourneyTests
                 Interlocked.Increment(ref businessWrites);
         };
         await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
-        await page.GetByText("Team and budget", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
         var planning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
+        await page.GetByText("Team and budget", new() { Exact = true })
+            .Or(planning.GetByLabel("Currency", new() { Exact = true })).First.ScrollIntoViewIfNeededAsync();
         await planning.GetByLabel("Currency", new() { Exact = true }).FillAsync("USD");
         await page.GetByRole(AriaRole.Link, new() { Name = "PBC requests", Exact = true }).ClickAsync();
         var dialog = page.GetByRole(AriaRole.Dialog);

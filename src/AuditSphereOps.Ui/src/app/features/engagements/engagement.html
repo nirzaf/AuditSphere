@@ -96,10 +96,10 @@
     }
     <audit-engagement-workflow [engagementId]="engagement.id" />
     <audit-onboarding-readiness [engagementId]="engagement.id" />
-    @defer (on viewport) {
+    @defer (on viewport(planningTrigger); on idle) {
       <audit-engagement-planning [engagementId]="engagement.id" />
     } @placeholder {
-      <p>Team and budget</p>
+      <p #planningTrigger>Team and budget</p>
     }
     <div id="engagement-task-plan">
       @defer (on viewport; when taskPlanRequested()) {
