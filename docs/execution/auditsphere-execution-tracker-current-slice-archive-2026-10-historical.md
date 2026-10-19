@@ -7506,3 +7506,25 @@ Completing every task in a published pinned plan still refuses activation withou
 ## Release bundle integrity — 2026-10-13
 
 Assembly rechecks signing policy and matching certificate on new creation/replay, including later certificate-required policy. All stored artifact hashes, including the representation template, are checked. Web forwards host policy; downloads remain scope checked. Focused Domain, Angular/reference journeys and built-in browser checks passed: ZIP/certificate integrity, lineage, stale sources and bounded correspondence with injected appends. Evidence: `targetedVerification.releaseBundleSigningReplay`, `releaseBundleCorrespondence` and `releaseBundleRaceAndAngular` in [status.json](status.json). Further adverse cases, full release and operator rotation review remain open. No global policy or persistent database changed.
+
+---
+
+## AS-AWP-EXEC Atomic Tasks 05–09 — procedure execution, evidence and truthful progress — 2026-10-17
+
+Procedure submission and review now use an exact preview, fresh assent and an append-only command receipt; direct result and review writes fail closed. Submitted work retains a server-resolved evidence snapshot (stored link, physical file or manual reference) and a digest, distinct from later links. The native fieldwork page opens any authorized procedure for work, evidence selection and independent review, with lost-response recovery by receipt. Programme, area and fieldwork projections share the current-evidence evaluator; submitted or stale work is not counted as reviewed. Every one of the 165 source IDs retains the common workspace and a bounded existing-tool or manual-work support map.
+
+Focused verification passed for Domain 9/9, support-map 1/1 and Angular 15/15. On `65a3f999`, fast CI passed; full CI passed Angular/contracts and is running unfiltered .NET suites. New API and synthetic browser journey evidence is pending those results. Task 10 remains blocked on D1; D2/D3 remain external. See [`status.json`](status.json#targetedVerification.atomicAuditWorkingProcessTasks05to09).
+
+## Blazor rollback host retirement — merged — 2026-10-17
+
+The owner authorized physical retirement of the Blazor rollback/reference host despite the canonical removal gate remaining `NOT_READY`. Branch `chore/retire-blazor-host` removes the legacy Web project, its solution and release-workflow entries, and the rollback-host-only E2E journey. The API-only owned host no longer exposes a rollback switch. Historical source reviews and the retirement inventory link to the pinned pre-removal commit; the discovery inventory is retained rather than emptied, and the UI inventory gate recognizes the retired source. The owner merged the branch to `master` as `e7ebe27c`; the retired host is no longer in the current tree.
+
+Focused verification on the branch: Release solution build passed with 0 warnings/errors; focused API tests passed 15/15 and Domain architecture guards 3/3; documentation health, filenames, narrative metrics, UI inventory, retirement inventory, OpenAPI drift and `git diff --check` passed. No full suite, hosted CI, deployment, production rollback or external acceptance was run. Evidence is in [`status.json`](status.json#targetedVerification.atomicBlazorRetirement).
+
+## R2R-07 and CP-11 — 2026-10-17
+
+## AS-AWP-EXEC Atomic Task 02 — exact engagement programme adoption — 2026-10-17
+
+An engagement can now inspect only published programme versions within its authorized scope, including exact source/content identities and explicit eligibility blockers. Adoption is separate from firm methodology publication and must submit the selected version's source hash and digest. The service verifies the immutable catalogue against the current source, creates all 165 controlled baseline procedures atomically, reports baseline and ad-hoc counts separately, safely replays the same adoption, and refuses a stale or different-version adoption without overwriting in-progress work. The Angular fieldwork screen now selects an explicit eligible version; the retained Web caller also uses the exact options projection.
+
+Focused verification: Domain adoption regression 1/1; API adoption/options regression 1/1; Angular fieldwork spec 12/12; E2E test project compilation passed (0 warnings/errors); API and Web Release builds passed (0 warnings/errors); OpenAPI drift and `git diff --check` passed. No schema change was needed. The browser journey was not run because no authenticated local synthetic fixture was available. CI for `8b0c3303` found stale generated Angular source inventory; that inventory has been regenerated locally and is queued for the follow-up documentation commit. CI remains pending for the corrected tree. This does not constitute full-suite or professional methodology acceptance. Evidence is in [`status.json`](status.json#targetedVerification.atomicAuditWorkingProcessTask02).
