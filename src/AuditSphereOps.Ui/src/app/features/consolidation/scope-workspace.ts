@@ -266,7 +266,9 @@ export class ConsolidationScopeWorkspace {
   }
   approveComponent(componentId: string): void {
     const workspace = this.currentWorkspace();
-    if (!workspace?.components.some(component => component.id.toLowerCase() === componentId.toLowerCase())) return;
+    const component = workspace?.components.find(item => item.id.toLowerCase() === componentId.toLowerCase());
+    if (!workspace || !workspace.canReview || !component || component.status !== 'SUBMITTED' ||
+        component.submittedByUserId === workspace.currentUserId || !component.canApprove) return;
     void this.runScopedCommand(this.ownerKey(), `/api/ui/consolidation/components/${componentId}/approve`, {}, 'Component approved.', undefined, () => this.ws.reload());
   }
   updateJournalLine(index: number, field: keyof NewJournalLine, value: string): void { this.journal.updateLine(index, field, value); }

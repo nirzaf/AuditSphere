@@ -39,7 +39,9 @@ public sealed record ConsolidationComponentDto(
   Guid SubmittedByUserId,
   DateTimeOffset SubmittedAt,
   Guid? ApprovedByUserId,
-  DateTimeOffset? ApprovedAt);
+  DateTimeOffset? ApprovedAt,
+  bool CanApprove,
+  string? ApprovalBlocker);
 
 public sealed record EligibleComponentPackageDto(
   Guid PackageId,
@@ -168,27 +170,6 @@ public static class ConsolidationScopeWorkspaceQuery
       .Where(x => x.FirmId == actor.FirmId && componentClientIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
 
-    ConsolidationComponentDto ComponentDto(ConsolidationComponent c) => new(
-      c.Id,
-      c.ClientId,
-      clientNames.GetValueOrDefault(c.ClientId, "Unknown entity"),
-      c.SourceType,
-      c.PackageId,
-      c.ExternalComponentPackId,
-      c.PackageHash,
-      c.PeriodBasis,
-      c.TaxonomyVersion,
-      c.MappingVersion,
-      c.Currency,
-      c.OwnershipPercent,
-      c.ControlMethod,
-      c.Status,
-      c.SubmittedByUserId,
-      c.SubmittedAt,
-      c.ApprovedByUserId,
-      c.ApprovedAt);
-    var componentDtos = components.Select(ComponentDto).ToList();
-
     // Eligible packages for draft scope
     var eligiblePackages = new ConsolidationPage<EligibleComponentPackageDto>([], 0, eligiblePackagesPage, HistoryPageSize);
     if (scope.Status == AccountingWorkflowStates.Draft && canPrepare)
@@ -292,6 +273,16 @@ public static class ConsolidationScopeWorkspaceQuery
       db, actor, scope.Id, unresolvedOnly: false, page: 1, pageSize: HistoryPageSize, ct: ct);
     var exceptions = ReadResult(intercompanyResult);
 
+    IReadOnlyDictionary<Guid, CommandResult> componentApprovalReadiness = new Dictionary<Guid, CommandResult>();
+    if (canReview)
+    {
+      var approvalComponents = components.ToList();
+      if (selectedComponent is not null && approvalComponents.All(x => x.Id != selectedComponent.Id))
+        approvalComponents.Add(selectedComponent);
+      componentApprovalReadiness = await ConsolidationService.GetComponentApprovalReadinessAsync(
+        db, actor, scope, approvalComponents, ct);
+    }
+
     var isAdvanced = AdvancedConsolidationMethods.All.Contains(scope.Method);
 
     var summary = new ConsolidationScopeSummaryDto(
@@ -311,6 +302,8 @@ public static class ConsolidationScopeWorkspaceQuery
     auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(auth.ErrorCode!, auth.Message!);
+    var finalReviewAuth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReviewRoles, ct);
+    var canReviewAtReturn = canReview && finalReviewAuth.Succeeded;
     var finalScope = await db.ConsolidationScopeVersions.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scope.Id, ct);
     var finalGroupRevision = await db.ClientGroups.AsNoTracking()
@@ -321,10 +314,46 @@ public static class ConsolidationScopeWorkspaceQuery
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.GenerationStale,
         "The scope or group changed while this workspace was read. Reload the current pages.");
 
+    ConsolidationComponentDto ComponentDto(ConsolidationComponent c)
+    {
+      CommandResult? readiness = null;
+      if (canReviewAtReturn && componentApprovalReadiness.TryGetValue(c.Id, out var currentReadiness))
+        readiness = currentReadiness;
+      var canApprove = readiness?.Succeeded == true;
+      var blocker = canApprove ? null
+        : !canReviewAtReturn ? "Current consolidation reviewer authorization is required."
+        : readiness is null ? "Component approval readiness could not be established; reload the current scope."
+        : readiness.ErrorCode == ErrorCodes.ScopeDenied ? "Current source authorization does not permit component approval."
+        : readiness.Message ?? "Component approval readiness could not be established; reload the current scope.";
+
+      return new ConsolidationComponentDto(
+        c.Id,
+        c.ClientId,
+        clientNames.GetValueOrDefault(c.ClientId, "Unknown entity"),
+        c.SourceType,
+        c.PackageId,
+        c.ExternalComponentPackId,
+        c.PackageHash,
+        c.PeriodBasis,
+        c.TaxonomyVersion,
+        c.MappingVersion,
+        c.Currency,
+        c.OwnershipPercent,
+        c.ControlMethod,
+        c.Status,
+        c.SubmittedByUserId,
+        c.SubmittedAt,
+        c.ApprovedByUserId,
+        c.ApprovedAt,
+        canApprove,
+        blocker);
+    }
+    var componentDtos = components.Select(ComponentDto).ToList();
+
     return CommandResult<ConsolidationScopeWorkspaceDto>.Ok(new ConsolidationScopeWorkspaceDto(
       summary,
       canPrepare,
-      canReview,
+      canReviewAtReturn,
       actor.UserId,
       componentDtos,
       eligiblePackages,

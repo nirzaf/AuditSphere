@@ -32,6 +32,7 @@ function workspace(overrides: Record<string, unknown> = {}) {
       ownershipPercent: '100.000000', controlMethod: 'CONTROLLED', status: 'APPROVED',
       submittedByUserId: actorId, submittedAt: '2026-10-12T10:11:12Z',
       approvedByUserId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', approvedAt: '2026-10-13T11:12:13Z',
+      canApprove: false, approvalBlocker: null,
     }],
     componentPaging: { totalCount: 1, page: 1, pageSize: 100 },
     resolvedComponent: null,

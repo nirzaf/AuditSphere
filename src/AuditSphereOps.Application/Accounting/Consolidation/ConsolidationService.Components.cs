@@ -173,45 +173,123 @@ public static partial class ConsolidationService
       x.FirmId == actor.FirmId && x.Id == component.ScopeVersionId && x.GroupId == component.GroupId, ct);
     if (componentScope is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, componentScope.GroupId, componentScope.GroupRevision, ct))
-      return CommandResult.Fail(ErrorCodes.GenerationStale, "The group perimeter changed; create a new scope version.");
-    if (component.Status != AccountingWorkflowStates.Submitted)
-      return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a submitted component can be approved.");
-    if (component.SubmittedByUserId == actor.UserId)
-      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The component preparer cannot approve the same submission.");
-    if (component.SourceType == ConsolidationComponentSources.ExternalPack)
-    {
-      if (component.ExternalComponentPackId is not { } externalPackId)
-        return CommandResult.Fail(ErrorCodes.GenerationStale, "The external component source is incomplete; resubmit the pack.");
-      var externalPack = await db.ExternalComponentPacks.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
-        x.Id == externalPackId && x.GroupId == component.GroupId && x.ScopeVersionId == component.ScopeVersionId &&
-        x.ClientId == component.ClientId && x.Status == ExternalComponentPackStates.Approved &&
-        x.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled, ct);
-      var externalLines = externalPack is null ? [] : await db.ExternalComponentPackLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-        x.GroupId == component.GroupId && x.ScopeVersionId == component.ScopeVersionId && x.ExternalComponentPackId == externalPackId).ToListAsync(ct);
-      if (externalPack is null || !ExternalPackLinesMatch(externalPack, externalLines) || externalPack.PackDigest != component.PackageHash ||
-          externalPack.ReportingCurrency != component.Currency || externalPack.TaxonomyVersion != component.TaxonomyVersion ||
-          externalPack.MappingVersion != component.MappingVersion)
-        return CommandResult.Fail(ErrorCodes.GenerationStale, "The external component pack changed; resubmit the current approved pack.");
-    }
-    else
-    {
-      if (component.PackageId is not { } packageId)
-        return CommandResult.Fail(ErrorCodes.GenerationStale, "The component package is missing; resubmit the current approved package.");
-      var packageHash = await db.FinancialPackages.Where(x => x.FirmId == actor.FirmId && x.Id == packageId)
-        .Select(x => new { x.CalculationHash, x.Status, x.Currency, x.TaxonomyVersion, x.MappingVersionId }).SingleOrDefaultAsync(ct);
-      if (packageHash is null || packageHash.CalculationHash != component.PackageHash || packageHash.Status != AccountingPackageStates.PackageValidated ||
-          packageHash.Currency != component.Currency || packageHash.TaxonomyVersion != component.TaxonomyVersion ||
-          !Guid.TryParse(component.MappingVersion, out var componentMappingId) || componentMappingId != packageHash.MappingVersionId)
-        return CommandResult.Fail(ErrorCodes.GenerationStale, "The component package changed; resubmit the current approved package.");
-      var packageReview = await FinancialPackageReviewService.RequireCurrentAsync(db, actor, packageId, requirePartner: true, ct);
-      if (!packageReview.Succeeded)
-        return packageReview;
-    }
+    var approvalReadiness = await GetComponentApprovalReadinessAsync(db, actor, componentScope, [component], ct);
+    var readiness = approvalReadiness[component.Id];
+    if (!readiness.Succeeded)
+      return readiness;
+
     component.Status = AccountingWorkflowStates.Approved;
     component.ApprovedByUserId = actor.UserId;
     component.ApprovedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync(ct);
     return CommandResult.Ok();
+  }
+
+  internal static async Task<IReadOnlyDictionary<Guid, CommandResult>> GetComponentApprovalReadinessAsync(
+    IClientAccountingDbContext db, ActorContext actor, ConsolidationScopeVersion scope,
+    IReadOnlyCollection<ConsolidationComponent> components, CancellationToken ct = default)
+  {
+    var results = new Dictionary<Guid, CommandResult>();
+    var rows = components.DistinctBy(x => x.Id).ToArray();
+    if (rows.Length == 0)
+      return results;
+
+    var stalePerimeter = CommandResult.Fail(ErrorCodes.GenerationStale,
+      "The group perimeter changed; create a new scope version.");
+    if (!await ConsolidationScopeGuards.IsCurrentAsync(db, actor.FirmId, scope.GroupId, scope.GroupRevision, ct))
+    {
+      foreach (var component in rows)
+        results[component.Id] = stalePerimeter;
+      return results;
+    }
+
+    var candidates = new List<ConsolidationComponent>(rows.Length);
+    foreach (var component in rows)
+    {
+      if (component.Status != AccountingWorkflowStates.Submitted)
+        results[component.Id] = CommandResult.Fail(ErrorCodes.ProtectedState,
+          "Only a submitted component can be approved.");
+      else if (component.SubmittedByUserId == actor.UserId)
+        results[component.Id] = CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
+          "The component preparer cannot approve the same submission.");
+      else
+        candidates.Add(component);
+    }
+
+    var externalComponents = candidates.Where(x => x.SourceType == ConsolidationComponentSources.ExternalPack).ToArray();
+    foreach (var component in externalComponents.Where(x => x.ExternalComponentPackId is null))
+      results[component.Id] = CommandResult.Fail(ErrorCodes.GenerationStale,
+        "The external component source is incomplete; resubmit the pack.");
+
+    var externalPackIds = externalComponents.Where(x => x.ExternalComponentPackId.HasValue)
+      .Select(x => x.ExternalComponentPackId!.Value).Distinct().ToArray();
+    var externalPacks = externalPackIds.Length == 0
+      ? new List<ExternalComponentPack>()
+      : await db.ExternalComponentPacks.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && externalPackIds.Contains(x.Id) && x.GroupId == scope.GroupId &&
+          x.ScopeVersionId == scope.Id && x.Status == ExternalComponentPackStates.Approved &&
+          x.ReconciliationStatus == ExternalComponentReconciliationStates.Reconciled)
+        .ToListAsync(ct);
+    var packsById = externalPacks.ToDictionary(x => x.Id);
+    var approvedPackIds = externalPacks.Select(x => x.Id).ToArray();
+    var externalLines = approvedPackIds.Length == 0
+      ? new List<ExternalComponentPackLine>()
+      : await db.ExternalComponentPackLines.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
+          approvedPackIds.Contains(x.ExternalComponentPackId))
+        .ToListAsync(ct);
+    var linesByPackId = externalLines.GroupBy(x => x.ExternalComponentPackId)
+      .ToDictionary(x => x.Key, x => (IReadOnlyCollection<ExternalComponentPackLine>)x.ToArray());
+
+    foreach (var component in externalComponents.Where(x => x.ExternalComponentPackId.HasValue))
+    {
+      if (!packsById.TryGetValue(component.ExternalComponentPackId!.Value, out var externalPack) ||
+          externalPack.ClientId != component.ClientId ||
+          !linesByPackId.TryGetValue(externalPack.Id, out var lines) || !ExternalPackLinesMatch(externalPack, lines) ||
+          externalPack.PackDigest != component.PackageHash || externalPack.ReportingCurrency != component.Currency ||
+          externalPack.TaxonomyVersion != component.TaxonomyVersion || externalPack.MappingVersion != component.MappingVersion)
+      {
+        results[component.Id] = CommandResult.Fail(ErrorCodes.GenerationStale,
+          "The external component pack changed; resubmit the current approved pack.");
+        continue;
+      }
+      results[component.Id] = CommandResult.Ok();
+    }
+
+    var packageComponents = candidates.Where(x => x.SourceType != ConsolidationComponentSources.ExternalPack).ToArray();
+    foreach (var component in packageComponents.Where(x => x.PackageId is null))
+      results[component.Id] = CommandResult.Fail(ErrorCodes.GenerationStale,
+        "The component package is missing; resubmit the current approved package.");
+
+    var packageIds = packageComponents.Where(x => x.PackageId.HasValue).Select(x => x.PackageId!.Value).Distinct().ToArray();
+    var packageFacts = await db.FinancialPackages.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && packageIds.Contains(x.Id))
+      .Select(x => new { x.Id, x.CalculationHash, x.Status, x.Currency, x.TaxonomyVersion, x.MappingVersionId })
+      .ToListAsync(ct);
+    var packagesById = packageFacts.ToDictionary(x => x.Id);
+    var packageReviews = new Dictionary<Guid, CommandResult>();
+    foreach (var component in packageComponents.Where(x => x.PackageId.HasValue))
+    {
+      var packageId = component.PackageId!.Value;
+      if (!packagesById.TryGetValue(packageId, out var package) || package.CalculationHash != component.PackageHash ||
+          package.Status != AccountingPackageStates.PackageValidated || package.Currency != component.Currency ||
+          package.TaxonomyVersion != component.TaxonomyVersion ||
+          !Guid.TryParse(component.MappingVersion, out var componentMappingId) || componentMappingId != package.MappingVersionId)
+      {
+        results[component.Id] = CommandResult.Fail(ErrorCodes.GenerationStale,
+          "The component package changed; resubmit the current approved package.");
+        continue;
+      }
+
+      if (!packageReviews.TryGetValue(packageId, out var packageReview))
+      {
+        packageReview = await FinancialPackageReviewService.RequireCurrentAsync(
+          db, actor, packageId, requirePartner: true, ct);
+        packageReviews[packageId] = packageReview;
+      }
+      results[component.Id] = packageReview;
+    }
+
+    return results;
   }
 }

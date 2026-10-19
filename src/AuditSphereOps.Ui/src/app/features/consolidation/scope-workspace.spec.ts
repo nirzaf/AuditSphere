@@ -140,7 +140,7 @@ function consolidationComponent(id: string, clientId: string) {
     periodBasis: '2026-01-01..2026-12-31', taxonomyVersion: 'IFRS-2026', mappingVersion: '1', currency: 'QAR',
     ownershipPercent: '100.000000', controlMethod: 'CONTROLLED', status: 'APPROVED',
     submittedByUserId: id2, submittedAt: '2026-10-01T10:00:00Z', approvedByUserId: id3,
-    approvedAt: '2026-10-01T10:30:00Z',
+    approvedAt: '2026-10-01T10:30:00Z', canApprove: false, approvalBlocker: null,
   };
 }
 
@@ -310,6 +310,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
           submittedAt: '2026-10-01T10:00:00Z',
           approvedByUserId: id1,
           approvedAt: '2026-10-01T10:30:00Z',
+          canApprove: false,
+          approvalBlocker: null,
         },
       ],
       eligiblePackages: {
@@ -421,6 +423,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(() => decodeScopeWorkspace({ ...raw, componentReadiness: refusedReadiness }, 'root')).toThrow();
     expect(decodeScopeWorkspace({ ...raw, componentReadiness: refusedReadiness, readinessPaging: null }, 'root').componentReadiness.available).toBe(false);
     expect(decoded.components[0].clientLegalName).toBe('Acme Subsidiary QSTP-LLC');
+    expect(decoded.components[0].canApprove).toBe(false);
+    expect(decoded.components[0].approvalBlocker).toBeNull();
     expect(decoded.eligiblePackages.items.length).toBe(1);
     expect(decoded.journals.items.length).toBe(1);
     expect(decoded.journals.items[0].lines.length).toBe(2);
@@ -428,6 +432,15 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(decoded.runs.items.length).toBe(1);
     expect(decoded.latestReport.value?.lines[0].consolidatedAmount).toBe('0.00');
     expect(() => decodeScopeWorkspace({ ...raw, scope: { ...raw.scope, status: 'Draft' } }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, components: [{ ...raw.components[0], canApprove: undefined }] }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, components: [{ ...raw.components[0], canApprove: 'true' }] }, 'root')).toThrow();
+    const componentWithoutBlocker: Record<string, unknown> = { ...raw.components[0] };
+    delete componentWithoutBlocker['approvalBlocker'];
+    expect(() => decodeScopeWorkspace({ ...raw, components: [componentWithoutBlocker] }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, components: [{ ...raw.components[0], approvalBlocker: undefined }] }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, components: [{ ...raw.components[0], canApprove: true, approvalBlocker: 'blocked' }] }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, components: [{ ...raw.components[0], status: 'SUBMITTED', submittedByUserId: id2,
+      canApprove: false, approvalBlocker: null }] }, 'root')).toThrow();
     expect(() => decodeScopeWorkspace({ ...raw, journals: { ...raw.journals, items: [{ ...raw.journals.items[0], status: 'Submitted' }] } }, 'root')).toThrow();
     expect(() => decodeScopeWorkspace({ ...raw, runs: { ...raw.runs, items: [{ ...raw.runs.items[0], status: 'VERIFIED' }] } }, 'root')).toThrow();
     expect(() => decodeScopeWorkspace({ ...raw, componentReadiness: { ...raw.componentReadiness, value: [{ ...raw.componentReadiness.value[0], componentState: 'READY' }] } }, 'root')).toThrow();
@@ -552,6 +565,48 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect([...rows[1].querySelectorAll('button')].map(x => x.textContent?.trim())).not.toContain('Approve run');
     (rows[0].querySelector('button') as HTMLButtonElement).click();
     expect(api.command).toHaveBeenCalledWith(`/api/ui/consolidation/runs/${otherRunId}/approve`, {}, 'POST');
+  });
+
+  it('keeps component approval disabled with the server blocker and dispatches only ready independent submissions', async () => {
+    const blockedId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const readyId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const makerId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const blocker = 'The exact financial package composition is not approved.';
+    const blocked = {
+      ...consolidationComponent(blockedId, id2), sourceType: 'Package', packageId: id3, status: 'SUBMITTED',
+      submittedByUserId: id2, approvedByUserId: null, approvedAt: null, canApprove: false, approvalBlocker: blocker,
+    };
+    const ready = {
+      ...consolidationComponent(readyId, id3), sourceType: 'ExternalPack', packageId: null,
+      externalComponentPackId: id2, status: 'SUBMITTED', submittedByUserId: id2,
+      approvedByUserId: null, approvedAt: null, canApprove: true, approvalBlocker: null,
+    };
+    const ownSubmission = {
+      ...consolidationComponent(makerId, id3), status: 'SUBMITTED', submittedByUserId: actor,
+      approvedByUserId: null, approvedAt: null, canApprove: true, approvalBlocker: null,
+    };
+    const { fixture, component } = open(workspacePayload({ components: [blocked, ready, ownSubmission] }));
+    const rows = [...fixture.nativeElement.querySelectorAll('#components tbody tr')] as HTMLTableRowElement[];
+    expect(rows).toHaveLength(3);
+    const [blockedRow, readyRow, makerRow] = rows;
+    const blockedButton = [...blockedRow.querySelectorAll('button')]
+      .find(button => button.textContent?.trim() === 'Approve') as HTMLButtonElement;
+    expect(blockedRow.textContent).toContain(blocker);
+    expect(blockedButton.disabled).toBe(true);
+    expect(blockedButton.getAttribute('aria-describedby')).toBe(`component-approval-blocker-${blockedId}`);
+    component.approveComponent(blockedId);
+    component.approveComponent(makerId);
+    component.approveComponent('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+    expect(api.command).not.toHaveBeenCalled();
+
+    const readyButton = [...readyRow.querySelectorAll('button')]
+      .find(button => button.textContent?.trim() === 'Approve') as HTMLButtonElement;
+    expect(readyButton.disabled).toBe(false);
+    readyButton.click();
+    expect(api.command).toHaveBeenCalledWith(`/api/ui/consolidation/components/${readyId}/approve`, {}, 'POST');
+    await vi.waitFor(() => expect(component.cmd.busy()).toBe(false));
+    expect(makerRow.textContent).toContain('Maker/checker');
+    expect([...makerRow.querySelectorAll('button')].map(button => button.textContent?.trim())).not.toContain('Approve');
   });
 
   it('keeps ownership points and journal amounts as exact decimal strings on dispatch', async () => {

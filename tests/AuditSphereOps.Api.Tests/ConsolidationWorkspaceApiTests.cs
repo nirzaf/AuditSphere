@@ -953,6 +953,11 @@ public sealed class ConsolidationWorkspaceApiTests
     var submitJson = JsonDocument.Parse(await submitRes.Content.ReadAsStringAsync()).RootElement;
     var componentId = submitJson.GetProperty("value").GetGuid();
 
+    var preparerWorkspace = await Read(prepClient, $"/api/ui/consolidation/scopes/{scopeId}");
+    var preparerComponent = preparerWorkspace.GetProperty("components").EnumerateArray()
+      .Single(x => x.GetProperty("id").GetGuid() == componentId);
+    Assert.False(preparerComponent.GetProperty("canApprove").GetBoolean());
+
     // 3. Preparer tries to approve their own component -> rejected
     var selfApprove = await Post(prepClient, prepCsrf, $"/api/ui/consolidation/components/{componentId}/approve", new { });
     Assert.True(selfApprove.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.BadRequest);
@@ -965,7 +970,12 @@ public sealed class ConsolidationWorkspaceApiTests
     var revWs = await Read(revClient, $"/api/ui/consolidation/scopes/{scopeId}");
     Assert.True(revWs.GetProperty("canReview").GetBoolean());
     Assert.Equal(1, revWs.GetProperty("components").GetArrayLength());
-    Assert.Equal("SUBMITTED", revWs.GetProperty("components")[0].GetProperty("status").GetString());
+    var reviewerComponent = revWs.GetProperty("components")[0];
+    Assert.Equal("SUBMITTED", reviewerComponent.GetProperty("status").GetString());
+    Assert.False(reviewerComponent.GetProperty("canApprove").GetBoolean());
+    var approvalBlocker = reviewerComponent.GetProperty("approvalBlocker").GetString();
+    Assert.NotNull(approvalBlocker);
+    Assert.Contains("composition", approvalBlocker, StringComparison.OrdinalIgnoreCase);
 
     var approveRes = await Post(revClient, revCsrf, $"/api/ui/consolidation/components/{componentId}/approve", new { });
     Assert.Equal(HttpStatusCode.BadRequest, approveRes.StatusCode);
@@ -974,7 +984,8 @@ public sealed class ConsolidationWorkspaceApiTests
 
     // 5. The failed review leaves the submitted component unchanged.
     var afterBlockedApproval = await Read(revClient, $"/api/ui/consolidation/scopes/{scopeId}");
-    Assert.Equal("SUBMITTED", afterBlockedApproval.GetProperty("components")[0].GetProperty("status").GetString());
+    var unchangedComponent = afterBlockedApproval.GetProperty("components")[0];
+    Assert.Equal(reviewerComponent.GetRawText(), unchangedComponent.GetRawText());
   }
 
   [Fact]
@@ -1436,6 +1447,11 @@ public sealed class ConsolidationWorkspaceApiTests
     });
     Assert.Equal(HttpStatusCode.OK, pinned.StatusCode);
     var componentId = JsonDocument.Parse(await pinned.Content.ReadAsStringAsync()).RootElement.GetProperty("value").GetGuid();
+    var componentWorkspace = await Read(reviewer, scopeUrl);
+    var componentRow = componentWorkspace.GetProperty("components").EnumerateArray()
+      .Single(x => x.GetProperty("id").GetGuid() == componentId);
+    Assert.True(componentRow.GetProperty("canApprove").GetBoolean());
+    Assert.Equal(JsonValueKind.Null, componentRow.GetProperty("approvalBlocker").ValueKind);
     using var componentApproved = await Post(reviewer, reviewerCsrf,
       $"/api/ui/consolidation/components/{componentId}/approve", new { });
     Assert.Equal(HttpStatusCode.OK, componentApproved.StatusCode);

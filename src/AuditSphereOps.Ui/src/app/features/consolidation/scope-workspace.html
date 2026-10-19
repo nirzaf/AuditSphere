@@ -102,7 +102,7 @@
           </nav>
         }
 
-        <div class="table-scroll">
+        <div class="table-scroll" role="region" aria-label="Components table" tabindex="0">
           <table aria-labelledby="components-heading">
             <thead>
               <tr>
@@ -129,7 +129,14 @@
                   <td><audit-status [value]="c.status" /></td>
                   <td>
                     @if (c.status === 'SUBMITTED' && w.canReview && c.submittedByUserId !== w.currentUserId) {
-                      <button matButton="filled" (click)="approveComponent(c.id)" [disabled]="cmd.busy()">
+                      @if (!c.canApprove) {
+                        <small [id]="'component-approval-blocker-' + c.id">
+                          Approval unavailable: {{ c.approvalBlocker }}
+                        </small>
+                      }
+                      <button matButton="filled" (click)="approveComponent(c.id)"
+                        [disabled]="cmd.busy() || cmd.uncertain() || !c.canApprove"
+                        [attr.aria-describedby]="!c.canApprove ? 'component-approval-blocker-' + c.id : null">
                         Approve
                       </button>
                     } @else if (c.status === 'SUBMITTED' && c.submittedByUserId === w.currentUserId) {

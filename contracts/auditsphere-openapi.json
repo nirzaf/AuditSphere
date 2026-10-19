@@ -100385,7 +100385,9 @@
           "submittedByUserId",
           "submittedAt",
           "approvedByUserId",
-          "approvedAt"
+          "approvedAt",
+          "canApprove",
+          "approvalBlocker"
         ],
         "type": "object",
         "properties": {
@@ -100464,6 +100466,15 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "canApprove": {
+            "type": "boolean"
+          },
+          "approvalBlocker": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

@@ -46,7 +46,7 @@ export const decodeScopeSummary = obj({
   isAdvanced: bool,
 });
 
-export const decodeConsolidationComponent = obj({
+const decodeConsolidationComponentShape = obj({
   id: guid,
   clientId: guid,
   clientLegalName: text,
@@ -65,7 +65,18 @@ export const decodeConsolidationComponent = obj({
   submittedAt: instant,
   approvedByUserId: nullable(guid),
   approvedAt: nullable(instant),
+  canApprove: bool,
+  approvalBlocker: nullable(text),
 });
+
+export const decodeConsolidationComponent: Decoder<ReturnType<typeof decodeConsolidationComponentShape>> = (value, path) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const source = value as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(source, 'approvalBlocker') || source['approvalBlocker'] === undefined)
+      throw new Error(`${path || 'response'}: expected required approvalBlocker field`);
+  }
+  return decodeConsolidationComponentShape(value, path);
+};
 
 export const decodeEligiblePackage = obj({
   packageId: guid,
@@ -259,6 +270,13 @@ const decodeScopeWorkspaceShape = obj({
 
 export const decodeScopeWorkspace = (value: unknown, path: string) => {
   const workspace = decodeScopeWorkspaceShape(value, path);
+  for (const component of [...workspace.components, ...(workspace.resolvedComponent ? [workspace.resolvedComponent] : [])]) {
+    if (component.canApprove && component.approvalBlocker !== null)
+      throw new Error(`${path || 'response'}: approvable component cannot have an approval blocker`);
+    if (workspace.canReview && component.status === 'SUBMITTED' && component.submittedByUserId !== workspace.currentUserId &&
+        !component.canApprove && !component.approvalBlocker?.trim())
+      throw new Error(`${path || 'response'}: blocked submitted component is missing its approval reason`);
+  }
   const validate = (paging: ReturnType<typeof decodePaging>, count: number) => {
     const remaining = Math.max(0, paging.totalCount - (paging.page - 1) * paging.pageSize);
     if (paging.page < 1 || paging.pageSize < 1 || paging.pageSize > 100 ||
