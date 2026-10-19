@@ -92,6 +92,71 @@ public sealed class PbcReminderTests
   }
 
   [Fact]
+  public async Task BatchSizeOneEventuallyProcessesSameDateRequestsWithoutStarvation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var malformedRequestId = await CreateDueSentRequestAsync(pg, fixture, "2026-10-13");
+    await using (var arrange = new AuditSphereDbContext(pg.Options))
+    {
+      await arrange.Database.ExecuteSqlInterpolatedAsync($"""
+        UPDATE pbc_requests SET due_date = {"0000-00-00"} WHERE id = {malformedRequestId}
+        """);
+    }
+    var requestIds = new[]
+    {
+      await CreateDueSentRequestAsync(pg, fixture, "2026-10-13"),
+      await CreateDueSentRequestAsync(pg, fixture, "2026-10-13"),
+      await CreateDueSentRequestAsync(pg, fixture, "2026-10-13")
+    };
+    var workerOptions = LiveMailOptions(fixture.FirmId);
+    var options = EnabledOptions with { BatchSize = 1 };
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var discovery = new PbcReminderDiscovery(factory, workerOptions, options,
+      new FixedTimeProvider(NoonUtc));
+
+    Assert.Equal(0, await discovery.EnqueuePendingAsync());
+    Assert.Equal(1, await discovery.EnqueuePendingAsync());
+    Assert.Equal(1, await discovery.EnqueuePendingAsync());
+    Assert.Equal(1, await discovery.EnqueuePendingAsync());
+    Assert.Equal(0, await discovery.EnqueuePendingAsync());
+    var concurrentAfterWrap = await Task.WhenAll(
+      discovery.EnqueuePendingAsync(), discovery.EnqueuePendingAsync());
+    Assert.Equal(0, concurrentAfterWrap.Sum());
+
+    var restarted = new PbcReminderDiscovery(factory, workerOptions, options,
+      new FixedTimeProvider(NoonUtc));
+    Assert.Equal(0, await restarted.EnqueuePendingAsync());
+    Assert.Equal(0, await restarted.EnqueuePendingAsync());
+    Assert.Equal(0, await restarted.EnqueuePendingAsync());
+    Assert.Equal(0, await restarted.EnqueuePendingAsync());
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var receipts = await verify.PbcReminderReceipts.AsNoTracking()
+      .Where(x => requestIds.Contains(x.PbcRequestId)).ToListAsync();
+    Assert.Equal(3, receipts.Count);
+    Assert.Equal(requestIds.OrderBy(x => x), receipts.Select(x => x.PbcRequestId).OrderBy(x => x));
+    Assert.All(requestIds, id => Assert.Single(receipts, x => x.PbcRequestId == id));
+
+    var communications = await verify.PbcCommunications.AsNoTracking()
+      .Where(x => requestIds.Contains(x.PbcRequestId) && x.Kind == PbcCommunicationKinds.Email)
+      .ToListAsync();
+    Assert.Equal(3, communications.Count);
+    Assert.All(communications, x => Assert.Equal(PbcDeliveryStates.Queued, x.DeliveryState));
+    Assert.All(requestIds, id => Assert.Single(communications, x => x.PbcRequestId == id));
+    Assert.All(await verify.PbcRequests.AsNoTracking().Where(x => requestIds.Contains(x.Id)).ToListAsync(),
+      x => { Assert.Equal(PbcStates.Sent, x.State); Assert.Equal(1, x.Revision); });
+    Assert.False(await verify.PbcReminderReceipts.AsNoTracking()
+      .AnyAsync(x => x.PbcRequestId == malformedRequestId));
+    Assert.False(await verify.PbcCommunications.AsNoTracking()
+      .AnyAsync(x => x.PbcRequestId == malformedRequestId && x.Kind == PbcCommunicationKinds.Email));
+    var malformedRequest = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == malformedRequestId);
+    Assert.Equal("0000-00-00", malformedRequest.DueDate);
+    Assert.Equal(PbcStates.Sent, malformedRequest.State);
+    Assert.Equal(1, malformedRequest.Revision);
+  }
+
+  [Fact]
   public async Task ReminderIsSuppressedWhenClientGrantWasRevoked()
   {
     await using var pg = await PgTestSchema.CreateAsync();

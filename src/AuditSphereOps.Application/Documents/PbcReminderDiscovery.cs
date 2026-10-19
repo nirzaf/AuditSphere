@@ -110,8 +110,17 @@ public sealed class PbcReminderDiscovery(
   TimeProvider clock) : IPendingOperationDiscovery
 {
   public static readonly Guid RuleRevisionId = Guid.Parse("922c35ad-ef52-4a92-ae4d-e015a3e71b09");
+  private readonly SemaphoreSlim scanGate = new(1, 1);
+  private (string DueDate, Guid Id)? after;
 
   public async Task<int> EnqueuePendingAsync(CancellationToken ct = default)
+  {
+    await scanGate.WaitAsync(ct);
+    try { return await EnqueueNextBatchAsync(ct); }
+    finally { scanGate.Release(); }
+  }
+
+  private async Task<int> EnqueueNextBatchAsync(CancellationToken ct)
   {
     if (!options.Enabled) return 0;
     var zone = options.Validate(liveMailWorker: true);
@@ -123,13 +132,22 @@ public sealed class PbcReminderDiscovery(
     var today = DateOnly.FromDateTime(local.DateTime);
     var maximumDueDate = today.AddDays(options.DaysBeforeDue).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     await using var read = await factory.CreateAsync(ct);
-    var candidates = await read.PbcRequests.AsNoTracking()
+    var candidateQuery = read.PbcRequests.AsNoTracking()
       .Where(x => x.FirmId == worker.FirmId &&
         (x.State == PbcStates.Sent || x.State == PbcStates.Acknowledged ||
          x.State == PbcStates.PartiallyReceived || x.State == PbcStates.ClarificationRequired) &&
-        string.Compare(x.DueDate, maximumDueDate) <= 0)
+        string.Compare(x.DueDate, maximumDueDate) <= 0);
+    if (after is { } cursor)
+      candidateQuery = candidateQuery.Where(x => string.Compare(x.DueDate, cursor.DueDate) > 0 ||
+        x.DueDate == cursor.DueDate && x.Id.CompareTo(cursor.Id) > 0);
+    var candidates = await candidateQuery
       .OrderBy(x => x.DueDate).ThenBy(x => x.Id).Take(options.BatchSize)
-      .Select(x => new { x.Id, x.ClientId, x.EngagementId }).ToListAsync(ct);
+      .Select(x => new { x.Id, x.ClientId, x.EngagementId, x.DueDate }).ToListAsync(ct);
+    if (candidates.Count == 0)
+    {
+      after = null;
+      return 0;
+    }
 
     var queued = 0;
     foreach (var candidate in candidates)
@@ -176,6 +194,10 @@ public sealed class PbcReminderDiscovery(
       await tx.CommitAsync(ct);
       queued++;
     }
+    // This singleton scan position only provides fairness between bounded polls.
+    // Advance past skipped rows too; receipts and locked eligibility remain the
+    // correctness boundary. A restart or failed page safely replays those checks.
+    after = (candidates[^1].DueDate, candidates[^1].Id);
     return queued;
   }
 
