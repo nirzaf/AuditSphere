@@ -50,7 +50,8 @@ public sealed class EngagementDeadlineReminderTests
     Assert.Equal(new[] { "OVERDUE", "OVERDUE", "DUE_TODAY", "UPCOMING" }, result.Value.Items.Select(x => x.Tone));
     Assert.Equal(new[] { "Task due date has passed.", "Task due date has passed.", "Task is due today.", "Task is due within 7 days." },
       result.Value.Items.Select(x => x.Message));
-    Assert.All(result.Value.Items, x => Assert.Equal("/app/work", x.SourceHref));
+    Assert.All(result.Value.Items, reminder =>
+      Assert.Equal($"/app/work?engagementId={f.EngagementId:D}&taskId={reminder.SourceId:D}", reminder.SourceHref));
   }
 
   [Fact]
