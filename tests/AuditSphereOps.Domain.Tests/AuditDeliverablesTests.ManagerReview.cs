@@ -116,6 +116,13 @@ public sealed partial class AuditDeliverablesTests
         AuditProcedureReviewDecisions.ChangesRequired, "Resolve the remaining source discrepancy."),
       createWorkflowReworkTask: false);
     Assert.True(secondCorrection.Succeeded, secondCorrection.Message);
+    var repeatedChanges = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
+      new WorkflowTaskQueueRequest("CHANGES_REQUIRED", IncludeSummary: true));
+    Assert.True(repeatedChanges.Succeeded, repeatedChanges.Message);
+    var repeatedChange = Assert.Single(repeatedChanges.Value!.Tasks);
+    Assert.Equal(task.Id, repeatedChange.TaskId);
+    Assert.Equal("Resolve the remaining source discrepancy.", repeatedChange.ReviewComment);
+    Assert.Equal("1", Assert.Single(repeatedChanges.Value.Summary!.Counts, x => x.View == "CHANGES_REQUIRED").Count);
     var secondResubmission = await AuditProgramService.SubmitResultAsync(db, w.A("associate", "Staff"),
       new SubmitProcedureResultRequest(w.ProcedureId, 1, "Both source discrepancies reconciled.",
         "{\"result\":\"PASS\"}", ["source:second-corrected-sample"], "Second correction is ready for independent review."));
@@ -131,8 +138,35 @@ public sealed partial class AuditDeliverablesTests
     Assert.Empty(historicalTaskQueue.Value!.Tasks);
     Assert.Equal(1, await db.WorkTasks.CountAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId));
 
+    // Re-enabling automation gives the next rejected revision its own task. The old task
+    // remains historical, but must not duplicate the current correction or its summary count.
+    var thirdCorrection = await AuditProgramService.ReviewResultAsync(db, reviewer,
+      new ReviewProcedureResultRequest(secondResubmission.Value!.AuditProcedureResultId,
+        AuditProcedureReviewDecisions.ChangesRequired, "Confirm the final source cross-reference."),
+      createWorkflowReworkTask: true);
+    Assert.True(thirdCorrection.Succeeded, thirdCorrection.Message);
+    var latestChanges = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
+      new WorkflowTaskQueueRequest("CHANGES_REQUIRED", IncludeSummary: true));
+    Assert.True(latestChanges.Succeeded, latestChanges.Message);
+    var latestChange = Assert.Single(latestChanges.Value!.Tasks);
+    Assert.NotEqual(task.Id, latestChange.TaskId);
+    Assert.Equal("Confirm the final source cross-reference.", latestChange.ReviewComment);
+    Assert.Equal("1", Assert.Single(latestChanges.Value.Summary!.Counts, x => x.View == "CHANGES_REQUIRED").Count);
+    Assert.Equal(w.ResultId, (await db.WorkflowTaskBindings.SingleAsync(x => x.Id == binding.Id)).ReviewProcedureResultId);
+    Assert.Equal(2, await db.WorkTasks.CountAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId));
+    var finalResubmission = await AuditProgramService.SubmitResultAsync(db, w.A("associate", "Staff"),
+      new SubmitProcedureResultRequest(w.ProcedureId, 1, "Final source cross-reference confirmed.",
+        "{\"result\":\"PASS\"}", ["source:final-cross-reference"], "Final correction is ready for independent review."));
+    Assert.True(finalResubmission.Succeeded, finalResubmission.Message);
+    var finalQueue = await WorkflowTaskQueueQuery.GetAsync(db, reviewer,
+      new WorkflowTaskQueueRequest("UNDER_REVIEW", IncludeSummary: true));
+    Assert.True(finalQueue.Succeeded, finalQueue.Message);
+    Assert.Equal(latestChange.TaskId, Assert.Single(finalQueue.Value!.Tasks).TaskId);
+    Assert.Equal("1", Assert.Single(finalQueue.Value.Summary!.Counts, x => x.View == "UNDER_REVIEW").Count);
+    Assert.Empty((await ProcedureReviewInboxQuery.GetAsync(db, reviewer, new ProcedureReviewInboxRequest())).Value!.Reviews);
+
     var independentReview = await AuditProgramService.ReviewResultAsync(db, reviewer,
-      new ReviewProcedureResultRequest(secondResubmission.Value!.AuditProcedureResultId, AuditProcedureReviewDecisions.Reviewed, null));
+      new ReviewProcedureResultRequest(finalResubmission.Value!.AuditProcedureResultId, AuditProcedureReviewDecisions.Reviewed, null));
     Assert.True(independentReview.Succeeded, independentReview.Message);
     var reviewComplete = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
       new WorkflowTaskQueueRequest("UNDER_REVIEW"));

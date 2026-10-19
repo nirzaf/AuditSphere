@@ -124,6 +124,24 @@ public static class WorkflowTaskQueueQuery
           currentResult.AuditProcedureId, currentResult.Revision }
         into currentResults
       from currentResult in currentResults.DefaultIfEmpty()
+      // Reuse the latest retained coordination task when automation is disabled for a later rejection.
+      // A newer linked rework task supersedes this projection, never the immutable source binding.
+      let representsCurrentCorrection = reviewResult != null && currentResult != null &&
+        reviewResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
+        currentResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
+        currentResult.Revision >= reviewResult.Revision &&
+        !db.WorkflowTaskBindings.Any(newerBinding => newerBinding.FirmId == binding.FirmId &&
+          newerBinding.ClientId == binding.ClientId && newerBinding.EngagementId == binding.EngagementId &&
+          newerBinding.ReviewProcedureResultId != null && db.AuditProcedureResults.Any(newerResult =>
+            newerResult.FirmId == binding.FirmId && newerResult.ClientId == binding.ClientId &&
+            newerResult.EngagementId == binding.EngagementId && newerResult.Id == newerBinding.ReviewProcedureResultId &&
+            newerResult.AuditProcedureId == reviewResult.AuditProcedureId &&
+            newerResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
+            newerResult.Revision > reviewResult.Revision && newerResult.Revision <= currentResult.Revision))
+      let representsExactResubmission = reviewResult != null && currentResult != null &&
+        reviewResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
+        currentResult.Status == AuditProcedureResultStatuses.Submitted &&
+        reviewResult.Revision == currentResult.Revision - 1
       where binding.FirmId == actor.FirmId &&
         (firmWide || clientIds.Contains(binding.ClientId) || engagementIds.Contains(binding.EngagementId))
       select new
@@ -138,17 +156,9 @@ public static class WorkflowTaskQueueQuery
         EngagementPeriod = engagement.PeriodStart + " – " + engagement.PeriodEnd,
         task.Title, task.Status, task.CompletedAt, task.AssigneeUserId, task.DueDate, task.MappingVersionId, task.FsliCode,
         PbcRequestId = binding.PbcRequestId, PbcState = pbcRequest == null ? null : pbcRequest.State,
-        ReviewState = reviewResult != null && currentResult != null &&
-          reviewResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
-          ((currentResult.Revision == reviewResult.Revision && currentResult.Status == AuditProcedureResultStatuses.ChangesRequired) ||
-           (currentResult.Revision == reviewResult.Revision + 1 && currentResult.Status == AuditProcedureResultStatuses.Submitted))
-          ? currentResult.Status == AuditProcedureResultStatuses.ChangesRequired ? ChangesRequired : UnderReview
-          : null,
-        ReviewComment = reviewResult != null && currentResult != null &&
-          reviewResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
-          ((currentResult.Revision == reviewResult.Revision && currentResult.Status == AuditProcedureResultStatuses.ChangesRequired) ||
-           (currentResult.Revision == reviewResult.Revision + 1 && currentResult.Status == AuditProcedureResultStatuses.Submitted))
-          ? reviewResult.ReviewComment : null
+        ReviewState = representsCurrentCorrection ? ChangesRequired : representsExactResubmission ? UnderReview : null,
+        ReviewComment = representsCurrentCorrection ? currentResult.ReviewComment :
+          representsExactResubmission ? reviewResult.ReviewComment : null
       };
 
     var waitingEvidenceRules = WorkflowTaskEvidenceQuery.Heads(db, actor.FirmId).Where(x =>

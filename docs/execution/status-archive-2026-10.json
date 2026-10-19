@@ -20686,6 +20686,22 @@
       "builtInBrowser": "NOT_VERIFIED: built-in browser had a stale PBC bundle (lazy chunk 404); current-bundle Playwright E2E passed.",
       "fastCi": "PASS: run 39093158735 on 4bf84641; Docs, Angular build/specs, .NET Release/guards, EF, publication and OpenAPI succeeded.",
       "fullSuites": "NOT_PASS: release run 39081736086 had Domain pass, API result unknown and E2E timeout after 24 failures. Live-provider acceptance remains external."
+    },
+    "paymentRecipientSnapshotsBeforeRework20261019": {
+      "sourceCommit": "062ee27c49eb7fc5aa63193d6439ceba67566567",
+      "result": "FOCUSED_PASS",
+      "behavior": "New receipt/voucher intents freeze contact, route and authority basis under existing Finance/primary/prospect policy and settlement firm fence. Send requires full identity plus mailbox match. All-null legacy snapshots require current same-mailbox authority without backfill. Lead join explicitly same-firm.",
+      "verification": {
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "20s",
+        "cohort": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach: changed mailbox/new, same mailbox/different authority/new, changed mailbox/legacy. Primary/Finance snapshots, reviewed re-arm, preserved intent/attachments, financial/reversal checks and all three balance messages provider-accepted asserted.",
+        "trx": "/tmp/auditsphere-payment-snapshot-results/payment-recipient-snapshots-final.trx",
+        "initial": "Same three cases passed before strengthening all-balance-message acceptance; first TRX retained in same directory."
+      },
+      "review": "Independent bounded source review found no actionable issue.",
+      "limits": "No migration/package/API/UI/live change; no full local suite. Prospect fallback retained in source, not separately exercised. Legacy original route identity remains unknown; broader correspondence gates remain open."
     }
   }
 }

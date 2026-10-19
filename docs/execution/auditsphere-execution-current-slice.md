@@ -19,13 +19,13 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Repeated correction routing
+
+Current rejected results remain visible on the latest retained rework task when automation is off; newer linked tasks avoid duplicate correction rows. Later submissions remain discoverable without changing source bindings or professional decisions. Focused regression and independent source review passed; evidence and remaining browser/full-release gates are in `status.json` under `reviewInboxHistory20261019`.
+
 ## Finance settlement accessibility and draft safety
 
 Standalone Finance settlement now identifies the authorized client, supplies a primary heading and a named keyboard-scrollable milestone region, and protects unsent edits with the existing navigation dialog. Focused browser and component checks passed; exact scope and artifacts are in `status.json` under `feeSettlementFinance20261019`. Commercial acceptance, human review, live providers and current-source full release remain separate gates.
-
-## Prior payment, accessibility and report checks (2026-10-19)
-
-Focused payment source, evidence-review keyboard, report and recovery concurrency evidence is retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Human AT and full current-source release acceptance remain open.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 

@@ -1012,20 +1012,8 @@
       "limits": "Legacy route identity is not backfilled; current blocker read is not atomic with every professional writer; full/live acceptance remains open."
     },
     "paymentRecipientSnapshots": {
-      "sourceCommit": "062ee27c49eb7fc5aa63193d6439ceba67566567",
       "result": "FOCUSED_PASS",
-      "behavior": "New receipt/voucher intents freeze contact, route and authority basis under existing Finance/primary/prospect policy and settlement firm fence. Send requires full identity plus mailbox match. All-null legacy snapshots require current same-mailbox authority without backfill. Lead join explicitly same-firm.",
-      "verification": {
-        "passed": 3,
-        "failed": 0,
-        "skipped": 0,
-        "duration": "20s",
-        "cohort": "AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach: changed mailbox/new, same mailbox/different authority/new, changed mailbox/legacy. Primary/Finance snapshots, reviewed re-arm, preserved intent/attachments, financial/reversal checks and all three balance messages provider-accepted asserted.",
-        "trx": "/tmp/auditsphere-payment-snapshot-results/payment-recipient-snapshots-final.trx",
-        "initial": "Same three cases passed before strengthening all-balance-message acceptance; first TRX retained in same directory."
-      },
-      "review": "Independent bounded source review found no actionable issue.",
-      "limits": "No migration/package/API/UI/live change; no full local suite. Prospect fallback retained in source, not separately exercised. Legacy original route identity remains unknown; broader correspondence gates remain open."
+      "evidence": "status-archive-2026-10.json#keys.paymentRecipientSnapshotsBeforeRework20261019"
     },
     "workflowTaskReopening": {
       "sourceCommit": "a69ae19a58fd07e10519e7ad31db429c50717fc7",
@@ -1195,7 +1183,14 @@
       "after": "review-inbox-history-after.trx: 1 passed, 0 failed",
       "artifacts": "/tmp/auditsphere-review-inbox-results",
       "fixtureAttempt": "Initial attempt used result revision as input generation and was refused; corrected to retained generation before reproducing product defect.",
-      "limits": "No full local suites or new browser run. Between-rejection rework labels, complete queue matrix, human AT and current-source release remain open."
+      "limits": "No full local suites or new browser run. Complete queue matrix/browser acceptance, human AT and current-source release remain open.",
+      "repeatedCorrection": {
+        "result": "FOCUSED_PASS",
+        "before": "repeated-rework-before.trx: 1 failed, missing correction row",
+        "after": "repeated-rework-after.trx: 1 passed, 0 failed",
+        "scope": "Automation-off later rejection remains visible with current reviewer comment on the latest retained task. A newer exact-scope linked rejection task alone represents the next correction and its summary; original binding unchanged. Subsequent submission follows exact linked task or reviewer inbox; independent review unchanged.",
+        "review": "Independent source review: no blockers."
+      }
     }
   },
   "externalGates": [
@@ -1708,7 +1703,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Continue review/rework routing across repeated corrections and workflow-flag changes, plus remaining practice criteria. Scoped Finance and retained commercial handoff checks passed. Full current-source CI, human AT and live-provider gates remain separate."
+    "nextTechnicalSlice": "Verify repeated-correction routing in the browser and remaining queue views, then continue open practice-management criteria. Full current-source CI, human AT and live-provider gates remain separate."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

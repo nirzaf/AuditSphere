@@ -190,3 +190,9 @@ Milestone cash recording now holds one firm-first transaction across source reso
 ## Firm report and recovery concurrency (2026-10-19)
 
 Focused source-snapshot, report/export and exact cancellation-receipt evidence is retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Broader cash-source and current-release acceptance remain open.
+
+
+## Prior payment, accessibility and report checks (2026-10-19)
+
+Focused payment source, evidence-review keyboard, report and recovery concurrency evidence is retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Human AT and full current-source release acceptance remain open.
+
