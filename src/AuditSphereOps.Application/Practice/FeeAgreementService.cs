@@ -44,6 +44,9 @@ public static partial class FeeAgreementService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true), ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var result = await EnsureReviewedAgreementWithinTransactionAsync(db, actor, proposalId, ct);
     if (result.Succeeded) await tx.CommitAsync(ct);
     return result;
@@ -110,8 +113,15 @@ public static partial class FeeAgreementService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true), ct);
+    if (!auth.Succeeded) return auth;
     var agreement = await db.EngagementFeeAgreements.SingleOrDefaultAsync(x => x.Id == agreementId && x.FirmId == actor.FirmId, ct);
     if (agreement is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var agreementEntry = db.EngagementFeeAgreements.Attach(agreement);
+    await agreementEntry.ReloadAsync(ct);
+    if (agreementEntry.State == EntityState.Detached || agreement.FirmId != actor.FirmId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (agreement.EngagementId == engagementId) return CommandResult.Ok();
     if (agreement.EngagementId.HasValue) return CommandResult.Fail(ErrorCodes.ProtectedState, "The agreement is already linked to an engagement.");
     var belongs = await db.Engagements.AsNoTracking().AnyAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId && x.PracticeClientId == agreement.PracticeClientId, ct);

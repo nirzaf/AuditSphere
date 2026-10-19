@@ -552,10 +552,25 @@ public sealed class CommercialWorkflowTests
     var links = await Task.WhenAll(LinkAsync(engagementA), LinkAsync(engagementB));
     Assert.Single(links, r => r.Succeeded);
     Assert.Single(links, r => !r.Succeeded);
+    var winner = links[0].Succeeded ? engagementA : engagementB;
+    var loser = links[0].Succeeded ? engagementB : engagementA;
     var linked = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
-    Assert.Contains(linked.Value!.EngagementId!.Value, new[] { engagementA, engagementB });
+    Assert.Equal<Guid?>(winner, linked.Value!.EngagementId);
     Assert.Empty(linked.Value.Engagements);
-    Assert.True((await LinkAsync(linked.Value.EngagementId.Value)).Succeeded);
+    await using (var fresh = new AuditSphereDbContext(pg.Options))
+      Assert.Equal<Guid?>(winner, await fresh.EngagementFeeAgreements.AsNoTracking()
+        .Where(x => x.Id == created.Value).Select(x => x.EngagementId).SingleAsync());
+
+    // This original context still tracks the agreement from CreateAgreementAsync with a null
+    // engagement link. The command must reload it under the firm fence before refusing the loser.
+    var staleLoser = await FeeAgreementService.LinkEngagementAsync(db, w.Prep, created.Value, loser);
+    Assert.False(staleLoser.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, staleLoser.ErrorCode);
+    var exactWinnerRetry = await FeeAgreementService.LinkEngagementAsync(db, w.Prep, created.Value, winner);
+    Assert.True(exactWinnerRetry.Succeeded, exactWinnerRetry.Message);
+    await using var verifyWinner = new AuditSphereDbContext(pg.Options);
+    Assert.Equal<Guid?>(winner, await verifyWinner.EngagementFeeAgreements.AsNoTracking()
+      .Where(x => x.Id == created.Value).Select(x => x.EngagementId).SingleAsync());
   }
 
   [Fact]
@@ -1022,18 +1037,107 @@ public sealed class CommercialWorkflowTests
     Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner, new("Gulf Audit Partners", "Doha", "", "", "#0F766E", "",
       "Firm history and approved CR registration", "Reviewed retail portfolio", "Reviewed ISA methodology"))).Succeeded);
     Assert.False((await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, "Actual team CV", "Draft February", false)).Succeeded);
-    var result = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, "Partner A and actual assigned team CVs", "Draft February; final March", true);
+    const string teamCvs = "Partner A and actual assigned team CVs";
+    const string timeline = "Draft February; final March";
+    var result = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, teamCvs, timeline, true,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
     Assert.True(result.Succeeded, result.Message);
     var document = result.Value!;
     Assert.Equal(CommercialDocumentKinds.ComprehensiveProposal, document.Kind);
     Assert.Equal(Hashing.Sha256Hex(document.Bytes), document.Sha256Hex);
+    var originalBytes = document.Bytes.ToArray();
+    var originalHash = document.Sha256Hex;
+    async Task AssertOriginalTenderUnchangedAsync()
+    {
+      var retained = await db.CommercialDocuments.AsNoTracking().SingleAsync(x =>
+        x.ProposalId == proposalId && x.QuotationVersionId == quote.Value && x.Kind == CommercialDocumentKinds.ComprehensiveProposal);
+      Assert.Equal(document.Id, retained.Id);
+      Assert.Equal(1, retained.ProfileVersion);
+      Assert.Equal(originalHash, retained.Sha256Hex);
+      Assert.Equal(originalBytes, retained.Bytes);
+    }
     var text = DocxText(document.Bytes);
     Assert.Contains("1. Firm profile", text); Assert.Contains("2. Assigned Engagement Partner", text);
     Assert.Contains("3. Industry credentials", text); Assert.Contains("4. Audit methodology", text);
     Assert.Contains("5. Fee schedule", text); Assert.Contains("Partner A", text); Assert.Contains("final March", text);
-    Assert.Equal(document.Id, (await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId, "Other team", "Other dates", true)).Value!.Id);
-    Assert.Single(await db.CommercialDocuments.Where(x => x.ProposalId == proposalId && x.Kind == CommercialDocumentKinds.ComprehensiveProposal).ToListAsync());
+
+    var trimmedRetry = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId,
+      $"  {teamCvs}  ", $"  {timeline}  ", true,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
+    Assert.True(trimmedRetry.Succeeded, trimmedRetry.Message);
+    Assert.Equal(document.Id, trimmedRetry.Value!.Id);
+    Assert.Equal(originalHash, trimmedRetry.Value.Sha256Hex);
+    Assert.Equal(originalBytes, trimmedRetry.Value.Bytes);
+
+    var changedCvs = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId,
+      "Partner B and changed assigned team CVs", timeline, true,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
+    Assert.Equal(ErrorCodes.StaleRevision, changedCvs.ErrorCode);
+    Assert.Null(changedCvs.Value);
+    await AssertOriginalTenderUnchangedAsync();
+    var changedTimeline = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId,
+      teamCvs, "Changed fieldwork and reporting dates", true,
+      expectedQuotationId: quote.Value, expectedProfileVersion: 1);
+    Assert.Equal(ErrorCodes.StaleRevision, changedTimeline.ErrorCode);
+    Assert.Null(changedTimeline.Value);
+    await AssertOriginalTenderUnchangedAsync();
+
+    var revisedProfile = await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+      new("Gulf Audit Partners Revised", "Doha", "", "", "#0F766E", "",
+        "Firm history and approved CR registration revised", "Reviewed retail portfolio revised", "Reviewed ISA methodology revised",
+        ExpectedVersion: 1));
+    Assert.True(revisedProfile.Succeeded, revisedProfile.Message);
+    Assert.Equal(2, await db.FirmCommercialProfiles.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+      .OrderByDescending(x => x.Version).Select(x => x.Version).FirstAsync());
+    var changedProfile = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, proposalId,
+      teamCvs, timeline, true, expectedQuotationId: quote.Value, expectedProfileVersion: 2);
+    Assert.Equal(ErrorCodes.StaleRevision, changedProfile.ErrorCode);
+    Assert.Null(changedProfile.Value);
+    await AssertOriginalTenderUnchangedAsync();
+
+    var retained = await db.CommercialDocuments.AsNoTracking().SingleAsync(x =>
+      x.ProposalId == proposalId && x.QuotationVersionId == quote.Value && x.Kind == CommercialDocumentKinds.ComprehensiveProposal);
+    Assert.Equal(document.Id, retained.Id);
+    Assert.Equal(1, retained.ProfileVersion);
+    Assert.Equal(originalHash, retained.Sha256Hex);
+    Assert.Equal(originalBytes, retained.Bytes);
+    Assert.Single(await db.CommercialDocuments.AsNoTracking().Where(x =>
+      x.ProposalId == proposalId && x.QuotationVersionId == quote.Value &&
+      x.Kind == CommercialDocumentKinds.ComprehensiveProposal).ToListAsync());
     await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE commercial_documents SET file_name = 'changed' WHERE id = {document.Id}"));
+
+    var (_, _, legacyProposalId) = await DraftProposalSecondAsync(pg, w);
+    var legacyQuote = await QuotationService.SaveAsync(db, w.Prep, Quote(legacyProposalId));
+    Assert.True(legacyQuote.Succeeded, legacyQuote.Message);
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, legacyQuote.Value)).Succeeded);
+    var currentProfile = await db.FirmCommercialProfiles.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+      .OrderByDescending(x => x.Version).FirstAsync();
+    var legacyBytes = CommercialDocumentRenderer.RenderDocx(new(currentProfile, "Comprehensive proposal",
+      $"{legacyProposalId:N}-R1", DateOnly.FromDateTime(DateTime.UtcNow), "Second Client WLL",
+      [new DocumentSection("Legacy rendered chapter", ["Retained source document without tender input identity."])], false));
+    var legacyDocument = new CommercialDocument
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProposalId = legacyProposalId,
+      QuotationVersionId = legacyQuote.Value, Kind = CommercialDocumentKinds.ComprehensiveProposal,
+      TemplateVersion = "COMMERCIAL-TENDER-v1", ProfileVersion = currentProfile.Version,
+      FileName = $"ComprehensiveProposal-{legacyProposalId:N}-R1.docx",
+      ContentType = CommercialDocumentRenderer.DocxContentType, Bytes = legacyBytes,
+      Sha256Hex = Hashing.Sha256Hex(legacyBytes), CreatedByUserId = w.Prep.UserId, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.CommercialDocuments.Add(legacyDocument);
+    await db.SaveChangesAsync();
+
+    var legacyReuse = await CommercialDocumentService.GenerateTenderAsync(db, w.Prep, legacyProposalId,
+      teamCvs, timeline, true, expectedQuotationId: legacyQuote.Value, expectedProfileVersion: currentProfile.Version);
+    Assert.Equal(ErrorCodes.StaleRevision, legacyReuse.ErrorCode);
+    Assert.Null(legacyReuse.Value);
+    var legacyRead = await CommercialDocumentService.GetAsync(db, w.Prep, legacyDocument.Id);
+    Assert.True(legacyRead.Succeeded, legacyRead.Message);
+    Assert.Equal(legacyBytes, legacyRead.Value!.Bytes);
+    Assert.Equal(legacyDocument.Sha256Hex, legacyRead.Value.Sha256Hex);
+    Assert.Single(await db.CommercialDocuments.AsNoTracking().Where(x =>
+      x.ProposalId == legacyProposalId && x.QuotationVersionId == legacyQuote.Value &&
+      x.Kind == CommercialDocumentKinds.ComprehensiveProposal).ToListAsync());
   }
 
   private sealed class RecordingMailSender : IPbcMailSender
@@ -2015,6 +2119,131 @@ public sealed class CommercialWorkflowTests
     Assert.True(agreement.Succeeded, agreement.Message);
     var stored = await db.EngagementFeeAgreements.AsNoTracking().SingleAsync(x => x.Id == agreement.Value);
     Assert.Equal(quote.Value, stored.QuotationVersionId);
+  }
+
+  [Theory]
+  [InlineData("CREATE_NEW")]
+  [InlineData("CREATE_REPLAY")]
+  [InlineData("LINK_NEW")]
+  [InlineData("LINK_REPLAY")]
+  [InlineData("LINK_GRANT_ONLY")]
+  public async Task FeeAgreementWriters_RecheckAuthorityAfterFirmLockWait(string action)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    var engagementId = Guid.NewGuid();
+    Guid agreementId = Guid.Empty;
+
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var quotation = await QuotationService.SaveAsync(setup, w.Prep, Quote(proposalId));
+      Assert.True(quotation.Succeeded, quotation.Message);
+      Assert.True((await QuotationService.SubmitAsync(setup, w.Prep, quotation.Value)).Succeeded);
+      Assert.True((await PracticeCrmService.ApproveProposalAsync(setup, w.Partner, proposalId)).Succeeded);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(setup, w.Prep, proposalId);
+      Assert.True((await PracticeCrmService.SendProposalAsync(setup, w.Prep, proposalId)).Succeeded);
+      var offerSha = (await setup.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
+      Assert.True((await PracticeCrmService.RecordProposalResponseAsync(setup, w.Prep, proposalId,
+        new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter",
+          Channel: ProposalResponseChannels.Email))).Succeeded);
+      var client = await PracticeCrmService.ConvertToClientDraftAsync(setup, w.Prep, new(proposalId, "Fee authority client"));
+      Assert.True(client.Succeeded, client.Message);
+      setup.Engagements.Add(new Engagement
+      {
+        Id = engagementId, FirmId = w.FirmId, PracticeClientId = client.Value,
+        ServiceRoute = "FinancialStatementAudit", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await setup.SaveChangesAsync();
+
+      if (action != "CREATE_NEW")
+      {
+        var created = await FeeAgreementService.CreateAgreementAsync(setup, w.Prep, proposalId);
+        Assert.True(created.Succeeded, created.Message);
+        agreementId = created.Value;
+        if (action is "CREATE_REPLAY" or "LINK_REPLAY")
+          Assert.True((await FeeAgreementService.LinkEngagementAsync(setup, w.Prep, agreementId, engagementId)).Succeeded);
+      }
+
+      Assert.Equal(action == "CREATE_NEW" ? 0 : 1,
+        await setup.EngagementFeeAgreements.AsNoTracking().CountAsync(x => x.FirmId == w.FirmId));
+      Assert.Equal(action == "CREATE_NEW" ? 0 : 2,
+        await setup.FeeMilestones.AsNoTracking().CountAsync(x => x.FirmId == w.FirmId));
+    }
+
+    async Task<string> SnapshotAsync()
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).Select(x => new { x.Id, x.LegalName, x.Status, x.BillingAccountId }).ToArrayAsync();
+      var proposalLinks = await db.Proposals.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).Select(x => new { x.Id, x.OpportunityId, x.PracticeClientId, x.Status, x.Revision }).ToArrayAsync();
+      var opportunityLinks = await db.Opportunities.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).Select(x => new { x.Id, x.LeadId, x.PracticeClientId, x.Stage }).ToArrayAsync();
+      var agreements = await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).Select(x => new
+        {
+          x.Id, x.ProposalId, x.QuotationVersionId, x.PracticeClientId, x.EngagementId,
+          x.Currency, x.AgreedFee, x.AdvancePercent, x.CreatedByUserId, x.CreatedAt
+        }).ToArrayAsync();
+      var milestones = await db.FeeMilestones.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).Select(x => new
+        {
+          x.Id, x.AgreementId, x.Kind, x.Amount, x.State, x.InvoiceId, x.ReceiptId, x.PaidAt, x.CreatedAt
+        }).ToArrayAsync();
+      return JsonSerializer.Serialize(new { clients, proposalLinks, opportunityLinks, agreements, milestones });
+    }
+
+    var before = await SnapshotAsync();
+    Guid grantId;
+    await using (var grantDb = new AuditSphereDbContext(pg.Options))
+    {
+      grantId = await grantDb.RoleGrants.AsNoTracking().Where(x => x.FirmId == w.FirmId &&
+          x.UserId == w.Prep.UserId && x.Role == "RelationshipManager" && x.RevokedAt == null &&
+          x.ClientId == null && x.EngagementId == null)
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    var grantOnly = action == "LINK_GRANT_ONLY";
+    var create = action.StartsWith("CREATE_", StringComparison.Ordinal);
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").SingleAsync();
+
+    var lockAttempt = new ObserveFirmLockAttempt();
+    var writerOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(lockAttempt).Options;
+    await using var writer = new AuditSphereDbContext(writerOptions);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+    async Task<(bool Succeeded, string? ErrorCode, Guid? Value)> ExecuteWriterAsync()
+    {
+      if (create)
+      {
+        var result = await FeeAgreementService.CreateAgreementAsync(writer, w.Prep, proposalId, timeout.Token);
+        return (result.Succeeded, result.ErrorCode, result.Value);
+      }
+      var linked = await FeeAgreementService.LinkEngagementAsync(writer, w.Prep, agreementId, engagementId, timeout.Token);
+      return (linked.Succeeded, linked.ErrorCode, null);
+    }
+
+    var attempt = ExecuteWriterAsync();
+    await lockAttempt.Reached.Task.WaitAsync(timeout.Token);
+    Assert.True(lockAttempt.Fired);
+    Assert.Equal(1, await blocker.RoleGrants.Where(x => x.Id == grantId && x.RevokedAt == null)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token));
+    if (!grantOnly)
+      Assert.Equal(1, await blocker.Users.Where(x => x.Id == w.Prep.UserId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), timeout.Token));
+    await blockerTransaction.CommitAsync(timeout.Token);
+
+    var outcome = await attempt.WaitAsync(timeout.Token);
+    Assert.False(outcome.Succeeded);
+    Assert.Equal(grantOnly ? ErrorCodes.ScopeDenied : ErrorCodes.GenerationStale, outcome.ErrorCode);
+    Assert.True(outcome.Value is null || outcome.Value == Guid.Empty, "A denied create must not disclose an agreement ID.");
+    Assert.Equal(before, await SnapshotAsync());
   }
 
   [Fact]
