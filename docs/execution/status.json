@@ -214,19 +214,11 @@
             "note": "Terminal failure confirmed; earlier detailed observations retained. No full acceptance."
           },
           "fullRelease": {
-            "runId": "39202743735",
-            "sourceCommit": "7cac719c2ca950bb981273af80fd8c9ab14237cd",
+            "runId": "39205734150",
+            "sourceCommit": "c0094149f2ca266b3ab8dbddcf03675de424d0d9",
             "result": "IN_PROGRESS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39202743735",
-            "note": "Exact7cac719c: unfiltered Domain, Angular full specs/build, build/contracts/publication PASS; API/E2E still running. Later commits add test-only followups. Older0b0b7241 run retained separately; no full current-source acceptance.",
-            "domain": {
-              "result": "PASS",
-              "passed": 1387,
-              "failed": 0,
-              "skipped": 0,
-              "jobId": "117899328393",
-              "log": "/tmp/auditsphere-domain-full-7cac719c.log"
-            }
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39205734150",
+            "note": "Resolved exact guard source SHA successfully; Angular full-spec/build job active. No backend/full release pass yet. Full suites run in CI only."
           },
           "workspaceApiRepair": {
             "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
@@ -245,6 +237,10 @@
             "result": "FAIL_INCOMPLETE",
             "summary": "Domain1375/1375, Angular/build/contracts PASS; API runner shutdown143/no total; E2E306pass7fail plus hang abort/unknown total. No full acceptance.",
             "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFailedFullRelease8b92720261019"
+          },
+          "previousPracticeGuardFullRelease": {
+            "archive": "status-archive-2026-10.json#keys.targetedVerification.fullRelease7cac719cBeforePracticeGuards20261019",
+            "summary": "7cac719c Domain1387/1387, Angular and build/contracts PASS; API/E2E last observed active. Does not verify later guard changes."
           }
         },
         "followUp": {
@@ -1556,7 +1552,7 @@
       "ASPM-NFR-01..12",
       "ASPM-UAT-01..15"
     ],
-    "lastTechnicalSlice": "b785ab656aeafc9282ab640fa542f90c7561774e",
+    "lastTechnicalSlice": "a617e9e70c7913a66bb10766ab28ca360f0ba9a8",
     "advanceCashGate": {
       "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
       "result": "FOCUSED_INCREMENTAL_PASS",

@@ -20211,6 +20211,21 @@
       "currentFollowUp": {
         "historicalEvidence": "Moved verbatim to docs/execution/status-archive-2026-10.json under keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017. Current result remains PARTIAL; see latestReleaseVerification."
       }
+    },
+    "targetedVerification.fullRelease7cac719cBeforePracticeGuards20261019": {
+      "runId": "39202743735",
+      "sourceCommit": "7cac719c2ca950bb981273af80fd8c9ab14237cd",
+      "result": "IN_PROGRESS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39202743735",
+      "note": "Exact7cac719c: unfiltered Domain, Angular full specs/build, build/contracts/publication PASS; API/E2E still running. Later commits add test-only followups. Older0b0b7241 run retained separately; no full current-source acceptance.",
+      "domain": {
+        "result": "PASS",
+        "passed": 1387,
+        "failed": 0,
+        "skipped": 0,
+        "jobId": "117899328393",
+        "log": "/tmp/auditsphere-domain-full-7cac719c.log"
+      }
     }
   }
 }
