@@ -37,7 +37,7 @@ describe('responsive workspace navigation', () => {
     const s = await setup();
     await s.app.openNavigation(); await s.app.openNavigation();
     expect(s.open).toHaveBeenCalledOnce();
-    expect(s.open.mock.calls[0][1]).toEqual(expect.objectContaining({ariaLabel: 'Workspace navigation', autoFocus: 'first-tabbable', restoreFocus: true}));
+    expect(s.open.mock.calls[0][1]).toEqual(expect.objectContaining({ariaLabel: 'Workspace navigation', ariaModal: true, autoFocus: 'first-tabbable', restoreFocus: true}));
     expect(s.app.navigationOpen()).toBe(true);
     s.closed.next(undefined); await s.fixture.whenStable();
     expect(s.app.navigationOpen()).toBe(false);

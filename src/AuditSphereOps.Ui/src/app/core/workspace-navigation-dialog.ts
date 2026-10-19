@@ -20,7 +20,9 @@ import { WorkspaceNavigation } from './workspace-navigation';
       background: #1d4ed8; border: 1px solid #60a5fa; color: white; font-size: .75rem; font-weight: 800; }
     mat-dialog-actions { border-top: 1px solid var(--as-shell-border, #475569); }
     mat-dialog-content { background: var(--as-shell-dark, #0f172a); color: var(--as-shell-text, #f8fafc); padding-block-end: 1rem; }
-    button { min-height: 44px; color: var(--as-shell-text, #f8fafc); }
+    button { min-height: 44px; }
+    // Material's primary text-button token is too dark against this navigation surface.
+    mat-dialog-actions .mat-mdc-button:not(:disabled) { color: var(--as-shell-text, #f8fafc); }
     button:focus-visible { outline: 3px solid white; outline-offset: 2px; }
   `,
 })

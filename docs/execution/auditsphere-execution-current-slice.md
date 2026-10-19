@@ -19,6 +19,12 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Mobile navigation accessibility follow-up (2026-10-19)
+
+The compact navigation dialog now explicitly exposes modal semantics, and its close button uses a foreground that meets contrast on the dark surface. The focused navigation spec passes 11/11. In the built-in browser, 320px reflow, dialog naming/background hiding, focus entry and wrapping, Escape closure/focus restoration, and contrast (6.70:1 active link, 12.02:1 other links, 17.06:1 close button) were observed; 640px reflow has no horizontal overflow. Evidence is in `targetedVerification.angularQuality.task07.browserFollowUp20261019` in [status.json](status.json).
+
+The clean tracked UI snapshot still receives an unsupported Portfolio response from the local API, so this does not accept business screens. The API job in release run `39291772192` ended with its test step still in progress and no test result/log; Playwright E2E remains in progress. Human screen-reader review, true 200%/400% zoom, all workflow states and a conclusive full release run remain open.
+
 ## Exact deadline-task handoff and reconciliation writer fences
 
 Task reminders now open their exact engagement-scoped task, including unassigned work absent from My tasks. Selection is context-bound; actions require matching server queue permissions and revision, and mutations refresh both views. Reconciliation writers serialize with period close and exact-proof approval; approved matching proof append retains the reviewed schedule, and caller-owned transactions are preserved. Focused API, Angular, PostgreSQL, responsive and built-in browser evidence, repaired failures and exact source identities are in `deadlineExactTask20261019` and `reconciliationWriterFences20261019` in [status.json](status.json). Bounded fair reminder evidence is archived with its live pointer. The broader rule catalogue, recurring accounting work-pack acceptance, human AT, professional/provider gates and full current-source release remain open.

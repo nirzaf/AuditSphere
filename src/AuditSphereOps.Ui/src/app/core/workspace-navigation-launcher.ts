@@ -6,6 +6,7 @@ import { WorkspaceNavigationDialog } from './workspace-navigation-dialog';
 export function openWorkspaceNavigation(injector: Injector): MatDialogRef<WorkspaceNavigationDialog> {
   return injector.get(MatDialog).open(WorkspaceNavigationDialog, {
     ariaLabel: 'Workspace navigation',
+    ariaModal: true,
     autoFocus: 'first-tabbable',
     restoreFocus: true,
     width: '22rem',
