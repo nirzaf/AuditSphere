@@ -147,8 +147,8 @@
       "notDone": "Hosted CI; Task 10 D1; professional/live acceptance."
     },
     "angularQuality": {
-      "sourceCommit": "40b9655706f4e372ad3c3c9d38d9324ed77245d6",
-      "recordedAtUtc": "2026-10-18T23:57:14Z",
+      "sourceCommit": "8b927b986799dd79a9434bcb370052610db71dd6",
+      "recordedAtUtc": "2026-10-19T00:45:00Z",
       "result": "PARTIAL",
       "previousEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityBeforeFollowUp20261019",
       "tasks01To06Review": "Tasks 01–04 and 06 implemented per independent source review on 7a566118. Task05 gaps corrected on sourceCommit with focused verification; full release and human accessibility acceptance remain separate.",
@@ -194,26 +194,40 @@
           "journal": "FOCUSED_PASS: exact correction, invalid input, independent review, stale period and unknown receipt recovery in owned E2E; human announcements NOT_VERIFIED.",
           "evidence": "FOCUSED_PASS: exact result link, independent decision, retained values and revocation in owned E2E; human announcements and full dialog-state matrix NOT_VERIFIED.",
           "planning": "PARTIAL: record-backed preparation, independent approval, assignment and revocation keyboard review/cancel/fresh assent/error/unknown recovery pass on both bases, including exact-row cancel focus. Built-in390px approval/staffing flow pass. Human AT/full-state acceptance open.",
-          "consolidation": "PARTIAL: populated six-place journal and bounded named tables/disclosures verified in built-in browser; focused denial/action keyboard journeys pass. Full command/state matrix and human AT not accepted.",
+          "consolidation": "PARTIAL: retained outside-perimeter match via real form/API, signed six-place amounts, maker/checker restriction, native checkbox/disclosure focus, held-options submission safety and populated390px reflow verified. Bounded table scrolls by keyboard. In-perimeter approved-package/full-state and human AT acceptance remain open.",
           "fieldwork": "PARTIAL: procedure submit/recover/independent return/revise plus sampling select/review/execute focused journeys pass; keyboard assent/edit-cancel and populated320/390px reflow observed. Human AT and every supported state not accepted."
         },
         "humanReview": "BLOCKED_EXTERNAL: knowledgeable human screen-reader review with actual AT/browser versions and meaningful announcements is not available.",
         "ci": {
-          "previousFast": {
-            "runId": "39171033078",
-            "sourceCommit": "4c808002949b91a9ddc6fb632aadc65ded436829",
-            "result": "FAST_CI_PASS",
-            "jobs": "Angular, Docs and .NET Release successful. Predates fieldwork correction."
-          },
           "repairedFailure": "39169478960 FAILED only Docs ledger-size budget; archived records intact and active docs validators PASS.",
-          "fullRelease": {
+          "latestFast": {
+            "runId": "39179961033",
+            "sourceCommit": "c2949973377ec5239af7f7298d613ecde925c4a5",
+            "result": "FAST_CI_PASS",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39179961033",
+            "jobs": "Docs, Angular build/specs and .NET Release/fast guards/contracts successful. Not full regression acceptance."
+          },
+          "shortcutRepair": {
+            "sourceCommit": "40b9655706f4e372ad3c3c9d38d9324ed77245d6",
+            "result": "PASS",
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "trx": "/tmp/auditsphere-a11y-results/search-shortcut-ci-repair.trx",
+            "behavior": "Retains initial combobox/focus assertion; subsequent Escape, focus retention and form-field slash checks target the same native labeled input. No production behavior or assertions removed."
+          },
+          "priorCi": {
+            "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityPriorCi20261019",
+            "summary": "Earlier fast passes and cancelled superseded full run with reported failures retained intact. No prior run certifies current source."
+          },
+          "precedingFullRelease": {
             "runId": "39176430358",
             "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39176430358",
-            "result": "IN_PROGRESS",
+            "result": "IN_PROGRESS_WITH_FAILURES",
             "note": "Unfiltered Domain/API/E2E plus Angular/build/contracts on full immutable SHA; no full local suites. Adds normal per-test console progress and 15-minute per-case hang termination without dumps; incomplete execution fails acceptance.",
-            "observedJobs": "Domain1375/1375 PASS; Angular full specs/build and build/contracts/publication PASS; API/E2E IN_PROGRESS. E2E has at least one reported shortcut-locator failure; not a final total. Predates current source; no full pass.",
-            "observedAtUtc": "2026-10-18T23:57:14Z",
+            "observedJobs": "Domain1375/1375, Angular full specs/build and build/contracts/publication PASS; API FAIL/incomplete, E2E still running with known repaired shortcut failure. Not full acceptance.",
+            "observedAtUtc": "2026-10-19T00:41:00Z",
             "domain": {
               "result": "PASS",
               "passed": 1375,
@@ -229,45 +243,39 @@
               "evidence": "/tmp/auditsphere-e2e-shortcut-ci-live.txt",
               "repairCommit": "40b9655706f4e372ad3c3c9d38d9324ed77245d6",
               "repairResult": "FOCUSED_PASS; full rerun pending"
+            },
+            "api": {
+              "result": "FAIL_INCOMPLETE",
+              "jobId": "117820253607",
+              "reportedFailures": [
+                "ConsolidationWorkspaceApiTests.ScopeWorkspace_CanQueryDetail_AndBlocksComponentApprovalWithoutSelectedComposition",
+                "ConsolidationWorkspaceApiTests.ScopeWorkspace_EliminationJournals_CanCreateReturnResubmitAndApprove"
+              ],
+              "cause": "Both reported assertions treat paged eligiblePackages/journals as arrays. Runner later received shutdown signal and exited143; no complete API total or TRX available.",
+              "log": "/tmp/auditsphere-api-full-failed.log"
             }
           },
-          "supersededFullRelease": {
-            "runId": "39171672326",
-            "sourceCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39171672326",
-            "result": "CANCELLED_SUPERSEDED_WITH_FAILURES",
-            "note": "Old-source run superseded after retaining Domain logs and live E2E failure evidence. API/E2E unfinished; no pass inferred.",
-            "observedAtUtc": "2026-10-18T23:26:03Z",
-            "previousAttempt": "39171610180 FAILED checkout before tests: abbreviated ref was treated as branch/tag. Redispatched with full immutable source SHA; no test failure or test omission.",
-            "observedJobs": "Angular full specs/build and build/contracts PASS. Domain completed 1374 PASS/1 FAIL (commercial fixture now fixed and focused PASS). API unverified; E2E reported six failures, not a final total.",
-            "finalJobs": "Domain FAIL; full release contract FAIL; API/E2E CANCELLED; Angular/build/contracts PASS. No full pass."
+          "fullRelease": {
+            "runId": "39182161418",
+            "sourceCommit": "8b927b986799dd79a9434bcb370052610db71dd6",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39182161418",
+            "result": "IN_PROGRESS",
+            "note": "Fresh full unfiltered CI after accessibility and known API/search test repairs. Earlier run remains active to expose remaining E2E failures; no full local suites or full pass claimed."
           },
-          "latestFast": {
-            "runId": "39178065237",
-            "sourceCommit": "a90ead3fe609b06677ed433563fe32479a1c4ace",
-            "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39178065237",
-            "jobs": "Docs, Angular build/specs and .NET Release/fast guards/contracts successful on a90ead3f; predates shortcut test-only repair."
-          },
-          "priorFast": {
-            "runId": "39175741276",
-            "sourceCommit": "8c8abcd72014c675cfc35d4c73cc922bca33084b",
-            "result": "FAST_CI_PASS"
-          },
-          "latestFastBeforeReviewFocus": {
-            "runId": "39176419861",
-            "sourceCommit": "a39ad153f72d07947b968907789e278972a41afb",
-            "result": "FAST_CI_PASS",
-            "jobs": "Angular, Docs and .NET Release successful on exact code commit; not full regression acceptance."
-          },
-          "shortcutRepair": {
-            "sourceCommit": "40b9655706f4e372ad3c3c9d38d9324ed77245d6",
-            "result": "PASS",
-            "passed": 1,
+          "workspaceApiRepair": {
+            "sourceCommit": "8b927b986799dd79a9434bcb370052610db71dd6",
+            "result": "FOCUSED_PASS",
+            "passed": 2,
             "failed": 0,
             "skipped": 0,
-            "trx": "/tmp/auditsphere-a11y-results/search-shortcut-ci-repair.trx",
-            "behavior": "Retains initial combobox/focus assertion; subsequent Escape, focus retention and form-field slash checks target the same native labeled input. No production behavior or assertions removed."
+            "trx": "/tmp/auditsphere-a11y-results/consolidation-workspace-ci-repair.trx",
+            "change": "Existing component/journal API journeys now read eligiblePackages.items and journals.items. Original authorization, composition refusal, return reason, resubmission and independent approval remain; exact journal IDs and page counts added. No production/API contract changed."
+          },
+          "currentFast": {
+            "runId": "39182115532",
+            "sourceCommit": "8b927b986799dd79a9434bcb370052610db71dd6",
+            "result": "PENDING",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39182115532"
           }
         },
         "followUp": {
@@ -292,7 +300,41 @@
             "cleanup": "A11Y_FIXTURE_DISPOSED; owned API/database and dev server stopped; viewport restored and temporary planning tab closed. User API/PostgreSQL untouched."
           },
           "review": "Independent source review retained original business/auth/receipt assertions and exact-row/owner focus fences. BODY fallback intentionally covers disabled/removed native controls; deliberate blank-area pointer intent remains indistinguishable and unaccepted.",
-          "remaining": "Human screen-reader acceptance and complete supported-state acceptance remain open; no full regression pass for this source."
+          "remaining": "Human screen-reader acceptance and complete supported-state acceptance remain open; no full regression pass for this source.",
+          "supersededBy": "focusIntentFollowUp for deliberate intervening pointer/keyboard interaction; original evidence retained."
+        },
+        "focusIntentFollowUp": {
+          "sourceCommit": "c2949973377ec5239af7f7298d613ecde925c4a5",
+          "result": "IMPLEMENTED_FOCUSED_PASS",
+          "counterfactual": "Existing independent-approval journey with a real delayed preview failed NotFocused after a deliberate click on the nonfocusable header brand; BODY fallback stole focus. Initial h1 probe instead focused MAIN and was a test setup failure, not product evidence.",
+          "fix": "Capture document pointer/keyboard interaction generation with the original control. Deferred focus requires unchanged interaction plus existing owner/lifetime/current-focus fences. Normal disabled/removed-control BODY fallback remains available.",
+          "verification": {
+            "angular": "planning.spec.ts28/28 PASS; affected-file lint and production build PASS with existing warnings.",
+            "e2e": "Budget preparation, independent approval and staffing review6/6 PASS across both route bases; no command/auth/receipt assertions removed.",
+            "trx": "/tmp/auditsphere-a11y-results/planning-focus-intent-final.trx",
+            "counterfactualTrx": "/tmp/auditsphere-a11y-results/focus-intent-brand-baseline.trx",
+            "browser": "Current production bundle/current-source owned API52594; synthetic Admin. Keyboard preview focus, unchecked exact assent, cancel to unchecked initial assent; document375<=390; no console errors. No approval confirmed interactively.",
+            "screenshot": "/tmp/auditsphere-focus-intent-review.png",
+            "cleanup": "Owned fixture disposed; viewport restored; temporary tab closed. User API5029 and PostgreSQL untouched."
+          },
+          "review": "Independent source review found no blocking issues; triggering event is counted before snapshot, later interaction fences focus. Full human AT/state acceptance remains open."
+        },
+        "consolidationFocusFollowUp": {
+          "sourceCommit": "d4e8002ca0c138740b55f51fe714b53f495559df",
+          "result": "IMPLEMENTED_FOCUSED_PASS",
+          "findings": "Options refresh destroyed the form and dropped native checkbox focus; reproduced by Tab/Space in a failing counterfactual. Built-in populated member selectors also expanded the390px document to400px. Initial select label-text locator was a test issue; native accessible role/name is correct.",
+          "fix": "Owner-bound last-validated display options preserve the form. Assent/submission require the exact current resource object, no loading/error and current revision; existing outside-member proof remains. Scope-local inline-form min/max sizing contains long member options.",
+          "verification": {
+            "angular": "scope-workspace.spec.ts17/17 PASS; loading/error/stale-object negatives use an otherwise eligible form, and outside-member/revision denials retain causal prerequisites. Affected production-file lint and final production build PASS with existing warnings.",
+            "e2e": "One regular-scope journey1/1 PASS: held real options response blocks assent/submit; native Tab/Space and typed outside-client ID retain focus; exact signed amounts persist once with no reviewer, component, journal or run; native summary and populated390px layout checks pass.",
+            "trx": "/tmp/auditsphere-a11y-results/consolidation-intercompany-reflow-final.trx",
+            "counterfactualTrx": "/tmp/auditsphere-a11y-results/consolidation-intercompany-focus-baseline.trx",
+            "browser": "Current production bundle/current compiled owned API54001, synthetic group Manager; checkbox focus retained; document375<=390 and member control right309; native Tab/Enter opens retained details; ArrowRight scroll0->40 inside bounded table; no console errors. No interactive submission/approval.",
+            "screenshot": "/tmp/auditsphere-intercompany-retained-keyboard-final.png",
+            "cleanup": "Owned API/database disposed after release signal; viewport restored and owned fixture tabs closed. User services/data untouched."
+          },
+          "review": "Independent source review found no blocking issue. Existing API fixture pattern reused; one unapproved outside-perimeter review-only match, not approved-component consolidation or whole keyboard-only form acceptance.",
+          "remaining": "Human AT, complete supported-state matrix and final-source full CI remain open."
         }
       },
       "task05": {
