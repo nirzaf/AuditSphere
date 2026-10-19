@@ -239,6 +239,8 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 ## Practice — CRM, time, billing, firm ledger
 
+- Practice analytics cost: `Application/Practice/FirmOperationsServices.cs` uses the latest applicable staff-cost effective date. Conflicting values at that date leave cost, profit and margin unavailable; identical duplicate values retain the amount. Charge-out value, billing and collection remain separate measures.
+
 - Client archive/restore presentation: `src/AuditSphereOps.Ui/src/app/features/clients/client.ts` retains the exact client/session/view/revision and keyboard-focus origin across its confirmed profile reload. Deliberate pointer/key interactions and changed ownership cancel deferred focus; no authorization or retained history is changed.
 
 

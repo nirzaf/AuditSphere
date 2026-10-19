@@ -187,7 +187,7 @@ public static partial class PracticeAnalyticsQuery
   [
     "Contract contribution = agreed contract fee − lifetime approved-time standard value, in the contract currency. This is separate from period billed-minus-actual-cost profit; missing rates or mixed currencies make it unavailable.",
     "Standard value = approved billable minutes × captured charge-out rate ÷ 60. Approved non-billable and no-charge time counts in actual hours and actual cost and has no charge-out value; it is shown separately. Billable time without a captured rate still makes the value unavailable.",
-    "Actual cost = approved minutes × staff cost rate effective on the work date ÷ 60 (charge-out rates are not costs).",
+    "Actual cost = approved minutes × staff cost rate effective on the work date ÷ 60 (charge-out rates are not costs). Missing or conflicting latest effective rates make cost, profit and margin unavailable.",
     "Billed = posted invoice lines sourced from the engagement's approved time or fee milestones (credit notes deducted).",
     "Collected = receipt allocations to those invoices, pro rata to the engagement's share of each invoice.",
     "Realization = billed ÷ standard value; collection = collected ÷ billed; margin = (billed − actual cost) ÷ billed.",
@@ -227,9 +227,11 @@ public static partial class PracticeAnalyticsQuery
     {
       var timeCurrency = NormalizeCurrency(t.Currency);
       if (timeCurrency is null) return null;
-      var rate = costRates.Where(r => r.UserId == t.UserId && r.EffectiveFrom <= t.WorkDate && NormalizeCurrency(r.Currency) == timeCurrency)
-        .OrderByDescending(r => r.EffectiveFrom).FirstOrDefault();
-      return rate is null ? null : t.DurationMinutes * rate.HourlyCost / 60m;
+      var applicableRates = costRates.Where(r => r.UserId == t.UserId && r.EffectiveFrom <= t.WorkDate && NormalizeCurrency(r.Currency) == timeCurrency).ToArray();
+      if (applicableRates.Length == 0) return null;
+      var latestEffectiveFrom = applicableRates.Max(r => r.EffectiveFrom);
+      var latestRates = applicableRates.Where(r => r.EffectiveFrom == latestEffectiveFrom).Select(r => r.HourlyCost).Distinct().Take(2).ToArray();
+      return latestRates.Length == 1 ? t.DurationMinutes * latestRates[0] / 60m : null;
     }
     // Billing traced to engagements through invoice line sources.
     var lines = await db.InvoiceLines.AsNoTracking().Join(db.Invoices.AsNoTracking(), l => l.InvoiceId, i => i.Id, (l, i) => new { l, i })

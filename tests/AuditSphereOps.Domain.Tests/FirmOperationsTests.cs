@@ -98,6 +98,7 @@ public sealed partial class FirmOperationsTests
     var today = DateOnly.FromDateTime(DateTime.UtcNow);
     var periodStart = today.AddDays(-4);
     var workDate = today.AddDays(-1);
+    var costRateEffectiveFrom = new DateOnly(2026, 1, 1);
     var capacityDays = Enumerable.Range(0, 5).Select(offset => periodStart.AddDays(offset))
       .Count(ResourceGridCalculator.IsWorkingDay);
     Guid entryId;
@@ -115,7 +116,7 @@ public sealed partial class FirmOperationsTests
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, w.A("staff", "Staff"), entryId)).Succeeded);
       Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, entryId)).Succeeded);
       Assert.True((await PracticeTimeService.CompleteTaskAsync(db, manager, task)).Succeeded);
-      Assert.True((await PracticeAnalyticsQuery.RecordCostRateAsync(db, partner, w.U["staff"].Id, 200m, "QAR", new DateOnly(2026, 1, 1))).Succeeded);
+      Assert.True((await PracticeAnalyticsQuery.RecordCostRateAsync(db, partner, w.U["staff"].Id, 200m, "QAR", costRateEffectiveFrom)).Succeeded);
       Assert.True((await ResourcePlanningService.SaveProfileAsync(db, manager, new(w.U["staff"].Id, "Audit", "", 2400, 75m))).Succeeded);
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -273,6 +274,17 @@ public sealed partial class FirmOperationsTests
       // The weekly grid reads the same basis: all approved time as hours, billable time as utilization.
       var gridCells = (await ResourcePlanningService.GetGridAsync(db, manager, workDate, 1)).Value!.Rows.Single(x => x.UserId == w.U["staff"].Id).Weeks;
       Assert.Equal((360, 300), (gridCells[0].ApprovedActualMinutes, gridCells[0].ApprovedBillableMinutes));
+
+      // Same-value duplicates do not change the amount; conflicting rates at the latest effective date make only cost-derived figures unavailable.
+      Assert.True((await PracticeAnalyticsQuery.RecordCostRateAsync(db, partner, w.U["staff"].Id, 200m, "QAR", costRateEffectiveFrom)).Succeeded);
+      var withIdenticalRate = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!.Engagements
+        .Single(x => x.EngagementId == w.EngagementId);
+      Assert.Equal(withInternal, withIdenticalRate);
+
+      Assert.True((await PracticeAnalyticsQuery.RecordCostRateAsync(db, partner, w.U["staff"].Id, 250m, "QAR", costRateEffectiveFrom)).Succeeded);
+      var withConflictingRates = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!.Engagements
+        .Single(x => x.EngagementId == w.EngagementId);
+      Assert.Equal(withInternal with { ActualCost = null, Profit = null, MarginPercent = null, CostComplete = false }, withConflictingRates);
     }
   }
 
