@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
@@ -115,6 +116,9 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
         (op.ClientId != mail.PracticeClientId || !await PaymentRecipientAuthorityIsCurrentAsync(db, mail, ct)))
       throw new OperationBlockedException("mail-recipient-authority-changed", authorization: true);
 
+    if (mail.Kind == CommercialNotificationKinds.HoldingLetter)
+      attachment = await PrepareHoldingLetterAsync(db, op, mail, ct);
+
     // This commit is the dispatch-authorization boundary. Contact/routing writers take the
     // same firm fence. Changes committed before it win; later changes do not retarget this
     // already-authorized attempt. No database transaction or lock spans the provider call.
@@ -124,6 +128,46 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     if (changed != 1) throw new OperationBlockedException("mail-state-changed", authorization: true);
     await tx.CommitAsync(ct);
     return new(mail.Recipient, mail.Subject, mail.Body, op.CorrelationId, attachment);
+  }
+
+  private static async Task<PbcMailAttachment> PrepareHoldingLetterAsync(
+    IAuditSphereDbContext db, DurableOperation op, CommercialNotification mail, CancellationToken ct)
+  {
+    if (mail.DeliverableId is not { } deliverableId || mail.PracticeClientId is not { } clientId ||
+        op.ClientId != clientId || mail.DocumentId.HasValue)
+      throw new OperationBlockedException("holding-letter-scope-or-recipient-evidence-missing", authorization: true);
+    // Older queues froze the mailbox and artifact hash in the body, without these
+    // structured columns. Preserve that exact intent; never infer/backfill old IDs.
+    var legacySnapshot = mail.RecipientContactId is null && mail.RecipientRoutingId is null && mail.OfferSha256 is null;
+    if (!legacySnapshot && (mail.RecipientContactId is null || mail.RecipientRoutingId is null ||
+        string.IsNullOrWhiteSpace(mail.OfferSha256)))
+      throw new OperationBlockedException("holding-letter-scope-or-recipient-evidence-missing", authorization: true);
+
+    var letter = await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == mail.FirmId && x.Id == deliverableId && x.ClientId == clientId &&
+      x.Kind == DeliverableKinds.HoldingLetter, ct);
+    if (letter is null || (op.EngagementId.HasValue && op.EngagementId != letter.EngagementId) ||
+        !await db.Engagements.AsNoTracking().AnyAsync(x => x.FirmId == mail.FirmId &&
+          x.Id == letter.EngagementId && x.PracticeClientId == clientId, ct))
+      throw new OperationBlockedException("holding-letter-artifact-scope-mismatch", authorization: true);
+    if (string.IsNullOrWhiteSpace(mail.DispatchKey) || mail.DispatchKey != letter.InputDigest ||
+        letter.Content.Length == 0 || string.IsNullOrWhiteSpace(letter.FileName) ||
+        string.IsNullOrWhiteSpace(letter.ContentType) || string.IsNullOrWhiteSpace(letter.ContentSha256) ||
+        (legacySnapshot
+          ? !mail.Body.EndsWith($"Holding letter identity: {letter.ContentSha256}", StringComparison.OrdinalIgnoreCase)
+          : !string.Equals(mail.OfferSha256, letter.ContentSha256, StringComparison.OrdinalIgnoreCase)) ||
+        !string.Equals(letter.ContentSha256, Hashing.Sha256Hex(letter.Content), StringComparison.OrdinalIgnoreCase))
+      throw new OperationBlockedException("holding-letter-artifact-mismatch");
+
+    var (digest, count) = await AuditDeliverableService.CurrentOutstandingCriticalAsync(
+      db, mail.FirmId, letter.EngagementId, ct);
+    if (count == 0 || digest != mail.DispatchKey)
+      throw new OperationBlockedException("holding-letter-outstanding-set-changed", authorization: true);
+    var recipient = await HoldingLetterDispatch.ResolveRecipientAsync(db, mail.FirmId, clientId, ct);
+    if (recipient is null || !EmailsMatch(recipient.Email, mail.Recipient) ||
+        (!legacySnapshot && (recipient.ContactId != mail.RecipientContactId || recipient.RoutingId != mail.RecipientRoutingId)))
+      throw new OperationBlockedException("mail-recipient-authority-changed", authorization: true);
+    return new(letter.FileName, letter.ContentType, letter.Content);
   }
 
   private static async Task<bool> PaymentRecipientAuthorityIsCurrentAsync(

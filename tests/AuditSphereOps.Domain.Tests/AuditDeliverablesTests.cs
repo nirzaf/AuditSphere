@@ -397,8 +397,10 @@ public sealed partial class AuditDeliverablesTests
     }
   }
 
-  [Fact]
-  public async Task CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment()
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment(bool legacySnapshot)
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
@@ -478,19 +480,118 @@ public sealed partial class AuditDeliverablesTests
     // Configuring the client-management recipient dispatches the exact letter once, to that recipient only.
     var recipient = new ClientContact { Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = w.ClientId, FullName = "Client MD",
       Email = "md@client.example.test", Role = "Managing Director", Primary = true, IsActive = true };
+    var routingId = Guid.NewGuid();
     db.ClientContacts.Add(recipient);
-    db.ClientContactRoutings.Add(new ClientContactRouting { Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = w.ClientId,
+    db.ClientContactRoutings.Add(new ClientContactRouting { Id = routingId, FirmId = w.FirmId, PracticeClientId = w.ClientId,
       ClientContactId = recipient.Id, Purpose = CorrespondencePurposes.Completion, IsPrimaryForPurpose = true,
       CreatedByUserId = w.U["manager"].Id, CreatedAt = DateTimeOffset.UtcNow });
     await db.SaveChangesAsync();
+
+    var currentLetter = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == held.HoldingLetterId);
+    if (legacySnapshot)
+    {
+      db.CommercialNotifications.Add(new CommercialNotification
+      {
+        Id = Guid.CreateVersion7(), FirmId = w.FirmId, Kind = CommercialNotificationKinds.HoldingLetter,
+        DeliverableId = currentLetter.Id, DispatchKey = currentLetter.InputDigest, PracticeClientId = w.ClientId,
+        Recipient = recipient.Email, Subject = "Holding letter: critical confirmations outstanding (1)",
+        Body = $"The Independent Auditor's Report cannot be issued until 1 critical third-party confirmation(s) are received and evaluated.\n\n" +
+          $"Holding letter identity: {currentLetter.ContentSha256}",
+        DeliveryState = CommercialDeliveryStates.Queued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
     var dispatched = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!;
-    var queued = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.DeliverableId == dispatched.HoldingLetterId);
+    var queued = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.DispatchKey == currentLetter.InputDigest);
     Assert.Equal((CommercialNotificationKinds.HoldingLetter, "QUEUED", "md@client.example.test"), (queued.Kind, queued.DeliveryState, queued.Recipient));
-    Assert.Contains("queued for the client-management recipient", dispatched.Message);
+    var heldLetter = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == queued.DeliverableId);
+    Assert.Equal(heldLetter.InputDigest, queued.DispatchKey);
+    if (legacySnapshot)
+    {
+      Assert.Equal<Guid?>(currentLetter.Id, queued.DeliverableId);
+      Assert.Null(queued.RecipientContactId);
+      Assert.Null(queued.RecipientRoutingId);
+      Assert.Null(queued.OfferSha256);
+      Assert.EndsWith($"Holding letter identity: {heldLetter.ContentSha256}", queued.Body, StringComparison.Ordinal);
+      Assert.Contains("already dispatched", dispatched.Message);
+    }
+    else
+    {
+      Assert.Equal<Guid?>(dispatched.HoldingLetterId, queued.DeliverableId);
+      Assert.Equal<Guid?>(recipient.Id, queued.RecipientContactId);
+      Assert.Equal<Guid?>(routingId, queued.RecipientRoutingId);
+      Assert.Equal(heldLetter.ContentSha256, queued.OfferSha256);
+      Assert.Contains("queued for the client-management recipient", dispatched.Message);
+    }
     // Regenerating the unchanged blocker set creates a new letter record but never a second dispatch.
     var regenerated = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.IndependentAuditorsReport)).Value!;
     Assert.Contains("already dispatched", regenerated.Message);
-    Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.DispatchKey == queued.DispatchKey));
+    Assert.Equal(1, await db.CommercialNotifications.CountAsync(x => x.DispatchKey == currentLetter.InputDigest));
+
+    // The mail effect rechecks the retained client, Completion route and exact letter immediately before sending.
+    var mailSender = new HoldingLetterProbeMailSender();
+    var mailFactory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var mailHandler = new CommercialMailDeliveryHandler(mailFactory, mailSender);
+    DurableOperation MailProbe(Guid? clientId, Guid? engagementId) => new()
+    {
+      Id = Guid.CreateVersion7(), OperationKind = CommercialMailDeliveryHandler.Kind, FirmId = w.FirmId,
+      ClientId = clientId, EngagementId = engagementId, PayloadJson = "{}", TargetId = queued.Id,
+      CorrelationId = Guid.NewGuid(), ClaimedEpoch = 1
+    };
+
+    var wrongClient = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      mailHandler.ExecuteEffectAsync(MailProbe(Guid.NewGuid(), w.EngagementId), CancellationToken.None));
+    Assert.Equal("holding-letter-scope-or-recipient-evidence-missing", wrongClient.Message);
+    Assert.Empty(mailSender.Plans);
+    var wrongEngagement = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      mailHandler.ExecuteEffectAsync(MailProbe(w.ClientId, Guid.NewGuid()), CancellationToken.None));
+    Assert.Equal("holding-letter-artifact-scope-mismatch", wrongEngagement.Message);
+    Assert.Empty(mailSender.Plans);
+
+    var changedRecipient = await PracticeCrmService.UpdateClientContactAsync(db, partner,
+      new UpdateClientContactRequest(recipient.Id, recipient.FullName, "changed-md@client.example.test", recipient.Role,
+        Primary: true, IsActive: true));
+    Assert.True(changedRecipient.Succeeded, changedRecipient.Message);
+    var changedRoute = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      mailHandler.ExecuteEffectAsync(MailProbe(w.ClientId, w.EngagementId), CancellationToken.None));
+    Assert.Equal("mail-recipient-authority-changed", changedRoute.Message);
+    Assert.Empty(mailSender.Plans);
+    await using (var intentDb = new AuditSphereDbContext(pg.Options))
+    {
+      var unchanged = await intentDb.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == queued.Id);
+      Assert.Equal((queued.Kind, queued.PracticeClientId, queued.Recipient, queued.RecipientContactId, queued.RecipientRoutingId,
+        queued.DispatchKey, queued.DeliverableId, queued.OfferSha256, queued.Subject, queued.Body, CommercialDeliveryStates.Queued),
+        (unchanged.Kind, unchanged.PracticeClientId, unchanged.Recipient, unchanged.RecipientContactId, unchanged.RecipientRoutingId,
+          unchanged.DispatchKey, unchanged.DeliverableId, unchanged.OfferSha256, unchanged.Subject, unchanged.Body, unchanged.DeliveryState));
+    }
+
+    var restoredRecipient = await PracticeCrmService.UpdateClientContactAsync(db, partner,
+      new UpdateClientContactRequest(recipient.Id, recipient.FullName, queued.Recipient, recipient.Role,
+        Primary: true, IsActive: true));
+    Assert.True(restoredRecipient.Succeeded, restoredRecipient.Message);
+    await mailHandler.ExecuteEffectAsync(MailProbe(w.ClientId, w.EngagementId), CancellationToken.None);
+    var sentPlan = Assert.Single(mailSender.Plans);
+    Assert.Equal(queued.Recipient, sentPlan.Recipient);
+    var attachment = Assert.IsType<AuditSphereOps.Application.Documents.PbcMailAttachment>(sentPlan.Attachment);
+    Assert.Equal(heldLetter.FileName, attachment.FileName);
+    Assert.Equal(heldLetter.ContentType, attachment.ContentType);
+    Assert.Equal(heldLetter.Content, attachment.Bytes);
+    Assert.Equal(heldLetter.ContentSha256, Hashing.Sha256Hex(attachment.Bytes));
+    var sentIntent = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == queued.Id);
+    Assert.Equal((queued.Recipient, queued.RecipientContactId, queued.RecipientRoutingId, queued.OfferSha256,
+      queued.DeliverableId, queued.Body, CommercialDeliveryStates.Dispatched),
+      (sentIntent.Recipient, sentIntent.RecipientContactId, sentIntent.RecipientRoutingId, sentIntent.OfferSha256,
+        sentIntent.DeliverableId, sentIntent.Body, sentIntent.DeliveryState));
+
+    // Revoking the selected route after queueing blocks any later attempt and never selects a replacement.
+    var revokedRoute = await PracticeCrmService.RevokeContactRoutingAsync(db, partner,
+      new RevokeContactRoutingRequest(w.ClientId, routingId, "Completion recipient designation changed."));
+    Assert.True(revokedRoute.Succeeded, revokedRoute.Message);
+    var routeRevoked = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      mailHandler.ExecuteEffectAsync(MailProbe(w.ClientId, w.EngagementId), CancellationToken.None));
+    Assert.Equal("mail-recipient-authority-changed", routeRevoked.Message);
+    Assert.Single(mailSender.Plans);
 
     // STE-GAP-005: the notification only records QUEUED or SENT, so a blocked or dead-lettered mail operation must be
     // reported as FAILED with the real recovery route instead of an indefinite "queued" that can never arrive.
@@ -516,6 +617,10 @@ public sealed partial class AuditDeliverablesTests
     // changed facts stale the earlier SRM, clearance and opinion), and a further reassessment blocks
     // the signature.
     Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, false, "Noncritical again after further procedures")).Succeeded);
+    var resolvedBlockers = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      mailHandler.ExecuteEffectAsync(MailProbe(w.ClientId, w.EngagementId), CancellationToken.None));
+    Assert.Equal("holding-letter-outstanding-set-changed", resolvedBlockers.Message);
+    Assert.Single(mailSender.Plans);
     var srm2 = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Confirmations cleared for signature.")).Value;
     Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm2, "Risk areas reviewed.", "Notes reviewed.")).Succeeded);
     Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
@@ -1063,6 +1168,16 @@ public sealed partial class AuditDeliverablesTests
     using var zip = new ZipArchive(new MemoryStream(docx));
     using var reader = new StreamReader(zip.GetEntry("word/document.xml")!.Open());
     return System.Text.RegularExpressions.Regex.Replace(reader.ReadToEnd(), "<[^>]+>", "");
+  }
+
+  private sealed class HoldingLetterProbeMailSender : AuditSphereOps.Application.Documents.IPbcMailSender
+  {
+    public List<AuditSphereOps.Application.Documents.PbcMailPlan> Plans { get; } = [];
+    public Task SendAsync(AuditSphereOps.Application.Documents.PbcMailPlan plan, CancellationToken ct)
+    {
+      Plans.Add(plan);
+      return Task.CompletedTask;
+    }
   }
 
   /// <summary>A small, valid grayscale PNG.</summary>

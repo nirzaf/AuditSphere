@@ -12,6 +12,8 @@ namespace AuditSphereOps.Application.Completion;
 /// <summary>The holding letter for the engagement's current critical-confirmation blockers and its dispatch state.</summary>
 public sealed record HoldingLetterStatus(Guid? DeliverableId, DateTimeOffset? IssuedAt, int OutstandingCount, string State, string Message);
 
+internal sealed record HoldingLetterRecipient(Guid ContactId, Guid RoutingId, string Email);
+
 /// <summary>
 /// STE 3.3 automatic Holding Letter dispatch for an outstanding critical confirmation. The recipient is resolved only from an
 /// active COMPLETION contact routing: a missing routing blocks dispatch with an actionable message and never selects an
@@ -117,7 +119,9 @@ public static class HoldingLetterDispatch
     db.CommercialNotifications.Add(new CommercialNotification
     {
       Id = Guid.CreateVersion7(), FirmId = firmId, Kind = CommercialNotificationKinds.HoldingLetter,
-      DeliverableId = holdingLetterId, DispatchKey = dispatchKey, PracticeClientId = engagement.PracticeClientId, Recipient = recipient,
+      DeliverableId = holdingLetterId, DispatchKey = dispatchKey, PracticeClientId = engagement.PracticeClientId, Recipient = recipient.Email,
+      RecipientContactId = recipient.ContactId, RecipientRoutingId = recipient.RoutingId,
+      OfferSha256 = letter.ContentSha256,
       Subject = $"Holding letter: critical confirmations outstanding ({outstanding})",
       Body = $"The Independent Auditor's Report cannot be issued until {outstanding} critical third-party confirmation(s) are received and evaluated.\n\n" +
              $"Holding letter identity: {letter.ContentSha256}",
@@ -127,16 +131,19 @@ public static class HoldingLetterDispatch
     return ("QUEUED", "The holding letter is queued for the client-management recipient. Queued is not yet delivered.");
   }
 
-  private static async Task<string?> ResolveRecipientAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
+  internal static async Task<HoldingLetterRecipient?> ResolveRecipientAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
   {
-    var asOf = DateOnly.FromDateTime(DateTime.UtcNow);
+    var now = DateTimeOffset.UtcNow;
+    var asOf = DateOnly.FromDateTime(now.UtcDateTime);
     return await (
       from r in db.ClientContactRoutings.AsNoTracking()
       where r.FirmId == firmId && r.PracticeClientId == clientId && r.Purpose == CorrespondencePurposes.Completion && r.RevokedAt == null
       where (r.EffectiveFrom == null || r.EffectiveFrom <= asOf) && (r.EffectiveTo == null || r.EffectiveTo >= asOf)
       join c in db.ClientContacts.AsNoTracking() on r.ClientContactId equals c.Id
-      where c.IsActive && !string.IsNullOrWhiteSpace(c.Email)
+      where c.FirmId == firmId && c.PracticeClientId == clientId && c.IsActive &&
+        (c.ValidFrom == null || c.ValidFrom <= now) && (c.ValidTo == null || c.ValidTo >= now) &&
+        !string.IsNullOrWhiteSpace(c.Email)
       orderby r.IsPrimaryForPurpose descending, r.CreatedAt descending
-      select c.Email).FirstOrDefaultAsync(ct);
+      select new HoldingLetterRecipient(c.Id, r.Id, c.Email)).FirstOrDefaultAsync(ct);
   }
 }
