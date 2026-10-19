@@ -214,35 +214,22 @@
             "note": "Terminal failure confirmed; earlier detailed observations retained. No full acceptance."
           },
           "fullRelease": {
-            "runId": "39194532601",
-            "sourceCommit": "0b0b72412dfd6ce58254b5119afd46859192c86b",
+            "runId": "39202743735",
+            "sourceCommit": "7cac719c2ca950bb981273af80fd8c9ab14237cd",
             "result": "IN_PROGRESS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39194532601",
-            "note": "Domain1376/1376, Angular/build/contracts PASS; API/E2E still active at observation. Predates subsequent mail/reopening work; not current-source acceptance.",
-            "domain": {
-              "result": "PASS",
-              "passed": 1376,
-              "failed": 0,
-              "skipped": 0,
-              "jobId": "117874733717",
-              "log": "/tmp/auditsphere-domain-full-0b0b7241.log"
-            }
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39202743735",
+            "note": "Resolved exact requested SHA; Angular full specs/build and build/contracts/publication PASS; unfiltered Domain/API/E2E still running. Older0b0b7241 run39194532601 also API/E2E active, preserved in archive. No full acceptance. A separate mistyped-ref dispatch39202734400 was cancelled before verification; it supplies no evidence."
           },
           "workspaceApiRepair": {
-            "sourceCommit": "8b927b986799dd79a9434bcb370052610db71dd6",
-            "result": "FOCUSED_PASS",
-            "passed": 2,
-            "failed": 0,
-            "skipped": 0,
-            "trx": "/tmp/auditsphere-a11y-results/consolidation-workspace-ci-repair.trx",
-            "change": "Existing component/journal API journeys now read eligiblePackages.items and journals.items. Original authorization, composition refusal, return reason, resubmission and independent approval remain; exact journal IDs and page counts added. No production/API contract changed."
+            "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
+            "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
           },
           "currentFast": {
-            "runId": "39199820035",
-            "sourceCommit": "9f8779b4801532bb5893b1ada64d0d6f8a81bb46",
+            "runId": "39202724008",
+            "sourceCommit": "7cac719c2ca950bb981273af80fd8c9ab14237cd",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39199820035",
-            "note": "Observed success; predates reopening slice. No full current-source acceptance."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39202724008",
+            "note": "Angular, docs and .NET Release jobs observed SUCCESS. Predates test-only retained-activity follow-up."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -284,19 +271,10 @@
         }
       },
       "task05": {
+        "sourceCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
         "status": "IMPLEMENTED_FOCUSED_PASS",
-        "implementationCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
-        "behavior": "One host-owned command exclusion across procedure, sampling, tailoring and host writes, including unresolved requests. Own risk-link receipt lookup remains reachable. Procedure checkpoints persist only requestId/hash; restored after authorized workspace read without fields/assent. Exact receipt validation, captured-owner cleanup and visible unreadable-storage blocker preserve recovery boundaries.",
-        "angularSpec": {
-          "result": "PASS",
-          "passed": 27,
-          "failed": 0,
-          "scope": "fieldwork.spec.ts only",
-          "coverage": "Cross-capability exclusion; remount recovery and mismatched receipt rejection; unavailable/stale checkpoints; late-session cleanup fence; existing six-place amounts, tailoring idempotency, scope changes and stale reads."
-        },
-        "lint": "PASS: five changed production TS/HTML files; no extra rules disabled.",
-        "build": "PASS; existing completion optional-chain and commercial/settings.scss budget warnings.",
-        "browser": "PASS_READ_ONLY_SMOKE on final UI source via built-in browser: fieldwork h1, Sampling \u2192 Client evidence keyboard activation, expected controls, document reflow at1280, no console errors. Existing API source unknown. Record-backed mutation accessibility NOT_VERIFIED."
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityTask05Detailed20261019",
+        "summary": "Current-owner command exclusion and receipt recovery implemented; focused specs/build/lint and read-only native smoke passed. Full/human gates separate."
       },
       "ciFailureRepair": {
         "implementationCommit": "6f00f8e05433130e5ad62c80d91e6f92ab39649b",
@@ -1237,7 +1215,17 @@
       "nativeBrowser": "Owned synthetic fixture: review heading/editor focus, keyboard review, unchecked fresh assent, disabled confirm, Back retains reason, explicit Close restores trigger; console warnings/errors empty. Unsaved review screenshot /tmp/auditsphere-reopen-native-review.png. No native submission; fixture disposed and owned tab closed. Escape does not close this nonmodal section.",
       "repairs": "E2E Angular-input attribute selector corrected; status asserts canonical data-status plus rendered open; keyboard confirmation waits until enabled/focused. Earlier failures retained in session logs; final targeted journey passed.",
       "migration": "20261019044215_WorkflowTaskReopening extends activity constraint; downgrade refuses retained reopening evidence. Exercised only in isolated test schemas, not applied to shared/deployed DB.",
-      "limits": "No full local suite; full CI on older0b0b7241 remains API/E2E active, predates this slice. No live/provider/professional/full accessibility acceptance."
+      "limits": "No full local suite; full CI on older0b0b7241 remains API/E2E active, predates this slice. No live/provider/professional/full accessibility acceptance.",
+      "activityKeyboardFollowUp": {
+        "sourceCommit": "d407de247274a356591cbab9a7597b1616e29e46",
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-workflow-reopen-results/workflow-reopen-activity-focus.trx",
+        "behavior": "Keyboard activates Review reopening activity after confirmed response; focus reaches activity heading; retained TASK_REOPENED label and exact reason are visible. Existing DB, dependencies and390px checks retained. Initial probe incorrectly expected Close in confirmed state; corrected to actual retained-activity flow, no production change."
+      },
+      "independentReview": "No source finding: current scoped authorization/session, locked reload/revision replay, retained evidence, API scope and guarded downgrade reviewed independently. Static review is not test/professional acceptance."
     }
   },
   "externalGates": [
