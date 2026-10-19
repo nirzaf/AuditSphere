@@ -1,4 +1,15 @@
-import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  DestroyRef,
+  ElementRef,
+  effect,
+  inject,
+  Injector,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -61,6 +72,7 @@ interface LeadWorkspace {
   historyHasMore: boolean;
   hasLegacyHistoryGap: boolean;
 }
+type HistoryFocusOrigin = { element: Element; interaction: number };
 interface OpportunityCreateIntent {
   leadId: string;
   requestId: string;
@@ -166,6 +178,10 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
 @Component({
   selector: 'audit-opportunities',
   imports: [RouterLink, FormsModule, MatButtonModule, MatProgressBarModule],
+  host: {
+    '(document:pointerdown)': 'recordFocusInteraction()',
+    '(document:keydown)': 'recordFocusInteraction()',
+  },
   template: `
     <a routerLink="/app/practice/leads">Leads</a>
     <h1>Opportunities</h1>
@@ -180,7 +196,7 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
       <h2>{{ lead.name }}</h2>
       <p>{{ lead.status }}</p>
       <p>Source: {{ lead.source }} · Owner: {{ lead.ownerName }} · Created: {{ lead.createdAt }}</p>
-      <section aria-labelledby="lead-history-heading">
+      <section #historySection tabindex="-1" aria-labelledby="lead-history-heading">
         <h2 id="lead-history-heading">Lead history</h2>
         @if (lead.hasLegacyHistoryGap) {
           <p role="note">
@@ -222,7 +238,7 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
             }
           </ol>
           @if (lead.historyHasMore) {
-            <button matButton [disabled]="busy() || loading() || historyLoading()" (click)="loadOlderHistory()">
+            <button matButton [disabled]="busy() || loading() || historyLoading()" (click)="loadOlderHistory($event.currentTarget)">
               Load older activity
             </button>
             @if (historyLoading()) {
@@ -419,6 +435,10 @@ export class Opportunities {
   private readonly router = inject(Router);
   private readonly session = inject(SessionService);
   private readonly drafts = inject(Drafts);
+  private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly renderInjector = inject(Injector);
+  private readonly historySection = viewChild<ElementRef<HTMLElement>>('historySection');
+  private focusInteraction = 0;
   private id = '';
   private request?: Subscription;
   private historyRequest?: Subscription;
@@ -455,6 +475,22 @@ export class Opportunities {
   exclusions = '';
   dependencies = '';
   timeline = '';
+  recordFocusInteraction(): void { this.focusInteraction++; }
+  private historyFocusOrigin(trigger?: EventTarget | null): HistoryFocusOrigin | null {
+    const host = this.hostElement.nativeElement;
+    const document = host.ownerDocument;
+    if (!(trigger instanceof HTMLButtonElement) || !host.contains(trigger) ||
+        (document.activeElement !== trigger && document.activeElement !== document.body)) return null;
+    return { element: trigger, interaction: this.focusInteraction };
+  }
+  private focusHistorySection(origin: HistoryFocusOrigin, owner: number): void {
+    afterNextRender(() => {
+      const document = this.hostElement.nativeElement.ownerDocument;
+      if (owner !== this.fence || origin.interaction !== this.focusInteraction ||
+          (document.activeElement !== origin.element && document.activeElement !== document.body)) return;
+      this.historySection()?.nativeElement.focus();
+    }, { injector: this.renderInjector });
+  }
   constructor() {
     const route = this.route.paramMap.subscribe((p) => {
       this.reset();
@@ -1027,7 +1063,7 @@ export class Opportunities {
         },
       });
   }
-  loadOlderHistory(): void {
+  loadOlderHistory(trigger?: EventTarget | null): void {
     const current = this.data();
     const oldest = current?.history[0];
     if (
@@ -1039,6 +1075,7 @@ export class Opportunities {
     )
       return;
     const fence = this.fence;
+    const focusOrigin = this.historyFocusOrigin(trigger);
     const query = `?historyBeforeOccurredAt=${encodeURIComponent(oldest.occurredAt)}&historyBeforeId=${oldest.id}`;
     this.historyLoading.set(true);
     this.historyError.set('');
@@ -1048,6 +1085,7 @@ export class Opportunities {
       .subscribe({
         next: (value) => {
           if (fence !== this.fence) return;
+          let finalHistoryPage = false;
           try {
             const page = decodeOpportunities(value);
             if (page.id !== current.id || page.history.length === 0) {
@@ -1064,10 +1102,12 @@ export class Opportunities {
               return left < right ? -1 : left > right ? 1 : 0;
             });
             this.data.set({ ...current, history, historyHasMore: page.historyHasMore });
+            finalHistoryPage = !page.historyHasMore;
           } catch {
             this.historyError.set('Older lead activity could not be read safely. Refresh persisted state and retry.');
           }
           this.historyLoading.set(false);
+          if (finalHistoryPage && focusOrigin) this.focusHistorySection(focusOrigin, fence);
         },
         error: (failure) => {
           if (fence !== this.fence) return;

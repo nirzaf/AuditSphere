@@ -82,9 +82,11 @@ public sealed class AngularCommercialJourneyTests
     Assert.Empty(errors);
   }
 
-  [Fact]
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
   [Trait("CaseId", "ANGULAR-COMMERCIAL-LEAD-QUALIFICATION-01")]
-  public async Task LeadQualificationConfirmationIdentifiesExactRecordAndKeepsAcceptanceSeparate()
+  public async Task LeadQualificationConfirmationIdentifiesExactRecordAndKeepsAcceptanceSeparate(bool canonical)
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "ANGULAR-COMMERCIAL-LEAD-QUALIFICATION-01");
@@ -98,35 +100,77 @@ public sealed class AngularCommercialJourneyTests
       leadId = created.Value;
     }
 
-    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = canonical.ToString() };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      settings["AngularUi__BuildPath"] = buildPath;
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
-    await using var context = await browser.NewContextAsync();
+    await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 390, Height = 844 } });
     var page = await context.NewPageAsync();
     var errors = new List<string>();
     page.PageError += (_, error) => errors.Add(error);
 
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/ui/app/practice/leads"));
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString((canonical ? "" : "/ui") + "/app/practice/leads"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Practice leads", Exact = true })).ToBeVisibleAsync();
-    await page.GetByRole(AriaRole.Button, new() { Name = $"Qualify {leadName}", Exact = true }).ClickAsync();
+    var leadsRegion = page.GetByRole(AriaRole.Region, new() { Name = "Commercial leads; scroll horizontally to see all columns", Exact = true });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh leads", Exact = true }).PressAsync("Tab");
+    await Assertions.Expect(leadsRegion).ToBeFocusedAsync();
+    await leadsRegion.PressAsync("ArrowRight");
+    await page.WaitForFunctionAsync("() => document.querySelector('[aria-label=\"Commercial leads; scroll horizontally to see all columns\"]').scrollLeft > 0");
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    await page.GetByRole(AriaRole.Button, new() { Name = $"Qualify {leadName}", Exact = true }).PressAsync("Enter");
     var confirmation = page.GetByRole(AriaRole.Alert);
     await Assertions.Expect(confirmation.GetByRole(AriaRole.Heading, new() { Name = $"Qualify {leadName}?", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(confirmation.GetByText($"Record ID: {leadId:D}", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(confirmation.GetByText("This does not grant professional acceptance or client access.", new() { Exact = true })).ToBeVisibleAsync();
-    await confirmation.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true }).ClickAsync();
+    var qualify = page.GetByRole(AriaRole.Button, new() { Name = $"Qualify {leadName}", Exact = true });
+    await qualify.PressAsync("Tab");
+    var confirmQualification = confirmation.GetByRole(AriaRole.Button, new() { Name = "Confirm qualification", Exact = true });
+    await Assertions.Expect(confirmQualification).ToBeFocusedAsync();
+    await confirmQualification.PressAsync("Tab");
+    var cancel = confirmation.GetByRole(AriaRole.Button, new() { Name = "Cancel", Exact = true });
+    await Assertions.Expect(cancel).ToBeFocusedAsync();
+    await cancel.PressAsync("Enter");
+    await Assertions.Expect(qualify).ToBeFocusedAsync();
     await Assertions.Expect(confirmation).ToHaveCountAsync(0);
     await using (var db = host.CreateDbContext())
       Assert.Equal(CrmStates.LeadNew, (await db.Leads.SingleAsync(x => x.Id == leadId)).Status);
 
-    await page.GetByRole(AriaRole.Button, new() { Name = $"Qualify {leadName}", Exact = true }).ClickAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = $"Qualify {leadName}", Exact = true }).PressAsync("Enter");
     confirmation = page.GetByRole(AriaRole.Alert);
     await Assertions.Expect(confirmation.GetByRole(AriaRole.Heading, new() { Name = $"Qualify {leadName}?", Exact = true })).ToBeVisibleAsync();
-    await confirmation.GetByRole(AriaRole.Button, new() { Name = "Confirm qualification", Exact = true }).ClickAsync();
+    await qualify.PressAsync("Tab");
+    await Assertions.Expect(confirmation.GetByRole(AriaRole.Button, new() { Name = "Confirm qualification", Exact = true })).ToBeFocusedAsync();
+    await confirmation.GetByRole(AriaRole.Button, new() { Name = "Confirm qualification", Exact = true }).PressAsync("Enter");
     await Assertions.Expect(page.GetByRole(AriaRole.Status).GetByText("Commercial change recorded.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Practice leads", Exact = true })).ToBeFocusedAsync();
 
     await using (var db = host.CreateDbContext())
+    {
       Assert.Equal(CrmStates.LeadQualified, (await db.Leads.SingleAsync(x => x.Id == leadId)).Status);
+      // Real discovery commands create a long, internally consistent activity history; no proposal or professional approval is inferred.
+      var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
+      for (var index = 0; index < 201; index++)
+      {
+        var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
+          new(leadId, "AccountingOnly", $"Synthetic history entity {index:D3}", "2026-01-01", "2026-12-31", 1000m, "QAR"));
+        Assert.True(opportunity.Succeeded, opportunity.Message);
+      }
+      Assert.Equal(203, await db.LeadActivityEvents.CountAsync(x => x.LeadId == leadId));
+    }
+    await page.GetByRole(AriaRole.Link, new() { Name = leadName, Exact = true }).PressAsync("Enter");
+    var history = page.GetByRole(AriaRole.Region, new() { Name = "Lead history", Exact = true });
+    await Assertions.Expect(history.Locator("li")).ToHaveCountAsync(200);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = leadName, Exact = true })).ToBeVisibleAsync();
+    var older = history.GetByRole(AriaRole.Button, new() { Name = "Load older activity", Exact = true });
+    await older.PressAsync("Enter");
+    await Assertions.Expect(history.Locator("li")).ToHaveCountAsync(203);
+    await Assertions.Expect(older).ToHaveCountAsync(0);
+    await Assertions.Expect(history).ToBeFocusedAsync();
+    await Assertions.Expect(history).ToContainTextAsync("Lead created");
+    await Assertions.Expect(history).ToContainTextAsync("Lead qualified");
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     Assert.Empty(errors);
   }
 

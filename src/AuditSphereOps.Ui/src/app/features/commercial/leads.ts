@@ -1,4 +1,14 @@
-import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import {
+  afterNextRender,
+  Component,
+  DestroyRef,
+  effect,
+  inject,
+  Injector,
+  signal,
+  untracked,
+} from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -77,8 +87,12 @@ export function isLeadChannel(value: string): boolean {
     MatInputModule,
     MatProgressBarModule,
   ],
+  host: {
+    '(document:pointerdown)': 'recordFocusInteraction()',
+    '(document:keydown)': 'recordFocusInteraction()',
+  },
   template: `
-    <h1>Practice leads</h1>
+    <h1 id="leads-page-heading" tabindex="-1">Practice leads</h1>
     <a routerLink="/app/practice/commercial-settings">Commercial settings</a>
     <p>Commercial qualification remains separate from client acceptance and credit decisions.</p>
     <form (ngSubmit)="load()">
@@ -179,7 +193,12 @@ export function isLeadChannel(value: string): boolean {
         {{ leads.total }} leads in this search
         <button matButton (click)="load()" [disabled]="loading() || busy()">Refresh leads</button>
       </p>
-      <div class="table-scroll">
+      <div
+        class="table-scroll"
+        role="region"
+        aria-label="Commercial leads; scroll horizontally to see all columns"
+        tabindex="0"
+      >
         <table>
           <caption>
             Commercial leads
@@ -211,7 +230,7 @@ export function isLeadChannel(value: string): boolean {
                     <button
                       matButton
                       [disabled]="busy() || uncertain()"
-                      (click)="qualification.set(lead)"
+                      (click)="startQualification(lead, $event.currentTarget)"
                     >
                       Qualify {{ lead.name }}
                     </button>
@@ -242,9 +261,9 @@ export function isLeadChannel(value: string): boolean {
           <h2>Qualify {{ lead.name }}?</h2>
           <p>Record ID: {{ lead.id }}</p>
           <p>This does not grant professional acceptance or client access.</p>
-          <button matButton [disabled]="busy() || uncertain()" (click)="qualify(lead.id)">
+          <button matButton [disabled]="busy() || uncertain()" (click)="qualify(lead.id, $event.currentTarget)">
             Confirm qualification</button
-          ><button matButton [disabled]="busy()" (click)="qualification.set(null)">Cancel</button>
+          ><button matButton [disabled]="busy()" (click)="cancelQualification()">Cancel</button>
         </section>
       }
     }
@@ -252,6 +271,8 @@ export function isLeadChannel(value: string): boolean {
   `,
 })
 export class Leads {
+  private readonly document = inject(DOCUMENT);
+  private readonly renderInjector = inject(Injector);
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionService);
   private request?: Subscription;
@@ -332,6 +353,8 @@ export class Leads {
   readonly recoverableLeadCreate = signal(false);
   readonly commandStatus = signal('');
   readonly qualification = signal<Lead | null>(null);
+  private qualificationTrigger: HTMLButtonElement | null = null;
+  private focusInteraction = 0;
   private createRequestId: string = crypto.randomUUID();
   constructor() {
     inject(DestroyRef).onDestroy(() => clearTimeout(this.draftTimer));
@@ -344,6 +367,7 @@ export class Leads {
         this.busy.set(false);
         this.data.set(null);
         this.search = this.name = this.source = this.contactName = this.contactEmail = '';
+        this.qualificationTrigger = null;
         this.qualification.set(null);
         this.commandStatus.set('');
         this.uncertain.set(false);
@@ -492,13 +516,29 @@ export class Leads {
         },
       });
   }
-  qualify(id: string): void {
-    if (this.qualification()?.id !== id || !this.data()?.items.some(lead => lead.id === id && lead.status === 'NEW')) return;
-    this.command('/' + id + '/qualify', {});
+  startQualification(lead: Lead, trigger: EventTarget | null): void {
+    this.qualificationTrigger = trigger instanceof HTMLButtonElement ? trigger : null;
+    this.qualification.set(lead);
   }
-  private command(path: string, body: object): void {
+  cancelQualification(): void {
+    const trigger = this.qualificationTrigger;
+    this.qualificationTrigger = null;
+    this.qualification.set(null);
+    if (trigger?.isConnected) trigger.focus();
+  }
+  recordFocusInteraction(): void {
+    this.focusInteraction++;
+  }
+  qualify(id: string, trigger: EventTarget | null = null): void {
+    if (this.qualification()?.id !== id || !this.data()?.items.some(lead => lead.id === id && lead.status === 'NEW')) return;
+    this.command('/' + id + '/qualify', {}, trigger instanceof HTMLButtonElement ? trigger : null);
+  }
+  private command(path: string, body: object, qualificationTrigger: HTMLButtonElement | null = null): void {
     if (this.destroyed || !this.session.current()?.staff || !this.data() || this.busy() || this.uncertain()) return;
     const generation = this.session.invalidation();
+    const focusOrigin = qualificationTrigger
+      ? { element: qualificationTrigger, interaction: this.focusInteraction }
+      : null;
     this.busy.set(true);
     this.commandStatus.set('Saving commercial change…');
     this.qualificationRequest = this.http
@@ -510,9 +550,19 @@ export class Leads {
           this.busy.set(false);
           this.name = this.source = this.contactName = this.contactEmail = '';
           this.drafts.clear('commercial-lead-draft');
+          this.qualificationTrigger = null;
           this.qualification.set(null);
           this.commandStatus.set('Commercial change recorded.');
           this.load();
+          if (focusOrigin) {
+            afterNextRender(() => {
+              const active = this.document.activeElement;
+              if (this.destroyed || generation !== this.session.invalidation() ||
+                  focusOrigin.interaction !== this.focusInteraction ||
+                  (active !== focusOrigin.element && active !== this.document.body)) return;
+              this.document.getElementById('leads-page-heading')?.focus();
+            }, { injector: this.renderInjector });
+          }
         },
         error: (failure) => {
           if (this.destroyed || generation !== this.session.invalidation()) return;
@@ -528,7 +578,7 @@ export class Leads {
             );
           }
           if ([401, 403, 404].includes(failure.status)) {
-            this.data.set(null); this.qualification.set(null);
+            this.data.set(null); this.qualificationTrigger = null; this.qualification.set(null);
             this.error.set('Lead information is unavailable in your current scope.');
           }
           if (failure.status === 401) this.session.clear();
@@ -536,6 +586,8 @@ export class Leads {
       });
   }
   load(page = 0): void {
+    this.qualificationTrigger = null;
+    this.qualification.set(null);
     this.request?.unsubscribe();
     this.data.set(null);
     this.error.set('');

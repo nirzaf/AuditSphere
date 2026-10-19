@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
 import { Drafts } from '../../core/drafts';
 import { Leads, decodeLeads, isLeadChannel, LEAD_CHANNELS } from './leads';
@@ -37,7 +38,7 @@ describe('Lead qualification exact confirmation and denial', () => {
   const id = '00000000-0000-0000-0000-000000000001', other = '00000000-0000-0000-0000-000000000002';
   let http: HttpTestingController;
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
       { provide: SessionService, useValue: { current: signal({ staff: true }), invalidation: signal(0), clear: vi.fn() } },
       { provide: Drafts, useValue: { load: () => null, clear: vi.fn() } },
     ] }); http = TestBed.inject(HttpTestingController);
@@ -49,6 +50,17 @@ describe('Lead qualification exact confirmation and denial', () => {
       primaryContactEmail: null, status: 'NEW', createdAt: '2026-10-16T00:00:00Z' };
     http.expectOne(r => r.url === '/api/ui/leads').flush({ items: [lead], total: 1, page: 0, pageSize: 25 });
     return { c, lead };
+  }
+  function renderLeads() {
+    const fixture = TestBed.createComponent(Leads);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(r => r.url === '/api/ui/leads').flush({
+      items: [{ id, name: 'Synthetic lead', source: 'Email', primaryContactName: null,
+        primaryContactEmail: null, status: 'NEW', createdAt: '2026-10-16T00:00:00Z' }],
+      total: 1, page: 0, pageSize: 25,
+    });
+    fixture.detectChanges();
+    return fixture;
   }
   it('refuses an unconfirmed or different lead identity without dispatch', () => {
     const { c, lead } = open(); c.qualify(id); c.qualification.set(lead); c.qualify(other);
@@ -64,5 +76,99 @@ describe('Lead qualification exact confirmation and denial', () => {
     const { c, lead } = open(); c.qualification.set(lead); c.qualify(id);
     const request = http.expectOne('/api/ui/leads/' + id + '/qualify'); TestBed.resetTestingModule();
     expect(request.cancelled).toBe(true); expect(c.commandStatus()).not.toBe('Commercial change recorded.');
+  });
+  it('exposes the leads table as a named keyboard-scroll region', () => {
+    const fixture = renderLeads();
+    const region = fixture.nativeElement.querySelector('.table-scroll') as HTMLDivElement;
+    expect(region.getAttribute('role')).toBe('region');
+    expect(region.getAttribute('aria-label')).toBe('Commercial leads; scroll horizontally to see all columns');
+    expect(region.tabIndex).toBe(0);
+    region.focus();
+    expect(document.activeElement).toBe(region);
+
+    const qualifyButton = [...fixture.nativeElement.querySelectorAll('button')]
+      .find((button) => button.textContent.trim() === 'Qualify Synthetic lead') as HTMLButtonElement;
+    qualifyButton.focus();
+    qualifyButton.click();
+    fixture.detectChanges();
+    const cancelButton = [...fixture.nativeElement.querySelectorAll('button')]
+      .find((button) => button.textContent.trim() === 'Cancel') as HTMLButtonElement;
+    cancelButton.focus();
+    cancelButton.click();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(qualifyButton);
+
+    qualifyButton.focus();
+    qualifyButton.click();
+    fixture.detectChanges();
+    const confirmButton = [...fixture.nativeElement.querySelectorAll('button')]
+      .find((button) => button.textContent.trim() === 'Confirm qualification') as HTMLButtonElement;
+    confirmButton.focus();
+    confirmButton.click();
+    const command = http.expectOne('/api/ui/leads/' + id + '/qualify');
+    command.flush({});
+    http.expectOne((r) => r.url === '/api/ui/leads').flush({
+      items: [{ id, name: 'Synthetic lead', source: 'Email', primaryContactName: null,
+        primaryContactEmail: null, status: 'QUALIFIED', createdAt: '2026-10-16T00:00:00Z' }],
+      total: 1, page: 0, pageSize: 25,
+    });
+    fixture.detectChanges(); TestBed.tick();
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#leads-page-heading'));
+    fixture.destroy();
+  });
+  it('clears qualification at refresh start and does not restore it after a denied read and retry', () => {
+    const fixture = renderLeads();
+    const component = fixture.componentInstance;
+    const qualifyButton = [...fixture.nativeElement.querySelectorAll('button')]
+      .find((button) => button.textContent.trim() === 'Qualify Synthetic lead') as HTMLButtonElement;
+    qualifyButton.click();
+    fixture.detectChanges();
+    expect(component.qualification()?.id).toBe(id);
+
+    component.load();
+    expect(component.qualification()).toBeNull();
+    http.expectOne((r) => r.url === '/api/ui/leads').flush({}, { status: 403, statusText: 'Forbidden' });
+    fixture.detectChanges();
+    const retry = [...fixture.nativeElement.querySelectorAll('button')]
+      .find((button) => button.textContent.trim() === 'Retry') as HTMLButtonElement;
+    retry.click();
+    fixture.detectChanges();
+    http.expectOne((r) => r.url === '/api/ui/leads').flush({
+      items: [{ id, name: 'Synthetic lead', source: 'Email', primaryContactName: null,
+        primaryContactEmail: null, status: 'NEW', createdAt: '2026-10-16T00:00:00Z' }],
+      total: 1, page: 0, pageSize: 25,
+    });
+    fixture.detectChanges();
+    expect(component.qualification()).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Confirm qualification');
+    fixture.destroy();
+  });
+  it('does not move focus to the page heading after qualification if the user interacts elsewhere', () => {
+    const fixture = renderLeads();
+    const qualifyButton = [...fixture.nativeElement.querySelectorAll('button')]
+      .find((button) => button.textContent.trim() === 'Qualify Synthetic lead') as HTMLButtonElement;
+    qualifyButton.click();
+    fixture.detectChanges();
+    const confirmButton = [...fixture.nativeElement.querySelectorAll('button')]
+      .find((button) => button.textContent.trim() === 'Confirm qualification') as HTMLButtonElement;
+    confirmButton.focus();
+    confirmButton.click();
+    const command = http.expectOne('/api/ui/leads/' + id + '/qualify');
+
+    const outsideButton = document.createElement('button');
+    outsideButton.textContent = 'Other action';
+    document.body.append(outsideButton);
+    outsideButton.focus();
+    outsideButton.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    command.flush({});
+    http.expectOne((r) => r.url === '/api/ui/leads').flush({
+      items: [{ id, name: 'Synthetic lead', source: 'Email', primaryContactName: null,
+        primaryContactEmail: null, status: 'QUALIFIED', createdAt: '2026-10-16T00:00:00Z' }],
+      total: 1, page: 0, pageSize: 25,
+    });
+    fixture.detectChanges(); TestBed.tick();
+    expect(document.activeElement).toBe(outsideButton);
+    outsideButton.remove();
+    fixture.destroy();
   });
 });
