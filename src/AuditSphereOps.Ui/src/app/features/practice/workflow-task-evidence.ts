@@ -179,7 +179,10 @@ export class WorkflowTaskEvidencePanel {
     try {
       const value = await this.api.get(`${url}/receipts/${encodeURIComponent(key)}`, decodeEvidenceReceipt);
       if (generation === this.session.invalidation() && url === this.url()) this.accept(value, key, storageKey);
-    } catch { this.failed.set(true); this.message.set('A saved receipt was not confirmed. Keep the recovery key and review the task; no change was resent.'); }
+    } catch {
+      if (generation !== this.session.invalidation() || url !== this.url()) return;
+      this.failed.set(true); this.message.set('A saved receipt was not confirmed. Keep the recovery key and review the task; no change was resent.');
+    }
     finally { this.busy.set(false); }
   }
 

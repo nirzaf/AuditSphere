@@ -74,9 +74,33 @@ describe('reviewed task evidence changes', () => {
     const saving = c.submit(); const posted = http.expectOne(r => r.method === 'POST');
     posted.flush({ value: { engagementId: task, taskId: task, idempotencyKey: posted.request.body.idempotencyKey, ruleRevisionId: user, taskRevision: 2 } });
     await saving; expect(c.pending()).not.toBeNull(); expect(c.failed()).toBe(true);
+
+    const key = c.pending()!;
+    const recoveringOldTask = c.recover();
+    const oldTaskLookup = http.expectOne(`${url}/receipts/${key}`);
+    fixture.componentRef.setInput('taskId', user); TestBed.tick(); fixture.detectChanges();
+    http.expectOne(url.replace(task, user)).flush({ ...workspace, taskId: user });
+    TestBed.tick(); fixture.detectChanges();
+    c.reason = 'Current task draft';
+    oldTaskLookup.flush({}, { status: 503, statusText: 'Late old-task lookup failure' });
+    await recoveringOldTask;
+    expect(c.failed()).toBe(false); expect(c.message()).toBe('');
+    expect(c.reason).toBe('Current task draft'); expect(c.pending()).toBeNull();
+    expect(sessionStorage.getItem(`auditsphere.workflow-evidence:${user}:${user}:${engagement}:${task}`)).toBe(key);
+
+    fixture.componentRef.setInput('taskId', task); TestBed.tick(); fixture.detectChanges();
+    http.expectOne(url).flush(workspace); TestBed.tick(); fixture.detectChanges();
+    expect(c.pending()).toBe(key);
+    const recoveringOldSession = c.recover();
+    const oldSessionLookup = http.expectOne(`${url}/receipts/${key}`);
+    c.reason = 'Private operational routing reason';
     session.clear(); TestBed.tick(); fixture.detectChanges();
+    oldSessionLookup.flush({}, { status: 503, statusText: 'Late old-session lookup failure' });
+    await recoveringOldSession;
+    expect(c.failed()).toBe(false); expect(c.message()).toBe('');
     expect(c.workspace.data()).toBeNull(); expect(c.review()).toBeNull(); expect(c.reason).toBe('');
-    expect(fixture.nativeElement.textContent).not.toContain('Private operational routing reason'); http.verify({ ignoreCancelled: true }); fixture.destroy();
+    expect(fixture.nativeElement.textContent).not.toContain('Private operational routing reason');
+    http.expectNone(r => r.method === 'POST'); http.verify({ ignoreCancelled: true }); fixture.destroy();
   });
 
   it('does not expose editing to a staff reader or retain data from another task', () => {
