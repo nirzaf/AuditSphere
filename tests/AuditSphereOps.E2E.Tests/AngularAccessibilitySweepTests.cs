@@ -21,6 +21,7 @@ public sealed class AngularAccessibilitySweepTests
     "/ui/app/practice/time",
     "/ui/app/practice/resources",
     "/ui/app/practice/analytics",
+    "/ui/app/practice/reminder-rules",
     "/ui/app/finance",
     "/ui/app/finance/books",
     "/ui/app/library",
@@ -125,13 +126,23 @@ public sealed class AngularAccessibilitySweepTests
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-A11Y-SWEEP-E2E");
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Staff,
-      new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
+      new Dictionary<string, string>
+      {
+        ["AngularUi__Enabled"] = "true",
+        ["WorkflowExperience__Enabled"] = "true"
+      });
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
     var pageErrors = new List<string>();
+    int? reminderCatalogStatus = null;
     page.PageError += (_, error) => pageErrors.Add(error);
+    page.Response += (_, response) =>
+    {
+      if (response.Url.Contains("/api/ui/practice/reminder-rules?pageSize=25", StringComparison.Ordinal))
+        reminderCatalogStatus = response.Status;
+    };
 
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString("/ui/app"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Portfolio", Exact = true })).ToBeVisibleAsync();
@@ -141,6 +152,13 @@ public sealed class AngularAccessibilitySweepTests
     {
       await page.GotoAsync(origin + route);
       await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+      if (route == "/ui/app/practice/reminder-rules")
+      {
+        await OwnedBrowserFixtureHandoff.WaitAsync(origin, route, "accessibility-reminder-rules");
+        await Assertions.Expect(page.GetByText("Firm-wide administration requires an unscoped grant.", new() { Exact = true }).First).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByText("Temporarily unavailable. Retry shortly.", new() { Exact = true })).ToHaveCountAsync(0);
+        Assert.Equal(403, reminderCatalogStatus);
+      }
       var problems = await page.EvaluateAsync<string[]>(SemanticAuditScript);
       failures.AddRange(problems.Select((p) => route + ": " + p));
     }

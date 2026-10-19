@@ -272,6 +272,17 @@ else
     throw new InvalidOperationException("Automatic fee invoice drafts require the general worker and explicit finance/administrator identities.");
   builder.Services.AddSingleton(feeAutomation);
   builder.Services.AddSingleton<AutomaticFeeInvoiceHandler>();
+  var workflowReminders = new WorkflowReminderOptions(
+    builder.Configuration.GetValue<bool>("WorkflowExperience:Enabled") &&
+      builder.Configuration.GetValue<bool>("WorkflowReminders:Enabled"),
+    builder.Configuration.GetValue("WorkflowReminders:BatchSize", 25));
+  workflowReminders.Validate();
+  builder.Services.AddSingleton(workflowReminders);
+  builder.Services.AddSingleton<WorkflowReminderTaskHandler>();
+  builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new WorkflowReminderDiscovery(
+    sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
+    sp.GetRequiredService<WorkflowReminderTaskHandler>(), workerOptions, workflowReminders,
+    sp.GetRequiredService<TimeProvider>()));
   if (feeAutomation.Enabled)
     builder.Services.AddSingleton<IPendingOperationDiscovery>(sp => new AutomaticFeeInvoiceDiscovery(
       sp.GetRequiredService<IAuditSphereDbContextFactory>(), sp.GetRequiredService<IOperationStore>(),
@@ -324,7 +335,8 @@ static IOperationHandler[] ResolveHandlers(IServiceProvider sp, bool simulationA
   var checkpoint = sp.GetRequiredService<ReleaseCheckpointHandler>();
   var freeze = sp.GetRequiredService<AuditSphereOps.Application.Records.FileFreezeHandler>();
   var fees = sp.GetRequiredService<AutomaticFeeInvoiceHandler>();
+  var reminders = sp.GetRequiredService<WorkflowReminderTaskHandler>();
   return simulationAllowed
-    ? [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees, sp.GetRequiredService<PbcDocumentTransferHandler>()]
-    : [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees];
+    ? [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees, reminders, sp.GetRequiredService<PbcDocumentTransferHandler>()]
+    : [validation, completeness, packageBuild, packageRender, checkpoint, freeze, fees, reminders];
 }

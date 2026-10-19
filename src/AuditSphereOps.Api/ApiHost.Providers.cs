@@ -9,6 +9,7 @@ using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication;
@@ -38,6 +39,12 @@ public static partial class ApiHost
     // The simulated sink is harmless here: simulated execution requires the Test worker
     // composition, and this host only records queue entries.
     builder.Services.AddSingleton<IAuditSphereDbContextFactory, OperationContextFactory>();
+    var workflowReminders = new WorkflowReminderOptions(
+      builder.Configuration.GetValue<bool>("WorkflowExperience:Enabled") &&
+        builder.Configuration.GetValue<bool>("WorkflowReminders:Enabled"),
+      builder.Configuration.GetValue("WorkflowReminders:BatchSize", 25));
+    workflowReminders.Validate();
+    builder.Services.AddSingleton(workflowReminders);
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton(new DirectoryCertificateOptions(
       builder.Configuration.GetValue<bool>("DirectoryReader:Enabled"),

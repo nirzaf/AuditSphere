@@ -72,19 +72,49 @@ const decodeQueue = obj({
   summary: nullable(decodeQueueSummary),
 });
 type ReminderTaskSelection = { engagementId: string; taskId: string };
-const reminderTaskRow = obj({
+const reminderSourceShape = obj({
+  sourceKind: oneOf('TASK_DUE', 'PBC_DUE'), sourceId: guid, sourceRevision: int,
+  dueRevision: int, sourceDueDate: date, sourceHref: str(300), recipientUserId: guid,
+  isSourceCurrent: nullable(bool),
+});
+const reminderSource = (value: unknown, path: string) => {
+  const decoded = reminderSourceShape(value, path);
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      !Object.prototype.hasOwnProperty.call(value, 'isSourceCurrent') ||
+      (value as Record<string, unknown>)['isSourceCurrent'] === undefined)
+    throw new Error(`${path}.isSourceCurrent: required nullable field`);
+  return decoded;
+};
+function optionalNullable<T>(decoder: (value: unknown, path: string) => T) {
+  return (value: unknown, path: string): T | null => value === undefined ? null : nullable(decoder)(value, path);
+}
+const optionalBoolean = (value: unknown, path: string): boolean => value === undefined ? false : bool(value, path);
+const reminderTaskRowShape = obj({
   id: guid, title: nonBlank(300), phase: nonBlank(40), ordinal: int, status: nonBlank(40),
   assigneeUserId: nullable(guid), assigneeDisplayName: nullable(str(200)), assignedRole: nullable(str(100)),
-  dueDate: nullable(date), revision: int,
+  dueDate: nullable(date), revision: int, reminderRuleId: nullable(guid),
+  reminderRuleRevisionId: nullable(guid), reminderOperationId: nullable(guid),
+  reminderSource: optionalNullable(reminderSource), canOpenReminderRule: optionalBoolean,
 });
+const reminderTaskRow = (value: unknown, path: string) => reminderTaskRowShape(value, path);
 const reminderTaskWorkspaceShape = obj({ engagementId: guid, tasks: arr(reminderTaskRow, 500), truncated: bool });
 type ReminderTaskRow = ReturnType<typeof reminderTaskRow>;
+type ReminderSource = NonNullable<ReminderTaskRow['reminderSource']>;
+function reminderSourceHrefAllowed(engagementId: string, source: ReminderSource): boolean {
+  const engagement = engagementId.toLowerCase();
+  const sourceId = source.sourceId.toLowerCase();
+  return source.sourceKind === 'TASK_DUE'
+    ? source.sourceHref === `/app/work?engagementId=${engagement}&taskId=${sourceId}`
+    : source.sourceHref === `/app/engagements/${engagement}/pbc`;
+}
 function decodeReminderTaskWorkspace(value: unknown, path: string, selection: ReminderTaskSelection | null): ReminderTaskRow {
   const workspace = reminderTaskWorkspaceShape(value, path);
   const task = workspace.tasks[0];
   if (!selection || workspace.engagementId.toLowerCase() !== selection.engagementId || workspace.truncated ||
       workspace.tasks.length !== 1 || task.id.toLowerCase() !== selection.taskId)
     throw new Error(`${path || 'task'}: selected task does not match the current reminder link`);
+  if (task.reminderSource && !reminderSourceHrefAllowed(selection.engagementId, task.reminderSource))
+    throw new Error(`${path || 'task'}: reminder source link does not match its authorized context`);
   return task;
 }
 const decodeAssigneeOptions = arr(obj({ userId: guid, displayName: nonBlank(200) }), 200);
@@ -191,6 +221,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         @if (reminderTask.loading()) { <p role="status">Loading the exact selected task.</p> }
         @if (reminderTask.error()) { <p role="alert">{{ reminderTask.error() }}</p> }
         @if (reminderTask.data(); as selected) {
+          <p role="status">{{ selected.title }} loaded from the reminder link; status {{ selected.status }}, revision {{ selected.revision }}.</p>
           <dl class="facts">
             <dt>Task</dt><dd>{{ selected.title }} · {{ selected.id }}</dd>
             <dt>Engagement</dt><dd>{{ selection.engagementId }}</dd>
@@ -199,6 +230,38 @@ const queueViews: { key: QueueView; label: string }[] = [
             <dt>Owner</dt><dd>{{ selected.assigneeDisplayName ?? selected.assigneeUserId ?? 'Unassigned' }}</dd>
             <dt>Status</dt><dd><audit-status [value]="selected.status" /> · revision {{ selected.revision }}</dd>
           </dl>
+          @if (selected.reminderSource || selected.reminderRuleRevisionId || selected.reminderOperationId) {
+            <section class="activity-panel" aria-labelledby="reminder-origin-heading">
+              <h3 id="reminder-origin-heading">Reminder origin</h3>
+              <dl class="facts">
+                @if (selected.reminderSource; as source) {
+                  <dt>Source</dt><dd>{{ source.sourceKind === 'TASK_DUE' ? 'Workflow task due date' : 'PBC response due date' }} · {{ source.sourceId }}</dd>
+                  <dt>Source revision</dt><dd>{{ source.sourceRevision }}</dd>
+                  <dt>Due revision</dt><dd>{{ source.dueRevision }}</dd>
+                  <dt>Source due date</dt><dd>{{ source.sourceDueDate }}</dd>
+                  <dt>Recipient</dt><dd>{{ source.recipientUserId }}</dd>
+                  <dt>Current source</dt><dd>{{ source.isSourceCurrent === null ? 'Current source status unavailable' : source.isSourceCurrent ? 'Source is current' : 'Source has changed' }}</dd>
+                }
+                @if (selected.reminderRuleRevisionId) {
+                  <dt>Rule revision</dt><dd>{{ selected.reminderRuleRevisionId }}</dd>
+                }
+                @if (selected.reminderOperationId) {
+                  <dt>Reminder operation</dt><dd>{{ selected.reminderOperationId }}</dd>
+                }
+              </dl>
+              @if (selected.reminderSource; as source) {
+                @if (reminderSourceTarget(source); as sourceTarget) {
+                  <a matButton [routerLink]="sourceTarget.commands" [queryParams]="sourceTarget.queryParams">{{ sourceTarget.label }}</a>
+                }
+              }
+              @if (selected.canOpenReminderRule && selected.reminderRuleId && selected.reminderRuleRevisionId) {
+                <a matButton [routerLink]="['/app/practice/reminder-rules']"
+                  [queryParams]="{ ruleId: selected.reminderRuleId, revisionId: selected.reminderRuleRevisionId }">
+                  Open exact reminder rule revision
+                </a>
+              }
+            </section>
+          }
           @if (reminderQueueTask(); as task) {
             @if (task.canChangeDueDate || task.canComplete || task.canCancel || (task.canReopen && task.taskStatus === 'CANCELLED') || task.canAssign) {
               <div role="group" aria-label="Actions authorized by the current work queue">
@@ -609,6 +672,16 @@ export class WorkflowWorkQueue {
       task.taskStatus === currentTask.status && task.revision === currentTask.revision) ?? null : null;
   }
 
+  reminderSourceTarget(source: ReminderSource): {
+    commands: string[]; queryParams: Record<string, string> | null; label: string;
+  } | null {
+    const selection = this.reminderTaskSelection();
+    if (!selection || !reminderSourceHrefAllowed(selection.engagementId, source)) return null;
+    return source.sourceKind === 'TASK_DUE'
+      ? { commands: ['/app/work'], queryParams: { engagementId: selection.engagementId, taskId: source.sourceId }, label: 'Open originating workflow task' }
+      : { commands: ['/app/engagements', selection.engagementId, 'pbc'], queryParams: null, label: 'Open PBC workspace' };
+  }
+
   private readReminderTaskSelection(params: ParamMap): void {
     const engagementIds = params.getAll('engagementId');
     const taskIds = params.getAll('taskId');
@@ -631,10 +704,27 @@ export class WorkflowWorkQueue {
       const current = this.reminderTaskSelection();
       if (current?.engagementId === next.engagementId && current.taskId === next.taskId) return;
       this.reminderTaskSelection.set(next);
+      this.focusReminderTaskHeading(next);
     } catch {
       this.reminderTaskSelection.set(null);
       this.reminderTaskLinkError.set('This task link is invalid. Open the reminder again.');
     }
+  }
+
+  private focusReminderTaskHeading(selection: ReminderTaskSelection): void {
+    const root = this.hostElement.nativeElement;
+    const document = root.ownerDocument;
+    const active = document.activeElement;
+    if (active !== document.body && !root.contains(active)) return;
+    const owner = this.sessionOwnerKey();
+    const interaction = this.focusInteraction;
+    afterNextRender(() => {
+      const current = this.reminderTaskSelection();
+      if (this.workQueueDestroyed || owner !== this.sessionOwnerKey() || interaction !== this.focusInteraction ||
+          current?.engagementId !== selection.engagementId || current.taskId !== selection.taskId ||
+          (document.activeElement !== active && document.activeElement !== document.body)) return;
+      root.querySelector<HTMLElement>('#reminder-task-heading')?.focus();
+    }, { injector: this.renderInjector });
   }
 
   /** Groups an exact count string for display without converting it to a number. */

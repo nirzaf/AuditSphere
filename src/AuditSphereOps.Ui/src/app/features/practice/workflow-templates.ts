@@ -69,6 +69,7 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
       description="Create versioned operational task plans. Tasks organize work only; they do not satisfy audit, approval, reporting, or archive gates." />
     <p class="muted">Partners and Administrators can prepare, review, publish, and archive firm-wide templates. A different person must review the draft author’s exact revision before it can be published.</p>
     <div class="actions"><a matButton routerLink="/app/work">My work</a>
+      <a matButton routerLink="/app/practice/reminder-rules">Reminder rules</a>
       <button matButton="filled" (click)="startNewTemplate()" [disabled]="cmd.busy()">New template</button>
       <button matButton (click)="refresh()" [disabled]="cmd.busy()">Refresh</button>
     </div>

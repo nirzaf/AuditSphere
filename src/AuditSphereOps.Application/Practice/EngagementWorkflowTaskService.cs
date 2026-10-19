@@ -37,7 +37,9 @@ public sealed record WorkflowTaskRow(
   Guid? TemplateRevisionId,
   int Generation,
   long Revision,
-  DateTimeOffset CreatedAt);
+  DateTimeOffset CreatedAt,
+  Guid? ReminderRuleId = null, Guid? ReminderRuleRevisionId = null, Guid? ReminderOperationId = null,
+  WorkflowReminderTaskOrigin? ReminderSource = null, bool CanOpenReminderRule = false);
 
 public sealed record WorkflowTaskWorkspace(
   Guid EngagementId,
@@ -74,7 +76,8 @@ public static class EngagementWorkflowTaskService
                       orderby binding.Phase, binding.Ordinal, binding.Id
                       select new WorkflowTaskRow(task.Id, task.Title, binding.Phase, binding.Ordinal, task.Status,
                         binding.AssigneeUserIdSnapshot, null, binding.AssignedRole, task.DueDate, binding.PlannedEffortMinutes, task.MappingVersionId,
-                        task.FsliCode, binding.TemplateRevisionId, binding.Generation, binding.Revision, binding.CreatedAt))
+                        task.FsliCode, binding.TemplateRevisionId, binding.Generation, binding.Revision, binding.CreatedAt,
+                        null, binding.ReminderRuleRevisionId, binding.ReminderOperationId, null, false))
       .Take(501).ToListAsync(ct);
     var truncated = rows.Count > 500;
     if (truncated) rows.RemoveAt(rows.Count - 1);
@@ -84,6 +87,50 @@ public static class EngagementWorkflowTaskService
         .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
     rows = rows.Select(x => x with
       { AssigneeDisplayName = x.AssigneeUserId is { } id ? assignees.GetValueOrDefault(id) : null }).ToList();
+    if (rows.Any(x => x.ReminderRuleRevisionId is not null))
+    {
+      var revisionIds = rows.Where(x => x.ReminderRuleRevisionId is not null)
+        .Select(x => x.ReminderRuleRevisionId!.Value).Distinct().ToArray();
+      var ruleIds = await db.WorkflowReminderRuleRevisions.AsNoTracking().Where(x =>
+        x.FirmId == actor.FirmId && revisionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.RuleId, ct);
+      var operationIds = rows.Where(x => x.ReminderOperationId is not null)
+        .Select(x => x.ReminderOperationId!.Value).Distinct().ToArray();
+      var operations = await db.DurableOperations.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.EngagementId == engagementId && operationIds.Contains(x.Id) &&
+        x.OperationKind == WorkflowReminderTaskHandler.Kind).ToDictionaryAsync(x => x.Id, ct);
+      var canOpenRule = (await WorkflowReminderRuleService.AuthorizeReadAsync(db, actor, ct)).Succeeded;
+      var enriched = new List<WorkflowTaskRow>();
+      foreach (var row in rows)
+      {
+        WorkflowReminderTaskOrigin? origin = null;
+        if (row.ReminderOperationId is { } operationId && operations.TryGetValue(operationId, out var operation) &&
+            operation.TargetId == row.ReminderRuleRevisionId && operation.Status == AuditSphereOps.Domain.Completion.OperationState.COMPLETED &&
+            operation.ResultIdentity == row.Id.ToString("D") && WorkflowReminderRuntime.HasVerifiedEnvelope(operation))
+        {
+          var intent = WorkflowReminderTaskHandler.Parse(operation.PayloadJson);
+          bool? sourceCurrent = null;
+          if (selectedTaskId.HasValue && operation.ClientId is { } clientId)
+          {
+            var source = await WorkflowReminderRuntime.SourceAsync(db, actor.FirmId, clientId, engagementId,
+              intent.SourceKind, intent.SourceId, false, ct);
+            sourceCurrent = source is not null && source.Revision == intent.SourceRevision && source.Digest == intent.SourceDigest;
+          }
+          origin = new(intent.SourceKind, intent.SourceId, intent.SourceRevision, intent.DueRevision,
+            intent.SourceDueDate, intent.SourceKind == "TASK_DUE"
+              ? $"/app/work?engagementId={engagementId:D}&taskId={intent.SourceId:D}"
+              : $"/app/engagements/{engagementId:D}/pbc", intent.RecipientUserId, sourceCurrent);
+        }
+        enriched.Add(row with
+        {
+          ReminderRuleId = row.ReminderRuleRevisionId is { } revisionId ? ruleIds.GetValueOrDefault(revisionId) : null,
+          ReminderSource = origin, CanOpenReminderRule = canOpenRule
+        });
+      }
+      rows = enriched;
+    }
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<WorkflowTaskWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<WorkflowTaskWorkspace>.Ok(new WorkflowTaskWorkspace(engagementId, rows, truncated));
   }
 

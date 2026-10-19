@@ -105,6 +105,7 @@ public static partial class UiEndpoints
     MapWorkbenchEndpoints(group);
     MapWorkflowTaskEndpoints(group);
     MapWorkflowTemplateEndpoints(group);
+    MapWorkflowReminderRuleEndpoints(group);
     group.MapGet("/clients/{id:guid}/acceptance", async (Guid id, HttpContext http, TrustedActorResolver resolver,
       IDbContextFactory<AuditSphereDbContext> factory) =>
     {

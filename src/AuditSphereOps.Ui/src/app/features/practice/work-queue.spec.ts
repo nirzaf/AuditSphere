@@ -151,11 +151,22 @@ describe('workflow queue assignment filters', () => {
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
     canComplete: false, canChangeDueDate: false, canAssign: true, canCancel: false, canReopen: false, revision: 1, pbcRequestId: null, pbcState: null, reviewState: null, reviewComment: null,
   };
-  const reminderWorkspace = (id: string, title: string, revision: number, status: string, engagementId = task.engagementId) => ({
+  const reminderWorkspace = (id: string, title: string, revision: number, status: string, engagementId = task.engagementId,
+    reminderOrigin: {
+      reminderRuleId?: string | null; reminderRuleRevisionId?: string | null; reminderOperationId?: string | null;
+      reminderSource?: { sourceKind: 'TASK_DUE' | 'PBC_DUE'; sourceId: string; sourceRevision: number; dueRevision: number;
+        sourceDueDate: string; sourceHref: string; recipientUserId: string; isSourceCurrent: boolean | null } | null;
+      canOpenReminderRule?: boolean;
+    } = {}) => ({
     engagementId, truncated: false,
     tasks: [{ id, title, phase: task.phase, ordinal: task.ordinal, status,
       assigneeUserId: task.assigneeUserId, assigneeDisplayName: task.assigneeDisplayName, assignedRole: null,
-      dueDate: task.dueDate, revision }],
+      dueDate: task.dueDate, revision, reminderRuleId: reminderOrigin.reminderRuleId ?? null,
+      reminderRuleRevisionId: reminderOrigin.reminderRuleRevisionId ?? null,
+      reminderOperationId: reminderOrigin.reminderOperationId ?? null,
+      ...(Object.prototype.hasOwnProperty.call(reminderOrigin, 'reminderSource') ? { reminderSource: reminderOrigin.reminderSource } : {}),
+      ...(Object.prototype.hasOwnProperty.call(reminderOrigin, 'canOpenReminderRule') ? { canOpenReminderRule: reminderOrigin.canOpenReminderRule } : {}),
+    }],
   });
   const cancelableTask = { ...task, canCancel: true };
   const reopenableTask = { ...task, taskStatus: 'CANCELLED', canCancel: false, canReopen: true };
@@ -991,16 +1002,35 @@ describe('workflow queue assignment filters', () => {
         `/app/work?engagementId=${task.engagementId}&taskId=${task.taskId}`, WorkflowWorkQueue);
       const host = harness.routeNativeElement!;
       const selectedPanel = () => host.querySelector<HTMLElement>('section[aria-labelledby="reminder-task-heading"]')!;
+      const reminderRuleId = '66666666-6666-4666-8666-666666666666';
+      const reminderRevisionId = '77777777-7777-4777-8777-777777777777';
+      const reminderOperationId = '88888888-8888-4888-8888-888888888888';
+      const sourceTaskId = '99999999-9999-4999-8999-999999999999';
+      const sourceRecipientId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
-      http.expectOne(workspaceUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision, task.taskStatus));
+      http.expectOne(workspaceUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision, task.taskStatus,
+        task.engagementId, { reminderRuleId, reminderRuleRevisionId: reminderRevisionId, reminderOperationId,
+          reminderSource: { sourceKind: 'TASK_DUE', sourceId: sourceTaskId, sourceRevision: 2, dueRevision: 3,
+            sourceDueDate: '2026-10-10', sourceHref: `/app/work?engagementId=${task.engagementId}&taskId=${sourceTaskId}`,
+            recipientUserId: sourceRecipientId, isSourceCurrent: true }, canOpenReminderRule: true }));
       await harness.fixture.whenStable(); harness.fixture.detectChanges();
 
       expect(component.selectedView()).toBe('MY_TASKS');
       expect(host.textContent).toContain('Task selected from deadline reminder');
       expect(host.textContent).toContain(task.title);
+      expect(host.querySelector('#reminder-task-heading')).toBe(document.activeElement);
+      expect(selectedPanel().querySelector('[role="status"]')?.textContent).toContain(`${task.title} loaded from the reminder link`);
       expect(host.textContent).toContain('The selected task is read-only');
+      const origin = selectedPanel().querySelector<HTMLAnchorElement>('a[href^="/app/practice/reminder-rules"]');
+      const taskSource = selectedPanel().querySelector<HTMLAnchorElement>('a[href^="/app/work?"]');
+      expect(selectedPanel().textContent).toContain('Reminder origin');
+      expect(selectedPanel().textContent).toContain(reminderOperationId);
+      expect(selectedPanel().textContent).toContain('Source is current');
+      expect(selectedPanel().textContent).toContain('Source revision');
+      expect(origin?.getAttribute('href')).toBe(`/app/practice/reminder-rules?ruleId=${reminderRuleId}&revisionId=${reminderRevisionId}`);
+      expect(taskSource?.getAttribute('href')).toBe(`/app/work?engagementId=${task.engagementId}&taskId=${sourceTaskId}`);
       expect([...selectedPanel().querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
 
       component.selectView('TEAM'); TestBed.tick();
@@ -1029,10 +1059,19 @@ describe('workflow queue assignment filters', () => {
       http.expectOne(tasksUrl('view=TEAM&pageSize=50&includeSummary=true'))
         .flush({ view: 'TEAM', tasks: [{ ...task, taskStatus: 'COMPLETED', revision: task.revision + 1,
           canComplete: false, canChangeDueDate: false, canAssign: false }], hasMore: false, nextCursor: null, summary: summary() });
-      http.expectOne(workspaceUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision + 1, 'COMPLETED'));
+      http.expectOne(workspaceUrl).flush(reminderWorkspace(task.taskId, task.title, task.revision + 1, 'COMPLETED', task.engagementId,
+        { reminderRuleId, reminderRuleRevisionId: reminderRevisionId, reminderOperationId,
+          reminderSource: { sourceKind: 'PBC_DUE', sourceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', sourceRevision: 4,
+            dueRevision: 5, sourceDueDate: '2026-10-11', sourceHref: `/app/engagements/${task.engagementId}/pbc`,
+            recipientUserId: sourceRecipientId, isSourceCurrent: null } }));
       await harness.fixture.whenStable(); harness.fixture.detectChanges();
       expect(selectedPanel().querySelector('audit-status .status-chip')?.textContent?.trim()).toBe('completed');
       expect(selectedPanel().textContent).toContain(`revision ${task.revision + 1}`);
+      expect(selectedPanel().textContent).toContain('Current source status unavailable');
+      expect(selectedPanel().querySelector('a[href^="/app/engagements/"]')?.getAttribute('href'))
+        .toBe(`/app/engagements/${task.engagementId}/pbc`);
+      // CanOpenReminderRule is intentionally omitted to cover older API payloads and the false default.
+      expect(selectedPanel().querySelector('a[href^="/app/practice/reminder-rules"]')).toBeNull();
       expect([...selectedPanel().querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
       http.verify({ ignoreCancelled: true });
     } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
@@ -1072,6 +1111,24 @@ describe('workflow queue assignment filters', () => {
       expect(host.textContent).not.toContain(task.title);
       const selectedPanel = host.querySelector<HTMLElement>('section[aria-labelledby="reminder-task-heading"]')!;
       expect([...selectedPanel.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Complete task')).toBe(false);
+
+      const validTaskWithBadSourceId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${validTaskWithBadSourceId}`, WorkflowWorkQueue);
+      http.expectOne(workspaceUrl(validTaskWithBadSourceId)).flush(reminderWorkspace(validTaskWithBadSourceId, 'Selected task', 1, 'OPEN', task.engagementId,
+        { reminderSource: { sourceKind: 'PBC_DUE', sourceId: nextTaskId, sourceRevision: 1, dueRevision: 1,
+          sourceDueDate: '2026-10-10', sourceHref: '/app/engagements/cccccccc-cccc-4ccc-8ccc-cccccccccccc/pbc',
+          recipientUserId: task.assigneeUserId!, isSourceCurrent: null } }));
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      expect(host.querySelector('[role="alert"]')?.textContent).toContain('Unsupported response.');
+      expect(host.querySelector('a[href*="/app/engagements/"]')).toBeNull();
+
+      const legacyTaskId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+      await harness.navigateByUrl(`/app/work?engagementId=${task.engagementId}&taskId=${legacyTaskId}`, WorkflowWorkQueue);
+      http.expectOne(workspaceUrl(legacyTaskId)).flush(reminderWorkspace(legacyTaskId, 'Legacy selected task', 1, 'OPEN'));
+      await harness.fixture.whenStable(); harness.fixture.detectChanges();
+      expect(host.textContent).toContain('Legacy selected task');
+      expect(host.textContent).not.toContain('Unsupported response.');
+      expect(host.textContent).not.toContain('Reminder origin');
       http.verify({ ignoreCancelled: true });
     } finally { harness.fixture.destroy(); TestBed.resetTestingModule(); }
   });

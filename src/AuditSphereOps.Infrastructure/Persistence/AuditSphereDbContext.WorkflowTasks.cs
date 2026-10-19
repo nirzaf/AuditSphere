@@ -1,5 +1,6 @@
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Security;
@@ -28,6 +29,9 @@ public sealed partial class AuditSphereDbContext
       .IsUnique().HasDatabaseName("UX_workflow_task_bindings_source_generation");
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.EngagementId, x.Phase, x.Ordinal });
     b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.AssigneeUserIdSnapshot, x.Phase });
+    b.Entity<WorkflowTaskBinding>().HasIndex(x => new { x.FirmId, x.ReminderOperationId })
+      .IsUnique().HasFilter("reminder_operation_id IS NOT NULL")
+      .HasDatabaseName("UX_workflow_task_bindings_reminder_operation");
     b.Entity<WorkflowTaskBinding>().Property(x => x.Phase).HasMaxLength(40);
     b.Entity<WorkflowTaskBinding>().Property(x => x.SourceKey).HasMaxLength(160);
     b.Entity<WorkflowTaskBinding>().Property(x => x.CreationRequestDigest).HasMaxLength(64);
@@ -41,7 +45,7 @@ public sealed partial class AuditSphereDbContext
       t.HasCheckConstraint("ck_workflow_task_binding_phase",
         "phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE')");
       t.HasCheckConstraint("ck_workflow_task_binding_values",
-        "ordinal BETWEEN 1 AND 100000 AND generation >= 1 AND revision >= 1 AND (planned_effort_minutes IS NULL OR planned_effort_minutes BETWEEN 1 AND 1000000) AND due_date_policy IN ('MANUAL','FIXED','TEMPLATE_OFFSET') AND assignment_source IN ('MANUAL','TEMPLATE','MANUAL_REASSIGNMENT','AUTOMATION') AND (assigned_role IS NULL OR assigned_role IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND length(source_key) BETWEEN 1 AND 160 AND creation_request_digest ~ '^[0-9a-f]{64}$' AND ((template_revision_id IS NULL AND template_step_id IS NULL) OR (template_revision_id IS NOT NULL AND template_step_id IS NOT NULL)) AND (review_procedure_result_id IS NULL OR source_key LIKE 'REVIEW-REWORK:%') AND (cancellation_reason IS NULL OR length(trim(cancellation_reason)) > 0) AND (superseded_at IS NULL OR (supersession_reason IS NOT NULL AND length(trim(supersession_reason)) > 0))");
+        "ordinal BETWEEN 1 AND 100000 AND generation >= 1 AND revision >= 1 AND (planned_effort_minutes IS NULL OR planned_effort_minutes BETWEEN 1 AND 1000000) AND due_date_policy IN ('MANUAL','FIXED','TEMPLATE_OFFSET') AND assignment_source IN ('MANUAL','TEMPLATE','MANUAL_REASSIGNMENT','AUTOMATION') AND (assigned_role IS NULL OR assigned_role IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND length(source_key) BETWEEN 1 AND 160 AND creation_request_digest ~ '^[0-9a-f]{64}$' AND ((template_revision_id IS NULL AND template_step_id IS NULL) OR (template_revision_id IS NOT NULL AND template_step_id IS NOT NULL)) AND (review_procedure_result_id IS NULL OR source_key LIKE 'REVIEW-REWORK:%') AND ((reminder_rule_revision_id IS NULL) = (reminder_operation_id IS NULL)) AND (cancellation_reason IS NULL OR length(trim(cancellation_reason)) > 0) AND (superseded_at IS NULL OR (supersession_reason IS NOT NULL AND length(trim(supersession_reason)) > 0))");
     });
     b.Entity<WorkflowTaskBinding>().HasOne<WorkTask>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.WorkTaskId })
@@ -64,6 +68,12 @@ public sealed partial class AuditSphereDbContext
     b.Entity<WorkflowTaskBinding>().HasOne<WorkflowTemplateStep>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.TemplateRevisionId, x.TemplateStepId })
       .HasPrincipalKey(x => new { x.FirmId, x.TemplateRevisionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkflowTaskBinding>().HasOne<WorkflowReminderRuleRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReminderRuleRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<WorkflowTaskBinding>().HasOne<DurableOperation>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.ReminderOperationId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
     var activity = b.Entity<WorkflowTaskActivity>();
     activity.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_workflow_task_activities_firm_id_id");

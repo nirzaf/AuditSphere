@@ -35,6 +35,10 @@ public sealed class WorkflowTaskBinding
   public Guid? ReviewProcedureResultId { get; set; }
   public Guid? TemplateRevisionId { get; set; }
   public Guid? TemplateStepId { get; set; }
+  /// <summary>Exact published reminder-rule revision that caused this operational task, when applicable.</summary>
+  public Guid? ReminderRuleRevisionId { get; set; }
+  /// <summary>Existing durable operation that recorded the idempotent reminder intent and exact scope.</summary>
+  public Guid? ReminderOperationId { get; set; }
   public string Phase { get; set; } = WorkflowTaskPhases.ClientOnboarding;
   public int Ordinal { get; set; } = 1;
   /// <summary>Stable within an engagement generation; template instances use the immutable source step key.</summary>
