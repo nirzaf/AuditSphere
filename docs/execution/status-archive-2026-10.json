@@ -20702,6 +20702,22 @@
       },
       "review": "Independent bounded source review found no actionable issue.",
       "limits": "No migration/package/API/UI/live change; no full local suite. Prospect fallback retained in source, not separately exercised. Legacy original route identity remains unknown; broader correspondence gates remain open."
+    },
+    "reviewInboxHistoryBeforeBrowser20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "behavior": "Only an exact linked rejected-result + next-submission pair suppresses the reviewer inbox; historical tasks cannot hide later corrected submissions when rework automation is off. Authorization and independent review unchanged.",
+      "before": "review-inbox-history-regression-before.trx: 1 failed; latest inbox empty",
+      "after": "review-inbox-history-after.trx: 1 passed, 0 failed",
+      "artifacts": "/tmp/auditsphere-review-inbox-results",
+      "fixtureAttempt": "Initial attempt used result revision as input generation and was refused; corrected to retained generation before reproducing product defect.",
+      "limits": "No full local suites or new browser run. Complete queue matrix/browser acceptance, human AT and current-source release remain open.",
+      "repeatedCorrection": {
+        "result": "FOCUSED_PASS",
+        "before": "repeated-rework-before.trx: 1 failed, missing correction row",
+        "after": "repeated-rework-after.trx: 1 passed, 0 failed",
+        "scope": "Automation-off later rejection remains visible with current reviewer comment on the latest retained task. A newer exact-scope linked rejection task alone represents the next correction and its summary; original binding unchanged. Subsequent submission follows exact linked task or reviewer inbox; independent review unchanged.",
+        "review": "Independent source review: no blockers."
+      }
     }
   }
 }

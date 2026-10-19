@@ -1178,19 +1178,42 @@
     },
     "reviewInboxHistory20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "behavior": "Only an exact linked rejected-result + next-submission pair suppresses the reviewer inbox; historical tasks cannot hide later corrected submissions when rework automation is off. Authorization and independent review unchanged.",
-      "before": "review-inbox-history-regression-before.trx: 1 failed; latest inbox empty",
-      "after": "review-inbox-history-after.trx: 1 passed, 0 failed",
-      "artifacts": "/tmp/auditsphere-review-inbox-results",
-      "fixtureAttempt": "Initial attempt used result revision as input generation and was refused; corrected to retained generation before reproducing product defect.",
-      "limits": "No full local suites or new browser run. Complete queue matrix/browser acceptance, human AT and current-source release remain open.",
-      "repeatedCorrection": {
-        "result": "FOCUSED_PASS",
-        "before": "repeated-rework-before.trx: 1 failed, missing correction row",
-        "after": "repeated-rework-after.trx: 1 passed, 0 failed",
-        "scope": "Automation-off later rejection remains visible with current reviewer comment on the latest retained task. A newer exact-scope linked rejection task alone represents the next correction and its summary; original binding unchanged. Subsequent submission follows exact linked task or reviewer inbox; independent review unchanged.",
-        "review": "Independent source review: no blockers."
-      }
+      "codeCommit": "96b0c982447f11359ccf065c1c0ae7d35970b008",
+      "priorEvidence": "status-archive-2026-10.json#keys.reviewInboxHistoryBeforeBrowser20261019",
+      "browser": {
+        "passed": 1,
+        "failed": 0,
+        "trx": "/tmp/auditsphere-review-inbox-results/repeated-correction-browser-final.trx",
+        "scope": "Original browser keyboard/lost-reply review and first correction retained. Later corrections use real Application commands; browser checks current comment, retained task, unrepresented submission inbox, newer task and unchanged original binding. Latest result remains Submitted; no Reviewed decision."
+      },
+      "angular": {
+        "passed": 29,
+        "failed": 0,
+        "build": "PASS",
+        "changedFileLint": "PASS",
+        "log": "/tmp/auditsphere-rework-queue-spec-final.log"
+      },
+      "builtInBrowser": {
+        "viewportWidth": 390,
+        "documentWidth": 375,
+        "tableClientWidth": 341,
+        "tableScrollWidth": 964,
+        "keyboardScrollLeft": 40,
+        "consoleErrors": 0,
+        "screenshot": "/tmp/auditsphere-repeated-correction-native.png",
+        "scope": "Synthetic current correction list and board; current reviewer comment visible, named focusable table region and no document overflow. Tab closed; viewport restored."
+      },
+      "attempts": "Initial Tab traversal failed; explicit enabled-state assertion added before traversal; final keyboard path passed. Diagnostic helper xUnit analyzer error fixed before rerun. Failure artifacts retained under /tmp/auditsphere-review-inbox-results and /tmp/auditsphere-repeated-correction-keyboard-before.log.",
+      "ci": {
+        "fastRun": "39236580173",
+        "fastSource": "53a4ba9e",
+        "fastResult": "FAST_CI_PASS",
+        "fullRun": "39233821965",
+        "fullSource": "0caa6df2",
+        "fullResult": "IN_PROGRESS",
+        "scope": "Full Angular, build/contracts and Domain passed; API/E2E remain active. Predates this code commit."
+      },
+      "limits": "No full local suites, live providers or professional acceptance. All queue views together, human assistive-technology acceptance and current-source full release remain open."
     }
   },
   "externalGates": [
@@ -1703,7 +1726,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Verify repeated-correction routing in the browser and remaining queue views, then continue open practice-management criteria. Full current-source CI, human AT and live-provider gates remain separate."
+    "nextTechnicalSlice": "Close the resource-grid mid-read authorization recheck gap, then continue remaining practice criteria and complete queue-state acceptance. Full current-source CI, human AT and live-provider gates remain separate."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

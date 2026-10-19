@@ -21,7 +21,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Repeated correction routing
 
-Current rejected results remain visible on the latest retained rework task when automation is off; newer linked tasks avoid duplicate correction rows. Later submissions remain discoverable without changing source bindings or professional decisions. Focused regression and independent source review passed; evidence and remaining browser/full-release gates are in `status.json` under `reviewInboxHistory20261019`.
+Current rejected results remain visible on the latest retained rework task when automation is off; newer linked tasks avoid duplicate correction rows. Later submissions remain discoverable without changing source bindings or professional decisions. Focused Domain and browser checks passed; evidence and remaining human/full-release gates are in `status.json` under `reviewInboxHistory20261019`.
 
 ## Finance settlement accessibility and draft safety
 
