@@ -19,15 +19,15 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Accessibility reflow and CI follow-up (2026-10-19)
+## Accessibility reflow and CI follow-up (2026-10-20)
 
-Source commit `84365454` repairs the two response-body-after-navigation E2E failures and stabilizes deferred planning loading. The focused Playwright cohort passed 4/4 and the Angular production build succeeded. Fast CI `39334111670` passed Docs and Angular; its .NET Release job was cancelled when superseded. Docs follow-up `39334874545` found `status.json` 76 bytes over budget; commit `724c22ea` fixed it, and fast CI `39335158176` passed Docs, Angular and .NET Release build. Exact-SHA full run `39334129733` passed Angular/build-contracts; Domain/API/E2E cohorts remain in progress. The in-app browser validated keyboard behavior, contrast and responsive reflow, but could not set native zoom. Native 200%/400% zoom, human screen-reader review and rendered business-screen acceptance remain open; the local API served a mismatched Portfolio response.
+Source commit `84365454` repairs the two response-body-after-navigation E2E failures and stabilizes deferred planning loading. The focused Playwright cohort passed 4/4 and the Angular production build succeeded. Fast CI `39336107556` passed Docs, Angular and .NET Release on `6875b7e`; the earlier 76-byte `status.json` budget failure was fixed in `724c22ea`. Exact-SHA full run `39334129733` passed Angular, build/contracts/publication and Domain; API and Playwright E2E were still running at the last check. The 2026-10-20 browser recheck used the tracked Angular source at `6875b7e` plus existing reminder-rule WIP, served on port 4301. Its API proxy pointed to an older local API on port 5029, which returned an unsupported Portfolio response; business-screen acceptance was not claimed.
 
 ## Mobile navigation accessibility follow-up (2026-10-19)
 
 The compact navigation dialog now explicitly exposes modal semantics, and its close button uses a foreground that meets contrast on the dark surface. The focused navigation spec passes 11/11. In the built-in browser, 320px reflow, dialog naming/background hiding, focus entry and wrapping, Escape closure/focus restoration, and contrast (6.70:1 active link, 12.02:1 other links, 17.06:1 close button) were observed; 640px reflow has no horizontal overflow. Evidence is in `targetedVerification.angularQuality.task07.browserFollowUp20261019` in [status.json](status.json).
 
-The clean tracked UI snapshot still receives an unsupported Portfolio response from the local API, so this does not accept business screens. The API job in release run `39291772192` ended with its test step still in progress and no test result/log; Playwright E2E remains in progress. Human screen-reader review, true 200%/400% zoom, all workflow states and a conclusive full release run remain open.
+At 200% native Chrome zoom, the CSS viewport/document widths were 919/912px; at 400%, 459/456px. The skip link focused the visible main landmark at 400%, and both zoom levels had no horizontal overflow. The responsive navigation remained operable. Business screens are still not accepted because of the API/UI mismatch. Qualified screen-reader review, complete workflow-state coverage, locale/device acceptance and a conclusive full release run remain open.
 
 ## Exact deadline-task handoff and reconciliation writer fences
 
