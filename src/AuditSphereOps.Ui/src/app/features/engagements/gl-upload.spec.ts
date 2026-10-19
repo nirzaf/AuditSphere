@@ -89,7 +89,7 @@ describe('Native exact GL upload', () => {
       .flush({ clientId: id, engagementId: id, items: [], totalCount: 0, page: 1, pageSize: 20 });
     await f.whenStable();
     TestBed.tick();
-    await new Promise((r) => setTimeout(r, 10));
+    await vi.waitFor(() => expect(f.componentInstance.scopeReady()).toBe(true));
     return { f, c: f.componentInstance, http };
   }
   async function pick(

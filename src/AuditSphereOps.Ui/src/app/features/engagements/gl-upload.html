@@ -51,8 +51,11 @@
         type="file"
         accept=".csv"
         (change)="pick($event)"
-        [disabled]="busy()"
+        [disabled]="busy() || !scopeReady()"
     /></label>
+    @if (!scopeReady()) {
+      <p role="status">Preparing secure tab checkpoint; file selection will be available shortly.</p>
+    }
     @if (fileName()) {
       <p>Selected file: {{ fileName() }}</p>
     }

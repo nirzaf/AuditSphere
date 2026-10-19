@@ -100,6 +100,7 @@ export class GeneralLedgerUpload implements NavigationProtected {
   readonly uncertain = signal(false);
   readonly reconciled = signal(false);
   readonly availableDraft = signal(false);
+  readonly scopeReady = signal(false);
   readonly fileName = signal('');
   readonly hasFile = signal(false);
   readonly message = signal('');
@@ -153,27 +154,33 @@ export class GeneralLedgerUpload implements NavigationProtected {
   private async restoreScope(key: string) {
     const n = this.request,
       g = this.session.invalidation();
-    const digest = await crypto.subtle.digest(
-      'SHA-256',
-      new TextEncoder().encode('gl-upload-checkpoint-v1:' + key),
-    );
-    if (!this.current(n, g)) return;
-    this.scopeRevision = Array.from(new Uint8Array(digest), (b) =>
-      b.toString(16).padStart(2, '0'),
-    ).join('');
-    const saved = this.drafts.read(this.scope(), glUploadCheckpoint);
-    if (saved.state === 'ready') {
-      this.availableDraft.set(true);
-      this.pending = saved.draft.value;
-      this.uncertain.set(saved.draft.submissionPending);
-      this.message.set(
-        'A metadata checkpoint is available. Reselect the exact file; no file bytes or assent were saved.',
+    try {
+      const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode('gl-upload-checkpoint-v1:' + key),
       );
-    } else if (saved.state === 'stale') {
-      this.uncertain.set(true);
-      this.message.set(
-        'The old checkpoint is stale. Reselect the original file and review its persisted source before continuing.',
-      );
+      if (!this.current(n, g)) return;
+      this.scopeRevision = Array.from(new Uint8Array(digest), (b) =>
+        b.toString(16).padStart(2, '0'),
+      ).join('');
+      const saved = this.drafts.read(this.scope(), glUploadCheckpoint);
+      if (saved.state === 'ready') {
+        this.availableDraft.set(true);
+        this.pending = saved.draft.value;
+        this.uncertain.set(saved.draft.submissionPending);
+        this.message.set(
+          'A metadata checkpoint is available. Reselect the exact file; no file bytes or assent were saved.',
+        );
+      } else if (saved.state === 'stale') {
+        this.uncertain.set(true);
+        this.message.set(
+          'The old checkpoint is stale. Reselect the original file and review its persisted source before continuing.',
+        );
+      }
+      this.scopeReady.set(true);
+    } catch {
+      if (this.current(n, g))
+        this.message.set('Secure tab checkpoint setup failed. File import is unavailable in this tab.');
     }
   }
   private clear() {
@@ -186,6 +193,7 @@ export class GeneralLedgerUpload implements NavigationProtected {
     this.uncertain.set(false);
     this.reconciled.set(false);
     this.availableDraft.set(false);
+    this.scopeReady.set(false);
     this.hasFile.set(false);
     this.fileName.set('');
     this.message.set('');
@@ -208,7 +216,7 @@ export class GeneralLedgerUpload implements NavigationProtected {
       : '';
   }
   async pick(e: Event) {
-    if (this.busy() || !this.catalogue.data()) return;
+    if (this.busy() || !this.scopeReady() || !this.catalogue.data()) return;
     const input = e.target as HTMLInputElement,
       file = input.files?.[0];
     if (!file) return;
