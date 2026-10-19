@@ -109,6 +109,11 @@ public sealed class UiPortalContractTests
     var oldCapability = startReceipt.GetProperty("capability").GetString();
     Assert.False(string.IsNullOrWhiteSpace(oldCapability));
 
+    await using var cached = new AuditSphereDbContext(pg.Options);
+    var trackedIntent = await cached.PbcUploadIntents.SingleAsync(x =>
+      x.Id == uploadId && x.FirmId == seed.FirmId);
+    var trackedRevision = trackedIntent.Revision;
+
     var resumeUrl = $"/api/ui/portal/requests/{requestId}/uploads/{uploadId}/resume";
     var resumeInput = new { fileName = "resume-evidence.txt", byteCount = bytes.Length.ToString(), sha256 = hash };
     using (var noCsrf = await PostAsync(client, resumeUrl, resumeInput))
@@ -128,9 +133,31 @@ public sealed class UiPortalContractTests
     Assert.Equal(0, resume.GetProperty("nextChunkIndex").GetInt32());
     var newCapability = resume.GetProperty("capability").GetString();
     Assert.False(string.IsNullOrWhiteSpace(newCapability));
-    Assert.NotEqual(oldCapability, newCapability);
+    Assert.Equal(trackedRevision + 1, resume.GetProperty("revision").GetInt64());
+    Assert.False(string.Equals(oldCapability, newCapability, StringComparison.Ordinal));
 
     var actor = PbcSeed.Actor(seed.Client, "ClientUser");
+    var resumedOnCachedContext = await PbcService.ResumeUploadAsync(cached, actor,
+      new ResumePbcUploadRequest(requestId, uploadId, "resume-evidence.txt", bytes.Length, hash));
+    Assert.True(resumedOnCachedContext.Succeeded, resumedOnCachedContext.ErrorCode);
+    var cachedContextCapability = resumedOnCachedContext.Value!.Capability;
+    Assert.Equal(resume.GetProperty("revision").GetInt64() + 1, resumedOnCachedContext.Value.Revision);
+    Assert.False(string.Equals(newCapability, cachedContextCapability, StringComparison.Ordinal));
+
+    using var resumedAgain = await PostAsync(client, resumeUrl, resumeInput, csrf);
+    Assert.Equal(HttpStatusCode.OK, resumedAgain.StatusCode);
+    Assert.Equal("no-store", resumedAgain.Headers.CacheControl?.ToString());
+    var resumedAgainBody = await resumedAgain.Content.ReadFromJsonAsync<JsonElement>();
+    var resumedAgainValue = resumedAgainBody.GetProperty("value");
+    Assert.Equal(uploadId, resumedAgainValue.GetProperty("uploadIntentId").GetGuid());
+    Assert.Equal(requestId, resumedAgainValue.GetProperty("pbcRequestId").GetGuid());
+    Assert.Equal(0, resumedAgainValue.GetProperty("receivedByteCount").GetInt64());
+    Assert.Equal(0, resumedAgainValue.GetProperty("nextChunkIndex").GetInt32());
+    Assert.Equal(resumedOnCachedContext.Value.Revision + 1, resumedAgainValue.GetProperty("revision").GetInt64());
+    var finalCapability = resumedAgainValue.GetProperty("capability").GetString();
+    Assert.False(string.IsNullOrWhiteSpace(finalCapability));
+    Assert.False(string.Equals(cachedContextCapability, finalCapability, StringComparison.Ordinal));
+
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var stale = await PbcService.RecordChunkAsync(db, actor,
@@ -138,21 +165,24 @@ public sealed class UiPortalContractTests
       Assert.False(stale.Succeeded);
       Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, stale.ErrorCode);
     }
-    await using (var db = new AuditSphereDbContext(pg.Options))
-    {
-      var current = await PbcService.RecordChunkAsync(db, actor,
-        new RecordPbcUploadChunkRequest(uploadId, 0, 0, bytes.Length, hash, newCapability!, "synthetic-resumed-chunk.part"));
-      Assert.True(current.Succeeded, current.ErrorCode);
-      Assert.Equal(bytes.Length, current.Value!.ReceivedByteCount);
-    }
+    var current = await PbcService.RecordChunkAsync(cached, actor,
+      new RecordPbcUploadChunkRequest(uploadId, 0, 0, bytes.Length, hash, finalCapability!, "synthetic-resumed-chunk.part"));
+    Assert.True(current.Succeeded, current.ErrorCode);
+    Assert.Equal(bytes.Length, current.Value!.ReceivedByteCount);
+    Assert.Equal(resumedAgainValue.GetProperty("revision").GetInt64() + 1, current.Value.Revision);
 
     var detail = await client.GetFromJsonAsync<JsonElement>($"/api/ui/portal/requests/{requestId}");
     Assert.DoesNotContain("capability", detail.ToString(), StringComparison.OrdinalIgnoreCase);
     Assert.DoesNotContain("stagedPath", detail.ToString(), StringComparison.OrdinalIgnoreCase);
     await using var verify = new AuditSphereDbContext(pg.Options);
     var persisted = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == uploadId);
-    Assert.Equal(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(newCapability!), persisted.CapabilityHash);
+    Assert.Equal(current.Value.Revision, persisted.Revision);
+    Assert.Equal(PbcUploadStates.Chunking, persisted.State);
+    Assert.Equal(bytes.Length, persisted.ReceivedByteCount);
+    Assert.Equal(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(finalCapability!), persisted.CapabilityHash);
     Assert.NotEqual(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(oldCapability!), persisted.CapabilityHash);
+    Assert.NotEqual(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(newCapability!), persisted.CapabilityHash);
+    Assert.NotEqual(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(cachedContextCapability), persisted.CapabilityHash);
     Assert.Single(await verify.PbcUploadChunks.AsNoTracking().Where(x => x.PbcUploadIntentId == uploadId).ToListAsync());
   }
 }

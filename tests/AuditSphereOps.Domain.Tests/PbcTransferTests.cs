@@ -111,32 +111,75 @@ public sealed class PbcTransferTests
       Assert.Equal(PbcUploadStates.Staged, intent.State);
     }
 
+    await using var cached = new AuditSphereDbContext(pg.Options);
+    var trackedIntent = await cached.PbcUploadIntents.SingleAsync(x =>
+      x.Id == transfer.Staged.UploadIntentId);
+    Assert.Equal(PbcUploadStates.Staged, trackedIntent.State);
+    var stagedRevision = trackedIntent.Revision;
+    var transferOperationId = trackedIntent.TransferOperationId ??
+      throw new InvalidOperationException("The staged intent has no transfer operation.");
+
     Assert.True(await transfer.Worker.ProcessNextAsync());
     Assert.False(await transfer.Worker.ProcessNextAsync());
 
+    long receivedRevision;
+    Guid attemptId;
     await using (var verify = new AuditSphereDbContext(pg.Options))
     {
       var intent = await verify.PbcUploadIntents.AsNoTracking()
         .SingleAsync(x => x.Id == transfer.Staged.UploadIntentId);
       Assert.Equal(PbcUploadStates.Received, intent.State);
+      Assert.True(intent.Revision > stagedRevision);
+      receivedRevision = intent.Revision;
       Assert.NotNull(intent.ProviderRegisteredAt);
       Assert.Equal(transfer.Staged.DeclaredSha256Hex, intent.ProviderReceiptDigest);
+      Assert.Equal(transferOperationId, intent.TransferOperationId);
       var request = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == transfer.RequestId);
       Assert.Equal(PbcStates.Received, request.State);
       Assert.Equal(5, request.Revision);
       var operation = await verify.DurableOperations.AsNoTracking()
-        .SingleAsync(x => x.OperationKind == PbcDocumentTransferHandler.Kind);
+        .SingleAsync(x => x.Id == transferOperationId);
       Assert.Equal(OperationState.COMPLETED, operation.Status);
       Assert.Equal("sim://pbc/" + transfer.Staged.UploadIntentId.ToString("D"), operation.ResultIdentity);
       Assert.Equal(transfer.Staged.DeclaredSha256Hex, operation.ResultDigest);
       Assert.True(await verify.OperationEvents.AnyAsync(x =>
         x.OperationId == operation.Id && x.Kind == "pbc.transfer.registered.v1"));
       Assert.Equal(1, await verify.OperationAttempts.CountAsync(x => x.OperationId == operation.Id));
+      attemptId = await verify.OperationAttempts.AsNoTracking()
+        .Where(x => x.OperationId == operation.Id).Select(x => x.Id).SingleAsync();
       Assert.True(File.Exists(Path.Combine(transfer.ProviderRoot,
         transfer.Staged.UploadIntentId.ToString("N"))));
     }
 
     var sink = new SimulationPbcProviderSink(transfer.ProviderRoot);
+    var boundary = PbcSeed.Boundary(sink, pg);
+    var replay = await PbcService.CompleteUploadAsync(cached,
+      PbcSeed.Actor(transfer.Fixture.Staff, "Staff"),
+      new CompletePbcUploadRequest(transfer.Staged.UploadIntentId, transfer.Staged.DeclaredSha256Hex),
+      boundary.Store, boundary.Handler);
+    Assert.True(replay.Succeeded, replay.ErrorCode);
+    Assert.Equal(PbcUploadStates.Received, replay.Value!.State);
+    Assert.Equal(receivedRevision, replay.Value.Revision);
+
+    await using (var afterReplay = new AuditSphereDbContext(pg.Options))
+    {
+      var intent = await afterReplay.PbcUploadIntents.AsNoTracking()
+        .SingleAsync(x => x.Id == transfer.Staged.UploadIntentId);
+      Assert.Equal(PbcUploadStates.Received, intent.State);
+      Assert.Equal(receivedRevision, intent.Revision);
+      Assert.Equal(transferOperationId, intent.TransferOperationId);
+      var attempts = await afterReplay.OperationAttempts.AsNoTracking()
+        .Where(x => x.OperationId == transferOperationId).ToListAsync();
+      var attempt = Assert.Single(attempts);
+      Assert.Equal(attemptId, attempt.Id);
+      Assert.Equal(1, await afterReplay.OperationEvents.CountAsync(x =>
+        x.OperationId == transferOperationId && x.Kind == "pbc.transfer.registered.v1"));
+      Assert.Equal(1, await afterReplay.DurableOperations.CountAsync(x =>
+        x.OperationKind == PbcDocumentTransferHandler.Kind));
+      Assert.True(File.Exists(Path.Combine(transfer.ProviderRoot,
+        transfer.Staged.UploadIntentId.ToString("N"))));
+    }
+
     var scope = new PbcTransferScope(transfer.Fixture.FirmId, transfer.Fixture.ClientId,
       transfer.Fixture.EngagementId, transfer.Staged.UploadIntentId);
     var wrongIdentity = "sim://pbc/" + Guid.NewGuid().ToString("D");

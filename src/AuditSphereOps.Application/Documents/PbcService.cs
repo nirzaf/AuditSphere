@@ -720,6 +720,8 @@ public static class PbcService
     var intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
+    // A locking tracking query can reuse an earlier command's cached values; refresh under the row lock.
+    if (intent is not null) await db.PbcUploadIntents.Attach(intent).ReloadAsync(ct);
     if (intent is null || intent.PbcRequestId != request.Id || intent.ClientId != request.ClientId ||
         intent.EngagementId != request.EngagementId || intent.FileName != input.FileName ||
         intent.DeclaredByteCount != input.DeclaredByteCount ||
@@ -785,6 +787,7 @@ public static class PbcService
       """).SingleOrDefaultAsync(ct);
     if (intent is null)
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.PbcUploadIntents.Attach(intent).ReloadAsync(ct);
     // Recheck after acquiring the row lock so a capability rotated by ResumeUploadAsync cannot
     // authorize a chunk that passed the initial check just before rotation.
     if (!IsCapability(input.Capability) || Hashing.Sha256Hex(input.Capability) != intent.CapabilityHash)
@@ -864,6 +867,7 @@ public static class PbcService
       """).SingleOrDefaultAsync(ct);
     if (intent is null)
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.PbcUploadIntents.Attach(intent).ReloadAsync(ct);
     if (intent.State is PbcUploadStates.Staged or PbcUploadStates.Received)
     {
       return string.Equals(intent.FinalSha256Hex, input.FinalSha256Hex, StringComparison.OrdinalIgnoreCase)
