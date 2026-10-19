@@ -196,12 +196,22 @@ public sealed class AngularAttributeSamplingExecutionJourneyTests
     selectedItemId = Guid.Parse(firstApiItem.GetProperty("selectionItemId").GetString()!);
     var resultSelect = firstItem.Locator("select").First;
     Assert.Equal(1, await resultSelect.EvaluateAsync<int>("element => element.labels.length"));
-    await resultSelect.FocusAsync();
-    await resultSelect.SelectOptionAsync("EXCEPTION");
-    await Assertions.Expect(resultSelect).ToHaveValueAsync("EXCEPTION");
+    await OwnedBrowserFixtureHandoff.WaitAsync(staffOrigin, route, "sampling-item-result");
+    var focusableCount = await staffPage.Locator(
+      "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex='-1'])")
+      .CountAsync();
+    for (var attempt = 0; attempt <= focusableCount &&
+      !await resultSelect.EvaluateAsync<bool>("element => element === document.activeElement"); attempt++)
+      await staffPage.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(resultSelect).ToBeFocusedAsync();
+    // Native select typeahead works without invoking a platform-specific popup menu.
+    await staffPage.Keyboard.PressAsync("e");
     await Assertions.Expect(resultSelect).ToHaveCSSAsync("outline-style", "solid");
+    await staffPage.Keyboard.PressAsync("Tab");
+    await Assertions.Expect(resultSelect).ToHaveValueAsync("EXCEPTION");
     var textareas = firstItem.Locator("textarea");
-    Assert.Equal(4, await textareas.CountAsync());
+    await Assertions.Expect(textareas).ToHaveCountAsync(4);
+    await Assertions.Expect(textareas.Nth(0)).ToBeFocusedAsync();
     await textareas.Nth(0)
       .FillAsync("Agreed this selected transaction to the synthetic invoice and approval record.");
     await textareas.Nth(1)
