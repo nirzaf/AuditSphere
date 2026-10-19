@@ -21360,6 +21360,41 @@
           "log": "/tmp/auditsphere-domain-full-ee09d717.log"
         }
       }
+    },
+    "operationalReadinessBeforePerimeterAndReminderPolicy20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "197743da41985583ea393dbc6934ec5b67806952",
+      "deadline": {
+        "implementationCommit": "9dfeef5380afbbf72b413deee102c6417aaeff08",
+        "behavior": "All active overdue task dates retained, oldest first; seven-day upcoming window,50-row bound+truncation, exact scope/freeze and read-only checks preserved. Not a rule catalogue or provider send.",
+        "baseline": "Two extended existing regressions failed before fix:30-day task omitted and51-overdue set returned only yesterday.",
+        "domain": "6/6 passed",
+        "api": "1/1 passed: own old/upcoming rows,401/403,session withdrawal,no writes",
+        "e2e": "1/1 passed: real scoped Angular/API,30-day overdue visible,completed/cancelled absent,390px reflow,no mutations/PageError",
+        "directory": "/tmp/auditsphere-deadline-reminder-results",
+        "browser": "Built-in native Tab reached Open reminder source; dated OVERDUE row present and closed tasks absent; no console warnings/errors.",
+        "screenshot": "/tmp/auditsphere-overdue-reminders-browser.png"
+      },
+      "consolidation": {
+        "behavior": "Page and selected-component approval readiness share original command guards. Reviewer authority is rechecked; source-denied details sanitized. Required canApprove/approvalBlocker contract; disabled contextual action and handler refusal; named keyboard-scrollable table. Source books and human decisions unchanged.",
+        "domain": "1/1 existing approved-component/source-immutability workflow passed",
+        "api": "2/2 passed: missing composition blocked with unchanged row; approved/reconciled external pack ready",
+        "angular": "23 distinct affected cases pass: correction5 and final scope18. Initial22/23 exposed missing nullable field normalization; retained assertion and strict presence fix. TS4111 syntax corrected; no test weakened.",
+        "e2e": "1/1 passed after final markup: real ready component,actual membership revision,disabled stale approval+reason/ARIA,no approve POST or component mutation,390px native Tab+ArrowRight. Earlier pre-scroll version also passed.",
+        "directory": "/tmp/auditsphere-consolidation-readiness-results",
+        "browser": "Built-in native Tab reached Components table region; stale component approval disabled with contextual reason; no console warning/error.",
+        "screenshot": "/tmp/auditsphere-component-keyboard-final.png"
+      },
+      "verification": "Application/API Release builds zero warnings/errors; Angular production build passed with existing SCSS/optional-chain warnings; generated OpenAPI adds only two required component fields and drift check passed. Independent source reviews found no blocker. No full local suites, dependencies,migrations,provider actions or deployment.",
+      "ci": {
+        "deadlineFast": {
+          "runId": 39268260786,
+          "sourceCommit": "9dfeef5380afbbf72b413deee102c6417aaeff08",
+          "result": "FAST_CI_PASS"
+        },
+        "currentSource": "NOT_RUN before push; retained full5b run remains live and is not current-source acceptance."
+      },
+      "remaining": "Perimeter Approve button still enabled on stale scope (observed separately; command remains authoritative). Full-source release, human AT/all-state acceptance, versioned reminder/escalation catalogue, professional and external gates remain open."
     }
   }
 }

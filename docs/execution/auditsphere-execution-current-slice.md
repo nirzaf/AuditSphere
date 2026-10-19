@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Deadline visibility and consolidation component approval readiness
+## Exact perimeter approval and reminder delivery policy
 
-Active overdue tasks now remain visible regardless of age within the existing oldest-first bound. Consolidation component approval projects the command's exact readiness, disables unavailable actions with a safe explanation, and supports native keyboard access to the scrolling table. Focused Domain/API/Angular, owned browser and built-in-browser evidence is in `status.json` under `operationalReadiness20261019`. Earlier commercial evidence is retained in the status and handoff archives. Stale-scope perimeter approval presentation, the broader reminder catalogue, human accessibility review and full current-source release acceptance remain open.
+Scope approval now projects the existing command's exact readiness and gives a visible, associated blocker for unavailable approval. Native keyboard navigation and the owned synthetic browser journeys cover the scoped action; human assistive-technology acceptance remains open. Reminder delivery checks policy before sending, defers quiet hours without consuming the provider-failure budget, and preserves accepted sends across the quiet-hours boundary. Focused evidence, initial failures and repairs, independent review, and CI source limits are recorded under `perimeterAndReminderPolicy20261019` in [status.json](status.json). The broader reminder catalogue, workflow accessibility, professional/live-provider gates and full current-source release acceptance remain open.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 
