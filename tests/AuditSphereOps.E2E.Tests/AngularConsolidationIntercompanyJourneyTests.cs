@@ -1,7 +1,11 @@
+using System.Globalization;
+using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -12,6 +16,7 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularConsolidationIntercompanyJourneyTests
 {
   private const string CaseId = "AS-PAR-002-ANG-CONSOL-IC-RETAINED-01";
+  private const string ApprovedCaseId = "AS-PAR-002-ANG-CONSOL-IC-APPROVED-01";
   private const string TransactionReference = "SYN-IC-RETAINED-REGULAR-01";
   private const string EvidenceReference = "SYN-IC-CONFIRMATION-01";
   private const string DifferenceReason = "Synthetic timing difference retained for outside-perimeter review.";
@@ -28,7 +33,7 @@ public sealed class AngularConsolidationIntercompanyJourneyTests
     }
 
     Assert.True(await target.EvaluateAsync<bool>("element => element === document.activeElement"),
-      "The retained details summary could not be reached through the page's normal Tab order.");
+      "The requested control could not be reached through the page's normal Tab order.");
   }
 
   [Fact]
@@ -268,5 +273,354 @@ public sealed class AngularConsolidationIntercompanyJourneyTests
     }
 
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "consolidation-intercompany");
+  }
+
+  [Fact]
+  [Trait("CaseId", ApprovedCaseId)]
+  public async Task InPerimeterApprovedComponentsRetainExactMatchThroughIndependentKeyboardReview()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: ApprovedCaseId);
+    var f = host.Fixture;
+    var groupId = Guid.NewGuid();
+    var scopeId = Guid.NewGuid();
+    var periodId = Guid.NewGuid();
+    var buyerClientId = Guid.NewGuid();
+    var buyerEngagementId = Guid.NewGuid();
+    const string groupCode = "SYN-IC-APPROVED-01";
+    const string groupName = "Synthetic approved intercompany group";
+    const string transactionReference = "SYN-IC-APPROVED-PAIR-01";
+    const string evidenceReference = "SYN-IC-APPROVED-CONFIRMATION-01";
+    const string differenceReason = "Synthetic timing difference retained against the signed counterparty amounts.";
+    const string sellerTaxonomy = "ASSETS.IC_AR";
+    const string buyerTaxonomy = "LIABILITIES.IC_AP";
+    const string sellerAmount = "1200.123456";
+    const string buyerAmount = "-1200.000000";
+    const string matchedAmount = "1200.000000";
+    var now = DateTimeOffset.UtcNow;
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = buyerClientId, FirmId = f.FirmId, LegalName = "Synthetic approved buyer entity", CreatedAt = now
+      });
+      db.Engagements.Add(new Engagement
+      {
+        Id = buyerEngagementId, FirmId = f.FirmId, PracticeClientId = buyerClientId,
+        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = now
+      });
+      db.ClientGroups.Add(new ClientGroup
+      {
+        Id = groupId, FirmId = f.FirmId, Code = groupCode, Name = groupName, Revision = 1,
+        CreatedByUserId = f.Admin.Id, CreatedAt = now
+      });
+      db.GroupAccessGrants.AddRange(
+        new GroupAccessGrant
+        {
+          Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = groupId, UserId = f.Staff.Id,
+          Role = "AccountingPreparer", GrantedAt = now, GrantedByUserId = f.Admin.Id
+        },
+        new GroupAccessGrant
+        {
+          Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = groupId, UserId = f.Reviewer.Id,
+          Role = "AccountingReviewer", GrantedAt = now, GrantedByUserId = f.Admin.Id
+        });
+      db.ClientGroupMemberships.AddRange(
+        new ClientGroupMembership
+        {
+          Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = groupId, ClientId = f.ClientId,
+          EffectiveFrom = new DateOnly(2020, 1, 1), Status = AccountingWorkflowStates.Approved,
+          OwnershipPercent = 100m, EconomicInterestPercent = 100m, ControlMethod = "CONTROLLED",
+          EvidenceReference = "SYNTHETIC-IC-SELLER-MEMBERSHIP",
+          CreatedByUserId = f.Admin.Id, CreatedAt = now
+        },
+        new ClientGroupMembership
+        {
+          Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = groupId, ClientId = buyerClientId,
+          EffectiveFrom = new DateOnly(2020, 1, 1), Status = AccountingWorkflowStates.Approved,
+          OwnershipPercent = 100m, EconomicInterestPercent = 100m, ControlMethod = "CONTROLLED",
+          EvidenceReference = "SYNTHETIC-IC-BUYER-MEMBERSHIP",
+          CreatedByUserId = f.Admin.Id, CreatedAt = now
+        });
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "ANNUAL", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = f.Admin.Id, CreatedAt = now
+      });
+      db.ConsolidationScopeVersions.Add(new ConsolidationScopeVersion
+      {
+        Id = scopeId, FirmId = f.FirmId, GroupId = groupId, PeriodId = periodId, Version = 1,
+        GroupRevision = 1, ReportingCurrency = "QAR", Method = ConsolidationCalculator.RestrictedMethod,
+        OpeningBasis = "INITIAL_CONSOLIDATION", Status = AccountingWorkflowStates.Draft,
+        CreatedByUserId = f.Admin.Id, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var maker = PbcSeed.Actor(f.Staff, "AccountingPreparer");
+    var checker = PbcSeed.Actor(f.Reviewer, "AccountingReviewer");
+    var sellerLines = new[]
+    {
+      new ExternalComponentPackLineRequest(sellerTaxonomy, 1200.123456m, "QAR", "SYN-SELLER-01-IC-AR"),
+      new ExternalComponentPackLineRequest("REVENUE", -1200.123456m, "QAR", "SYN-SELLER-02-REVENUE")
+    };
+    var buyerLines = new[]
+    {
+      new ExternalComponentPackLineRequest(buyerTaxonomy, -1200.000000m, "QAR", "SYN-BUYER-01-IC-AP"),
+      new ExternalComponentPackLineRequest("CASH", 1200.000000m, "QAR", "SYN-BUYER-02-CASH")
+    };
+
+    async Task<Guid> CreateApprovedComponentAsync(
+      Guid clientId, Guid engagementId, string sourceReference,
+      IReadOnlyList<ExternalComponentPackLineRequest> lines)
+    {
+      var canonicalLines = lines.Select(line => new
+        {
+          TaxonomyCode = line.TaxonomyCode.Trim(),
+          Amount = MoneyPolicy.Normalize(line.Amount).ToString("0.000000", CultureInfo.InvariantCulture),
+          Currency = line.Currency.Trim().ToUpperInvariant(),
+          SourceLineReference = line.SourceLineReference.Trim()
+        })
+        .OrderBy(line => line.SourceLineReference, StringComparer.Ordinal)
+        .ThenBy(line => line.TaxonomyCode, StringComparer.Ordinal)
+        .ThenBy(line => line.Currency, StringComparer.Ordinal)
+        .ThenBy(line => line.Amount, StringComparer.Ordinal);
+      var normalizedDigest = Hashing.Sha256Hex(string.Join('\n', canonicalLines.Select(line =>
+        string.Join('|', line.TaxonomyCode, line.Amount, line.Currency, line.SourceLineReference))));
+
+      await using var db = host.CreateDbContext();
+      var submittedPack = await ConsolidationService.SubmitExternalComponentPackAsync(db, maker,
+        new ExternalComponentPackRequest(scopeId, clientId, engagementId, "2026-01-01", "2026-12-31", "IFRS",
+          "QAR", "STATUTORY", "tax-external-v1", "mapping-external-v1", sourceReference,
+          Hashing.Sha256Hex("synthetic raw source " + sourceReference), normalizedDigest, 0m, lines,
+          ExpectedGroupRevision: 1));
+      Assert.True(submittedPack.Succeeded, submittedPack.Message);
+      var packId = submittedPack.Value;
+
+      var reconciled = await ConsolidationService.ReconcileExternalComponentPackAsync(db, checker,
+        new ExternalComponentReconciliationRequest(packId, sourceReference + "-RECONCILIATION", ExpectedGroupRevision: 1));
+      Assert.True(reconciled.Succeeded, reconciled.Message);
+      var approvedPack = await ConsolidationService.ApproveExternalComponentPackAsync(
+        db, checker, packId, expectedGroupRevision: 1);
+      Assert.True(approvedPack.Succeeded, approvedPack.Message);
+
+      var submittedComponent = await ConsolidationService.SubmitExternalComponentAsync(db, maker,
+        new ExternalComponentRequest(scopeId, packId, ExpectedGroupRevision: 1));
+      Assert.True(submittedComponent.Succeeded, submittedComponent.Message);
+      var approvedComponent = await ConsolidationService.ApproveComponentAsync(db, checker, submittedComponent.Value);
+      Assert.True(approvedComponent.Succeeded, approvedComponent.Message);
+      return submittedComponent.Value;
+    }
+
+    var sellerComponentId = await CreateApprovedComponentAsync(
+      f.ClientId, f.EngagementId, "SYN-IC-SELLER-APPROVED-PACK", sellerLines);
+    var buyerComponentId = await CreateApprovedComponentAsync(
+      buyerClientId, buyerEngagementId, "SYN-IC-BUYER-APPROVED-PACK", buyerLines);
+
+    async Task<string> ReadComponentSourceManifestAsync()
+    {
+      await using var db = host.CreateDbContext();
+      var packs = await db.ExternalComponentPacks.AsNoTracking().Where(x => x.ScopeVersionId == scopeId)
+        .OrderBy(x => x.Id).ToListAsync();
+      var lines = await db.ExternalComponentPackLines.AsNoTracking().Where(x => x.ScopeVersionId == scopeId)
+        .OrderBy(x => x.Id).ToListAsync();
+      var components = await db.ConsolidationComponents.AsNoTracking().Where(x => x.ScopeVersionId == scopeId)
+        .OrderBy(x => x.ClientId).ToListAsync();
+      return JsonSerializer.Serialize(new { packs, lines, components });
+    }
+
+    var componentSourcesBefore = await ReadComponentSourceManifestAsync();
+    await using (var seededProof = host.CreateDbContext())
+    {
+      var approvedComponents = await seededProof.ConsolidationComponents.AsNoTracking()
+        .Where(x => x.ScopeVersionId == scopeId).OrderBy(x => x.ClientId).ToListAsync();
+      Assert.Equal(2, approvedComponents.Count);
+      Assert.Equal(new[] { sellerComponentId, buyerComponentId }.OrderBy(x => x), approvedComponents.Select(x => x.Id).OrderBy(x => x));
+      Assert.All(approvedComponents, component => Assert.Equal(AccountingWorkflowStates.Approved, component.Status));
+      Assert.Equal(2, await seededProof.ExternalComponentPacks.AsNoTracking()
+        .CountAsync(x => x.ScopeVersionId == scopeId && x.Status == ExternalComponentPackStates.Approved));
+    }
+
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var makerOrigin = await host.StartApiForIdentityAsync(f.Staff, settings);
+    var reviewerOrigin = await host.StartApiForIdentityAsync(f.Reviewer, settings);
+    var path = $"/app/consolidation/scopes/{scopeId:D}";
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var makerContext = await browser.NewContextAsync();
+    await using var reviewerContext = await browser.NewContextAsync();
+    var makerPage = await makerContext.NewPageAsync();
+    var reviewerPage = await reviewerContext.NewPageAsync();
+    var pageErrors = new List<string>();
+    makerPage.PageError += (_, error) => pageErrors.Add(error);
+    reviewerPage.PageError += (_, error) => pageErrors.Add(error);
+
+    await makerPage.GotoAsync(makerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    await Assertions.Expect(makerPage.GetByRole(AriaRole.Heading,
+      new() { Name = $"{groupName} ({groupCode}) · v1", Exact = true })).ToBeVisibleAsync();
+    var intercompany = makerPage.Locator("#intercompany");
+    var form = intercompany.Locator("form[aria-label='Record intercompany match']");
+    await Assertions.Expect(form).ToBeVisibleAsync();
+    await Assertions.Expect(form.GetByLabel("Currency", new() { Exact = true })).ToHaveValueAsync("QAR");
+
+    var sellerMember = form.GetByRole(AriaRole.Combobox, new() { Name = "Seller group member", Exact = true });
+    var buyerMember = form.GetByRole(AriaRole.Combobox, new() { Name = "Buyer group member", Exact = true });
+    await Assertions.Expect(sellerMember.Locator("option")).ToHaveCountAsync(3);
+    await Assertions.Expect(buyerMember.Locator("option")).ToHaveCountAsync(3);
+    Assert.DoesNotContain("no approved component",
+      await sellerMember.Locator($"option[value='{f.ClientId:D}']").InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
+    Assert.DoesNotContain("no approved component",
+      await buyerMember.Locator($"option[value='{buyerClientId:D}']").InnerTextAsync(), StringComparison.OrdinalIgnoreCase);
+    await sellerMember.SelectOptionAsync(f.ClientId.ToString("D"));
+    await buyerMember.SelectOptionAsync(buyerClientId.ToString("D"));
+
+    await makerPage.SetViewportSizeAsync(390, 844);
+    Assert.True(await makerPage.EvaluateAsync<bool>(
+      "() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+      "The in-perimeter intercompany form overflows the document at 390px.");
+    Assert.True(await buyerMember.EvaluateAsync<bool>("element => element.getBoundingClientRect().right <= innerWidth + 1"),
+      "The selected in-perimeter buyer control extends beyond the 390px viewport.");
+
+    await form.GetByRole(AriaRole.Combobox, new() { Name = "Account nature", Exact = true }).SelectOptionAsync("RECEIVABLE_PAYABLE");
+    await form.GetByLabel("Period code", new() { Exact = true }).FillAsync("FY2026");
+    await form.GetByLabel("Transaction reference", new() { Exact = true }).FillAsync(transactionReference);
+    await form.GetByRole(AriaRole.Combobox, new() { Name = "Match mode", Exact = true }).SelectOptionAsync("ONE_TO_ONE");
+    await form.GetByLabel("Seller exact amount", new() { Exact = true }).FillAsync(sellerAmount);
+    await form.GetByLabel("Buyer exact amount", new() { Exact = true }).FillAsync(buyerAmount);
+    await form.GetByLabel("Matched amount", new() { Exact = true }).FillAsync(matchedAmount);
+    await form.GetByLabel("Seller taxonomy code", new() { Exact = true }).FillAsync(sellerTaxonomy);
+    await form.GetByLabel("Buyer taxonomy code", new() { Exact = true }).FillAsync(buyerTaxonomy);
+    await form.GetByLabel("Evidence reference", new() { Exact = true }).FillAsync(evidenceReference);
+    await form.GetByRole(AriaRole.Textbox, new() { Name = "Unmatched balance or signed difference reason" })
+      .FillAsync(differenceReason);
+
+    await Assertions.Expect(form.GetByLabel("Seller exact amount", new() { Exact = true })).ToHaveValueAsync(sellerAmount);
+    await Assertions.Expect(form.GetByLabel("Buyer exact amount", new() { Exact = true })).ToHaveValueAsync(buyerAmount);
+    await Assertions.Expect(form.GetByLabel("Matched amount", new() { Exact = true })).ToHaveValueAsync(matchedAmount);
+    var makerAssent = form.GetByLabel(
+      "I reviewed both counterparties, exact amounts, taxonomies, evidence and the current group revision.",
+      new() { Exact = true });
+    await TabToAsync(makerPage, makerAssent);
+    await makerPage.Keyboard.PressAsync("Space");
+    await Assertions.Expect(makerAssent).ToBeCheckedAsync();
+    await Assertions.Expect(makerAssent).ToBeFocusedAsync();
+
+    var submit = form.GetByRole(AriaRole.Button,
+      new() { Name = "Submit for independent review", Exact = true });
+    await Assertions.Expect(submit).ToBeEnabledAsync();
+    await TabToAsync(makerPage, submit);
+    var submitResponse = makerPage.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+      response.Url.EndsWith($"/api/ui/consolidation/scopes/{scopeId:D}/intercompany-matches", StringComparison.Ordinal));
+    await makerPage.Keyboard.PressAsync("Enter");
+    Assert.Equal(200, (await submitResponse).Status);
+
+    var makerRow = intercompany.GetByRole(AriaRole.Row).Filter(new() { HasText = transactionReference });
+    await Assertions.Expect(makerRow).ToBeVisibleAsync();
+    await Assertions.Expect(makerRow.Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
+    await Assertions.Expect(makerRow).ToContainTextAsync("Maker/checker: preparers cannot approve their own match.");
+    Assert.Equal(0, await makerRow.GetByRole(AriaRole.Button,
+      new() { Name = "Approve match", Exact = true }).CountAsync());
+
+    var makerDetails = makerRow.Locator("details");
+    var makerSummary = makerDetails.Locator("summary");
+    await TabToAsync(makerPage, makerSummary);
+    await makerPage.Keyboard.PressAsync("Enter");
+    var makerFacts = makerDetails.Locator("dl");
+    await Assertions.Expect(makerFacts.Locator("dd").Nth(0)).ToContainTextAsync(sellerAmount);
+    await Assertions.Expect(makerFacts.Locator("dd").Nth(1)).ToContainTextAsync(buyerAmount);
+    await Assertions.Expect(makerFacts.Locator("dd").Nth(2)).ToContainTextAsync(matchedAmount);
+    await Assertions.Expect(makerFacts.Locator("dd").Nth(2)).ToContainTextAsync("0.123456");
+    await Assertions.Expect(makerFacts.Locator("dd").Nth(4)).ToContainTextAsync(differenceReason);
+    await Assertions.Expect(makerFacts.Locator("dd").Nth(6)).ToContainTextAsync("No");
+
+    Guid matchId;
+    await using (var proof = host.CreateDbContext())
+    {
+      var match = Assert.Single(await proof.IntercompanyMatches.AsNoTracking()
+        .Where(x => x.ScopeVersionId == scopeId).ToListAsync());
+      matchId = match.Id;
+      Assert.Equal(f.ClientId, match.SellerClientId);
+      Assert.Equal(buyerClientId, match.BuyerClientId);
+      Assert.Equal(1200.123456m, match.SellerAmount);
+      Assert.Equal(-1200.000000m, match.BuyerAmount);
+      Assert.Equal(1200.000000m, match.MatchedAmount);
+      Assert.Equal(0.123456m, match.Difference);
+      Assert.Equal(AccountingWorkflowStates.Submitted, match.Status);
+      Assert.False(match.OutsidePerimeterReview);
+      Assert.Equal(evidenceReference, match.EvidenceReference);
+      Assert.Equal(differenceReason, match.DifferenceReason);
+      Assert.Equal(f.Staff.Id, match.CreatedByUserId);
+      Assert.Null(match.ReviewedByUserId);
+      Assert.Null(match.ReviewedAt);
+    }
+
+    await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
+      new() { Name = $"{groupName} ({groupCode}) · v1", Exact = true })).ToBeVisibleAsync();
+    var reviewerIntercompany = reviewerPage.Locator("#intercompany");
+    var reviewerRow = reviewerIntercompany.GetByRole(AriaRole.Row).Filter(new() { HasText = transactionReference });
+    await Assertions.Expect(reviewerRow).ToBeVisibleAsync();
+    await Assertions.Expect(reviewerRow.Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
+    var reviewerDetails = reviewerRow.Locator("details");
+    var reviewerSummary = reviewerDetails.Locator("summary");
+    await TabToAsync(reviewerPage, reviewerSummary);
+    await reviewerPage.Keyboard.PressAsync("Enter");
+    var reviewerFacts = reviewerDetails.Locator("dl");
+    await Assertions.Expect(reviewerFacts.Locator("dd").Nth(0)).ToContainTextAsync(sellerAmount);
+    await Assertions.Expect(reviewerFacts.Locator("dd").Nth(1)).ToContainTextAsync(buyerAmount);
+    await Assertions.Expect(reviewerFacts.Locator("dd").Nth(2)).ToContainTextAsync(matchedAmount);
+    await Assertions.Expect(reviewerFacts.Locator("dd").Nth(4)).ToContainTextAsync(differenceReason);
+
+    await reviewerPage.SetViewportSizeAsync(390, 844);
+    Assert.True(await reviewerPage.EvaluateAsync<bool>(
+      "() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+      "The reviewed intercompany match overflows the document at 390px.");
+    var reviewerTableScroll = reviewerIntercompany.Locator(".table-scroll");
+    Assert.True(await reviewerTableScroll.EvaluateAsync<bool>("""
+      element => {
+        const rect = element.getBoundingClientRect();
+        return rect.left >= -1 && rect.right <= innerWidth + 1 && getComputedStyle(element).overflowX === 'auto';
+      }
+      """), "The in-perimeter match table is not bounded by its horizontal scroll region at 390px.");
+
+    var reviewerAssent = reviewerRow.GetByLabel(
+      "I reviewed the full retained match and current revision", new() { Exact = true });
+    await TabToAsync(reviewerPage, reviewerAssent);
+    await reviewerPage.Keyboard.PressAsync("Space");
+    await Assertions.Expect(reviewerAssent).ToBeCheckedAsync();
+    await Assertions.Expect(reviewerAssent).ToBeFocusedAsync();
+    var approve = reviewerRow.GetByRole(AriaRole.Button, new() { Name = "Approve match", Exact = true });
+    await Assertions.Expect(approve).ToBeEnabledAsync();
+    await TabToAsync(reviewerPage, approve);
+    var approvalResponse = reviewerPage.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+      response.Url.EndsWith($"/api/ui/consolidation/intercompany-matches/{matchId:D}/approve", StringComparison.Ordinal));
+    await reviewerPage.Keyboard.PressAsync("Enter");
+    Assert.Equal(200, (await approvalResponse).Status);
+
+    await Assertions.Expect(reviewerRow.Locator("audit-status .status-chip")).ToHaveTextAsync("approved");
+    await Assertions.Expect(reviewerRow).ToContainTextAsync("Reviewed by an independent user.");
+    await Assertions.Expect(reviewerFacts.Locator("dd").Nth(9)).ToContainTextAsync(f.Reviewer.Id.ToString("D"));
+    Assert.Empty(pageErrors);
+
+    await using (var proof = host.CreateDbContext())
+    {
+      var match = await proof.IntercompanyMatches.AsNoTracking().SingleAsync(x => x.Id == matchId);
+      Assert.Equal(AccountingWorkflowStates.Approved, match.Status);
+      Assert.Equal(f.Staff.Id, match.CreatedByUserId);
+      Assert.Equal(f.Reviewer.Id, match.ReviewedByUserId);
+      Assert.NotNull(match.ReviewedAt);
+      Assert.False(match.OutsidePerimeterReview);
+      Assert.Equal(1200.123456m, match.SellerAmount);
+      Assert.Equal(-1200.000000m, match.BuyerAmount);
+      Assert.Equal(1200.000000m, match.MatchedAmount);
+      Assert.Equal(0.123456m, match.Difference);
+      Assert.Equal(componentSourcesBefore, await ReadComponentSourceManifestAsync());
+      Assert.Empty(await proof.ConsolidationJournals.Where(x => x.ScopeVersionId == scopeId).ToListAsync());
+      Assert.Empty(await proof.ConsolidationRuns.Where(x => x.ScopeVersionId == scopeId).ToListAsync());
+    }
+
+    await OwnedBrowserFixtureHandoff.WaitAsync(reviewerOrigin, path, "consolidation-intercompany-approved");
   }
 }
