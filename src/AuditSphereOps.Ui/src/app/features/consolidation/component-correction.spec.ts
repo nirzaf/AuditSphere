@@ -25,6 +25,7 @@ function workspace(overrides: Record<string, unknown> = {}) {
       method: 'FULLY_OWNED_SAME_CURRENCY', status: 'APPROVED', openingBasis: 'APPROVED_PRIOR_SCOPE', isAdvanced: false,
     },
     canPrepare: false, canReview: false, currentUserId: actorId,
+    canApproveScope: false, scopeApprovalBlocker: null,
     components: [{
       id: componentId, clientId, clientLegalName: 'Operating Company', sourceType: 'INTERNAL_PACKAGE',
       packageId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', externalComponentPackId: null, packageHash,
