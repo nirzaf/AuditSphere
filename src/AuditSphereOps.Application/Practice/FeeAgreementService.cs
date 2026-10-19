@@ -450,7 +450,7 @@ public static partial class FeeAgreementService
     return line;
   }
 
-  private static async Task<string?> ResolveRecipientAsync(IAuditSphereDbContext db, Guid firmId, EngagementFeeAgreement agreement, CancellationToken ct)
+  internal static async Task<string?> ResolveRecipientAsync(IAuditSphereDbContext db, Guid firmId, EngagementFeeAgreement agreement, CancellationToken ct)
   {
     var now = DateTimeOffset.UtcNow;
     var asOf = DateOnly.FromDateTime(now.UtcDateTime);
@@ -461,7 +461,8 @@ public static partial class FeeAgreementService
       where (r.EffectiveFrom == null || r.EffectiveFrom <= asOf) &&
             (r.EffectiveTo == null || r.EffectiveTo >= asOf)
       join c in db.ClientContacts.AsNoTracking() on r.ClientContactId equals c.Id
-      where c.IsActive && !string.IsNullOrWhiteSpace(c.Email) &&
+      where c.FirmId == firmId && c.PracticeClientId == agreement.PracticeClientId &&
+            c.IsActive && !string.IsNullOrWhiteSpace(c.Email) &&
             (c.ValidFrom == null || c.ValidFrom <= now) &&
             (c.ValidTo == null || c.ValidTo >= now)
       orderby r.IsPrimaryForPurpose descending, r.CreatedAt descending

@@ -75,6 +75,9 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     if (mail.Kind == CommercialNotificationKinds.Proposal &&
         !await ProposalRecipientAuthorityIsCurrentAsync(db, mail, ct))
       throw new OperationBlockedException("mail-recipient-authority-changed", authorization: true);
+    if (mail.Kind is CommercialNotificationKinds.Receipt or CommercialNotificationKinds.PaymentVoucher &&
+        (op.ClientId != mail.PracticeClientId || !await PaymentRecipientAuthorityIsCurrentAsync(db, mail, ct)))
+      throw new OperationBlockedException("mail-recipient-authority-changed", authorization: true);
 
     // The send attempt is durable before the provider call: queued, in-flight, accepted, refused and unknown
     // outcomes remain distinguishable whatever happens next (STE 4.1.2 delivery receipts).
@@ -102,6 +105,36 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
       throw; // the outcome is uncertain: reconciliation — never a blind resend — must resolve it
     }
     return Expected(op);
+  }
+
+  private static async Task<bool> PaymentRecipientAuthorityIsCurrentAsync(
+    IAuditSphereDbContext db, CommercialNotification mail, CancellationToken ct)
+  {
+    if (mail.PracticeClientId is not { } clientId || mail.DocumentId is not { } documentId)
+      return false;
+    var isSettlementReceipt = mail.Kind == CommercialNotificationKinds.Receipt;
+    if (isSettlementReceipt ? !mail.FeeMilestoneId.HasValue : !mail.ReceiptId.HasValue)
+      return false;
+    var expectedDocumentKind = isSettlementReceipt
+      ? CommercialDocumentKinds.PaymentReceipt : CommercialDocumentKinds.PaymentVoucher;
+
+    // Resolve only through the retained artifact's own agreement. A notification's client or
+    // payment identity cannot borrow another client's financial correspondence authority.
+    var agreement = await (
+      from document in db.CommercialDocuments.AsNoTracking()
+      join milestone in db.FeeMilestones.AsNoTracking() on document.FeeMilestoneId equals (Guid?)milestone.Id
+      join candidate in db.EngagementFeeAgreements.AsNoTracking() on milestone.AgreementId equals candidate.Id
+      where document.FirmId == mail.FirmId && document.Id == documentId && document.Kind == expectedDocumentKind &&
+            milestone.FirmId == mail.FirmId && candidate.FirmId == mail.FirmId && candidate.PracticeClientId == clientId &&
+            document.ProposalId == candidate.ProposalId && document.QuotationVersionId == candidate.QuotationVersionId &&
+            (isSettlementReceipt ? document.FeeMilestoneId == mail.FeeMilestoneId : document.ReceiptId == mail.ReceiptId)
+      select candidate
+    ).SingleOrDefaultAsync(ct);
+    if (agreement is null) return false;
+
+    // Keep the existing Finance-route / primary-contact / prospect fallback policy. A changed
+    // recipient blocks this immutable notification; it is never silently retargeted or rewritten.
+    return EmailsMatch(await FeeAgreementService.ResolveRecipientAsync(db, mail.FirmId, agreement, ct), mail.Recipient);
   }
 
   private static async Task<bool> ProposalRecipientAuthorityIsCurrentAsync(

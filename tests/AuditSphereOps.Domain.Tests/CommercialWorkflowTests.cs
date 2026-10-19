@@ -908,15 +908,159 @@ public sealed class CommercialWorkflowTests
     Assert.Contains("6,000.00 QAR", firstVoucher);
     Assert.Equal(2, await db.CommercialNotifications.CountAsync(x => x.Kind == CommercialNotificationKinds.PaymentVoucher));
 
-    // Deliver the receipt and two vouchers exactly once; the prospect proposal was sent before conversion.
-    Assert.True(await worker.ProcessNextAsync());
-    Assert.True(await worker.ProcessNextAsync());
-    Assert.True(await worker.ProcessNextAsync());
+    // The advance receipt and two payment vouchers froze the original owner mailbox before any
+    // Finance route existed. A later, different Finance recipient must block all three rather
+    // than silently retargeting their immutable mail intents.
+    var advanceMail = await db.CommercialNotifications.AsNoTracking()
+      .Where(x => x.PracticeClientId == clientId &&
+        (x.Kind == CommercialNotificationKinds.Receipt || x.Kind == CommercialNotificationKinds.PaymentVoucher))
+      .OrderBy(x => x.Kind).ThenBy(x => x.CreatedAt).ToListAsync();
+    Assert.Equal(3, advanceMail.Count);
+    Assert.Single(advanceMail, x => x.Kind == CommercialNotificationKinds.Receipt);
+    Assert.Equal(2, advanceMail.Count(x => x.Kind == CommercialNotificationKinds.PaymentVoucher));
+    Assert.All(advanceMail, mail => Assert.Equal("owner@gulf.example.test", mail.Recipient));
+    var frozenMail = advanceMail.ToDictionary(x => x.Id,
+      x => (x.Recipient, x.DocumentId, x.OfferSha256, x.Subject, x.Body));
+
+    var replacementFinanceContact = new ClientContact
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, PracticeClientId = clientId,
+      FullName = "Replacement Finance Contact", Email = "replacement-finance@gulf.example.test", Role = "Finance", IsActive = true
+    };
+    Assert.NotEqual(advanceMail[0].Recipient, replacementFinanceContact.Email);
+    db.ClientContacts.Add(replacementFinanceContact);
+    await db.SaveChangesAsync();
+    var replacementFinanceRouting = await PracticeCrmService.AssignContactRoutingAsync(db, w.Partner,
+      new AssignContactRoutingRequest(clientId, replacementFinanceContact.Id, CorrespondencePurposes.Finance));
+    Assert.True(replacementFinanceRouting.Succeeded, replacementFinanceRouting.Message);
+
+    for (var i = 0; i < advanceMail.Count; i++) Assert.True(await worker.ProcessNextAsync());
     Assert.False(await worker.ProcessNextAsync());
+    Assert.Single(sender.Plans);
+    Assert.Contains("Proposal revision", sender.Plans[0].Subject);
+    var advanceMailIds = advanceMail.Select(x => x.Id).ToArray();
+    var blockedNotifications = await db.CommercialNotifications.AsNoTracking()
+      .Where(x => advanceMailIds.Contains(x.Id)).ToListAsync();
+    Assert.Equal(advanceMail.Count, blockedNotifications.Count);
+    Assert.All(blockedNotifications, mail =>
+    {
+      Assert.Equal(CommercialDeliveryStates.Queued, mail.DeliveryState);
+      Assert.Null(mail.DeliveredAt);
+      Assert.Equal(frozenMail[mail.Id], (mail.Recipient, mail.DocumentId, mail.OfferSha256, mail.Subject, mail.Body));
+    });
+    var blockedOperations = await db.DurableOperations.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind && advanceMailIds.Contains(x.TargetId))
+      .ToListAsync();
+    Assert.Equal(advanceMail.Count, blockedOperations.Count);
+    Assert.All(blockedOperations, operation => Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status));
+
+    // Revoking the replacement restores the existing fallback mailbox. A mismatched
+    // notification client must still be refused even when that other client's primary contact
+    // resolves to the exact frozen address, proving the artifact/agreement scope check.
+    var revokeReplacement = await PracticeCrmService.RevokeContactRoutingAsync(db, w.Partner,
+      new RevokeContactRoutingRequest(clientId, replacementFinanceRouting.Value, "Restore the existing recipient fallback."));
+    Assert.True(revokeReplacement.Succeeded, revokeReplacement.Message);
+    var bindingClient = new PracticeClient
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, LegalName = "Notification Binding Control LLC", CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.PracticeClients.Add(bindingClient);
+    db.ClientContacts.Add(new ClientContact
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, PracticeClientId = bindingClient.Id,
+      FullName = "Binding Control Contact", Email = frozenMail[advanceMail[0].Id].Recipient,
+      Role = "Finance", Primary = true, IsActive = true
+    });
+    var operationsAdmin = User(w.FirmId, "commercial-mail-operations-admin");
+    db.Users.Add(operationsAdmin);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, UserId = operationsAdmin.Id, Role = "Administrator",
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId
+    });
+    await db.SaveChangesAsync();
+    var operationsAdminActor = Actor(operationsAdmin, "Administrator");
+
+    async Task ReArmMailOperationAsync(Guid operationId)
+    {
+      var request = new OperationCommandRequest(Guid.NewGuid(), new(OperationCommandActions.Retry, OperationId: operationId));
+      var preview = await OperationCommandWorkspace.PreviewAsync(db, operationsAdminActor, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      Assert.True(preview.Value!.CanProceed, string.Join(';', preview.Value.Blockers));
+      var reviewed = request with
+      {
+        Input = preview.Value.CanonicalInput,
+        ReviewBasis = preview.Value.ReviewBasis,
+        ExpectedRequestHash = preview.Value.RequestHash,
+        Reviewed = true
+      };
+      var rearmed = await OperationCommandWorkspace.ExecuteAsync(db, operationsAdminActor, reviewed);
+      Assert.True(rearmed.Succeeded, rearmed.Message);
+    }
+
+    async Task WaitForMailOperationsAsync(Guid[] operationIds, OperationState expectedState)
+    {
+      for (var attempt = 0; attempt < 12; attempt++)
+      {
+        await using var check = new AuditSphereDbContext(pg.Options);
+        var states = await check.DurableOperations.AsNoTracking()
+          .Where(x => operationIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Status);
+        if (operationIds.All(id => states.GetValueOrDefault(id) == expectedState)) return;
+        if (!await worker.ProcessNextAsync()) await Task.Delay(TimeSpan.FromSeconds(1));
+      }
+      Assert.Fail($"Commercial mail operations did not reach {expectedState}.");
+    }
+
+    var receiptMail = advanceMail.Single(x => x.Kind == CommercialNotificationKinds.Receipt);
+    var receiptOperationId = blockedOperations.Single(x => x.TargetId == receiptMail.Id).Id;
+    var mutableReceiptMail = await db.CommercialNotifications.SingleAsync(x => x.Id == receiptMail.Id);
+    mutableReceiptMail.PracticeClientId = bindingClient.Id;
+    await db.SaveChangesAsync();
+    var scopeProbe = new DurableOperation
+    {
+      Id = Guid.CreateVersion7(), OperationKind = CommercialMailDeliveryHandler.Kind, FirmId = w.FirmId,
+      ClientId = bindingClient.Id, TargetId = receiptMail.Id, ExpectedRevision = 1,
+      CorrelationId = Guid.CreateVersion7(), PayloadJson = System.Text.Json.JsonSerializer.Serialize(new
+      {
+        notificationId = receiptMail.Id.ToString("D")
+      })
+    };
+    var scopeBlock = await Assert.ThrowsAsync<OperationBlockedException>(
+      () => handler.ExecuteEffectAsync(scopeProbe, CancellationToken.None));
+    Assert.True(scopeBlock.Authorization);
+    var mismatchedReceipt = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == receiptMail.Id);
+    Assert.Equal(CommercialDeliveryStates.Queued, mismatchedReceipt.DeliveryState);
+    Assert.Equal(bindingClient.Id, mismatchedReceipt.PracticeClientId);
+    Assert.Equal(frozenMail[receiptMail.Id],
+      (mismatchedReceipt.Recipient, mismatchedReceipt.DocumentId, mismatchedReceipt.OfferSha256, mismatchedReceipt.Subject, mismatchedReceipt.Body));
+    Assert.Single(sender.Plans);
+
+    mutableReceiptMail.PracticeClientId = clientId;
+    await db.SaveChangesAsync();
+    foreach (var operation in blockedOperations) await ReArmMailOperationAsync(operation.Id);
+    await WaitForMailOperationsAsync(blockedOperations.Select(x => x.Id).ToArray(), OperationState.COMPLETED);
+
     Assert.Equal(4, sender.Plans.Count);
     Assert.Equal(2, sender.Plans.Count(p => p.Subject.StartsWith("Payment voucher")));
     Assert.Contains(sender.Plans, p => p.Subject.StartsWith("Payment receipt"));
     Assert.Single(sender.Plans, p => p.Subject.Contains("Proposal revision"));
+    var deliveredAdvanceMail = await db.CommercialNotifications.AsNoTracking()
+      .Where(x => advanceMailIds.Contains(x.Id)).ToListAsync();
+    Assert.Equal(advanceMail.Count, deliveredAdvanceMail.Count);
+    foreach (var mail in deliveredAdvanceMail)
+    {
+      Assert.Equal(CommercialDeliveryStates.ProviderAccepted, mail.DeliveryState);
+      Assert.Equal(clientId, mail.PracticeClientId);
+      Assert.Equal(frozenMail[mail.Id], (mail.Recipient, mail.DocumentId, mail.OfferSha256, mail.Subject, mail.Body));
+      var document = await db.CommercialDocuments.AsNoTracking().SingleAsync(x => x.Id == mail.DocumentId);
+      Assert.Equal(mail.OfferSha256, document.Sha256Hex);
+      var plan = Assert.Single(sender.Plans, x => x.Subject == mail.Subject);
+      Assert.Equal(mail.Recipient, plan.Recipient);
+      Assert.Equal(document.FileName, plan.Attachment?.FileName);
+      Assert.Equal(document.ContentType, plan.Attachment?.ContentType);
+      Assert.Equal(document.Bytes, plan.Attachment?.Bytes);
+    }
+    Assert.False(await worker.ProcessNextAsync());
     var deliveredReceipt = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Kind == CommercialNotificationKinds.Receipt);
     Assert.Equal(("PROVIDER_ACCEPTED", true), (deliveredReceipt.DeliveryState, deliveredReceipt.DeliveredAt is not null));
 
