@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Audit;
@@ -269,6 +270,125 @@ public sealed partial class ClientAccountingTests
 
       Assert.True((await AccountingAnalysisService.ReviewGeneralLedgerCompletenessAsync(db, reviewer, bridge.Id, approve: true)).Succeeded);
       Assert.Equal(AccountingWorkflowStates.Approved, await db.GeneralLedgerCompletenessBridges.Where(x => x.Id == bridge.Id).Select(x => x.Status).SingleAsync());
+
+      var sourceRows = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == datasetId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      Assert.Equal(2, sourceRows.Length);
+      Assert.Contains(sourceRows, x => x.Amount != 0m);
+      var sourceLines = await db.GeneralLedgerLines.AsNoTracking().Where(x => x.ImportBatchId == batchId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      Assert.Equal(2, sourceLines.Length);
+
+      await AssertPracticeTimePreservesClientBooksAsync(pg, scope, periodId);
     }
+  }
+
+  private static async Task AssertPracticeTimePreservesClientBooksAsync(PgTestSchema pg, Scope scope, Guid periodId)
+  {
+    async Task<string> CaptureClientBooksAsync()
+    {
+      await using var snapshotDb = new AuditSphereDbContext(pg.Options);
+      var datasets = await snapshotDb.TrialBalanceDatasets.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var datasetIds = datasets.Select(x => x.Id).ToArray();
+      var trialBalanceRows = await snapshotDb.TrialBalanceRows.AsNoTracking().Where(x => datasetIds.Contains(x.DatasetId))
+        .OrderBy(x => x.DatasetId).ThenBy(x => x.Id).ToArrayAsync();
+      var trialBalanceBatches = await snapshotDb.TrialBalanceImportBatches.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var sourceBatches = await snapshotDb.SourceImportBatches.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var generalLedgerChunks = await snapshotDb.GeneralLedgerImportChunks.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var transactions = await snapshotDb.GeneralLedgerTransactions.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var generalLedgerLines = await snapshotDb.GeneralLedgerLines.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var journals = await snapshotDb.ClientOperationalJournals.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var journalLines = await snapshotDb.ClientOperationalJournalLines.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var decisions = await snapshotDb.ClientOperationalJournalDecisions.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var journalSnapshots = await snapshotDb.ClientOperationalJournalSnapshots.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var postingReceipts = await snapshotDb.ClientOperationalPostingReceipts.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var reversals = await snapshotDb.ClientOperationalJournalReversals.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var openingBalances = await snapshotDb.ClientOperationalOpeningBalances.AsNoTracking().Where(x => x.ClientId == scope.ClientA)
+        .OrderBy(x => x.Id).ToArrayAsync();
+
+      return System.Text.Json.JsonSerializer.Serialize(new
+      {
+        datasets, trialBalanceRows, trialBalanceBatches, sourceBatches, generalLedgerChunks, transactions, generalLedgerLines,
+        journals, journalLines, decisions, journalSnapshots, postingReceipts, reversals, openingBalances
+      });
+    }
+
+    var staffActor = Actor(scope.Preparer, "Staff");
+    var reviewerActor = Actor(scope.Reviewer, "Partner");
+    var rateManager = User(scope.FirmId, "TimeIsolationRateManager");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.Add(rateManager);
+      db.RoleGrants.Add(Grant(scope.FirmId, rateManager, "Manager"));
+      db.RoleGrants.Add(Grant(scope.FirmId, scope.Preparer, "Staff", scope.ClientA, scope.EngagementA));
+      await db.SaveChangesAsync();
+
+      var rate = await PracticeTimeService.ReviseRateCardAsync(db, Actor(rateManager, "Manager"),
+        new RateCardDraftRequest("Staff", "Client book isolation", "QAR", 100m));
+      Assert.True(rate.Succeeded, rate.Message);
+      Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, reviewerActor, rate.Value)).Succeeded);
+    }
+
+    var before = await CaptureClientBooksAsync();
+    Guid originalEntryId;
+    Guid correctionEntryId;
+    Guid rateCardVersionId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      rateCardVersionId = await db.RateCardVersions.AsNoTracking()
+        .Where(x => x.FirmId == scope.FirmId && x.Role == "Staff" && x.Activity == "Client book isolation" && x.Currency == "QAR")
+        .Select(x => x.Id).SingleAsync();
+      var task = await PracticeTimeService.CreateTaskAsync(db, staffActor,
+        new CreateTaskRequest("Record client book isolation time", scope.ClientA, scope.EngagementA,
+          ReportingPeriodId: periodId));
+      Assert.True(task.Succeeded, task.Message);
+      var draft = await PracticeTimeService.SaveTimeDraftAsync(db, staffActor,
+        new SaveTimeDraftRequest(task.Value, new DateOnly(2026, 6, 30), 9 * 60, 60,
+          "Staff", "Client book isolation", Currency: "QAR"));
+      Assert.True(draft.Succeeded, draft.Message);
+      originalEntryId = draft.Value;
+      var original = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == originalEntryId);
+      Assert.Equal(PracticeTimeStates.Billable, original.BillableClassification);
+      Assert.Equal(rateCardVersionId, original.RateCardVersionId);
+      Assert.Equal(100m, original.RatePerHour);
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, staffActor, originalEntryId)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, reviewerActor, originalEntryId)).Succeeded);
+
+      var correction = await PracticeTimeService.CorrectTimeAsync(db, staffActor,
+        new CorrectTimeRequest(originalEntryId, new DateOnly(2026, 6, 30), 9 * 60, 75,
+          "Client book isolation", "Corrected synthetic time", Reason: "Corrected duration"));
+      Assert.True(correction.Succeeded, correction.Message);
+      correctionEntryId = correction.Value;
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, staffActor, correctionEntryId)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, reviewerActor, correctionEntryId)).Succeeded);
+
+      var originalAfterCorrection = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == originalEntryId);
+      var corrected = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == correctionEntryId);
+      Assert.Equal(PracticeTimeStates.TimeSuperseded, originalAfterCorrection.Status);
+      Assert.Equal(60, originalAfterCorrection.DurationMinutes);
+      Assert.Equal(rateCardVersionId, originalAfterCorrection.RateCardVersionId);
+      Assert.Equal(100m, originalAfterCorrection.RatePerHour);
+      Assert.Equal(PracticeTimeStates.TimeApproved, corrected.Status);
+      Assert.Equal(originalEntryId, corrected.SupersedesId);
+      Assert.Equal(75, corrected.DurationMinutes);
+      Assert.Equal(rateCardVersionId, corrected.RateCardVersionId);
+      Assert.Equal(100m, corrected.RatePerHour);
+      Assert.Equal(PracticeTimeStates.Billable, corrected.BillableClassification);
+    }
+
+    var after = await CaptureClientBooksAsync();
+    Assert.Equal(before, after);
   }
 }

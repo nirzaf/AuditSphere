@@ -255,6 +255,15 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(2, ledger.Value.TrialBalance.Rows.Count);
       Assert.Equal("150", ledger.Value.TrialBalance.ClosingDebit);
       Assert.Equal("150", ledger.Value.TrialBalance.ClosingCredit);
+      var nativeLedgerProjectionBefore = System.Text.Json.JsonSerializer.Serialize(ledger.Value);
+      await AssertPracticeTimePreservesClientBooksAsync(pg, scope, periodId);
+      await using (var afterTimeDb = new AuditSphereDbContext(pg.Options))
+      {
+        var afterTimeLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(
+          afterTimeDb, reviewer, scope.ClientA, periodId);
+        Assert.True(afterTimeLedger.Succeeded, afterTimeLedger.Message);
+        Assert.Equal(nativeLedgerProjectionBefore, System.Text.Json.JsonSerializer.Serialize(afterTimeLedger.Value));
+      }
       var filteredLedger = await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId,
         accountCodeFrom: "6000", accountCodeTo: "6000", sourceType: "NATIVE_JOURNAL", reference: "J-001");
       Assert.True(filteredLedger.Succeeded, filteredLedger.Message);
