@@ -54,7 +54,12 @@
 <audit-state [loading]="view.loading()" [error]="view.error()" label="the resource grid" />
 <div [hidden]="!!pending() || cmd.uncertain()">
   @if (view.data(); as v) {
-    <div class="table-scroll">
+    <div
+      class="table-scroll"
+      role="region"
+      aria-label="Resource grid; scroll horizontally to see all weeks"
+      tabindex="0"
+    >
       <table aria-label="Resource grid">
         <thead>
           <tr>

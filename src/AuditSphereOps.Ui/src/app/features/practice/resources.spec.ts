@@ -143,6 +143,14 @@ describe('Resource planning forms', () => {
   });
   it('shows allocation, capacity, approved actual and over-allocation distinctly', () => {
     const f = setup();
+    const scrollRegion = f.nativeElement.querySelector('.table-scroll') as HTMLDivElement;
+    expect(scrollRegion.getAttribute('role')).toBe('region');
+    expect(scrollRegion.getAttribute('aria-label')).toBe(
+      'Resource grid; scroll horizontally to see all weeks',
+    );
+    expect(scrollRegion.tabIndex).toBe(0);
+    scrollRegion.focus();
+    expect(document.activeElement).toBe(scrollRegion);
     const text = f.nativeElement.textContent;
     expect(text).toContain('Over-allocated');
     expect(text).toContain('Synthetic current qualification · Verification recorded separately · Not expired');

@@ -147,6 +147,12 @@ public sealed class AngularResourcePlanningJourneyTests
     await Assertions.Expect(table.Locator("tr[data-user='Synthetic resource staff']")).ToContainTextAsync("approved actual 8 h");
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     Assert.True(await page.EvaluateAsync<bool>("() => { const w = document.querySelector('.table-scroll'); const h = document.querySelector('.table-scroll th:nth-child(4)'); return !!w && !!h && w.scrollWidth > w.clientWidth && h.getBoundingClientRect().width >= 112; }"));
+    var gridRegion = page.GetByRole(AriaRole.Region, new() { Name = "Resource grid; scroll horizontally to see all weeks", Exact = true });
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh persisted planning state", Exact = true }).PressAsync("Tab");
+    await Assertions.Expect(gridRegion).ToBeFocusedAsync();
+    await gridRegion.PressAsync("ArrowRight");
+    await page.WaitForFunctionAsync("() => document.querySelector('[aria-label=\"Resource grid; scroll horizontally to see all weeks\"]').scrollLeft > 0");
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     async Task ConfirmAndAcknowledgeAsync()
     {
       var review = page.GetByRole(AriaRole.Region, new() { Name = "Exact planning action review", Exact = true });
