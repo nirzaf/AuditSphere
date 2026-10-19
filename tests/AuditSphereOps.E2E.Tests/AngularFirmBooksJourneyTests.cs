@@ -289,5 +289,6 @@ public sealed class AngularFirmBooksJourneyTests
       Assert.Single(await db.FirmPostings.Where(x => x.PeriodId == periodId).ToListAsync());
     }
     Assert.Empty(errors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(preparerOrigin, "/app/finance/books", "firm-report-snapshot");
   }
 }

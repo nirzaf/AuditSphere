@@ -3,6 +3,12 @@
 **Status:** PARTIAL
 **Legacy source SHA-256:** `a11b6ab3c0f7c57d618d8ed8ae1a249d055364c49834cc34ab61fc1875815b9d`
 
+> Blazor references and retirement conditions below preserve the earlier review history. The current application is Angular/API; those statements do not authorize restoring the retired host. Current source evidence and remaining acceptance gates are in `docs/execution/status.json`.
+
+## Concurrent exact cancellation follow-up
+
+The PostgreSQL regression `OperatorCommandReceiptTests.ConcurrentCancelWithSameRequestWaitsAndPublishesOneExactReceipt` observes the second backend blocked by the first publication, then verifies identical retained receipts and one cancellation event/transition. This is focused same-request cancellation evidence only; other action/interleaving matrices and external operational drills remain open. Exact source, results and artifact paths are in `targetedVerification.operatorReceiptConcurrency20261019` in the execution ledger.
+
 ## Source and replacement
 
 The reviewed source is

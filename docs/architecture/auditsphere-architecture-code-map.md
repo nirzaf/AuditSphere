@@ -338,7 +338,7 @@ accounting or consolidation workspaces.
 ## Technical library, practice analytics and firm books
 
 - Domain: `Domain/Practice/FirmOperations.cs` (`TechnicalLibraryDocument`/`Version`, `StaffCostRate`, `FirmExpense`)
-- Application: `Practice/FirmOperationsServices.cs` (`TechnicalLibraryService` — also feeding `GlobalSearchQuery`; `PracticeAnalyticsQuery`; `FirmExpenseService` over `LedgerService` journals and the firm trial balance)
+- Application: `Practice/FirmOperationsServices.cs` (`TechnicalLibraryService` — also feeding `GlobalSearchQuery`; `PracticeAnalyticsQuery`; `FirmExpenseService` over `LedgerService` journals and the firm trial balance; report periods, posting totals, comparatives and activity share an owned repeatable-read snapshot, committed before final current authorization; caller-owned transactions are refused without changing them)
 - Persistence: `AuditSphereDbContext.FirmOperations.cs`, migration `TechnicalLibraryAnalyticsAndFirmExpenses` (published-version immutability, append-only cost rates)
 - Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.PracticeInsights.cs` and `UiEndpoints.FirmBooks.cs`; Angular `src/AuditSphereOps.Ui/src/app/features/library/library.ts`, `src/AuditSphereOps.Ui/src/app/features/practice/analytics.ts` and `src/AuditSphereOps.Ui/src/app/features/finance/books.ts`. This identifies current files and routes only; it does not assert parity with the former library screens.
 - Historical Blazor screens (pinned pre-removal source only): `Pages/TechnicalLibrary.razor`, `Pages/PracticeAnalytics.razor` and `Pages/FirmBooks.razor`.

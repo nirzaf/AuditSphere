@@ -20449,6 +20449,78 @@
       "result": "FAST_CI_PASS",
       "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39214984953",
       "note": "Docs, Angular and .NET Release passed; includes invoice identity fix. Predates role-dialog test and atomicity work; not full regression."
+    },
+    "targetedVerification.feeMilestoneAtomicityBeforeFirmReport20261019": {
+      "sourceCommit": "ee09d7172d129818f011bf2a08f27265f4d942d9",
+      "result": "FOCUSED_PASS",
+      "behavior": "Manual issuance owns draft/source reservation/milestone link in one transaction; ambient callers retain ownership. Current agreement/authority and locked milestone reload follow firm fence. Automatic invoice publication opts into exclusive firm before client/target; other handlers retain shared guards.",
+      "baseline": {
+        "passed": 0,
+        "failed": 2,
+        "trx": "/tmp/auditsphere-practice-guard-results/milestone-atomicity-baseline.trx",
+        "note": "Same-source race: duplicate identity; store probe: missing early exclusive query, not a reproduced deadlock. Test-only factory compile error repaired first."
+      },
+      "verification": {
+        "passed": 5,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/milestone-atomicity-final.trx",
+        "log": "/tmp/auditsphere-milestone-atomicity-final.log",
+        "scope": "Existing identity/replay/legacy fact extended with concurrent same-source issuance and link-save rollback/retry; exclusive-store publication probe; automatic invoice standing-authority allow/revoke theory; ordinary outbox rollback."
+      },
+      "independentReview": "No production blocker found; source-only review, not professional acceptance.",
+      "limits": "Synthetic PostgreSQL only. Rollback probe uses existing account. Complete balance/payment concurrency, other billing sources and full current-source release acceptance remain open. Drain or epoch-fence old workers before rollout to avoid mixed-version shared-lock upgrades. No deployment/migration/provider change."
+    },
+    "targetedVerification.roleDialogKeyboardBeforeFirmReport20261019": {
+      "sourceCommit": "9f977805d75a9655f7aa9bba87e79c97fb33740b",
+      "result": "FOCUSED_PASS",
+      "focusedE2e": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-a11y-results/role-dialog-keyboard.trx",
+        "log": "/tmp/auditsphere-role-dialog-keyboard.log",
+        "method": "ScreenReaderProxySemantics_LiveRegionsAndDialogMatrix_HoldAcrossTheShell"
+      },
+      "nativeBrowser": "Owned synthetic current-UI/API fixture61691: heading -> Tab Role -> Shift+Tab Close -> Tab Role -> Escape opener. No grant submitted; warnings/errors empty. Tab closed, fixture released/disposed.",
+      "screenshot": "/tmp/auditsphere-role-dialog-native-keyboard.png",
+      "independentReview": "No source findings; reviewer inspected diff but did not execute tests.",
+      "limits": "Keyboard focus only; human screen-reader announcements and complete supported-state matrix remain unverified."
+    },
+    "targetedVerification.fastCiEe09BeforeFirmReport20261019": {
+      "runId": "39217610247",
+      "sourceCommit": "ee09d7172d129818f011bf2a08f27265f4d942d9",
+      "result": "IN_PROGRESS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39217610247",
+      "note": "Current implementation fast gate active; prior passed run retained at status-archive-2026-10.json#keys.targetedVerification.fastCiB207BeforeAtomicity20261019"
+    },
+    "targetedVerification.browserCiRecoveryBeforeFirmReport20261019": {
+      "sourceCommit": "0b0b72412dfd6ce58254b5119afd46859192c86b",
+      "testRepairCommit": "fb76413cddb24c3193e68264442597ca134b5cc3",
+      "result": "FOCUSED_PASS_FULL_CI_PENDING",
+      "resultsDirectory": "/tmp/auditsphere-cancellation-results",
+      "cohorts": {
+        "engagement-profile-ci-repair.trx": "2 passed0 failed0 skipped; real planning capture before navigation, profile/holds/revocation retained.",
+        "planning-ci-repair.trx": "6 passed0 failed0 skipped; both route bases, native focus/assent, exact budget/recovery, no duplicate, admin preparation denied.",
+        "reported-ci-failures.trx": "5 passed0 failed0 skipped; exact failed review/finding theory rows selected and confirmed, invoice full chain, resource2routes. Finding lookup diagnostic passed; CI failure did not reproduce.",
+        "resource-planning-bounded-response.trx": "1 passed0 failed0 skipped on bounded-body guard; previous15m hang did not reproduce. API shutdown cause also unresolved.",
+        "search-overlay-browser.trx": "1 passed0 failed0 skipped; original library-link click and full scope/revocation assertions retained.",
+        "search.spec.ts": "5 passed; counterfactual without explicit panel closure1failed4passed; fixed source restored byte-for-byte."
+      },
+      "searchBrowser": "PASS desktop native search/link to exact library, input focus retained, no visible listboxes or covering element, no console errors;390px document375px reflow. First DOM click during resize did not navigate; mobile navigation is not separately accepted. Owned tab closed/viewport reset/fixture disposed.",
+      "screenshots": [
+        "/tmp/auditsphere-search-results-uncovered.png",
+        "/tmp/auditsphere-search-library-destination.png"
+      ],
+      "buildLint": "PASS; existing optional-chain/SCSS budget warnings remain.",
+      "limits": "Full CI pending on exact0b0b7241, human AT/full supported-state acceptance open; no live-provider/professional acceptance. No full local suite."
+    },
+    "targetedVerification.fastCiFeb25BeforeFirmReport20261019": {
+      "runId": "39217960599",
+      "sourceCommit": "feb25f02dfcf7a18c018756a8926f0c6855844d7",
+      "result": "FAST_CI_PASS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39217960599",
+      "note": "Docs, Angular and .NET Release passed; predates firm-report snapshot fix. Latest source fast gate separately pending; not full regression."
     }
   }
 }

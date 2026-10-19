@@ -19,15 +19,21 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Firm report snapshot and exact recovery concurrency (2026-10-19)
+
+Firm report reads now share one owned source snapshot, committed before current authorization; ambient transactions are refused untouched. Focused concurrency, session and prior-year reconciliation checks pass. The owned Angular expense-to-report/export journey and built-in report calculation also pass. See `targetedVerification.firmReportSnapshot20261019` in [status.json](status.json).
+
+The existing recovery service now has focused PostgreSQL proof that identical concurrent cancellation requests return the same exact receipt and publish one transition/event set. This does not accept every recovery action or external drill. See `targetedVerification.operatorReceiptConcurrency20261019`.
+
+Next: reproduce the source-inspected cross-actor cash-receipt and truncated-reference risks, preserving exact legacy recovery and current financial safeguards. No fix is claimed. Full CI is on the preceding source and cannot certify the report change.
+
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 
-The existing accessibility journey now checks both Tab-wrap boundaries and Escape focus restoration; focused and built-in-browser checks pass without changing a grant. Human screen-reader announcements and full supported-state acceptance remain open. See `targetedVerification.angularQuality.task07.roleDialogKeyboardFollowUp` in [status.json](status.json).
-
-Milestone issuance now retains draft, source reservation and link in one owned or ambient transaction. Automatic publication acquires the exclusive firm fence before client/target locks. Focused concurrency, rollback and standing-authority checks pass; broader payment and source-consumption acceptance remains open. Drain or epoch-fence old workers before rollout; no deployment occurred. Evidence: `targetedVerification.feeMilestoneAtomicity20261019`.
+Scoped keyboard/atomicity evidence and rollout limits are retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Human AT, broader payment concurrency and full release acceptance remain open.
 
 ## Milestone invoice source identity (2026-10-19)
 
-New invoice numbers retain the full agreement identity so agreements sharing a UUID timestamp prefix do not block one another. Existing linked invoices and retained source allocations still recover their original numbers. Focused source/replay/legacy recovery and invoice role/mobile checks pass; the heading wraps long identities. Evidence and fixture limits are in `targetedVerification.feeInvoiceIdentity20261019` in [status.json](status.json). The atomicity follow-up above covers the tested advance race; broader milestone/payment concurrency and current-source release acceptance remain open.
+Full agreement invoice identity, retained legacy recovery and long-heading evidence are in `targetedVerification.feeInvoiceIdentity20261019` in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Broader payment/source acceptance remains open.
 
 ## Scope-bound workflow receipt recovery (2026-10-19)
 
