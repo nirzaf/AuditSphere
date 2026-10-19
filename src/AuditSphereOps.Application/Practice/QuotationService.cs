@@ -56,6 +56,8 @@ public static class QuotationService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var proposal = await db.Proposals.SingleOrDefaultAsync(x => x.Id == request.ProposalId && x.FirmId == actor.FirmId, ct);
     if (proposal is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (request.ExpectedProposalRevision.HasValue && request.ExpectedProposalRevision != proposal.Revision)
@@ -162,6 +164,8 @@ public static class QuotationService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
+    if (!auth.Succeeded) return auth;
     var version = await db.QuotationVersions.SingleOrDefaultAsync(x => x.Id == quotationVersionId && x.FirmId == actor.FirmId, ct);
     if (version is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (version.Status is QuotationStates.PendingApproval or QuotationStates.Approved) return CommandResult.Ok();
@@ -348,6 +352,8 @@ public static class QuotationService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, RuleAdminRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (expectedRulesRevision is not null && expectedRulesRevision != await RulesRevisionAsync(db, actor.FirmId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Approval rules changed; review the current matrix.");
     var previous = await db.CommercialApprovalRules.Where(x => x.FirmId == actor.FirmId && x.Kind == kind && x.ThresholdPercent == thresholdPercent)
@@ -375,6 +381,8 @@ public static class QuotationService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+    auth = await AuthorizeAsync(db, actor, RuleAdminRoles, ct);
+    if (!auth.Succeeded) return auth;
     if (expectedRulesRevision is not null && expectedRulesRevision != await RulesRevisionAsync(db, actor.FirmId, ct))
       return CommandResult.Fail(ErrorCodes.StaleRevision, "Approval rules changed; review the current matrix.");
     var rule = await db.CommercialApprovalRules.SingleOrDefaultAsync(x => x.Id == ruleId && x.FirmId == actor.FirmId, ct);

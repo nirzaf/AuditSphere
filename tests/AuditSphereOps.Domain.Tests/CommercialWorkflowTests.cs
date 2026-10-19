@@ -1,5 +1,7 @@
+using System.Text.Json;
 using System.Globalization;
 using System.IO.Compression;
+using System.Data.Common;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Completion;
@@ -122,6 +124,121 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(initial.Value.RulesRevision, inactive.Value.RulesRevision);
     Assert.False((await QuotationService.SaveRuleAsync(db, w.Partner, "NON_STANDARD_TERMS", null, "Partner",
       expectedRulesRevision: current.Value.RulesRevision)).Succeeded);
+  }
+
+  [Theory]
+  [InlineData("SUBMIT_QUOTATION")]
+  [InlineData("SAVE_QUOTATION")]
+  [InlineData("SAVE_RULE")]
+  [InlineData("DEACTIVATE_RULE")]
+  [InlineData("SAVE_RULE_GRANT_ONLY")]
+  public async Task QuotationCommands_RecheckAuthorityAfterFirmLockWait(string action)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var submitting = action == "SUBMIT_QUOTATION";
+    var writingQuotation = action is "SUBMIT_QUOTATION" or "SAVE_QUOTATION";
+    var grantOnly = action == "SAVE_RULE_GRANT_ONLY";
+    var commandActor = writingQuotation ? w.Prep : w.Partner;
+    var commandRole = writingQuotation ? "RelationshipManager" : "Partner";
+    SaveQuotationRequest? quotationRequest = null;
+    Guid quotationId = default;
+    Guid ruleId = default;
+
+    if (writingQuotation)
+    {
+      var proposal = await DraftProposalAsync(pg, w);
+      quotationRequest = Quote(proposal.ProposalId) with { RequestId = Guid.NewGuid() };
+      if (submitting)
+      {
+        await using var setup = new AuditSphereDbContext(pg.Options);
+        var saved = await QuotationService.SaveAsync(setup, w.Prep, quotationRequest);
+        Assert.True(saved.Succeeded, saved.Message);
+        quotationId = saved.Value;
+      }
+    }
+    else
+    {
+      await using var setup = new AuditSphereDbContext(pg.Options);
+      var saved = await QuotationService.SaveRuleAsync(setup, w.Partner, CommercialRuleKinds.DiscountOver,
+        5m, "Manager");
+      Assert.True(saved.Succeeded, saved.Message);
+      if (action == "DEACTIVATE_RULE") ruleId = saved.Value;
+    }
+
+    Guid grantId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      grantId = await setup.RoleGrants.AsNoTracking().Where(x => x.FirmId == w.FirmId &&
+          x.UserId == commandActor.UserId && x.Role == commandRole && x.RevokedAt == null)
+        .Select(x => x.Id).SingleAsync();
+    }
+
+    async Task<string> SnapshotAsync()
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var proposals = await db.Proposals.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var quotations = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var rules = await db.CommercialApprovalRules.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var approvals = await db.QuotationApprovals.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      var revocations = await db.QuotationApprovalRevocations.AsNoTracking().Where(x => x.FirmId == w.FirmId)
+        .OrderBy(x => x.Id).ToArrayAsync();
+      return JsonSerializer.Serialize(new { proposals, quotations, rules, approvals, revocations });
+    }
+
+    var before = await SnapshotAsync();
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").SingleAsync();
+
+    var lockAttempt = new ObserveFirmLockAttempt();
+    var writerOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(lockAttempt).Options;
+    await using var writer = new AuditSphereDbContext(writerOptions);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+    async Task<(bool Succeeded, string? ErrorCode)> ExecuteWriterAsync()
+    {
+      if (action == "SUBMIT_QUOTATION")
+      {
+        var result = await QuotationService.SubmitAsync(writer, commandActor, quotationId, timeout.Token);
+        return (result.Succeeded, result.ErrorCode);
+      }
+      if (action == "SAVE_QUOTATION")
+      {
+        var result = await QuotationService.SaveAsync(writer, commandActor, quotationRequest!, timeout.Token);
+        return (result.Succeeded, result.ErrorCode);
+      }
+      if (action == "DEACTIVATE_RULE")
+      {
+        var result = await QuotationService.DeactivateRuleAsync(writer, commandActor, ruleId, timeout.Token);
+        return (result.Succeeded, result.ErrorCode);
+      }
+
+      var saved = await QuotationService.SaveRuleAsync(writer, commandActor, CommercialRuleKinds.DiscountOver,
+        10m, "Manager", timeout.Token);
+      return (saved.Succeeded, saved.ErrorCode);
+    }
+
+    var attempt = ExecuteWriterAsync();
+    await lockAttempt.Reached.Task.WaitAsync(timeout.Token);
+    Assert.True(lockAttempt.Fired);
+    Assert.Equal(1, await blocker.RoleGrants.Where(x => x.Id == grantId && x.RevokedAt == null)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token));
+    if (!grantOnly)
+      Assert.Equal(1, await blocker.Users.Where(x => x.Id == commandActor.UserId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), timeout.Token));
+    await blockerTransaction.CommitAsync(timeout.Token);
+
+    var outcome = await attempt.WaitAsync(timeout.Token);
+    Assert.False(outcome.Succeeded);
+    Assert.Equal(grantOnly ? ErrorCodes.ScopeDenied : ErrorCodes.GenerationStale, outcome.ErrorCode);
+    Assert.Equal(before, await SnapshotAsync());
   }
 
   [Fact]
@@ -2020,5 +2137,24 @@ public sealed class CommercialWorkflowTests
     var denied = await ClientOnboardingReadinessQuery.GetAsync(db, foreign.Prep, engagementId);
     Assert.False(denied.Succeeded);
     Assert.Null(denied.Value);
+  }
+
+  private sealed class ObserveFirmLockAttempt : DbCommandInterceptor
+  {
+    public bool Fired { get; private set; }
+    public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("firm_safety_states", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
+      {
+        Fired = true;
+        Reached.TrySetResult();
+      }
+      return ValueTask.FromResult(result);
+    }
   }
 }
