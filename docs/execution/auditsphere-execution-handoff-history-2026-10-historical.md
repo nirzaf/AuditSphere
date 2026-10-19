@@ -203,3 +203,7 @@ Current rejected results remain visible on the latest retained rework task when 
 ## Resource read authority
 
 Firm-wide resource reads now require the planning role on an unscoped grant and recheck current authority after grid and workspace projection. Focused PostgreSQL checks cover last-read revocation, session changes, mixed grants and existing capacity/budget behavior. Exact evidence is in `status.json` under `resourceReadAuthority20261019`. Command-scope, browser and full-release acceptance remain open.
+
+## Global resource command authority
+
+Global resource changes and planning-console actions require a firm-wide planning-role grant, including retained receipt access. Direct allocation keeps exact engagement scope. Focused command, HTTP and historical receipt-upgrade checks passed. Evidence and remaining acceptance/release gates are in `status.json` under `resourceCommandAuthority20261019`.

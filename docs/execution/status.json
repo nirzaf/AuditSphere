@@ -1072,77 +1072,8 @@
     },
     "feeSettlementFinance20261019": {
       "result": "PARTIAL",
-      "functionalCodeCommit": "d224819f74764b6ac6831a2c17616f4c95ef8fe1",
-      "behavior": "Separate client-scoped Finance list/detail reuses existing fee and billing commands. Commercial creation/linking rights unchanged; no CRM details. Normal draft submission adapter; exact retained draft/posted invoice recovery without duplicates.",
-      "functionalVerification": {
-        "e2ePassed": 1,
-        "e2eFailed": 0,
-        "trx": "/tmp/auditsphere-finance-fee-results/finance-fee-functional-d224.trx",
-        "scope": "Real owned API/Angular/PostgreSQL: 20/1 paging, sibling read and CSRF-valid payment denial, CRM denial, draft/posted source recovery, independent invoice review/post, 4000 partial + 6000 full advance, revocation clears. Existing-agreement source fixture only; no acceptance/Partner clearance is asserted."
-      },
-      "balanceConcurrency": {
-        "passed": 3,
-        "failed": 0,
-        "trx": "/tmp/auditsphere-practice-guard-results/fee-balance-concurrency-final.trx",
-        "scope": "Existing three recipient-snapshot theory variants; final balance same-source race returns identical receipts/documents and one allocation/voucher/notification set. Existing reversals, credit and provider-simulation checks retained."
-      },
-      "accessibility": {
-        "result": "FOCUSED_PASS",
-        "scope": "Primary heading, authorized client identity, named keyboard-focusable milestone region, 390px document reflow and native ArrowRight scrolling passed in the focused real browser journey. Unsent-draft guard covered by component tests; final built-in-browser handoff expired before a second interactive inspection. Earlier built-in inspection found the corrected defects.",
-        "e2ePassed": 1,
-        "e2eFailed": 0,
-        "trx": "/tmp/auditsphere-finance-fee-results/finance-fee-accessibility-final.trx",
-        "angular": "FeeAgreement 21/21 and Finance page 4/4 passed across focused runs; Angular build, changed-production-file lint and OpenAPI drift passed.",
-        "limitations": "No full local suites. No claim of full accessibility conformance or complete commercial acceptance."
-      },
-      "ci": {
-        "runId": "39230620972",
-        "sourceCommit": "d224819f",
-        "result": "FAST_CI_PASS",
-        "note": "All jobs passed; predates accessibility/navigation follow-up. No full current-source release acceptance."
-      },
-      "limits": "No full local suites, deployment or live provider/bank effects. Cancelled/unknown orphan sources remain blocked; full commercial activation, complete source/state acceptance, human AT, policy and professional gates remain open.",
-      "accessibilityCodeCommit": "87aca68d",
-      "milestoneFeedback": {
-        "result": "FOCUSED_PASS",
-        "behavior": "Partial and full payment confirmations distinguish advance from final balance; queued notifications never claim delivery. No payment or authorization semantics changed.",
-        "angularPassed": 23,
-        "angularFailed": 0,
-        "log": "/tmp/auditsphere-fee-milestone-feedback-spec.log",
-        "build": "PASS",
-        "lint": "PASS",
-        "fullLocalSuites": "NOT_RUN",
-        "browser": {
-          "passed": 1,
-          "failed": 0,
-          "trx": "/tmp/auditsphere-finance-fee-results/finance-fee-feedback.trx",
-          "sourceCommit": "1507961c",
-          "scope": "Existing scoped Finance journey rerun with accurate partial-advance confirmation; exact payment allocations and authorization assertions unchanged."
-        }
-      },
-      "commercialHandoff": {
-        "result": "FOCUSED_PASS",
-        "passed": 3,
-        "failed": 0,
-        "trx": "/tmp/auditsphere-finance-fee-results/commercial-finance-handoff.trx",
-        "scope": "Existing FinancialStatementAudit, InternalAudit and AgreedUponProcedures theory: retained synthetic accepted-source inputs, Partner-generated route-bound letter and fee agreement flow into client-scoped Finance list/detail; proposal endpoints denied; QAR 10000 advance prepared and submitted for separate invoice review, left unapproved/unposted. No human acceptance or live provider proof."
-      },
-      "latestCiObservation": {
-        "fastRun": "39234014601",
-        "sourceCommit": "1507961c",
-        "result": "IN_PROGRESS",
-        "passed": [
-          "Docs Health",
-          "Angular"
-        ],
-        "pending": [
-          ".NET Release"
-        ],
-        "fullRun": "39233821965",
-        "fullSourceCommit": "0caa6df2",
-        "fullResult": "IN_PROGRESS",
-        "note": "Full Angular passed; .NET build/Domain/API/E2E active. Earlier fast runs superseded automatically by existing push concurrency; not treated as failures."
-      }
+      "archive": "status-archive-2026-10.json#feeSettlementFinanceBeforeResourceKeyboard20261019",
+      "limits": "Focused commercial/Finance and accessibility evidence only; human, provider and current-source full release gates remain open."
     },
     "reviewInboxHistory20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
@@ -1210,6 +1141,43 @@
       "recovery": "Same-epoch grant narrowing refuses global previews, execution and retained receipts; restored firm-wide authority recovers the same receipt once. Historical phase-absent removal receipt is published under the pre-phase schema and migrated normally, retaining exact JSON and refusing changed fields without mutation.",
       "attempts": "Missing test ActorContext import corrected before execution. Initial legacy fixture was correctly refused by the current publication guard; replaced with historical-schema publication and normal upgrade. Failure logs retained in /tmp.",
       "limits": "No full local suites, new browser journey, production migrations or provider effects. Current-source full release results are not yet available; broader role/field-level and human acceptance remain open."
+    },
+    "resourceGridKeyboard20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "e7dbd89ae16afe16e803b3f4941316e87cdbc136",
+      "behavior": "Named keyboard-focusable native horizontal resource grid; existing visible focus outline and bounded narrow layout. No authorization or command behavior changed.",
+      "angular": {
+        "passed": 15,
+        "failed": 0,
+        "spec": "features/practice/resources.spec.ts",
+        "build": "PASS; existing unrelated stylesheet budget warnings"
+      },
+      "e2e": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Existing KeyboardFormsCapacityAvailabilityAndAllocationsRemainServerOwned on both route bases, extended with native Tab/ArrowRight and narrow document containment.",
+        "trx": "/tmp/auditsphere-resource-keyboard-results/resource-keyboard.trx"
+      },
+      "builtInBrowser": {
+        "viewport": 390,
+        "documentWidth": 375,
+        "regionClientWidth": 341,
+        "regionScrollWidth": 1138,
+        "arrowRightScrollLeft": 40,
+        "focusOutline": "3px solid",
+        "consoleWarningsErrors": 0,
+        "screenshot": "/tmp/auditsphere-resource-grid-keyboard.png"
+      },
+      "ciObserved": {
+        "source": "c98160880519b3a674d515f262c9a0c9011aa4c3",
+        "fastRun": 39242179324,
+        "fastResult": "PASS",
+        "fullRun": 39242189106,
+        "fullResult": "IN_PROGRESS; Angular and build/contracts passed; Domain/API/E2E pending at observation"
+      },
+      "limits": "No full local suites. Human AT and complete browser/state matrix remain unverified; preceding-source CI is not final-source release acceptance.",
+      "lint": "PASS affected HTML. Initial command included repository-ignored spec and failed max-warnings on that selection; corrected to linted HTML only, no config change."
     }
   },
   "externalGates": [
