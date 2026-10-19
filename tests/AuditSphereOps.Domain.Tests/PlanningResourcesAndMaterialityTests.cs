@@ -1,3 +1,4 @@
+using System.Data.Common;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Practice;
@@ -9,6 +10,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -523,6 +525,112 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       var grid = (await ResourcePlanningService.GetGridAsync(db, manager, week, 1)).Value!;
       Assert.Equal(240, grid.Rows.Single(x => x.UserId == w.Users["senior"].Id).Weeks[0].ApprovedActualMinutes);
     }
+  }
+
+  [Theory]
+  [InlineData(false, true, ErrorCodes.ScopeDenied)]
+  [InlineData(false, false, ErrorCodes.GenerationStale)]
+  [InlineData(true, true, ErrorCodes.ScopeDenied)]
+  [InlineData(true, false, ErrorCodes.GenerationStale)]
+  public async Task ResourcePlanningRead_RevokedAuthorityAfterFinalReadReturnsNoProjection(
+    bool readWorkspace, bool revokeGrant, string expectedError)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var manager = w.Actor("manager", "Manager");
+    var interceptor = new RevokePlanningReadAuthority(pg, w.FirmId, manager.UserId, readWorkspace, revokeGrant);
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(interceptor).Options;
+
+    async Task<(int Profiles, int Certifications, int Availability, int Allocations, int TimeEntries)> ResourceCountsAsync()
+    {
+      await using var counts = new AuditSphereDbContext(pg.Options);
+      return (await counts.StaffProfiles.CountAsync(), await counts.StaffCertifications.CountAsync(),
+        await counts.StaffAvailabilities.CountAsync(), await counts.StaffAllocations.CountAsync(),
+        await counts.TimeEntries.CountAsync());
+    }
+
+    var before = await ResourceCountsAsync();
+    await using (var db = new AuditSphereDbContext(options))
+    {
+      if (readWorkspace)
+      {
+        var result = await ResourcePlanningWorkspaceQuery.GetAsync(db, manager, new DateOnly(2026, 10, 4), 1);
+        Assert.Equal(1, interceptor.Calls);
+        Assert.False(result.Succeeded);
+        Assert.Equal(expectedError, result.ErrorCode);
+        Assert.Null(result.Value);
+      }
+      else
+      {
+        var result = await ResourcePlanningService.GetGridAsync(db, manager, new DateOnly(2026, 10, 4), 1);
+        Assert.Equal(1, interceptor.Calls);
+        Assert.False(result.Succeeded);
+        Assert.Equal(expectedError, result.ErrorCode);
+        Assert.Null(result.Value);
+      }
+    }
+    Assert.Equal(1, interceptor.Calls);
+    Assert.Equal(before, await ResourceCountsAsync());
+  }
+
+  private sealed class RevokePlanningReadAuthority(
+    ITestPostgresDatabase pg, Guid firmId, Guid userId, bool readWorkspace, bool revokeGrant) : DbCommandInterceptor
+  {
+    private int matchingReads;
+    private int interleaved;
+    public int Calls => Volatile.Read(ref matchingReads);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      var targetRead = readWorkspace
+        ? command.CommandText.Contains("engagements", StringComparison.Ordinal) &&
+          command.CommandText.Contains("LIMIT", StringComparison.OrdinalIgnoreCase)
+        : command.CommandText.Contains("time_entries", StringComparison.Ordinal);
+      if (!targetRead) return result;
+      Interlocked.Increment(ref matchingReads);
+      if (Interlocked.CompareExchange(ref interleaved, 1, 0) != 0) return result;
+      await using var change = new AuditSphereDbContext(pg.Options);
+      var affected = revokeGrant
+        ? await change.RoleGrants.Where(x => x.FirmId == firmId && x.UserId == userId && x.Role == "Manager" &&
+            x.ClientId == null && x.EngagementId == null && x.RevokedAt == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), cancellationToken)
+        : await change.Users.Where(x => x.FirmId == firmId && x.Id == userId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), cancellationToken);
+      if (affected != 1) throw new InvalidOperationException("The planning-read authority interleaving did not update exactly one row.");
+      return result;
+    }
+  }
+
+  [Fact]
+  public async Task ResourcePlanningReadsRequireThePlanningRoleOnTheFirmWideGrant()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var senior = w.Users["senior"];
+    var actor = w.Actor("senior", "Manager");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.RoleGrants.AddRange(Grant(w.FirmId, senior, "Manager", w.ClientId), Grant(w.FirmId, senior, "Staff"));
+    await db.SaveChangesAsync();
+
+    var deniedGrid = await ResourcePlanningService.GetGridAsync(db, actor, new DateOnly(2026, 10, 4), 1);
+    Assert.False(deniedGrid.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, deniedGrid.ErrorCode);
+    Assert.Null(deniedGrid.Value);
+    var deniedWorkspace = await ResourcePlanningWorkspaceQuery.GetAsync(db, actor, new DateOnly(2026, 10, 4), 1);
+    Assert.False(deniedWorkspace.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, deniedWorkspace.ErrorCode);
+    Assert.Null(deniedWorkspace.Value);
+
+    db.RoleGrants.Add(Grant(w.FirmId, senior, "Manager"));
+    await db.SaveChangesAsync();
+    var grid = await ResourcePlanningService.GetGridAsync(db, actor, new DateOnly(2026, 10, 4), 1);
+    Assert.True(grid.Succeeded, grid.Message);
+    Assert.Contains(grid.Value!.Rows, x => x.UserId == senior.Id);
+    var workspace = await ResourcePlanningWorkspaceQuery.GetAsync(db, actor, new DateOnly(2026, 10, 4), 1);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    Assert.Contains(workspace.Value!.Grid.Rows, x => x.UserId == senior.Id);
+    Assert.Contains(workspace.Value.Engagements, x => x.Id == w.EngagementId);
   }
 
   [Fact]

@@ -175,7 +175,7 @@ public static partial class ResourcePlanningService
 
   public static async Task<CommandResult<ResourceGridView>> GetGridAsync(IAuditSphereDbContext db, ActorContext actor, DateOnly firstWeek, int weeks, CancellationToken ct = default)
   {
-    var auth = await AuthorizeAsync(db, actor, ct);
+    var auth = await AuthorizeReadAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<ResourceGridView>.Fail(auth.ErrorCode!, auth.Message!);
     if (!TryWeekRange(firstWeek, weeks, out var start, out var end))
       return CommandResult<ResourceGridView>.Fail("resource.invalid-range", "Choose 1 to 12 complete supported working weeks.");
@@ -210,8 +210,15 @@ public static partial class ResourcePlanningService
           .Select(x => new ResourceAllocationView(x.EngagementId, labels.GetValueOrDefault(x.EngagementId, "Engagement"),
             x.WeekStart, x.Phase, string.IsNullOrEmpty(x.RiskArea) ? null : x.RiskArea, x.PlannedMinutes)).ToList());
     }).ToList();
+    auth = await AuthorizeReadAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<ResourceGridView>.Fail(auth.ErrorCode!, auth.Message!);
     return CommandResult<ResourceGridView>.Ok(new(start, weeks, rows));
   }
+
+  // Firm-wide resource projections must not compose a scoped planning role with another global role.
+  internal static Task<CommandResult> AuthorizeReadAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
+    AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId,
+      RequiredRoles: PlanningRoles, InternalOnly: true, RequireFirmWide: true), ct);
 
   private static Task<CommandResult> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: PlanningRoles, InternalOnly: true), ct);
