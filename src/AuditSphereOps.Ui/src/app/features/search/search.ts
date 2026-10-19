@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -153,6 +153,7 @@ export class GlobalSearch {
   private debounce?: ReturnType<typeof setTimeout>;
   private lastRequestedTerm: string | null = null;
   private readonly field = viewChild<ElementRef<HTMLInputElement>>('term');
+  private readonly suggestionsTrigger = viewChild(MatAutocompleteTrigger);
   readonly data = signal<SearchResult | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
@@ -198,6 +199,8 @@ export class GlobalSearch {
     });
   }
   dismiss(): void {
+    // Disabling the trigger does not detach a panel that was already open.
+    this.suggestionsTrigger()?.closePanel();
     if (this.debounce) clearTimeout(this.debounce);
     this.debounce = undefined;
     this.request?.unsubscribe();
@@ -243,6 +246,7 @@ export class GlobalSearch {
       .subscribe({
         next: (value) => {
           if (generation !== this.session.invalidation()) return;
+          this.suggestionsTrigger()?.closePanel();
           try {
             this.data.set(decodeSearch(value));
           } catch {
@@ -252,6 +256,7 @@ export class GlobalSearch {
           this.loading.set(false);
         },
         error: (failure) => {
+          this.suggestionsTrigger()?.closePanel();
           this.lastRequestedTerm = null;
           this.loading.set(false);
           this.error.set('Search unavailable. Check your access or retry.');

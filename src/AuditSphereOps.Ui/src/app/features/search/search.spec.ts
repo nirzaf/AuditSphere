@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -89,6 +91,46 @@ describe('Authorized navigation search contract', () => {
     expect(request.cancelled).toBe(true);
     expect(fixture.componentInstance.data()).toBeNull();
     expect(fixture.nativeElement.textContent).not.toContain('ZQXPRIVATE CLIENT');
+    fixture.destroy();
+  });
+  it('detaches already-open suggestions before presenting replacement results and dismissal', async () => {
+    TestBed.configureTestingModule({
+      imports: [GlobalSearch],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(SessionService).current.set({ userId: identity, firmId: identity, generation: '0', staff: true });
+    const fixture = TestBed.createComponent(GlobalSearch);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const http = TestBed.inject(HttpTestingController);
+    const trigger = fixture.debugElement.query(By.directive(MatAutocompleteTrigger)).injector.get(MatAutocompleteTrigger);
+    const result = (term: string) => ({ term, truncated: false,
+      hits: [{ kind: 'Page', title: term, detail: 'Authorized workspace page', href: '/app/practice/time' }] });
+    component.search(new Event('submit'), 'first');
+    http.expectOne('/api/ui/search?term=first').flush(result('first'));
+    fixture.detectChanges();
+    // Public Material API establishes the residual-open-panel state seen in the browser regression.
+    trigger.openPanel();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(trigger.panelOpen).toBe(true);
+    component.search(new Event('submit'), 'second');
+    http.expectOne('/api/ui/search?term=second').flush(result('second'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(trigger.panelOpen).toBe(false);
+    expect(fixture.nativeElement.querySelector('.mat-mdc-autocomplete-panel')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.search-panel a')?.textContent).toBe('second');
+    trigger.openPanel();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(trigger.panelOpen).toBe(true);
+    component.dismiss();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(trigger.panelOpen).toBe(false);
+    expect(fixture.nativeElement.querySelector('.search-panel')).toBeNull();
+    http.verify();
     fixture.destroy();
   });
 });

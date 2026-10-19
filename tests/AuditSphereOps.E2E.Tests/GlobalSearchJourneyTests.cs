@@ -116,6 +116,7 @@ public sealed class GlobalSearchJourneyTests
         .ToContainTextAsync("Refine your search for more specific results");
       Assert.Equal(6, await results.GetByRole(AriaRole.Link).CountAsync());
       await Assertions.Expect(libraryLink).ToBeVisibleAsync(new() { Timeout = 15000 });
+      await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app", "global-search-results");
       await libraryLink.ClickAsync();
       await Assertions.Expect(page.GetByRole(AriaRole.Heading,
         new() { Name = $"{firstLibraryCode} — {firstLibraryTitle}", Exact = true })).ToBeVisibleAsync();
