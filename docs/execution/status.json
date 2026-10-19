@@ -181,7 +181,7 @@
         "matrix": {
           "shell": "FOCUSED_PASS: staff/client routes, keyboard, responsive navigation and session revocation in current-source E2E; zoom/reflow smoke separately attributed.",
           "journal": "FOCUSED_PASS: exact correction, invalid input, independent review, stale period and unknown receipt recovery in owned E2E; human announcements NOT_VERIFIED.",
-          "evidence": "FOCUSED_PASS: exact result link, independent decision, retained values and revocation in owned E2E; human announcements and full dialog-state matrix NOT_VERIFIED.",
+          "evidence": "FOCUSED_PASS: exact link/independent decision, revocation and keyboard preview/cancel/fresh assent/no delayed focus steal; built-in no-dispatch fixture checked. Human announcements/full states NOT_VERIFIED.",
           "planning": "PARTIAL: record-backed preparation, independent approval, assignment and revocation keyboard review/cancel/fresh assent/error/unknown recovery pass on both bases, including exact-row cancel focus. Built-in390px approval/staffing flow pass. Human AT/full-state acceptance open.",
           "consolidation": "PARTIAL: outside-perimeter retained match plus approved external-component in-perimeter maker/checker keyboard journeys pass; exact signed six-place source values, native disclosure focus and390px reflow covered. Internal-package/full supported states and human AT acceptance remain open.",
           "fieldwork": "PARTIAL: procedure submit/recover/independent return/revise, sampling select/review/execute, native result typeahead/Tab commitment and populated320/390px reflow verified. Human AT and every supported state not accepted."
@@ -233,11 +233,11 @@
             "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
           },
           "currentFast": {
-            "runId": "39219677735",
-            "sourceCommit": "cd40f19109815f0609c2f6f32197687c57e395aa",
-            "result": "IN_PROGRESS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39219677735",
-            "note": "Observed active before evidence commit; may be superseded. Prior passed feb25 run retained in status-archive-2026-10.json#keys.targetedVerification.fastCiFeb25BeforeFirmReport20261019"
+            "runId": "39225926725",
+            "sourceCommit": "c5e5952150a5a071cdfd41334d9bb3ba9fb52818",
+            "result": "QUEUED",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39225926725",
+            "note": "Observed queued; no current-source full acceptance. Previous a2af fast pass archived intact; finance run superseded by this push."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -306,6 +306,21 @@
           "result": "FOCUSED_PASS",
           "archive": "status-archive-2026-10.json#keys.targetedVerification.roleDialogKeyboardBeforeFirmReport20261019",
           "summary": "Focused E2E and native Tab/Shift+Tab/Escape evidence retained; no role changed. Human AT/full-state acceptance remains open."
+        },
+        "evidenceKeyboardFollowUp": {
+          "sourceCommit": "c5e59521",
+          "result": "FOCUSED_PASS",
+          "baseline": "New keyboard journey failed on old UI: preview did not receive focus.",
+          "angular": "10/10 affected specs PASS; production build and changed-file lint PASS; existing completion optional-chain/commercial stylesheet warnings.",
+          "e2e": {
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0,
+            "trx": "/tmp/auditsphere-accessibility-followup/evidence-keyboard-final.trx"
+          },
+          "browser": "Built-in owned synthetic staff fixture: native Tab/Enter preview focus, cancel returns to trigger, fresh assent unchecked/dispatch disabled, named history table, console clean. No dispatch; no live data.",
+          "screenshot": "/tmp/auditsphere-evidence-keyboard-native.png",
+          "limits": "Default desktop viewport; prior narrow receipt check retained. Full state matrix and knowledgeable human AT review remain open."
         }
       },
       "task05": {
@@ -1150,46 +1165,28 @@
       "summary": "Manual/worker transaction ownership, same-source advance race and rollback evidence retained. Broader payment/source concurrency and mixed-worker rollout caveat remain open."
     },
     "firmReportSnapshot20261019": {
-      "sourceCommit": "c965da1575a6ab756170a6a9005d070ce653787c",
-      "result": "FOCUSED_PASS",
-      "baseline": {
-        "passed": 0,
-        "failed": 1,
-        "trx": "/tmp/auditsphere-practice-guard-results/firm-report-snapshot-baseline.trx",
-        "observation": "Totals100 but activity count2 after separate50 posting committed between report queries."
-      },
-      "verification": {
-        "passed": 2,
-        "failed": 0,
-        "skipped": 0,
-        "trx": "/tmp/auditsphere-practice-guard-results/firm-report-and-recovery-final.trx",
-        "log": "/tmp/auditsphere-firm-report-and-recovery-final.log",
-        "scope": "Existing expense/review/post/TB fact extended with posted prior-year80 revenue/20 expense/60profit and known-empty comparative zero; new report snapshot fact checks first100/fresh150 coherent totals/months/detail, ambient refusal preserving uncommitted caller transaction, mid-read session withdrawal denied."
-      },
-      "behavior": "Owned RepeatableRead across period/source/total/activity reads; commit before current authorization. Existing caller transaction refused without commit/rollback. No production ambient caller found.",
-      "review": "Independent source/snapshot and prior-year arithmetic reviews found no blocker; reviewers did not run tests.",
-      "limits": "Per-request snapshot only; cross-request pages/exports and complete historical correction reproducibility remain open. No schema/API DTO/provider/deployment change. Full current-source CI pending.",
-      "browser": {
-        "passed": 1,
-        "failed": 0,
-        "skipped": 0,
-        "trx": "/tmp/auditsphere-a11y-results/firm-report-browser.trx",
-        "log": "/tmp/auditsphere-firm-report-browser.log",
-        "scope": "Existing Angular expense/reject/independent approval/post, reconciled report, CSV contents and390px no-document-overflow journey. Built-in owned API63891 shows6500QAR expense, balanced TB and reconciled position; no warning/error logs. No native financial mutation; fixture/tab released.",
-        "screenshot": "/tmp/auditsphere-firm-report-native.png",
-        "limits": "Canonical route only. Native calculation worked; focus restoration/announcements were not established. Human AT/full-state acceptance remains open."
-      }
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.firmReportSnapshot20261019BeforeEvidenceReview20261019",
+      "summary": "Focused evidence retained intact; broader current-source release and external acceptance remain open."
     },
     "operatorReceiptConcurrency20261019": {
-      "sourceCommit": "cd40f19109815f0609c2f6f32197687c57e395aa",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.operatorReceiptConcurrency20261019BeforeEvidenceReview20261019",
+      "summary": "Focused evidence retained intact; broader current-source release and external acceptance remain open."
+    },
+    "feePaymentSource20261019": {
+      "sourceCommit": "82697eea",
       "result": "FOCUSED_PASS",
-      "passed": 1,
-      "failed": 0,
-      "skipped": 0,
-      "trx": "/tmp/auditsphere-practice-guard-results/firm-report-and-recovery-final.trx",
-      "method": "ConcurrentCancelWithSameRequestWaitsAndPublishesOneExactReceipt",
-      "scope": "Real PG blocking observed while first publication awaits commit; both identical actor/request/hash calls return exact same receipt, with one receipt, operator event and cancellation event.",
-      "limits": "Same-request cancellation branch only; other recovery actions/interleavings and external drills remain open. Test-only change; independent source review found no blocker."
+      "behavior": "Firm-first cross-actor cash fence; full agreement receipt references; exact legacy source/hash or allocation recovery, ambiguity denial; generic receipt/allocation join ambient transaction and reload locked tracked rows.",
+      "baseline": "Cross-actor theory failed all 3: duplicate cash left 2000 instead of 6000. Same-prefix identity fact failed over-allocation.",
+      "focused": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/fee-payment-hash-final.trx",
+        "scope": "Existing commercial theory and invoice identity fact, including submicrosecond legacy timestamp and mismatched hash denial."
+      },
+      "priorCohort": "6 PASS before hash correction, including generic billing workflow and client isolation; /tmp/auditsphere-practice-guard-results/fee-payment-source-final.trx",
+      "review": "Independent source review found no blocking issue.",
+      "limits": "No complete browser payment workflow/current-source full release/live bank proof; pathological Min/Max explicit dates may refuse replay. More than two legacy aliases fail closed; no global bank-reference uniqueness claimed."
     }
   },
   "externalGates": [
@@ -1702,7 +1699,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Source review found fee-payment receipt lookup before firm fence with actor-scoped billing replay, and truncated agreement payment references. Reproduce cross-actor cash duplication and same-prefix aliasing next; preserve legacy source recovery, current scope, net cash and immutable vouchers. No dynamic proof or fix yet."
+    "nextTechnicalSlice": "Continue scoped accessibility evidence and current-source hosted release verification; broader financial/payment and practice criteria remain PARTIAL. Preserve human AT, professional and external acceptance gates."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

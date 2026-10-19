@@ -19,13 +19,13 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Firm report snapshot and exact recovery concurrency (2026-10-19)
+## Payment source safety and evidence review accessibility (2026-10-19)
 
-Firm report reads now share one owned source snapshot, committed before current authorization; ambient transactions are refused untouched. Focused concurrency, session and prior-year reconciliation checks pass. The owned Angular expense-to-report/export journey and built-in report calculation also pass. See `targetedVerification.firmReportSnapshot20261019` in [status.json](status.json).
+Milestone cash recording now holds one firm-first transaction across source resolution, receipt and allocation, with full agreement references and fail-closed legacy recovery. Focused regression evidence is in `targetedVerification.feePaymentSource20261019` in [status.json](status.json). The evidence-action keyboard regression reproduced missing focus, then passed after the bounded correction. Built-in preview/cancel/fresh assent and focused receipt/revocation checks pass; human AT and current-source full release acceptance remain open.
 
-The existing recovery service now has focused PostgreSQL proof that identical concurrent cancellation requests return the same exact receipt and publish one transition/event set. This does not accept every recovery action or external drill. See `targetedVerification.operatorReceiptConcurrency20261019`.
+## Firm report and recovery concurrency (2026-10-19)
 
-Next: reproduce the source-inspected cross-actor cash-receipt and truncated-reference risks, preserving exact legacy recovery and current financial safeguards. No fix is claimed. Full CI is on the preceding source and cannot certify the report change.
+Focused source-snapshot, report/export and exact cancellation-receipt evidence is retained in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md). Broader cash-source and current-release acceptance remain open.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 

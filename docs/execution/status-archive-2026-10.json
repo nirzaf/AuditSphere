@@ -20521,6 +20521,68 @@
       "result": "FAST_CI_PASS",
       "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39217960599",
       "note": "Docs, Angular and .NET Release passed; predates firm-report snapshot fix. Latest source fast gate separately pending; not full regression."
+    },
+    "targetedVerification.firmReportSnapshot20261019BeforeEvidenceReview20261019": {
+      "sourceCommit": "c965da1575a6ab756170a6a9005d070ce653787c",
+      "result": "FOCUSED_PASS",
+      "baseline": {
+        "passed": 0,
+        "failed": 1,
+        "trx": "/tmp/auditsphere-practice-guard-results/firm-report-snapshot-baseline.trx",
+        "observation": "Totals100 but activity count2 after separate50 posting committed between report queries."
+      },
+      "verification": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/firm-report-and-recovery-final.trx",
+        "log": "/tmp/auditsphere-firm-report-and-recovery-final.log",
+        "scope": "Existing expense/review/post/TB fact extended with posted prior-year80 revenue/20 expense/60profit and known-empty comparative zero; new report snapshot fact checks first100/fresh150 coherent totals/months/detail, ambient refusal preserving uncommitted caller transaction, mid-read session withdrawal denied."
+      },
+      "behavior": "Owned RepeatableRead across period/source/total/activity reads; commit before current authorization. Existing caller transaction refused without commit/rollback. No production ambient caller found.",
+      "review": "Independent source/snapshot and prior-year arithmetic reviews found no blocker; reviewers did not run tests.",
+      "limits": "Per-request snapshot only; cross-request pages/exports and complete historical correction reproducibility remain open. No schema/API DTO/provider/deployment change. Full current-source CI pending.",
+      "browser": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-a11y-results/firm-report-browser.trx",
+        "log": "/tmp/auditsphere-firm-report-browser.log",
+        "scope": "Existing Angular expense/reject/independent approval/post, reconciled report, CSV contents and390px no-document-overflow journey. Built-in owned API63891 shows6500QAR expense, balanced TB and reconciled position; no warning/error logs. No native financial mutation; fixture/tab released.",
+        "screenshot": "/tmp/auditsphere-firm-report-native.png",
+        "limits": "Canonical route only. Native calculation worked; focus restoration/announcements were not established. Human AT/full-state acceptance remains open."
+      }
+    },
+    "targetedVerification.operatorReceiptConcurrency20261019BeforeEvidenceReview20261019": {
+      "sourceCommit": "cd40f19109815f0609c2f6f32197687c57e395aa",
+      "result": "FOCUSED_PASS",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "trx": "/tmp/auditsphere-practice-guard-results/firm-report-and-recovery-final.trx",
+      "method": "ConcurrentCancelWithSameRequestWaitsAndPublishesOneExactReceipt",
+      "scope": "Real PG blocking observed while first publication awaits commit; both identical actor/request/hash calls return exact same receipt, with one receipt, operator event and cancellation event.",
+      "limits": "Same-request cancellation branch only; other recovery actions/interleavings and external drills remain open. Test-only change; independent source review found no blocker."
+    },
+    "targetedVerification.fastCiCd40BeforeEvidenceReview20261019": {
+      "runId": "39219677735",
+      "sourceCommit": "cd40f19109815f0609c2f6f32197687c57e395aa",
+      "result": "IN_PROGRESS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39219677735",
+      "note": "Observed active before evidence commit; may be superseded. Prior passed feb25 run retained in status-archive-2026-10.json#keys.targetedVerification.fastCiFeb25BeforeFirmReport20261019"
+    },
+    "targetedVerification.fastCiA2afBeforeEvidenceReview20261019": {
+      "runId": "39220376320",
+      "sourceCommit": "a2af0376e36e3d1497643f4ef7c63e4438aa20a8",
+      "result": "FAST_CI_PASS",
+      "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39220376320",
+      "note": "All fast jobs PASS; excludes uncommitted payment/accessibility changes. Superseded cd40 run cancelled; prior observation archived."
+    },
+    "targetedVerification.fastCi82697DuringEvidenceReview20261019": {
+      "runId": "39225380382",
+      "sourceCommit": "82697eea",
+      "result": "CANCELLED_SUPERSEDED",
+      "observed": "Angular and Docs passed; .NET active before newer push superseded it."
     }
   }
 }
