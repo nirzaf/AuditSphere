@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Resource read authority
+## Global resource command authority
 
-Firm-wide resource reads now require the planning role on an unscoped grant and recheck current authority after grid and workspace projection. Focused PostgreSQL checks cover last-read revocation, session changes, mixed grants and existing capacity/budget behavior. Exact evidence is in `status.json` under `resourceReadAuthority20261019`. Command-scope, browser and full-release acceptance remain open.
+Global resource changes and planning-console actions require a firm-wide planning-role grant, including retained receipt access. Direct allocation keeps exact engagement scope. Focused command, HTTP and historical receipt-upgrade checks passed. Evidence and remaining acceptance/release gates are in `status.json` under `resourceCommandAuthority20261019`.
 
 ## Finance settlement accessibility and draft safety
 

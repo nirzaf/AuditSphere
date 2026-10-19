@@ -969,11 +969,8 @@
       ]
     },
     "roleGrantExpiryFence": {
-      "sourceCommit": "f5a8730fdd3d3a6395dfc4c740f9f33964acd818",
       "result": "FOCUSED_PASS",
-      "verification": "Three distinct focused methods passed across runs; initial analyzer repair and failed direct-blocker assumption retained with actual waiter-chain evidence. No full local suite.",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.roleGrantExpiryFence20261019",
-      "limits": "Only expiry writer is firm-fenced; initiating-actor mail authorization and full current-source CI remain open."
+      "evidence": "status-archive-2026-10.json#keys.roleGrantExpiryFenceBeforeResourceCommands20261019"
     },
     "holdingLetterMailSafety": {
       "sourceCommit": "dc2861ea5cc459f74632645f40e165e0c4f5cbda",
@@ -1188,27 +1185,31 @@
     },
     "resourceReadAuthority20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "d88d2be6127e947426642df46c642d3c8453bc31",
-      "behavior": "Grid and composed workspace reads require an unscoped planning-role grant and reauthorize after their last projection. Scoped Manager plus firm-wide Staff cannot compose global planning access. Central denial/session-stale errors are retained.",
-      "before": {
-        "failed": 5,
-        "trx": "/tmp/auditsphere-resource-read-results/resource-read-authority-regression-before.trx",
-        "scope": "Four deterministic last-read grant/epoch interleavings and mixed-grant read exposed successful projections."
-      },
-      "after": {
-        "passed": 6,
+      "evidence": "status-archive-2026-10.json#keys.resourceReadAuthorityBeforeCommandScope20261019"
+    },
+    "resourceCommandAuthority20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "d2e24fb0de27e232a9c11415323ca1602b9c72cd",
+      "behavior": "Global profile/certification/availability writers and all planning-console preview/execute/replay/lookup paths require an unscoped planning-role grant. Allocation previews retain firm aggregates, so the console is global; the standalone allocation command preserves exact engagement scope.",
+      "domain": {
+        "commandPassed": 12,
+        "legacyUpgradePassed": 1,
         "failed": 0,
-        "trx": "/tmp/auditsphere-resource-read-results/resource-read-authority-after.trx",
-        "scope": "Four grid/workspace interleavings; scoped denial then firm-wide success; existing capacity, availability, range and phase/risk budget regression. Resource counts unchanged in interleavings."
+        "directory": "/tmp/auditsphere-resource-command-results",
+        "artifacts": [
+          "resource-command-authority.trx",
+          "resource-command-legacy-receipt.trx"
+        ]
       },
-      "harness": "Initial run missed unquoted SQL identifiers and failed Calls=0; matcher corrected before product reproduction. Original resource-read-authority-before.trx retained.",
-      "ci": {
-        "run": "39238571174",
-        "source": "aa8f2597",
-        "result": "FAST_CI_PASS",
-        "note": "Predates this fix; current-source full release remains unverified."
+      "api": {
+        "passed": 1,
+        "failed": 0,
+        "trx": "/tmp/auditsphere-resource-command-results/resource-command-api.trx",
+        "scope": "CSRF, actor-owned recovery, immutable migration evidence and stale HTTP session refusal."
       },
-      "limits": "No full local suites, browser run, provider effect, schema or HTTP contract changes. Resource command preview/mutation/receipt scope audit and broader resource acceptance remain open."
+      "recovery": "Same-epoch grant narrowing refuses global previews, execution and retained receipts; restored firm-wide authority recovers the same receipt once. Historical phase-absent removal receipt is published under the pre-phase schema and migrated normally, retaining exact JSON and refusing changed fields without mutation.",
+      "attempts": "Missing test ActorContext import corrected before execution. Initial legacy fixture was correctly refused by the current publication guard; replaced with historical-schema publication and normal upgrade. Failure logs retained in /tmp.",
+      "limits": "No full local suites, new browser journey, production migrations or provider effects. Current-source full release results are not yet available; broader role/field-level and human acceptance remain open."
     }
   },
   "externalGates": [
@@ -1721,7 +1722,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Audit resource planning command previews, mutations and retained receipts against current grant scope, then continue resource/time and queue acceptance. Full current-source CI, human AT and live-provider gates remain separate."
+    "nextTechnicalSlice": "Check current-source full release results and continue remaining scoped resource/time, field-level and queue-state acceptance. Human AT, methodology and live-provider gates remain separate."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

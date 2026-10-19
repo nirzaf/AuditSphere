@@ -20750,6 +20750,37 @@
       "fastCiStatusAtRecord": "SUCCESS",
       "fullReleaseVerification": "NOT_RUN",
       "verificationLevel": "FAST_CI_PASS"
+    },
+    "resourceReadAuthorityBeforeCommandScope20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "d88d2be6127e947426642df46c642d3c8453bc31",
+      "behavior": "Grid and composed workspace reads require an unscoped planning-role grant and reauthorize after their last projection. Scoped Manager plus firm-wide Staff cannot compose global planning access. Central denial/session-stale errors are retained.",
+      "before": {
+        "failed": 5,
+        "trx": "/tmp/auditsphere-resource-read-results/resource-read-authority-regression-before.trx",
+        "scope": "Four deterministic last-read grant/epoch interleavings and mixed-grant read exposed successful projections."
+      },
+      "after": {
+        "passed": 6,
+        "failed": 0,
+        "trx": "/tmp/auditsphere-resource-read-results/resource-read-authority-after.trx",
+        "scope": "Four grid/workspace interleavings; scoped denial then firm-wide success; existing capacity, availability, range and phase/risk budget regression. Resource counts unchanged in interleavings."
+      },
+      "harness": "Initial run missed unquoted SQL identifiers and failed Calls=0; matcher corrected before product reproduction. Original resource-read-authority-before.trx retained.",
+      "ci": {
+        "run": "39238571174",
+        "source": "aa8f2597",
+        "result": "FAST_CI_PASS",
+        "note": "Predates this fix; current-source full release remains unverified."
+      },
+      "limits": "No full local suites, browser run, provider effect, schema or HTTP contract changes. Resource command preview/mutation/receipt scope audit and broader resource acceptance remain open."
+    },
+    "roleGrantExpiryFenceBeforeResourceCommands20261019": {
+      "sourceCommit": "f5a8730fdd3d3a6395dfc4c740f9f33964acd818",
+      "result": "FOCUSED_PASS",
+      "verification": "Three distinct focused methods passed across runs; initial analyzer repair and failed direct-blocker assumption retained with actual waiter-chain evidence. No full local suite.",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.roleGrantExpiryFence20261019",
+      "limits": "Only expiry writer is firm-fenced; initiating-actor mail authorization and full current-source CI remain open."
     }
   }
 }

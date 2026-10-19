@@ -199,3 +199,7 @@ Focused payment source, evidence-review keyboard, report and recovery concurrenc
 ## Repeated correction routing
 
 Current rejected results remain visible on the latest retained rework task when automation is off; newer linked tasks avoid duplicate correction rows. Later submissions remain discoverable without changing source bindings or professional decisions. Focused Domain and browser checks passed; evidence and remaining human/full-release gates are in `status.json` under `reviewInboxHistory20261019`.
+
+## Resource read authority
+
+Firm-wide resource reads now require the planning role on an unscoped grant and recheck current authority after grid and workspace projection. Focused PostgreSQL checks cover last-read revocation, session changes, mixed grants and existing capacity/budget behavior. Exact evidence is in `status.json` under `resourceReadAuthority20261019`. Command-scope, browser and full-release acceptance remain open.
