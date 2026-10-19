@@ -21441,6 +21441,36 @@
         "No full suites locally. No migration, dependency, deployment, tenant permission or live-provider change.",
         "General versioned reminder catalogue, broader workflow accessibility, human AT, professional and external acceptance remain open."
       ]
+    },
+    "feePaymentSource20261019BeforeReconciliationAndDeadlineHandoff20261019": {
+      "sourceCommit": "82697eea",
+      "result": "FOCUSED_PASS",
+      "behavior": "Firm-first cross-actor cash fence; full agreement receipt references; exact legacy source/hash or allocation recovery, ambiguity denial; generic receipt/allocation join ambient transaction and reload locked tracked rows.",
+      "baseline": "Cross-actor theory failed all 3: duplicate cash left 2000 instead of 6000. Same-prefix identity fact failed over-allocation.",
+      "focused": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/fee-payment-hash-final.trx",
+        "scope": "Existing commercial theory and invoice identity fact, including submicrosecond legacy timestamp and mismatched hash denial."
+      },
+      "priorCohort": "6 PASS before hash correction, including generic billing workflow and client isolation; /tmp/auditsphere-practice-guard-results/fee-payment-source-final.trx",
+      "review": "Independent source review found no blocking issue.",
+      "limits": "No complete browser payment workflow/current-source full release/live bank proof; pathological Min/Max explicit dates may refuse replay. More than two legacy aliases fail closed; no global bank-reference uniqueness claimed."
+    },
+    "reminderBatchFairness20261019BeforeReconciliationAndDeadlineHandoff20261019": {
+      "codeCommit": "4e2fa8aa109237b9f6d51cffe1b6a180927d977c",
+      "result": "FOCUSED_PASS",
+      "behavior": "Singleton discovery scans stable due-date/ID keyset pages, including skipped and receipted rows; one configured batch per poll. Empty page resets traversal. Cursor is not durable authority; receipt and locked eligibility remain authoritative.",
+      "verification": {
+        "baseline": "New same-date BatchSize=1 regression failed second poll: expected 1, actual 0. /tmp/auditsphere-reminder-policy-results/reminder-batch-before.trx",
+        "after": "Passed 5, failed 0, skipped 0; same-date continuation, malformed earlier candidate, wrap, concurrent polling/restart dedup, unchanged PBC evidence, ordinary idempotent outbox, disabled policy, revoked access and quiet-hour suppression. /tmp/auditsphere-reminder-policy-results/reminder-batch-after.trx",
+        "build": "Application Release passed zero warnings/errors.",
+        "independentReview": "Laplace found no blocker; reviewed cursor ordering, singleton lifetime, serialization, failed-page replay and receipt uniqueness.",
+        "browser": "NOT_RUN: background discovery only; PostgreSQL regression exercises actual selection and intents, no new UI.",
+        "fullLocal": "NOT_RUN per policy."
+      },
+      "limits": "No schema/dependency/provider/permission/default-send change. No throughput/index-plan claim. General versioned rule catalogue and live provider acceptance remain open."
     }
   }
 }

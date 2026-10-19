@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Bounded fair PBC reminder discovery
+## Exact deadline-task handoff and reconciliation writer fences
 
-Due reminders now traverse stable due-date/ID pages between singleton worker polls, so handled or ineligible rows cannot permanently hide later requests. Each poll remains bounded; restart and failed-page replay rely on existing receipt deduplication and locked eligibility. The focused PostgreSQL baseline, repaired behavior and independent review are recorded under `reminderBatchFairness20261019` in [status.json](status.json). Exact task-deadline handoff and reconciliation/period-close fencing are the next work in progress. The general rule catalogue, broader accessibility, human AT, professional/provider gates and full current-source release acceptance remain open.
+Task reminders now open their exact engagement-scoped task, including unassigned work absent from My tasks. Selection is context-bound; actions require matching server queue permissions and revision, and mutations refresh both views. Reconciliation writers serialize with period close and exact-proof approval; approved matching proof append retains the reviewed schedule, and caller-owned transactions are preserved. Focused API, Angular, PostgreSQL, responsive and built-in browser evidence, repaired failures and exact source identities are in `deadlineExactTask20261019` and `reconciliationWriterFences20261019` in [status.json](status.json). Bounded fair reminder evidence is archived with its live pointer. The broader rule catalogue, recurring accounting work-pack acceptance, human AT, professional/provider gates and full current-source release remain open.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 

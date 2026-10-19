@@ -112,7 +112,7 @@ account-exact; source acceptance binds sealed sources and bumps generation.
 
 Critical invariants: reconciliation approval stales when the source digest changes; evidence is
 
-blocked when the client generation changes; journal risk is deterministic, never autonomous.
+blocked when the client generation changes; journal risk is deterministic, never autonomous. Reconciliation writers lock the target period before the reconciliation, refresh tracked targets and reauthorize after waits. Approval validates exact proof while locked; matching proof append preserves an approved schedule and review. Closed targets refuse writes, and caller-owned transactions remain caller-owned.
 
 ## Financial statements, mapping and packages
 
@@ -276,7 +276,7 @@ Boundary: this is the firm's own books (`Practice/FirmLedger`); it never writes 
 
 accounting or consolidation workspaces.
 
-- Engagement deadlines: `Application/Practice/EngagementDeadlineReminderQuery.cs` retains all unresolved active overdue tasks and the upcoming window, using oldest-first bounded results. It remains a read-only scoped projection, not a reminder rule catalogue or provider delivery mechanism. Focused evidence is in `status.json` under `operationalReadiness20261019`.
+- Engagement deadlines: `Application/Practice/EngagementDeadlineReminderQuery.cs` retains all unresolved active overdue tasks and the upcoming window, using oldest-first bounded results. Task links carry exact engagement/task IDs; the work queue resolves them through its authorized selected-task query without widening the selected view. Actions require matching server queue state/revision. It remains a read-only scoped projection, not a reminder rule catalogue or provider delivery mechanism. Focused evidence is in `status.json` under `operationalReadiness20261019`.
 
 ## Commercial quotation, documents and the agreed-fee cycle
 
