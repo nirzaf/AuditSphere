@@ -15,9 +15,22 @@ public static class RoleGrantExpiry
   public static async Task<bool> RevokeExpiredForUserAsync(IAuditSphereDbContext db, Guid firmId, Guid userId,
     DateTimeOffset now, CancellationToken ct = default)
   {
+    // Authentication calls this on every request. Avoid serializing the ordinary
+    // no-expiry path; the locked query below is authoritative when work exists.
+    if (!await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.UserId == userId &&
+          x.RevokedAt == null && x.ExpiresAt != null && x.ExpiresAt <= now, ct))
+      return false;
     await using var transaction = db.Database.CurrentTransaction is null
       ? await db.Database.BeginTransactionAsync(ct)
       : null;
+    // Same root fence as access administration and protected commercial mutations.
+    // Keep firm -> user -> grants order, including when staffing owns the transaction.
+    if (await db.FirmSafetyStates.FromSqlInterpolated(
+          $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      throw new InvalidOperationException("The firm safety state is unavailable for grant expiry.");
+    var user = await db.Users.FromSqlInterpolated(
+      $"SELECT * FROM users WHERE firm_id = {firmId} AND id = {userId} FOR UPDATE").SingleAsync(ct);
+    await db.Users.Attach(user).ReloadAsync(ct);
     // Authentication can resolve several Angular/API requests for one browser session
     // concurrently. Lock the expired grants and re-check the predicate in PostgreSQL so
     // only the first request records revocation evidence and advances the session epoch.
@@ -33,9 +46,9 @@ public static class RoleGrantExpiry
       return false;
     }
 
-    var user = await db.Users.SingleAsync(x => x.Id == userId && x.FirmId == firmId, ct);
     foreach (var grant in expired)
     {
+      await db.RoleGrants.Attach(grant).ReloadAsync(ct);
       grant.RevokedAt = now;
       db.RoleGrantChangeEvidences.Add(new Domain.Security.RoleGrantChangeEvidence
       {

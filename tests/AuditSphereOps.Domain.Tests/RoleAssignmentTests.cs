@@ -259,6 +259,7 @@ public sealed class RoleAssignmentTests
     var temporary = await RoleAssignmentService.AssignAsync(db, f.AdminActor,
       new(staff.Id, "Staff", "FIRM_WIDE", ExpiresAt: DateTimeOffset.UtcNow.AddDays(1), Reason: "Temporary cover", ConfirmScopeExpansion: true), DateTimeOffset.UtcNow);
     Assert.True(temporary.Succeeded, temporary.Message);
+    Assert.False(await RoleGrantExpiry.RevokeExpiredForUserAsync(db, f.FirmId, staff.Id, DateTimeOffset.UtcNow));
     // Simulate the passage of time by moving the expiry into the past.
     await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE role_grants SET granted_at = {DateTimeOffset.UtcNow.AddDays(-2)}, expires_at = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE id = {temporary.Value!.GrantId}");
     var session = new ActorContext(staff.Id, f.FirmId, f.CurrentEpoch(staff.Id), ["Staff"]);
@@ -268,6 +269,82 @@ public sealed class RoleAssignmentTests
     Assert.NotNull((await db.RoleGrants.SingleAsync(x => x.Id == temporary.Value.GrantId)).RevokedAt);
     Assert.Contains(await db.RoleGrantChangeEvidences.ToListAsync(), x => x.RoleGrantId == temporary.Value.GrantId && x.Source == "EXPIRY");
     Assert.NotEqual(session.SessionEpoch, f.CurrentEpoch(staff.Id));
+  }
+
+  [Fact]
+  public async Task ExpiryWaitsForFirmFenceAndConcurrentCallsAdvanceFreshEpochOnce()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    var staff = await StaffAsync(f);
+    var now = DateTimeOffset.UtcNow;
+    Guid[] grantIds;
+    await using (var setup = f.Db())
+    {
+      var first = await RoleAssignmentService.AssignAsync(setup, f.AdminActor,
+        new(staff.Id, "Staff", "CLIENT", f.ClientId, ExpiresAt: now.AddDays(1),
+          Reason: "First expiry fence grant", ConfirmScopeExpansion: true), now);
+      var second = await RoleAssignmentService.AssignAsync(setup, f.AdminActor,
+        new(staff.Id, "Manager", "ENGAGEMENT", f.ClientId, f.EngagementId, ExpiresAt: now.AddDays(1),
+          Reason: "Second expiry fence grant", ConfirmScopeExpansion: true), now);
+      Assert.True(first.Succeeded, first.Message);
+      Assert.True(second.Succeeded, second.Message);
+      grantIds = [first.Value!.GrantId, second.Value!.GrantId];
+      await setup.Database.ExecuteSqlInterpolatedAsync($"""
+        UPDATE role_grants
+        SET granted_at = {now.AddDays(-2)}, expires_at = {now.AddMinutes(-1)}
+        WHERE id IN ({grantIds[0]}, {grantIds[1]})
+        """);
+    }
+
+    await using var observer = f.Db();
+    var firstSignal = new ObserveFirmAdministrationLock();
+    var firstOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(f.Pg.Options).AddInterceptors(firstSignal).Options;
+    await using var firstWriter = new AuditSphereDbContext(firstOptions);
+    var staleTrackedUser = await firstWriter.Users.SingleAsync(x => x.Id == staff.Id);
+    var staleEpoch = staleTrackedUser.SessionEpoch;
+    Assert.Equal(f.CurrentEpoch(staff.Id), staleEpoch);
+    var secondSignal = new ObserveFirmAdministrationLock();
+    var secondOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(f.Pg.Options).AddInterceptors(secondSignal).Options;
+    await using var secondWriter = new AuditSphereDbContext(secondOptions);
+    var secondStaleTrackedUser = await secondWriter.Users.SingleAsync(x => x.Id == staff.Id);
+    Assert.Equal(staleEpoch, secondStaleTrackedUser.SessionEpoch);
+
+    await using var blocker = f.Db();
+    await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE").SingleAsync();
+    var blockingPid = await blocker.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"").SingleAsync();
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var firstAttempt = RoleGrantExpiry.RevokeExpiredForUserAsync(firstWriter, f.FirmId, staff.Id, now, timeout.Token);
+    await firstSignal.Reached.Task.WaitAsync(timeout.Token);
+    await WaitForFirmBlockingPidAsync(observer, firstSignal.BackendPid, [blockingPid], timeout.Token);
+    var secondAttempt = RoleGrantExpiry.RevokeExpiredForUserAsync(secondWriter, f.FirmId, staff.Id, now, timeout.Token);
+    await secondSignal.Reached.Task.WaitAsync(timeout.Token);
+    // PostgreSQL can queue this waiter behind the first waiter, which is already
+    // proven blocked by the still-held root fence. Either blocker proves the chain.
+    await WaitForFirmBlockingPidAsync(observer, secondSignal.BackendPid,
+      [blockingPid, firstSignal.BackendPid], timeout.Token);
+
+    await blocker.Users.Where(x => x.Id == staff.Id)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), timeout.Token);
+    Assert.Equal(staleEpoch + 1, await blocker.Users.AsNoTracking().Where(x => x.Id == staff.Id)
+      .Select(x => x.SessionEpoch).SingleAsync(timeout.Token));
+    await blockerTransaction.CommitAsync(timeout.Token);
+
+    var results = await Task.WhenAll(firstAttempt, secondAttempt).WaitAsync(timeout.Token);
+    Assert.Equal(1, results.Count(result => result));
+    Assert.Equal(1, results.Count(result => !result));
+
+    await using var verify = f.Db();
+    var evidence = await verify.RoleGrantChangeEvidences.AsNoTracking()
+      .Where(x => x.TargetUserId == staff.Id && x.Source == "EXPIRY").ToListAsync(timeout.Token);
+    Assert.Equal(grantIds.Length, evidence.Count);
+    Assert.All(grantIds, grantId => Assert.Single(evidence, x => x.RoleGrantId == grantId));
+    Assert.All(await verify.RoleGrants.AsNoTracking().Where(x => grantIds.Contains(x.Id)).ToListAsync(timeout.Token),
+      grant => Assert.NotNull(grant.RevokedAt));
+    Assert.Equal(staleEpoch + 2, await verify.Users.AsNoTracking().Where(x => x.Id == staff.Id)
+      .Select(x => x.SessionEpoch).SingleAsync(timeout.Token));
   }
 
   [Fact]
@@ -407,6 +484,7 @@ public sealed class RoleAssignmentTests
   private sealed class ObserveFirmAdministrationLock : DbCommandInterceptor
   {
     public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public int BackendPid { get; private set; }
 
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
       DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
@@ -414,8 +492,38 @@ public sealed class RoleAssignmentTests
     {
       if (command.CommandText.Contains("firm_safety_states", StringComparison.Ordinal) &&
           command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal))
+      {
+        BackendPid = ((Npgsql.NpgsqlConnection)command.Connection!).ProcessID;
         Reached.TrySetResult();
+      }
       return ValueTask.FromResult(result);
+    }
+  }
+
+  private static async Task WaitForFirmBlockingPidAsync(AuditSphereDbContext observer, int waitingPid, int[] blockingPids,
+    CancellationToken cancellationToken)
+  {
+    while (true)
+    {
+      await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", cancellationToken);
+      var blocked = await observer.Database.SqlQuery<bool>($"""
+        SELECT EXISTS (
+          SELECT 1 FROM pg_stat_activity AS waiting
+          WHERE waiting.datname = current_database()
+            AND waiting.pid = {waitingPid}
+            AND waiting.wait_event_type = 'Lock'
+            AND waiting.query ILIKE '%firm_safety_states%'
+            AND pg_blocking_pids(waiting.pid) && {blockingPids}
+        ) AS "Value"
+        """).SingleAsync(cancellationToken);
+      if (blocked)
+      {
+        var observed = await observer.Database.SqlQuery<int[]>($"SELECT pg_blocking_pids({waitingPid}) AS \"Value\"")
+          .SingleAsync(cancellationToken);
+        Console.WriteLine($"Expiry waiter {waitingPid}; actual blockers [{string.Join(",", observed)}]; expected chain [{string.Join(",", blockingPids)}].");
+        return;
+      }
+      await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
     }
   }
 }
