@@ -101994,7 +101994,9 @@
           "intercompanyExceptions",
           "componentPaging",
           "readinessPaging",
-          "resolvedComponent"
+          "resolvedComponent",
+          "canApproveScope",
+          "scopeApprovalBlocker"
         ],
         "type": "object",
         "properties": {
@@ -102056,6 +102058,15 @@
               {
                 "$ref": "#/components/schemas/ConsolidationComponentDto"
               }
+            ]
+          },
+          "canApproveScope": {
+            "type": "boolean"
+          },
+          "scopeApprovalBlocker": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }

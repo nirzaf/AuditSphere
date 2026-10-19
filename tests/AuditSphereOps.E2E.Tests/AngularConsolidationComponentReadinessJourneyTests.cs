@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Practice;
@@ -12,6 +13,7 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularConsolidationComponentReadinessJourneyTests
 {
   private const string CaseId = "AS-PAR-002-ANG-CONSOL-COMPONENT-READINESS-01";
+  private const string ScopeCaseId = "AS-PAR-002-ANG-CONSOL-SCOPE-READINESS-01";
 
   [Fact]
   [Trait("CaseId", CaseId)]
@@ -19,10 +21,324 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: CaseId);
     var f = host.Fixture;
+    var seeded = await SeedReadinessFixtureAsync(host);
+    var groupId = seeded.GroupId;
+    var scopeId = seeded.ScopeId;
+    var addedClientId = Guid.NewGuid();
+    var componentId = seeded.ComponentId;
+    var groupCode = seeded.GroupCode;
+    var groupName = seeded.GroupName;
+
+    var settings = new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(f.Reviewer, settings);
+    var path = $"/app/consolidation/scopes/{scopeId:D}";
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    var componentApprovalRequests = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+    await page.RouteAsync("**/api/ui/consolidation/components/*/approve", async route =>
+    {
+      if (route.Request.Method == "POST")
+      {
+        componentApprovalRequests.Add(route.Request.Url);
+        await route.AbortAsync();
+      }
+      else
+        await route.ContinueAsync();
+    });
+
+    var initialWorkspaceResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      new Uri(response.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{scopeId:D}");
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    Assert.Equal(200, (await initialWorkspaceResponse).Status);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = $"{groupName} ({groupCode}) · v1", Exact = true })).ToBeVisibleAsync();
+
+    var components = page.Locator("#components");
+    var componentRow = components.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
+    await Assertions.Expect(componentRow).ToHaveCountAsync(1);
+    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
+    var approve = componentRow.GetByRole(AriaRole.Button, new() { Name = "Approve", Exact = true });
+    await Assertions.Expect(approve).ToBeEnabledAsync();
+    Assert.Null(await approve.GetAttributeAsync("aria-describedby"));
+    Assert.Equal(0, await components.Locator($"#component-approval-blocker-{componentId:D}").CountAsync());
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = addedClientId, FirmId = f.FirmId, LegalName = "Synthetic later group member", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var addedMembership = await ConsolidationService.AddMembershipAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        new GroupMembershipRequest(groupId, addedClientId, new DateOnly(2020, 1, 1), null,
+          "CONTROLLED", 100m, 100m, "SYNTHETIC-LATER-MEMBERSHIP"));
+      Assert.True(addedMembership.Succeeded, addedMembership.Message);
+    }
+
+    await using (var proof = host.CreateDbContext())
+    {
+      Assert.Equal(2, await proof.ClientGroups.AsNoTracking().Where(x => x.Id == groupId)
+        .Select(x => x.Revision).SingleAsync());
+      Assert.Equal(1, await proof.ConsolidationScopeVersions.AsNoTracking().Where(x => x.Id == scopeId)
+        .Select(x => x.GroupRevision).SingleAsync());
+    }
+
+    var refreshedWorkspaceResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      new Uri(response.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{scopeId:D}");
+    await page.ReloadAsync();
+    Assert.Equal(200, (await refreshedWorkspaceResponse).Status);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = $"{groupName} ({groupCode}) · v1", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(componentRow).ToHaveCountAsync(1);
+    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
+    await Assertions.Expect(approve).ToBeDisabledAsync();
+
+    var blockerId = $"component-approval-blocker-{componentId:D}";
+    Assert.Equal(blockerId, await approve.GetAttributeAsync("aria-describedby"));
+    var blocker = page.Locator($"#{blockerId}");
+    await Assertions.Expect(blocker).ToBeVisibleAsync();
+    await Assertions.Expect(blocker).ToContainTextAsync("group perimeter changed");
+    await Assertions.Expect(blocker).ToContainTextAsync("new scope version");
+    Assert.Equal(componentId.ToString("D"), await approve.EvaluateAsync<string>(
+      "element => element.getAttribute('aria-describedby')?.replace('component-approval-blocker-', '') ?? ''"));
+
+    await page.SetViewportSizeAsync(390, 844);
+    Assert.True(await page.EvaluateAsync<bool>(
+      "() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+      "The consolidation component readiness row must not overflow the document at 390px.");
+    var componentTable = components.GetByRole(AriaRole.Region, new() { Name = "Components table", Exact = true });
+    await page.Locator("main").FocusAsync();
+    var tabStops = await page.Locator("a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex='0']").CountAsync();
+    for (var attempt = 0; attempt <= tabStops; attempt++)
+    {
+      if (await componentTable.EvaluateAsync<bool>("element => element === document.activeElement")) break;
+      await page.Keyboard.PressAsync("Tab");
+    }
+    await Assertions.Expect(componentTable).ToBeFocusedAsync();
+    Assert.True(await componentTable.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth"));
+    await page.Keyboard.PressAsync("ArrowRight");
+    await page.WaitForFunctionAsync("() => document.querySelector('[aria-label=\"Components table\"]').scrollLeft > 0");
+
+    // Exercise the component handler while disabled; the route records and aborts any dispatch so this proves UI gating only.
+    await approve.DispatchEventAsync("click");
+    await page.EvaluateAsync<bool>(
+      "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+    Assert.Empty(componentApprovalRequests);
+    Assert.Empty(pageErrors);
+
+    await using (var proof = host.CreateDbContext())
+    {
+      var component = await proof.ConsolidationComponents.AsNoTracking().SingleAsync(x => x.Id == componentId);
+      Assert.Equal(AccountingWorkflowStates.Submitted, component.Status);
+      Assert.Null(component.ApprovedByUserId);
+      Assert.Null(component.ApprovedAt);
+    }
+
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "consolidation-component-readiness");
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  [Trait("CaseId", ScopeCaseId)]
+  public async Task ScopeApprovalReadinessTracksTheCurrentGroupPerimeter(bool approveReadyScope)
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: ScopeCaseId);
+    var f = host.Fixture;
+    var seeded = await SeedReadinessFixtureAsync(host);
+    var addedClientId = Guid.NewGuid();
+    var checker = PbcSeed.Actor(f.Reviewer, "AccountingReviewer");
+    var methodOwner = PbcSeed.User(f.FirmId, "Staff");
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.Users.Add(methodOwner);
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, GroupId = seeded.GroupId, UserId = methodOwner.Id,
+        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = f.Admin.Id
+      });
+      await db.SaveChangesAsync();
+
+      var groupCapability = await ClientAccountingService.CreateCapabilityProfileAsync(db, checker,
+        new CapabilityProfileRequest(null, seeded.GroupId, AccountingCapabilityServiceKinds.GroupReporting,
+          "IFRS", "2026", "ANNUAL", "QAR", "STATUTORY", ConsolidationCalculator.RestrictedMethod,
+          "PARTNER", "GROUP"));
+      Assert.True(groupCapability.Succeeded, groupCapability.Message);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db, checker, groupCapability.Value,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "synthetic-e2e-group-profile-local")).Succeeded);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db,
+        PbcSeed.Actor(methodOwner, "Partner"), groupCapability.Value,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "synthetic-e2e-group-method-owner")).Succeeded);
+
+      var componentApproval = await ConsolidationService.ApproveComponentAsync(db, checker, seeded.ComponentId);
+      Assert.True(componentApproval.Succeeded, componentApproval.Message);
+    }
+
+    await using (var proof = host.CreateDbContext())
+    {
+      var component = await proof.ConsolidationComponents.AsNoTracking().SingleAsync(x => x.Id == seeded.ComponentId);
+      Assert.Equal(AccountingWorkflowStates.Approved, component.Status);
+      Assert.Equal(f.Reviewer.Id, component.ApprovedByUserId);
+      Assert.NotNull(component.ApprovedAt);
+      Assert.Equal(AccountingWorkflowStates.Draft,
+        await proof.ConsolidationScopeVersions.AsNoTracking().Where(x => x.Id == seeded.ScopeId)
+          .Select(x => x.Status).SingleAsync());
+    }
+
+    var settings = new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    };
+    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
+      settings["AngularUi__BuildPath"] = buildPath;
+    var origin = await host.StartApiForIdentityAsync(f.Reviewer, settings);
+    var path = $"/app/consolidation/scopes/{seeded.ScopeId:D}";
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    var scopeApprovalRequests = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+    await page.RouteAsync("**/api/ui/consolidation/scopes/*/approve", async route =>
+    {
+      if (route.Request.Method == "POST")
+      {
+        scopeApprovalRequests.Add(route.Request.Url);
+        if (approveReadyScope) await route.ContinueAsync();
+        else await route.AbortAsync();
+      }
+      else
+        await route.ContinueAsync();
+    });
+
+    var initialWorkspaceResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      new Uri(response.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}");
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    var initialResponse = await initialWorkspaceResponse;
+    Assert.Equal(200, initialResponse.Status);
+    using (var initialWorkspace = JsonDocument.Parse(await initialResponse.TextAsync()))
+    {
+      Assert.True(initialWorkspace.RootElement.GetProperty("canApproveScope").GetBoolean());
+      Assert.Equal(JsonValueKind.Null, initialWorkspace.RootElement.GetProperty("scopeApprovalBlocker").ValueKind);
+    }
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = $"{seeded.GroupName} ({seeded.GroupCode}) · v1", Exact = true })).ToBeVisibleAsync();
+
+    var components = page.Locator("#components");
+    var componentRow = components.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
+    await Assertions.Expect(componentRow).ToHaveCountAsync(1);
+    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("approved");
+    var approveScope = page.GetByRole(AriaRole.Button, new() { Name = "Approve perimeter", Exact = true });
+    await Assertions.Expect(approveScope).ToBeEnabledAsync();
+    Assert.Null(await approveScope.GetAttributeAsync("aria-describedby"));
+
+    if (approveReadyScope)
+    {
+      var approvalResponse = page.WaitForResponseAsync(response => response.Request.Method == "POST" &&
+        response.Url.EndsWith($"/api/ui/consolidation/scopes/{seeded.ScopeId:D}/approve", StringComparison.Ordinal));
+      await approveScope.PressAsync("Enter");
+      Assert.Equal(200, (await approvalResponse).Status);
+      await Assertions.Expect(page.GetByText("Perimeter approved.", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(approveScope).ToHaveCountAsync(0);
+      await using var proof = host.CreateDbContext();
+      var approved = await proof.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == seeded.ScopeId);
+      Assert.Equal(AccountingWorkflowStates.Approved, approved.Status);
+      Assert.Equal(f.Reviewer.Id, approved.ApprovedByUserId);
+      Assert.NotNull(approved.ApprovedAt);
+      Assert.Single(scopeApprovalRequests);
+      Assert.Empty(pageErrors);
+      return;
+    }
+
+    await using (var db = host.CreateDbContext())
+    {
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = addedClientId, FirmId = f.FirmId, LegalName = "Synthetic later group member", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var addedMembership = await ConsolidationService.AddMembershipAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        new GroupMembershipRequest(seeded.GroupId, addedClientId, new DateOnly(2020, 1, 1), null,
+          "CONTROLLED", 100m, 100m, "SYNTHETIC-LATER-MEMBERSHIP"));
+      Assert.True(addedMembership.Succeeded, addedMembership.Message);
+    }
+
+    await using (var proof = host.CreateDbContext())
+    {
+      Assert.Equal(2, await proof.ClientGroups.AsNoTracking().Where(x => x.Id == seeded.GroupId)
+        .Select(x => x.Revision).SingleAsync());
+      Assert.Equal(1, await proof.ConsolidationScopeVersions.AsNoTracking().Where(x => x.Id == seeded.ScopeId)
+        .Select(x => x.GroupRevision).SingleAsync());
+    }
+
+    var refreshedWorkspaceResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
+      new Uri(response.Url).AbsolutePath == $"/api/ui/consolidation/scopes/{seeded.ScopeId:D}");
+    await page.ReloadAsync();
+    var refreshedResponse = await refreshedWorkspaceResponse;
+    Assert.Equal(200, refreshedResponse.Status);
+    using (var staleWorkspace = JsonDocument.Parse(await refreshedResponse.TextAsync()))
+    {
+      Assert.False(staleWorkspace.RootElement.GetProperty("canApproveScope").GetBoolean());
+      Assert.Contains("group perimeter changed", staleWorkspace.RootElement.GetProperty("scopeApprovalBlocker").GetString(),
+        StringComparison.OrdinalIgnoreCase);
+    }
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = $"{seeded.GroupName} ({seeded.GroupCode}) · v1", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(componentRow).ToHaveCountAsync(1);
+    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("approved");
+    await Assertions.Expect(approveScope).ToBeDisabledAsync();
+    var blockerReference = await approveScope.GetAttributeAsync("aria-describedby");
+    Assert.False(string.IsNullOrWhiteSpace(blockerReference));
+    var blockerId = blockerReference!.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+    var blocker = page.Locator($"#{blockerId}");
+    await Assertions.Expect(blocker).ToBeVisibleAsync();
+    await Assertions.Expect(blocker).ToContainTextAsync("group perimeter changed");
+    await Assertions.Expect(blocker).ToContainTextAsync("new scope version");
+
+    await page.SetViewportSizeAsync(390, 844);
+    Assert.True(await page.EvaluateAsync<bool>(
+      "() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
+      "The consolidation scope approval workspace must not overflow the document at 390px.");
+    await approveScope.DispatchEventAsync("click");
+    await page.EvaluateAsync<bool>(
+      "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
+    Assert.Empty(scopeApprovalRequests);
+    Assert.Empty(pageErrors);
+
+    await using (var proof = host.CreateDbContext())
+    {
+      var scope = await proof.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == seeded.ScopeId);
+      Assert.Equal(AccountingWorkflowStates.Draft, scope.Status);
+      Assert.Null(scope.ApprovedByUserId);
+      Assert.Null(scope.ApprovedAt);
+    }
+
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "consolidation-perimeter-readiness");
+  }
+
+  private sealed record ReadinessFixture(Guid GroupId, Guid ScopeId, Guid ComponentId, string GroupCode, string GroupName);
+
+  private static async Task<ReadinessFixture> SeedReadinessFixtureAsync(OwnedHost host)
+  {
+    var f = host.Fixture;
     var groupId = Guid.NewGuid();
     var scopeId = Guid.NewGuid();
     var periodId = Guid.NewGuid();
-    var addedClientId = Guid.NewGuid();
     const string groupCode = "SYN-COMP-READY-01";
     const string groupName = "Synthetic component readiness group";
     const string sourceReference = "SYN-COMP-READY-SOURCE-01";
@@ -84,8 +400,8 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
 
     var maker = PbcSeed.Actor(f.Staff, "AccountingPreparer");
     var checker = PbcSeed.Actor(f.Reviewer, "AccountingReviewer");
-    Guid componentId;
     Guid externalPackId;
+    Guid componentId;
     await using (var db = host.CreateDbContext())
     {
       var submittedPack = await ConsolidationService.SubmitExternalComponentPackAsync(db, maker,
@@ -122,122 +438,6 @@ public sealed class AngularConsolidationComponentReadinessJourneyTests
       Assert.Null(component.ApprovedAt);
     }
 
-    var settings = new Dictionary<string, string>
-    {
-      ["AngularUi__Enabled"] = "true",
-      ["AngularUi__CanonicalRoutes"] = "true"
-    };
-    if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
-      settings["AngularUi__BuildPath"] = buildPath;
-    var origin = await host.StartApiForIdentityAsync(f.Reviewer, settings);
-    var path = $"/app/consolidation/scopes/{scopeId:D}";
-
-    using var playwright = await Playwright.CreateAsync();
-    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
-    await using var context = await browser.NewContextAsync();
-    var page = await context.NewPageAsync();
-    var pageErrors = new List<string>();
-    var componentApprovalRequests = new List<string>();
-    page.PageError += (_, error) => pageErrors.Add(error);
-    await page.RouteAsync("**/api/ui/consolidation/components/*/approve", async route =>
-    {
-      if (route.Request.Method == "POST")
-      {
-        componentApprovalRequests.Add(route.Request.Url);
-        await route.AbortAsync();
-      }
-      else
-        await route.ContinueAsync();
-    });
-
-    var initialWorkspaceResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
-      response.Url.Contains($"/api/ui/consolidation/scopes/{scopeId:D}", StringComparison.Ordinal));
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
-    Assert.Equal(200, (await initialWorkspaceResponse).Status);
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = $"{groupName} ({groupCode}) · v1", Exact = true })).ToBeVisibleAsync();
-
-    var components = page.Locator("#components");
-    var componentRow = components.GetByRole(AriaRole.Row).Filter(new() { HasText = "PBC TEST CLIENT" });
-    await Assertions.Expect(componentRow).ToHaveCountAsync(1);
-    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
-    var approve = componentRow.GetByRole(AriaRole.Button, new() { Name = "Approve", Exact = true });
-    await Assertions.Expect(approve).ToBeEnabledAsync();
-    Assert.Null(await approve.GetAttributeAsync("aria-describedby"));
-    Assert.Equal(0, await components.Locator($"#component-approval-blocker-{componentId:D}").CountAsync());
-
-    await using (var db = host.CreateDbContext())
-    {
-      db.PracticeClients.Add(new PracticeClient
-      {
-        Id = addedClientId, FirmId = f.FirmId, LegalName = "Synthetic later group member", CreatedAt = DateTimeOffset.UtcNow
-      });
-      await db.SaveChangesAsync();
-      var addedMembership = await ConsolidationService.AddMembershipAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
-        new GroupMembershipRequest(groupId, addedClientId, new DateOnly(2020, 1, 1), null,
-          "CONTROLLED", 100m, 100m, "SYNTHETIC-LATER-MEMBERSHIP"));
-      Assert.True(addedMembership.Succeeded, addedMembership.Message);
-    }
-
-    await using (var proof = host.CreateDbContext())
-    {
-      Assert.Equal(2, await proof.ClientGroups.AsNoTracking().Where(x => x.Id == groupId)
-        .Select(x => x.Revision).SingleAsync());
-      Assert.Equal(1, await proof.ConsolidationScopeVersions.AsNoTracking().Where(x => x.Id == scopeId)
-        .Select(x => x.GroupRevision).SingleAsync());
-    }
-
-    var refreshedWorkspaceResponse = page.WaitForResponseAsync(response => response.Request.Method == "GET" &&
-      response.Url.Contains($"/api/ui/consolidation/scopes/{scopeId:D}", StringComparison.Ordinal));
-    await page.ReloadAsync();
-    Assert.Equal(200, (await refreshedWorkspaceResponse).Status);
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = $"{groupName} ({groupCode}) · v1", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(componentRow).ToHaveCountAsync(1);
-    await Assertions.Expect(componentRow.Locator("audit-status .status-chip")).ToHaveTextAsync("submitted");
-    await Assertions.Expect(approve).ToBeDisabledAsync();
-
-    var blockerId = $"component-approval-blocker-{componentId:D}";
-    Assert.Equal(blockerId, await approve.GetAttributeAsync("aria-describedby"));
-    var blocker = page.Locator($"#{blockerId}");
-    await Assertions.Expect(blocker).ToBeVisibleAsync();
-    await Assertions.Expect(blocker).ToContainTextAsync("group perimeter changed");
-    await Assertions.Expect(blocker).ToContainTextAsync("new scope version");
-    Assert.Equal(componentId.ToString("D"), await approve.EvaluateAsync<string>(
-      "element => element.getAttribute('aria-describedby')?.replace('component-approval-blocker-', '') ?? ''"));
-
-    await page.SetViewportSizeAsync(390, 844);
-    Assert.True(await page.EvaluateAsync<bool>(
-      "() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
-      "The consolidation component readiness row must not overflow the document at 390px.");
-    var componentTable = components.GetByRole(AriaRole.Region, new() { Name = "Components table", Exact = true });
-    await page.Locator("main").FocusAsync();
-    var tabStops = await page.Locator("a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex='0']").CountAsync();
-    for (var attempt = 0; attempt <= tabStops; attempt++)
-    {
-      if (await componentTable.EvaluateAsync<bool>("element => element === document.activeElement")) break;
-      await page.Keyboard.PressAsync("Tab");
-    }
-    await Assertions.Expect(componentTable).ToBeFocusedAsync();
-    Assert.True(await componentTable.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth"));
-    await page.Keyboard.PressAsync("ArrowRight");
-    await page.WaitForFunctionAsync("() => document.querySelector('[aria-label=\"Components table\"]').scrollLeft > 0");
-
-    // Exercise the component handler while disabled; the route records and aborts any dispatch so this proves UI gating only.
-    await approve.DispatchEventAsync("click");
-    await page.EvaluateAsync<bool>(
-      "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
-    Assert.Empty(componentApprovalRequests);
-    Assert.Empty(pageErrors);
-
-    await using (var proof = host.CreateDbContext())
-    {
-      var component = await proof.ConsolidationComponents.AsNoTracking().SingleAsync(x => x.Id == componentId);
-      Assert.Equal(AccountingWorkflowStates.Submitted, component.Status);
-      Assert.Null(component.ApprovedByUserId);
-      Assert.Null(component.ApprovedAt);
-    }
-
-    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "consolidation-component-readiness");
+    return new ReadinessFixture(groupId, scopeId, componentId, groupCode, groupName);
   }
 }

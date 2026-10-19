@@ -105,7 +105,9 @@ public sealed record ConsolidationScopeWorkspaceDto(
   ConsolidationReadResult<IntercompanyExceptionsPage> IntercompanyExceptions,
   ConsolidationPageInfo ComponentPaging,
   ConsolidationPageInfo? ReadinessPaging,
-  ConsolidationComponentDto? ResolvedComponent);
+  ConsolidationComponentDto? ResolvedComponent,
+  bool CanApproveScope,
+  string? ScopeApprovalBlocker);
 
 /// <summary>
 /// Authoritative detailed read model for a single consolidation perimeter version:
@@ -282,6 +284,9 @@ public static class ConsolidationScopeWorkspaceQuery
       componentApprovalReadiness = await ConsolidationService.GetComponentApprovalReadinessAsync(
         db, actor, scope, approvalComponents, ct);
     }
+    var scopeApprovalReadiness = canReview
+      ? await ConsolidationService.GetScopeApprovalReadinessAsync(db, actor, group, scope, ct)
+      : null;
 
     var isAdvanced = AdvancedConsolidationMethods.All.Contains(scope.Method);
 
@@ -304,6 +309,11 @@ public static class ConsolidationScopeWorkspaceQuery
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(auth.ErrorCode!, auth.Message!);
     var finalReviewAuth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReviewRoles, ct);
     var canReviewAtReturn = canReview && finalReviewAuth.Succeeded;
+    var canApproveScope = canReviewAtReturn && scopeApprovalReadiness?.Succeeded == true;
+    var scopeApprovalBlocker = canApproveScope ? null
+      : !canReviewAtReturn ? "Current consolidation reviewer authorization is required."
+      : scopeApprovalReadiness?.ErrorCode == ErrorCodes.ScopeDenied ? "Current consolidation reviewer authorization is required."
+      : scopeApprovalReadiness?.Message ?? "Scope approval readiness could not be established; reload the current scope.";
     var finalScope = await db.ConsolidationScopeVersions.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scope.Id, ct);
     var finalGroupRevision = await db.ClientGroups.AsNoTracking()
@@ -364,7 +374,9 @@ public static class ConsolidationScopeWorkspaceQuery
       exceptions,
       new ConsolidationPageInfo(componentCount, componentsPage, HistoryPageSize),
       readinessPaging,
-      selectedComponent is null ? null : ComponentDto(selectedComponent)));
+      selectedComponent is null ? null : ComponentDto(selectedComponent),
+      canApproveScope,
+      scopeApprovalBlocker));
   }
 
   private static bool IsValidPage(int page) => page > 0 && (long)(page - 1) * HistoryPageSize <= int.MaxValue;

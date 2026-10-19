@@ -255,6 +255,8 @@ const decodeScopeWorkspaceShape = obj({
   scope: decodeScopeSummary,
   canPrepare: bool,
   canReview: bool,
+  canApproveScope: bool,
+  scopeApprovalBlocker: nullable(text),
   currentUserId: guid,
   components: arr(decodeConsolidationComponent, 100),
   componentPaging: decodePaging,
@@ -269,7 +271,17 @@ const decodeScopeWorkspaceShape = obj({
 });
 
 export const decodeScopeWorkspace = (value: unknown, path: string) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const source = value as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(source, 'scopeApprovalBlocker') || source['scopeApprovalBlocker'] === undefined)
+      throw new Error(`${path || 'response'}: expected required scopeApprovalBlocker field`);
+  }
   const workspace = decodeScopeWorkspaceShape(value, path);
+  if (workspace.canApproveScope && workspace.scopeApprovalBlocker !== null)
+    throw new Error(`${path || 'response'}: approvable scope cannot have an approval blocker`);
+  if (workspace.scope.status === 'DRAFT' && workspace.canReview && !workspace.canApproveScope &&
+      !workspace.scopeApprovalBlocker?.trim())
+    throw new Error(`${path || 'response'}: blocked perimeter approval is missing its reason`);
   for (const component of [...workspace.components, ...(workspace.resolvedComponent ? [workspace.resolvedComponent] : [])]) {
     if (component.canApprove && component.approvalBlocker !== null)
       throw new Error(`${path || 'response'}: approvable component cannot have an approval blocker`);

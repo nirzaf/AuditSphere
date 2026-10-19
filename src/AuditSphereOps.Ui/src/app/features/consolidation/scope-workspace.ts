@@ -248,7 +248,10 @@ export class ConsolidationScopeWorkspace {
   }
 
   approveScope(scopeId: string): void {
-    if (scopeId.toLowerCase() !== this.id()?.toLowerCase()) return;
+    const workspace = this.currentWorkspace();
+    if (!workspace || workspace.scope.id.toLowerCase() !== scopeId.toLowerCase() ||
+        scopeId.toLowerCase() !== this.id()?.toLowerCase() || workspace.scope.status !== 'DRAFT' ||
+        !workspace.canReview || !workspace.canApproveScope) return;
     void this.runScopedCommand(this.ownerKey(), `/api/ui/consolidation/scopes/${scopeId}/approve`, {}, 'Perimeter approved.', undefined, () => this.ws.reload());
   }
   submitComponent(workspace: ScopeWorkspace): void {

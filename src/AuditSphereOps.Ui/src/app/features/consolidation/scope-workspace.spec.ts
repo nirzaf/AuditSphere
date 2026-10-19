@@ -77,6 +77,8 @@ function workspacePayload(overrides: Record<string, unknown> = {}) {
     },
     canPrepare: true,
     canReview: true,
+    canApproveScope: false,
+    scopeApprovalBlocker: null,
     currentUserId: actor,
     components: [],
     eligiblePackages: [],
@@ -286,6 +288,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
       },
       canPrepare: true,
       canReview: true,
+      canApproveScope: false,
+      scopeApprovalBlocker: null,
       currentUserId: id1,
       componentPaging: { totalCount: 1, page: 1, pageSize: 100 },
       readinessPaging: { totalCount: 1, page: 1, pageSize: 100 },
@@ -415,6 +419,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
     const decoded = decodeScopeWorkspace(raw, 'root');
     expect(decoded.scope.groupCode).toBe('ACME-GRP');
+    expect(decoded.canApproveScope).toBe(false);
+    expect(decoded.scopeApprovalBlocker).toBeNull();
     expect(decoded.components.length).toBe(1);
     expect(() => decodeScopeWorkspace({ ...raw, componentPaging: { totalCount: 2, page: 1, pageSize: 100 } }, 'root')).toThrow();
     expect(() => decodeScopeWorkspace({ ...raw, componentPaging: { totalCount: 1, page: 1, pageSize: 101 } }, 'root')).toThrow();
@@ -432,6 +438,16 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(decoded.runs.items.length).toBe(1);
     expect(decoded.latestReport.value?.lines[0].consolidatedAmount).toBe('0.00');
     expect(() => decodeScopeWorkspace({ ...raw, scope: { ...raw.scope, status: 'Draft' } }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, canApproveScope: undefined }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, canApproveScope: 'true' }, 'root')).toThrow();
+    const workspaceWithoutApprovalBlocker: Record<string, unknown> = { ...raw };
+    delete workspaceWithoutApprovalBlocker['scopeApprovalBlocker'];
+    expect(() => decodeScopeWorkspace(workspaceWithoutApprovalBlocker, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, scopeApprovalBlocker: undefined }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, scopeApprovalBlocker: 1 }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, canApproveScope: true, scopeApprovalBlocker: 'blocked' }, 'root')).toThrow();
+    expect(() => decodeScopeWorkspace({ ...raw, scope: { ...raw.scope, status: 'DRAFT' }, canReview: true,
+      canApproveScope: false, scopeApprovalBlocker: null }, 'root')).toThrow();
     expect(() => decodeScopeWorkspace({ ...raw, components: [{ ...raw.components[0], canApprove: undefined }] }, 'root')).toThrow();
     expect(() => decodeScopeWorkspace({ ...raw, components: [{ ...raw.components[0], canApprove: 'true' }] }, 'root')).toThrow();
     const componentWithoutBlocker: Record<string, unknown> = { ...raw.components[0] };
@@ -492,8 +508,28 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
   it('renders and dispatches perimeter approval for the actual DRAFT state', () => {
     const draftScope = workspacePayload().scope;
-    const payload = workspacePayload({ scope: { ...draftScope, status: 'DRAFT' } });
-    const { fixture } = open(payload);
+    const blocker = 'The perimeter has unresolved scope changes.';
+    const blocked = workspacePayload({
+      scope: { ...draftScope, status: 'DRAFT' },
+      canApproveScope: false,
+      scopeApprovalBlocker: blocker,
+    });
+    const { fixture, component } = open(blocked);
+    const blockedButton = [...fixture.nativeElement.querySelectorAll('button')]
+      .find((item: HTMLButtonElement) => item.textContent?.includes('Approve perimeter')) as HTMLButtonElement;
+    expect(blockedButton.disabled).toBe(true);
+    expect(blockedButton.getAttribute('aria-describedby')).toBe('scope-approval-blocker');
+    expect(fixture.nativeElement.querySelector('#scope-approval-blocker')?.textContent).toContain(blocker);
+    component.approveScope(id1);
+    expect(api.command).not.toHaveBeenCalled();
+
+    const payload = workspacePayload({
+      scope: { ...draftScope, status: 'DRAFT' },
+      canApproveScope: true,
+      scopeApprovalBlocker: null,
+    });
+    workspaceData.set(decodeScopeWorkspace(payload, 'root'));
+    fixture.detectChanges();
     const disclosure = fixture.nativeElement.querySelector('#journals summary') as HTMLElement;
     expect(disclosure.textContent).toContain('Create elimination journal');
     expect(disclosure.querySelector('[role="button"]')).toBeNull();
@@ -503,6 +539,10 @@ describe('Consolidation Scope Workspace Contracts', () => {
     const button = [...fixture.nativeElement.querySelectorAll('button')]
       .find((item: HTMLButtonElement) => item.textContent?.includes('Approve perimeter')) as HTMLButtonElement;
     expect(button).toBeTruthy();
+    expect(button.disabled).toBe(false);
+    expect(button.hasAttribute('aria-describedby')).toBe(false);
+    component.approveScope(id2);
+    expect(api.command).not.toHaveBeenCalled();
     button.click();
     expect(api.command).toHaveBeenCalledWith(`${scopeUrl}/approve`, {}, 'POST');
   });
@@ -510,7 +550,11 @@ describe('Consolidation Scope Workspace Contracts', () => {
   it('does not publish a delayed command result or reload after the scope owner changes or the host is destroyed', async () => {
     let finishFirst!: (result: { ok: true; value: unknown }) => void;
     api.command.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }));
-    const { fixture, component } = open(workspacePayload({ scope: { ...workspacePayload().scope, status: 'DRAFT' } }));
+    const { fixture, component } = open(workspacePayload({
+      scope: { ...workspacePayload().scope, status: 'DRAFT' },
+      canApproveScope: true,
+      scopeApprovalBlocker: null,
+    }));
     component.approveScope(id1);
     await vi.waitFor(() => expect(finishFirst).toBeTypeOf('function'));
     params.next(convertToParamMap({ id: id2 }));
@@ -522,6 +566,12 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
     let finishDestroyed!: (result: { ok: true; value: unknown }) => void;
     api.command.mockImplementationOnce(() => new Promise(resolve => { finishDestroyed = resolve; }));
+    workspaceData.set(decodeScopeWorkspace(workspacePayload({
+      scope: { ...workspacePayload().scope, id: id2, status: 'DRAFT' },
+      canApproveScope: true,
+      scopeApprovalBlocker: null,
+    }), 'root'));
+    fixture.detectChanges();
     component.approveScope(id2);
     await vi.waitFor(() => expect(finishDestroyed).toBeTypeOf('function'));
     fixture.destroy();
@@ -617,6 +667,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
     const draftScope = workspacePayload().scope;
     const payload = workspacePayload({
       scope: { ...draftScope, status: 'DRAFT' },
+      canApproveScope: false,
+      scopeApprovalBlocker: 'Scope approval is blocked in this fixture.',
       eligiblePackages: [{ packageId, clientId: id2, clientLegalName: 'Synthetic Component', engagementId: id3,
         periodBasis: '2026-01-01..2026-12-31', taxonomyVersion: 'IFRS-2026', mappingVersion: '1', currency: 'QAR', calculationHash: hash64 }],
     });
@@ -721,6 +773,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
       componentReadiness: [{ clientId: id2, memberName: 'Synthetic member', componentState: 'APPROVED', componentId: pinned.id, currency: 'QAR', periodBasis: 'ANNUAL', taxonomyVersion: 'v1', mappingVersion: 'v1', currencyCompatible: true, mismatchReason: null }],
       readinessPaging: { totalCount: 2, page: 1, pageSize: 1 },
       scope: { ...workspacePayload().scope, status: 'DRAFT' },
+      canApproveScope: false,
+      scopeApprovalBlocker: 'Scope approval is blocked in this fixture.',
       eligiblePackages: { items: [], totalCount: 501, page: 1, pageSize: 100 },
       journals: { items: [], totalCount: 601, page: 1, pageSize: 100 },
       runs: { items: [], totalCount: 701, page: 1, pageSize: 100 },
@@ -775,6 +829,8 @@ describe('Consolidation Scope Workspace Contracts', () => {
 
     workspaceData.set(decodeScopeWorkspace(workspacePayload({
       scope: { ...workspace.scope, status: 'DRAFT' },
+      canApproveScope: false,
+      scopeApprovalBlocker: 'Scope approval is blocked in this fixture.',
       eligiblePackages: { items: [], totalCount: 501, page: 2, pageSize: 100 },
       journals: { items: [journal(secondJournalId, 'EJ-PAGE-2', 'SUBMITTED', id2)], totalCount: 601, page: 2, pageSize: 100 },
       runs: { items: [run(thirdJournalId, 'SUBMITTED', id2)], totalCount: 701, page: 2, pageSize: 100 },

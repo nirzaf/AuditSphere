@@ -29,9 +29,14 @@
 
         @if (w.scope.status === 'DRAFT' && w.canReview) {
           <div class="actions" style="margin-top: 1rem;">
-            <button matButton="filled" (click)="approveScope(w.scope.id)" [disabled]="cmd.busy()">
+            <button matButton="filled" (click)="approveScope(w.scope.id)"
+              [disabled]="cmd.busy() || cmd.uncertain() || !w.canApproveScope"
+              [attr.aria-describedby]="!w.canApproveScope ? 'scope-approval-blocker' : null">
               Approve perimeter
             </button>
+            @if (!w.canApproveScope) {
+              <p id="scope-approval-blocker" class="error-text">Approval unavailable: {{ w.scopeApprovalBlocker }}</p>
+            }
           </div>
         }
       </section>

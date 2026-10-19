@@ -773,7 +773,7 @@ public sealed class ConsolidationWorkspaceApiTests
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-COMPONENTS");
     var seed = await PbcSeed.SeedAsync(pg);
     Guid groupId, scopeId, packageId;
-    AppUser reviewer;
+    AppUser reviewer, methodOwner;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -782,7 +782,8 @@ public sealed class ConsolidationWorkspaceApiTests
         Id = Guid.CreateVersion7(), FirmId = seed.FirmId, Email = "reviewer.consol@auditsphere.test",
         DisplayName = "Consol Reviewer", TenantId = "tenant-001", Subject = "sub-reviewer-consol"
       };
-      db.Users.Add(reviewer);
+      methodOwner = PbcSeed.User(seed.FirmId, "Staff");
+      db.Users.AddRange(reviewer, methodOwner);
 
       var group = new ClientGroup { Id = Guid.CreateVersion7(), FirmId = seed.FirmId, Code = "GRP-ALPHA", Name = "Alpha Group", Revision = 1 };
       db.ClientGroups.Add(group);
@@ -805,6 +806,11 @@ public sealed class ConsolidationWorkspaceApiTests
       {
         Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = group.Id,
         UserId = reviewer.Id, Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = seed.Staff.Id
+      });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = group.Id,
+        UserId = methodOwner.Id, Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = seed.Staff.Id
       });
 
       // Reviewer and preparer need engagement scope for package review verification
@@ -900,6 +906,20 @@ public sealed class ConsolidationWorkspaceApiTests
       });
 
       await db.SaveChangesAsync();
+
+      var groupCapability = await ClientAccountingService.CreateCapabilityProfileAsync(db,
+        PbcSeed.Actor(reviewer, "AccountingReviewer"),
+        new CapabilityProfileRequest(null, group.Id, AccountingCapabilityServiceKinds.GroupReporting,
+          "IFRS", "2026", "ANNUAL", "QAR", "STATUTORY", ConsolidationCalculator.RestrictedMethod,
+          "PARTNER", "GROUP"));
+      Assert.True(groupCapability.Succeeded, groupCapability.Message);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db,
+        PbcSeed.Actor(reviewer, "AccountingReviewer"), groupCapability.Value,
+        AccountingCapabilityAcceptanceStages.LocalConstruction, "synthetic-api-group-profile-local")).Succeeded);
+      Assert.True((await ClientAccountingService.RecordCapabilityAcceptanceAsync(db,
+        PbcSeed.Actor(methodOwner, "Partner"), groupCapability.Value,
+        AccountingCapabilityAcceptanceStages.MethodOwnerApproval, "synthetic-api-group-method-owner")).Succeeded);
+
       // Add required review decisions so RequireCurrentAsync succeeds for package
       foreach (var stage in new[] { FinancialPackageReviewStages.ManagementApproval, FinancialPackageReviewStages.AccountingReview, FinancialPackageReviewStages.PartnerApproval })
       {
@@ -926,6 +946,9 @@ public sealed class ConsolidationWorkspaceApiTests
     var ws = await Read(prepClient, $"/api/ui/consolidation/scopes/{scopeId}");
     Assert.True(ws.GetProperty("canPrepare").GetBoolean());
     Assert.False(ws.GetProperty("canReview").GetBoolean());
+    Assert.False(ws.GetProperty("canApproveScope").GetBoolean());
+    Assert.Contains("reviewer authorization", ws.GetProperty("scopeApprovalBlocker").GetString(),
+      StringComparison.OrdinalIgnoreCase);
     Assert.Equal("Alpha Group", ws.GetProperty("scope").GetProperty("groupName").GetString());
     Assert.Equal(0, ws.GetProperty("components").GetArrayLength());
     var eligiblePage = ws.GetProperty("eligiblePackages");
@@ -954,6 +977,9 @@ public sealed class ConsolidationWorkspaceApiTests
     var componentId = submitJson.GetProperty("value").GetGuid();
 
     var preparerWorkspace = await Read(prepClient, $"/api/ui/consolidation/scopes/{scopeId}");
+    Assert.False(preparerWorkspace.GetProperty("canApproveScope").GetBoolean());
+    Assert.Contains("reviewer authorization", preparerWorkspace.GetProperty("scopeApprovalBlocker").GetString(),
+      StringComparison.OrdinalIgnoreCase);
     var preparerComponent = preparerWorkspace.GetProperty("components").EnumerateArray()
       .Single(x => x.GetProperty("id").GetGuid() == componentId);
     Assert.False(preparerComponent.GetProperty("canApprove").GetBoolean());
@@ -969,6 +995,9 @@ public sealed class ConsolidationWorkspaceApiTests
 
     var revWs = await Read(revClient, $"/api/ui/consolidation/scopes/{scopeId}");
     Assert.True(revWs.GetProperty("canReview").GetBoolean());
+    Assert.False(revWs.GetProperty("canApproveScope").GetBoolean());
+    Assert.Contains("approved compatible component package", revWs.GetProperty("scopeApprovalBlocker").GetString(),
+      StringComparison.OrdinalIgnoreCase);
     Assert.Equal(1, revWs.GetProperty("components").GetArrayLength());
     var reviewerComponent = revWs.GetProperty("components")[0];
     Assert.Equal("SUBMITTED", reviewerComponent.GetProperty("status").GetString());
@@ -982,10 +1011,17 @@ public sealed class ConsolidationWorkspaceApiTests
     var approvalFailure = await approveRes.Content.ReadFromJsonAsync<JsonElement>();
     Assert.Contains("composition", approvalFailure.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
 
+    var scopeApproveRes = await Post(revClient, revCsrf, $"/api/ui/consolidation/scopes/{scopeId}/approve", new { });
+    Assert.Equal(HttpStatusCode.BadRequest, scopeApproveRes.StatusCode);
+    var scopeApprovalFailure = await scopeApproveRes.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.Contains("approved compatible component package", scopeApprovalFailure.GetProperty("message").GetString(),
+      StringComparison.OrdinalIgnoreCase);
+
     // 5. The failed review leaves the submitted component unchanged.
     var afterBlockedApproval = await Read(revClient, $"/api/ui/consolidation/scopes/{scopeId}");
     var unchangedComponent = afterBlockedApproval.GetProperty("components")[0];
     Assert.Equal(reviewerComponent.GetRawText(), unchangedComponent.GetRawText());
+    Assert.Equal(AccountingWorkflowStates.Draft, afterBlockedApproval.GetProperty("scope").GetProperty("status").GetString());
   }
 
   [Fact]
