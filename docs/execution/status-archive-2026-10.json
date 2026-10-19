@@ -21132,6 +21132,101 @@
       "acceptanceImageBuild": "39132894382 builds/pushes private GHCR images only; no VPS deployment.",
       "externalAcceptance": "NOT_VERIFIED: authenticated browser acceptance and live-provider actions not performed.",
       "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.aspmCrm02RelationshipHistory20261018"
+    },
+    "clientAndQuotationPublicationBeforeDocumentReads20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommits": [
+        "3303722acc5b0422b185d56203d834f62619cc8f",
+        "be280776d1d6feea60ba95a97991630e15efd18a"
+      ],
+      "behavior": "Client profile/archive and relationship create/revoke serialize with role changes on the existing firm lock; preflight and under-lock scoped checks preserve policy. Duplicate/cycle checks are inside the transaction. Revoke reloads tracked state and retains original evidence on retry. Quotation save/submit/rule save/deactivation repeat current authority after firm lock before replay/publication.",
+      "baseline": {
+        "source": "c08591892a0464ee41797f2cdf9c0bbee3ec6578",
+        "authorityFailed": 9,
+        "authorityPassed": 0,
+        "lateSaveCase": "After the first three quotation fixes, SAVE_QUOTATION still returned stale success: 1 FAIL / 4 PASS. Then added the same fence to SaveAsync.",
+        "evidence": "commercial-authority-before.trx; quotation-save-before.trx",
+        "provenance": "Baseline Application compiled before source edits; recorded DLL hash remained unchanged. Initial test compilation failed on missing JSON namespace/xUnit2031, corrected without changing expected behavior. BuildProjectReferences=false rebuilt tests against that pre-fix assembly."
+      },
+      "after": {
+        "cohorts": [
+          {
+            "passed": 16,
+            "failed": 0,
+            "skipped": 0,
+            "trx": "commercial-authority-after.trx",
+            "scope": "Five client authority cases incl same-epoch grant-only; duplicate/inverse-parent races; four quotation authority cases; existing profile, hierarchy, route-revocation, archive and approved-rate/matrix positives."
+          },
+          {
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0,
+            "trx": "quotation-authority-final.trx",
+            "scope": "Final five quotation authority cases incl SaveAsync and existing approved-rate/matrix positive; overlaps prior cohort."
+          }
+        ],
+        "directory": "/tmp/auditsphere-client-authority-results",
+        "assertions": "Fresh persisted snapshots; PostgreSQL blocking PID for client tests; exact first revocation actor/time/reason retained through stale-context retry. Quotation probe proves lock-command boundary with blocker held through revocation, not observed backend wait-event state.",
+        "build": "Targeted final Application Release PASS, zero warnings/errors; then test project rebuilt against current Application with BuildProjectReferences=false, reusing unchanged compiled dependencies. No API/schema/public signature changes."
+      },
+      "review": "Independent review accepted final client lock order/scoped rechecks and all four quotation fixes. Main found and counterfactually verified SaveAsync gap. Approval/revocation already authorize under firm lock; preflight ordering is a separate consistency improvement.",
+      "ci": {
+        "priorFast": {
+          "runId": 39253248908,
+          "sourceCommit": "c08591892a0464ee41797f2cdf9c0bbee3ec6578",
+          "result": "FAST_CI_PASS"
+        },
+        "retainedFull": {
+          "runId": 39248636107,
+          "sourceCommit": "1cd06d3622d0270d3cdb8131c32f9373e5292362",
+          "result": "IN_PROGRESS",
+          "observed": "Domain, Angular, build/contracts passed; API/E2E still live. Earlier source is not final acceptance."
+        },
+        "currentFast": {
+          "runId": 39256400538,
+          "sourceCommit": "15ba2d7bb6101ada9e1bf2da7666748a17785f77",
+          "result": "FAST_CI_PASS",
+          "scope": "Angular, Docs and .NET Release jobs all success; not full release acceptance."
+        }
+      },
+      "limits": "No full local suites, new dependencies, migrations, UI/API contract or provider effects. Full current-source release, other commercial/provider writer coverage, human AT and professional/live-provider acceptance remain open; parent criteria stay PARTIAL."
+    },
+    "resourceGridKeyboardBeforeCommercialDocumentAccess20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "e7dbd89ae16afe16e803b3f4941316e87cdbc136",
+      "behavior": "Named keyboard-focusable native horizontal resource grid; existing visible focus outline and bounded narrow layout. No authorization or command behavior changed.",
+      "angular": {
+        "passed": 15,
+        "failed": 0,
+        "spec": "features/practice/resources.spec.ts",
+        "build": "PASS; existing unrelated stylesheet budget warnings"
+      },
+      "e2e": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "Existing KeyboardFormsCapacityAvailabilityAndAllocationsRemainServerOwned on both route bases, extended with native Tab/ArrowRight and narrow document containment.",
+        "trx": "/tmp/auditsphere-resource-keyboard-results/resource-keyboard.trx"
+      },
+      "builtInBrowser": {
+        "viewport": 390,
+        "documentWidth": 375,
+        "regionClientWidth": 341,
+        "regionScrollWidth": 1138,
+        "arrowRightScrollLeft": 40,
+        "focusOutline": "3px solid",
+        "consoleWarningsErrors": 0,
+        "screenshot": "/tmp/auditsphere-resource-grid-keyboard.png"
+      },
+      "ciObserved": {
+        "source": "c98160880519b3a674d515f262c9a0c9011aa4c3",
+        "fastRun": 39242179324,
+        "fastResult": "PASS",
+        "fullRun": 39242189106,
+        "fullResult": "IN_PROGRESS; Angular and build/contracts passed; Domain/API/E2E pending at observation"
+      },
+      "limits": "No full local suites. Human AT and complete browser/state matrix remain unverified; preceding-source CI is not final-source release acceptance.",
+      "lint": "PASS affected HTML. Initial command included repository-ignored spec and failed max-warnings on that selection; corrected to linted HTML only, no config change."
     }
   }
 }

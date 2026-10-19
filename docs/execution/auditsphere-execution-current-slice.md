@@ -19,13 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Client and quotation publication authority
+## Commercial document release and receipt scope
 
-Client profile/archive and relationship writes now share the role-change firm lock; current scoped authority is checked before publication. Relationship races serialize, and stale revocation retries preserve original evidence. Quotation save/submit/rule mutations recheck authority under the lock. Focused counterfactual, denial and positive cohorts passed; exact evidence and limits are in `status.json` under `clientAndQuotationPublication20261019`. Parent acceptance remains open.
-
-## Commercial paging accessibility
-
-Older opportunities now load independently of activity, retaining drafts and current scope. Keyboard success and recoverable failure preserve owned focus; stale or denied work cannot repopulate the workspace. Focused checks and built-in narrow-screen verification passed. Exact source, CI and limits: `status.json` → `opportunityPagingAccessibility20261019`. Human AT and full release acceptance remain open.
+Generators and protected reads now recheck current authority at their publication/read boundary. Client receipts use exact milestone/agreement/proposal lineage and current account/grant facts, restoring real dual-linked engagement receipt access while retaining valid legacy evidence and refusing mismatches. The portal labels these artifacts as receipts. Focused source, PostgreSQL, browser/API download and built-in-browser checks passed; exact evidence and remaining fee-agreement, tender replay and acceptance gates are in `status.json` under `commercialDocumentAccess20261019`. Earlier client/quotation/paging evidence is retained in the status and handoff archives.
 
 ## Role-dialog keyboard boundary check and milestone atomicity (2026-10-19)
 
