@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -23,8 +24,21 @@ public sealed class AngularProcedureCommandJourneyTests
       await page.Keyboard.PressAsync("Tab");
     }
 
-    Assert.True(await target.EvaluateAsync<bool>("element => element === document.activeElement"),
-      "The control could not be reached through the page's normal Tab order.");
+    if (!await target.EvaluateAsync<bool>("element => element === document.activeElement"))
+      Assert.Fail("The control could not be reached through the page's normal Tab order. Target: " +
+        await target.EvaluateAsync<string>("element => element.outerHTML") + " Active: " +
+        await page.EvaluateAsync<string>("() => document.activeElement?.outerHTML ?? ''"));
+  }
+
+  private static ILocator QueueTaskCards(IPage page) => page.Locator("article.task-card");
+
+  private static async Task OpenQueueViewAsync(IPage page, string origin, string view)
+  {
+    await page.GotoAsync(origin + "/app/work");
+    await page.GetByRole(AriaRole.Navigation, new() { Name = "Work queue views", Exact = true })
+      .GetByRole(AriaRole.Button, new() { Name = view, Exact = true }).ClickAsync();
+    await page.GetByRole(AriaRole.Navigation, new() { Name = "Work queue display", Exact = true })
+      .GetByRole(AriaRole.Button, new() { Name = "Board", Exact = true }).ClickAsync();
   }
 
   [Fact]
@@ -52,7 +66,8 @@ public sealed class AngularProcedureCommandJourneyTests
     var angular = new Dictionary<string, string>
     {
       ["AngularUi__Enabled"] = "true",
-      ["AngularUi__CanonicalRoutes"] = "true"
+      ["AngularUi__CanonicalRoutes"] = "true",
+      ["WorkflowExperience__Enabled"] = "true"
     };
     var origin = await host.StartApiForIdentityAsync(f.Staff, angular);
     using var playwright = await Playwright.CreateAsync();
@@ -206,10 +221,13 @@ public sealed class AngularProcedureCommandJourneyTests
     await decisionControl.SelectOptionAsync("CHANGES_REQUIRED");
     var reviewComment = review.GetByRole(AriaRole.Textbox,
       new() { Name = "Review comment (required when returning)", Exact = true });
+    const string initialReviewCommentText = "Return the reconciliation conclusion with an explicit statement-level tie-out.";
+    const string recordedReviewCommentText =
+      "Return the reconciliation conclusion with an explicit statement-level tie-out and closing-balance cross-check.";
     var prepareReview = review.GetByRole(AriaRole.Button, new() { Name = "Preview exact review", Exact = true });
     await Assertions.Expect(reviewComment).ToBeVisibleAsync();
     await Assertions.Expect(prepareReview).ToBeDisabledAsync();
-    await reviewComment.FillAsync("Return the reconciliation conclusion with an explicit statement-level tie-out.");
+    await reviewComment.FillAsync(initialReviewCommentText);
     await TabToAsync(reviewerPage, prepareReview);
     await Assertions.Expect(prepareReview).ToBeFocusedAsync();
     await reviewerPage.Keyboard.PressAsync("Enter");
@@ -230,8 +248,7 @@ public sealed class AngularProcedureCommandJourneyTests
     await Assertions.Expect(prepareReview).ToBeFocusedAsync();
     await reviewerPage.Keyboard.PressAsync("Shift+Tab");
     await Assertions.Expect(reviewComment).ToBeFocusedAsync();
-    await reviewComment.FillAsync(
-      "Return the reconciliation conclusion with an explicit statement-level tie-out and closing-balance cross-check.");
+    await reviewComment.FillAsync(recordedReviewCommentText);
     await Assertions.Expect(reviewPreview).ToHaveCountAsync(0);
     await TabToAsync(reviewerPage, prepareReview);
     await reviewerPage.Keyboard.PressAsync("Enter");
@@ -272,10 +289,13 @@ public sealed class AngularProcedureCommandJourneyTests
     await Assertions.Expect(resubmission.GetByRole(AriaRole.Button,
       new() { Name = "Record exact outcome", Exact = true })).ToBeDisabledAsync();
 
+    Guid firstReturnedResultId;
+    Guid firstReworkTaskId;
     await using (var proof = host.CreateDbContext())
     {
       var result = await proof.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.AuditProcedureId == procedureId);
       Assert.Equal(AuditProcedureResultStatuses.ChangesRequired, result.Status);
+      firstReturnedResultId = result.Id;
       Assert.Equal(f.Staff.Id, result.PreparedByUserId);
       using var submitted = JsonDocument.Parse(result.StructuredResultJson);
       var evidence = submitted.RootElement.GetProperty(AuditProgramService.EvidenceSnapshotProperty)
@@ -293,6 +313,172 @@ public sealed class AngularProcedureCommandJourneyTests
         .Where(x => x.AuditProcedureId == procedureId && x.Action == ProcedureCommandActions.SubmitResult)
         .Select(x => x.RequestHash).SingleAsync());
       Assert.Equal(2, await proof.AuditProcedureCommandReceipts.CountAsync(x => x.AuditProcedureId == procedureId));
+      var binding = await proof.WorkflowTaskBindings.AsNoTracking().SingleAsync(x =>
+        x.FirmId == f.FirmId && x.EngagementId == f.EngagementId && x.ReviewProcedureResultId == result.Id);
+      firstReworkTaskId = binding.WorkTaskId;
+    }
+
+    // Finish the first correction through the same keyboard-accessible command preview.
+    var correctionAssent = resubmission.GetByRole(AriaRole.Checkbox,
+      new() { Name = ProcedureAssentLabel, Exact = true });
+    var recordCorrection = resubmission.GetByRole(AriaRole.Button,
+      new() { Name = "Record exact outcome", Exact = true });
+    await TabToAsync(preparerPage, correctionAssent);
+    await preparerPage.Keyboard.PressAsync("Space");
+    await Assertions.Expect(correctionAssent).ToBeCheckedAsync();
+    await Assertions.Expect(recordCorrection).ToBeEnabledAsync();
+    await TabToAsync(preparerPage, recordCorrection);
+    await preparerPage.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(returned.Locator("p[role='status']")
+      .Filter(new() { HasText = "Recorded SUBMIT_RESULT" })).ToBeVisibleAsync();
+
+    Guid firstResubmissionId;
+    await using (var db = host.CreateDbContext())
+    {
+      var result = await db.AuditProcedureResults.AsNoTracking().Where(x => x.AuditProcedureId == procedureId)
+        .OrderByDescending(x => x.Revision).FirstAsync();
+      Assert.Equal(2, result.Revision);
+      Assert.Equal(AuditProcedureResultStatuses.Submitted, result.Status);
+      firstResubmissionId = result.Id;
+    }
+
+    var firstTaskSource = $"REVIEW-REWORK:{procedureId:N}:{firstReturnedResultId:N}";
+    Assert.NotEqual(Guid.Empty, firstReworkTaskId);
+    await OpenQueueViewAsync(reviewerPage, reviewerOrigin, "Under review");
+    var taskCards = QueueTaskCards(reviewerPage);
+    await Assertions.Expect(taskCards).ToHaveCountAsync(1);
+    await Assertions.Expect(taskCards).ToContainTextAsync("Address review changes for AWP-02-01");
+    await Assertions.Expect(taskCards).ToContainTextAsync(firstTaskSource);
+    await Assertions.Expect(taskCards).ToContainTextAsync(recordedReviewCommentText);
+    var reviewInbox = reviewerPage.GetByRole(AriaRole.Region,
+      new() { Name = "Submitted procedure reviews", Exact = true });
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
+      new() { Name = "Submitted work awaiting review", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(reviewInbox).ToContainTextAsync(
+      "Current procedure submissions awaiting independent review");
+    await Assertions.Expect(reviewerPage.GetByText(
+      "These submissions are not represented in Under review. Earlier operational tasks may still exist.",
+      new() { Exact = false })).ToBeVisibleAsync();
+    await Assertions.Expect(reviewInbox).ToContainTextAsync(
+      "No additional current submissions await review in your authorized scope.");
+
+    // Repeated review with rework-task creation disabled must reuse the historical task
+    // while showing the current comment; the source result and prior review remain immutable.
+    const string repeatedReviewComment = "Resolve the remaining statement-level tie-out discrepancy.";
+    await using (var db = host.CreateDbContext())
+    {
+      var reviewAgain = await AuditProgramService.ReviewResultAsync(db, reviewer,
+        new ReviewProcedureResultRequest(firstResubmissionId,
+          AuditProcedureReviewDecisions.ChangesRequired, repeatedReviewComment), createWorkflowReworkTask: false);
+      Assert.True(reviewAgain.Succeeded, reviewAgain.Message);
+    }
+    await OpenQueueViewAsync(reviewerPage, reviewerOrigin, "Changes required");
+    await Assertions.Expect(taskCards).ToHaveCountAsync(1);
+    await Assertions.Expect(taskCards).ToContainTextAsync(firstTaskSource);
+    await Assertions.Expect(taskCards).ToContainTextAsync(repeatedReviewComment);
+
+    await reviewerPage.GetByRole(AriaRole.Navigation, new() { Name = "Work queue display", Exact = true })
+      .GetByRole(AriaRole.Button, new() { Name = "List", Exact = true }).ClickAsync();
+    await reviewerPage.SetViewportSizeAsync(390, 844);
+    Assert.True(await reviewerPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"),
+      "The populated correction queue must not widen the narrow document.");
+    var taskScroll = reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Operational task list", Exact = true });
+    await Assertions.Expect(taskScroll).ToContainTextAsync(repeatedReviewComment);
+    await TabToAsync(reviewerPage, taskScroll);
+    await Assertions.Expect(taskScroll).ToBeFocusedAsync();
+    if (await taskScroll.EvaluateAsync<bool>("element => element.scrollWidth > element.clientWidth"))
+    {
+      await taskScroll.PressAsync("ArrowRight");
+      var scrolled = false;
+      for (var attempt = 0; attempt < 40; attempt++)
+      {
+        scrolled = await taskScroll.EvaluateAsync<bool>("element => element.scrollLeft > 0");
+        if (scrolled) break;
+        await Task.Delay(25);
+      }
+      Assert.True(scrolled, "The correction table must scroll through native keyboard input.");
+    }
+    await OwnedBrowserFixtureHandoff.WaitAsync(reviewerOrigin, "/app/work", "repeated-correction-review");
+    await reviewerPage.SetViewportSizeAsync(1280, 900);
+
+    // With no task linked to this later rejected revision, the current submission remains
+    // visible in the reviewer inbox and is not duplicated into the Under review task view.
+    Guid unrepresentedResubmissionId;
+    await using (var db = host.CreateDbContext())
+    {
+      var resubmitted = await AuditProgramService.SubmitResultAsync(db, preparer,
+        new SubmitProcedureResultRequest(procedureId, 1, "Both source discrepancies reconciled.",
+          "{\"result\":\"PASS\"}", ["source:second-corrected-sample"],
+          "Second correction is ready for independent review."));
+      Assert.True(resubmitted.Succeeded, resubmitted.Message);
+      unrepresentedResubmissionId = resubmitted.Value!.AuditProcedureResultId;
+      var current = await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.Id == unrepresentedResubmissionId);
+      Assert.Equal(3, current.Revision);
+      Assert.Equal(AuditProcedureResultStatuses.Submitted, current.Status);
+    }
+    await OpenQueueViewAsync(reviewerPage, reviewerOrigin, "Under review");
+    await Assertions.Expect(taskCards).ToHaveCountAsync(0);
+    await Assertions.Expect(reviewerPage.GetByText(
+      "1 current submission(s) awaiting review outside the task queue.", new() { Exact = true })).ToBeVisibleAsync();
+    var unrepresentedRow = reviewInbox.GetByRole(AriaRole.Row).Filter(new() { HasText = "AWP-02-01" });
+    await Assertions.Expect(unrepresentedRow).ToHaveCountAsync(1);
+    await Assertions.Expect(unrepresentedRow).ToContainTextAsync("Revision 3");
+    await Assertions.Expect(unrepresentedRow.GetByRole(AriaRole.Link,
+      new() { Name = "Open fieldwork", Exact = true })).ToHaveAttributeAsync("href",
+      $"/app/engagements/{f.EngagementId:D}/audit-fieldwork");
+
+    // A newer linked rework task supersedes the old queue projection without duplicating it.
+    const string newestReviewComment = "Confirm the final source cross-reference.";
+    await using (var db = host.CreateDbContext())
+    {
+      var reviewAgain = await AuditProgramService.ReviewResultAsync(db, reviewer,
+        new ReviewProcedureResultRequest(unrepresentedResubmissionId,
+          AuditProcedureReviewDecisions.ChangesRequired, newestReviewComment), createWorkflowReworkTask: true);
+      Assert.True(reviewAgain.Succeeded, reviewAgain.Message);
+    }
+    var newestTaskSource = $"REVIEW-REWORK:{procedureId:N}:{unrepresentedResubmissionId:N}";
+    await OpenQueueViewAsync(reviewerPage, reviewerOrigin, "Changes required");
+    await Assertions.Expect(taskCards).ToHaveCountAsync(1);
+    await Assertions.Expect(taskCards).ToContainTextAsync(newestTaskSource);
+    await Assertions.Expect(taskCards).ToContainTextAsync(newestReviewComment);
+    Assert.DoesNotContain(firstTaskSource, await taskCards.InnerTextAsync(), StringComparison.Ordinal);
+
+    Guid finalResubmissionId;
+    await using (var db = host.CreateDbContext())
+    {
+      var finalResubmission = await AuditProgramService.SubmitResultAsync(db, preparer,
+        new SubmitProcedureResultRequest(procedureId, 1, "Final source cross-reference confirmed.",
+          "{\"result\":\"PASS\"}", ["source:final-cross-reference"],
+          "Final correction is ready for independent review."));
+      Assert.True(finalResubmission.Succeeded, finalResubmission.Message);
+      finalResubmissionId = finalResubmission.Value!.AuditProcedureResultId;
+    }
+    await OpenQueueViewAsync(reviewerPage, reviewerOrigin, "Under review");
+    await Assertions.Expect(taskCards).ToHaveCountAsync(1);
+    await Assertions.Expect(taskCards).ToContainTextAsync(newestTaskSource);
+    await Assertions.Expect(taskCards).ToContainTextAsync(newestReviewComment);
+    await Assertions.Expect(reviewInbox).ToContainTextAsync(
+      "No additional current submissions await review in your authorized scope.");
+    Assert.DoesNotContain(firstTaskSource, await taskCards.InnerTextAsync(), StringComparison.Ordinal);
+
+    await using (var proof = host.CreateDbContext())
+    {
+      var bindings = await proof.WorkflowTaskBindings.AsNoTracking().Where(x =>
+        x.FirmId == f.FirmId && x.EngagementId == f.EngagementId).ToListAsync();
+      Assert.Equal(2, bindings.Count);
+      var originalBinding = Assert.Single(bindings, x => x.WorkTaskId == firstReworkTaskId);
+      Assert.Equal((Guid?)firstReturnedResultId, originalBinding.ReviewProcedureResultId);
+      Assert.Contains(bindings, x => x.ReviewProcedureResultId == unrepresentedResubmissionId);
+
+      var latest = await proof.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.Id == finalResubmissionId);
+      Assert.Equal(4, latest.Revision);
+      Assert.Equal(AuditProcedureResultStatuses.Submitted, latest.Status);
+      var procedureResultIds = await proof.AuditProcedureResults.AsNoTracking()
+        .Where(x => x.FirmId == f.FirmId && x.EngagementId == f.EngagementId && x.AuditProcedureId == procedureId)
+        .Select(x => x.Id).ToArrayAsync();
+      var reviewedDecisions = await proof.AuditProcedureReviews.AsNoTracking().CountAsync(x =>
+        procedureResultIds.Contains(x.AuditProcedureResultId) && x.Decision == AuditProcedureReviewDecisions.Reviewed);
+      Assert.Equal(0, reviewedDecisions);
     }
     Assert.Empty(pageErrors);
   }

@@ -140,13 +140,13 @@ const queueViews: { key: QueueView; label: string }[] = [
       }
     </section>
     <section aria-labelledby="review-inbox-heading">
-      <h2 id="review-inbox-heading">Submitted reviews without task links</h2>
-      <p>Current submitted procedure results with no operational task for their procedure. Opening fieldwork rechecks review eligibility and current evidence.</p>
+      <h2 id="review-inbox-heading">Submitted work awaiting review</h2>
+      <p>These submissions are not represented in Under review. Earlier operational tasks may still exist. Opening fieldwork rechecks review eligibility and current evidence.</p>
       <audit-state [loading]="reviews.loading()" [error]="reviews.error()" label="review inbox" />
       @if (reviews.data(); as inbox) {
-        <p role="status">{{ inbox.reviews.length }} unlinked submitted review(s) in your reviewer and engagement scope.</p>
-        <div class="table-scroll"><table>
-          <caption>Procedure reviews awaiting attention without an operational task</caption>
+        <p role="status">{{ inbox.reviews.length }} current submission(s) awaiting review outside the task queue.</p>
+        <div class="table-scroll" role="region" aria-label="Submitted procedure reviews" tabindex="0"><table>
+          <caption>Current procedure submissions awaiting independent review</caption>
           <thead><tr><th scope="col">Submitted</th><th scope="col">Client / engagement</th><th scope="col">Procedure</th><th scope="col">Prepared by</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
           <tbody>
             @for (item of inbox.reviews; track item.resultId) {
@@ -158,7 +158,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                 <td><a matButton [routerLink]="['/app/engagements', item.engagementId, 'audit-fieldwork']">Open fieldwork</a></td>
               </tr>
             } @empty {
-              <tr><td colspan="5">No unlinked submitted procedures await review in your authorized scope.</td></tr>
+              <tr><td colspan="5">No additional current submissions await review in your authorized scope.</td></tr>
             }
           </tbody>
         </table></div>
@@ -221,7 +221,7 @@ const queueViews: { key: QueueView; label: string }[] = [
       </article>
     </ng-template>
     @if (queue.data(); as result) {
-      <p role="status">{{ result.tasks.length }} {{ result.view === 'MY_TASKS' ? 'assigned to you' : 'in this authorized view' }}. Client and engagement rows are limited to your current grants.</p>
+      <p role="status">{{ labelFor(result.view) }}: {{ result.tasks.length }} {{ result.view === 'MY_TASKS' ? 'assigned to you' : 'in this authorized view' }}. Client and engagement rows are limited to your current grants.</p>
       @if (display() === 'BOARD') {
         <p class="queue-note">The board groups this page of tasks by operational status. A task changes column only through its own action; cards cannot be dragged.</p>
         <div class="board" role="group" [attr.aria-label]="labelFor(result.view) + ' board'">
@@ -270,7 +270,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         }
       }
       @if (display() === 'LIST') {
-      <div class="table-scroll"><table>
+      <div class="table-scroll" role="region" aria-label="Operational task list" tabindex="0"><table>
         <caption>{{ labelFor(result.view) }} — workflow tasks</caption>
         <thead><tr><th scope="col">Due</th><th scope="col">Client / engagement</th><th scope="col">Task</th><th scope="col">Owner</th><th scope="col">Operational status</th><th scope="col">Prerequisites</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>

@@ -210,6 +210,16 @@ describe('workflow queue assignment filters', () => {
         ], hasMore: false, nextCursor: null, summary: summary() });
       http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
       TestBed.tick();
+      expect(host.querySelector('#review-inbox-heading')?.textContent).toBe('Submitted work awaiting review');
+      expect(host.textContent).toContain('Earlier operational tasks may still exist.');
+      const reviewScroll = host.querySelector<HTMLElement>('[role="region"][aria-label="Submitted procedure reviews"]');
+      expect(reviewScroll?.tabIndex).toBe(0);
+      reviewScroll?.focus();
+      expect(document.activeElement).toBe(reviewScroll);
+      const taskScroll = host.querySelector<HTMLElement>('[role="region"][aria-label="Operational task list"]');
+      expect(taskScroll?.tabIndex).toBe(0);
+      taskScroll?.focus();
+      expect(document.activeElement).toBe(taskScroll);
       for (const display of ['LIST', 'BOARD', 'CALENDAR'] as const) {
         component.display.set(display); fixture.detectChanges(); TestBed.tick();
         const labels = host.querySelectorAll('.prerequisite-status');
@@ -370,6 +380,13 @@ describe('workflow queue assignment filters', () => {
       expect(component.selectedView()).toBe('CHANGES_REQUIRED');
       expect(component.ownerFilter()).toBe('ALL');
       expect(host.textContent).toContain('Changes required — workflow tasks');
+      expect([...host.querySelectorAll('[role="status"]')].some(x => x.textContent?.includes('Changes required: 0 in this authorized view.'))).toBe(true);
+      component.selectView('UNDER_REVIEW'); TestBed.tick();
+      http.expectOne(tasksUrl('view=UNDER_REVIEW&pageSize=50&includeSummary=true'))
+        .flush({ view: 'UNDER_REVIEW', tasks: [], hasMore: false, nextCursor: null, summary: summary() });
+      TestBed.tick();
+      expect([...host.querySelectorAll('[role="status"]')].some(x => x.textContent?.includes('Under review: 0 in this authorized view.'))).toBe(true);
+
 
       component.selectView('CANCELLED'); TestBed.tick();
       http.expectOne(tasksUrl('view=CANCELLED&pageSize=50&includeSummary=true'))
