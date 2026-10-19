@@ -1178,6 +1178,27 @@
       },
       "limits": "No full local suites. Human AT and complete browser/state matrix remain unverified; preceding-source CI is not final-source release acceptance.",
       "lint": "PASS affected HTML. Initial command included repository-ignored spec and failed max-warnings on that selection; corrected to linted HTML only, no config change."
+    },
+    "timeWorkspaceReadFence20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "4b5835f3b3ca507540ab59850211aac20f3c24af",
+      "behavior": "Time workspace rechecks actor/session and requires its initial eligible role/scope tuples to survive a fresh active-grant read. Same-epoch narrowing cannot retain a broader projection through another live grant. Added scopes alone do not fail.",
+      "before": {
+        "failed": 2,
+        "passed": 0,
+        "cause": "Both deterministic post-time_entries authority changes returned a successful workspace before the fence.",
+        "trx": "/tmp/auditsphere-time-workspace-results/time-workspace-before.trx"
+      },
+      "after": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "filter": "FullyQualifiedName~PracticeTimeStartMinuteApiTests",
+        "trx": "/tmp/auditsphere-time-workspace-results/time-workspace-after.trx",
+        "scope": "Two mid-read authority interleavings plus existing start-minute/interval/overlap and CSRF/scope/rate/independent-review/expiry HTTP checks."
+      },
+      "review": "Independent source review found no blocker; loss of a redundant initial scope conservatively requires reload.",
+      "limits": "No schema/HTTP contract/UI change, no new browser run, no full local suites or provider effects. Broader time field/rate/client-book and current-source full release acceptance remain open."
     }
   },
   "externalGates": [

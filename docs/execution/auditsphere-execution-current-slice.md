@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Resource grid keyboard accessibility
+## Time workspace read authority
 
-The populated resource grid now has a named keyboard scroll region. Focused component and both-route browser checks passed; built-in browser confirmed Tab entry, native arrow scrolling, visible focus and narrow document containment. Exact evidence and CI observations are in `status.json` under `resourceGridKeyboard20261019`. Human AT and full current-source release acceptance remain open.
+Time projections recheck the current session and their original active grant scopes before returning. Deterministic same-epoch scope narrowing and session-change regressions reproduced stale successful reads before the fix, then passed with the existing focused HTTP time cohort. Evidence and remaining time/release limits are in `status.json` under `timeWorkspaceReadFence20261019`.
 
 ## Finance settlement accessibility and draft safety
 

@@ -207,3 +207,7 @@ Firm-wide resource reads now require the planning role on an unscoped grant and 
 ## Global resource command authority
 
 Global resource changes and planning-console actions require a firm-wide planning-role grant, including retained receipt access. Direct allocation keeps exact engagement scope. Focused command, HTTP and historical receipt-upgrade checks passed. Evidence and remaining acceptance/release gates are in `status.json` under `resourceCommandAuthority20261019`.
+
+## Resource grid keyboard accessibility
+
+The populated resource grid now has a named keyboard scroll region. Focused component and both-route browser checks passed; built-in browser confirmed Tab entry, native arrow scrolling, visible focus and narrow document containment. Exact evidence and CI observations are in `status.json` under `resourceGridKeyboard20261019`. Human AT and full current-source release acceptance remain open.
