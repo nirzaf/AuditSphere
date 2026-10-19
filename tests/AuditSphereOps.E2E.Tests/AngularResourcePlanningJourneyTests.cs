@@ -162,11 +162,16 @@ public sealed class AngularResourcePlanningJourneyTests
     }
     async Task SubmitAndConfirmAsync(ILocator submitButton)
     {
+      var action = await submitButton.InnerTextAsync();
       var previewResponse = page.WaitForResponseAsync(response =>
         response.Request.Method == "POST" && response.Url.EndsWith("/api/ui/practice/resources/preview", StringComparison.Ordinal));
       await submitButton.PressAsync("Enter");
       var response = await previewResponse;
-      await response.FinishedAsync();
+      try { await response.FinishedAsync().WaitAsync(TimeSpan.FromSeconds(30)); }
+      catch (TimeoutException exception)
+      {
+        throw new TimeoutException($"Planning preview '{action}' returned HTTP {response.Status} but its body did not finish within 30 seconds.", exception);
+      }
       Assert.Equal(200, response.Status);
       try
       {
