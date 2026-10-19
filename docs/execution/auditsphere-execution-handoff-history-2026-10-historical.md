@@ -150,3 +150,11 @@ Client archive/restore preserves keyboard focus across a confirmed reload withou
 ## Portal finance keyboard and CI wait checks (2026-10-19)
 
 Billing tables now expose named keyboard-focusable scroll regions. A synthetic client-role journey and built-in browser verify Tab access, horizontal scrolling and retained focus; narrow-screen layout and separate lifecycle, collection, aging and untracked delivery states are covered. Planning and logout journeys now verify completed UI behavior without redundant transport waits. Focused checks pass; exact evidence, initial fixture corrections and active full release are in `targetedVerification.portalFinanceAccessibility20261019` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). Human AT, full supported-state and release acceptance remain open.
+
+## Scope-bound workflow receipt recovery (2026-10-19)
+
+Late failed receipt reads no longer alter another task or invalidated session. Focused checks preserve the current draft, original recovery key, single dispatch and independent professional gates. The synthetic browser journey recovers the original server receipt after switching tasks; native keyboard/rendering checks pass. Evidence and limits are in `targetedVerification.workflowEvidenceRecoveryScope20261019` in [status.json](status.json). Full-state, human AT and current-source release acceptance remain open.
+
+## Time workspace grant expiry (2026-10-19)
+
+The time workspace now excludes expired grants before deriving work and review scopes. A direct Application query regression reproduced expired firm-wide authority widening a valid engagement grant, then passed after the fix. HTTP actor resolution already revoked expired grants; its session refusal and fresh-sign-in protections remain verified. Exact evidence and limits are in `targetedVerification.timeWorkspaceGrantExpiry20261019` in [status.json](status.json). Full release and broader time/accounting isolation acceptance remain open.

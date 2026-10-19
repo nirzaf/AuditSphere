@@ -218,18 +218,26 @@
             "sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
             "result": "IN_PROGRESS",
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39212902864",
-            "note": "Immutable batch includes time-expiry scope and workflow receipt-recovery fixes. No full pass yet. Subsequent evidence-only commit changes no runtime behavior."
+            "note": "499 source: Domain1387/1387, Angular/build/contracts PASS; API/E2E active. Predates invoice-identity fix; not current-source full acceptance.",
+            "domain": {
+              "result": "PASS",
+              "passed": 1387,
+              "failed": 0,
+              "skipped": 0,
+              "jobId": "117930626618",
+              "log": "/tmp/auditsphere-domain-full-49958048.log"
+            }
           },
           "workspaceApiRepair": {
             "archive": "status-archive-2026-10.json#keys.targetedVerification.workspaceApiRepairBeforeReopeningActivity20261019",
             "summary": "Earlier scoped evidence retained; not a current-source full regression pass."
           },
           "currentFast": {
-            "runId": "39211255860",
-            "sourceCommit": "e457f510df2aa4435db071970d449f8372d14169",
+            "runId": "39213011927",
+            "sourceCommit": "eb6867ee217b7ac4903252ba0717b9300c8b0706",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39211255860",
-            "note": "Docs, Angular and .NET Release PASS; includes time-expiry fix, predates workflow recovery guard. Not full regression."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39213011927",
+            "note": "Docs, Angular and .NET Release passed; predates invoice-identity fix. Not full regression."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -1133,17 +1141,29 @@
     "workflowEvidenceRecoveryScope20261019": {
       "sourceCommit": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
       "result": "FOCUSED_PASS",
-      "angular": "Existing workflow-task-evidence.spec.ts6/6 PASS; baseline5PASS1FAIL at late task-A failure mutating task-B message. Logs /tmp/auditsphere-workflow-evidence-late-read-counterfactual.log and -final.log. Production build and targeted ESLint PASS; existing warnings retained.",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.workflowEvidenceRecoveryScope20261019",
+      "summary": "Late recovery errors stay in the original task/session; retained key, next-task draft, single dispatch and original server receipt verified. Full-state/human/live gates remain open."
+    },
+    "feeInvoiceIdentity20261019": {
+      "sourceCommit": "e94a24ea16cb52e9c1c8d2ddb07ebfeda3131ca5",
+      "result": "FOCUSED_PASS",
+      "behavior": "New milestone invoice numbers use full agreement identity instead of repeated UUIDv7 prefix. Existing links and source-allocation relinking retain old numbers. Invoice heading wraps full identity without truncation.",
+      "counterfactual": "New BillingTests.AdvanceInvoiceIdentity_UsesFullAgreementGuidAndRelinksLegacyDraft failed before fix: second same-prefix agreement returned Invoice identity is already used. /tmp/auditsphere-practice-guard-results/fee-invoice-identity-counterfactual.trx",
+      "domain": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "trx": "/tmp/auditsphere-practice-guard-results/fee-invoice-identity-final.trx"
+      },
       "e2e": {
         "passed": 1,
         "failed": 0,
         "skipped": 0,
-        "trx": "/tmp/auditsphere-a11y-results/workflow-evidence-scope-recovery.trx",
-        "log": "/tmp/auditsphere-workflow-evidence-scope-recovery.log"
+        "trx": "/tmp/auditsphere-a11y-results/invoice-full-identity-mobile.trx"
       },
-      "behavior": "Late receipt-read failures cannot update another task/session. Existing journey preserves B draft after delayed A503, returns to retained A key, recovers actual server receipt, retains1POST/1rule/0materiality approvals and390px bounds. Unit test separately covers session invalidation.",
-      "browser": "Owned synthetic native tab51: selected second-task editor and Tab focus verified; warn/error logs empty. /tmp/auditsphere-workflow-evidence-recovery-native.png. No native mutation; tab closed, fixture disposed, release flag removed.",
-      "limits": "Synthetic controlled transport failure; native check does not reproduce delayed request. No full supported-state/human AT/live acceptance or current-source full CI. Independent review was source-only."
+      "verification": "Deterministic3agreement source fixture:2distinct new drafts/replays and legacy draft relink,1source allocation each. Existing invoice approval/post/send role journey retained and passed with full40character number and390px heading/no overflow. Angular build and targeted invoice.ts ESLint PASS; existing warnings retained.",
+      "browser": "Owned native tab52 showed exact full number and computed wrapping:anywhere; warn/error logs empty. /tmp/auditsphere-invoice-full-identity-native.png. Native viewport desktop;390px covered by E2E. No native mutation; fixture/tab disposed and release flag removed.",
+      "limits": "Proposal/quotation rows are draft source fixtures, not commercial acceptance proof. Dedicated number regression covers advances; no complete milestone concurrency, payment-reference, professional/live or current-source full release acceptance. Independent review was source-only."
     }
   },
   "externalGates": [
@@ -1566,7 +1586,7 @@
       "ASPM-NFR-01..12",
       "ASPM-UAT-01..15"
     ],
-    "lastTechnicalSlice": "4995804836fd249e2e9b2bc1d8bfcb4adfd0db5d",
+    "lastTechnicalSlice": "e94a24ea16cb52e9c1c8d2ddb07ebfeda3131ca5",
     "advanceCashGate": {
       "codeCommit": "b69cc6d285deee314eaca4c133f7ca4c297401f5",
       "result": "FOCUSED_INCREMENTAL_PASS",

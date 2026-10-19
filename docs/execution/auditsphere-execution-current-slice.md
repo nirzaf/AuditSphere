@@ -19,13 +19,17 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Milestone invoice source identity (2026-10-19)
+
+New invoice numbers retain the full agreement identity so agreements sharing a UUID timestamp prefix do not block one another. Existing linked invoices and retained source allocations still recover their original numbers. Focused source/replay/legacy recovery and invoice role/mobile checks pass; the heading wraps long identities. Evidence and fixture limits are in `targetedVerification.feeInvoiceIdentity20261019` in [status.json](status.json). Full milestone concurrency and current-source release acceptance remain open.
+
 ## Scope-bound workflow receipt recovery (2026-10-19)
 
-Late failed receipt reads no longer alter another task or invalidated session. Focused checks preserve the current draft, original recovery key, single dispatch and independent professional gates. The synthetic browser journey recovers the original server receipt after switching tasks; native keyboard/rendering checks pass. Evidence and limits are in `targetedVerification.workflowEvidenceRecoveryScope20261019` in [status.json](status.json). Full-state, human AT and current-source release acceptance remain open.
+Focused evidence and remaining limits are retained in `targetedVerification.workflowEvidenceRecoveryScope20261019` in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
 
 ## Time workspace grant expiry (2026-10-19)
 
-The time workspace now excludes expired grants before deriving work and review scopes. A direct Application query regression reproduced expired firm-wide authority widening a valid engagement grant, then passed after the fix. HTTP actor resolution already revoked expired grants; its session refusal and fresh-sign-in protections remain verified. Exact evidence and limits are in `targetedVerification.timeWorkspaceGrantExpiry20261019` in [status.json](status.json). Full release and broader time/accounting isolation acceptance remain open.
+Focused evidence and remaining limits are retained in `targetedVerification.timeWorkspaceGrantExpiry20261019` in [status.json](status.json) and the [handoff history](auditsphere-execution-handoff-history-2026-10-historical.md).
 
 ## Portal finance and CI wait checks (2026-10-19)
 
