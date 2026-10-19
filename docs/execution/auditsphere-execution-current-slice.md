@@ -19,6 +19,18 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Operational cancellation and recovery (2026-10-19)
+
+ASPM-WF-08 now includes current-scoped management cancellation of an active task after exact revision/reason review. Time, bindings, evidence and append-only activity remain; a cancelled required predecessor still blocks its dependent. Exact replay adds no event, and a lost response is observed through a scoped task lookup before any explicit retry. The queue retains a Cancelled view. Keyboard review/close/activity focus and narrow reflow have focused and built-in-browser evidence; migration downgrade refuses retained cancellation history. No shared/live migration or professional approval occurred.
+
+ASPM-WF-08 remains PARTIAL: reopen, suspension, missed-period recovery and broader reconciliation are unfinished. Legacy WF-08 recurrence decisions are separate. The latest full CI run failed and incomplete API/E2E evidence; reported failures are under focused repair. Exact source, checks and limits are in `targetedVerification.workflowTaskCancellation` and `targetedVerification.angularQuality.task07.ci` in [status.json](status.json). No full local suite ran.
+
+## Browser CI recovery and search interaction (2026-10-19)
+
+Reported planning/profile failures now register real response capture before navigation or reload, and scroll the deferred editor's actual trigger rather than its enclosing region. Existing role denials, exact receipt identities, field restoration and non-duplication checks remain. Invoice response bodies are captured before browser disposal; finding receipt diagnostics preserve any unresolved API-versus-client failure. The affected planning, invoice, review-point and finding cases pass focused reruns. The earlier resource-planning hang did not reproduce; body completion now has a bounded action-specific failure instead of an indefinite wait. These passes do not resolve the unexplained full-API runner shutdown or establish a full regression pass.
+
+A separate confirmed search defect retained an already-open Material suggestion panel over detailed results. The trigger is now explicitly closed on replacement, error and dismissal without changing scope or result navigation. The regression exercises the real Material panel; removing the closure makes it fail. Current checks and remaining human/full-CI gates are recorded in [status.json](status.json). The original search click and native built-in-browser destination now pass. A fresh full immutable-source run is active in GitHub Actions; API shutdown and prior hang causes remain unproven until broader verification.
+
 ## Accessibility records and CI failure repairs (2026-10-19)
 
 This follow-up extends the earlier empty-state checks with current-source, record-backed synthetic journeys. Planning preview now receives meaningful focus without stealing it from another owner, cancel returns focus to the native review button, and one persistent status region announces outcomes. Consolidation tables have accessible names and native disclosures have one control. Sampling history review visibly requires opening the exact set. Finding facts stack at narrow widths rather than overflowing the document.
@@ -35,17 +47,15 @@ Built-in-browser checks used the current UI and an owned current-source API with
 
 CI exposed a stale commercial fixture: prospect proposal delivery must occur before client conversion invalidates the prospect recipient authority. The test now follows that ordering while retaining its mail/voucher assertions. Browser regressions required awaiting deferred planning data, retaining a labeled search input after its autocomplete role changes, and testing skip-link reachability from intentional route focus through actual keyboard navigation. Exact receipt recovery passed focused reruns without reproducing its CI failure; added HTTP diagnostics preserve that uncertainty for the next run.
 
+The remaining native sampling result-selection check is now evidenced through real keyboard typeahead and Tab commitment. The exact existing journey retains its source identities, stored exception amount and independent-review assertions. Its built-in browser inspection changed an unsaved synthetic draft only; native arrow assumptions and an immediate assertion before the change committed were test-setup failures, retained separately from the passing final check. Human assistive-technology and complete supported-state acceptance remain open.
+
 The subsequent API job reported two stale array assertions against the paged consolidation contract, then received a runner shutdown signal without a complete suite outcome. The existing journeys now read page items and retain the original authority, composition refusal and review assertions, with exact journal identity and count checks added. Both repaired methods pass focused verification. A fresh full immutable-source CI run includes these repairs and the accessibility fixes; the preceding E2E run remains active for further failure evidence. Superseded CI records are archived intact with an active pointer.
 
 The failed older-source full run was superseded after preserving its reported failures. A fresh immutable-source full regression runs in GitHub Actions with per-test progress and hang diagnostics; every suite remains unfiltered. Full suites were not run locally. See `targetedVerification.angularQuality` in [status.json](status.json) for precise commits, results, artifacts and CI status. Human screen-reader review and the complete supported-state matrix remain open; focused synthetic passes do not establish whole-product accessibility or release acceptance.
 
 Earlier fieldwork command-safety and shell zoom/reflow observations are preserved intact in the “Angular quality follow-up — fieldwork safety and rendered acceptance” section of [the historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md). Current source identities and unresolved human, native-keyboard and full-regression acceptance remain explicit in the active ledger.
 
-## Relationship Manager search matrix regression (2026-10-18)
-
-The full Domain CI job identified a stale matrix assertion left behind by the client-archive change. The client workspace permits current client-scoped or explicit firm-wide RelationshipManager grants to read client summaries; a firm-wide grant therefore returns matching client identities as well as leads. The corrected existing test still asserts the exact result kinds and excludes professional engagement/PBC/finance results for that role. The search code map now distinguishes client and firm-wide grants from engagement-only grants. Application permissions and production code were not changed.
-
-The previously failing matrix test passes against the isolated PostgreSQL test database after rebuilding. Test-value evidence: removing the supported Client result or adding unrelated professional result kinds would fail the exact equality assertion (static prediction; no counterfactual run). Exact baseline, test patch hash and prior CI failure are retained in `targetedVerification.searchRoleMatrix20261018` in [status.json](status.json). Full release verification was dispatched on the immutable implementation commit; its exact SHA and queued run are recorded in the same ledger entry. This focused test does not accept the complete application.
+The earlier Relationship Manager search-matrix regression and its historical CI evidence are retained verbatim in [the historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#relationship-manager-search-matrix-regression-2026-10-18).
 
 ## Default API Microsoft 365 credential isolation (2026-10-18)
 
@@ -65,13 +75,7 @@ The documentation reconciliation report was revalidated against `master@d4bbef4d
 
 Source integrity, Markdown health, naming, narrative-metric, task-pack, generated-board and diff checks passed. Fast CI `39134304836` passed on `d4bbef4d`; it predates this documentation refresh and is not full regression evidence. Full release run `39132911253` is pinned to `f5f96d9e`; Domain failed and API/E2E were still running at the 14:15 UTC observation. No application tests were run locally. See [the reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) and [`status.json`](status.json) for the exact record.
 
-## Reversible client archive history (2026-10-18)
-
-Commit `9cdbfb19e512c8d9e849fe95cfd6f2d38a33b2c7` adds a reversible client archive state backed by append-only actor, UTC time and revision events. Archive/restore is client-grant authorized, locks the client row, checks the expected revision and does not change client status, engagement records, evidence or authorization. Authorized portfolio and global search retain archived clients and label them; the client profile offers a scoped archive/restore action. The migration refuses downgrade while lifecycle events remain and has not been applied to a shared or live database.
-
-Focused verification passed: PostgreSQL Domain tests 2/2 for immutable archive/restore history and RelationshipManager search isolation on `9cdbfb19`; Angular client, portfolio and engagement workspace specs 26/26 on `f5f96d9e`; API/OpenAPI emitter Release build with 0 warnings/errors; OpenAPI drift; EF model drift; and all four documentation validators. Fast CI `39132751124` and full release verification `39132763882` failed on `9cdbfb19` because an engagement-spec client fixture lacked the new required archive fields. The fixture was updated without weakening assertions and pushed as `f5f96d9e`. The fast-CI rerun `39132894411` and exact-SHA full-release rerun `39132911253` were in progress at handoff. Full suites remain CI-only.
-
-Built-in-browser acceptance is **NOT_VERIFIED**: the existing `127.0.0.1:5029` app renders only its workspace shell and serves stale code. I left the user's process and database untouched. ASPM-CRM-02 remains PARTIAL pending current-SHA CI completion and authenticated browser acceptance. Push also triggered image workflow `39132894382`, which only builds/pushes private GHCR acceptance images; no VPS deployment occurred. Other unrelated worktree edits (two legacy HTML deletions, an untracked architecture HTML file, and historical execution-record edits) were preserved and excluded from these commits.
+The earlier reversible client archive slice and its historical CI limits are retained verbatim in [the historical handoff](auditsphere-execution-handoff-history-2026-10-historical.md#reversible-client-archive-history-2026-10-18).
 
 ## Firm receivables age all posted invoice categories (2026-10-18)
 
