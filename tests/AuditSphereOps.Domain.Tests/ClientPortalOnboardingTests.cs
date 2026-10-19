@@ -224,7 +224,7 @@ public sealed class ClientPortalOnboardingTests
     Assert.Equal(ErrorCodes.ScopeDenied, (await ClientPortalService.DelegateRequestAsync(db, colleagueActor, requestId, nonPrimary.Id)).ErrorCode);
 
     // An upload already past authorization commits before revocation can acquire the shared client fence.
-    await UploadCommitsBeforeDelegationRevocationAsync(pg, f, primary, colleagueActor, requestId, delegated.Value);
+    var uploadReceipt = await UploadCommitsBeforeDelegationRevocationAsync(pg, f, primary, colleagueActor, requestId, delegated.Value);
     await using (var afterFirstRevocation = new AuditSphereDbContext(pg.Options))
     {
       var retained = await afterFirstRevocation.PbcRequestDelegations.AsNoTracking()
@@ -236,6 +236,46 @@ public sealed class ClientPortalOnboardingTests
       Assert.Equal(retained.RevokedAt, refreshed.RevokedAt);
       Assert.Equal(retained.RevokedByUserId, refreshed.RevokedByUserId);
       Assert.Equal(retained.RevokedAt, (await db.PbcRequestDelegations.SingleAsync(x => x.Id == delegated.Value)).RevokedAt);
+
+      var capability = Assert.IsType<string>(uploadReceipt.Capability);
+      Assert.Equal(64, capability.Length);
+      Assert.True(capability.All(Uri.IsHexDigit));
+      var intentBeforeDeniedCommands = await afterFirstRevocation.PbcUploadIntents.AsNoTracking()
+        .Where(x => x.Id == uploadReceipt.UploadIntentId)
+        .Select(x => new { x.FileName, x.DeclaredByteCount, x.DeclaredSha256Hex, x.Revision, x.RequestRevision,
+          x.State, x.ReceivedByteCount, x.CapabilityHash })
+        .SingleAsync();
+      Assert.Equal("ledger.csv", intentBeforeDeniedCommands.FileName);
+      Assert.Equal(10L, intentBeforeDeniedCommands.DeclaredByteCount);
+      Assert.Equal(new string('a', 64), intentBeforeDeniedCommands.DeclaredSha256Hex);
+      Assert.Equal(Hashing.Sha256Hex(capability), intentBeforeDeniedCommands.CapabilityHash);
+      var requestRevisionBeforeDeniedCommands = await afterFirstRevocation.PbcRequests.AsNoTracking()
+        .Where(x => x.Id == requestId).Select(x => x.Revision).SingleAsync();
+      var chunksBeforeDeniedCommands = await afterFirstRevocation.PbcUploadChunks.AsNoTracking()
+        .Where(x => x.PbcUploadIntentId == uploadReceipt.UploadIntentId).OrderBy(x => x.ChunkIndex)
+        .Select(x => new { x.Id, x.ChunkIndex, x.Offset, x.ByteCount, x.Sha256Hex }).ToListAsync();
+      Assert.Empty(chunksBeforeDeniedCommands);
+
+      Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.RecordChunkAsync(afterFirstRevocation, colleagueActor,
+        new RecordPbcUploadChunkRequest(uploadReceipt.UploadIntentId, 0, 0, 10,
+          Hashing.Sha256Hex(new byte[10]), capability))).ErrorCode);
+      Assert.Equal(ErrorCodes.ScopeDenied, (await PbcService.ResumeUploadAsync(afterFirstRevocation, colleagueActor,
+        new ResumePbcUploadRequest(requestId, uploadReceipt.UploadIntentId, "ledger.csv", 10,
+          new string('a', 64)))).ErrorCode);
+
+      var intentAfterDeniedCommands = await afterFirstRevocation.PbcUploadIntents.AsNoTracking()
+        .Where(x => x.Id == uploadReceipt.UploadIntentId)
+        .Select(x => new { x.FileName, x.DeclaredByteCount, x.DeclaredSha256Hex, x.Revision, x.RequestRevision,
+          x.State, x.ReceivedByteCount, x.CapabilityHash })
+        .SingleAsync();
+      Assert.Equal(intentBeforeDeniedCommands, intentAfterDeniedCommands);
+      Assert.Equal(requestRevisionBeforeDeniedCommands, await afterFirstRevocation.PbcRequests.AsNoTracking()
+        .Where(x => x.Id == requestId).Select(x => x.Revision).SingleAsync());
+      var chunksAfterDeniedCommands = await afterFirstRevocation.PbcUploadChunks.AsNoTracking()
+        .Where(x => x.PbcUploadIntentId == uploadReceipt.UploadIntentId).OrderBy(x => x.ChunkIndex)
+        .Select(x => new { x.Id, x.ChunkIndex, x.Offset, x.ByteCount, x.Sha256Hex }).ToListAsync();
+      Assert.Equal(chunksBeforeDeniedCommands, chunksAfterDeniedCommands);
+
       Assert.Equal(ErrorCodes.ScopeDenied,
         (await PbcService.ReplyAsync(afterFirstRevocation, colleagueActor, requestId, "Another file.")).ErrorCode);
       Assert.Equal(ErrorCodes.ScopeDenied,
@@ -257,7 +297,7 @@ public sealed class ClientPortalOnboardingTests
     Assert.Empty(await ClientPortalService.ParticipantRequests(afterSecondRevocation, colleagueActor).ToListAsync());
   }
 
-  private static async Task UploadCommitsBeforeDelegationRevocationAsync(
+  private static async Task<PbcUploadReceipt> UploadCommitsBeforeDelegationRevocationAsync(
     PgTestSchema pg, PbcSeed.Fixture f, ActorContext primary, ActorContext delegateActor, Guid requestId, Guid delegationId)
   {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
@@ -277,6 +317,7 @@ public sealed class ClientPortalOnboardingTests
     var revokePid = ((NpgsqlConnection)revokeDb.Database.GetDbConnection()).ProcessID;
     Task<CommandResult<PbcUploadReceipt>>? uploadTask = null;
     Task<CommandResult>? revokeTask = null;
+    PbcUploadReceipt? uploadReceipt = null;
     var blockerReleased = false;
     try
     {
@@ -293,6 +334,7 @@ public sealed class ClientPortalOnboardingTests
       blockerReleased = true;
       var upload = await uploadTask.WaitAsync(timeout.Token);
       Assert.True(upload.Succeeded, upload.Message);
+      uploadReceipt = Assert.IsType<PbcUploadReceipt>(upload.Value);
       var revoked = await revokeTask.WaitAsync(timeout.Token);
       Assert.True(revoked.Succeeded, revoked.Message);
     }
@@ -312,6 +354,7 @@ public sealed class ClientPortalOnboardingTests
     Assert.Equal(PbcStates.PartiallyReceived, request.State);
     Assert.NotNull(persistedDelegation.RevokedAt);
     Assert.True(persistedIntent.CreatedAt <= persistedDelegation.RevokedAt!.Value);
+    return Assert.IsType<PbcUploadReceipt>(uploadReceipt);
   }
 
   private static async Task DelegationRevocationCommitsBeforeLaterUploadAsync(
