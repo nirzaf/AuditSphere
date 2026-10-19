@@ -20943,6 +20943,83 @@
       },
       "review": "Independent source review found no blocker; loss of a redundant initial scope conservatively requires reload.",
       "limits": "No schema/HTTP contract/UI change, no new browser run, no full local suites or provider effects. Broader time field/rate/client-book and current-source full release acceptance remain open."
+    },
+    "crmAuthorityAndFocusBeforeCoreCrmFences20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommits": {
+        "authority": "02412412d57daa0007b1ff581b683e311c4d17e5",
+        "ui": "8c1b785252df80158ef0c8f388e3b4263496bd2c"
+      },
+      "authority": "CreateOpportunityAsync rechecks current actor/session and owner eligibility after the firm lock and before exact request replay. Existing replay semantics retained.",
+      "domain": {
+        "baselineFailed": 1,
+        "afterPassed": 3,
+        "failed": 0,
+        "directory": "/tmp/auditsphere-crm-authority-results",
+        "artifacts": [
+          "crm-authority-before.trx",
+          "crm-authority-after.trx"
+        ],
+        "scope": "Deterministic actor grant/session revocation and distinct owner disable during firm-lock wait; no opportunity/history write. Exact retry/changed intent retained."
+      },
+      "ui": "Named keyboard-scrollable leads table; Cancel restores exact trigger; successful qualification focuses stable heading only while focus ownership stands; list refresh clears stale confirmation; final history page restores named section focus without stealing later user intent.",
+      "angular": {
+        "leadsPassed": 10,
+        "opportunitiesPassed": 7,
+        "failed": 0,
+        "build": "PASS; existing unrelated warnings",
+        "lint": "PASS affected source files"
+      },
+      "browser": {
+        "passed": 2,
+        "failed": 0,
+        "trx": "/tmp/auditsphere-lead-keyboard-results/lead-keyboard-history-final.trx",
+        "scope": "Both route settings; native keyboard qualification/cancel, scroll containment and real discovery-command history expansion200to203. No proposal/client/professional acceptance inferred.",
+        "buildPath": "Explicit AUDITSPHERE_TEST_UI_BUILD_PATH; fixture also explicitly selected current dist instead of staged ui assets.",
+        "builtIn": "Current UI confirmed named focus, exact cancel trigger, success H1 and final history SECTION; viewport390/document375; console warnings/errors0.",
+        "screenshot": "/tmp/auditsphere-crm-history-keyboard-final.png"
+      },
+      "review": "Independent source review found no remaining blocker in this scope. Built-in baseline reproduced BODY focus after both removed controls.",
+      "limits": "No full local suites. Latest100 opportunity display still lacks older-opportunity paging; other core CRM writer lock-wait authority, broader workflow/state and human AT acceptance remain open. Existing full CI on510518fa passed Angular/build/contracts/Domain; API/E2E still running at observation. Final-source full release remains unverified."
+    },
+    "reviewInboxHistoryBeforeCoreCrmFences20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "96b0c982447f11359ccf065c1c0ae7d35970b008",
+      "priorEvidence": "status-archive-2026-10.json#keys.reviewInboxHistoryBeforeBrowser20261019",
+      "browser": {
+        "passed": 1,
+        "failed": 0,
+        "trx": "/tmp/auditsphere-review-inbox-results/repeated-correction-browser-final.trx",
+        "scope": "Original browser keyboard/lost-reply review and first correction retained. Later corrections use real Application commands; browser checks current comment, retained task, unrepresented submission inbox, newer task and unchanged original binding. Latest result remains Submitted; no Reviewed decision."
+      },
+      "angular": {
+        "passed": 29,
+        "failed": 0,
+        "build": "PASS",
+        "changedFileLint": "PASS",
+        "log": "/tmp/auditsphere-rework-queue-spec-final.log"
+      },
+      "builtInBrowser": {
+        "viewportWidth": 390,
+        "documentWidth": 375,
+        "tableClientWidth": 341,
+        "tableScrollWidth": 964,
+        "keyboardScrollLeft": 40,
+        "consoleErrors": 0,
+        "screenshot": "/tmp/auditsphere-repeated-correction-native.png",
+        "scope": "Synthetic current correction list and board; current reviewer comment visible, named focusable table region and no document overflow. Tab closed; viewport restored."
+      },
+      "attempts": "Initial Tab traversal failed; explicit enabled-state assertion added before traversal; final keyboard path passed. Diagnostic helper xUnit analyzer error fixed before rerun. Failure artifacts retained under /tmp/auditsphere-review-inbox-results and /tmp/auditsphere-repeated-correction-keyboard-before.log.",
+      "ci": {
+        "fastRun": "39236580173",
+        "fastSource": "53a4ba9e",
+        "fastResult": "FAST_CI_PASS",
+        "fullRun": "39233821965",
+        "fullSource": "0caa6df2",
+        "fullResult": "IN_PROGRESS",
+        "scope": "Full Angular, build/contracts and Domain passed; API/E2E remain active. Predates this code commit."
+      },
+      "limits": "No full local suites, live providers or professional acceptance. All queue views together, human assistive-technology acceptance and current-source full release remain open."
     }
   }
 }
