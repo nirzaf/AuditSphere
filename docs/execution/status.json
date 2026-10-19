@@ -33,13 +33,13 @@
   },
   "remainingLocalWork": [
     {
-      "item": "AS-PAR-002 \u2014 remaining whole-application scope and revocation coverage",
+      "item": "AS-PAR-002 — remaining whole-application scope and revocation coverage",
       "status": "PARTIAL",
       "details": "Whole-application scope, revocation, source-action behavior and dynamic acceptance remain partial. Use apiAngularParity for the attached backlog; the previous verification narrative is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-PAR-009 \u2014 Pricing review, evidence-bound dispatch and client response",
+      "item": "AS-PAR-009 — Pricing review, evidence-bound dispatch and client response",
       "status": "PARTIAL",
       "details": "Pricing implementation exists; firm-approved policy, provider delivery evidence and current end-to-end acceptance remain separate gates. Earlier implementation and check history is preserved in the archive.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -51,43 +51,43 @@
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "STE-NXT-014 \u2014 End-of-service accrual as a provision (ADR-0010)",
+      "item": "STE-NXT-014 — End-of-service accrual as a provision (ADR-0010)",
       "status": "PARTIAL",
       "details": "End-of-service accrual requires the existing approved treatment, provision and expense account configuration and independent Partner confirmation. Prior technical verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "ADR-0016 \u2014 Certificate signing of the final report (specification 4.4.1, 4.4.2)",
+      "item": "ADR-0016 — Certificate signing of the final report (specification 4.4.1, 4.4.2)",
       "status": "PARTIAL",
       "details": "Final report certificate policy, legal acceptance and live deployment remain explicit external/operator gates. Earlier technical signing evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-002 / FSR-010 / FSR-011 first slice \u2014 typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
+      "item": "FSR-002 / FSR-010 / FSR-011 first slice — typed statement presentation as genuine PDF, Word and Excel (unapproved draft)",
       "status": "PARTIAL",
       "details": "Typed and pinned financial statement presentation is implemented incrementally. Professional policy, complete approved schedules/disclosures, report composition and release acceptance remain governed by their current records. Prior slice narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "FSR-005 first slice \u2014 cash-flow movement evidence and adjusted cash cross-cast",
+      "item": "FSR-005 first slice — cash-flow movement evidence and adjusted cash cross-cast",
       "status": "PARTIAL",
       "details": "Source-backed cash flow and its professional classification policy remain governed by their current completion records. Historical first-slice verification is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "CP-13 \u2014 signed equity components and transfer workflow",
+      "item": "CP-13 — signed equity components and transfer workflow",
       "status": "PARTIAL",
       "details": "Equity components and transfer workflows remain subject to source lineage and independent professional acceptance. Historical increment evidence is archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "AS-WF-V22 \u2014 v2.2 workflow experience PRs D\u2013I (WF-04 to WF-15) and production acceptance",
+      "item": "AS-WF-V22 — v2.2 workflow experience PRs D–I (WF-04 to WF-15) and production acceptance",
       "status": "PARTIAL",
       "details": "Workflow implementation does not replace professional approval or production acceptance. Current focused evidence is in targetedVerification; earlier long-form incremental narratives are archived.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
     },
     {
-      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) \u2014 NOT COMPLETE",
+      "item": "Production-readiness audit (auditsphere-execution-audit-production-readiness-gap-closure-current.md) — NOT COMPLETE",
       "status": "PARTIAL",
       "details": "The production-readiness backlog remains incomplete; its external and independent acceptance gates are not closed by local parity implementation.",
       "history": "status-archive-2026-10.json#keys.parityTrackerPreviousRemainingLocalWork20261017"
@@ -151,7 +151,7 @@
       "recordedAtUtc": "2026-10-19T03:24:56.955565+00:00",
       "result": "PARTIAL",
       "previousEvidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityBeforeFollowUp20261019",
-      "tasks01To06Review": "Tasks 01\u201304 and 06 implemented per independent source review on 7a566118. Task05 gaps corrected on sourceCommit with focused verification; full release and human accessibility acceptance remain separate.",
+      "tasks01To06Review": "Tasks 01–04 and 06 implemented per independent source review on 7a566118. Task05 gaps corrected on sourceCommit with focused verification; full release and human accessibility acceptance remain separate.",
       "task06": {
         "status": "FAST_CI_PASS",
         "implementationCommit": "5268f5fbd1f8be074f76cb89e20fc5d13f4b4b80",
@@ -218,7 +218,7 @@
             "sourceCommit": "0b0b72412dfd6ce58254b5119afd46859192c86b",
             "result": "IN_PROGRESS",
             "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39194532601",
-            "note": "Full unfiltered CI on0b0b7241; Domain1376/1376, Angular/build/contracts PASS; API/E2E observed live. Predates payment-mail guard5f3fda73 and new-reference9f476cf3; no full current-source acceptance.",
+            "note": "Full unfiltered CI on0b0b7241; Domain1376/1376, Angular/build/contracts PASS; API/E2E still active. Predates payment-mail changes5f3fda73/9f476cf3/c7a1c5f7; no full current-source acceptance.",
             "domain": {
               "result": "PASS",
               "passed": 1376,
@@ -238,11 +238,11 @@
             "change": "Existing component/journal API journeys now read eligiblePackages.items and journals.items. Original authorization, composition refusal, return reason, resubmission and independent approval remain; exact journal IDs and page counts added. No production/API contract changed."
           },
           "currentFast": {
-            "runId": "39194613931",
-            "sourceCommit": "e3de5a88bb807f0e59ba8833eef7f242262ce64f",
+            "runId": "39196377953",
+            "sourceCommit": "f2140bb545bcf8ceec86775c0e87f1eeeaa5e1d7",
             "result": "FAST_CI_PASS",
-            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39194613931",
-            "note": "Docs/Angular/.NET fast gates successful; predates new payment-mail guard. Full0b0b7241 run remains active."
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39196377953",
+            "note": "Observed success; predates c7a1c5f7 fence. Full release run39194532601 still API/E2E active."
           },
           "previousFailedFullRelease": {
             "runId": "39182161418",
@@ -296,7 +296,7 @@
         },
         "lint": "PASS: five changed production TS/HTML files; no extra rules disabled.",
         "build": "PASS; existing completion optional-chain and commercial/settings.scss budget warnings.",
-        "browser": "PASS_READ_ONLY_SMOKE on final UI source via built-in browser: fieldwork h1, Sampling \u2192 Client evidence keyboard activation, expected controls, document reflow at1280, no console errors. Existing API source unknown. Record-backed mutation accessibility NOT_VERIFIED."
+        "browser": "PASS_READ_ONLY_SMOKE on final UI source via built-in browser: fieldwork h1, Sampling → Client evidence keyboard activation, expected controls, document reflow at1280, no console errors. Existing API source unknown. Record-backed mutation accessibility NOT_VERIFIED."
       },
       "ciFailureRepair": {
         "implementationCommit": "6f00f8e05433130e5ad62c80d91e6f92ab39649b",
@@ -566,49 +566,49 @@
       "matrix": [
         [
           "01",
-          "01\u201303",
+          "01–03",
           "PASS",
           "DueTodaySummaryCountsTheCompleteAuthorizedPopulationRatherThanTheLoadedPage;DateViewsUseTheUtcCalendarDateAndSummaryStaysScopedDeniedAndReadOnly"
         ],
         [
           "02",
-          "04\u201306",
+          "04–06",
           "PASS",
           "PracticeTimeTests.TimeWorkflow_RequiresReview_UsesIntegerMinutes_AndRejectsOverlap;PracticeTimeStartMinuteApiTests.RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior;AngularPracticeProductivityJourneyTests.DashboardAndForegroundTimerAreReadOnlyUntilEachDraftIsExplicitlySaved"
         ],
         [
           "03",
-          "07\u201308",
+          "07–08",
           "PASS",
           "PortalWorkspaceReturnsParticipantScopedClarificationAndCurrentEligibility;PortalActionEligibilityFailsClosedForReviewStatesAndUploadRouteStillRequiresFirstSignIn"
         ],
         [
           "04",
-          "09\u201311",
+          "09–11",
           "PASS",
           "SevenSourcesUseStableRankAndIdPagingSnapshotAndReadOnlyProjection;InvalidRequestsAndNonManagerScopesFailClosedWithStableMessages"
         ],
         [
           "05",
-          "12\u201314",
+          "12–14",
           "PASS",
           "TaskDatesIncludeOnlyYesterdayTodayAndSevenDaysForActiveTasks;FrozenSuppressesRemindersButPastScheduledFreezeDoesNotAndReadsCreateNoWrites"
         ],
         [
           "06",
-          "15\u201316",
+          "15–16",
           "PASS",
           "AnnualMilestonesUseCurrentSourceRevisionAndStayRestrictedWithoutBlockingReviewedCreation;ChangedOrForeignAnnualReferenceFailsWithoutPublishingANewShell"
         ],
         [
           "07",
-          "17\u201319",
+          "17–19",
           "PASS",
           "StandardValuesNormalizeEachEntryAndKeepCurrencyAndFeeBasisSubtotalsSeparate;CrossClientBillingParentFailsTheWholeReportAndClientScopedFinanceIsDenied"
         ],
         [
           "08",
-          "20\u201325",
+          "20–25",
           "PASS",
           "PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits;PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles"
         ]
@@ -786,7 +786,7 @@
       "sourceCommit": "1ee3c0e7ed743a3b2a838cad102c76428e07c267",
       "run": "https://github.com/nirzaf/AuditSphere/actions/runs/39003733534",
       "workflow": "AuditSphere release verification",
-      "cohort": "Test \u00b7 .NET Domain (unfiltered)",
+      "cohort": "Test · .NET Domain (unfiltered)",
       "result": "PASS",
       "test": "CashFlowContractTests.SourceReview_RevokedActorDuringLockWait_RecordsNothing",
       "evidence": "The test observes the source-review command waiting on the package lock, revokes the reviewer role while the user retains a non-review grant, releases the lock, and verifies ScopeDenied with no source-review row persisted.",
@@ -1197,25 +1197,29 @@
       "limits": "Full CI pending on exact0b0b7241, human AT/full supported-state acceptance open; no live-provider/professional acceptance. No full local suite."
     },
     "paymentMailRecipientGuard": {
-      "sourceCommit": "5f3fda7342406a0f16e9efaa0191deb679bced2a",
+      "sourceCommit": "c7a1c5f71216034a7d1e94f45931614cf07898cd",
       "result": "FOCUSED_PASS_PARTIAL_CORRESPONDENCE_SAFETY",
-      "criterion": "ASPM-CRM-03 remains PARTIAL + BLOCKED_DECISION; DEC-09 precedence unchanged.",
-      "behavior": "Receipt/voucher pre-provider gate re-resolves existing Finance-route/primary/prospect mailbox; operation and notification must share client, and immutable document/fee agreement/milestone/payment identities must match. Changed mailbox refuses without overwriting or retargeting queued mail.",
+      "criterion": "ASPM-CRM-03 remains PARTIAL + BLOCKED_DECISION; DEC-09 unchanged.",
+      "behavior": "Fresh mode/epoch, artifact and recipient checks plus DISPATCHED use one firm-fenced transaction; routing assign/revoke and contact update/direct/workspace creation cooperate. Claim commits and context disposes before provider I/O. Prior committed changes win; later changes do not retarget the authorized frozen plan.",
       "verification": {
-        "result": "1 passed0 failed0 skipped; real-worker changed-recipient/scope refusal and reviewed recovery with original fee/reversal assertions.",
-        "archive": "status-archive-2026-10.json#keys.targetedVerification.paymentMailInitialVerification20261019",
-        "note": "Latest same-method reference follow-up below retains these assertions."
+        "result": "PASS",
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "duration": "46s",
+        "cohort": "ContactRouteMutatorsWaitForTheFirmSafetyFence (5); PendingProposalMail_ (3); AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach (1); ClientContactCreationTests (4). PostgreSQL pg_blocking_pids proves waiting; provider callback updates contact after DISPATCHED; earlier revocation denies send.",
+        "trx": "/tmp/auditsphere-correspondence-fence-results/correspondence-fence.trx",
+        "log": "/tmp/auditsphere-correspondence-fence.log",
+        "initialAttempt": "Compile failed on missing ActorContext import in new test helper; import fixed, same cohort rebuilt and passed."
       },
-      "independentReview": "P2 remains: current mailbox check and DISPATCHED are not one serialized authorization boundary; routing/contact mutation can race between them. No concurrency guarantee claimed.",
+      "independentReview": "No concrete issue found in outer transaction lock order, fresh-context mode/epoch claim, provider lock release or unknown/retry handling. Existing RoleGrantExpiry does not cooperate with firm fence: actor grant expiry can race command commit. Not claimed resolved; broader actor reauthorization remains open.",
       "remaining": [
-        "Shared mutation/dispatch concurrency fence",
-        "Exact routing snapshot for payment mail",
+        "Exact payment routing snapshot",
         "Holding-letter recipient recheck",
-        "Initiating-actor reauthorization and DEC-09",
-        "Current-source full CI and live acceptance"
+        "Initiating-actor reauthorization including expiry/commit fence; DEC-09",
+        "Current-source full CI, live-provider and professional acceptance"
       ],
-      "nextObservedEngineeringGap": "New settlement receipt reference uses v7 milestone ID[..8], voucher uses v7 receipt ID[..12]; these prefixes omit uniqueness bits. Investigate stable collision-free references for new artifacts without rewriting issued documents.",
-      "referenceGapSupersededBy": "referenceFollowUp",
+      "priorEvidence": "status-archive-2026-10.json#keys.targetedVerification.paymentMailBeforeDispatchFence20261019",
       "referenceFollowUp": {
         "sourceCommit": "9f476cf3b1b88e65fb07282d14c0a36445e20512",
         "result": "FOCUSED_PASS",
@@ -1223,7 +1227,8 @@
         "verification": "Same CommercialWorkflowTests.AgreedFee_AdvanceReceiptEmailAndBalance_FollowTheFiftyFiftyCycleOnceEach passed1 failed0 skipped0,47s; full identity in filename and DOCX body, distinct advance/balance references, retained earlier receipt bytes/hash unchanged. Existing route-block/recovery, fee, balance and reversal checks remain.",
         "trx": "/tmp/auditsphere-payment-mail-results/payment-document-reference-identity.trx",
         "limits": "Only new artifact creation changes; existing-document branches reuse issued identities/content. No migration, dependency, HTTP/UI contract or live effect; complete artifact visual/legal approval and full current-source CI remain open."
-      }
+      },
+      "limits": "No schema/package/API/UI or tenant/provider change; no full local suite. DISPATCHED is the authorization linearization point, not a delivery receipt."
     }
   },
   "externalGates": [
@@ -1275,7 +1280,7 @@
     {
       "gate": "P10",
       "status": "BLOCKED_EXTERNAL",
-      "required": "Full \u00a747 real-tenant acceptance and professional sign-off"
+      "required": "Full §47 real-tenant acceptance and professional sign-off"
     },
     {
       "gate": "M365-ADMIN",

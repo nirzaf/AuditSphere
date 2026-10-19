@@ -86,3 +86,16 @@ The ASPM-FIN-03 query regression now exercises posted firm invoices typed as `AD
 Focused PostgreSQL verification passed 1/1 in `FirmReceivablesAgingQueryTests.ReportUsesApprovedTermsAndOnlyReceiptsCreditsAndAllocationsEffectiveByUtcAsOfDate` (43 seconds). This completes the FIN-03 source/query criterion; exact-SHA full release verification remains pending. The prior full release run `39117606930` on `9f15c482` recorded 1,368 passed and two failed Domain tests: the QAR 12,400 string-format fixture (corrected and focused-pass on `954a623f`) and an EF execution-strategy wrapper around the expected retained-history PostgreSQL `55000` refusal. The latter assertion now checks the underlying SQLSTATE and passed its focused test 1/1. I cancelled that stale run after the Domain failure; its API and E2E jobs did not complete and provide no pass evidence. Detailed run evidence is recorded in [`status.json`](status.json) and [`status-archive-2026-10.json`](status-archive-2026-10.json).
 
 Fast CI run `39120222007` passed on `1f4e5430`: Docs Health, Angular and .NET Release all succeeded. Run `39119821556` had already passed the regenerated OpenAPI `effectiveStatus` contract on parent `9fad72d0`, correcting run `39119098499`'s drift failure on `954a623f`. The full release suite has not run on the current source. The documentation/status commit will trigger a fresh fast gate before full release verification. No full test suite was run locally.
+
+
+## Archived pre-dispatch-fence correspondence notes
+
+## New payment artifact references (2026-10-19)
+
+New RCT/PV references now include the full retained milestone/payment identity. Truncated UUIDv7 timestamp prefixes did not guarantee distinct references. Issued-document lookup branches continue to reuse existing artifacts; the focused fee cycle checks full references in filenames and DOCX contents, distinct advance/balance receipts and unchanged earlier bytes/hash. This is an opaque internal-reference correction, not an approved statutory numbering policy. Source and checks are in `targetedVerification.paymentMailRecipientGuard.referenceFollowUp` in [status.json](status.json).
+
+## Payment-mail current-recipient guard (2026-10-19)
+
+Receipts and payment vouchers now re-resolve the existing fee-agreement recipient policy before DISPATCHED. Operation/client/artifact/agreement/payment ownership must agree; changed mailboxes block delivery while retaining the original queued recipient, subject, body and bytes. The extended real-worker fee-cycle test proves denial, wrong-client refusal and explicit reviewed recovery after the original fallback is restored. Existing paid amounts, balance gates and reversals remain unchanged. No live mail or tenant action occurred.
+
+ASPM-CRM-03 remains PARTIAL. Independent review identifies a remaining check-to-dispatch race: routing/contact mutation and dispatch need one shared authorization boundary without holding database locks across the provider call. Holding letters, exact routing snapshots, initiating-actor reauthorization, DEC-09 and live/current-source release acceptance remain open. The active full CI run predates this guard. The reference-prefix observation is resolved by the follow-up above. Exact checks and source are under `targetedVerification.paymentMailRecipientGuard` in [status.json](status.json).
