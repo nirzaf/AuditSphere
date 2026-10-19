@@ -66,6 +66,24 @@ public sealed class PracticeCrmTests
     new(leadId, "AccountingOnly", "DEMO-ENTITY", "2026-01-01", "2026-12-31", 12000m, "QAR", 60m,
       NextAction: "Complete discovery");
 
+  private static async Task<Guid> CreateQualifiedLeadAsync(
+    AuditSphereDbContext db, ActorContext actor, string name)
+  {
+    var lead = await PracticeCrmService.CreateLeadAsync(db, actor, new CreateLeadRequest(name, "Referral"));
+    Assert.True(lead.Succeeded, lead.Message);
+    var qualification = await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value);
+    Assert.True(qualification.Succeeded, qualification.Message);
+    return lead.Value;
+  }
+
+  private static Opportunity DiscoveryOpportunity(Guid firmId, Guid leadId, Guid id, DateTimeOffset createdAt,
+    string entityScope) => new()
+  {
+    Id = id, FirmId = firmId, LeadId = leadId, ServiceRoute = "AccountingOnly", EntityScope = entityScope,
+    PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", ExpectedFee = 12000m,
+    Currency = "QAR", Probability = 60m, Stage = CrmStates.OpportunityDiscovery, CreatedAt = createdAt
+  };
+
   private static ReviseProposalRequest Proposal(Guid opportunityId, long? expectedRevision = null) =>
     new(opportunityId, "ACCOUNTING-2026", "Monthly accounting and year-end package", "Tax filing",
       "Trial balance, management accounts and year-end package", "Client supplies source ledgers",
@@ -695,6 +713,140 @@ public sealed class PracticeCrmTests
       oldest.OccurredAt, null);
     Assert.False(invalidCursor.Succeeded);
     Assert.Equal("crm.invalid", invalidCursor.ErrorCode);
+  }
+
+  [Fact]
+  public async Task LeadOpportunities_PageThroughAllRowsWithScopedStableCursor()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var leadId = await CreateQualifiedLeadAsync(db, fixture.Actor, "Paged discovery prospect");
+    var createdAt = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero).AddTicks(1_234_560);
+    var expectedIds = Enumerable.Range(1, 201)
+      .Select(index => Guid.Parse($"00000000-0000-0000-0000-{index:D12}"))
+      .ToArray();
+    db.Opportunities.AddRange(expectedIds.Select((id, index) => DiscoveryOpportunity(
+      fixture.FirmId, leadId, id, createdAt, $"DISCOVERY-{index + 1:D3}")));
+    await db.SaveChangesAsync();
+
+    var pages = new List<LeadWorkspace>();
+    var firstPage = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, leadId);
+    Assert.True(firstPage.Succeeded, firstPage.Message);
+    pages.Add(firstPage.Value!);
+    Assert.Equal(100, pages[0].Opportunities.Count);
+    Assert.True(pages[0].OpportunitiesHasMore);
+
+    for (var pageNumber = 1; pageNumber < 2; pageNumber++)
+    {
+      var previousPage = pages[^1];
+      var cursor = previousPage.Opportunities[^1];
+      var nextPage = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, leadId,
+        opportunityBeforeCreatedAt: cursor.CreatedAt, opportunityBeforeId: cursor.Id);
+      Assert.True(nextPage.Succeeded, nextPage.Message);
+      if (pageNumber == 1)
+      {
+        var offsetEquivalentPage = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, leadId,
+          opportunityBeforeCreatedAt: cursor.CreatedAt.ToOffset(TimeSpan.FromHours(3)),
+          opportunityBeforeId: cursor.Id);
+        Assert.True(offsetEquivalentPage.Succeeded, offsetEquivalentPage.Message);
+        Assert.Equal(nextPage.Value!.Opportunities.ToArray(),
+          offsetEquivalentPage.Value!.Opportunities.ToArray());
+        Assert.Equal(nextPage.Value.OpportunitiesHasMore, offsetEquivalentPage.Value.OpportunitiesHasMore);
+      }
+      pages.Add(nextPage.Value!);
+      Assert.Equal(100, pages[pageNumber].Opportunities.Count);
+      Assert.True(pages[pageNumber].OpportunitiesHasMore);
+    }
+
+    var lastCursor = pages[^1].Opportunities[^1];
+    var lastPage = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, leadId,
+      opportunityBeforeCreatedAt: lastCursor.CreatedAt, opportunityBeforeId: lastCursor.Id);
+    Assert.True(lastPage.Succeeded, lastPage.Message);
+    pages.Add(lastPage.Value!);
+    Assert.Single(pages[^1].Opportunities);
+    Assert.False(pages[^1].OpportunitiesHasMore);
+
+    var allOpportunities = pages.SelectMany(page => page.Opportunities).ToArray();
+    Assert.Equal(expectedIds, allOpportunities.Select(item => item.Id).ToArray());
+    Assert.Equal(201, allOpportunities.Select(item => item.Id).Distinct().Count());
+    Assert.All(allOpportunities, item =>
+    {
+      Assert.Equal(createdAt, item.CreatedAt);
+      Assert.Equal(1_234_560, item.CreatedAt.Ticks % TimeSpan.TicksPerSecond);
+    });
+
+    // Advancing the opportunity cursor must leave the independently paged lead history intact.
+    var historyIds = pages[0].History.Select(item => item.Id).ToArray();
+    Assert.NotEmpty(historyIds);
+    Assert.All(pages, page =>
+    {
+      Assert.Equal(historyIds, page.History.Select(item => item.Id).ToArray());
+      Assert.False(page.HistoryHasMore);
+    });
+  }
+
+  [Fact]
+  public async Task LeadOpportunities_CursorsAreCompleteScopedAndFirmWide()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var foreignFixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var leadId = await CreateQualifiedLeadAsync(db, fixture.Actor, "Cursor target prospect");
+    var sameFirmOtherLeadId = await CreateQualifiedLeadAsync(db, fixture.Actor, "Same firm other prospect");
+    var foreignLeadId = await CreateQualifiedLeadAsync(db, foreignFixture.Actor, "Foreign firm prospect");
+    var createdAt = new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
+    var targetCursorId = Guid.Parse("00000000-0000-0000-0000-000000000101");
+    var sameFirmCursorId = Guid.Parse("00000000-0000-0000-0000-000000000102");
+    var foreignCursorId = Guid.Parse("00000000-0000-0000-0000-000000000103");
+    db.Opportunities.AddRange(
+      DiscoveryOpportunity(fixture.FirmId, leadId, targetCursorId, createdAt, "TARGET"),
+      DiscoveryOpportunity(fixture.FirmId, sameFirmOtherLeadId, sameFirmCursorId, createdAt, "SAME-FIRM"),
+      DiscoveryOpportunity(foreignFixture.FirmId, foreignLeadId, foreignCursorId, createdAt, "FOREIGN-FIRM"));
+    await db.SaveChangesAsync();
+
+    async Task AssertInvalidCursor(DateTimeOffset? beforeCreatedAt, Guid? beforeId)
+    {
+      var result = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, leadId,
+        opportunityBeforeCreatedAt: beforeCreatedAt, opportunityBeforeId: beforeId);
+      Assert.False(result.Succeeded);
+      Assert.Equal("crm.invalid", result.ErrorCode);
+    }
+
+    await AssertInvalidCursor(createdAt, null);
+    await AssertInvalidCursor(null, targetCursorId);
+    await AssertInvalidCursor(createdAt, Guid.Empty);
+    await AssertInvalidCursor(createdAt.AddSeconds(1), targetCursorId);
+    await AssertInvalidCursor(createdAt, sameFirmCursorId);
+    await AssertInvalidCursor(createdAt, foreignCursorId);
+
+    var scopedClientId = Guid.NewGuid();
+    var scopedUser = new AppUser
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId,
+      Subject = "crm-opportunity-page-scoped-" + Guid.NewGuid().ToString("N"),
+      TenantId = "tenant-test", Email = $"scoped-{Guid.NewGuid():N}@example.test",
+      DisplayName = "Scoped CRM manager", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.PracticeClients.Add(new PracticeClient
+    {
+      Id = scopedClientId, FirmId = fixture.FirmId, LegalName = "Scoped CRM client",
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.Users.Add(scopedUser);
+    db.RoleGrants.Add(new RoleGrant
+    {
+      Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = scopedUser.Id,
+      Role = "RelationshipManager", ClientId = scopedClientId,
+      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.User.Id
+    });
+    await db.SaveChangesAsync();
+
+    var scopedResult = await CommercialWorkspaceQuery.LeadAsync(db,
+      new ActorContext(scopedUser.Id, fixture.FirmId, scopedUser.SessionEpoch, ["RelationshipManager"]), leadId);
+    Assert.False(scopedResult.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, scopedResult.ErrorCode);
   }
 
   [Fact]

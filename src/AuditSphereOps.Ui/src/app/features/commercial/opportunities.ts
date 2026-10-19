@@ -9,6 +9,7 @@ import {
   signal,
   untracked,
   viewChild,
+  viewChildren,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -28,6 +29,7 @@ interface Opportunity {
   currency: string;
   periodStart: string;
   periodEnd: string;
+  createdAt: string;
   proposalId: string | null;
   revision: string;
 }
@@ -68,11 +70,13 @@ interface LeadWorkspace {
   ownerName: string;
   createdAt: string;
   opportunities: Opportunity[];
+  opportunitiesHasMore: boolean;
   history: LeadActivity[];
   historyHasMore: boolean;
   hasLegacyHistoryGap: boolean;
 }
 type HistoryFocusOrigin = { element: Element; interaction: number };
+type OpportunityFocusOrigin = { element: HTMLButtonElement; interaction: number; owner: string };
 interface OpportunityCreateIntent {
   leadId: string;
   requestId: string;
@@ -116,6 +120,8 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
     !Number.isFinite(Date.parse(v['createdAt'])) ||
     !Array.isArray(v['opportunities']) ||
     v['opportunities'].length > 100 ||
+    typeof v['opportunitiesHasMore'] !== 'boolean' ||
+    (v['opportunitiesHasMore'] && v['opportunities'].length === 0) ||
     !Array.isArray(v['history']) ||
     v['history'].length > 200 ||
     typeof v['historyHasMore'] !== 'boolean' ||
@@ -130,6 +136,8 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
       !['serviceRoute', 'entityScope', 'stage', 'currency', 'periodStart', 'periodEnd'].every(
         (k) => typeof o[k] === 'string',
       ) ||
+      typeof o.createdAt !== 'string' ||
+      !Number.isFinite(Date.parse(o.createdAt)) ||
       !exactDecimal(o.expectedFee) ||
       typeof o.revision !== 'string' ||
       !/^\d{1,19}$/.test(o.revision) ||
@@ -325,25 +333,38 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
           </button>
         }
       }
-      <h2>Latest 100 opportunities</h2>
-      @for (o of lead.opportunities; track o.id) {
-        <section>
-          <h3>{{ o.serviceRoute }} · {{ o.stage }}</h3>
-          <p>{{ o.entityScope }}</p>
-          <p>{{ o.periodStart }} to {{ o.periodEnd }} · {{ o.expectedFee }} {{ o.currency }}</p>
-          @if (o.proposalId) {
-            <a [routerLink]="['/app/practice/proposals', o.proposalId]"
-              >Open proposal revision {{ o.revision }}</a
-            >
-          } @else if (o.stage !== 'WON' && o.stage !== 'LOST') {
-            <button matButton [disabled]="busy() || uncertain()" (click)="select(o)">
-              Prepare initial proposal
-            </button>
-          }
-        </section>
-      } @empty {
-        <p>No opportunities recorded for this lead.</p>
-      }
+      <section #opportunitiesSection tabindex="-1" aria-labelledby="lead-opportunities-heading">
+        <h2 id="lead-opportunities-heading">Opportunities</h2>
+        @for (o of lead.opportunities; track o.id) {
+          <article>
+            <h3 #opportunityHeading tabindex="-1">{{ o.serviceRoute }} · {{ o.stage }}</h3>
+            <p>{{ o.entityScope }}</p>
+            <p>{{ o.periodStart }} to {{ o.periodEnd }} · {{ o.expectedFee }} {{ o.currency }}</p>
+            @if (o.proposalId) {
+              <a [routerLink]="['/app/practice/proposals', o.proposalId]"
+                >Open proposal revision {{ o.revision }}</a
+              >
+            } @else if (o.stage !== 'WON' && o.stage !== 'LOST') {
+              <button matButton [disabled]="busy() || uncertain()" (click)="select(o)">
+                Prepare initial proposal
+              </button>
+            }
+          </article>
+        } @empty {
+          <p>No opportunities recorded for this lead.</p>
+        }
+        @if (lead.opportunitiesHasMore) {
+          <button matButton [disabled]="busy() || loading() || opportunitiesLoading()" (click)="loadOlderOpportunities($event.currentTarget)">
+            {{ opportunitiesLoading() ? 'Loading older opportunities…' : 'Load older opportunities' }}
+          </button>
+        }
+        @if (opportunitiesError()) {
+          <p role="alert">{{ opportunitiesError() }}</p>
+        }
+        @if (opportunitiesLoading()) {
+          <p role="status">Loading older opportunities…</p>
+        }
+      </section>
       @if (selected(); as o) {
         <h2>Initial proposal for {{ o.serviceRoute }}</h2>
         <p>
@@ -438,10 +459,13 @@ export class Opportunities {
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderInjector = inject(Injector);
   private readonly historySection = viewChild<ElementRef<HTMLElement>>('historySection');
+  private readonly opportunitiesSection = viewChild<ElementRef<HTMLElement>>('opportunitiesSection');
+  private readonly opportunityHeadings = viewChildren<ElementRef<HTMLElement>>('opportunityHeading');
   private focusInteraction = 0;
   private id = '';
   private request?: Subscription;
   private historyRequest?: Subscription;
+  private opportunitiesRequest?: Subscription;
   private write?: Subscription;
   private requestId: string = crypto.randomUUID();
   private proposalRequestId: string = crypto.randomUUID();
@@ -452,6 +476,8 @@ export class Opportunities {
   readonly error = signal('');
   readonly historyLoading = signal(false);
   readonly historyError = signal('');
+  readonly opportunitiesLoading = signal(false);
+  readonly opportunitiesError = signal('');
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly createPending = signal(false);
@@ -516,6 +542,7 @@ export class Opportunities {
       route.unsubscribe();
       this.request?.unsubscribe();
       this.historyRequest?.unsubscribe();
+      this.opportunitiesRequest?.unsubscribe();
       this.write?.unsubscribe();
     });
   }
@@ -523,8 +550,13 @@ export class Opportunities {
     this.fence++;
     this.request?.unsubscribe();
     this.historyRequest?.unsubscribe();
+    this.opportunitiesRequest?.unsubscribe();
     this.historyLoading.set(false);
     this.historyError.set('');
+    this.opportunitiesLoading.set(false);
+    this.opportunitiesError.set('');
+    this.loading.set(false);
+    this.error.set('');
     this.write?.unsubscribe();
     this.data.set(null);
     this.selected.set(null);
@@ -1012,10 +1044,15 @@ export class Opportunities {
       });
   }
   load(): void {
+    this.fence++;
     this.request?.unsubscribe();
     this.historyRequest?.unsubscribe();
+    this.opportunitiesRequest?.unsubscribe();
     this.historyLoading.set(false);
     this.historyError.set('');
+    this.opportunitiesLoading.set(false);
+    this.opportunitiesError.set('');
+    this.loading.set(false);
     this.data.set(null);
     this.error.set('');
     if (!guidPattern.test(this.id) || !this.session.current()?.staff) return;
@@ -1088,20 +1125,21 @@ export class Opportunities {
           let finalHistoryPage = false;
           try {
             const page = decodeOpportunities(value);
-            if (page.id !== current.id || page.history.length === 0) {
+            const latest = this.data();
+            if (!latest || latest.id !== current.id || page.id !== latest.id || page.history.length === 0) {
               throw new Error('Lead history page does not match the current lead.');
             }
-            const known = new Set(current.history.map((event) => event.id.toLowerCase()));
+            const known = new Set(latest.history.map((event) => event.id.toLowerCase()));
             const older = page.history.filter((event) => !known.has(event.id.toLowerCase()));
             if (older.length === 0) throw new Error('Lead history page contained no earlier events.');
-            const history = [...older, ...current.history].sort((a, b) => {
+            const history = [...older, ...latest.history].sort((a, b) => {
               const time = Date.parse(a.occurredAt) - Date.parse(b.occurredAt);
               if (time !== 0) return time;
               const left = a.id.toLowerCase();
               const right = b.id.toLowerCase();
               return left < right ? -1 : left > right ? 1 : 0;
             });
-            this.data.set({ ...current, history, historyHasMore: page.historyHasMore });
+            this.data.set({ ...latest, history, historyHasMore: page.historyHasMore });
             finalHistoryPage = !page.historyHasMore;
           } catch {
             this.historyError.set('Older lead activity could not be read safely. Refresh persisted state and retry.');
@@ -1114,6 +1152,124 @@ export class Opportunities {
           this.historyLoading.set(false);
           this.historyError.set('Older lead activity is unavailable. Refresh persisted state and retry.');
           if (failure.status === 401) this.session.clear();
+        },
+      });
+  }
+  private opportunityOwnerKey(): string {
+    const session = this.session.current();
+    return `${this.fence}:${this.id}:${session?.firmId ?? ''}:${session?.userId ?? ''}:${session?.generation ?? ''}:${session?.staff ?? false}`;
+  }
+  private opportunityFocusOrigin(
+    trigger: EventTarget | null | undefined,
+    owner: string,
+  ): OpportunityFocusOrigin | null {
+    const host = this.hostElement.nativeElement;
+    const document = host.ownerDocument;
+    if (!(trigger instanceof HTMLButtonElement) || !host.contains(trigger) ||
+        (document.activeElement !== trigger && document.activeElement !== document.body)) return null;
+    return { element: trigger, interaction: this.focusInteraction, owner };
+  }
+  private opportunityFocusIsOwned(origin: OpportunityFocusOrigin): boolean {
+    const document = this.hostElement.nativeElement.ownerDocument;
+    return origin.owner === this.opportunityOwnerKey() &&
+      origin.interaction === this.focusInteraction &&
+      (document.activeElement === origin.element || document.activeElement === document.body);
+  }
+  private focusLoadedOpportunities(
+    origin: OpportunityFocusOrigin,
+    firstNewIndex: number,
+  ): void {
+    afterNextRender(() => {
+      if (!this.opportunityFocusIsOwned(origin)) return;
+      (
+        this.opportunityHeadings()[firstNewIndex]?.nativeElement ??
+        this.opportunitiesSection()?.nativeElement
+      )?.focus();
+    }, { injector: this.renderInjector });
+  }
+  private restoreOpportunityRetryFocus(origin: OpportunityFocusOrigin): void {
+    afterNextRender(() => {
+      if (
+        !this.opportunityFocusIsOwned(origin) ||
+        !origin.element.isConnected ||
+        !this.hostElement.nativeElement.contains(origin.element) ||
+        origin.element.disabled
+      ) return;
+      origin.element.focus();
+    }, { injector: this.renderInjector });
+  }
+  loadOlderOpportunities(trigger?: EventTarget | null): void {
+    const current = this.data();
+    const oldest = current?.opportunities.at(-1);
+    if (
+      !current?.opportunitiesHasMore ||
+      !oldest ||
+      this.opportunitiesLoading() ||
+      this.loading() ||
+      !guidPattern.test(this.id) ||
+      !this.session.current()?.staff
+    )
+      return;
+    const owner = this.opportunityOwnerKey();
+    const focusOrigin = this.opportunityFocusOrigin(trigger, owner);
+    const firstNewIndex = current.opportunities.length;
+    const query = `?opportunityBeforeCreatedAt=${encodeURIComponent(oldest.createdAt)}&opportunityBeforeId=${oldest.id}`;
+    this.opportunitiesLoading.set(true);
+    this.opportunitiesError.set('');
+    this.opportunitiesRequest = this.http
+      .get<unknown>('/api/ui/leads/' + this.id + query)
+      .pipe(timeout(15000))
+      .subscribe({
+        next: (value) => {
+          if (owner !== this.opportunityOwnerKey()) return;
+          let opportunityPageLoaded = false;
+          let retryPagerAfterDecodeFailure = false;
+          try {
+            const page = decodeOpportunities(value);
+            const latest = this.data();
+            if (
+              !latest ||
+              latest.id !== current.id ||
+              page.id !== latest.id ||
+              (page.opportunities.length === 0 && page.opportunitiesHasMore)
+            )
+              throw new Error('Lead opportunity page does not match the current lead.');
+            const known = new Set(latest.opportunities.map((opportunity) => opportunity.id.toLowerCase()));
+            const older = page.opportunities.filter((opportunity) => {
+              const key = opportunity.id.toLowerCase();
+              if (known.has(key)) return false;
+              known.add(key);
+              return true;
+            });
+            if (older.length === 0 && page.opportunitiesHasMore)
+              throw new Error('Lead opportunity page did not advance.');
+            this.data.set({
+              ...latest,
+              opportunities: [...latest.opportunities, ...older],
+              opportunitiesHasMore: page.opportunitiesHasMore,
+            });
+            opportunityPageLoaded = true;
+          } catch {
+            this.opportunitiesError.set('Older opportunities could not be read safely. Refresh persisted state and retry.');
+            retryPagerAfterDecodeFailure = true;
+          }
+          this.opportunitiesLoading.set(false);
+          if (opportunityPageLoaded && focusOrigin)
+            this.focusLoadedOpportunities(focusOrigin, firstNewIndex);
+          else if (retryPagerAfterDecodeFailure && focusOrigin)
+            this.restoreOpportunityRetryFocus(focusOrigin);
+        },
+        error: (failure) => {
+          if (owner !== this.opportunityOwnerKey()) return;
+          this.opportunitiesLoading.set(false);
+          if (failure.status === 401 || failure.status === 403) {
+            this.reset();
+            this.error.set('Opportunities unavailable. Current firm-wide commercial authority is required.');
+            if (failure.status === 401) this.session.clear();
+            return;
+          }
+          this.opportunitiesError.set('Older opportunities are unavailable. Refresh persisted state and retry.');
+          if (focusOrigin) this.restoreOpportunityRetryFocus(focusOrigin);
         },
       });
   }

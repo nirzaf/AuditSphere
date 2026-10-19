@@ -91,6 +91,8 @@ public sealed class AngularCommercialJourneyTests
     await using var host = await OwnedHost.StartAsync(startWorker: false,
       caseId: "ANGULAR-COMMERCIAL-LEAD-QUALIFICATION-01");
     Guid leadId;
+    Guid foreignOpportunityId;
+    DateTimeOffset foreignOpportunityCreatedAt;
     const string leadName = "Synthetic qualification confirmation lead";
     await using (var db = host.CreateDbContext())
     {
@@ -158,6 +160,16 @@ public sealed class AngularCommercialJourneyTests
         Assert.True(opportunity.Succeeded, opportunity.Message);
       }
       Assert.Equal(203, await db.LeadActivityEvents.CountAsync(x => x.LeadId == leadId));
+      var foreignLead = await PracticeCrmService.CreateLeadAsync(db, actor,
+        new("Synthetic separate-lead cursor", "Referral"));
+      Assert.True(foreignLead.Succeeded, foreignLead.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, foreignLead.Value)).Succeeded);
+      var foreignOpportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
+        new(foreignLead.Value, "AccountingOnly", "Separate-lead entity", "2026-01-01", "2026-12-31", 1000m, "QAR"));
+      Assert.True(foreignOpportunity.Succeeded, foreignOpportunity.Message);
+      foreignOpportunityId = foreignOpportunity.Value;
+      foreignOpportunityCreatedAt = await db.Opportunities.AsNoTracking()
+        .Where(x => x.Id == foreignOpportunityId).Select(x => x.CreatedAt).SingleAsync();
     }
     await page.GetByRole(AriaRole.Link, new() { Name = leadName, Exact = true }).PressAsync("Enter");
     var history = page.GetByRole(AriaRole.Region, new() { Name = "Lead history", Exact = true });
@@ -170,6 +182,45 @@ public sealed class AngularCommercialJourneyTests
     await Assertions.Expect(history).ToBeFocusedAsync();
     await Assertions.Expect(history).ToContainTextAsync("Lead created");
     await Assertions.Expect(history).ToContainTextAsync("Lead qualified");
+
+    var opportunities = page.GetByRole(AriaRole.Region, new() { Name = "Opportunities", Exact = true });
+    await Assertions.Expect(opportunities.Locator("h3")).ToHaveCountAsync(100);
+    await Assertions.Expect(opportunities.GetByText("Synthetic history entity 000", new() { Exact = true })).ToHaveCountAsync(0);
+    var olderOpportunities = opportunities.GetByRole(AriaRole.Button, new() { Name = "Load older opportunities", Exact = true });
+    await olderOpportunities.PressAsync("Enter");
+    await Assertions.Expect(opportunities.Locator("h3")).ToHaveCountAsync(200);
+    await Assertions.Expect(opportunities.Locator("h3").Nth(100)).ToBeFocusedAsync();
+    await Assertions.Expect(history.Locator("li")).ToHaveCountAsync(203);
+    await olderOpportunities.PressAsync("Enter");
+    await Assertions.Expect(opportunities.Locator("h3")).ToHaveCountAsync(201);
+    await Assertions.Expect(opportunities.Locator("h3").Nth(200)).ToBeFocusedAsync();
+    await Assertions.Expect(olderOpportunities).ToHaveCountAsync(0);
+    await Assertions.Expect(opportunities.GetByText("Synthetic history entity 000", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(history.Locator("li")).ToHaveCountAsync(203);
+
+    // Cursor shapes and row ownership are enforced by the real HTTP boundary, not inferred from hidden controls.
+    await using (var partialCursor = await context.APIRequest.GetAsync(
+      $"{origin}/api/ui/leads/{leadId:D}?opportunityBeforeId={foreignOpportunityId:D}"))
+    {
+      Assert.Equal(400, partialCursor.Status);
+      using var body = JsonDocument.Parse(await partialCursor.TextAsync());
+      Assert.Equal("request.invalid", body.RootElement.GetProperty("code").GetString());
+    }
+    var foreignCursorTime = Uri.EscapeDataString(foreignOpportunityCreatedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+    await using (var foreignCursor = await context.APIRequest.GetAsync(
+      $"{origin}/api/ui/leads/{leadId:D}?opportunityBeforeCreatedAt={foreignCursorTime}&opportunityBeforeId={foreignOpportunityId:D}"))
+    {
+      Assert.Equal(403, foreignCursor.Status);
+      using var body = JsonDocument.Parse(await foreignCursor.TextAsync());
+      Assert.Equal("crm.invalid", body.RootElement.GetProperty("code").GetString());
+    }
+    await using (var db = host.CreateDbContext())
+    {
+      var rows = await db.Opportunities.AsNoTracking().Where(x => x.LeadId == leadId).ToArrayAsync();
+      Assert.Equal(201, rows.Length);
+      Assert.All(rows, row => Assert.Equal("DISCOVERY", row.Stage));
+      Assert.False(await db.Proposals.AnyAsync(p => db.Opportunities.Any(o => o.Id == p.OpportunityId && o.LeadId == leadId)));
+    }
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     Assert.Empty(errors);
   }

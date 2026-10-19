@@ -1476,6 +1476,22 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "opportunityBeforeCreatedAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "opportunityBeforeId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -115217,7 +115233,8 @@
           "opportunities",
           "history",
           "historyHasMore",
-          "hasLegacyHistoryGap"
+          "hasLegacyHistoryGap",
+          "opportunitiesHasMore"
         ],
         "type": "object",
         "properties": {
@@ -115264,6 +115281,9 @@
             "type": "boolean"
           },
           "hasLegacyHistoryGap": {
+            "type": "boolean"
+          },
+          "opportunitiesHasMore": {
             "type": "boolean"
           }
         }
@@ -118587,7 +118607,8 @@
           "periodStart",
           "periodEnd",
           "proposalId",
-          "revision"
+          "revision",
+          "createdAt"
         ],
         "type": "object",
         "properties": {
@@ -118625,6 +118646,10 @@
           },
           "revision": {
             "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
