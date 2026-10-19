@@ -94,6 +94,237 @@ public sealed class ClientRelationshipsAndRoutingTests
     Assert.False(deactivatedContact.IsActive);
   }
 
+  [Theory]
+  [InlineData("update-profile", true)]
+  [InlineData("set-archived", true)]
+  [InlineData("create-relationship", true)]
+  [InlineData("revoke-relationship", true)]
+  [InlineData("update-profile", false)]
+  [Trait("Profile", "Database")]
+  public async Task ClientMutators_RefuseAuthorityRevokedWhileWaitingForFirmSafetyFence(
+    string mutation, bool advanceSessionEpoch)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(seed.Staff, "Manager");
+    var relatedClientId = Guid.NewGuid();
+    var relationshipId = Guid.NewGuid();
+
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.PracticeClients.Add(new PracticeClient
+      {
+        Id = relatedClientId, FirmId = seed.FirmId, LegalName = "Related test client",
+        Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      setup.ClientSafetyStates.Add(new AuditSphereOps.Domain.Completion.ClientSafetyState
+      {
+        Id = relatedClientId, FirmId = seed.FirmId
+      });
+      setup.RoleGrants.AddRange(
+        PbcSeed.Grant(seed.FirmId, seed.Staff, "Manager", clientId: seed.ClientId),
+        PbcSeed.Grant(seed.FirmId, seed.Staff, "Manager", clientId: relatedClientId));
+      if (mutation == "revoke-relationship")
+        setup.ClientRelationships.Add(new ClientRelationship
+        {
+          Id = relationshipId, FirmId = seed.FirmId, PrimaryClientId = seed.ClientId,
+          RelatedClientId = relatedClientId, RelationshipKind = ClientRelationshipKinds.Affiliate,
+          CreatedByUserId = seed.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
+        });
+      await setup.SaveChangesAsync();
+    }
+
+    ClientProfileSnapshot profileBefore;
+    long generationBefore;
+    LifecycleSnapshot[] lifecycleBefore;
+    RelationshipSnapshot[] relationshipsBefore;
+    await using (var before = new AuditSphereDbContext(pg.Options))
+    {
+      profileBefore = await before.PracticeClients.AsNoTracking().Where(x => x.Id == seed.ClientId)
+        .Select(x => new ClientProfileSnapshot(x.LegalName, x.CommercialName, x.RegistrationNumber,
+          x.TaxRegistrationNumber, x.EntityType, x.Jurisdiction, x.RestrictedProfile, x.Status))
+        .SingleAsync();
+      generationBefore = await before.ClientSafetyStates.AsNoTracking()
+        .Where(x => x.Id == seed.ClientId).Select(x => x.InputGeneration).SingleAsync();
+      lifecycleBefore = await before.ClientLifecycleEvents.AsNoTracking()
+        .Where(x => x.FirmId == seed.FirmId && x.ClientId == seed.ClientId)
+        .OrderBy(x => x.Revision)
+        .Select(x => new LifecycleSnapshot(x.Id, x.Revision, x.EventKind, x.ActorUserId, x.OccurredAt))
+        .ToArrayAsync();
+      relationshipsBefore = await before.ClientRelationships.AsNoTracking()
+        .Where(x => x.FirmId == seed.FirmId &&
+          (x.PrimaryClientId == seed.ClientId || x.RelatedClientId == seed.ClientId))
+        .OrderBy(x => x.Id)
+        .Select(x => new RelationshipSnapshot(x.Id, x.PrimaryClientId, x.RelatedClientId,
+          x.RelationshipKind, x.OwnershipPercentage, x.Notes, x.CreatedByUserId, x.CreatedAt,
+          x.RevokedByUserId, x.RevokedAt, x.RevocationReason))
+        .ToArrayAsync();
+    }
+
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await blocker.Database.OpenConnectionAsync();
+    var blockerPid = ((NpgsqlConnection)blocker.Database.GetDbConnection()).ProcessID;
+    await using var tx = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {seed.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+
+    var probe = new FirmLockAttempt();
+    var mutationOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(probe).Options;
+    await using var mutator = new AuditSphereDbContext(mutationOptions);
+    using var mutationTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var mutationTask = ExecuteClientMutationAsync(mutation, mutator, actor, seed, relatedClientId,
+      relationshipId, mutationTimeout.Token);
+    var lockReached = probe.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+    if (await Task.WhenAny(lockReached, mutationTask) != lockReached)
+    {
+      var early = await mutationTask;
+      Assert.Fail($"{mutation} completed before acquiring the firm safety fence " +
+        $"(Succeeded={early.Succeeded}, ErrorCode={early.ErrorCode}).");
+    }
+
+    var waitingPid = await lockReached;
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await WaitForFirmBlockingPidAsync(observer, waitingPid, blockerPid);
+    Assert.False(mutationTask.IsCompleted);
+
+    var revokedAt = DateTimeOffset.UtcNow;
+    var revokedGrants = await blocker.RoleGrants.Where(g => g.FirmId == seed.FirmId &&
+        g.UserId == actor.UserId && g.Role == "Manager" && g.EngagementId == null &&
+        (g.ClientId == seed.ClientId || g.ClientId == relatedClientId))
+      .ExecuteUpdateAsync(update => update.SetProperty(g => g.RevokedAt, revokedAt));
+    Assert.Equal(2, revokedGrants);
+    if (advanceSessionEpoch)
+      await blocker.Users.Where(u => u.Id == actor.UserId)
+        .ExecuteUpdateAsync(update => update.SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
+    await tx.CommitAsync();
+
+    var result = await mutationTask.WaitAsync(TimeSpan.FromSeconds(20));
+    Assert.False(result.Succeeded);
+    Assert.Equal(advanceSessionEpoch ? ErrorCodes.GenerationStale : ErrorCodes.ScopeDenied, result.ErrorCode);
+
+    await using var after = new AuditSphereDbContext(pg.Options);
+    var profileAfter = await after.PracticeClients.AsNoTracking().Where(x => x.Id == seed.ClientId)
+      .Select(x => new ClientProfileSnapshot(x.LegalName, x.CommercialName, x.RegistrationNumber,
+        x.TaxRegistrationNumber, x.EntityType, x.Jurisdiction, x.RestrictedProfile, x.Status))
+      .SingleAsync();
+    var generationAfter = await after.ClientSafetyStates.AsNoTracking()
+      .Where(x => x.Id == seed.ClientId).Select(x => x.InputGeneration).SingleAsync();
+    var lifecycleAfter = await after.ClientLifecycleEvents.AsNoTracking()
+      .Where(x => x.FirmId == seed.FirmId && x.ClientId == seed.ClientId)
+      .OrderBy(x => x.Revision)
+      .Select(x => new LifecycleSnapshot(x.Id, x.Revision, x.EventKind, x.ActorUserId, x.OccurredAt))
+      .ToArrayAsync();
+    var relationshipsAfter = await after.ClientRelationships.AsNoTracking()
+      .Where(x => x.FirmId == seed.FirmId &&
+        (x.PrimaryClientId == seed.ClientId || x.RelatedClientId == seed.ClientId))
+      .OrderBy(x => x.Id)
+      .Select(x => new RelationshipSnapshot(x.Id, x.PrimaryClientId, x.RelatedClientId,
+        x.RelationshipKind, x.OwnershipPercentage, x.Notes, x.CreatedByUserId, x.CreatedAt,
+        x.RevokedByUserId, x.RevokedAt, x.RevocationReason))
+      .ToArrayAsync();
+
+    Assert.Equal(profileBefore, profileAfter);
+    Assert.Equal(generationBefore, generationAfter);
+    Assert.Equal(lifecycleBefore, lifecycleAfter);
+    Assert.Equal(relationshipsBefore, relationshipsAfter);
+  }
+
+  [Theory]
+  [InlineData("identical")]
+  [InlineData("inverse-parent")]
+  [Trait("Profile", "Database")]
+  public async Task ConcurrentRelationshipCreation_PublishesOnlyOneNonConflictingEdge(string competingEdges)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(seed.Admin, "Administrator");
+    var relatedClientId = Guid.NewGuid();
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.PracticeClients.Add(new PracticeClient
+      {
+        Id = relatedClientId, FirmId = seed.FirmId, LegalName = "Concurrent relationship client",
+        Status = "Active", CreatedAt = DateTimeOffset.UtcNow
+      });
+      setup.ClientSafetyStates.Add(new AuditSphereOps.Domain.Completion.ClientSafetyState
+      {
+        Id = relatedClientId, FirmId = seed.FirmId
+      });
+      await setup.SaveChangesAsync();
+    }
+
+    var firstRequest = new CreateClientRelationshipRequest(
+      seed.ClientId, relatedClientId, ClientRelationshipKinds.Parent);
+    var secondRequest = competingEdges == "inverse-parent"
+      ? new CreateClientRelationshipRequest(relatedClientId, seed.ClientId, ClientRelationshipKinds.Parent)
+      : firstRequest;
+
+    await using var blocker = new AuditSphereDbContext(pg.Options);
+    await blocker.Database.OpenConnectionAsync();
+    await using var tx = await blocker.Database.BeginTransactionAsync();
+    await blocker.FirmSafetyStates.FromSqlInterpolated(
+      $"SELECT * FROM firm_safety_states WHERE id = {seed.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+
+    var firstProbe = new FirmLockAttempt();
+    var secondProbe = new FirmLockAttempt();
+    var firstOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(firstProbe).Options;
+    var secondOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(secondProbe).Options;
+    await using var firstWriter = new AuditSphereDbContext(firstOptions);
+    await using var secondWriter = new AuditSphereDbContext(secondOptions);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+    var firstTask = PracticeCrmService.CreateClientRelationshipAsync(firstWriter, actor, firstRequest, timeout.Token);
+    var secondTask = PracticeCrmService.CreateClientRelationshipAsync(secondWriter, actor, secondRequest, timeout.Token);
+
+    var firstLockReached = firstProbe.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+    if (await Task.WhenAny(firstLockReached, firstTask) != firstLockReached)
+    {
+      var early = await firstTask;
+      Assert.Fail($"First relationship command completed before the firm fence " +
+        $"(Succeeded={early.Succeeded}, ErrorCode={early.ErrorCode}).");
+    }
+    var secondLockReached = secondProbe.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+    if (await Task.WhenAny(secondLockReached, secondTask) != secondLockReached)
+    {
+      var early = await secondTask;
+      Assert.Fail($"Second relationship command completed before the firm fence " +
+        $"(Succeeded={early.Succeeded}, ErrorCode={early.ErrorCode}).");
+    }
+
+    var firstPid = await firstLockReached;
+    var secondPid = await secondLockReached;
+    Assert.NotEqual(firstPid, secondPid);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await WaitForAnyFirmLockBlockerAsync(observer, firstPid);
+    await WaitForAnyFirmLockBlockerAsync(observer, secondPid);
+    Assert.False(firstTask.IsCompleted);
+    Assert.False(secondTask.IsCompleted);
+
+    await tx.CommitAsync();
+    var results = await Task.WhenAll(firstTask, secondTask).WaitAsync(TimeSpan.FromSeconds(25));
+    Assert.Single(results, result => result.Succeeded);
+    var rejected = Assert.Single(results, result => !result.Succeeded);
+    Assert.Equal(competingEdges == "inverse-parent" ? "crm.relationship-cycle" : "crm.duplicate",
+      rejected.ErrorCode);
+
+    await using var after = new AuditSphereDbContext(pg.Options);
+    var activeEdges = await after.ClientRelationships.AsNoTracking()
+      .Where(x => x.FirmId == seed.FirmId && x.RevokedAt == null &&
+        ((x.PrimaryClientId == seed.ClientId && x.RelatedClientId == relatedClientId) ||
+         (x.PrimaryClientId == relatedClientId && x.RelatedClientId == seed.ClientId)))
+      .Select(x => new { x.PrimaryClientId, x.RelatedClientId, x.RelationshipKind })
+      .ToArrayAsync();
+    var edge = Assert.Single(activeEdges);
+    Assert.Equal(ClientRelationshipKinds.Parent, edge.RelationshipKind);
+    if (competingEdges == "identical")
+    {
+      Assert.Equal(seed.ClientId, edge.PrimaryClientId);
+      Assert.Equal(relatedClientId, edge.RelatedClientId);
+    }
+  }
+
   [Fact]
   public async Task OrganizationRelationships_BuildsHierarchy_AndEnforcesCycleAndBoundaryInvariants()
   {
@@ -194,9 +425,26 @@ public sealed class ClientRelationshipsAndRoutingTests
     Assert.Equal(ErrorCodes.ScopeDenied, crossFirm.ErrorCode);
 
     // 5. Revocation of relationship with reason
+    await using var staleContext = new AuditSphereDbContext(pg.Options);
+    var staleRelationship = await staleContext.ClientRelationships.SingleAsync(x => x.Id == rAff.Value);
+    Assert.Null(staleRelationship.RevokedAt);
+
     var revoke = await PracticeCrmService.RevokeClientRelationshipAsync(db, partner, new RevokeClientRelationshipRequest(
       holdingId, rAff.Value, "Joint venture dissolved by mutual consent."));
     Assert.True(revoke.Succeeded);
+
+    ClientRelationship firstEvidence;
+    await using (var evidenceRead = new AuditSphereDbContext(pg.Options))
+      firstEvidence = await evidenceRead.ClientRelationships.AsNoTracking().SingleAsync(x => x.Id == rAff.Value);
+    var staleRetry = await PracticeCrmService.RevokeClientRelationshipAsync(staleContext, partner,
+      new RevokeClientRelationshipRequest(holdingId, rAff.Value, "A later retry must preserve the first reason."));
+    Assert.True(staleRetry.Succeeded, staleRetry.Message);
+    ClientRelationship retainedEvidence;
+    await using (var evidenceRead = new AuditSphereDbContext(pg.Options))
+      retainedEvidence = await evidenceRead.ClientRelationships.AsNoTracking().SingleAsync(x => x.Id == rAff.Value);
+    Assert.Equal(firstEvidence.RevokedAt, retainedEvidence.RevokedAt);
+    Assert.Equal(firstEvidence.RevokedByUserId, retainedEvidence.RevokedByUserId);
+    Assert.Equal(firstEvidence.RevocationReason, retainedEvidence.RevocationReason);
 
     var treeAfterRevoke = await PracticeCrmService.GetClientHierarchyAsync(db, partner, holdingId);
     var retainedAffiliate = Assert.Single(treeAfterRevoke.Value!.Affiliates);
@@ -658,6 +906,47 @@ public sealed class ClientRelationshipsAndRoutingTests
       $"{mutation} should complete successfully once the firm fence is released.");
   }
 
+  private static async Task<(bool Succeeded, string? ErrorCode)> ExecuteClientMutationAsync(
+    string mutation,
+    AuditSphereDbContext db,
+    ActorContext actor,
+    PbcSeed.Fixture seed,
+    Guid relatedClientId,
+    Guid relationshipId,
+    CancellationToken ct)
+  {
+    switch (mutation)
+    {
+      case "update-profile":
+      {
+        var result = await PracticeCrmService.UpdateClientProfileAsync(db, actor,
+          new UpdateClientProfileRequest(seed.ClientId, "Unauthorized profile update", ExpectedGeneration: 1), ct);
+        return (result.Succeeded, result.ErrorCode);
+      }
+      case "set-archived":
+      {
+        var result = await PracticeCrmService.SetClientArchivedAsync(db, actor,
+          new SetClientArchiveRequest(seed.ClientId, true, ExpectedRevision: 0), ct);
+        return (result.Succeeded, result.ErrorCode);
+      }
+      case "create-relationship":
+      {
+        var result = await PracticeCrmService.CreateClientRelationshipAsync(db, actor,
+          new CreateClientRelationshipRequest(seed.ClientId, relatedClientId, ClientRelationshipKinds.Affiliate,
+            OwnershipPercentage: 25m, Notes: "Unauthorized relationship"), ct);
+        return (result.Succeeded, result.ErrorCode);
+      }
+      case "revoke-relationship":
+      {
+        var result = await PracticeCrmService.RevokeClientRelationshipAsync(db, actor,
+          new RevokeClientRelationshipRequest(seed.ClientId, relationshipId, "Authority was revoked."), ct);
+        return (result.Succeeded, result.ErrorCode);
+      }
+      default:
+        throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown client mutation.");
+    }
+  }
+
   private static async Task<bool> ExecuteContactMutationAsync(
     string mutation,
     AuditSphereDbContext db,
@@ -689,6 +978,46 @@ public sealed class ClientRelationshipsAndRoutingTests
           (await ClientContactCreationWorkspace.ExecuteAsync(db, actor, seed.ClientId, reviewedCreation, ct)).Succeeded;
       default:
         throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown contact mutation.");
+    }
+  }
+
+  private sealed record ClientProfileSnapshot(
+    string LegalName, string? CommercialName, string? RegistrationNumber, string? TaxRegistrationNumber,
+    string? EntityType, string? Jurisdiction, string? RestrictedProfile, string Status);
+
+  private sealed record LifecycleSnapshot(
+    Guid Id, long Revision, string EventKind, Guid ActorUserId, DateTimeOffset OccurredAt);
+
+  private sealed record RelationshipSnapshot(
+    Guid Id, Guid PrimaryClientId, Guid RelatedClientId, string RelationshipKind, decimal? OwnershipPercentage,
+    string? Notes, Guid CreatedByUserId, DateTimeOffset CreatedAt, Guid? RevokedByUserId,
+    DateTimeOffset? RevokedAt, string? RevocationReason);
+
+  private static async Task WaitForAnyFirmLockBlockerAsync(AuditSphereDbContext observer, int waitingPid)
+  {
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+    try
+    {
+      while (true)
+      {
+        await observer.Database.ExecuteSqlRawAsync("SELECT pg_stat_clear_snapshot()", timeout.Token);
+        var blocked = await observer.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS waiting
+            WHERE waiting.datname = current_database()
+              AND waiting.pid = {waitingPid}
+              AND waiting.wait_event_type = 'Lock'
+              AND waiting.query ILIKE '%firm_safety_states%'
+              AND cardinality(pg_blocking_pids(waiting.pid)) > 0
+          ) AS "Value"
+          """).SingleAsync(timeout.Token);
+        if (blocked) return;
+        await Task.Delay(TimeSpan.FromMilliseconds(25), timeout.Token);
+      }
+    }
+    catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+    {
+      Assert.Fail($"PostgreSQL did not show session {waitingPid} waiting on a firm-fence blocker.");
     }
   }
 

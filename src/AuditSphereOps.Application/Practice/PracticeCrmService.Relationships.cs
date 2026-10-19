@@ -93,15 +93,18 @@ public static partial class PracticeCrmService
     if (!auth.Succeeded) return CommandResult<ClientArchiveState>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<ClientArchiveState>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.ClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<ClientArchiveState>.Fail(auth.ErrorCode!, auth.Message!);
+
     var client = await db.PracticeClients.FromSqlInterpolated(
       $"SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (client is null)
       return CommandResult<ClientArchiveState>.Fail(ErrorCodes.ScopeDenied, "Client unavailable.");
-
-    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, ClientId: request.ClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
-    if (!auth.Succeeded) return CommandResult<ClientArchiveState>.Fail(auth.ErrorCode!, auth.Message!);
 
     var latest = await db.ClientLifecycleEvents.AsNoTracking().Where(e => e.FirmId == actor.FirmId && e.ClientId == request.ClientId)
       .OrderByDescending(e => e.Revision).Select(e => new { e.Revision, e.EventKind }).FirstOrDefaultAsync(ct);
@@ -144,6 +147,13 @@ public static partial class PracticeCrmService
     if (!auth.Succeeded) return auth;
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.ClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
+
     var client = await db.PracticeClients.SingleOrDefaultAsync(x => x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
     if (client is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
@@ -238,6 +248,18 @@ public static partial class PracticeCrmService
       new AuthorizationRequest(actor.FirmId, ClientId: request.RelatedClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
     if (!authRelated.Succeeded) return CommandResult<Guid>.Fail(authRelated.ErrorCode!, authRelated.Message!);
 
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
+    authPrimary = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.PrimaryClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!authPrimary.Succeeded) return CommandResult<Guid>.Fail(authPrimary.ErrorCode!, authPrimary.Message!);
+
+    authRelated = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: request.RelatedClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!authRelated.Succeeded) return CommandResult<Guid>.Fail(authRelated.ErrorCode!, authRelated.Message!);
+
     var primaryClient = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PrimaryClientId && x.FirmId == actor.FirmId, ct);
     var relatedClient = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.RelatedClientId && x.FirmId == actor.FirmId, ct);
     if (primaryClient is null || relatedClient is null)
@@ -293,6 +315,7 @@ public static partial class PracticeCrmService
 
     db.ClientRelationships.Add(relationship);
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(relationship.Id);
   }
 
@@ -302,21 +325,45 @@ public static partial class PracticeCrmService
     if (string.IsNullOrWhiteSpace(request.Reason))
       return CommandResult.Fail("crm.invalid", "A revocation reason is required.");
 
+    var preflightRelationship = await db.ClientRelationships.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.Id == request.RelationshipId && x.FirmId == actor.FirmId &&
+        (x.PrimaryClientId == request.ClientId || x.RelatedClientId == request.ClientId), ct);
+    if (preflightRelationship is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Relationship not found.");
+
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: preflightRelationship.PrimaryClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return auth;
+
+    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (await LockFirmAsync(db, actor.FirmId, ct) is null)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+
     var rel = await db.ClientRelationships.SingleOrDefaultAsync(x => x.Id == request.RelationshipId && x.FirmId == actor.FirmId &&
       (x.PrimaryClientId == request.ClientId || x.RelatedClientId == request.ClientId), ct);
     if (rel is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Relationship not found.");
 
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+    var relEntry = db.ClientRelationships.Attach(rel);
+    await relEntry.ReloadAsync(ct);
+    if (relEntry.State == EntityState.Detached || rel.FirmId != actor.FirmId ||
+        (rel.PrimaryClientId != request.ClientId && rel.RelatedClientId != request.ClientId))
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Relationship not found.");
+
+    auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, ClientId: rel.PrimaryClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return auth;
 
-    if (rel.RevokedAt.HasValue) return CommandResult.Ok();
+    if (rel.RevokedAt.HasValue)
+    {
+      await tx.CommitAsync(ct);
+      return CommandResult.Ok();
+    }
 
     rel.RevokedAt = DateTimeOffset.UtcNow;
     rel.RevokedByUserId = actor.UserId;
     rel.RevocationReason = request.Reason.Trim();
 
     await db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 
