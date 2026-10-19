@@ -326,7 +326,7 @@ public static partial class PracticeTimeService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a bound workflow task can be cancelled.");
 
     // Recover an unknown committed response only for the exact immutable intent; different intent at that old revision conflicts.
-    if (task.Status == PracticeTimeStates.TaskCancelled && expectedRevision < long.MaxValue &&
+    if (expectedRevision < long.MaxValue &&
         workflowBinding.Revision >= expectedRevision + 1)
     {
       var priorCancellations = await db.WorkflowTaskActivities.AsNoTracking().Where(x =>

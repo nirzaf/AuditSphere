@@ -50,6 +50,8 @@ public sealed class AngularWorkflowOrderingJourneyTests
     await Assertions.Expect(row.GetByRole(AriaRole.Button, new() { Name = "Complete task", Exact = true })).ToHaveCountAsync(0);
     await page.UnrouteAsync(routePattern);
     var firstRow = page.Locator("tbody tr").Filter(new() { HasText = firstTitle });
+    await Assertions.Expect(firstRow.GetByRole(AriaRole.Button,
+      new() { Name = "Reopen task", Exact = true })).ToHaveCountAsync(0);
     await firstRow.GetByRole(AriaRole.Button, new() { Name = "Review task ordering", Exact = true }).ClickAsync();
     await panel.GetByLabel("Predecessor task", new() { Exact = true }).SelectOptionAsync(second.ToString());
     await panel.GetByLabel("Reason for ordering change", new() { Exact = true }).FillAsync("Synthetic opposite edge must fail.");
@@ -143,8 +145,86 @@ public sealed class AngularWorkflowOrderingJourneyTests
       Assert.Empty(await db.AuditProcedureReviews.ToListAsync());
       Assert.False(await db.WorkTasks.AnyAsync(x => x.Status == PracticeTimeStates.TaskCompleted));
     }
+    var inspectReopenBefore = Environment.GetEnvironmentVariable("AUDITSPHERE_REOPEN_INSPECT_BEFORE") == "true";
+    var reopenButton = cancelledRow.GetByRole(AriaRole.Button, new() { Name = "Reopen task", Exact = true });
+    await Assertions.Expect(reopenButton).ToBeVisibleAsync();
+    if (inspectReopenBefore)
+      await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/work", "workflow-reopening-review");
+    await reopenButton.FocusAsync();
+    await page.Keyboard.PressAsync("Enter");
+    var reopeningComponent = page.Locator("audit-workflow-task-cancellation");
+    await Assertions.Expect(reopeningComponent).ToHaveCountAsync(1);
+    var reopening = reopeningComponent.GetByRole(AriaRole.Region,
+      new() { Name = "Review task reopening", Exact = true });
+    var reopeningHeading = reopening.GetByRole(AriaRole.Heading,
+      new() { Name = "Review task reopening", Exact = true });
+    await Assertions.Expect(reopeningHeading).ToBeFocusedAsync();
+    await Assertions.Expect(reopeningComponent).ToContainTextAsync(first.ToString());
+    const string reopeningReason = "The predecessor is needed again to complete the required operational sequence.";
+    var reopeningReasonField = reopening.GetByLabel("Reason for reopening", new() { Exact = true });
+    await reopeningReasonField.FillAsync(reopeningReason);
+    var reviewReopening = reopening.GetByRole(AriaRole.Button,
+      new() { Name = "Review reopening", Exact = true });
+    await reviewReopening.FocusAsync();
+    await page.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(reopeningHeading).ToBeFocusedAsync();
+    var reopeningAssent = reopening.GetByRole(AriaRole.Checkbox);
+    await Assertions.Expect(reopeningAssent).Not.ToBeCheckedAsync();
+    var backToReason = reopening.GetByRole(AriaRole.Button, new() { Name = "Back to reason", Exact = true });
+    await backToReason.FocusAsync();
+    await page.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(reopeningReasonField).ToBeFocusedAsync();
+    await Assertions.Expect(reopeningReasonField).ToHaveValueAsync(reopeningReason);
+    await reviewReopening.FocusAsync();
+    await page.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(reopeningHeading).ToBeFocusedAsync();
+    await Assertions.Expect(reopeningAssent).Not.ToBeCheckedAsync();
+    await reopeningAssent.FocusAsync();
+    await page.Keyboard.PressAsync("Space");
+    await Assertions.Expect(reopeningAssent).ToBeCheckedAsync();
+    var confirmReopening = reopening.GetByRole(AriaRole.Button,
+      new() { Name = "Confirm task reopening", Exact = true });
+    await Assertions.Expect(confirmReopening).ToBeEnabledAsync();
+    await confirmReopening.FocusAsync();
+    await Assertions.Expect(confirmReopening).ToBeFocusedAsync();
+    var reopeningResponseTask = page.WaitForResponseAsync(response => response.Request.Method == "POST" && response.Url.EndsWith("/reopen"));
+    await page.Keyboard.PressAsync("Enter");
+    var reopeningResponse = await reopeningResponseTask;
+    Assert.True(reopeningResponse.Ok, await reopeningResponse.TextAsync());
+    await Assertions.Expect(cancelledRow).ToHaveCountAsync(0);
+    var workQueueViews = page.GetByRole(AriaRole.Navigation,
+      new() { Name = "Work queue views", Exact = true });
+    await workQueueViews.GetByRole(AriaRole.Button, new() { Name = "My tasks", Exact = true }).ClickAsync();
+    var reopenedRow = page.Locator("tbody tr").Filter(new() { HasText = firstTitle });
+    await Assertions.Expect(reopenedRow).ToBeVisibleAsync();
+    var reopenedStatus = reopenedRow.Locator("audit-status .status-chip");
+    await Assertions.Expect(reopenedStatus).ToHaveAttributeAsync("data-status", PracticeTimeStates.TaskOpen);
+    await Assertions.Expect(reopenedStatus).ToHaveTextAsync("open");
+    await Assertions.Expect(reopenedRow.GetByRole(AriaRole.Button,
+      new() { Name = "Reopen task", Exact = true })).ToHaveCountAsync(0);
+    var dependentRow = page.Locator("tbody tr").Filter(new() { HasText = secondTitle });
+    await Assertions.Expect(dependentRow).ToBeVisibleAsync();
+    await Assertions.Expect(dependentRow).ToContainTextAsync("1 task prerequisite(s) incomplete");
+    await Assertions.Expect(dependentRow.GetByRole(AriaRole.Button,
+      new() { Name = "Complete task", Exact = true })).ToHaveCountAsync(0);
+    await using (var db = host.CreateDbContext()) {
+      var reopened = await db.WorkTasks.SingleAsync(x => x.Id == first);
+      Assert.Equal(PracticeTimeStates.TaskOpen, reopened.Status);
+      var cancelledEvent = await db.WorkflowTaskActivities.SingleAsync(x => x.Kind == "TASK_CANCELLED");
+      var reopenedEvent = Assert.Single(await db.WorkflowTaskActivities.Where(x => x.Kind == "TASK_REOPENED").ToListAsync());
+      Assert.Equal(first, reopenedEvent.WorkTaskId);
+      Assert.Equal(reopeningReason, reopenedEvent.Reason);
+      Assert.Equal(f.Admin.Id, reopenedEvent.ActorUserId);
+      Assert.Equal(cancelledEvent.TaskRevision + 1, reopenedEvent.TaskRevision);
+      Assert.Equal(2, await db.WorkTasks.CountAsync());
+      Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync());
+      Assert.Single(await db.WorkflowTaskDependencyRevisions.ToListAsync());
+      Assert.Empty(await db.MaterialityApprovals.ToListAsync());
+      Assert.Empty(await db.AuditProcedureReviews.ToListAsync());
+      Assert.False(await db.WorkTasks.AnyAsync(x => x.Status == PracticeTimeStates.TaskCompleted));
+    }
     await page.SetViewportSizeAsync(390, 844);
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1")); Assert.Empty(errors);
-    if (!inspectBefore) await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/work");
+    if (!inspectBefore && !inspectReopenBefore) await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/work");
   }
 }

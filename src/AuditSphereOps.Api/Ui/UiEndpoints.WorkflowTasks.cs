@@ -23,6 +23,8 @@ public static partial class UiEndpoints
   public sealed record WorkflowTaskCompletionInput(long ExpectedRevision);
   /// <summary>The exact reason and reviewed revision for cancelling one operational task.</summary>
   public sealed record WorkflowTaskCancellationInput(string Reason, long ExpectedRevision);
+  /// <summary>The exact reason and reviewed revision for reopening one cancelled operational task.</summary>
+  public sealed record WorkflowTaskReopeningInput(string Reason, long ExpectedRevision);
   public sealed record WorkflowTaskDueDateInput(string? DueDate, long ExpectedRevision);
   public sealed record WorkflowDependencyChangeInput(Guid PredecessorTaskId, bool Required, long ExpectedRevision,
     long ExpectedPredecessorRevision, string Reason, Guid IdempotencyKey);
@@ -188,6 +190,22 @@ public static partial class UiEndpoints
         return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
       });
     }).WithDescription("Cancels one active operational task under the current scoped management grant and expected revision. Retains its reason and activity; never approves source work or satisfies a dependent task's prerequisite.")
+      .WithT046Response<UiValueResponse<bool>>(includeConflict: true, includeNotFound: true);
+
+    tasks.MapPost("/{taskId:guid}/reopen", (
+      Guid engagementId, Guid taskId, WorkflowTaskReopeningInput input, HttpContext http) =>
+    {
+      if (input.ExpectedRevision < 1 || string.IsNullOrWhiteSpace(input.Reason) || input.Reason.Trim().Length > 2000)
+        return Task.FromResult(Invalid("Review the current task revision and enter a reopening reason of 1 to 2000 characters."));
+      return CommandAsync(http, async (db, actor, ct) =>
+      {
+        var scoped = await EngagementWorkflowTaskService.EnsureTaskScopeAsync(db, actor, engagementId, taskId, ct);
+        if (!scoped.Succeeded) return CommandResult<bool>.Fail(scoped.ErrorCode!, scoped.Message!);
+        var result = await EngagementWorkflowTaskService.ReopenAsync(db, actor, taskId,
+          input.Reason, input.ExpectedRevision, ct);
+        return result.Succeeded ? CommandResult<bool>.Ok(true) : CommandResult<bool>.Fail(result.ErrorCode!, result.Message!);
+      });
+    }).WithDescription("Reopens one cancelled operational task under the current scoped management grant and expected revision. Retains its reopening reason and activity; never approves source work or changes professional decisions.")
       .WithT046Response<UiValueResponse<bool>>(includeConflict: true, includeNotFound: true);
 
     tasks.MapPost("/{taskId:guid}/due-date", (

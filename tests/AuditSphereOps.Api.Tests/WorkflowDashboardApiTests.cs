@@ -210,7 +210,7 @@ public sealed class WorkflowDashboardApiTests
   }
 
   [Fact]
-  public async Task CancellationRequiresCurrentManagementScopeCsrfAndRevisionAndRetainsItsActivity()
+  public async Task CancellationAndReopeningRequireCurrentManagementScopeCsrfAndRevisionAndRetainTheirActivity()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-WORKFLOW-CANCELLATION");
     var f = await PbcSeed.SeedAsync(pg);
@@ -220,11 +220,15 @@ public sealed class WorkflowDashboardApiTests
       taskId = await CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.EngagementId,
         "Synthetic retained cancellation", 1, DateOnly.FromDateTime(DateTime.UtcNow), f.Staff.Id);
     var path = $"/api/ui/engagements/{f.EngagementId}/workflow/tasks/{taskId}/cancel";
+    var reopenPath = $"/api/ui/engagements/{f.EngagementId}/workflow/tasks/{taskId}/reopen";
     var body = new { reason = "  Duplicate operational coordination is no longer required.  ", expectedRevision = 1 };
+    var reopenBody = new { reason = "Resume the task after the coordination hold was resolved.", expectedRevision = 2 };
     using var adminFactory = Factory(pg, f.Admin);
     using var admin = adminFactory.CreateClient(new() { AllowAutoRedirect = false });
     using var anonymous = await admin.PostAsJsonAsync(path, body);
     Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+    using var anonymousReopen = await admin.PostAsJsonAsync(reopenPath, reopenBody);
+    Assert.Equal(HttpStatusCode.Unauthorized, anonymousReopen.StatusCode);
     var csrf = await SignInForCommands(admin);
     using var staffFactory = Factory(pg, f.Staff);
     using var staff = staffFactory.CreateClient();
@@ -241,10 +245,13 @@ public sealed class WorkflowDashboardApiTests
     Assert.Equal(taskId, managerRow.TaskId);
     Assert.Equal(PracticeTimeStates.TaskInProgress, managerRow.TaskStatus);
     Assert.True(managerRow.CanCancel);
+    Assert.False(managerRow.CanReopen);
     var staffQueue = (await staff.GetFromJsonAsync<WorkflowTaskQueue>(QueuePath + "?view=MY_TASKS"))!;
     Assert.False(Assert.Single(staffQueue.Tasks).CanCancel);
     using var forged = await PostCommand(admin, "forged", path, body);
     Assert.Equal(HttpStatusCode.Forbidden, forged.StatusCode);
+    using var forgedReopen = await PostCommand(admin, "forged", reopenPath, reopenBody);
+    Assert.Equal(HttpStatusCode.Forbidden, forgedReopen.StatusCode);
     using var staffDenied = await PostCommand(staff, staffCsrf, path, body);
     Assert.Equal(HttpStatusCode.Forbidden, staffDenied.StatusCode);
     using var clientDenied = await PostCommand(client, clientCsrf, path, body);
@@ -254,6 +261,9 @@ public sealed class WorkflowDashboardApiTests
     using var wrongRoute = await PostCommand(admin, csrf,
       $"/api/ui/engagements/{Guid.NewGuid()}/workflow/tasks/{taskId}/cancel", body);
     Assert.Equal(HttpStatusCode.Forbidden, wrongRoute.StatusCode);
+    using var wrongReopenRoute = await PostCommand(admin, csrf,
+      $"/api/ui/engagements/{Guid.NewGuid()}/workflow/tasks/{taskId}/reopen", reopenBody);
+    Assert.Equal(HttpStatusCode.Forbidden, wrongReopenRoute.StatusCode);
     using var blank = await PostCommand(admin, csrf, path, new { reason = " ", expectedRevision = 1 });
     Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
     using var stale = await PostCommand(admin, csrf, path, new { body.reason, expectedRevision = 2 });
@@ -278,14 +288,44 @@ public sealed class WorkflowDashboardApiTests
     Assert.Equal(taskId, retained.TaskId);
     Assert.Equal(PracticeTimeStates.TaskCancelled, retained.TaskStatus);
     Assert.False(retained.CanCancel);
+    Assert.True(retained.CanReopen);
     Assert.False(retained.CanComplete);
     Assert.False(retained.CanAssign);
     Assert.Equal(2, retained.Revision);
+    var staffCancelled = (await staff.GetFromJsonAsync<WorkflowTaskQueue>(QueuePath + "?view=CANCELLED"))!;
+    Assert.False(Assert.Single(staffCancelled.Tasks).CanReopen);
+    using var staffDeniedReopen = await PostCommand(staff, staffCsrf, reopenPath, reopenBody);
+    Assert.Equal(HttpStatusCode.Forbidden, staffDeniedReopen.StatusCode);
+    using var blankReopen = await PostCommand(admin, csrf, reopenPath,
+      new { reason = " ", expectedRevision = 2 });
+    Assert.Equal(HttpStatusCode.BadRequest, blankReopen.StatusCode);
+    using var staleReopen = await PostCommand(admin, csrf, reopenPath,
+      new { reopenBody.reason, expectedRevision = 1 });
+    Assert.Equal(HttpStatusCode.Conflict, staleReopen.StatusCode);
+    using var reopened = await PostCommand(admin, csrf, reopenPath, reopenBody);
+    Assert.Equal(HttpStatusCode.OK, reopened.StatusCode);
+    using var reopenResult = JsonDocument.Parse(await reopened.Content.ReadAsStringAsync());
+    Assert.True(reopenResult.RootElement.GetProperty("value").GetBoolean());
+    using var reopenRepeat = await PostCommand(admin, csrf, reopenPath, reopenBody);
+    Assert.Equal(HttpStatusCode.OK, reopenRepeat.StatusCode);
+    using var differentReopenIntent = await PostCommand(admin, csrf, reopenPath,
+      new { reason = "A different reopening intent must not reuse the old revision.", expectedRevision = 2 });
+    Assert.Equal(HttpStatusCode.Conflict, differentReopenIntent.StatusCode);
+    using var historicalCancellation = await PostCommand(admin, csrf, path, body);
+    Assert.Equal(HttpStatusCode.OK, historicalCancellation.StatusCode);
+    var reopenedTeam = (await admin.GetFromJsonAsync<WorkflowTaskQueue>(QueuePath + "?view=TEAM"))!;
+    var reopenedRow = Assert.Single(reopenedTeam.Tasks);
+    Assert.Equal(PracticeTimeStates.TaskOpen, reopenedRow.TaskStatus);
+    Assert.Equal(3, reopenedRow.Revision);
+    Assert.True(reopenedRow.CanCancel);
+    Assert.False(reopenedRow.CanReopen);
+    var noLongerCancelled = (await admin.GetFromJsonAsync<WorkflowTaskQueue>(QueuePath + "?view=CANCELLED"))!;
+    Assert.Empty(noLongerCancelled.Tasks);
     var exact = (await admin.GetFromJsonAsync<WorkflowTaskWorkspace>(
       $"/api/ui/engagements/{f.EngagementId}/workflow/tasks?taskId={taskId}"))!;
     Assert.False(exact.Truncated);
     Assert.Equal(taskId, Assert.Single(exact.Tasks).Id);
-    Assert.Equal(PracticeTimeStates.TaskCancelled, Assert.Single(exact.Tasks).Status);
+    Assert.Equal(PracticeTimeStates.TaskOpen, Assert.Single(exact.Tasks).Status);
     var absent = (await admin.GetFromJsonAsync<WorkflowTaskWorkspace>(
       $"/api/ui/engagements/{f.EngagementId}/workflow/tasks?taskId={Guid.NewGuid()}"))!;
     Assert.Empty(absent.Tasks);
@@ -294,10 +334,17 @@ public sealed class WorkflowDashboardApiTests
     var cancellation = Assert.Single(activity.Events, x => x.Kind == "TASK_CANCELLED");
     Assert.Equal(body.reason.Trim(), cancellation.Reason);
     Assert.Equal(2, cancellation.TaskRevision);
+    var reopening = Assert.Single(activity.Events, x => x.Kind == "TASK_REOPENED");
+    Assert.Equal(f.Admin.DisplayName, reopening.ActorDisplayName);
+    Assert.Equal(reopenBody.reason, reopening.Reason);
+    Assert.Equal(3, reopening.TaskRevision);
     await using var proof = new AuditSphereDbContext(pg.Options);
     var savedEvent = Assert.Single(await proof.WorkflowTaskActivities.Where(x => x.Kind == "TASK_CANCELLED").ToListAsync());
     Assert.Equal(f.Admin.Id, savedEvent.ActorUserId);
     Assert.Equal(taskId, savedEvent.WorkTaskId);
+    var savedReopening = Assert.Single(await proof.WorkflowTaskActivities.Where(x => x.Kind == "TASK_REOPENED").ToListAsync());
+    Assert.Equal(f.Admin.Id, savedReopening.ActorUserId);
+    Assert.Equal(taskId, savedReopening.WorkTaskId);
     Assert.Single(await proof.WorkTasks.ToListAsync());
     Assert.Single(await proof.WorkflowTaskBindings.ToListAsync());
     Assert.Empty(await proof.MaterialityApprovals.ToListAsync());
@@ -306,6 +353,8 @@ public sealed class WorkflowDashboardApiTests
       setters.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
     using var revoked = await PostCommand(admin, csrf, path, body);
     Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
+    using var revokedReopen = await PostCommand(admin, csrf, reopenPath, reopenBody);
+    Assert.Equal(HttpStatusCode.Unauthorized, revokedReopen.StatusCode);
   }
 
   [Fact]

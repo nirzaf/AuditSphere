@@ -214,4 +214,9 @@ public static class EngagementWorkflowTaskService
     IAuditSphereDbContext db, ActorContext actor, Guid taskId, string reason,
     long expectedRevision, CancellationToken ct = default) =>
     PracticeTimeService.CancelWorkflowTaskAsync(db, actor, taskId, reason, expectedRevision, ct);
+  public static Task<CommandResult> ReopenAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid taskId, string reason,
+    long expectedRevision, CancellationToken ct = default) =>
+    PracticeTimeService.ReopenWorkflowTaskAsync(db, actor, taskId, reason, expectedRevision, ct);
+
 }

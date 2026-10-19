@@ -22,7 +22,7 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   bool CanChangeDueDate, bool CanAssign, long Revision,
   Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment,
   int UnmetEvidencePrerequisites = 0, string SourceKey = "", Guid? TemplateRevisionId = null, Guid? TemplateStepId = null,
-  bool? RequiredTask = null, bool CanCancel = false);
+  bool? RequiredTask = null, bool CanCancel = false, bool CanReopen = false);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor, WorkflowTaskQueueSummary? Summary = null);
 public sealed record WorkflowTaskQueueCount(string View, string Count);
@@ -136,7 +136,7 @@ public static class WorkflowTaskQueueQuery
         task.Id, ClientId = binding.ClientId, ClientName = client.LegalName, EngagementId = binding.EngagementId,
         EngagementServiceRoute = engagement.ServiceRoute,
         EngagementPeriod = engagement.PeriodStart + " – " + engagement.PeriodEnd,
-        task.Title, task.Status, task.AssigneeUserId, task.DueDate, task.MappingVersionId, task.FsliCode,
+        task.Title, task.Status, task.CompletedAt, task.AssigneeUserId, task.DueDate, task.MappingVersionId, task.FsliCode,
         PbcRequestId = binding.PbcRequestId, PbcState = pbcRequest == null ? null : pbcRequest.State,
         ReviewState = reviewResult != null && currentResult != null &&
           reviewResult.Status == AuditProcedureResultStatuses.ChangesRequired &&
@@ -266,7 +266,7 @@ public static class WorkflowTaskQueueQuery
         x.AssigneeUserId, x.AssigneeUserId is { } userId ? assignees.GetValueOrDefault(userId) : null,
         x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, canAssign, x.Revision,
         x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment, unmetEvidence,
-        x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask, canCancel);
+        x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask, canCancel, x.Status == PracticeTimeStates.TaskCancelled && !x.CompletedAt.HasValue && x.Revision < long.MaxValue && CanElevatedManage(x.ClientId, x.EngagementId));
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,

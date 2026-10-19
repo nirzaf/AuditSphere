@@ -10,6 +10,7 @@ import { QUEUE_DISPLAYS, QueueDisplay, boardColumns, queueCalendar } from './wor
 import { WorkflowTaskDependenciesPanel } from './workflow-task-dependencies';
 import { WorkflowTaskEvidencePanel } from './workflow-task-evidence';
 import { decodeWorkflowTaskWorkspace, WorkflowTaskCancellationPanel } from './workflow-task-cancellation';
+import type { WorkflowTaskRecoveryAction } from './workflow-task-cancellation';
 
 const nonBlank = (max: number) => (value: unknown, path: string): string => {
   const decoded = str(max)(value, path);
@@ -21,16 +22,16 @@ const queueTaskShape = obj({
   engagementPeriod: str(80), title: str(300), phase: str(40), ordinal: int, taskStatus: str(40),
   assigneeUserId: nullable(guid), assigneeDisplayName: nullable(str(200)), dueDate: nullable(date),
   mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), unmetTaskDependencies: int, unmetEvidencePrerequisites: int,
-  canComplete: bool, canChangeDueDate: bool, canAssign: bool, canCancel: nullable(bool), revision: int,
+  canComplete: bool, canChangeDueDate: bool, canAssign: bool, canCancel: nullable(bool), canReopen: nullable(bool), revision: int,
   sourceKey: str(500), templateRevisionId: nullable(guid), templateStepId: nullable(guid),
   requiredTask: nullable(bool),
   pbcRequestId: nullable(guid), pbcState: nullable(str(32)),
   reviewState: nullable(str(30)), reviewComment: nullable(str(20000)),
 });
-/** Older API payloads omit the server-projected cancellation affordance; absence always fails closed. */
+/** Older API payloads omit server-projected recovery affordances; absence always fails closed. */
 const queueTask = (value: unknown, path: string) => {
   const decoded = queueTaskShape(value, path);
-  return { ...decoded, canCancel: decoded.canCancel ?? false };
+  return { ...decoded, canCancel: decoded.canCancel ?? false, canReopen: decoded.canReopen ?? false };
 };
 type QueueTask = ReturnType<typeof queueTask>;
 /** Readiness presentation from server-evaluated facts; never inferred from viewer action permissions. */
@@ -79,14 +80,17 @@ const reviewItem = obj({ resultId: guid, procedureId: guid, engagementId: guid, 
 const decodeReviewInbox = obj({ reviews: arr(reviewItem, 100), hasMore: bool,
   nextCursor: nullable(obj({ submittedAt: instant, resultId: guid })) });
 const activityEventShape = obj({
-  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED', 'TASK_CANCELLED', 'TASK_DUE_DATE_CHANGED', 'TASK_EVIDENCE_RULE_CHANGED', 'TASK_DEPENDENCIES_CHANGED'),
+  id: guid, kind: oneOf('TASK_CREATED', 'TASK_ASSIGNED', 'TASK_REASSIGNED', 'TASK_COMPLETED', 'TASK_CANCELLED', 'TASK_REOPENED', 'TASK_DUE_DATE_CHANGED', 'TASK_EVIDENCE_RULE_CHANGED', 'TASK_DEPENDENCIES_CHANGED'),
   sourceLabel: oneOf('Operational Task'), actorDisplayName: nonBlank(200),
   assigneeDisplayName: nullable(str(200)), taskRevision: int, reason: nullable(str(2000)),
   previousDueDate: nullable(date), newDueDate: nullable(date), occurredAt: instant,
 });
 const activityEvent = (value: unknown, path: string) => {
   const event = activityEventShape(value, path);
-  if (event.kind === 'TASK_CANCELLED' && !event.reason?.trim()) throw new Error(`${path}.reason: expected non-empty cancellation reason`);
+  if (event.kind === 'TASK_CANCELLED' && !event.reason?.trim())
+    throw new Error(`${path}.reason: expected non-empty cancellation reason`);
+  if (event.kind === 'TASK_REOPENED' && !event.reason?.trim())
+    throw new Error(`${path}.reason: expected non-empty reopening reason`);
   return event;
 };
 export const decodeActivity = obj({
@@ -209,6 +213,10 @@ const queueViews: { key: QueueView; label: string }[] = [
           <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
             (click)="openCancellation(task, $event)">Cancel task</button>
         }
+        @if (task.canReopen && task.taskStatus === 'CANCELLED') {
+          <button matButton [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
+            (click)="openReopening(task, $event)">Reopen task</button>
+        }
         @if (task.canAssign) { <button matButton (click)="openAssignment(task)"> {{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }} </button> }
       </article>
     </ng-template>
@@ -298,6 +306,9 @@ const queueViews: { key: QueueView; label: string }[] = [
                 @if (task.canComplete) { <button matButton="filled" (click)="complete(task.engagementId, task.taskId, task.revision)" [disabled]="command.busy()">Complete task</button> }
                 @if (task.canCancel) { <button matButton [attr.data-cancel-engagement]="task.engagementId" [attr.data-cancel-task]="task.taskId"
                   (click)="openCancellation(task, $event)">Cancel task</button> }
+                @if (task.canReopen && task.taskStatus === 'CANCELLED') { <button matButton
+                  [attr.data-reopen-engagement]="task.engagementId" [attr.data-reopen-task]="task.taskId"
+                  (click)="openReopening(task, $event)">Reopen task</button> }
                 @if (task.canAssign) { <button matButton (click)="openAssignment(task)">{{ task.assigneeUserId ? 'Reassign task' : 'Assign task' }}</button> }</td>
             </tr>
           } @empty {
@@ -379,6 +390,7 @@ const queueViews: { key: QueueView; label: string }[] = [
                   <small>{{ event.previousDueDate ?? 'No due date' }} → {{ event.newDueDate ?? 'No due date' }}</small>
                 }
                 @if (event.kind === 'TASK_CANCELLED') { <small>Cancellation reason: {{ event.reason }}</small> }
+                @if (event.kind === 'TASK_REOPENED') { <small>Reopening reason: {{ event.reason }}</small> }
                 <time [attr.datetime]="event.occurredAt">{{ event.occurredAt }}</time>
               </li>
             } @empty {
@@ -392,7 +404,7 @@ const queueViews: { key: QueueView; label: string }[] = [
       </section>
     }
     @if (cancellationTask(); as selected) {
-      <audit-workflow-task-cancellation [task]="selected" (changed)="cancellationChanged()"
+      <audit-workflow-task-cancellation [task]="selected" [action]="cancellationAction()" (changed)="cancellationChanged()"
         (reviewActivity)="reviewCancellationActivity(selected)" (refreshRequested)="refreshCancellationQueue()"
         (closeRequested)="closeCancellation()" />
     }
@@ -419,6 +431,7 @@ export class WorkflowWorkQueue {
   readonly orderingTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly evidenceTask = signal<{ engagementId: string; taskId: string; title: string } | null>(null);
   readonly cancellationTask = signal<QueueTask | null>(null);
+  readonly cancellationAction = signal<WorkflowTaskRecoveryAction>('cancel');
   readonly assignmentTask = signal<QueueTask | null>(null);
   readonly assignmentOptions = signal<{ userId: string; displayName: string }[]>([]);
   readonly assignmentUserId = signal('');
@@ -434,7 +447,7 @@ export class WorkflowWorkQueue {
   private assignmentIntent: AssignmentIntent | null = null;
   private assignmentRequest = 0;
   private assignmentDestroyed = false;
-  private cancellationTrigger: { taskId: string; engagementId: string; element: HTMLButtonElement } | null = null;
+  private cancellationTrigger: { taskId: string; engagementId: string; action: WorkflowTaskRecoveryAction; element: HTMLButtonElement } | null = null;
   private focusInteraction = 0;
   private workQueueDestroyed = false;
   private readonly cursor = signal<{ dueDate: string | null; taskId: string } | null>(null);
@@ -483,7 +496,7 @@ export class WorkflowWorkQueue {
       this.session.invalidation(); this.session.current();
       untracked(() => {
         this.evidenceTask.set(null); this.orderingTask.set(null); this.activityTask.set(null);
-        this.cancellationTask.set(null); this.cancellationTrigger = null; this.resetAssignment();
+        this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null; this.resetAssignment();
       });
     });
     inject(DestroyRef).onDestroy(() => { this.assignmentDestroyed = true; this.workQueueDestroyed = true; ++this.assignmentRequest; });
@@ -510,21 +523,21 @@ export class WorkflowWorkQueue {
   }
 
   selectView(value: QueueView): void {
-    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationTrigger = null;
+    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null;
     this.cursor.set(null);
     this.ownerFilter.set('ALL');
     this.selectedView.set(value);
   }
 
   selectOwnerFilter(value: string): void {
-    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationTrigger = null;
+    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null;
     if (this.selectedView() === 'MY_TASKS' || !['ALL', 'ME', 'UNASSIGNED'].includes(value)) return;
     this.cursor.set(null);
     this.ownerFilter.set(value as 'ALL' | 'ME' | 'UNASSIGNED');
   }
 
   nextPage(cursor: { dueDate: string | null; taskId: string }): void {
-    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationTrigger = null;
+    this.evidenceTask.set(null); this.orderingTask.set(null); this.cancellationTask.set(null); this.cancellationAction.set('cancel'); this.cancellationTrigger = null;
     this.cursor.set(cursor);
   }
 
@@ -549,15 +562,26 @@ export class WorkflowWorkQueue {
     return ({ TASK_CREATED: 'Task created', TASK_ASSIGNED: 'Task assigned',
       TASK_REASSIGNED: 'Task reassigned', TASK_COMPLETED: 'Task completed',
       TASK_CANCELLED: 'Task cancelled',
+      TASK_REOPENED: 'Task reopened',
       TASK_DUE_DATE_CHANGED: 'Due date changed', TASK_EVIDENCE_RULE_CHANGED: 'Evidence prerequisite changed', TASK_DEPENDENCIES_CHANGED: 'Task ordering changed' } as Record<string, string>)[kind] ?? 'Workflow event';
   }
 
   openCancellation(task: QueueTask, event: MouseEvent): void {
-    if (!task.canCancel || this.cancellationTask()) return;
+    this.openRecovery(task, 'cancel', event);
+  }
+
+  openReopening(task: QueueTask, event: MouseEvent): void {
+    if (task.taskStatus !== 'CANCELLED') return;
+    this.openRecovery(task, 'reopen', event);
+  }
+
+  private openRecovery(task: QueueTask, action: WorkflowTaskRecoveryAction, event: MouseEvent): void {
+    if (this.cancellationTask() || !this.canRecover(task, action)) return;
     const trigger = event.currentTarget as HTMLButtonElement;
     const owner = this.sessionOwnerKey();
     const interaction = this.focusInteraction;
-    this.cancellationTrigger = { taskId: task.taskId, engagementId: task.engagementId, element: trigger };
+    this.cancellationTrigger = { taskId: task.taskId, engagementId: task.engagementId, action, element: trigger };
+    this.cancellationAction.set(action);
     this.cancellationTask.set(task);
     afterNextRender(() => {
       const document = trigger.ownerDocument;
@@ -568,23 +592,34 @@ export class WorkflowWorkQueue {
     }, { injector: this.renderInjector });
   }
 
+  private canRecover(task: QueueTask, action: WorkflowTaskRecoveryAction): boolean {
+    return action === 'cancel' ? task.canCancel : task.canReopen && task.taskStatus === 'CANCELLED';
+  }
+
   closeCancellation(): void {
     const selected = this.cancellationTask();
     if (!selected) return;
     const owner = this.sessionOwnerKey();
     const interaction = this.focusInteraction;
     const trigger = this.cancellationTrigger;
+    const action = trigger?.action ?? this.cancellationAction();
     const document = this.hostElement.nativeElement.ownerDocument;
     const active = document.activeElement;
     this.cancellationTask.set(null);
+    this.cancellationAction.set('cancel');
     this.cancellationTrigger = null;
     afterNextRender(() => {
       if (this.workQueueDestroyed || owner !== this.sessionOwnerKey() || interaction !== this.focusInteraction ||
           (document.activeElement !== active && document.activeElement !== document.body)) return;
+      const selector = action === 'cancel' ? 'button[data-cancel-task]' : 'button[data-reopen-task]';
+      const taskAttribute = action === 'cancel' ? 'cancelTask' : 'reopenTask';
+      const engagementAttribute = action === 'cancel' ? 'cancelEngagement' : 'reopenEngagement';
       const current = trigger?.element.isConnected ? trigger.element :
-        [...this.hostElement.nativeElement.querySelectorAll<HTMLButtonElement>('button[data-cancel-task]')]
-          .find(button => button.dataset['cancelTask'] === selected.taskId && button.dataset['cancelEngagement'] === selected.engagementId);
-      if (current?.isConnected) current.focus();
+        [...this.hostElement.nativeElement.querySelectorAll<HTMLButtonElement>(selector)]
+          .find(button => button.dataset[taskAttribute] === selected.taskId && button.dataset[engagementAttribute] === selected.engagementId);
+      const freshFallback = this.hostElement.nativeElement.querySelector<HTMLButtonElement>('.queue-views button[aria-pressed="true"]') ??
+        this.hostElement.nativeElement.querySelector<HTMLButtonElement>('.queue-views button');
+      (current?.isConnected ? current : freshFallback)?.focus();
     }, { injector: this.renderInjector });
   }
 
@@ -604,6 +639,7 @@ export class WorkflowWorkQueue {
     this.activityCursor.set(null);
     this.activityTask.set({ engagementId: task.engagementId, taskId: task.taskId, title: task.title });
     this.cancellationTask.set(null);
+    this.cancellationAction.set('cancel');
     this.cancellationTrigger = null;
     this.queue.reload();
     if (sameTask && alreadyAtFirstPage) this.activity.reload();
