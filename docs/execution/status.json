@@ -200,54 +200,7 @@
           "currentEvidence": "targetedVerification.commercialFinality20261019.ci and operationalReadiness20261019.ci",
           "scope": "Earlier source-scoped CI observations retained intact; latest full verification is not complete."
         },
-        "followUp": {
-          "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityOlderFollowUp20261019",
-          "summary": "Earlier rendered checks retained; native sampling limitation was superseded by samplingKeyboardFollowUp. Human AT/full-state gates remain open."
-        },
-        "reviewFocusFollowUp": {
-          "sourceCommit": "a90ead3fe609b06677ed433563fe32479a1c4ace",
-          "result": "IMPLEMENTED_FOCUSED_PASS",
-          "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityReviewFocus20261019",
-          "summary": "Budget approval, staffing assignment/revocation and procedure keyboard review/cancel/recovery evidence retained intact. Deliberate pointer intent subsequently corrected in focusIntentFollowUp. Human AT/full-state acceptance remains open."
-        },
-        "focusIntentFollowUp": {
-          "sourceCommit": "c2949973377ec5239af7f7298d613ecde925c4a5",
-          "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFocusIntent20261019",
-          "summary": "Planning preview no longer steals deliberately moved focus; counterfactual failed and corrected focused cohort passed. Detailed evidence and remaining human/full-state limits retained intact in archive."
-        },
-        "consolidationFocusFollowUp": {
-          "sourceCommit": "f14756bc6897acb4708abf6e34013ba1fef94166",
-          "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-          "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityConsolidationKeyboardBeforeAtomicity20261019",
-          "summary": "Approved external-pack keyboard, signed retained amounts, mobile reflow and native evidence preserved. Internal-package/full-state and human AT acceptance remain open."
-        },
-        "samplingKeyboardFollowUp": {
-          "sourceCommit": "423d7f578cf475a9e050a8d70d049561b663f17d",
-          "result": "FOCUSED_PASS",
-          "archive": "status-archive-2026-10.json#keys.targetedVerification.angularQualitySamplingKeyboardBeforeAtomicity20261019",
-          "summary": "Native result typeahead/Tab commitment, persisted exception and independent-review evidence retained. Human AT/full-state acceptance remains open."
-        },
-        "roleDialogKeyboardFollowUp": {
-          "sourceCommit": "9f977805d75a9655f7aa9bba87e79c97fb33740b",
-          "result": "FOCUSED_PASS",
-          "archive": "status-archive-2026-10.json#keys.targetedVerification.roleDialogKeyboardBeforeFirmReport20261019",
-          "summary": "Focused E2E and native Tab/Shift+Tab/Escape evidence retained; no role changed. Human AT/full-state acceptance remains open."
-        },
-        "evidenceKeyboardFollowUp": {
-          "sourceCommit": "c5e59521",
-          "result": "FOCUSED_PASS",
-          "baseline": "New keyboard journey failed on old UI: preview did not receive focus.",
-          "angular": "10/10 affected specs PASS; production build and changed-file lint PASS; existing completion optional-chain/commercial stylesheet warnings.",
-          "e2e": {
-            "passed": 2,
-            "failed": 0,
-            "skipped": 0,
-            "trx": "/tmp/auditsphere-accessibility-followup/evidence-keyboard-final.trx"
-          },
-          "browser": "Built-in owned synthetic staff fixture: native Tab/Enter preview focus, cancel returns to trigger, fresh assent unchecked/dispatch disabled, named history table, console clean. No dispatch; no live data.",
-          "screenshot": "/tmp/auditsphere-evidence-keyboard-native.png",
-          "limits": "Default desktop viewport; prior narrow receipt check retained. Full state matrix and knowledgeable human AT review remain open."
-        }
+        "accessibilityFollowUpsArchive": "status-archive-2026-10.json#keys.targetedVerification.angularQualityAccessibilityFollowUps20261019"
       },
       "task05": {
         "sourceCommit": "f90aeac29ced43f9c11fee45891e09a61d9a2b31",
