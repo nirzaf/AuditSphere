@@ -21020,6 +21020,44 @@
         "scope": "Full Angular, build/contracts and Domain passed; API/E2E remain active. Predates this code commit."
       },
       "limits": "No full local suites, live providers or professional acceptance. All queue views together, human assistive-technology acceptance and current-source full release remain open."
+    },
+    "crmCorePublicationFencesBeforeOpportunityPaging20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "b6eac7d6e1120cc9616fe5d529e780aee4bc011d",
+      "behavior": "CreateLead, QualifyLead, ReviseProposal, ApproveProposal, SendProposal and RecordProposalResponse reauthorize after the firm lock before replay/no-op/publication. CreateLead also revalidates active owner. Existing request/dispatch/response identity checks remain intact.",
+      "baseline": {
+        "failed": 6,
+        "passed": 0,
+        "trx": "/tmp/auditsphere-crm-core-results/crm-core-before.trx",
+        "scope": "All six returned stale success after coordinated grant revocation/epoch change before lock acquisition; SendProposal used an already-sent replay."
+      },
+      "after": {
+        "positivePassed": 3,
+        "authorityPassed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "directory": "/tmp/auditsphere-crm-core-results",
+        "artifacts": [
+          "crm-core-after.trx",
+          "crm-core-authority-after.trx"
+        ],
+        "scope": "All six revocation/epoch cases, distinct lead-owner disable, same-epoch lead grant-only revocation; complete synthetic commercial conversion remains acceptance-pending, exact lead/proposal retries retained. Fresh snapshots compare all CRM, quotation/document, notification and response evidence."
+      },
+      "verificationNotes": "Corrected test failure identity assertion to accept the established kernel Guid.Empty default without masking nonempty IDs. A theory rename caused the first after-filter to select only three positive tests; verified counts, then ran the eight intended negative cases against the rebuilt binaries without repeating positives.",
+      "review": "Independent source review found no blocker; coordinated lock-command boundary proves revocation precedes acquisition, without claiming observed PostgreSQL wait-event state.",
+      "ciCleanup": {
+        "retainedRun": 39248636107,
+        "retainedSource": "1cd06d3622d0270d3cdb8131c32f9373e5292362",
+        "retainedStatus": "IN_PROGRESS",
+        "supersededCancelled": [
+          39242189106,
+          39243233310,
+          39244273033,
+          39244821206
+        ],
+        "reason": "Four overlapping, self-created older-revision full runs were confirmed cancelled after verifying the newer full run live. Superseded cancellations are not regression failures."
+      },
+      "limits": "No full local suites, schema/API/UI/provider changes. Existing full CI is on the preceding source and is not current-commit release acceptance. Full current-source verification remains a CI/nightly gate; no duplicate full run dispatched for this slice. Broader CRM states, older-opportunity paging and professional/provider acceptance remain open."
     }
   }
 }

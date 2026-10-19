@@ -227,3 +227,7 @@ Existing populated imported-source and native-ledger journeys now verify that in
 ## CRM authority and keyboard recovery
 
 Opportunity creation rechecks actor/session and owner eligibility under the firm lock before replay or publication. Lead qualification and history paging now preserve intentional keyboard focus, and refresh clears stale confirmations. Focused Domain, component and both-route browser checks passed; built-in current-build evidence and remaining CRM/release limits are in `status.json` under `crmAuthorityAndFocus20261019`.
+
+## Core CRM publication authority
+
+Core lead/proposal writers now reauthorize under the firm lock before publication or replay; lead creation also rechecks its owner. Coordinated revocation regressions and existing positive workflow/retry checks passed. Evidence, superseded CI cleanup and remaining commercial/release gates are in `status.json` under `crmCorePublicationFences20261019`. Next is bounded older-opportunity discovery.

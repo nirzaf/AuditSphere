@@ -1158,40 +1158,60 @@
     "crmCorePublicationFences20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "codeCommit": "b6eac7d6e1120cc9616fe5d529e780aee4bc011d",
-      "behavior": "CreateLead, QualifyLead, ReviseProposal, ApproveProposal, SendProposal and RecordProposalResponse reauthorize after the firm lock before replay/no-op/publication. CreateLead also revalidates active owner. Existing request/dispatch/response identity checks remain intact.",
-      "baseline": {
-        "failed": 6,
-        "passed": 0,
-        "trx": "/tmp/auditsphere-crm-core-results/crm-core-before.trx",
-        "scope": "All six returned stale success after coordinated grant revocation/epoch change before lock acquisition; SendProposal used an already-sent replay."
+      "evidenceArchive": "status-archive-2026-10.json#keys.crmCorePublicationFencesBeforeOpportunityPaging20261019",
+      "scope": "Core lead/proposal lock-time authority; focused negative and positive cohorts passed. Full current-source acceptance remains separate."
+    },
+    "opportunityPagingAccessibility20261019": {
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "codeCommit": "0db1b1ea596d9755d91b7891cb9a5b25fc7ecbba",
+      "behavior": "Existing lead GET pages opportunities independently using scoped UTC timestamp/ID cursor, CreatedAt DESC/Id ASC and 100-row pages. Angular appends/deduplicates without replacing history or drafts; session/route/refresh fence stale responses. Keyboard success focuses first new heading; decode/transient failure restores retry only while interaction ownership holds. Authorization denial clears protected state.",
+      "verification": {
+        "domain": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "filter": "FullyQualifiedName~LeadOpportunities_",
+          "scope": "201 tied timestamps in 100/100/1 pages; microseconds, equivalent timezone cursor, malformed/wrong-time/cross-lead/cross-firm cursors and client-scoped denial."
+        },
+        "angular": {
+          "passed": 16,
+          "failed": 0,
+          "spec": "src/app/features/commercial/opportunities.spec.ts",
+          "scope": "Owner fencing, independent history/draft retention, precision, deduplication, keyboard success/fallback/retry/no-steal and denial."
+        },
+        "e2e": {
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "filter": "FullyQualifiedName~LeadQualificationConfirmationIdentifiesExactRecordAndKeepsAcceptanceSeparate",
+          "scope": "Both route forms; real API/owned PostgreSQL, qualification cancel/success, history203, opportunities201, first-new focus, malformed400/cross-lead403, no proposal mutation and 390px reflow."
+        },
+        "artifacts": "/tmp/auditsphere-opportunity-page-results",
+        "angularBuild": "PASS; existing completion optional-chain and commercial settings SCSS-budget warnings.",
+        "openApi": "Regenerated actual endpoint contract; drift PASS. No migration/dependency changes."
       },
-      "after": {
-        "positivePassed": 3,
-        "authorityPassed": 8,
-        "failed": 0,
-        "skipped": 0,
-        "directory": "/tmp/auditsphere-crm-core-results",
-        "artifacts": [
-          "crm-core-after.trx",
-          "crm-core-authority-after.trx"
-        ],
-        "scope": "All six revocation/epoch cases, distinct lead-owner disable, same-epoch lead grant-only revocation; complete synthetic commercial conversion remains acceptance-pending, exact lead/proposal retries retained. Fresh snapshots compare all CRM, quotation/document, notification and response evidence."
+      "browser": {
+        "result": "FOCUSED_PASS",
+        "environment": "Built-in browser, explicit current production bundle, owned loopback API/PostgreSQL fixture, external effects disabled.",
+        "observed": "390px viewport / 375px document; 100/200/201 cards, 203 history events preserved; first-new heading indices100/200 focused, final pager removed, oldest entity visible; no console warnings/errors.",
+        "screenshot": "/tmp/auditsphere-opportunity-paging-keyboard-final.png",
+        "provenance": "First fixture cached prior index during rebuild and requested removed asset. Disposed/restarted after final build; only final fixture used for acceptance."
       },
-      "verificationNotes": "Corrected test failure identity assertion to accept the established kernel Guid.Empty default without masking nonempty IDs. A theory rename caused the first after-filter to select only three positive tests; verified counts, then ran the eight intended negative cases against the rebuilt binaries without repeating positives.",
-      "review": "Independent source review found no blocker; coordinated lock-command boundary proves revocation precedes acquisition, without claiming observed PostgreSQL wait-event state.",
-      "ciCleanup": {
-        "retainedRun": 39248636107,
-        "retainedSource": "1cd06d3622d0270d3cdb8131c32f9373e5292362",
-        "retainedStatus": "IN_PROGRESS",
-        "supersededCancelled": [
-          39242189106,
-          39243233310,
-          39244273033,
-          39244821206
-        ],
-        "reason": "Four overlapping, self-created older-revision full runs were confirmed cancelled after verifying the newer full run live. Superseded cancellations are not regression failures."
+      "review": "Independent review passed after contract regeneration and retry-focus fix. New fixture loop corrected before execution.",
+      "ci": {
+        "precedingFast": {
+          "runId": 39250627019,
+          "sourceCommit": "cbbb4653db46b76defc5756060b465a2d84439a1",
+          "result": "FAST_CI_PASS"
+        },
+        "retainedFull": {
+          "runId": 39248636107,
+          "sourceCommit": "1cd06d3622d0270d3cdb8131c32f9373e5292362",
+          "result": "IN_PROGRESS",
+          "observed": "Domain, Angular and build/contracts pass; API/E2E running, no failed steps observed. Earlier source is not current release acceptance."
+        }
       },
-      "limits": "No full local suites, schema/API/UI/provider changes. Existing full CI is on the preceding source and is not current-commit release acceptance. Full current-source verification remains a CI/nightly gate; no duplicate full run dispatched for this slice. Broader CRM states, older-opportunity paging and professional/provider acceptance remain open."
+      "limits": "No full local suites. Whole-product human screen-reader review and supported-state matrix, other CRM writers, professional/provider and current-source release acceptance remain open. No synthetic check establishes live readiness. Existing sort retained without speculative index/migration; unusually large per-lead histories need measured performance evidence."
     }
   },
   "externalGates": [
@@ -1704,7 +1724,7 @@
       },
       "releaseAcceptance": "NOT_VERIFIED"
     },
-    "nextTechnicalSlice": "Implement bounded older-opportunity discovery with current commercial scope, stable cursor validation and truthful has-more state; keep professional/provider and final-source full release acceptance separate."
+    "nextTechnicalSlice": "Review remaining commercial partial/provider writer authority and supported-state accessibility; retain human AT/professional/live-provider and final-source full CI release gates."
   },
   "m365ClientTenantGuide": {
     "baseline": "f409e7628f1b7b135bd89cc0a1631132dc79fa81",

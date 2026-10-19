@@ -19,9 +19,9 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Core CRM publication authority
+## Commercial paging accessibility
 
-Core lead/proposal writers now reauthorize under the firm lock before publication or replay; lead creation also rechecks its owner. Coordinated revocation regressions and existing positive workflow/retry checks passed. Evidence, superseded CI cleanup and remaining commercial/release gates are in `status.json` under `crmCorePublicationFences20261019`. Next is bounded older-opportunity discovery.
+Older opportunities now load independently of activity, retaining drafts and current scope. Keyboard success and recoverable failure preserve owned focus; stale or denied work cannot repopulate the workspace. Focused checks and built-in narrow-screen verification passed. Exact source, CI and limits: `status.json` → `opportunityPagingAccessibility20261019`. Human AT and full release acceptance remain open.
 
 ## Finance settlement accessibility and draft safety
 
