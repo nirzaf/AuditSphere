@@ -18819,6 +18819,22 @@
             "checks": "Readiness synchronization guard: Angular29/29; rebuilt finding E2E9/9. Pre-fix local cohort also9/9, so CI root cause remains unproven; timeout diagnostics now retain state HTTP status. Build/lint passed.",
             "pending": "Current-source full CI required; no full local suite."
           }
+        },
+        "quotationTimelineFixture20261020": {
+          "sourceCommit": "449f0f59",
+          "result": "FOCUSED_PASS",
+          "reason": "CI39488865780 Domain1464/1465: second positive dispatch proposal omitted required timeline. Added synthetic timeline; no production/assertion relaxation.",
+          "checks": "Dispatch binding and missing-timeline/legacy recovery: Passed2,Failed0,Skipped0.",
+          "pending": "Current-source full CI."
+        },
+        "workflowReminderScheduleBound20261020": {
+          "status": "FOCUSED_PASS",
+          "source": "a7df1799e1f063fcc6219d32fc2d8be09cf24df9",
+          "checks": "Release solution build; 3 changed Domain cases; 4 Angular specs; EF/OpenAPI drift; component lint; owned accessibility E2E 1/1; built-in browser draft validation/save/readback",
+          "pending": "Current-source full CI; human AT; no deployment",
+          "guide": "docs/operations/auditsphere-operations-guide-workflow-reminders-current.md",
+          "fullCiRun": 39475043022,
+          "responsive": "390x844 built-in browser: bound input/help visible; no page overflow or console errors; owned accessibility E2E 1/1"
         }
       }
     },

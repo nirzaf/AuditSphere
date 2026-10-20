@@ -1155,13 +1155,8 @@
       "deployment": "NOT_RUN"
     },
     "workflowReminderScheduleBound20261020": {
-      "status": "FOCUSED_PASS",
-      "source": "a7df1799e1f063fcc6219d32fc2d8be09cf24df9",
-      "checks": "Release solution build; 3 changed Domain cases; 4 Angular specs; EF/OpenAPI drift; component lint; owned accessibility E2E 1/1; built-in browser draft validation/save/readback",
-      "pending": "Current-source full CI; human AT; no deployment",
-      "guide": "docs/operations/auditsphere-operations-guide-workflow-reminders-current.md",
-      "fullCiRun": 39475043022,
-      "responsive": "390x844 built-in browser: bound input/help visible; no page overflow or console errors; owned accessibility E2E 1/1"
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.workflowReminderScheduleBound20261020",
+      "pending": "Full current-source release and applicable human acceptance remain open."
     },
     "templateEvidencePrerequisites20261020": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.templateEvidencePrerequisites20261020",
@@ -1194,17 +1189,21 @@
       "pending": "Current-source full CI; broader accounting/FX decisions remain open. No migration/deployment."
     },
     "quotationTimelineFixture20261020": {
-      "sourceCommit": "449f0f59",
-      "result": "FOCUSED_PASS",
-      "reason": "CI39488865780 Domain1464/1465: second positive dispatch proposal omitted required timeline. Added synthetic timeline; no production/assertion relaxation.",
-      "checks": "Dispatch binding and missing-timeline/legacy recovery: Passed2,Failed0,Skipped0.",
-      "pending": "Current-source full CI."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.quotationTimelineFixture20261020",
+      "pending": "Full current-source release and applicable human acceptance remain open."
     },
     "manualSettlementPreview20261020": {
       "sourceCommit": "19eddd0b",
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "checks": "Domain valid customer/supplier requests with sibling preview/create denials and no writes:2/2; deterministic API epoch change after read:1/1,401no preview/hash. OpenAPI/diff passed.",
       "limits": "No UI change/browser run; concurrent template setup initially failed, serial rerun passed. Separate template-lock repair pending. Full current-source CI remains open."
+    },
+    "postgresTemplateLock20261020": {
+      "sourceCommit": "38e7685a",
+      "result": "FOCUSED_PASS",
+      "scope": "Canonical unpooled postgres connection shares template advisory locking across Domain/API/E2E helpers;120s wait. No production changes.",
+      "checks": "One regression passed: actual pg_locks/blocking PID proved an auditsphere_tests admin caller waits in postgres. Prior parallel setup failed before assertions; serial Domain2/2 andAPI1/1 passed.",
+      "pending": "Current-source full CI; no full local suites."
     }
   },
   "externalGates": [
