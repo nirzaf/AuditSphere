@@ -1193,17 +1193,19 @@
       "pending": "Full current-source release and applicable human acceptance remain open."
     },
     "manualSettlementPreview20261020": {
-      "sourceCommit": "19eddd0b",
-      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "checks": "Domain valid customer/supplier requests with sibling preview/create denials and no writes:2/2; deterministic API epoch change after read:1/1,401no preview/hash. OpenAPI/diff passed.",
-      "limits": "No UI change/browser run; concurrent template setup initially failed, serial rerun passed. Separate template-lock repair pending. Full current-source CI remains open."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.manualSettlementPreview20261020",
+      "pending": "Full current-source CI remains open."
     },
     "postgresTemplateLock20261020": {
-      "sourceCommit": "38e7685a",
-      "result": "FOCUSED_PASS",
-      "scope": "Canonical unpooled postgres connection shares template advisory locking across Domain/API/E2E helpers;120s wait. No production changes.",
-      "checks": "One regression passed: actual pg_locks/blocking PID proved an auditsphere_tests admin caller waits in postgres. Prior parallel setup failed before assertions; serial Domain2/2 andAPI1/1 passed.",
-      "pending": "Current-source full CI; no full local suites."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.postgresTemplateLock20261020",
+      "pending": "Full current-source CI remains open."
+    },
+    "accountingPeriodEvidence20261021": {
+      "sourceCommit": "d88f7806",
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "checks": "API2/2: all categories, paging, exact revisions, sibling denial, late revocation. Angular16/16; E2E1/1 after selector fix; Angular build/lint and OpenAPI drift passed. Built-in mobile390px: selector/table agree, no overflow or console warnings/errors, exact GL acceptance link.",
+      "limits": "ASPM-ACC-05 PARTIAL. Bank/AR/AP work packs and approved monthly handover absent; full source/proof association matrix, human AT and current-source full CI pending. No deployment/provider actions.",
+      "screenshot": "/tmp/auditsphere-period-evidence-mobile-20261021.png"
     }
   },
   "externalGates": [

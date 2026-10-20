@@ -18835,6 +18835,19 @@
           "guide": "docs/operations/auditsphere-operations-guide-workflow-reminders-current.md",
           "fullCiRun": 39475043022,
           "responsive": "390x844 built-in browser: bound input/help visible; no page overflow or console errors; owned accessibility E2E 1/1"
+        },
+        "manualSettlementPreview20261020": {
+          "sourceCommit": "19eddd0b",
+          "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "checks": "Domain valid customer/supplier requests with sibling preview/create denials and no writes:2/2; deterministic API epoch change after read:1/1,401no preview/hash. OpenAPI/diff passed.",
+          "limits": "No UI change/browser run; concurrent template setup initially failed, serial rerun passed. Separate template-lock repair pending. Full current-source CI remains open."
+        },
+        "postgresTemplateLock20261020": {
+          "sourceCommit": "38e7685a",
+          "result": "FOCUSED_PASS",
+          "scope": "Canonical unpooled postgres connection shares template advisory locking across Domain/API/E2E helpers;120s wait. No production changes.",
+          "checks": "One regression passed: actual pg_locks/blocking PID proved an auditsphere_tests admin caller waits in postgres. Prior parallel setup failed before assertions; serial Domain2/2 andAPI1/1 passed.",
+          "pending": "Current-source full CI; no full local suites."
         }
       }
     },

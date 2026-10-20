@@ -7589,3 +7589,24 @@ Uncommitted implementation adds an explicit reviewed 1–100 schedule-window lim
 ## Documentation reconciliation — initial delivery (historical)
 
 The initial documentation slice was delivered through PR #46, and the companion API/Angular integration through PR #47; both are merged to `master`. This paragraph records delivery history only. Current dispositions, evidence and open gates are in the [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) and [`status.json`](status.json). D1-DRAFT-01 remains an unapproved review packet; qualified T003/G16/EOS and external acceptance requirements remain open.
+
+
+## Reminder schedule bound — 2026-10-20
+
+Implementation is pushed at `a7df1799`; focused and mobile evidence is retained in `workflowReminderScheduleBound20261020` in [status.json](status.json) and the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Current-source full release and human AT acceptance remain open; no deployment occurred.
+
+## Template evidence prerequisites — 2026-10-20
+
+Reusable templates now declare materiality, exact PBC and exact procedure prerequisites. Plans bind authorized engagement sources, retain immutable origin and recover receipts without duplicate tasks. Task completion still cannot approve professional evidence. Focused PostgreSQL, Angular and browser evidence, repaired HTTP/activity issues and release limits are tracked under `templateEvidencePrerequisites20261020` in [status.json](status.json). The [operator guide](../operations/auditsphere-operations-guide-workflow-template-evidence-current.md) describes configuration and recovery. Broad supported-state, human AT and full current-source release acceptance remain open.
+
+## Brief quotation timeline — 2026-10-20
+
+New brief quotations require a timeline; drafts and historical recovery remain supported. Focused and browser checks passed; current release is pending. Evidence: `quotationTimeline20261020` in [status.json](status.json).
+
+## Practice time phase
+
+Optional phase capture and retained display pass focused/API/browser checks. Full acceptance remains open; see `practiceTimePhase20261020` in `status.json`.
+
+## Firm reports and finding recovery
+
+Report paging/export now binds one source identity; finding recovery waits for synchronized context. Focused and browser checks passed. Full current-source CI remains pending; see `firmReportIdentity20261020` and `releaseRun39475043022` in `status.json`.

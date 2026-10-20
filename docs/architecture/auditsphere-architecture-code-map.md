@@ -24,7 +24,7 @@ capability; public APIs are stable across parts. Verified project state lives on
 - `Application/Accounting/ClientAccounting/ClientAccountingService.PeriodMaintenanceReceipts.cs`: transaction-owned publication, source fencing, replay and append-only outcome snapshots; existing period/restatement service entry points remain available.
 - `Domain/Accounting/PeriodMaintenanceReceipt.cs`, `Infrastructure/Persistence/AuditSphereDbContext.PeriodMaintenanceReceipts.cs`: immutable scoped request/effect evidence.
 - `Api/Ui/UiEndpoints.PeriodMaintenance.cs`; Angular `features/accounting/rollforward.ts`, `restatements.ts`, shared maintenance contracts and reviewed-state orchestration.
-- `Application/Accounting/AccountingPeriodRecordQuery.cs` and Angular `features/accounting/period.ts`: exact scoped reporting-period handoffs with final authorization and route identity validation.
+- `Application/Accounting/AccountingPeriodRecordQuery.cs`, `AccountingPeriodEvidenceQuery.cs` and Angular `features/accounting/period.ts` / `period-evidence.ts`: exact scoped reporting-period handoffs and nine independently paginated retained-evidence categories. Client-wide authorization, repeatable-read evidence pages and final authorization fences; Int64 revisions stay strings. PBC matches exact client/date range; receipt/proof history does not imply current validity, period readiness or monthly handover acceptance.
 
 ## Native client operational bookkeeping
 

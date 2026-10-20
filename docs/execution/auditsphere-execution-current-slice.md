@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Exact-period accounting evidence
+
+The accounting period page exposes separately paginated retained books, sources, completeness, reconciliation proofs, specialist schedules, PBC date matches and tasks. Each evidence page uses client-wide authorization, a consistent database snapshot and a fresh authorization fence before returning. Exact revisions remain strings. Receipt and proof history is not a current-validity or readiness decision. The category selector is verified against its displayed table; scope changes clear old results. Details and limits are recorded under `accountingPeriodEvidence20261021` in [status.json](status.json).
+
+ASPM-ACC-05 remains partial: typed bank/AR/AP work packs and approved monthly handover acceptance are not supplied by this view. Human screen-reader acceptance and full current-source CI remain separate gates. No deployment or provider action occurred.
+
 ## Accessibility recheck and current-SHA release verification (2026-10-20)
 
 Authenticated synthetic PBC checks cover mobile reflow, named controls, skip-link/navigation focus and unsent replies. Touched invalid replies, including whitespace-only text, expose `aria-invalid` and reference their error through `aria-describedby`; correction clears both. Evidence is in [`accessibilityRenderedSweep20261020`](status.json). Full state coverage and qualified human AT acceptance remain open.
@@ -311,22 +317,6 @@ GL upload checkpoint and earlier CI observations are preserved in the [historica
 
 > **Archive:** older dated handoff sections are retained verbatim in [`auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md`](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). They are historical evidence; consult `status.json` and current authority documents for present state.
 
-## Reminder schedule bound — 2026-10-20
+## Recent focused evidence
 
-Implementation is pushed at `a7df1799`; focused and mobile evidence is retained in `workflowReminderScheduleBound20261020` in [status.json](status.json) and the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Current-source full release and human AT acceptance remain open; no deployment occurred.
-
-## Template evidence prerequisites — 2026-10-20
-
-Reusable templates now declare materiality, exact PBC and exact procedure prerequisites. Plans bind authorized engagement sources, retain immutable origin and recover receipts without duplicate tasks. Task completion still cannot approve professional evidence. Focused PostgreSQL, Angular and browser evidence, repaired HTTP/activity issues and release limits are tracked under `templateEvidencePrerequisites20261020` in [status.json](status.json). The [operator guide](../operations/auditsphere-operations-guide-workflow-template-evidence-current.md) describes configuration and recovery. Broad supported-state, human AT and full current-source release acceptance remain open.
-
-## Brief quotation timeline — 2026-10-20
-
-New brief quotations require a timeline; drafts and historical recovery remain supported. Focused and browser checks passed; current release is pending. Evidence: `quotationTimeline20261020` in [status.json](status.json).
-
-## Practice time phase
-
-Optional phase capture and retained display pass focused/API/browser checks. Full acceptance remains open; see `practiceTimePhase20261020` in `status.json`.
-
-## Firm reports and finding recovery
-
-Report paging/export now binds one source identity; finding recovery waits for synchronized context. Focused and browser checks passed. Full current-source CI remains pending; see `firmReportIdentity20261020` and `releaseRun39475043022` in `status.json`.
+Reminder bounds, template prerequisites, quotation timelines, practice-time phases and firm-report/finding recovery are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md) and their keyed records in [status.json](status.json). Full current-source release and applicable human acceptance remain open.
