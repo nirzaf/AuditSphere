@@ -33,6 +33,27 @@ describe('Client request draft polling', () => {
     try { http.verify(); } finally { TestBed.resetTestingModule(); vi.useRealTimers(); }
   });
 
+  it('associates a touched invalid reply with its error and clears that state after correction', () => {
+    const fixture = TestBed.createComponent(ClientPbcRequest);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush(requestWorkspace());
+    TestBed.tick(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const input = root.querySelector<HTMLTextAreaElement>('#portal-reply')!;
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+    fixture.componentInstance.reply.controls.body.markAsTouched(); fixture.detectChanges();
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    const error = root.querySelector<HTMLElement>('#' + input.getAttribute('aria-describedby'))!;
+    expect(error.textContent).toContain('Enter a reply');
+    expect(error.getAttribute('role')).toBe('alert');
+    fixture.componentInstance.reply.controls.body.setValue('Corrected synthetic reply'); fixture.detectChanges();
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+    expect(input.getAttribute('aria-describedby')).toBeNull();
+    expect(root.querySelector('#portal-reply-error')).toBeNull();
+    http.expectNone(request => request.method === 'POST');
+    fixture.destroy();
+  });
+
   it('keeps reply and selected file through same-context polling, then clears and blocks submit on denial', async () => {
     vi.useFakeTimers();
     const fixture = TestBed.createComponent(ClientPbcRequest);

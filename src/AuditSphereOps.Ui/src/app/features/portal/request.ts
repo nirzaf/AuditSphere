@@ -81,8 +81,10 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
           </nav>
         }
         @if (w.canWrite) { <form [formGroup]="reply" (ngSubmit)="sendReply()">
-          <label for="portal-reply">Reply to the audit team</label><textarea id="portal-reply" formControlName="body" maxlength="4000"></textarea>
-          @if (reply.controls.body.touched && reply.invalid) { <p role="alert">Enter a reply of up to 4000 characters.</p> }
+          @let replyInvalid = reply.controls.body.touched && reply.controls.body.invalid;
+          <label for="portal-reply">Reply to the audit team</label><textarea id="portal-reply" formControlName="body" maxlength="4000"
+            [attr.aria-invalid]="replyInvalid ? 'true' : null" [attr.aria-describedby]="replyInvalid ? 'portal-reply-error' : null"></textarea>
+          @if (replyInvalid) { <p id="portal-reply-error" role="alert">Enter a reply of up to 4000 characters.</p> }
           <button matButton="filled" [disabled]="reply.invalid || busy() || uncertain()">Send reply</button>
         </form> }
       </section>
