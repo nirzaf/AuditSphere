@@ -2105,7 +2105,8 @@ public sealed class CommercialWorkflowTests
       var revised2 = await PracticeCrmService.ReviseProposalAsync(db2, w.Prep,
         new ReviseProposalRequest(opportunity2.Value, "AUDIT-2026", "Statutory audit of the 2026 financial statements",
           "Tax advisory", "Independent auditor's report and management letter", "Client supplies the trial balance",
-          25000m, "QAR", "2026-01-01", "2026-12-31"));
+          25000m, "QAR", "2026-01-01", "2026-12-31",
+          Timeline: "Fieldwork in March 2027; report by 30 April 2027"));
       Assert.True(revised2.Succeeded, revised2.Message);
     }
     var proposal2 = (await db.Proposals.AsNoTracking()
