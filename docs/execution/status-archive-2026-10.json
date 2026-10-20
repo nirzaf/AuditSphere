@@ -18801,6 +18801,24 @@
             "Owned accessibility E2E: Passed 1, Failed 0, Skipped 0; built-in Planning task readback;390px no overflow; console clean."
           ],
           "pending": "Current-source full CI and broader role/human acceptance. No migration or deployment."
+        },
+        "firmReportIdentity20261020": {
+          "sourceCommit": "90f1f512",
+          "status": "FOCUSED_AND_BROWSER_PASS_NOT_FULL_ACCEPTANCE",
+          "scope": "Canonical repeatable-read source identity binds both paging directions and CSV export; missing/stale identity409, no file. Calculations/auth unchanged.",
+          "checks": "Domain2/2; API1/1; Angular books3/3 and finance5/5; built-in synthetic calculate/export clean; E2E1/1; build/lint/OpenAPI pass; independent review no blocking finding.",
+          "pending": "Current-source full CI; broader accounting/FX decisions remain open. No migration/deployment."
+        },
+        "releaseRun39475043022": {
+          "status": "FAIL",
+          "sourceCommit": "a7df1799e1f063fcc6219d32fc2d8be09cf24df9",
+          "checks": "Domain/API/Angular/build/contracts passed; E2E323/325. Two finding lost-committed cases timed out after commands/state before exact receipt lookup.",
+          "pending": "Root cause investigation; no test weakening or full local suite.",
+          "followUp": {
+            "sourceCommit": "dea3c018",
+            "checks": "Readiness synchronization guard: Angular29/29; rebuilt finding E2E9/9. Pre-fix local cohort also9/9, so CI root cause remains unproven; timeout diagnostics now retain state HTTP status. Build/lint passed.",
+            "pending": "Current-source full CI required; no full local suite."
+          }
         }
       }
     },
