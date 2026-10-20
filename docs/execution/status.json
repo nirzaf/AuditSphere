@@ -1152,9 +1152,9 @@
     },
     "workflowReminderRules20261020": {
       "result": "FOCUSED_PASS",
-      "implementationCommit": "1ef72d28e9a2560ff5afb2eea2303cfd2d1c09ef",
-      "ciRun": "39344753287 fast pass; 39346062823 fast and 39346069835 full active.",
-      "checks": "Domain 1/1; Angular 4/4; sweep 1/1; deep E2E 3/3; response E2E 1/1; build/EF/OpenAPI pass.",
+      "implementationCommit": "442e1b5ab8f0af4e5de839aa68e96e8775699744",
+      "ciRun": "Fast 39348072973 PASS; release 39348671685 running at 442e1b5a.",
+      "checks": "Reminder Domain1, Angular4; access sweep1, deep E2E3; response E2E1; affected E2E17; build/EF/OpenAPI pass.",
       "limits": "No full local suites; current full CI pending; human AT and live provider remain external."
     }
   },
