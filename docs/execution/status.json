@@ -280,10 +280,20 @@
           "At the available 1280x720 viewport there was no horizontal overflow on the inspected routes. A separate 390x844 workflow-template-editor check is recorded under workflowTemplateAuthoringUi.",
           "Fresh built-in-browser console inspection reported zero errors across the inspected staff routes. No business, financial or approval records were changed."
         ],
+        "keyboardActivationFollowUp": {
+          "sourceCommit": "766dbfc61659ddcbeb79539ebb9261c3c3a840f7",
+          "recordedAtUtc": "2026-10-20T11:43:26Z",
+          "result": "PASS",
+          "actions": "Space activated Compact sidebar navigation, then Expand sidebar navigation; Space activated Board, Calendar and List. aria-pressed reflected each selected state and the UI was restored to expanded sidebar/List.",
+          "focusVisibleAfterSequence": true,
+          "unnamedNavigationLinksAfterCompact": 0,
+          "browserConsoleErrors": 0,
+          "businessDataChanged": false
+        },
         "environmentLimited": [
           "Resource planning returned an accessible Unsupported response alert because its API response came from the existing unverified local API process; the route is not marked as passed.",
           "Client-portal review requires a separate client identity and was not performed.",
-          "This sweep did not cover native 200%/400% zoom, reduced-motion or human screen-reader announcements."
+          "The review did not cover native 200%/400% zoom, reduced-motion or human screen-reader announcements."
         ]
       },
       "ci": {
