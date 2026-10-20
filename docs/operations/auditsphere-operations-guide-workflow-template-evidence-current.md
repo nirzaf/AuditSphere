@@ -30,12 +30,14 @@ Use requirement keys to distinguish declarations, rather than embedding a client
 ## Instantiate an engagement plan
 
 1. Open the engagement’s **Operational task plan** and preview an appropriate published template.
-2. For each PBC or procedure prerequisite, obtain the exact source identifier from that engagement’s authorized workspace and enter it beside its requirement key. Materiality uses the current engagement context.
+2. For each PBC or procedure prerequisite, open **Evidence source search** beside its requirement key. Search the engagement’s recorded sources and choose the exact row; results include the source identifier and recorded state. Search is case-insensitive and treats `%` and `_` literally. **Previous sources** / **Next sources** page through results; a previously selected source is resolved separately even when it is outside the search results. Materiality uses the current engagement context.
 3. Preview again. Source selection changes clear the previous preview and assent. The server checks exact firm, client and engagement scope; foreign or unavailable sources cannot be bound.
 4. Resolve missing source bindings before creating tasks. Evidence may still be pending: creating a plan attaches the prerequisite; it does not satisfy it.
 5. Review the exact preview, staffing, schedule and template revision, then create the operational tasks.
 
 If the required PBC request does not exist yet, create it through the existing PBC workflow first. A typed PBC instruction or descriptive reference is not a substitute for an existing exact evidence source. Changing current source inputs can require a fresh preview.
+
+The **Exact source reference** field remains available when the identifier is already known. The picker and manual entry use the same exact-source preview validation. Draft requests and planned or submitted procedures may be selected as pending prerequisites; their recorded state is not a professional acceptance decision. Missing or foreign selected references reveal no other engagement’s label. Losing authorization or changing session clears the available source results; a stale response cannot select a source.
 
 ## Review and recover
 
@@ -56,5 +58,6 @@ Focused checks, browser observations and remaining release gates belong in [exec
 - [Template service](../../src/AuditSphereOps.Application/Practice/WorkflowTemplateService.cs)
 - [Engagement plan service](../../src/AuditSphereOps.Application/Practice/EngagementWorkflowPlanService.cs)
 - [Live evidence query](../../src/AuditSphereOps.Application/Practice/WorkflowTaskEvidenceQuery.cs)
+- [Scoped source discovery](../../src/AuditSphereOps.Application/Practice/WorkflowEvidenceSourceQuery.cs) and [Angular source picker](../../src/AuditSphereOps.Ui/src/app/features/practice/workflow-evidence-source-picker.ts)
 - [Template editor](../../src/AuditSphereOps.Ui/src/app/features/practice/workflow-templates.ts)
 - [Plan UI](../../src/AuditSphereOps.Ui/src/app/features/engagements/engagement-task-plan.ts)

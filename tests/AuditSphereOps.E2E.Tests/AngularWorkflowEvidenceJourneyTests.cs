@@ -1,6 +1,8 @@
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Practice;
+using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -13,7 +15,7 @@ public sealed class AngularWorkflowEvidenceJourneyTests
   public async Task TemplatePrerequisitesRequireExactBindingAndRemainPendingAfterPlanCreation()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TEMPLATE-EVIDENCE");
-    var f = host.Fixture; Guid revisionId; Guid pbcId;
+    var f = host.Fixture; Guid revisionId; Guid pbcId; var procedureId = Guid.NewGuid();
     await using (var db = host.CreateDbContext())
     {
       var engagement = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
@@ -24,11 +26,20 @@ public sealed class AngularWorkflowEvidenceJourneyTests
         new(f.EngagementId, "Synthetic template evidence", "TEST ENTITY", "2026-01-01", "2026-12-31", "Cash", "PDF",
           "", f.Client.Id, f.Staff.Id, f.Reviewer.Id, "2027-01-31", "Confidential", "Signed and readable."));
       Assert.True(request.Succeeded, request.Message); pbcId = request.Value;
+      // Pending source identity only; this fixture records no procedure result, applicability approval or review.
+      db.AuditProcedures.Add(new AuditProcedure
+      {
+        Id = procedureId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        SourceProcedureId = "SYN-PICKER-01", Title = "Synthetic source picker procedure",
+        Status = AuditProcedureStatuses.Planned, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
       var draft = await WorkflowTemplateService.CreateDraftAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
         new(null, "Synthetic evidence-bound plan", "FinancialStatementAudit", null,
           [new("EVIDENCE", WorkflowTaskPhases.AuditPlanning, "Wait for authoritative evidence", "Review the existing sources.",
             null, null, null, null, true, 1, EvidenceRequirements:
-              [new("materiality", WorkflowEvidenceKinds.CurrentMateriality), new("request", WorkflowEvidenceKinds.AcceptedPbc)])]));
+              [new("materiality", WorkflowEvidenceKinds.CurrentMateriality), new("request", WorkflowEvidenceKinds.AcceptedPbc),
+               new("procedure", WorkflowEvidenceKinds.ReviewedProcedure)])]));
       Assert.True(draft.Succeeded, draft.Message); revisionId = draft.Value;
       var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == revisionId);
       var reviewed = await WorkflowTemplateService.ReviewAsync(db, PbcSeed.Actor(f.Reviewer, "Partner"), revision.TemplateId,
@@ -49,29 +60,58 @@ public sealed class AngularWorkflowEvidenceJourneyTests
     var preview = page.GetByRole(AriaRole.Button, new() { Name = "Preview task plan", Exact = true });
     await preview.ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true })).ToHaveCountAsync(0);
-    var source = page.GetByLabel("Exact source reference for request", new() { Exact = true });
-    await source.FillAsync(pbcId.ToString()); await source.PressAsync("Tab");
+    await SelectSourceAsync("request", "Synthetic template evidence", "Cash — Synthetic template evidence");
     await preview.ClickAsync();
+    await Assertions.Expect(page.GetByLabel("Exact source reference for request", new() { Exact = true })).ToHaveValueAsync(pbcId.ToString());
+    await SelectSourceAsync("procedure", "syn-picker-01", "SYN-PICKER-01 — Synthetic source picker procedure");
+    await preview.ClickAsync();
+    await Assertions.Expect(page.GetByLabel("Exact source reference for procedure", new() { Exact = true })).ToHaveValueAsync(procedureId.ToString());
     var create = page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true });
     await Assertions.Expect(create).ToBeDisabledAsync();
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "template-evidence-sources");
     await page.GetByLabel("I reviewed this exact plan, staffing, dates, and template revision.", new() { Exact = true }).CheckAsync();
     await create.ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Plan receipt confirmed", Exact = true })).ToBeVisibleAsync();
     await using (var db = host.CreateDbContext())
     {
       var rules = await db.WorkflowTaskEvidenceRules.AsNoTracking().ToListAsync();
-      Assert.Equal(2, rules.Count);
+      Assert.Equal(3, rules.Count);
       Assert.All(rules, rule => { Assert.Equal(WorkflowEvidenceRuleStates.Required, rule.State); Assert.NotNull(rule.WorkflowTemplateEvidenceRequirementId); });
       Assert.Contains(rules, rule => rule.PbcRequestId == pbcId);
+      Assert.Contains(rules, rule => rule.AuditProcedureId == procedureId);
       Assert.Single(await db.WorkflowTaskPlanReceipts.ToListAsync());
       Assert.Empty(await db.MaterialityApprovals.ToListAsync());
       var binding = await db.WorkflowTaskBindings.SingleAsync(x => x.TemplateRevisionId == revisionId);
       var evidence = await WorkflowTaskEvidenceQuery.GetAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.EngagementId, binding.WorkTaskId);
       Assert.True(evidence.Succeeded, evidence.Message);
       Assert.All(evidence.Value!.Rules, rule => Assert.False(rule.Satisfied));
+      Assert.Empty(await db.AuditProcedureReviews.ToListAsync());
+      var task = await EngagementWorkflowTaskService.GetAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.EngagementId, binding.WorkTaskId);
+      Assert.True(task.Succeeded, task.Message);
+      var taskView = Assert.Single(task.Value!.Tasks);
+      var completion = await EngagementWorkflowTaskService.CompleteAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        taskView.Id, taskView.Revision);
+      Assert.False(completion.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, completion.ErrorCode);
     }
     Assert.Empty(errors);
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "template-evidence");
+
+    async Task SelectSourceAsync(string noun, string search, string label)
+    {
+      await page.GetByRole(AriaRole.Button, new() { Name = $"Open evidence source search for {noun}", Exact = false }).ClickAsync();
+      await page.GetByLabel($"Find evidence source for {noun}", new() { Exact = false }).FillAsync(search);
+      var response = await page.RunAndWaitForResponseAsync(
+        () => page.GetByRole(AriaRole.Button, new() { Name = $"Search evidence sources for {noun}", Exact = false }).ClickAsync(),
+        r => r.Url.Contains("/workflow-evidence-sources?", StringComparison.Ordinal) &&
+          Uri.UnescapeDataString(new Uri(r.Url).Query.Replace("+", " ")).Contains("query=" + search, StringComparison.Ordinal));
+      Assert.Equal(200, response.Status);
+      var choice = page.GetByRole(AriaRole.Button, new() { Name = $"Select evidence source for {noun}: {label}", Exact = false });
+      await Assertions.Expect(choice).ToBeVisibleAsync();
+      await choice.PressAsync("Space");
+      await Assertions.Expect(page.GetByText("Evidence source changed. Preview again to verify scope and review the updated digest.", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(preview).ToBeFocusedAsync();
+    }
   }
 
   [Fact]

@@ -9,6 +9,7 @@ const firmId = '11111111-1111-4111-8111-111111111111';
 const engagementId = '22222222-2222-4222-8222-222222222222';
 const templateId = '33333333-3333-4333-8333-333333333333';
 const revisionId = '44444444-4444-4444-8444-444444444444';
+const alternateEvidenceId = '55555555-5555-4555-8555-555555555555';
 const digest = 'a'.repeat(64);
 const catalog = [{
   templateId, latestRevisionId: revisionId, version: 1, name: 'Annual audit tasks',
@@ -66,12 +67,34 @@ describe('Engagement task plan preview and receipt recovery', () => {
     const previewing = component.previewPlan();
     const request = TestBed.inject(HttpTestingController).expectOne({ method: 'POST', url: `/api/ui/engagements/${engagementId}/task-plan/preview` });
     expect(request.request.body.evidenceSelections).toEqual([{ stepKey: 'planning', requirementKey: 'pbc-request', sourceId: templateId }]);
-    request.flush({ value: { ...preview, steps: [{ ...preview.steps[0], evidenceRequirements: [{ requirementKey: 'pbc-request',
-      kind: 'PBC_ACCEPTED_OR_CLOSED', sourceId: templateId, bindingRequired: true, satisfied: false,
-      sourceState: 'SENT', message: 'PBC remains pending.', sourceRevision: 1, inputGeneration: null }] }] } });
+    request.flush({ value: { ...preview, steps: [{ ...preview.steps[0], evidenceRequirements: [
+      { requirementKey: 'pbc-request', kind: 'PBC_ACCEPTED_OR_CLOSED', sourceId: templateId, bindingRequired: true,
+        satisfied: false, sourceState: 'SENT', message: 'PBC remains pending.', sourceRevision: 1, inputGeneration: null },
+      { requirementKey: 'materiality', kind: 'CURRENT_MATERIALITY_APPROVED', sourceId: templateId, bindingRequired: true,
+        satisfied: true, sourceState: 'APPROVED', message: 'Materiality was approved.', sourceRevision: 1, inputGeneration: null },
+    ] }] } });
     await previewing;
+    fixture.detectChanges();
+    TestBed.tick();
+    const host = fixture.nativeElement as HTMLElement;
+    expect([...host.querySelectorAll('label')].some(label => label.textContent?.trim() === 'Exact source reference for pbc-request')).toBe(true);
+    expect(host.querySelector('[aria-label^="Evidence source picker for Step 1: Planning — materiality"]')).toBeNull();
+    host.querySelector<HTMLButtonElement>('[aria-label="Open evidence source search for request — Step 1: Planning — pbc-request"]')!.click();
+    fixture.detectChanges();
+    TestBed.tick();
+    TestBed.inject(HttpTestingController).expectOne({ method: 'GET', url:
+      `/api/ui/engagements/${engagementId}/workflow-evidence-sources?kind=PBC_ACCEPTED_OR_CLOSED&query=&page=0&pageSize=25&selectedId=${templateId}` })
+      .flush({ engagementId, kind: 'PBC_ACCEPTED_OR_CLOSED', page: 0, pageSize: 25, hasMore: false,
+        items: [{ id: alternateEvidenceId, label: 'Accepted client request', state: 'ACCEPTED', revision: '2' }],
+        selected: { id: templateId, label: 'Current request reference', state: 'SENT', revision: '1' } });
+    fixture.detectChanges();
+
     component.reviewed.set(true);
     expect(component.canExecute()).toBe(true);
+    host.querySelector<HTMLButtonElement>(`button[aria-label="Select evidence source for request: Accepted client request (${alternateEvidenceId}) — Step 1: Planning — pbc-request"]`)!.click();
+    expect(component.evidenceSelections()).toEqual([{ stepKey: 'planning', requirementKey: 'pbc-request', sourceId: alternateEvidenceId }]);
+    expect(component.reviewed()).toBe(false); expect(component.plan()).toBeNull(); expect(component.canExecute()).toBe(false);
+    expect(document.activeElement?.textContent?.trim()).toBe('Preview task plan');
     component.selectEvidence('planning', 'pbc-request', 'invalid-source');
     expect(component.evidenceSelections()).toEqual([]);
     expect(component.reviewed()).toBe(false); expect(component.plan()).toBeNull(); expect(component.canExecute()).toBe(false);

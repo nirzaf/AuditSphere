@@ -57,6 +57,18 @@ public static partial class UiEndpoints
 
   private static void MapWorkflowTaskEndpoints(RouteGroupBuilder group)
   {
+    group.MapGet("/engagements/{engagementId:guid}/workflow-evidence-sources",
+      (Guid engagementId, string kind, string? query, int? page, int? pageSize, Guid? selectedId, HttpContext http) =>
+        ReadAsync(http, (db, actor, ct) => WorkflowEvidenceSourceQuery.GetAsync(db, actor, engagementId,
+          kind, query, page ?? 0, pageSize ?? 25, selectedId, ct)))
+      .AddEndpointFilter(async (context, next) =>
+      {
+        var configuration = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        return configuration.GetValue<bool>("WorkflowExperience:Enabled") ? await next(context) : Results.NotFound();
+      })
+      .WithDescription("Discovers bounded exact-engagement PBC or procedure references for operational evidence prerequisites. Selection does not approve or satisfy evidence; the existing preview and completion commands evaluate it independently.")
+      .WithT046Response<WorkflowEvidenceSourcePage>(includeConflict: true, includeNotFound: true);
+
     group.MapGet("/work/reviews", (DateTimeOffset? afterSubmittedAt, Guid? afterResultId, int? pageSize, HttpContext http) =>
       ReadAsync(http, async (db, actor, ct) =>
       {

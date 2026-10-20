@@ -1,9 +1,10 @@
-import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
 import { arr, bool, date, decode, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
+import { WorkflowEvidenceSourcePicker } from '../practice/workflow-evidence-source-picker';
 
 const publishedRevision = obj({
   revisionId: guid, version: int, name: str(160), serviceRoute: str(50),
@@ -80,7 +81,7 @@ function isPendingPlan(value: unknown): value is PendingPlan {
 
 @Component({
   selector: 'audit-engagement-task-plan',
-  imports: [MatButtonModule, ...SHARED],
+  imports: [MatButtonModule, WorkflowEvidenceSourcePicker, ...SHARED],
   template: `
     <section class="task-plan" aria-labelledby="task-plan-heading">
       <h2 id="task-plan-heading">Operational task plan</h2>
@@ -107,7 +108,7 @@ function isPendingPlan(value: unknown): value is PendingPlan {
           }
         </fieldset>
         <div class="actions">
-          <button matButton="filled" (click)="previewPlan()" [disabled]="!canPreview()">Preview task plan</button>
+          <button #previewTaskPlan matButton="filled" (click)="previewPlan()" [disabled]="!canPreview()">Preview task plan</button>
         </div>
       }
 
@@ -168,14 +169,25 @@ function isPendingPlan(value: unknown): value is PendingPlan {
                     @for (requirement of step.evidenceRequirements; track requirement.requirementKey) {
                       <p><strong>{{ requirement.requirementKey }}</strong> · {{ requirement.kind }} · {{ requirement.sourceState }}</p>
                       <p [attr.role]="requirement.bindingRequired ? 'status' : null">{{ requirement.message }}</p>
+                      @if ((requirement.kind === 'PBC_ACCEPTED_OR_CLOSED' || requirement.kind === 'CURRENT_PROCEDURE_REVIEWED') && !preview.alreadyInstantiated) {
+                        <audit-workflow-evidence-source-picker
+                          [engagementId]="engagementId()"
+                          [kind]="requirement.kind"
+                          [stepTitle]="'Step ' + step.sortOrder + ': ' + step.title"
+                          [requirementKey]="requirement.requirementKey"
+                          [pickerId]="evidencePickerId(engagementId(), step.templateStepId, requirement.requirementKey)"
+                          [selectedId]="evidenceValue(step.stepKey, requirement.requirementKey, requirement.sourceId)"
+                          [disabled]="busy() || pending() !== null || corruptPending()"
+                          (sourceSelected)="selectEvidence(step.stepKey, requirement.requirementKey, $event)" />
+                      }
                       @if (requirement.kind !== 'CURRENT_MATERIALITY_APPROVED' && !preview.alreadyInstantiated) {
                         <label>Exact source reference for {{ requirement.requirementKey }}
                           <input [value]="evidenceValue(step.stepKey, requirement.requirementKey, requirement.sourceId)"
                             (change)="selectEvidence(step.stepKey, requirement.requirementKey, $any($event.target).value)"
-                            maxlength="36" [attr.aria-describedby]="'plan-evidence-help-' + step.templateStepId + '-' + requirement.requirementKey"
+                            maxlength="36" [attr.aria-describedby]="'plan-evidence-help-' + evidencePickerId(engagementId(), step.templateStepId, requirement.requirementKey)"
                             [disabled]="busy() || pending() !== null || corruptPending()" />
                         </label>
-                        <small [id]="'plan-evidence-help-' + step.templateStepId + '-' + requirement.requirementKey">Use the exact PBC request or procedure identifier from this engagement’s authorized workspace, then preview again.</small>
+                        <small [id]="'plan-evidence-help-' + evidencePickerId(engagementId(), step.templateStepId, requirement.requirementKey)">Use the exact PBC request or procedure identifier from this engagement’s authorized workspace, then preview again.</small>
                       } @else if (requirement.sourceId) { <p>Source <code>{{ requirement.sourceId }}</code></p> }
                     }
                   </section>
@@ -238,6 +250,7 @@ export class EngagementTaskPlan {
   readonly suggestedRevisionId = input<string | null>(null);
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
+  private readonly previewTaskPlan = viewChild<unknown, ElementRef<HTMLButtonElement>>('previewTaskPlan', { read: ElementRef });
   readonly catalog = this.api.resource(() => `/api/ui/engagements/${this.engagementId()}/task-plan/templates`, templateCatalog,
     'Workflow task planning is unavailable or is not enabled on this server.');
   readonly publishedTemplates = computed<SelectableTemplate[]>(() => (this.catalog.data() ?? [])
@@ -324,8 +337,15 @@ export class EngagementTaskPlan {
       selection.requirementKey === requirementKey)?.sourceId ?? fallback ?? '';
   }
 
+  evidencePickerId(engagementId: string, templateStepId: string, requirementKey: string): string {
+    const encodedKey = Array.from(requirementKey, character => character.codePointAt(0)!.toString(16)).join('-') || 'empty';
+    return `workflow-evidence-${engagementId}-${templateStepId}-${encodedKey}`;
+  }
+
   selectEvidence(stepKey: string, requirementKey: string, raw: string): void {
     if (this.busy() || this.pending() || this.corruptPending()) return;
+    // Source changes remove the old preview. Keep keyboard focus on the next required action.
+    this.previewTaskPlan()?.nativeElement.focus();
     const sourceId = raw.trim();
     if (sourceId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sourceId)) {
       this.evidenceSelections.update(selections => selections.filter(selection =>
