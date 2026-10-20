@@ -129,4 +129,79 @@ public sealed class AngularEngagementProfileJourneyTests
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     Assert.Empty(errors);
   }
+  [Fact]
+  [Trait("CaseId", "ANGULAR-COMMUNICATION-HISTORY-BOUNDS")]
+  public async Task CommunicationHistoryKeepsFullCountAndKeyboardAccessToBoundedRows()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-COMMUNICATION-HISTORY-BOUNDS");
+    var f = host.Fixture;
+    var createdAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+    await using (var db = host.CreateDbContext())
+    {
+      // Explicit recorded-email fixture; this is not a provider send or a delivery assertion.
+      db.PbcCommunications.Add(new AuditSphereOps.Domain.Documents.PbcCommunication
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PbcRequestId = host.RequestId, AuthorUserId = f.Staff.Id,
+        Kind = AuditSphereOps.Domain.Documents.PbcCommunicationKinds.Email,
+        Subject = "Synthetic recorded PBC email", RecipientEmail = "synthetic@example.test",
+        PortalUrl = "https://example.test/synthetic-pbc",
+        Body = "Synthetic body excluded from the timeline", CreatedAt = DateTimeOffset.UtcNow,
+        DeliveryState = AuditSphereOps.Domain.Documents.PbcDeliveryStates.Queued
+      });
+      db.CorrespondenceDispatchRecords.AddRange(Enumerable.Range(0, 201).Select(index =>
+        new AuditSphereOps.Domain.Practice.CorrespondenceDispatchRecord
+        {
+          Id = Guid.NewGuid(), FirmId = f.FirmId, PracticeClientId = f.ClientId, EngagementId = f.EngagementId,
+          Purpose = AuditSphereOps.Domain.Practice.CorrespondencePurposes.Commercial,
+          RecipientContactId = Guid.NewGuid(), RecipientName = "Synthetic liaison",
+          RecipientEmail = "synthetic@example.test", DocumentType = "ENGAGEMENT_LETTER",
+          DocumentReference = $"SYNTHETIC-COMMUNICATION-{index:D3}", DocumentRevision = 1,
+          DocumentSha256 = new string('a', 64), DispatchedByUserId = f.Admin.Id,
+          DispatchedAt = createdAt.AddSeconds(index)
+        }));
+      await db.SaveChangesAsync();
+    }
+    var origin = await host.StartApiForIdentityAsync(f.Admin, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var errors = new List<string>();
+    page.PageError += (_, error) => errors.Add(error);
+    var path = $"/app/engagements/{f.EngagementId:D}";
+    var communications = page.GetByRole(AriaRole.Region, new() { Name = "Engagement communications", Exact = true });
+    var (status, responseBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && new Uri(request.Url).AbsolutePath == $"/api/ui/engagements/{f.EngagementId:D}/communications",
+      async () =>
+      {
+        await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+        await page.GetByText("Communications", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
+        await Assertions.Expect(communications).ToContainTextAsync("Showing the newest 200 of 202 recorded communications.");
+      });
+    Assert.Equal(200, status);
+    Assert.DoesNotContain("Synthetic body excluded from the timeline", responseBody, StringComparison.Ordinal);
+    await Assertions.Expect(communications.Locator("tbody tr")).ToHaveCountAsync(200);
+    await Assertions.Expect(communications).ToContainTextAsync("SYNTHETIC-COMMUNICATION-200");
+    await Assertions.Expect(communications).Not.ToContainTextAsync("SYNTHETIC-COMMUNICATION-000");
+    await Assertions.Expect(communications).Not.ToContainTextAsync("Synthetic body excluded from the timeline");
+    await Assertions.Expect(communications.Locator("thead th[scope='col']")).ToHaveCountAsync(6);
+    await Assertions.Expect(communications.Locator("tbody th[scope='row']")).ToHaveCountAsync(200);
+    await page.SetViewportSizeAsync(390, 844);
+    var scroll = communications.GetByRole(AriaRole.Region,
+      new() { Name = "Recorded communications table; scroll horizontally if needed", Exact = true });
+    await scroll.FocusAsync();
+    await Assertions.Expect(scroll).ToBeFocusedAsync();
+    for (var attempt = 0; attempt < 8 && !await scroll.EvaluateAsync<bool>("element => element.scrollLeft > 0"); attempt++)
+      await scroll.PressAsync("ArrowRight");
+    Assert.True(await scroll.EvaluateAsync<bool>("element => element.scrollLeft > 0"));
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    await using (var verify = host.CreateDbContext())
+      Assert.Equal(201, await verify.CorrespondenceDispatchRecords.CountAsync(x => x.EngagementId == f.EngagementId));
+    Assert.Empty(errors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "communication-history");
+  }
+
 }

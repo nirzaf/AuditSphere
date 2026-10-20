@@ -77,7 +77,7 @@ describe('engagement communications panel', () => {
     http.expectOne(`/api/ui/engagements/${engagementId}/communications`).flush({
       engagementId,
       totalCount: 2,
-      entries: [entry(), entry({ source: 'COMMERCIAL', sourceLink: '/app/commercial/opportunities' })],
+      entries: [entry({ deliveredAtUtc: '2026-10-12T08:00:00Z' }), entry({ source: 'COMMERCIAL', sourceLink: '/app/commercial/opportunities' })],
     });
     fixture.detectChanges(); TestBed.tick(); fixture.detectChanges();
 
@@ -90,6 +90,7 @@ describe('engagement communications panel', () => {
     expect([...root.querySelectorAll('thead th')].map((header) => header.getAttribute('scope')))
       .toEqual(['col', 'col', 'col', 'col', 'col', 'col']);
     expect(root.querySelectorAll('tbody tr')).toHaveLength(2);
+    expect(root.textContent).not.toContain('2026-10-12 08:00 UTC');
 
     const dateHeader = root.querySelector<HTMLElement>('tbody th[scope="row"]')!;
     expect(dateHeader.querySelector('time')?.getAttribute('datetime')).toBe('2026-10-12T07:00:00Z');

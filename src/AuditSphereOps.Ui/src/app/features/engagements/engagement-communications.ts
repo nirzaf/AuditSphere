@@ -78,7 +78,7 @@ export const COMMUNICATION_STATUS_LABELS: Record<string, string> = {
                 <td>{{ entry.kind }}</td>
                 <td>{{ entry.subject || '—' }}</td>
                 <td>{{ entry.recipient || '—' }}</td>
-                <td>{{ statusLabel(entry.status) }}@if (entry.deliveredAtUtc) { <small> ({{ utcTime(entry.deliveredAtUtc) }})</small> }</td>
+                <td>{{ statusLabel(entry.status) }}@if (entry.status === 'DELIVERED' && entry.deliveredAtUtc) { <small> ({{ utcTime(entry.deliveredAtUtc) }})</small> }</td>
                 <td><a [routerLink]="entry.sourceLink" [attr.aria-label]="sourceLinkLabel(entry)">Open source</a></td>
               </tr>
             }</tbody>

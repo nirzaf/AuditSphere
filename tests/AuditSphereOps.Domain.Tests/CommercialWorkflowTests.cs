@@ -1862,6 +1862,26 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(balanceAttachment.ContentType, balancePlan.Attachment?.ContentType);
     Assert.Equal(balanceAttachment.Bytes, balancePlan.Attachment?.Bytes);
 
+    var paymentTimeline = await EngagementCommunicationTimelineQuery.GetAsync(db, w.Partner, engagementId);
+    Assert.True(paymentTimeline.Succeeded, paymentTimeline.Message);
+    var voucherEntries = paymentTimeline.Value!.Entries.Where(x =>
+      x.Source == "COMMERCIAL" && x.Kind == CommercialNotificationKinds.PaymentVoucher).ToList();
+    Assert.Equal(4, voucherEntries.Count);
+    Assert.All(voucherEntries, entry =>
+    {
+      Assert.Equal(CommercialDeliveryStates.ProviderAccepted, entry.Status);
+      Assert.Null(entry.DeliveredAtUtc);
+    });
+    var acceptedVoucher = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == finalBalanceVoucherMail.Id);
+    Assert.NotNull(acceptedVoucher.DeliveredAt);
+    await db.CommercialNotifications.Where(x => x.Id == acceptedVoucher.Id).ExecuteUpdateAsync(update =>
+      update.SetProperty(x => x.DeliveryState, CommercialDeliveryStates.Delivered));
+    var deliveredTimeline = await EngagementCommunicationTimelineQuery.GetAsync(db, w.Partner, engagementId);
+    Assert.True(deliveredTimeline.Succeeded, deliveredTimeline.Message);
+    var deliveredVoucher = Assert.Single(deliveredTimeline.Value!.Entries, x => x.Id == acceptedVoucher.Id);
+    Assert.Equal(CommercialDeliveryStates.Delivered, deliveredVoucher.Status);
+    Assert.Equal(acceptedVoucher.DeliveredAt, deliveredVoucher.DeliveredAtUtc);
+
     // 9. Client portal user document download
     var docDownload = await CommercialDocumentService.GetAsync(db, clientActor, balReceiptDoc.Id);
     Assert.True(docDownload.Succeeded, docDownload.Message);
