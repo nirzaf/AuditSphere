@@ -19,6 +19,14 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
+## Accessibility and CI follow-up (2026-10-20)
+
+Current source is `6bce7e77f66dc6b77f8b1ac326037a2e91d94304` on `master`. The API test database fixture now clones the fingerprinted migrated template for full-state tests; partial-migration tests retain their fresh migration path. Test-host logging is reduced to Warning by default. Focused API cohorts passed 9/9 and 6/6.
+
+Fast CI run `39394925908` passed. Exact-source full release run `39395144233` has passed Angular **1,487/1,487** (172 spec files), Domain **1,457/1,457**, and build/contracts/publication. API and Playwright E2E are still running; their results are not inferred from these completed jobs. The prior run `39380954200` on `10e37750` saw PostgreSQL `57P03` and runner exit 143; it is superseded, not counted as a pass.
+
+The built-in browser still renders `Access unavailable` at the local reminder-rules route, so authenticated workflow inspection was unavailable. The current full E2E run includes `AngularAccessibilitySweepTests`, `AngularAccessibilityDeepAcceptanceTests` and `AngularShellNavigationJourneyTests`. Earlier responsive, keyboard and native zoom observations remain in `status.json`. Qualified human screen-reader review and the complete supported-state matrix remain open; automated browser checks do not certify full accessibility.
+
 ## Versioned reminders and accessibility CI follow-up (2026-10-20)
 
 The versioned reminder catalogue now spans API, Application, Domain, persistence, Worker and Angular. Drafts are revision-fenced and digest-bound; a separate reviewer must approve before publication. The reminder-rules screen exposes the expected firm-wide authorization denial, and its accessibility sweep asserts both the visible state and HTTP 403.
