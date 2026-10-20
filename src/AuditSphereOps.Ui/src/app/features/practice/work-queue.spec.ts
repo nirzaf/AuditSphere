@@ -146,6 +146,7 @@ describe('workflow queue assignment filters', () => {
     taskId: '22222222-2222-4222-8222-222222222222', clientId: '33333333-3333-4333-8333-333333333333', clientName: 'Client A',
     engagementId: '44444444-4444-4444-8444-444444444444', engagementServiceRoute: 'AUDIT', engagementPeriod: 'FY2026',
     sourceKey: 'MANUAL:fixture', templateRevisionId: null, templateStepId: null, requiredTask: null,
+    taskGroupName: 'Audit planning',
     title: 'Prepare lead schedule', phase: 'FIELDWORK', ordinal: 1, taskStatus: 'OPEN',
     assigneeUserId: '11111111-1111-4111-8111-111111111111', assigneeDisplayName: 'Audit staff', dueDate: '2026-10-15',
     mappingVersionId: null, fsliCode: null, unmetTaskDependencies: 0, unmetEvidencePrerequisites: 0,
@@ -246,6 +247,7 @@ describe('workflow queue assignment filters', () => {
         expect(host.textContent).toContain('Source: MANUAL:fixture');
         expect(host.textContent).toContain('Template task designation: Required');
         expect(host.textContent).toContain('Template task designation: Optional');
+        expect(host.textContent).toContain('Task group: Audit planning');
         expect(host.textContent).toContain('template revision ' + task.taskId);
         expect(host.textContent).toContain('step ' + task.clientId);
         expect(host.textContent).toContain('FSLI CASH');

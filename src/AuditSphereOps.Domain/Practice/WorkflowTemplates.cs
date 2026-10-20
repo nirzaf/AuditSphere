@@ -82,6 +82,8 @@ public sealed class WorkflowTemplateStep
   public Guid TemplateRevisionId { get; set; }
   public string StableKey { get; set; } = string.Empty;
   public string Phase { get; set; } = WorkflowTaskPhases.ClientOnboarding;
+  /// <summary>Optional operational grouping label, pinned by this immutable template revision.</summary>
+  public string? TaskGroupName { get; set; }
   public string Title { get; set; } = string.Empty;
   public string Instructions { get; set; } = string.Empty;
   public string? SuggestedStaffingLevel { get; set; }

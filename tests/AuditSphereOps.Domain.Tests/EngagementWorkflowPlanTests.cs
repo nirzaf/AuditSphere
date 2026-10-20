@@ -38,8 +38,8 @@ public sealed class EngagementWorkflowPlanTests
       var draft = await WorkflowTemplateService.CreateDraftAsync(db, adminActor,
         new SaveWorkflowTemplateDraftRequest(null, "Annual statutory audit", "FinancialStatementAudit", "ProfessionalServices",
         [
-          Step("PLANNING", 1, -10),
-          Step("FIELDWORK", 2, -5, ["PLANNING"], requiredTask: false)
+          Step("PLANNING", 1, -10) with { TaskGroupName = "Planning" },
+          Step("FIELDWORK", 2, -5, ["PLANNING"], requiredTask: false) with { TaskGroupName = "Fieldwork" }
         ]));
       Assert.True(draft.Succeeded, draft.Message);
       revisionId = draft.Value;
@@ -156,8 +156,8 @@ public sealed class EngagementWorkflowPlanTests
       var nextDraft = await WorkflowTemplateService.CreateDraftAsync(db, adminActor,
         new SaveWorkflowTemplateDraftRequest(templateId, "Annual statutory audit", "FinancialStatementAudit", "ProfessionalServices",
         [
-          Step("PLANNING", 1, -10),
-          Step("FIELDWORK", 2, -5),
+          Step("PLANNING", 1, -10) with { TaskGroupName = "Revised planning" },
+          Step("FIELDWORK", 2, -5) with { TaskGroupName = "Revised fieldwork" },
           Step("REPORT", 3, -2)
         ]));
       Assert.True(nextDraft.Succeeded, nextDraft.Message);
@@ -173,6 +173,8 @@ public sealed class EngagementWorkflowPlanTests
       Assert.True(completedQueue.Succeeded, completedQueue.Message);
       Assert.Equal(true, Assert.Single(completedQueue.Value!.Tasks, x => x.TaskId == predecessor.Id).RequiredTask);
       Assert.Equal(false, Assert.Single(completedQueue.Value.Tasks, x => x.TaskId == successor.Id).RequiredTask);
+      Assert.Equal("Planning", Assert.Single(completedQueue.Value.Tasks, x => x.TaskId == predecessor.Id).TaskGroupName);
+      Assert.Equal("Fieldwork", Assert.Single(completedQueue.Value.Tasks, x => x.TaskId == successor.Id).TaskGroupName);
       var nextRevision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == nextDraft.Value);
       var nextReviewed = await WorkflowTemplateService.ReviewAsync(db, partnerActor, templateId, nextDraft.Value,
         nextRevision.Revision, "Review the revised annual task plan.");
@@ -191,6 +193,16 @@ public sealed class EngagementWorkflowPlanTests
         new ExecuteEngagementWorkflowPlanRequest(nextDraft.Value, secondPreview.Value!.PreviewDigest, Guid.NewGuid()));
       Assert.True(secondPlan.Succeeded, secondPlan.Message);
       Assert.Equal(3, secondPlan.Value!.TaskCount);
+      var teamQueue = await WorkflowTaskQueueQuery.GetAsync(db, adminActor,
+        new WorkflowTaskQueueRequest("TEAM", PageSize: 100));
+      Assert.True(teamQueue.Succeeded, teamQueue.Message);
+      Assert.Contains("Revised planning", teamQueue.Value!.Tasks.Select(x => x.TaskGroupName));
+      Assert.Contains("Revised fieldwork", teamQueue.Value.Tasks.Select(x => x.TaskGroupName));
+      var originalQueue = await WorkflowTaskQueueQuery.GetAsync(db, adminActor,
+        new WorkflowTaskQueueRequest("COMPLETED", PageSize: 100));
+      Assert.True(originalQueue.Succeeded, originalQueue.Message);
+      Assert.Equal("Planning", Assert.Single(originalQueue.Value!.Tasks, x => x.TaskId == predecessor.Id).TaskGroupName);
+      Assert.Equal("Fieldwork", Assert.Single(originalQueue.Value.Tasks, x => x.TaskId == successor.Id).TaskGroupName);
       Assert.Equal(1, (await db.WorkflowTaskPlanReceipts.SingleAsync(x => x.EngagementId == engagementId)).TemplateVersion);
       Assert.Equal(2, (await db.WorkflowTaskPlanReceipts.SingleAsync(x => x.EngagementId == secondEngagementId)).TemplateVersion);
       Assert.Equal(2, await db.WorkflowTaskBindings.CountAsync(x => x.EngagementId == engagementId));

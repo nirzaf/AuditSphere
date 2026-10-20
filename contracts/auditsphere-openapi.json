@@ -142715,6 +142715,12 @@
           "canReopen": {
             "type": "boolean",
             "default": false
+          },
+          "taskGroupName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -143402,6 +143408,12 @@
                 "$ref": "#/components/schemas/WorkflowTemplatePbcDefinitionInput"
               }
             ]
+          },
+          "taskGroupName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -143493,6 +143505,12 @@
               {
                 "$ref": "#/components/schemas/WorkflowTemplatePbcDefinition"
               }
+            ]
+          },
+          "taskGroupName": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }

@@ -33,7 +33,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | --- | --- | --- |
 | PM-00 | PARTIAL | This crosswalk and scenario map; NR-11 has explicit firm/client/consolidation source-book assertions. The NR-12 matrix below maps five v2.2/host switches to off-path evidence, including an Angular 403-state spec; the feature-off route has not been browser-verified and deployed configuration remains unverified. |
 | PM-01 | PARTIAL | Named staff, countdown, phase checklists, operational task dates and saved Audit Plan milestones mapped to phases are delivered. A saved statutory cutoff is displayed as user-entered plan data; approved/versioned jurisdictional source mapping, legal validation and broad browser acceptance remain. |
-| PM-02 | PARTIAL | Board and calendar views are delivered. Editable task groups and dependency authoring outside a template remain. |
+| PM-02 | PARTIAL | Versioned template steps now support editable task-group labels, pinned and digest-bound, and task queues project labels from the exact pinned step. Dependency authoring outside templates, template-declared domain rules, and proof templates cannot remove mandatory gates remain open. |
 | PM-03 | OWNER_DECISION | DEC-01 and DEC-03 gate the recurrence action. |
 | PM-04 | PARTIAL | Reminder rule administration and escalation remain. |
 | PM-05 | OWNER_DECISION | The quotation timeline is delivered. DEC-01, DEC-02 and DEC-09 gate the rest. |

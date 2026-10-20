@@ -33,7 +33,8 @@ public static partial class UiEndpoints
   public sealed record WorkflowTemplateStepInput(
     string StableKey, string Phase, string Title, string Instructions, string? SuggestedStaffingLevel,
     int? EstimatedEffortMinutes, int? DueDateOffsetDays, string? PbcRequestReference, bool RequiredTask,
-    int SortOrder, IReadOnlyList<string>? DependsOnStepKeys, WorkflowTemplatePbcDefinitionInput? PbcDefinition = null);
+    int SortOrder, IReadOnlyList<string>? DependsOnStepKeys, WorkflowTemplatePbcDefinitionInput? PbcDefinition = null,
+    string? TaskGroupName = null);
   public sealed record WorkflowTemplatePbcDefinitionInput(string Objective, string EntityScope, string Area,
     string RequestedFormat, string? ControlTotals, string Confidentiality, string AcceptanceCriteria);
   public sealed record WorkflowTemplateDraftInput(
@@ -330,5 +331,5 @@ public static partial class UiEndpoints
         x.RequiredTask, x.SortOrder, x.DependsOnStepKeys, x.PbcDefinition is null ? null :
           new WorkflowTemplatePbcDefinition(x.PbcDefinition.Objective, x.PbcDefinition.EntityScope, x.PbcDefinition.Area,
             x.PbcDefinition.RequestedFormat, x.PbcDefinition.ControlTotals, x.PbcDefinition.Confidentiality,
-            x.PbcDefinition.AcceptanceCriteria))).ToArray(), input.ExpectedRevision);
+            x.PbcDefinition.AcceptanceCriteria), x.TaskGroupName)).ToArray(), input.ExpectedRevision);
 }

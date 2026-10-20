@@ -19,13 +19,15 @@ const revision = {
   createdAt: '2026-10-12T07:00:00Z', updatedAt: '2026-10-12T07:00:00Z', publishedAt: null, archivedAt: null,
   steps: [{ id: other, stableKey: 'planning', phase: 'AUDIT_PLANNING', title: 'Approve the plan',
     instructions: 'Review the current plan.', suggestedStaffingLevel: 'AUDIT_MANAGER', estimatedEffortMinutes: 60,
-    dueDateOffsetDays: 14, pbcRequestReference: null, requiredTask: true, sortOrder: 1, dependsOnStepKeys: [] }],
+    dueDateOffsetDays: 14, pbcRequestReference: null, requiredTask: true, sortOrder: 1, dependsOnStepKeys: [],
+    taskGroupName: 'Planning' }],
 };
 
 describe('workflow template contract', () => {
   it('decodes a firm catalog and exact revision steps', () => {
     expect(decodeTemplateCatalog(catalog, 'catalog')[0].version).toBe(1);
     expect(decodeTemplateRevision(revision, 'revision').steps[0].dueDateOffsetDays).toBe(14);
+    expect(decodeTemplateRevision(revision, 'revision').steps[0].taskGroupName).toBe('Planning');
     expect(() => decodeTemplateRevision({ ...revision, revision: '1' }, 'revision')).toThrow();
   });
 });
@@ -59,6 +61,7 @@ describe('workflow template authoring screen', () => {
     http.expectOne(`/api/ui/practice/workflow-templates/${id}/revisions/${revisionId}`).flush(revision);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Edit draft');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Task group: Planning');
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Review draft');
   });
 
@@ -73,12 +76,32 @@ describe('workflow template authoring screen', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Review draft');
   });
 
+  it('moves focus into a new draft and returns it to the opener on cancel', async () => {
+    const { fixture } = setup();
+    const host = fixture.nativeElement as HTMLElement;
+    const trigger = host.querySelector<HTMLButtonElement>('#new-template-trigger')!;
+    trigger.focus();
+    trigger.click();
+    await fixture.whenStable();
+
+    const heading = host.querySelector<HTMLElement>('#revision-heading')!;
+    expect(trigger.ownerDocument.activeElement).toBe(heading);
+
+    const cancel = [...host.querySelectorAll('button')].find(button => button.textContent?.trim() === 'Cancel')!;
+    cancel.focus();
+    cancel.click();
+    await fixture.whenStable();
+
+    expect(trigger.ownerDocument.activeElement).toBe(trigger);
+  });
+
   it('sends a new template as an unapproved draft with structured task metadata', async () => {
     const { fixture, http, component } = setup();
     component.startNewTemplate();
     component.draft.name = 'Annual audit';
     component.draft.serviceRoute = 'FinancialStatementAudit';
     component.draft.steps[0].title = 'Approve the plan';
+    component.draft.steps[0].taskGroupName = '  Planning  ';
     const saving = component.saveDraft();
     const request = http.expectOne('/api/ui/practice/workflow-templates/drafts');
     expect(request.request.body.templateId).toBeNull();
@@ -86,6 +109,7 @@ describe('workflow template authoring screen', () => {
     expect(request.request.body.steps[0]).toMatchObject({
       stableKey: 'step-1', phase: 'AUDIT_FIELDWORK', title: 'Approve the plan',
       requiredTask: true, sortOrder: 1, dependsOnStepKeys: [],
+      taskGroupName: 'Planning',
     });
     request.flush({ value: revisionId });
     await saving;

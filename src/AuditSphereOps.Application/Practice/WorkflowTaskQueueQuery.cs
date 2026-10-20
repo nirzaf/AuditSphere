@@ -22,7 +22,7 @@ public sealed record WorkflowTaskQueueRow(Guid TaskId, Guid ClientId, string Cli
   bool CanChangeDueDate, bool CanAssign, long Revision,
   Guid? PbcRequestId, string? PbcState, string? ReviewState, string? ReviewComment,
   int UnmetEvidencePrerequisites = 0, string SourceKey = "", Guid? TemplateRevisionId = null, Guid? TemplateStepId = null,
-  bool? RequiredTask = null, bool CanCancel = false, bool CanReopen = false);
+  bool? RequiredTask = null, bool CanCancel = false, bool CanReopen = false, string? TaskGroupName = null);
 public sealed record WorkflowTaskQueue(string View, IReadOnlyList<WorkflowTaskQueueRow> Tasks,
   bool HasMore, WorkflowTaskQueueCursor? NextCursor, WorkflowTaskQueueSummary? Summary = null);
 public sealed record WorkflowTaskQueueCount(string View, string Count);
@@ -102,6 +102,13 @@ public static class WorkflowTaskQueueQuery
         equals new { engagement.FirmId, engagement.Id }
       join client in db.PracticeClients.AsNoTracking() on new { binding.FirmId, Id = binding.ClientId }
         equals new { client.FirmId, client.Id }
+      join templateStepCandidate in db.WorkflowTemplateSteps.AsNoTracking()
+        on new { binding.FirmId, binding.TemplateRevisionId, binding.TemplateStepId }
+        equals new { templateStepCandidate.FirmId,
+          TemplateRevisionId = (Guid?)templateStepCandidate.TemplateRevisionId,
+          TemplateStepId = (Guid?)templateStepCandidate.Id }
+        into templateSteps
+      from templateStep in templateSteps.DefaultIfEmpty()
       join pbcRequest in db.PbcRequests.AsNoTracking()
         on new { binding.FirmId, binding.ClientId, binding.EngagementId, Id = binding.PbcRequestId }
         equals new { pbcRequest.FirmId, pbcRequest.ClientId, pbcRequest.EngagementId, Id = (Guid?)pbcRequest.Id }
@@ -148,9 +155,8 @@ public static class WorkflowTaskQueueQuery
       {
         BindingId = binding.Id, binding.Revision, binding.Phase, binding.Ordinal,
         binding.SourceKey, binding.TemplateRevisionId, binding.TemplateStepId,
-        RequiredTask = db.WorkflowTemplateSteps.AsNoTracking().Where(step => step.FirmId == binding.FirmId &&
-            step.TemplateRevisionId == binding.TemplateRevisionId && step.Id == binding.TemplateStepId)
-          .Select(step => (bool?)step.RequiredTask).FirstOrDefault(),
+        RequiredTask = templateStep == null ? (bool?)null : templateStep.RequiredTask,
+        TaskGroupName = templateStep == null ? null : templateStep.TaskGroupName,
         task.Id, ClientId = binding.ClientId, ClientName = client.LegalName, EngagementId = binding.EngagementId,
         EngagementServiceRoute = engagement.ServiceRoute,
         EngagementPeriod = engagement.PeriodStart + " – " + engagement.PeriodEnd,
@@ -276,7 +282,9 @@ public static class WorkflowTaskQueueQuery
         x.AssigneeUserId, x.AssigneeUserId is { } userId ? assignees.GetValueOrDefault(userId) : null,
         x.DueDate, x.MappingVersionId, x.FsliCode, unmetCount, canComplete, canChangeDueDate, canAssign, x.Revision,
         x.PbcRequestId, x.PbcState, x.ReviewState, x.ReviewComment, unmetEvidence,
-        x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask, canCancel, x.Status == PracticeTimeStates.TaskCancelled && !x.CompletedAt.HasValue && x.Revision < long.MaxValue && CanElevatedManage(x.ClientId, x.EngagementId));
+        x.SourceKey, x.TemplateRevisionId, x.TemplateStepId, x.RequiredTask, canCancel,
+        x.Status == PracticeTimeStates.TaskCancelled && !x.CompletedAt.HasValue && x.Revision < long.MaxValue &&
+          CanElevatedManage(x.ClientId, x.EngagementId), x.TaskGroupName);
     }).ToArray();
     var last = page[^1];
     return CommandResult<WorkflowTaskQueue>.Ok(new WorkflowTaskQueue(view!, rows, hasMore,

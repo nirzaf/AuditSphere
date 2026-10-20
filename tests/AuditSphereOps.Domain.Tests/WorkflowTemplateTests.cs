@@ -43,7 +43,7 @@ public sealed class WorkflowTemplateTests
       Assert.Empty(await db.WorkflowTemplates.ToListAsync());
 
       var draft = await WorkflowTemplateService.CreateDraftAsync(db, authorActor,
-        Request(null, [Step("A", 1) with { PbcDefinition = pbcDefinition }, Step("B", 2, "A")]));
+        Request(null, [Step("A", 1) with { PbcDefinition = pbcDefinition, TaskGroupName = "  Planning  " }, Step("B", 2, "A")]));
       Assert.True(draft.Succeeded, draft.Message);
       firstRevisionId = draft.Value;
       var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == firstRevisionId);
@@ -54,6 +54,7 @@ public sealed class WorkflowTemplateTests
       var persisted = await WorkflowTemplateService.GetRevisionAsync(db, authorActor, templateId, firstRevisionId);
       Assert.True(persisted.Succeeded, persisted.Message);
       Assert.Equal(pbcDefinition, Assert.Single(persisted.Value!.Steps, x => x.StableKey == "A").PbcDefinition);
+      Assert.Equal("Planning", Assert.Single(persisted.Value.Steps, x => x.StableKey == "A").TaskGroupName);
 
       var selfReview = await WorkflowTemplateService.ReviewAsync(db, authorActor, templateId, firstRevisionId, 1,
         "Review the initial template.");

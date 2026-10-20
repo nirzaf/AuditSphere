@@ -1,4 +1,4 @@
-import { Component, HostListener, effect, inject, signal } from '@angular/core';
+import { afterNextRender, Component, ElementRef, HostListener, effect, inject, Injector, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
@@ -14,10 +14,13 @@ const templateItem = obj({
 });
 export const decodeTemplateCatalog = arr(templateItem, 100);
 
+const optionalNullable = <T>(decoder: (value: unknown, path: string) => T) =>
+  (value: unknown, path: string): T | null => value === undefined ? null : nullable(decoder)(value, path);
 const templateStep = obj({
   id: guid, stableKey: str(80), phase: str(40), title: str(200), instructions: str(4000),
   suggestedStaffingLevel: nullable(str(32)), estimatedEffortMinutes: nullable(int), dueDateOffsetDays: nullable(int),
   pbcRequestReference: nullable(str(120)), requiredTask: bool, sortOrder: int, dependsOnStepKeys: arr(str(80), 100),
+  taskGroupName: optionalNullable(str(120)),
   pbcDefinition: nullable(obj({ objective: str(2000), entityScope: str(500), area: str(200), requestedFormat: str(200),
     controlTotals: nullable(str(2000)), confidentiality: str(100), acceptanceCriteria: str(4000) })),
 });
@@ -30,7 +33,7 @@ export const decodeTemplateRevision = obj({
 });
 
 type TemplateStepDraft = {
-  stableKey: string; phase: string; title: string; instructions: string; suggestedStaffingLevel: string;
+  stableKey: string; phase: string; title: string; instructions: string; taskGroupName: string; suggestedStaffingLevel: string;
   estimatedEffortMinutes: number | null; dueDateOffsetDays: number | null; pbcRequestReference: string;
   requiredTask: boolean; sortOrder: number; dependsOnText: string;
   pbcDefinition: { objective: string; entityScope: string; area: string; requestedFormat: string;
@@ -54,7 +57,7 @@ const STAFFING_LEVELS = [
 
 function emptyStep(sortOrder = 1): TemplateStepDraft {
   return { stableKey: `step-${sortOrder}`, phase: 'AUDIT_FIELDWORK', title: '', instructions: '',
-    suggestedStaffingLevel: '', estimatedEffortMinutes: null, dueDateOffsetDays: null,
+    taskGroupName: '', suggestedStaffingLevel: '', estimatedEffortMinutes: null, dueDateOffsetDays: null,
     pbcRequestReference: '', requiredTask: true, sortOrder, dependsOnText: '', pbcDefinition: null };
 }
 function emptyDraft(templateId: string | null = null): TemplateDraft {
@@ -70,7 +73,7 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
     <p class="muted">Partners and Administrators can prepare, review, publish, and archive firm-wide templates. A different person must review the draft author’s exact revision before it can be published.</p>
     <div class="actions"><a matButton routerLink="/app/work">My work</a>
       <a matButton routerLink="/app/practice/reminder-rules">Reminder rules</a>
-      <button matButton="filled" (click)="startNewTemplate()" [disabled]="cmd.busy()">New template</button>
+      <button matButton="filled" id="new-template-trigger" (click)="startNewTemplate($event)" [disabled]="cmd.busy()">New template</button>
       <button matButton (click)="refresh()" [disabled]="cmd.busy()">Refresh</button>
     </div>
     <audit-state [loading]="catalog.loading()" [error]="catalog.error()" label="workflow templates" />
@@ -92,7 +95,7 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
 
       <section class="panel" aria-labelledby="revision-heading">
         @if (draftMode()) {
-          <h2 id="revision-heading">{{ draftMode() === 'edit' ? 'Edit draft revision' : draftMode() === 'new-revision' ? 'Start next revision' : 'Create template draft' }}</h2>
+          <h2 id="revision-heading" tabindex="-1">{{ draftMode() === 'edit' ? 'Edit draft revision' : draftMode() === 'new-revision' ? 'Start next revision' : 'Create template draft' }}</h2>
           <p class="muted">Saving creates or revises a draft only. It does not publish tasks or change existing engagements.</p>
           <form class="template-form" (submit)="$event.preventDefault(); saveDraft()">
             <label>Template name <input name="templateName" [(ngModel)]="draft.name" maxlength="160" required /></label>
@@ -109,6 +112,8 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
                     @for (phase of phases; track phase[0]) { <option [value]="phase[0]">{{ phase[1] }}</option> }
                   </select></label>
                   <label class="wide">Task title <input [name]="'step-title-' + i" [(ngModel)]="step.title" maxlength="200" required /></label>
+                  <label>Task group (optional) <input [name]="'step-group-' + i" [(ngModel)]="step.taskGroupName" maxlength="120" />
+                    <small>Organizes operational tasks within this template revision; it does not change the audit phase or approval gates.</small></label>
                   <label class="wide">Instructions <textarea [name]="'step-instructions-' + i" [(ngModel)]="step.instructions" maxlength="4000" rows="3"></textarea></label>
                   <label>Suggested staffing level <select [name]="'step-staffing-' + i" [(ngModel)]="step.suggestedStaffingLevel">
                     <option value="">Unspecified</option>
@@ -148,8 +153,8 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
           <p><audit-status [value]="r.status" /> · {{ r.serviceRoute }}@if (r.industryKey) { · {{ r.industryKey }} } · revision {{ r.revision }}</p>
           <p class="muted">Content digest {{ r.contentDigest }}. Published revisions are immutable; existing engagements retain their pinned plan.</p>
           <div class="actions">
-            @if (canEditDraft(r)) { <button matButton (click)="editDraft(r)" [disabled]="cmd.busy()">Edit draft</button> }
-            @if (canStartRevision(r)) { <button matButton (click)="startNextRevision(r)" [disabled]="cmd.busy()">Start next revision</button> }
+            @if (canEditDraft(r)) { <button matButton [id]="'edit-template-' + r.revisionId" (click)="editDraft(r, $event)" [disabled]="cmd.busy()">Edit draft</button> }
+            @if (canStartRevision(r)) { <button matButton [id]="'start-template-revision-' + r.revisionId" (click)="startNextRevision(r, $event)" [disabled]="cmd.busy()">Start next revision</button> }
             @if (canCurrentUserReview(r)) { <button matButton (click)="review(r)" [disabled]="cmd.busy() || cmd.uncertain()">Review draft</button> }
             @if (r.status === 'REVIEWED') { <button matButton="filled" (click)="publish(r)" [disabled]="cmd.busy() || cmd.uncertain()">Publish reviewed revision</button> }
             @if (!r.archivedAt && r.status !== 'DRAFT' && r.status !== 'REVIEWED') { <button matButton (click)="archive(r)" [disabled]="cmd.busy() || cmd.uncertain()">Archive template</button> }
@@ -161,6 +166,7 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
           <h3>Revision steps</h3>
           <ol>@for (step of r.steps; track step.id) {
             <li><strong>{{ step.sortOrder }}. {{ step.title }}</strong> · {{ step.phase }} <audit-status [value]="step.requiredTask ? 'REQUIRED' : 'OPTIONAL'" />
+              @if (step.taskGroupName) { <small>Task group: {{ step.taskGroupName }}</small> }
               @if (step.instructions) { <p>{{ step.instructions }}</p> }
               <small>Key {{ step.stableKey }} · {{ step.suggestedStaffingLevel ?? 'No suggested owner' }} · {{ step.estimatedEffortMinutes ?? 'No effort estimate' }} min · {{ step.dueDateOffsetDays ?? 'No due-date offset' }} days</small>
               @if (step.dependsOnStepKeys.length) { <small>Prerequisites: {{ step.dependsOnStepKeys.join(', ') }}</small> }
@@ -186,6 +192,8 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
 export class WorkflowTemplates {
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
+  private readonly hostElement = inject(ElementRef<HTMLElement>);
+  private readonly renderInjector = inject(Injector);
   readonly phases = PHASES;
   readonly staffingLevels = STAFFING_LEVELS;
   readonly catalog = this.api.resource(() => '/api/ui/practice/workflow-templates', decodeTemplateCatalog,
@@ -203,6 +211,7 @@ export class WorkflowTemplates {
   draft: TemplateDraft = emptyDraft();
   rationale = '';
   private baseline = '';
+  private focusReturnId: string | null = null;
 
   constructor() {
     effect(() => {
@@ -222,26 +231,32 @@ export class WorkflowTemplates {
     this.rationale = '';
   }
 
-  startNewTemplate(): void {
+  startNewTemplate(event?: Event): void {
     if (!this.confirmNavigation()) return;
+    this.captureFocusReturnTarget(event);
     this.selectedTemplate.set(null);
     this.draft = emptyDraft();
     this.baseline = JSON.stringify(this.draft);
     this.draftMode.set('new-template');
+    this.focusAfterRender('revision-heading');
   }
 
-  editDraft(revision: ReturnType<typeof decodeTemplateRevision> & object): void {
+  editDraft(revision: ReturnType<typeof decodeTemplateRevision> & object, event?: Event): void {
     if (!this.confirmNavigation()) return;
+    this.captureFocusReturnTarget(event);
     this.draft = this.fromRevision(revision, revision.revisionId, revision.revision);
     this.baseline = JSON.stringify(this.draft);
     this.draftMode.set('edit');
+    this.focusAfterRender('revision-heading');
   }
 
-  startNextRevision(revision: ReturnType<typeof decodeTemplateRevision> & object): void {
+  startNextRevision(revision: ReturnType<typeof decodeTemplateRevision> & object, event?: Event): void {
     if (!this.confirmNavigation()) return;
+    this.captureFocusReturnTarget(event);
     this.draft = this.fromRevision(revision, null, null);
     this.baseline = JSON.stringify(this.draft);
     this.draftMode.set('new-revision');
+    this.focusAfterRender('revision-heading');
   }
 
   addStep(): void {
@@ -263,6 +278,22 @@ export class WorkflowTemplates {
     if (!this.confirmNavigation()) return;
     this.draftMode.set(null);
     this.baseline = '';
+    const focusReturnId = this.focusReturnId;
+    this.focusReturnId = null;
+    if (focusReturnId) this.focusAfterRender(focusReturnId);
+  }
+
+  private captureFocusReturnTarget(event?: Event): void {
+    const target = event?.currentTarget;
+    this.focusReturnId = target instanceof HTMLElement && target.id ? target.id : null;
+  }
+
+  private focusAfterRender(id: string): void {
+    afterNextRender(() => {
+      const host = this.hostElement.nativeElement;
+      const target = host.ownerDocument.getElementById(id);
+      if (target instanceof HTMLElement && host.contains(target)) target.focus();
+    }, { injector: this.renderInjector });
   }
 
   async saveDraft(): Promise<void> {
@@ -278,6 +309,7 @@ export class WorkflowTemplates {
         suggestedStaffingLevel: step.suggestedStaffingLevel || null,
         estimatedEffortMinutes: step.estimatedEffortMinutes, dueDateOffsetDays: step.dueDateOffsetDays,
         pbcRequestReference: step.pbcRequestReference.trim() || null, requiredTask: step.requiredTask,
+        taskGroupName: step.taskGroupName.trim() || null,
         sortOrder: step.sortOrder, dependsOnStepKeys: step.dependsOnText.split(',').map(x => x.trim()).filter(Boolean),
         pbcDefinition: step.pbcDefinition ? { ...step.pbcDefinition,
           controlTotals: step.pbcDefinition.controlTotals.trim() || null } : null,
@@ -373,6 +405,7 @@ export class WorkflowTemplates {
       serviceRoute: revision.serviceRoute, industryKey: revision.industryKey ?? '',
       steps: revision.steps.map(step => ({
         stableKey: step.stableKey, phase: step.phase, title: step.title, instructions: step.instructions,
+        taskGroupName: step.taskGroupName ?? '',
         suggestedStaffingLevel: step.suggestedStaffingLevel ?? '', estimatedEffortMinutes: step.estimatedEffortMinutes,
         dueDateOffsetDays: step.dueDateOffsetDays, pbcRequestReference: step.pbcRequestReference ?? '',
         requiredTask: step.requiredTask, sortOrder: step.sortOrder, dependsOnText: step.dependsOnStepKeys.join(', '),
