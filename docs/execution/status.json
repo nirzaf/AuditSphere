@@ -209,40 +209,9 @@
       "jsonPath": "keys.targetedVerification.workflowTaskDueDateHistory"
     },
     "workflowTemplateAuthoringUi": {
-      "sourceCommit": "9941a9352531299940ca9fb84ff9b91ef3acd399",
-      "recordedAtUtc": "2026-10-20T11:02:23Z",
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.workflowEvidenceHistory20261020.workflowTemplateAuthoringUi",
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "focusedAngularSpec": {
-        "result": "PASS",
-        "passed": 5,
-        "failed": 0,
-        "spec": "src/AuditSphereOps.Ui/src/app/features/practice/workflow-templates.spec.ts",
-        "scope": "Draft-open and cancel focus behavior."
-      },
-      "builtInBrowser": {
-        "result": "FOCUSED_PASS",
-        "route": "http://127.0.0.1:4303/ui/app/practice/workflow-templates",
-        "accessibleName": "Task group (optional)",
-        "description": "Organizes operational tasks within this template revision; it does not change the audit phase or approval gates.",
-        "keyboard": "Opening a draft focuses its heading; Tab from Task group moves to Instructions; Shift+Tab returns to Task group; Cancel restores focus to New template.",
-        "responsive390x844": {
-          "result": "PASS",
-          "horizontalOverflow": false,
-          "unlabeledControls": 0,
-          "duplicateIds": 0,
-          "visibleKeyboardFocus": true,
-          "stepGroupsHaveLegends": true,
-          "consoleErrorsOrWarnings": 0
-        },
-        "dataChanged": false
-      },
-      "fastCi": {
-        "run": "39409873516",
-        "sourceCommit": "9941a9352531299940ca9fb84ff9b91ef3acd399",
-        "result": "PASS",
-        "coverage": "Angular build/specs; docs health; .NET Release build, fast architecture/rounding guards, EF drift, publication and OpenAPI."
-      },
-      "accessibilityLimit": "Human assistive-technology review with recorded AT/browser versions and meaningful-announcement review remains outstanding. Complete supported-state acceptance is not claimed; the workflow editor was checked at 390x844 with no horizontal overflow."
+      "remaining": "Human AT and complete supported-state acceptance remain open."
     },
     "accessibilityRenderedSweep20261020": {
       "sourceCommit": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
@@ -1203,6 +1172,15 @@
       "guide": "docs/operations/auditsphere-operations-guide-workflow-reminders-current.md",
       "fullCiRun": 39475043022,
       "responsive": "390x844 built-in browser: bound input/help visible; no page overflow or console errors; owned accessibility E2E 1/1"
+    },
+    "templateEvidencePrerequisites20261020": {
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "scope": "Versioned template evidence declarations, exact engagement source selection and pinned origin; no automatic professional approvals.",
+      "checks": "5 focused Domain cases passed (2 new, 2 legacy, 1 source-reference); Angular template 5/5, plan 4/4, evidence panel 6/6; targeted builds, lint, EF/OpenAPI and docs passed.",
+      "pending": "Full current-source CI, broad role/supported-state acceptance and human AT; no deployment or live enablement.",
+      "integrationFindings": "HTTP source-selection forwarding and activity-write failures fixed; plan E2E rerun passed. Independent code review source-reference finding fixed without changing materiality binding semantics.",
+      "sourceCommit": "d03a3ae0cc6650d1761de36a6d07003d9c20ac7a",
+      "browser": "Owned plan journey 1/1; built-in browser retained exact PBC source, blocked duplicate plan, showed pending evidence; 390x844 no overflow or console errors. E2E preceded additive evaluated-source display; final display covered by focused Domain/Angular checks."
     }
   },
   "externalGates": [
