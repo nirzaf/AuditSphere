@@ -1200,6 +1200,13 @@
       "scope": "Canonical repeatable-read source identity binds both paging directions and CSV export; missing/stale identity409, no file. Calculations/auth unchanged.",
       "checks": "Domain2/2; API1/1; Angular books3/3 and finance5/5; built-in synthetic calculate/export clean; E2E1/1; build/lint/OpenAPI pass; independent review no blocking finding.",
       "pending": "Current-source full CI; broader accounting/FX decisions remain open. No migration/deployment."
+    },
+    "quotationTimelineFixture20261020": {
+      "sourceCommit": "449f0f59",
+      "result": "FOCUSED_PASS",
+      "reason": "CI39488865780 Domain1464/1465: second positive dispatch proposal omitted required timeline. Added synthetic timeline; no production/assertion relaxation.",
+      "checks": "Dispatch binding and missing-timeline/legacy recovery: Passed2,Failed0,Skipped0.",
+      "pending": "Current-source full CI."
     }
   },
   "externalGates": [
