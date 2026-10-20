@@ -78,6 +78,20 @@ internal sealed class OwnedPostgresDatabase : IAsyncDisposable, ITestPostgresDat
     var databaseCreated = false;
     try
     {
+      string? fullMigrationTemplate = null;
+      if (targetMigration is null)
+      {
+        var templateSource = new NpgsqlConnectionStringBuilder(adminBuilder.ConnectionString)
+        {
+          Database = "auditsphere_tests",
+          Pooling = false,
+          Timeout = 60
+        };
+        fullMigrationTemplate = await PgTestSchema.EnsureTemplateAsync(
+          templateSource.ConnectionString,
+          adminBuilder.ConnectionString);
+      }
+
       await using (var admin = new NpgsqlConnection(adminBuilder.ConnectionString))
       {
         await admin.OpenAsync();
@@ -85,7 +99,10 @@ internal sealed class OwnedPostgresDatabase : IAsyncDisposable, ITestPostgresDat
           .ExecuteScalarAsync())!;
         if (version != 180006)
           throw new InvalidOperationException($"E2E requires PostgreSQL 18.6 (180006); server reported {version}.");
-        await using var create = new NpgsqlCommand($"CREATE DATABASE \"{databaseName}\"", admin);
+        var createDatabaseSql = fullMigrationTemplate is null
+          ? $"CREATE DATABASE \"{databaseName}\""
+          : $"CREATE DATABASE \"{databaseName}\" TEMPLATE \"{fullMigrationTemplate}\"";
+        await using var create = new NpgsqlCommand(createDatabaseSql, admin);
         await create.ExecuteNonQueryAsync();
         databaseCreated = true;
         await using var comment = new NpgsqlCommand(
@@ -93,8 +110,11 @@ internal sealed class OwnedPostgresDatabase : IAsyncDisposable, ITestPostgresDat
         await comment.ExecuteNonQueryAsync();
       }
 
-      await using (var db = new AuditSphereDbContext(options))
+      if (targetMigration is not null)
+      {
+        await using var db = new AuditSphereDbContext(options);
         await db.GetService<IMigrator>().MigrateAsync(targetMigration);
+      }
       await WriteManifestAsync(manifestPath, manifest with { State = "READY" });
       return owned;
     }

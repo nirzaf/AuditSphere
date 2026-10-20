@@ -22,7 +22,9 @@ internal sealed class StandaloneApiApplicationFactory(
       new Dictionary<string, string?>
       {
         ["AngularUi:Enabled"] = "false",
-        ["AngularUi:CanonicalRoutes"] = "false"
+        ["AngularUi:CanonicalRoutes"] = "false",
+        ["Logging:LogLevel:Default"] = "Warning",
+        ["Serilog:MinimumLevel:Default"] = "Warning"
       }).AddInMemoryCollection(settings));
     if (configureServices is not null) builder.ConfigureServices(configureServices);
   }

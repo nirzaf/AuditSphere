@@ -98,7 +98,7 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
   /// list and compiled implementation, so corrected migration bodies cannot reuse stale templates. A template is built under a
   /// temporary name and renamed only after every migration succeeds, so a failed build can never be cloned.
   /// </summary>
-  private static async Task<string> EnsureTemplateAsync(string rawConnection, string adminConnectionString)
+  internal static async Task<string> EnsureTemplateAsync(string rawConnection, string adminConnectionString)
   {
     var probeOptions = new DbContextOptionsBuilder<AuditSphereDbContext>().UseNpgsql(rawConnection).Options;
     string[] migrations;
