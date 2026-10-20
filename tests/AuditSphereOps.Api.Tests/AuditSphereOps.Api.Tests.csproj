@@ -52,6 +52,6 @@
     <Compile Include="../Shared/CurrencyReviewFixture.cs" Link="Fixtures/CurrencyReviewFixture.cs" />
     <Compile Include="../Shared/OwnedPostgresDatabase.cs" Link="Fixtures/OwnedPostgresDatabase.cs" />
     <Using Include="Xunit" />
-    <None Include="../AuditSphereOps.Domain.Tests/xunit.runner.json" Link="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
