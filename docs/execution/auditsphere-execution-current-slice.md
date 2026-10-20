@@ -21,11 +21,12 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Versioned reminders and accessibility CI follow-up (2026-10-20)
 
-The reminder catalogue spans API, Application, Domain, persistence, Worker and Angular. Drafts are revision-fenced and digest-bound; a separate reviewer approves publication. The reminder-rules page exposes its firm-wide denial state and verifies HTTP 403.
+Versioned reminders span API through Angular; drafts are revision-fenced and digest-bound, and independent review is required before publish. The page verifies firm-wide denial (HTTP 403).
 
-The API test database fixture now clones the fingerprinted migrated template for full-state tests; partial-migration tests retain fresh migration. Test-host default logging is Warning. Focused API cohorts passed 9/9 and 6/6. Fast CI [39394925908](https://github.com/nirzaf/AuditSphere/actions/runs/39394925908) passed on `6bce7e77`. Full release [39395144233](https://github.com/nirzaf/AuditSphere/actions/runs/39395144233) on the same code passed Angular 1,487/1,487 (172 files), Domain 1,457/1,457, and build/contracts/publication; API and E2E are still running. The earlier run `39380954200` saw PostgreSQL `57P03` and runner exit 143 and is superseded, not counted as a pass.
+The API fixture clones the fingerprinted migrated template (partial migrations remain fresh); test-host logging defaults to Warning. Focused cohorts passed 9/9 and 6/6. Fast CI [39394925908](https://github.com/nirzaf/AuditSphere/actions/runs/39394925908) passed. Full release [39395144233](https://github.com/nirzaf/AuditSphere/actions/runs/39395144233) passed Angular 1,487/1,487, Domain 1,457/1,457 and build/contracts; API and E2E remain active. Superseded run `39380954200` saw PostgreSQL `57P03` and runner exit 143.
 
-The built-in browser showed `Access unavailable` on the local reminder-rules route, so authenticated rendered workflow checks remain unavailable. The full E2E includes accessibility sweep, deep semantics/focus and staff/client navigation suites. Earlier keyboard, responsive and zoom observations are retained in `status.json`; qualified human screen-reader review and complete supported-state coverage remain open.
+Playwright [39359432361](https://github.com/nirzaf/AuditSphere/actions/runs/39359432361) passed 325/325; all six accessibility checks passed (route/contrast sweep, deep semantics/live regions/locale/performance, and both staff/client keyboard-navigation variants). The Angular UI and these E2E files are unchanged from `78288f74` through `6bce7e77`; that run's API failed, so this is E2E evidence only. Current API/E2E rerun in `39395144233` remains active. The local browser shows `Access unavailable`, so authenticated rendered checks remain blocked. Human screen-reader review and complete supported-state coverage remain open.
+
 
 ## Mobile navigation accessibility follow-up (2026-10-19)
 
