@@ -221,10 +221,19 @@
       },
       "builtInBrowser": {
         "result": "FOCUSED_PASS",
-        "route": "http://127.0.0.1:4302/ui/app/practice/workflow-templates",
+        "route": "http://127.0.0.1:4303/ui/app/practice/workflow-templates",
         "accessibleName": "Task group (optional)",
         "description": "Organizes operational tasks within this template revision; it does not change the audit phase or approval gates.",
         "keyboard": "Opening a draft focuses its heading; Tab from Task group moves to Instructions; Shift+Tab returns to Task group; Cancel restores focus to New template.",
+        "responsive390x844": {
+          "result": "PASS",
+          "horizontalOverflow": false,
+          "unlabeledControls": 0,
+          "duplicateIds": 0,
+          "visibleKeyboardFocus": true,
+          "stepGroupsHaveLegends": true,
+          "consoleErrorsOrWarnings": 0
+        },
         "dataChanged": false
       },
       "fastCi": {
@@ -233,7 +242,7 @@
         "result": "PASS",
         "coverage": "Angular build/specs; docs health; .NET Release build, fast architecture/rounding guards, EF drift, publication and OpenAPI."
       },
-      "accessibilityLimit": "BLOCKED_EXTERNAL: qualified human screen-reader review with recorded AT/browser versions and meaningful-announcement review remains outstanding. Full supported-state and narrow-viewport acceptance are not claimed."
+      "accessibilityLimit": "Human assistive-technology review with recorded AT/browser versions and meaningful-announcement review remains outstanding. Complete supported-state acceptance is not claimed; the workflow editor was checked at 390x844 with no horizontal overflow."
     },
     "workflowAnnualPeriodBinding": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
