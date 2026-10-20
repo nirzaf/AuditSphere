@@ -16,9 +16,11 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Accessibility recheck and current-SHA release verification (2026-10-20)
 
-The built-in browser currently shows only AuditSphere's unauthenticated “Access unavailable” shell at `/ui/`; no authenticated staff/client journey could be reviewed. Earlier keyboard, viewport and contrast measurements remain tied to their recorded source commits in [`targetedVerification.accessibilityRenderedSweep20261020`](status.json). Automated screen-reader proxy checks pass, but they are not a qualified human assistive-technology review. I cannot approve that human review on the user's behalf; it remains open alongside authenticated client-portal acceptance.
+The built-in browser exposes only the unauthenticated `/ui/` shell; staff/client journeys remain unreviewed. Earlier keyboard, viewport and contrast evidence is source-pinned in [`accessibilityRenderedSweep20261020`](status.json). Automated screen-reader proxies pass; qualified human assistive-technology review and authenticated client-portal acceptance remain open.
 
-The latest full current-source release run completed with an E2E failure: one superseded `SAVE_DRAFT` journey observed draft revision 1 where the test expected revision 2; 324 other E2E cases passed. The exact focused case passed locally, but that does not resolve the full-CI failure. Angular, build/contracts/publication, Domain and API release jobs passed. A local Release solution build passed with 0 warnings and 0 errors; no full test suites were run locally. Exact commit, run, counts and failed assertion are recorded in [`targetedVerification.accessibilityRenderedSweep20261020.currentHeadFollowUp`](status.json).
+The preceding release exposed a test race: recovery renders before the intercepted command completes. The workpaper journey now awaits dispatch before database proof or a superseding save, unwraps the API `value` envelope and propagates callback failures. Earlier focused passes did not prove asynchronous assertions finished. Exact receipt, content, revision and duplicate-write protections remain enforced.
+
+The corrected focused cohort passed; full corrected-source release verification remains pending in CI. Prior release results and the successful local Release solution build are recorded in [`currentHeadFollowUp`](status.json). No full suites ran locally.
 
 > **Reading note:** Any older section that says the Web host remains present or that
 > retirement is `NOT_READY` describes the state when it was written. The owner retired

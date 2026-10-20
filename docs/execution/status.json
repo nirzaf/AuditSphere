@@ -281,7 +281,13 @@
         "browser": "Built-in browser; unauthenticated /ui/app/work redirects to /ui/ Access unavailable.",
         "renderedChecks": "320x844: document width 305px; skip target #main exists; Tab shows 3px focus outline and Enter focuses main. Text contrast ratios: skip 6.70, brand 17.06/12.02, heading 10.96, body 15.71, sign-in 6.46.",
         "limits": "No authenticated staff/client workflow or qualified human screen-reader review.",
-        "releaseVerification": "39449112933 FAILURE on 6ba8302bcfa54b86b253c3e873b2090e4f73000e: fast CI 39449064836 PASS; Angular/build/contracts/publication PASS; Domain 1457/1457, API 363/363 PASS; E2E 324/325, superseded SAVE_DRAFT expected revision 2 but observed 1 at test line 133. Four accessibility proxy tests PASS. Exact focused case 1/1 and Release solution build 0 warnings/errors PASS locally; full local suites NOT_RUN."
+        "releaseVerification": "39449112933 FAILURE on 6ba8302bcfa54b86b253c3e873b2090e4f73000e: fast CI 39449064836 PASS; Angular/build/contracts/publication PASS; Domain 1457/1457, API 363/363 PASS; E2E 324/325, superseded SAVE_DRAFT expected revision 2 but observed 1 at test line 133. Four accessibility proxy tests PASS. Exact focused case 1/1 and Release solution build 0 warnings/errors PASS locally; full local suites NOT_RUN.",
+        "dispatchSynchronization": {
+          "sourceCommit": "67c8bbcf9ef7ebeef136cb81768e58323ad6b565",
+          "correction": "Await first route interception before database proof; unwrap value envelope and propagate callback exceptions. Earlier focused passes did not prove asynchronous receipt assertions completed. All receipt/revision/no-duplicate invariants retained.",
+          "localVerification": "LostResponseReloadRetainsExactIdentityAndRecoveryNeverBlindlyResends: all 7 theory cases PASS; Release dependencies/test project rebuilt; 2.2225 minutes test time. Full local suites NOT_RUN.",
+          "releaseVerification": "PENDING in CI on corrected source; prior-source rerun cannot verify this fix."
+        }
       }
     },
     "workflowAnnualPeriodBinding": {
