@@ -728,6 +728,8 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     }
 
     Guid mappingId;
+    Guid trialBalanceId;
+    Guid generalLedgerBatchId;
     string taskOwner;
     string pbcOwner;
     const string taskTitle = "SYNTHETIC persisted period handoff";
@@ -738,6 +740,8 @@ public sealed class AngularFinancialArtifactParityJourneyTests
       var f = host.Fixture;
       var period = await db.ClientReportingPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId);
       mappingId = await db.FinancialPackages.Where(x => x.Id == packageId).Select(x => x.MappingVersionId).SingleAsync();
+      trialBalanceId = await db.TrialBalanceDatasets.Where(x => x.PeriodId == periodId && x.SourceKind == "Raw").Select(x => x.Id).SingleAsync();
+      generalLedgerBatchId = await db.SourceImportBatches.Where(x => x.PeriodId == periodId && x.SourceKind == AccountingSourceKinds.GeneralLedger).Select(x => x.Id).SingleAsync();
       db.WorkTasks.Add(new AuditSphereOps.Domain.Practice.WorkTask
       {
         Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
@@ -758,6 +762,14 @@ public sealed class AngularFinancialArtifactParityJourneyTests
         CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync();
+      // Real period books force a second evidence page; creating them cannot replace the retained package.
+      for (var index = 0; index < 26; index++)
+      {
+        var book = await ClientAccountingService.CreateBookAsync(db,
+          PbcSeed.Actor(f.Staff, "AccountingPreparer"),
+          new ReportingBookRequest(f.ClientId, periodId, $"SYN-EVIDENCE-{index:D2}", "STATUTORY", "ALL_ENTITIES", "QAR"));
+        Assert.True(book.Succeeded, book.Message);
+      }
       taskOwner = await db.Users.Where(x => x.Id == f.Staff.Id)
         .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleAsync();
       pbcOwner = await db.Users.Where(x => x.Id == f.Reviewer.Id)
@@ -814,8 +826,43 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     await Assertions.Expect(handoffs).ToContainTextAsync(taskTitle);
     await Assertions.Expect(handoffs).ToContainTextAsync(pbcOwner);
     Assert.Equal(1, refreshGets);
+    var evidence = page.GetByRole(AriaRole.Region, new() { Name = "Period evidence", Exact = true });
+    await Assertions.Expect(evidence.GetByRole(AriaRole.Table)).ToContainTextAsync("SYN-EVIDENCE-00");
+    var nextEvidencePage = evidence.GetByRole(AriaRole.Button, new() { Name = "Next evidence page", Exact = true });
+    await nextEvidencePage.FocusAsync();
+    await Assertions.Expect(nextEvidencePage).ToBeFocusedAsync();
+    var pageTwo = await page.RunAndWaitForResponseAsync(
+      () => nextEvidencePage.PressAsync("Enter"),
+      result => result.Request.Method == "GET" && result.Url.EndsWith($"/api/ui/accounting/periods/{periodId:D}/evidence/books?page=2", StringComparison.Ordinal));
+    Assert.Equal(200, pageTwo.Status);
+    using (var pageTwoBody = System.Text.Json.JsonDocument.Parse(await pageTwo.TextAsync()))
+    {
+      Assert.Equal(27, pageTwoBody.RootElement.GetProperty("totalCount").GetInt32());
+      Assert.Equal(2, pageTwoBody.RootElement.GetProperty("items").GetArrayLength());
+    }
+    await Assertions.Expect(evidence.GetByRole(AriaRole.Table)).ToContainTextAsync("SYN-EVIDENCE-25");
+    await evidence.GetByRole(AriaRole.Button, new() { Name = "Previous evidence page", Exact = true }).PressAsync("Enter");
+    await Assertions.Expect(evidence.GetByRole(AriaRole.Table)).ToContainTextAsync("SYN-EVIDENCE-00");
+    var category = evidence.GetByLabel("Evidence category", new() { Exact = true });
+    await category.SelectOptionAsync("trial-balances");
+    await Assertions.Expect(evidence.GetByRole(AriaRole.Table)).ToContainTextAsync(trialBalanceId.ToString("D"));
+    await category.SelectOptionAsync("general-ledgers");
+    await Assertions.Expect(evidence.GetByRole(AriaRole.Table)).ToContainTextAsync(generalLedgerBatchId.ToString("D"));
+    await category.SelectOptionAsync("pbc");
+    await Assertions.Expect(evidence.GetByRole(AriaRole.Table)).ToContainTextAsync("Synthetic period source evidence");
+    await category.SelectOptionAsync("tasks");
+    await Assertions.Expect(evidence.GetByRole(AriaRole.Table)).ToContainTextAsync(taskTitle);
+    await page.SetViewportSizeAsync(390, 844);
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    await using (var verify = host.CreateDbContext())
+    {
+      Assert.Equal(3, (await verify.ClientReportingPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId)).Revision);
+      Assert.Equal(packageHash, (await verify.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId)).CalculationHash);
+      Assert.Equal(3, await verify.FinancialPackageReviewDecisions.CountAsync(x => x.FinancialPackageId == packageId));
+    }
     Assert.Equal(0, mutations);
     Assert.Empty(diagnostics);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, route, "period-evidence");
   }
 
   private static async Task<IPage> LoginAsync(IBrowserContext context, string origin, string path)

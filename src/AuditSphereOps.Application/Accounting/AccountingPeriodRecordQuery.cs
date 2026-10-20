@@ -1,3 +1,4 @@
+using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -11,7 +12,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record PeriodPbcHandoff(Guid EngagementId, string Owner, string DueDate, string State);
 public sealed record PeriodTaskHandoff(string Title, string Owner, string DueDate, string State);
 public sealed record AccountingPeriodRecord(Guid Id, Guid ClientId, string ClientName, string Engagement, string PeriodCode, DateOnly StartDate, DateOnly EndDate,
-  string Basis, string Book, string Currency, string Status, long Revision, Guid? PriorPeriodId, Guid? PackageId, string? PackageLabel, Guid? MappingId,
+  string Basis, string Book, string Currency, string Status, string Revision, Guid? PriorPeriodId, Guid? PackageId, string? PackageLabel, Guid? MappingId,
   string? MappingLabel, PeriodPbcHandoff? Pbc, PeriodTaskHandoff? Task);
 
 /// <summary>Read-only exact-record view of one reporting period and its persisted handoffs; no owner or due date is invented.</summary>
@@ -41,7 +42,8 @@ public static class AccountingPeriodRecordQuery
       .Select(x => string.IsNullOrWhiteSpace(x.DisplayName) ? x.Email : x.DisplayName).SingleOrDefaultAsync(ct);
     var engagement = pbc is null ? null : await db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == pbc.EngagementId).Select(x => x.ServiceRoute).SingleOrDefaultAsync(ct);
     var result = new AccountingPeriodRecord(period.Id, period.ClientId, client ?? "Scoped client", engagement ?? "No linked engagement", period.PeriodCode,
-      period.StartDate, period.EndDate, period.Basis, book ?? "No book", period.Currency, period.Status, period.Revision, period.PriorPeriodId,
+      period.StartDate, period.EndDate, period.Basis, book ?? "No book", period.Currency, period.Status,
+      period.Revision.ToString(CultureInfo.InvariantCulture), period.PriorPeriodId,
       package?.Id, package is null ? null : $"{package.Status} · v{package.Revision} · {package.Currency}", mapping?.Id, mapping is null ? null : $"{mapping.Status} · v{mapping.Version}",
       pbc is null ? null : new PeriodPbcHandoff(pbc.EngagementId, await NameAsync(pbc.FirmOwnerUserId) ?? "Assigned firm owner",
         string.IsNullOrWhiteSpace(pbc.DueDate) ? "Not recorded" : pbc.DueDate, pbc.State),

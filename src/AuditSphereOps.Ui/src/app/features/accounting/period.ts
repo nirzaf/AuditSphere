@@ -2,8 +2,9 @@ import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, routeGuid } from '../../core/api';
-import { date, guid, nat, nullable, obj, text } from '../../core/decode';
+import { date, guid, nullable, obj, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
+import { AccountingPeriodEvidence, int64String } from './period-evidence';
 
 export const decodePeriodRecord = obj({
   id: guid,
@@ -17,7 +18,7 @@ export const decodePeriodRecord = obj({
   book: text,
   currency: text,
   status: text,
-  revision: nat,
+  revision: int64String,
   priorPeriodId: nullable(guid),
   packageId: nullable(guid),
   packageLabel: nullable(text),
@@ -29,7 +30,7 @@ export const decodePeriodRecord = obj({
 
 @Component({
   selector: 'audit-accounting-period',
-  imports: [RouterLink, MatButtonModule, ...SHARED],
+  imports: [RouterLink, MatButtonModule, AccountingPeriodEvidence, ...SHARED],
   template: `
     <a routerLink="/app/accounting">← Back to accounting workspace</a>
     <audit-page-header
@@ -108,6 +109,7 @@ export const decodePeriodRecord = obj({
           <a matButton="outlined" routerLink="/app/accounting/restatements">Restatements</a>
         </p>
       </section>
+      <audit-accounting-period-evidence [periodId]="p.id" [clientId]="p.clientId" />
     }
   `,
 })
