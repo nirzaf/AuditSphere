@@ -1,10 +1,12 @@
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
@@ -12,6 +14,94 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularClientPortalJourneyTests
 {
+  [Fact]
+  public async Task ClientSeesRetainedAcceptanceForOnlyTheExactReviewedUpload()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PBC-ACCEPTANCE");
+    var f = host.Fixture;
+    var clientActor = PbcSeed.Actor(f.Client, "ClientUser");
+    var staged = await PbcSeed.StageUploadAsync(host.Database, f, clientActor, host.RequestId,
+      "Synthetic accepted-file evidence"u8.ToArray(), "reviewed-synthetic-support.txt", "text/plain");
+    try
+    {
+      var origin = await host.StartApiForIdentityAsync(f.Client, new Dictionary<string, string> {
+        ["AngularUi__Enabled"] = "true"
+      });
+      using var playwright = await Playwright.CreateAsync();
+      await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+      await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 390, Height = 844 } });
+      var page = await context.NewPageAsync();
+      var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
+      var path = $"/ui/portal/requests/{host.RequestId}";
+      await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "PBC request", Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Recorded reviewer acceptance", Exact = true })).ToHaveCountAsync(0);
+
+      // Real local transfer/review commands against the owned synthetic database. This proves application
+      // projection, not a human professional review or live SharePoint acceptance.
+      var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(host.DbOptions));
+      var store = new PostgresOperationStore(factory);
+      var handler = new PbcDocumentTransferHandler(factory,
+        new SimulationPbcProviderSink(Path.Combine(staged.StagingRoot, "provider")));
+      await using (var db = host.CreateDbContext())
+      {
+        var complete = await PbcService.CompleteUploadAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+          new(staged.UploadIntentId, staged.DeclaredSha256Hex), store, handler);
+        Assert.True(complete.Succeeded, complete.Message);
+      }
+      var options = new WorkerOptions(f.FirmId, "Test", AllowSimulationAdapters: true);
+      Assert.True(await new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options).ProcessNextAsync());
+      PbcAcceptanceReceipt retained;
+      await using (var db = host.CreateDbContext())
+      {
+        var request = await db.PbcRequests.SingleAsync(x => x.Id == host.RequestId);
+        var review = await PbcService.ChangeStateAsync(db, PbcSeed.Actor(f.Reviewer, "Reviewer"),
+          new(host.RequestId, PbcStates.UnderReview, request.Revision));
+        Assert.True(review.Succeeded, review.Message);
+        var upload = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId);
+        var accept = await PbcService.ChangeStateAsync(db, PbcSeed.Actor(f.Reviewer, "Reviewer"),
+          new(host.RequestId, PbcStates.Accepted, request.Revision, ReviewedUploadIntentId: upload.Id,
+            ReviewedUploadRevision: upload.Revision, ReviewedContentSha256Hex: staged.DeclaredSha256Hex));
+        Assert.True(accept.Succeeded, accept.Message);
+        retained = await db.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == host.RequestId);
+      }
+      await page.GetByRole(AriaRole.Button, new() { Name = "Refresh request", Exact = true }).ClickAsync();
+      var acceptance = page.GetByRole(AriaRole.Region, new() { Name = "Recorded reviewer acceptance", Exact = true });
+      await Assertions.Expect(acceptance).ToBeVisibleAsync();
+      await Assertions.Expect(acceptance).ToContainTextAsync(retained.FileName);
+      await Assertions.Expect(acceptance).ToContainTextAsync(retained.ContentSha256Hex);
+      await Assertions.Expect(acceptance).ToContainTextAsync(retained.PbcUploadIntentId.ToString());
+      Assert.Equal(retained.AcceptedAt, DateTimeOffset.Parse((await acceptance.Locator("time").GetAttributeAsync("datetime"))!));
+      await Assertions.Expect(acceptance.Locator("time")).ToHaveTextAsync(retained.AcceptedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture));
+      var response = await context.APIRequest.GetAsync(origin + $"/api/ui/portal/requests/{host.RequestId}");
+      Assert.Equal(200, response.Status);
+      var body = await response.TextAsync();
+      Assert.DoesNotContain(retained.ProviderIdentity, body, StringComparison.Ordinal);
+      Assert.DoesNotContain(retained.SourceDigest, body, StringComparison.Ordinal);
+      Assert.DoesNotContain(retained.ReviewerUserId.ToString(), body, StringComparison.OrdinalIgnoreCase);
+      Assert.DoesNotContain("providerReceiptDigest", body, StringComparison.Ordinal);
+      await using (var db = host.CreateDbContext())
+      {
+        var request = await db.PbcRequests.SingleAsync(x => x.Id == host.RequestId);
+        var close = await PbcService.ChangeStateAsync(db, PbcSeed.Actor(f.Reviewer, "Reviewer"),
+          new(host.RequestId, PbcStates.Closed, request.Revision));
+        Assert.True(close.Succeeded, close.Message);
+      }
+      await page.GetByRole(AriaRole.Button, new() { Name = "Refresh request", Exact = true }).ClickAsync();
+      await Assertions.Expect(acceptance).ToBeVisibleAsync();
+      await Assertions.Expect(acceptance).ToContainTextAsync(retained.FileName);
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+      Assert.Empty(errors);
+      await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "pbc-acceptance");
+      await using (var db = host.CreateDbContext())
+        await db.Users.Where(x => x.Id == f.Client.Id).ExecuteUpdateAsync(s => s
+          .SetProperty(x => x.Disabled, true).SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
+      Assert.DoesNotContain(retained.FileName, await page.Locator("body").InnerTextAsync());
+    }
+    finally { PbcSeed.DeleteDirectory(staged.StagingRoot); }
+  }
+
   [Fact]
   [Trait("CaseId", "ASPM-COM06-CLIENT-FINANCE")]
   public async Task ClientPortal_FinanceTablesAreScopedAndKeyboardScrollableOnMobile()

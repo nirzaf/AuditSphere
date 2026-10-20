@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
@@ -197,6 +198,23 @@ public sealed class PbcTransferTests
     Assert.True(await transfer.Worker.ProcessNextAsync());
     var reviewer = PbcSeed.Actor(transfer.Fixture.Reviewer, "Reviewer");
     var client = PbcSeed.Actor(transfer.Fixture.Client, "ClientUser");
+    var nonparticipantUser = PbcSeed.User(transfer.Fixture.FirmId, "Client");
+    var nonparticipant = PbcSeed.Actor(nonparticipantUser, "ClientUser");
+
+    await using (var seedNonparticipant = new AuditSphereDbContext(pg.Options))
+    {
+      seedNonparticipant.Users.Add(nonparticipantUser);
+      seedNonparticipant.RoleGrants.Add(PbcSeed.Grant(transfer.Fixture.FirmId, nonparticipantUser, "ClientUser",
+        transfer.Fixture.ClientId, transfer.Fixture.EngagementId));
+      await seedNonparticipant.SaveChangesAsync();
+    }
+
+    await using (var beforeAcceptanceDb = new AuditSphereDbContext(pg.Options))
+    {
+      var beforeAcceptance = await ClientPortalWorkspaceQuery.RequestAsync(beforeAcceptanceDb, client, transfer.RequestId);
+      Assert.True(beforeAcceptance.Succeeded, beforeAcceptance.ErrorCode);
+      Assert.Null(beforeAcceptance.Value!.Acceptance);
+    }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -229,9 +247,10 @@ public sealed class PbcTransferTests
         PbcSeed.Actor(transfer.Fixture.Staff, "Staff"),
         new PbcStateChangeRequest(transfer.RequestId, PbcStates.Closed, 1))).Succeeded);
     }
+    PbcAcceptanceReceipt receipt;
     await using (var verify = new AuditSphereDbContext(pg.Options))
     {
-      var receipt = await verify.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == transfer.RequestId);
+      receipt = await verify.PbcAcceptanceReceipts.AsNoTracking().SingleAsync(x => x.PbcRequestId == transfer.RequestId);
       var operation = await verify.DurableOperations.AsNoTracking().SingleAsync(x =>
         x.OperationKind == PbcDocumentTransferHandler.Kind && x.TargetId == transfer.Staged.UploadIntentId);
       var sourceUpload = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == receipt.PbcUploadIntentId);
@@ -246,6 +265,7 @@ public sealed class PbcTransferTests
       Assert.Matches("^[0-9a-f]{64}$", receipt.SourceDigest);
       Assert.Equal(1, await verify.PbcAcceptanceReceipts.CountAsync(x => x.PbcRequestId == transfer.RequestId));
       var accepted = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == transfer.RequestId);
+      Assert.Equal(PbcStates.Accepted, accepted.State);
       Assert.Equal(receipt.AcceptedAt, accepted.AcceptedAt);
       Assert.Equal(receipt.ReviewerUserId, accepted.AcceptedByUserId);
       var receiptMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
@@ -260,6 +280,44 @@ public sealed class PbcTransferTests
       var requestContentMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE pbc_requests SET objective = 'rewritten after acceptance' WHERE id = {transfer.RequestId}"));
       Assert.Equal("55000", requestContentMutation.SqlState);
+    }
+
+    var expectedAcceptance = new PortalPbcAcceptance(
+      receipt.Id, receipt.PbcUploadIntentId, receipt.AcceptedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+      receipt.AcceptedRequestRevision.ToString(CultureInfo.InvariantCulture),
+      receipt.SourceRequestRevision.ToString(CultureInfo.InvariantCulture),
+      receipt.UploadIntentRevision.ToString(CultureInfo.InvariantCulture), receipt.FileName,
+      receipt.ByteCount.ToString(CultureInfo.InvariantCulture), receipt.ContentSha256Hex);
+    await using (var acceptedReadDb = new AuditSphereDbContext(pg.Options))
+    {
+      var acceptedRead = await ClientPortalWorkspaceQuery.RequestAsync(acceptedReadDb, client, transfer.RequestId);
+      Assert.True(acceptedRead.Succeeded, acceptedRead.ErrorCode);
+      Assert.Equal(expectedAcceptance, acceptedRead.Value!.Acceptance);
+
+      var staffRead = await ClientPortalWorkspaceQuery.RequestAsync(acceptedReadDb,
+        PbcSeed.Actor(transfer.Fixture.Staff, "Staff"), transfer.RequestId);
+      Assert.False(staffRead.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, staffRead.ErrorCode);
+      Assert.Null(staffRead.Value);
+
+      var nonparticipantRead = await ClientPortalWorkspaceQuery.RequestAsync(acceptedReadDb, nonparticipant, transfer.RequestId);
+      Assert.False(nonparticipantRead.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, nonparticipantRead.ErrorCode);
+      Assert.Null(nonparticipantRead.Value);
+    }
+
+    await using (var closeDb = new AuditSphereDbContext(pg.Options))
+    {
+      var closed = await PbcService.ChangeStateAsync(closeDb, reviewer,
+        new PbcStateChangeRequest(transfer.RequestId, PbcStates.Closed, receipt.AcceptedRequestRevision));
+      Assert.True(closed.Succeeded, closed.ErrorCode);
+    }
+    await using (var closedReadDb = new AuditSphereDbContext(pg.Options))
+    {
+      var closedRead = await ClientPortalWorkspaceQuery.RequestAsync(closedReadDb, client, transfer.RequestId);
+      Assert.True(closedRead.Succeeded, closedRead.ErrorCode);
+      Assert.Equal(PbcStates.Closed, closedRead.Value!.State);
+      Assert.Equal(expectedAcceptance, closedRead.Value.Acceptance);
     }
     PbcSeed.DeleteDirectory(transfer.Staged.StagingRoot);
   }

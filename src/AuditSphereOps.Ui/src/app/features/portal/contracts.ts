@@ -33,6 +33,19 @@ export const portalWorkspace: Decoder<PortalWorkspace> = (value, path) => {
     packagePageSize: Object.prototype.hasOwnProperty.call(raw, 'packagePageSize') ? raw['packagePageSize'] : 10,
   }, path);
 };
+const positiveInt64: Decoder<string> = (v, p) => {
+  if (typeof v !== 'string' || !/^[1-9]\d{0,18}$/.test(v) || BigInt(v) > 9223372036854775807n)
+    throw new DecodeError(`${p}: expected canonical positive Int64 string`);
+  return v;
+};
+const utcInstant: Decoder<string> = (v, p) => {
+  const value = instant(v, p);
+  if (!/(?:Z|\+00:00)$/.test(value)) throw new DecodeError(`${p}: expected UTC timestamp`);
+  return value;
+};
+const portalAcceptance = obj({ id: guid, uploadIntentId: guid, acceptedAt: utcInstant,
+  acceptedRequestRevision: positiveInt64, sourceRequestRevision: positiveInt64, uploadIntentRevision: positiveInt64,
+  fileName: text, byteCount: positiveInt64, sha256 });
 const portalUpload = obj({ id: guid, fileName: text, receivedByteCount: revision, declaredByteCount: revision,
   state: text, transferState: nullable(text), sha256, createdAt: instant });
 const portalConversation = obj({ id: guid, at: instant, speaker: text, body: text });
@@ -40,13 +53,14 @@ const portalRequestShape = obj({ id: guid, area: text, objective: text, instruct
   revision, firstSignIn, canWrite: bool, canManageDelegations: bool, canDelegate: bool,
   delegations: arr(obj({ id: guid, delegateUserId: guid, delegateName: text, createdAt: instant }), 500),
   candidates: arr(obj({ userId: guid, name: text }), 500), uploads: arr(portalUpload, 50), conversation: arr(portalConversation, 50),
-  clarificationReason: nullable(text), hasMoreUploads: bool, hasMoreConversation: bool });
+  clarificationReason: nullable(text), hasMoreUploads: bool, hasMoreConversation: bool, acceptance: nullable(portalAcceptance) });
 export const portalRequest: Decoder<ReturnType<typeof portalRequestShape>> = (value, path) => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new DecodeError(`${path}: expected object`);
   const raw = value as Record<string, unknown>;
   return portalRequestShape({ ...raw,
     hasMoreUploads: Object.prototype.hasOwnProperty.call(raw, 'hasMoreUploads') ? raw['hasMoreUploads'] : false,
     hasMoreConversation: Object.prototype.hasOwnProperty.call(raw, 'hasMoreConversation') ? raw['hasMoreConversation'] : false,
+    acceptance: Object.prototype.hasOwnProperty.call(raw, 'acceptance') ? raw['acceptance'] : null,
   }, path);
 };
 export const portalRequestHistory = obj({ requestId: guid, uploadPage: nat, conversationPage: nat, pageSize: nat,

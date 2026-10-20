@@ -275,6 +275,10 @@ public sealed class PortalActionCenterApiTests
       Assert.False(item.CanWrite);
       Assert.Null(item.ClarificationReason);
       Assert.False(item.ClarificationReasonTruncated);
+      // Legacy state/timestamps alone must not manufacture exact reviewer acceptance evidence.
+      var detail = await client.GetFromJsonAsync<PortalRequestWorkspace>($"/api/ui/portal/requests/{requestId}");
+      Assert.NotNull(detail);
+      Assert.Null(detail.Acceptance);
     }
 
     var notOnboarded = PbcSeed.User(f.FirmId, "Client");

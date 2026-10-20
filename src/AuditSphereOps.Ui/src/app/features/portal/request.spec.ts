@@ -39,6 +39,8 @@ describe('Client request draft polling', () => {
     http.expectOne(`/api/ui/portal/requests/${id}`).flush(requestWorkspace());
     TestBed.tick(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('#reviewer-acceptance-heading')).toBeNull();
+    expect(root.querySelector('#acceptance-receipt-heading')).toBeNull();
     const input = root.querySelector<HTMLTextAreaElement>('#portal-reply')!;
     const send = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
       .find(button => button.textContent?.trim() === 'Send reply')!;
@@ -60,6 +62,68 @@ describe('Client request draft polling', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(input.getAttribute('aria-describedby')).toBe('portal-reply-error');
     fixture.componentInstance.sendReply();
+    http.expectNone(request => request.method === 'POST');
+    fixture.destroy();
+  });
+
+  it('shows retained reviewer acceptance with its exact file, revisions, and UTC receipt time', () => {
+    const fixture = TestBed.createComponent(ClientPbcRequest);
+    fixture.detectChanges(); TestBed.tick();
+    const acceptance = {
+      id: '40000000-0000-4000-8000-000000000031',
+      uploadIntentId: '40000000-0000-4000-8000-000000000032',
+      acceptedAt: '2026-10-21T09:34:56Z',
+      acceptedRequestRevision: '9223372036854775807',
+      sourceRequestRevision: '9007199254740993',
+      uploadIntentRevision: '12',
+      fileName: 'October statements with supporting schedules.pdf',
+      byteCount: '9007199254740993',
+      sha256: 'c'.repeat(64),
+    };
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush({ ...requestWorkspace(false, false), state: 'ACCEPTED', acceptance });
+    TestBed.tick(); fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const heading = root.querySelector<HTMLElement>('#reviewer-acceptance-heading')!;
+    const section = heading.closest('section')!;
+    expect(section.getAttribute('aria-labelledby')).toBe('reviewer-acceptance-heading');
+    expect(heading.textContent?.trim()).toBe('Recorded reviewer acceptance');
+    const time = section.querySelector('time')!;
+    expect(time.getAttribute('datetime')).toBe(acceptance.acceptedAt);
+    expect(time.textContent?.trim()).toBe('2026-10-21 09:34 UTC');
+    const rows = Array.from(section.querySelectorAll<HTMLDivElement>('.acceptance-details > div'))
+      .map(row => [row.querySelector('dt')?.textContent?.trim(), row.querySelector('dd')?.textContent?.trim()]);
+    expect(rows).toEqual([
+      ['Acceptance receipt ID', acceptance.id],
+      ['Upload intent ID', acceptance.uploadIntentId],
+      ['File name', acceptance.fileName],
+      ['Byte count', `${acceptance.byteCount} bytes`],
+      ['SHA-256', acceptance.sha256],
+      ['Accepted request revision', acceptance.acceptedRequestRevision],
+      ['Source request revision', acceptance.sourceRequestRevision],
+      ['Upload intent revision', acceptance.uploadIntentRevision],
+    ]);
+    expect(section.textContent).toContain('Acceptance recorded by assigned reviewer');
+    expect(section.textContent).toContain('applies only to the exact uploaded file represented by this receipt');
+    expect(section.textContent).toContain('does not indicate external delivery or legal certification');
+    http.expectNone(request => request.method === 'POST');
+    fixture.destroy();
+  });
+
+  it('reports no retained receipt for a terminal request without inventing an acceptance time', () => {
+    const fixture = TestBed.createComponent(ClientPbcRequest);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush({ ...requestWorkspace(false, false), state: 'CLOSED' });
+    TestBed.tick(); fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('#reviewer-acceptance-heading')).toBeNull();
+    const heading = root.querySelector<HTMLElement>('#acceptance-receipt-heading')!;
+    const section = heading.closest('section')!;
+    expect(heading.textContent?.trim()).toBe('Acceptance receipt');
+    expect(section.textContent).toContain('No retained acceptance receipt is available for this request.');
+    expect(section.textContent).toContain('No acceptance time is shown.');
+    expect(section.querySelector('time')).toBeNull();
     http.expectNone(request => request.method === 'POST');
     fixture.destroy();
   });

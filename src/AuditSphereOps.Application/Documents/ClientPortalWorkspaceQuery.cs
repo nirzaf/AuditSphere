@@ -19,11 +19,14 @@ public sealed record PortalWorkspace(FirstSignInStatus FirstSignIn, bool Pending
 public sealed record PortalUploadItem(Guid Id, string FileName, string ReceivedByteCount, string DeclaredByteCount, string State,
   string? TransferState, string Sha256, string CreatedAt);
 public sealed record PortalConversationItem(Guid Id, string At, string Speaker, string Body);
+public sealed record PortalPbcAcceptance(Guid Id, Guid UploadIntentId, string AcceptedAt, string AcceptedRequestRevision,
+  string SourceRequestRevision, string UploadIntentRevision, string FileName, string ByteCount, string Sha256);
 public sealed record PortalRequestWorkspace(Guid Id, string Area, string Objective, string Instructions, string RequestedFormat,
   string DueDate, string State, string Revision, FirstSignInStatus FirstSignIn, bool CanWrite, bool CanDelegate,
   IReadOnlyList<PbcDelegationRow> Delegations, IReadOnlyList<PbcDelegateCandidate> Candidates,
   IReadOnlyList<PortalUploadItem> Uploads, IReadOnlyList<PortalConversationItem> Conversation,
-  string? ClarificationReason = null, bool HasMoreUploads = false, bool HasMoreConversation = false, bool CanManageDelegations = false);
+  string? ClarificationReason = null, bool HasMoreUploads = false, bool HasMoreConversation = false, bool CanManageDelegations = false,
+  PortalPbcAcceptance? Acceptance = null);
 public sealed record PortalRequestHistory(Guid RequestId, int UploadPage, int ConversationPage, int PageSize,
   IReadOnlyList<PortalUploadItem> Uploads, bool HasMoreUploads,
   IReadOnlyList<PortalConversationItem> Conversation, bool HasMoreConversation);
@@ -110,6 +113,22 @@ public static class ClientPortalWorkspaceQuery
       if (!await IsClientAsync(db, actor, ct)) return Denied();
       request = await ClientPortalService.ParticipantRequests(db, actor).SingleOrDefaultAsync(x => x.Id == requestId, ct);
       if (request is null || !await AuthorizedAsync(db, actor, request, ct)) return Denied();
+      var acceptanceReceipt = await db.PbcAcceptanceReceipts.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
+          x.EngagementId == request.EngagementId && x.PbcRequestId == request.Id)
+        .Select(x => new
+        {
+          x.Id, UploadIntentId = x.PbcUploadIntentId, x.AcceptedAt, x.AcceptedRequestRevision,
+          x.SourceRequestRevision, x.UploadIntentRevision, x.FileName, x.ByteCount, Sha256 = x.ContentSha256Hex
+        })
+        .SingleOrDefaultAsync(ct);
+      var acceptance = acceptanceReceipt is null ? null : new PortalPbcAcceptance(
+        acceptanceReceipt.Id, acceptanceReceipt.UploadIntentId,
+        acceptanceReceipt.AcceptedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+        acceptanceReceipt.AcceptedRequestRevision.ToString(CultureInfo.InvariantCulture),
+        acceptanceReceipt.SourceRequestRevision.ToString(CultureInfo.InvariantCulture),
+        acceptanceReceipt.UploadIntentRevision.ToString(CultureInfo.InvariantCulture), acceptanceReceipt.FileName,
+        acceptanceReceipt.ByteCount.ToString(CultureInfo.InvariantCulture), acceptanceReceipt.Sha256);
       var history = await ReadRequestHistoryAsync(db, actor, request, 0, 0, 25, ct);
       if (!history.Succeeded || history.Value is null) return Denied();
       var uploads = history.Value.Uploads;
@@ -125,7 +144,8 @@ public static class ClientPortalWorkspaceQuery
         request.DueDate, request.State, request.Revision.ToString(CultureInfo.InvariantCulture), firstSignIn,
         window.Succeeded && request.State is not (PbcStates.Accepted or PbcStates.Closed), canDelegate,
         delegations, candidates.Where(x => delegations.All(d => d.DelegateUserId != x.UserId)).Take(500).ToArray(),
-        uploads, messages, request.ClarificationReason, history.Value.HasMoreUploads, history.Value.HasMoreConversation, canManageDelegations);
+        uploads, messages, request.ClarificationReason, history.Value.HasMoreUploads, history.Value.HasMoreConversation,
+        canManageDelegations, acceptance);
       await snapshot.CommitAsync(ct);
     }
 

@@ -37,6 +37,28 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
           </aside>
         }
       </section>
+      @if (w.acceptance; as acceptance) {
+        <section class="panel acceptance-evidence" aria-labelledby="reviewer-acceptance-heading">
+          <h2 id="reviewer-acceptance-heading">Recorded reviewer acceptance</h2>
+          <p>Acceptance recorded by assigned reviewer at <time [attr.datetime]="acceptance.acceptedAt">{{ utcTime(acceptance.acceptedAt) }}</time>.</p>
+          <dl class="acceptance-details">
+            <div><dt>Acceptance receipt ID</dt><dd><code>{{ acceptance.id }}</code></dd></div>
+            <div><dt>Upload intent ID</dt><dd><code>{{ acceptance.uploadIntentId }}</code></dd></div>
+            <div><dt>File name</dt><dd>{{ acceptance.fileName }}</dd></div>
+            <div><dt>Byte count</dt><dd>{{ acceptance.byteCount }} bytes</dd></div>
+            <div><dt>SHA-256</dt><dd><code>{{ acceptance.sha256 }}</code></dd></div>
+            <div><dt>Accepted request revision</dt><dd><code>{{ acceptance.acceptedRequestRevision }}</code></dd></div>
+            <div><dt>Source request revision</dt><dd><code>{{ acceptance.sourceRequestRevision }}</code></dd></div>
+            <div><dt>Upload intent revision</dt><dd><code>{{ acceptance.uploadIntentRevision }}</code></dd></div>
+          </dl>
+          <p>This acceptance applies only to the exact uploaded file represented by this receipt. It does not indicate external delivery or legal certification.</p>
+        </section>
+      } @else if (w.state === 'ACCEPTED' || w.state === 'CLOSED') {
+        <section class="panel" aria-labelledby="acceptance-receipt-heading">
+          <h2 id="acceptance-receipt-heading">Acceptance receipt</h2>
+          <p>No retained acceptance receipt is available for this request. No acceptance time is shown.</p>
+        </section>
+      }
       <section class="panel" aria-labelledby="upload-heading"><h2 id="upload-heading">Upload requested files</h2>
         @if (!w.firstSignIn.completed) { <p role="status">Uploads open after your first portal sign-in is complete.</p><a routerLink="/portal">Complete first sign-in</a> }
         @else if (!w.canWrite) { <p role="status">Uploads and replies are closed for this request. Released documents remain available.</p> }
@@ -111,7 +133,7 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
       </section>
       }
     }
-  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; } .history-pages { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block: .75rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; }`
+  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .acceptance-evidence { min-width: 0; } .acceptance-details { display: grid; gap: .6rem; margin-block: .75rem; min-width: 0; } .acceptance-details > div { display: grid; grid-template-columns: minmax(9rem, .7fr) minmax(0, 1.3fr); gap: .5rem 1rem; min-width: 0; } .acceptance-details dt { font-weight: 600; } .acceptance-details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; } .acceptance-details code { white-space: normal; overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; } .history-pages { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block: .75rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; } @media (max-width: 40rem) { .acceptance-details > div { grid-template-columns: minmax(0, 1fr); gap: .15rem; } }`
 })
 export class ClientPbcRequest {
   private readonly api = inject(Api); private readonly session = inject(SessionService);

@@ -127288,6 +127288,51 @@
           }
         }
       },
+      "PortalPbcAcceptance": {
+        "required": [
+          "id",
+          "uploadIntentId",
+          "acceptedAt",
+          "acceptedRequestRevision",
+          "sourceRequestRevision",
+          "uploadIntentRevision",
+          "fileName",
+          "byteCount",
+          "sha256"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadIntentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "acceptedAt": {
+            "type": "string"
+          },
+          "acceptedRequestRevision": {
+            "type": "string"
+          },
+          "sourceRequestRevision": {
+            "type": "string"
+          },
+          "uploadIntentRevision": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "byteCount": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        }
+      },
       "PortalReplyInput": {
         "required": [
           "body"
@@ -127509,6 +127554,16 @@
           "canManageDelegations": {
             "type": "boolean",
             "default": false
+          },
+          "acceptance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PortalPbcAcceptance"
+              }
+            ]
           }
         }
       },

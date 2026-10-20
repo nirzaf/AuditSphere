@@ -41,5 +41,34 @@ describe('client portal contracts', () => {
     expect(decoded.clarificationReason).toBe('Pages 3 and 4 are missing from the statement scan.');
     expect(decoded.canManageDelegations).toBe(false);
     expect(decoded.state).toBe('CLARIFICATION_REQUIRED');
+    expect(decoded.acceptance).toBeNull();
+  });
+  it('decodes exact acceptance receipt strings and rejects malformed provided receipts', () => {
+    const request = {
+      id: '50000000-0000-4000-8000-000000000001', area: 'Cash', objective: 'Bank confirmation', instructions: 'Upload statements',
+      requestedFormat: 'PDF', dueDate: '2027-01-31', state: 'ACCEPTED', revision: '3',
+      firstSignIn: { completed: true, identityPath: 'EXTERNAL_IDENTITY', canComplete: false, message: 'Done' },
+      canWrite: false, canManageDelegations: false, canDelegate: false, delegations: [], candidates: [], uploads: [], conversation: [],
+      clarificationReason: null, hasMoreUploads: false, hasMoreConversation: false,
+    };
+    const acceptance = {
+      id: '50000000-0000-4000-8000-000000000011', uploadIntentId: '50000000-0000-4000-8000-000000000012',
+      acceptedAt: '2026-10-21T09:34:56+00:00', acceptedRequestRevision: '9223372036854775807',
+      sourceRequestRevision: '9007199254740993', uploadIntentRevision: '12', fileName: 'support.pdf',
+      byteCount: '9007199254740993', sha256: 'b'.repeat(64),
+    };
+    const decoded = decode(portalRequest, { ...request, acceptance });
+    expect(decoded.acceptance).toEqual(acceptance);
+    expect(decode(portalRequest, request).acceptance).toBeNull();
+
+    const malformed: Array<[string, unknown]> = [
+      ['id', 'not-a-guid'], ['uploadIntentId', null], ['acceptedAt', '2026-10-21T12:34:56+03:00'],
+      ['acceptedRequestRevision', '0'], ['sourceRequestRevision', '01'],
+      ['uploadIntentRevision', '9223372036854775808'], ['fileName', 42], ['byteCount', '0'],
+      ['byteCount', 9007199254740992], ['sha256', 'not-a-hash'],
+    ];
+    for (const [field, value] of malformed) {
+      expect(() => decode(portalRequest, { ...request, acceptance: { ...acceptance, [field]: value } })).toThrow();
+    }
   });
 });
