@@ -688,24 +688,8 @@
       "open": "Full CP-19 workflow, current-SHA CI, client signatory/capacity evidence and professional acceptance remain open."
     },
     "cp11AssetScheduleCashFlowLineage": {
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp11AssetScheduleCashFlowLineage",
       "status": "PARTIAL",
-      "codeCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
-      "recordedAtUtc": "2026-10-17T10:13:43Z",
-      "scope": "Latest independently reviewed ASSETS schedule depreciation/impairment lineage for explicit noncash cash-flow movements; immutable package allocation, review/presentation hash binding and sealed membership. Follow-up permits review when the package contains schedule-source links and no direct GL line allocations.",
-      "domainTest": "AuditSphereOps.Domain.Tests.CashFlowContractTests.ApprovedAssetScheduleSource_IsDiscoveredSealedAndIndependentlyReviewed passed 1/1 against isolated PostgreSQL test database.",
-      "angularSpecs": "schedule-sources.spec.ts and financial-package-build.spec.ts passed 37/37.",
-      "builds": "Release API build and Release Domain.Tests build passed with 0 warnings and 0 errors.",
-      "efModelDrift": "No pending model changes.",
-      "openApiDrift": "Passed after regenerating contracts/auditsphere-openapi.json.",
-      "migration": "20261017100336_FinancialPackageCashFlowScheduleAllocations committed; not applied to any database.",
-      "ci": {
-        "runId": 39023817560,
-        "verifiedCommit": "21b36e95346f8934b3d9754fd457fa0afc64ca82",
-        "statusAtRecording": "IN_PROGRESS",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39023817560",
-        "note": "This run predates follow-up commit f0ed61c9; push of f0ed61c9 will trigger CI for the final code tree."
-      },
-      "browser": "NOT_RUN; no isolated local signed-in workflow with approved asset-schedule fixture was available.",
       "remaining": "CP-11 remains partial: adjustments/reconciliations, policy-permitted manual evidence, schedule rework and full source-kind acceptance remain open. CP-12 indirect methodology remains BLOCKED_PROFESSIONAL."
     },
     "atomicAuditWorkingProcessTask02": {
@@ -1206,6 +1190,14 @@
       "checks": "API2/2: all categories, paging, exact revisions, sibling denial, late revocation. Angular16/16; E2E1/1 after selector fix; Angular build/lint and OpenAPI drift passed. Built-in mobile390px: selector/table agree, no overflow or console warnings/errors, exact GL acceptance link.",
       "limits": "ASPM-ACC-05 PARTIAL. Bank/AR/AP work packs and approved monthly handover absent; full source/proof association matrix, human AT and current-source full CI pending. No deployment/provider actions.",
       "screenshot": "/tmp/auditsphere-period-evidence-mobile-20261021.png"
+    },
+    "communicationHistory20261021": {
+      "sourceCommit": "9992b48b",
+      "uiBaseCommit": "ef09c442",
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "checks": "Domain6/6: full counts/bounds, wrong-client/sibling denial, late revocation, concurrent insert snapshot and three existing commercial worker variants with voucher inclusion and delivery-state semantics. Angular5/5, build/lint passed; E2E1/1 verifies HTTP200, 202total/200rows, private-body exclusion and keyboard/mobile scope. Built-in390px:375px page width, native table scrolling/focus, no console errors/warnings.",
+      "limits": "Synthetic read-only acceptance; fixture corrected for explicit email and required portal URL. Browser handoff expired during capture; fresh owned fixture passed. CLIENT-04 remains PARTIAL: client-public chronology, full actor/time proof, qualified human AT, current-source full CI and live delivery remain open. No schema/deployment/provider actions.",
+      "screenshot": "/tmp/auditsphere-communication-history-mobile-20261021.png"
     }
   },
   "externalGates": [

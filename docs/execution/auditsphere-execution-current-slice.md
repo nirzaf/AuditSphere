@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Recorded communication history
+
+The management-only outbound history now counts its complete authorized population while bounding displayed rows. Counts and rows share a database snapshot, followed by a fresh scope/grant check. Payment vouchers follow their retained document and agreement; provider acceptance is never shown as delivery time. The table has explicit headers, descriptive links and a named keyboard-scroll region. Evidence and fixture limitations are under `communicationHistory20261021` in [status.json](status.json). Client-public chronology, full actor/time proof, human AT and full release acceptance remain open.
+
 ## Exact-period accounting evidence
 
 The accounting period page exposes separately paginated retained books, sources, completeness, reconciliation proofs, specialist schedules, PBC date matches and tasks. Each evidence page uses client-wide authorization, a consistent database snapshot and a fresh authorization fence before returning. Exact revisions remain strings. Receipt and proof history is not a current-validity or readiness decision. The category selector is verified against its displayed table; scope changes clear old results. Details and limits are recorded under `accountingPeriodEvidence20261021` in [status.json](status.json).

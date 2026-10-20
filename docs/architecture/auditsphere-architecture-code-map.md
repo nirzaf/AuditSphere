@@ -241,6 +241,8 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 ## Practice — CRM, time, billing, firm ledger
 
+- Recorded outbound history: `Application/Acceptance/EngagementCommunicationTimelineQuery.cs`, existing `/engagements/{id}/communications` endpoint and Angular `features/engagements/engagement-communications.ts`. Exact source-scoped counts and bounded rows share a read snapshot, followed by fresh authorization. Voucher mail follows its retained document and agreement identities. Provider-acceptance timestamps are not delivery times. The separate `.Activity.cs` feed remains management-only; neither query grants client access to internal reviews.
+
 - Practice analytics cost: `Application/Practice/FirmOperationsServices.cs` uses the latest applicable staff-cost effective date. Conflicting values at that date leave cost, profit and margin unavailable; identical duplicate values retain the amount. Charge-out value, billing and collection remain separate measures.
 
 - Client archive/restore presentation: `src/AuditSphereOps.Ui/src/app/features/clients/client.ts` retains the exact client/session/view/revision and keyboard-focus origin across its confirmed profile reload. Deliberate pointer/key interactions and changed ownership cancel deferred focus; no authorization or retained history is changed.
