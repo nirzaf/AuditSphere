@@ -20,8 +20,12 @@ public sealed class DurableOutboxTests
   {
     await using var h = await Harness.CreateAsync();
     var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    async Task<CommandResult<Guid>> Enqueue() { await gate.Task; return await h.EnqueueAsync(); }
-    var a = Enqueue(); var b = Enqueue(); gate.SetResult();
+    static async Task<CommandResult<Guid>> EnqueueAfterGateAsync(Harness harness, TaskCompletionSource startGate)
+    {
+      await startGate.Task;
+      return await harness.EnqueueAsync();
+    }
+    var a = EnqueueAfterGateAsync(h, gate); var b = EnqueueAfterGateAsync(h, gate); gate.SetResult();
     var results = await Task.WhenAll(a, b);
     Assert.All(results, r => Assert.True(r.Succeeded));
     Assert.Equal(results[0].Value, results[1].Value);
@@ -75,8 +79,13 @@ public sealed class DurableOutboxTests
     await h.EnqueueAsync();
     await h.EnqueueAsync(h.Request with { IdempotencyKey = "second" });
     var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    async Task<DurableOperation?> Claim(string owner) { await gate.Task; return await h.ClaimAsync(owner); }
-    var a = Claim("a"); var b = Claim("b"); gate.SetResult();
+    static async Task<DurableOperation?> ClaimAfterGateAsync(Harness harness, TaskCompletionSource startGate,
+      string owner)
+    {
+      await startGate.Task;
+      return await harness.ClaimAsync(owner);
+    }
+    var a = ClaimAfterGateAsync(h, gate, "a"); var b = ClaimAfterGateAsync(h, gate, "b"); gate.SetResult();
     var claimed = await Task.WhenAll(a, b);
     Assert.All(claimed, Assert.NotNull);
     Assert.NotEqual(claimed[0]!.Id, claimed[1]!.Id);
@@ -124,7 +133,7 @@ public sealed class DurableOutboxTests
       operationTimeout.Token);
     Assert.NotNull(first);
     Assert.NotNull(second);
-    Assert.NotEqual(first!.Id, second!.Id);
+    Assert.NotEqual(first.Id, second.Id);
 
     Task<bool>? firstCompletion = null;
     Task<bool>? secondCompletion = null;
@@ -157,16 +166,17 @@ public sealed class DurableOutboxTests
         "The second completion did not wait on the first completion's firm safety row lock.");
 
       handler.ReleaseFirstTarget.TrySetResult();
-      var completed = await Task.WhenAll(firstCompletion!, secondCompletion!).WaitAsync(operationTimeout.Token);
+      var completed = await Task.WhenAll(firstCompletion, secondCompletion).WaitAsync(operationTimeout.Token);
       Assert.All(completed, result => Assert.True(result));
     }
     finally
     {
       handler.ReleaseFirstTarget.TrySetResult();
       operationTimeout.Cancel();
-      var running = new[] { firstCompletion, secondCompletion }.Where(task => task is not null)
-        .Cast<Task<bool>>().ToArray();
-      if (running.Length > 0)
+      var running = new List<Task<bool>>(2);
+      if (firstCompletion is { } firstTask) running.Add(firstTask);
+      if (secondCompletion is { } secondTask) running.Add(secondTask);
+      if (running.Count > 0)
       {
         try { await Task.WhenAll(running).WaitAsync(TimeSpan.FromSeconds(8)); }
         catch { /* Cleanup must release/observe any in-flight completion without masking the assertion. */ }
@@ -178,11 +188,11 @@ public sealed class DurableOutboxTests
     var completedOperations = await verify.DurableOperations.AsNoTracking()
       .Where(operation => operationIds.Contains(operation.Id)).ToListAsync();
     Assert.Equal(2, completedOperations.Count);
-    Assert.All(completedOperations, operation =>
+    foreach (var operation in completedOperations)
     {
       Assert.Equal(OperationState.COMPLETED, operation.Status);
       Assert.Equal(operation.Id.ToString("D"), operation.ResultIdentity);
-    });
+    }
     Assert.Equal(2, await verify.OperationEvents.CountAsync(e =>
       operationIds.Contains(e.OperationId) && e.Kind == "operation.completed.v1"));
     Assert.Equal(0, await verify.Database.SqlQueryRaw<int>("SELECT count(*)::integer AS \"Value\" FROM simulated_effects")
