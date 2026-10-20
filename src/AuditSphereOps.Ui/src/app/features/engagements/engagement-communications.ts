@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Subscription, timeout } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
-import { arr, decode, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
+import { arr, decode, guid, instant, nat, nullable, obj, oneOf, str } from '../../core/decode';
 import { clientUtcTime } from '../clients/client-contracts';
 
 const entryDecoder = obj({
@@ -19,13 +19,21 @@ const entryDecoder = obj({
   deliveredAtUtc: nullable(instant),
   sourceLink: str(500),
 });
-const timelineDecoder = obj({ engagementId: guid, totalCount: int, entries: arr(entryDecoder, 200) });
+const timelineDecoder = obj({ engagementId: guid, totalCount: nat, entries: arr(entryDecoder, 200) });
+
+const entryKey = (entry: { source: string; id: string }): string => `${entry.source}:${entry.id.toLowerCase()}`;
 
 export function decodeEngagementCommunications(value: unknown) {
   const timeline = decode(timelineDecoder, value);
+  if (timeline.totalCount < timeline.entries.length) throw new Error('Invalid communications count');
   // Only internal application routes may be rendered as links.
-  for (const entry of timeline.entries)
+  const keys = new Set<string>();
+  for (const entry of timeline.entries) {
+    const key = entryKey(entry);
+    if (keys.has(key)) throw new Error('Duplicate communications entry');
+    keys.add(key);
     if (!/^\/app(?:\/[A-Za-z0-9_~-]{1,100}){0,8}$/.test(entry.sourceLink)) throw new Error('Unsupported source link');
+  }
   return timeline;
 }
 export type EngagementCommunications = ReturnType<typeof decodeEngagementCommunications>;
@@ -59,17 +67,19 @@ export const COMMUNICATION_STATUS_LABELS: Record<string, string> = {
           @if (timeline.totalCount > timeline.entries.length) {
             <p>Showing the newest {{ timeline.entries.length }} of {{ timeline.totalCount }} recorded communications.</p>
           }
-          <div class="table-scroll"><table>
+          <p id="communications-table-scroll-help" class="sr-only">When this table region is focused, use the left and right arrow keys to scroll horizontally.</p>
+          <div class="table-scroll" role="region" aria-label="Recorded communications table; scroll horizontally if needed"
+            aria-describedby="communications-table-scroll-help" tabindex="0"><table>
             <caption>Recorded outbound communications, newest first</caption>
-            <thead><tr><th>Recorded (UTC)</th><th>Type</th><th>Subject</th><th>Recipient</th><th>Status</th><th>Source</th></tr></thead>
-            <tbody>@for (entry of timeline.entries; track entry.id) {
+            <thead><tr><th scope="col">Recorded (UTC)</th><th scope="col">Type</th><th scope="col">Subject</th><th scope="col">Recipient</th><th scope="col">Status</th><th scope="col">Source</th></tr></thead>
+            <tbody>@for (entry of timeline.entries; track trackKey(entry)) {
               <tr>
-                <td>{{ utcTime(entry.recordedAtUtc) }}</td>
+                <th scope="row"><time [attr.datetime]="entry.recordedAtUtc">{{ utcTime(entry.recordedAtUtc) }}</time></th>
                 <td>{{ entry.kind }}</td>
                 <td>{{ entry.subject || '—' }}</td>
                 <td>{{ entry.recipient || '—' }}</td>
                 <td>{{ statusLabel(entry.status) }}@if (entry.deliveredAtUtc) { <small> ({{ utcTime(entry.deliveredAtUtc) }})</small> }</td>
-                <td><a [routerLink]="entry.sourceLink">Open source</a></td>
+                <td><a [routerLink]="entry.sourceLink" [attr.aria-label]="sourceLinkLabel(entry)">Open source</a></td>
               </tr>
             }</tbody>
           </table></div>
@@ -78,6 +88,22 @@ export const COMMUNICATION_STATUS_LABELS: Record<string, string> = {
         }
       }
     </section>
+  `,
+  styles: `
+    :host { display: block; min-inline-size: 0; max-inline-size: 100%; }
+    section { min-inline-size: 0; max-inline-size: 100%; }
+    .table-scroll {
+      box-sizing: border-box;
+      inline-size: 100%;
+      min-inline-size: 0;
+      max-inline-size: 100%;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+    }
+    .table-scroll:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+    table { inline-size: 100%; min-inline-size: 52rem; border-collapse: collapse; }
+    th, td { padding: 0.5rem 0.75rem; text-align: start; vertical-align: top; overflow-wrap: anywhere; }
+    thead th { white-space: nowrap; }
   `,
 })
 export class EngagementCommunicationsPanel {
@@ -113,6 +139,14 @@ export class EngagementCommunicationsPanel {
 
   statusLabel(status: string): string {
     return COMMUNICATION_STATUS_LABELS[status] ?? 'Outcome unknown';
+  }
+
+  trackKey(entry: EngagementCommunications['entries'][number]): string {
+    return entryKey(entry);
+  }
+
+  sourceLinkLabel(entry: EngagementCommunications['entries'][number]): string {
+    return `Open ${entry.source} source for ${entry.kind}, ${entry.subject || 'No subject'}, recorded ${this.utcTime(entry.recordedAtUtc)}`;
   }
 
   load(): void {
