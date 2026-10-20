@@ -16,7 +16,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Accessibility recheck and current-SHA release verification (2026-10-20)
 
-An owned synthetic client fixture now supports authenticated built-in-browser inspection. PBC request checks covered mobile reflow, named controls, skip-link focus, navigation Escape/focus restoration and unsent-reply keyboard behavior. Evidence is in [`accessibilityRenderedSweep20261020`](status.json). Full staff/client state coverage and qualified human assistive-technology acceptance remain open.
+Authenticated synthetic PBC checks cover mobile reflow, named controls, skip-link/navigation focus and unsent replies. Touched invalid replies now expose `aria-invalid` and reference their exact error through `aria-describedby`; correction clears both. Evidence is in [`accessibilityRenderedSweep20261020`](status.json). Full state coverage and qualified human AT acceptance remain open.
 
 The preceding release exposed a test race: recovery renders before the intercepted command completes. The workpaper journey now awaits dispatch before database proof or a superseding save, unwraps the API `value` envelope and propagates callback failures. Earlier focused passes did not prove asynchronous assertions finished. Exact receipt, content, revision and duplicate-write protections remain enforced.
 

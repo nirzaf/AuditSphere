@@ -15242,6 +15242,26 @@
       }
     },
     "targetedVerification": {
+      "accessibilityFollowUps20261020": {
+        "keyboardScrollReducedMotionFollowUp": {
+          "route": "/ui/app/work",
+          "viewport": "390x844 CSS; document width 375px; no page-level horizontal overflow.",
+          "keyboardTables": "Both named table regions describe keyboard scrolling. Operational table: ArrowRight 0->272, End->580, Home->0; child control keys are not intercepted.",
+          "reducedMotion": "prefers-reduced-motion reduced the observed transition from 150ms to 0.01ms.",
+          "localVerification": "work-queue.spec.ts 32/32; Angular dev build passed with four pre-existing NG8107 warnings in src/app/features/audit/completion.ts:128-133. Full suites NOT_RUN locally. No business records changed.",
+          "fastCi": "39420353260 PASS on exact source 4f6b964ee39f30bdd858cf8f30a2dbcee297514d: Docs Health, Angular, .NET Release build, fast guards, EF drift, publication and OpenAPI.",
+          "acceptanceImages": "39420353130 PASS for API, worker and migration image builds; no deployment.",
+          "olderFullRun": "39410131489 on 9941a935 completed: API passed; E2E 322/325 (3 failed)."
+        },
+        "currentSourceViewportAndKeyboardFollowUp": {
+          "sourceCommit": "6546ffb76417c8f93f68548f6c38b0687b6e3204",
+          "browser": "Built-in browser at /ui/app/work; synthetic local API; no business writes.",
+          "viewports": "CSS overrides: 919x436, doc/body 904px; 459x218, 444px; 320x844, 305px. No page overflow; not native zoom.",
+          "keyboard": "Visible Tab focus on named table. At 459px ArrowRight/End/Home: 0->325->514->0; at 320px End/Home: 0->650->0. Scroll instructions present; tables scroll internally.",
+          "other": "No unnamed controls or console warnings/errors. Human AT review remains open.",
+          "fastCi": "39421714616 PASS on exact source 6546ffb: Angular, Docs Health and .NET Release build. Full API/E2E are not covered by this fast gate."
+        }
+      },
       "atomicAuditWorkingProcessTask01": {
         "result": "PARTIAL",
         "archiveRef": "status-archive-2026-10.json#keys.targetedVerification.atomicAuditWorkingProcessTask01",
