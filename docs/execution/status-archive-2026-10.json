@@ -18902,6 +18902,21 @@
           "browser": "Built-in client card: UTC assembly distinct from unreported receipt;390px width/375px document, no console errors/warnings. Read-only synthetic fixture, no acknowledgement clicked.",
           "limits": "CLIENT-04 PARTIAL. Signed-representation reader still caps20; contextual labels and complete public chronology remain. Human AT, full current-source CI and live provider/professional acceptance pending. No schema/config/deployment changes.",
           "screenshot": "/tmp/auditsphere-portal-bundle-history-mobile-20261021.png"
+        },
+        "communicationHistory20261021": {
+          "sourceCommit": "9992b48b",
+          "uiBaseCommit": "ef09c442",
+          "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "checks": "Domain6/6: full counts/bounds, wrong-client/sibling denial, late revocation, concurrent insert snapshot and three existing commercial worker variants with voucher inclusion and delivery-state semantics. Angular5/5, build/lint passed; E2E1/1 verifies HTTP200, 202total/200rows, private-body exclusion and keyboard/mobile scope. Built-in390px:375px page width, native table scrolling/focus, no console errors/warnings.",
+          "limits": "Synthetic read-only acceptance; fixture corrected for explicit email and required portal URL. Browser handoff expired during capture; fresh owned fixture passed. CLIENT-04 remains PARTIAL: client-public chronology, full actor/time proof, qualified human AT, current-source full CI and live delivery remain open. No schema/deployment/provider actions.",
+          "screenshot": "/tmp/auditsphere-communication-history-mobile-20261021.png"
+        },
+        "accountingPeriodEvidence20261021": {
+          "sourceCommit": "d88f7806",
+          "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "checks": "API2/2: all categories, paging, exact revisions, sibling denial, late revocation. Angular16/16; E2E1/1 after selector fix; Angular build/lint and OpenAPI drift passed. Built-in mobile390px: selector/table agree, no overflow or console warnings/errors, exact GL acceptance link.",
+          "limits": "ASPM-ACC-05 PARTIAL. Bank/AR/AP work packs and approved monthly handover absent; full source/proof association matrix, human AT and current-source full CI pending. No deployment/provider actions.",
+          "screenshot": "/tmp/auditsphere-period-evidence-mobile-20261021.png"
         }
       }
     },

@@ -1171,19 +1171,12 @@
       "pending": "Full current-source CI remains open."
     },
     "accountingPeriodEvidence20261021": {
-      "sourceCommit": "d88f7806",
-      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "checks": "API2/2: all categories, paging, exact revisions, sibling denial, late revocation. Angular16/16; E2E1/1 after selector fix; Angular build/lint and OpenAPI drift passed. Built-in mobile390px: selector/table agree, no overflow or console warnings/errors, exact GL acceptance link.",
-      "limits": "ASPM-ACC-05 PARTIAL. Bank/AR/AP work packs and approved monthly handover absent; full source/proof association matrix, human AT and current-source full CI pending. No deployment/provider actions.",
-      "screenshot": "/tmp/auditsphere-period-evidence-mobile-20261021.png"
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accountingPeriodEvidence20261021",
+      "pending": "ACC-05 PARTIAL: bank/AR/AP work packs, approved handover, full proof matrix, human AT and full CI remain open."
     },
     "communicationHistory20261021": {
-      "sourceCommit": "9992b48b",
-      "uiBaseCommit": "ef09c442",
-      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "checks": "Domain6/6: full counts/bounds, wrong-client/sibling denial, late revocation, concurrent insert snapshot and three existing commercial worker variants with voucher inclusion and delivery-state semantics. Angular5/5, build/lint passed; E2E1/1 verifies HTTP200, 202total/200rows, private-body exclusion and keyboard/mobile scope. Built-in390px:375px page width, native table scrolling/focus, no console errors/warnings.",
-      "limits": "Synthetic read-only acceptance; fixture corrected for explicit email and required portal URL. Browser handoff expired during capture; fresh owned fixture passed. CLIENT-04 remains PARTIAL: client-public chronology, full actor/time proof, qualified human AT, current-source full CI and live delivery remain open. No schema/deployment/provider actions.",
-      "screenshot": "/tmp/auditsphere-communication-history-mobile-20261021.png"
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.communicationHistory20261021",
+      "pending": "Complete client-public chronology, human AT, full release and live delivery remain open."
     },
     "portalBundleHistory20261021": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalBundleHistory20261021",
@@ -1196,6 +1189,14 @@
       "browser": "Owned synthetic client fixture390x844:375px document width, context/UTC/time/hash visible,0 unnamed controls and0 console warnings/errors; no receipt clicked.",
       "limits": "CLIENT-04 PARTIAL: full client-public chronology/actor-time proof, human screen-reader review, full current-source CI and live/professional acceptance remain open. No schema/config/provider/deployment actions.",
       "screenshot": "/tmp/auditsphere-portal-context-mobile-20261021.png"
+    },
+    "portalScanPresentation20261021": {
+      "sourceCommit": "02e34f85",
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "checks": "Angular documents/home16/16;21 scans retain distinct names/hash/time/source-version and independent source/verification states. Production Angular build/lint and rebuilt E2E project passed. E2E1/1 after fixing real390px grid overflow: metadata/upload time and downloaded PDF hash equal DB; bundle receipt/signing guards preserved. CI39507160230 failed the home fixture missing context; corrected without dropping draft/file/polling assertions.",
+      "pending": "New fast CI and full current-source CI remain pending; complete public chronology/actor-time proof, qualified human AT and professional/live acceptance remain open. No provider/deployment/config changes.",
+      "screenshot": "/tmp/auditsphere-scan-history-mobile-20261021.png",
+      "browser": "Owned synthetic client390/320px:375/305px document width, retained metadata and separate verification record visible,0 console warnings/errors. No receipt or business command clicked."
     }
   },
   "externalGates": [
