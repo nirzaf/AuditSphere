@@ -19004,6 +19004,15 @@
           "repairs": "Corrected whitespace-only test assertion, waited for search response before keyboard selection, and repaired Material button ElementRef query during focus change. No expected domain outcomes weakened.",
           "ci": "FAST_CI_PASS run39513687155 on18aef7a08167674a957ffaa4d3a3685f581249f8 (same implementation ae69e7be). Full release39502778802 oldera74b4b8c FAILED: API migration probe after refused downgrade; not current-source acceptance.",
           "limits": "WF-03 and whole tool remain PARTIAL: complete supported-state/browser/qualified human AT, current-source full CI, methodology and external acceptance remain open. No schema, config, deployment or provider changes; no full suites locally."
+        },
+        "portalPbcAcceptance20261021": {
+          "sourceCommit": "b7f7a107440666ccdd1d3750f4a1799c4db02e4a",
+          "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "behavior": "Client request snapshot exposes only the immutable exact-upload PBC acceptance identity, revisions, filename/count/hash and UTC decision time; closes retain it. No receipt is inferred from mutable state or legacy accepted timestamps. Existing participant/current-authorization fences retained; reviewer/uploader IDs and provider internals omitted. Missing optional acceptance remains compatible; malformed supplied evidence fails decoding without Number conversion.",
+          "checks": "Existing Domain reviewer-gates case1/1: real local transfer and reviewed acceptance, exact projected fields, staff/nonparticipant denial, immutable source/receipt guards and closure retention. Existing API eligibility case1/1: legacy accepted/closed/review states never synthesize receipt. Angular request7/7 and contracts6/6. API-hosted E2E1/1: local simulation transfer, real exact reviewer commands, retained UTC/file/hash, privacy, closed read and disabled-session clearing. Release solution0warnings/0errors; Angular build/lint/OpenAPI drift/docs passed;4 existing completion optional-chain and1 commercial-style budget warnings.",
+          "browser": "Built-in owned synthetic client: closed request retains recorded acceptance and exact fields; at320px document305px, no console warnings/errors. Screenshot/tmp/auditsphere-client-pbc-acceptance-320-20261021.png. Fixture disposed; no browser mutations or live professional/provider acceptance.",
+          "limits": "CLIENT-02/04 remainPARTIAL: full public chronology/actor-time acceptance, whole-state browser/human AT, current-source full release and professional/live-provider gates remain open. No migration/config/deployment/provider permission changes; no full local suites.",
+          "ci": "Fast CI39513687155 PASS on18aef7a0. Full release39502778802 oldera74b4b8c FAILED: Domain/E2E/Angular/contractsPASS; API downgrade probe reads a newer removed nullable column after refusal. Diagnosis/fix tracked separately; new-source CI not yet run."
         }
       }
     },

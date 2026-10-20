@@ -14,23 +14,23 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Separate client upload and reply capabilities
+
+Home and detail now use independent server-projected upload and reply eligibility from the existing command rules. Clients can reply during review, respond to a clarification before replacing files, and upload after resubmission. Missing capability fields fail closed; legacy `CanWrite` remains compatibility data. Home rechecks current window, scope and request state/revision before releasing action hints. Changed capabilities clear local drafts while ordinary polling preserves them.
+
+The real synthetic browser journey proves the clarification/reply/replacement sequence without turning staging into acceptance. Built-in narrow-screen inspection caught and repaired long-message URL overflow. Exact source, focused results, test repairs, screenshots and CI limits are under `portalRequestCapabilities20261021` in [status.json](status.json). Earlier template-picker evidence is in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Whole-tool, human AT, full release and professional/live-provider acceptance remain open.
+
 ## Workflow evidence downgrade-test recovery
 
 The historical full release failed in one API migration probe after later compatible down-migrations removed a nullable lineage column and an older retained-evidence guard correctly refused further rollback. The test now reads the retained identity in that intermediate schema, restores the latest migrations, then checks the original whole-table single-record invariant and retained fields. Production migrations, refusal guards and authorization assertions are unchanged. Exact source, focused results and historical release outcome are in `workflowEvidenceDowngradeRecovery20261021` in [status.json](status.json); this is not a current full regression pass.
 
-The next identified portal correction is to distinguish upload availability from reply availability using the existing command gates. Detail currently shares one flag; review/clarification states permit replies but not a new upload, while the home action filter omits the upload-eligible resubmitted state. Preserve the commands and their final checks; do not invent new state transitions or professional decisions.
+A further defensive audit found that several client command paths reauthorize the pre-lock request owner rather than the locked row. No supported owner-reassignment command currently exists, so this is latent hardening work, not a demonstrated reachable portal exploit. Any correction must retain scope checks and lock order and prove current participation without adding a reassignment workflow.
 
 ## Retained PBC reviewer acceptance in the client portal
 
 Client request detail now distinguishes a retained exact-upload acceptance receipt from the current request status. The receipt’s file identity, revisions, hash, byte count and UTC decision time survive closure; reviewer IDs and provider internals remain private. Legacy terminal statuses without that receipt do not create an acceptance event or time. The existing snapshot, participation and current-session fences still govern the read. Angular keeps retained integer strings exact and refuses malformed supplied receipt content.
 
 Focused database, API, Angular, real local-command browser and built-in mobile observations are under `portalPbcAcceptance20261021` in [status.json](status.json). Local provider simulation is explicitly not live tenant or qualified professional acceptance. CLIENT-02/04, complete client-public chronology, whole-state/human AT and current-source full release remain open. Earlier signed-scan and document-context handoffs are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
-
-## Workflow evidence source discovery and keyboard continuity
-
-Operational plan previews now discover exact-engagement PBC and procedure references through a lazy, paged search. Current selections resolve independently of the search/page; manual identifiers remain available. Recorded status is informational, including draft requests and planned procedures. Snapshot reads end with fresh authorization; session/context changes refuse stale results. Selecting a source clears the old preview and assent and restores keyboard focus to the persistent preview action. Preview and task completion still enforce source scope and professional evidence independently.
-
-The owned browser exercised both bindings and mobile reflow without creating tasks or approving professional evidence. The focused automated journey separately created the exact operational rules and confirmed completion remained blocked. Source identity, focused results, repaired checks and CI limits are under `workflowEvidenceSourcePicker20261021` in [status.json](status.json). WF-03, whole-state accessibility, qualified human AT, current-source full release and professional/live-provider acceptance remain open. No deployment or Microsoft configuration changed.
 
 ## PBC request snapshots and terminal delegation management
 
