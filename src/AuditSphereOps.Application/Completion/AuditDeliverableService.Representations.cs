@@ -13,6 +13,7 @@ public sealed record SignedLetterView(Guid Id, Guid DeliverableId, int Version, 
 public static partial class AuditDeliverableService
 {
   public const int MaxSignedLetterBytes = 10 * 1024 * 1024;
+  internal const int MaxClientPortalSignedLetters = 100;
 
   public static async Task<CommandResult<Guid>> UploadSignedRepresentationAsync(IAuditSphereDbContext db, ActorContext actor,
     Guid deliverableId, string expectedSha256, string managementSignatory, byte[] pdf, CancellationToken ct = default)
@@ -106,20 +107,51 @@ public static partial class AuditDeliverableService
     return auth.Succeeded ? CommandResult<SignedRepresentationLetter>.Ok(scan) : CommandResult<SignedRepresentationLetter>.Fail(auth.ErrorCode!, auth.Message!);
   }
 
-  public static async Task<IReadOnlyList<SignedLetterView>> SignedRepresentationsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  public static Task<IReadOnlyList<SignedLetterView>> SignedRepresentationsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+    => SignedRepresentationsAsync(db, actor, 20, engagementId, ct);
+
+  internal static async Task<IReadOnlyList<SignedLetterView>> SignedRepresentationsAsync(IAuditSphereDbContext db, ActorContext actor,
+    int maxItems, Guid engagementId, CancellationToken ct = default)
   {
-    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
+    if (maxItems < 1 || maxItems > MaxClientPortalSignedLetters + 1) throw new ArgumentOutOfRangeException(nameof(maxItems));
+    var engagement = await db.Engagements.AsNoTracking().Where(x => x.Id == engagementId && x.FirmId == actor.FirmId)
+      .Select(x => new { x.PracticeClientId }).SingleOrDefaultAsync(ct);
     if (engagement is null) return [];
     var client = actor.Roles.Contains("ClientUser");
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, engagement.PracticeClientId, engagementId, client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct)).Succeeded) return [];
-    var scans = await db.SignedRepresentationLetters.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
-      .OrderByDescending(x => x.UploadedAt).Take(20).Select(x => new { x.Id, x.DeliverableId, x.ManagementSignatory, x.ContentSha256, x.UploadedAt }).ToListAsync(ct);
+
+    // Join the exact scoped deliverable so malformed cross-scope rows cannot consume a bounded slot or expose its version.
+    var scans = await db.SignedRepresentationLetters.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId)
+      .Join(db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId),
+        scan => scan.DeliverableId, letter => letter.Id,
+        (scan, letter) => new { scan.Id, scan.DeliverableId, letter.Version, scan.ManagementSignatory, scan.ContentSha256, scan.UploadedAt })
+      .OrderByDescending(x => x.UploadedAt).ThenByDescending(x => x.Id).Take(maxItems).ToListAsync(ct);
+
+    var deliverableIds = scans.Select(x => x.DeliverableId).Distinct().ToArray();
+    var deliverables = deliverableIds.Length == 0
+      ? new Dictionary<Guid, AuditDeliverable>()
+      : await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId &&
+          x.EngagementId == engagementId && deliverableIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, ct);
+    var scanIds = scans.Select(x => x.Id).ToArray();
+    var verifiedIds = scanIds.Length == 0
+      ? new HashSet<Guid>()
+      : (await db.RepresentationLetterVerifications.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+          x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId && scanIds.Contains(x.SignedLetterId))
+        .Select(x => x.SignedLetterId).ToListAsync(ct)).ToHashSet();
+
     var result = new List<SignedLetterView>();
+    var currentByDeliverable = new Dictionary<Guid, bool>();
     foreach (var scan in scans)
     {
-      var letter = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == scan.DeliverableId && x.FirmId == actor.FirmId, ct);
-      result.Add(new(scan.Id, letter.Id, letter.Version, scan.ManagementSignatory, scan.ContentSha256, scan.UploadedAt,
-        await db.RepresentationLetterVerifications.AnyAsync(x => x.FirmId == actor.FirmId && x.SignedLetterId == scan.Id, ct), await IsCurrentAsync(db, actor, letter, ct)));
+      if (!currentByDeliverable.TryGetValue(scan.DeliverableId, out var isCurrent))
+      {
+        isCurrent = await IsCurrentAsync(db, actor, deliverables[scan.DeliverableId], ct);
+        currentByDeliverable.Add(scan.DeliverableId, isCurrent);
+      }
+      result.Add(new(scan.Id, scan.DeliverableId, scan.Version, scan.ManagementSignatory, scan.ContentSha256, scan.UploadedAt,
+        verifiedIds.Contains(scan.Id), isCurrent));
     }
     return result;
   }

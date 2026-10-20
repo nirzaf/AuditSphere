@@ -41260,6 +41260,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
             "content": {
@@ -95362,39 +95372,6 @@
           }
         }
       },
-      "ClientBundleView": {
-        "required": [
-          "manifestSha256",
-          "acknowledgedAt",
-          "id",
-          "sha256",
-          "assembledAt"
-        ],
-        "type": "object",
-        "properties": {
-          "manifestSha256": {
-            "type": "string"
-          },
-          "acknowledgedAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "sha256": {
-            "type": "string"
-          },
-          "assembledAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
       "ClientCashAccountOption": {
         "required": [
           "accountCode",
@@ -126884,6 +126861,66 @@
           }
         }
       },
+      "PortalDocumentContext": {
+        "required": [
+          "clientLegalName",
+          "serviceRoute",
+          "periodStart",
+          "periodEnd"
+        ],
+        "type": "object",
+        "properties": {
+          "clientLegalName": {
+            "type": "string"
+          },
+          "serviceRoute": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string"
+          }
+        }
+      },
+      "PortalFinalBundleView": {
+        "required": [
+          "id",
+          "sha256",
+          "assembledAt",
+          "manifestSha256",
+          "acknowledgedAt",
+          "context"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "assembledAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "manifestSha256": {
+            "type": "string"
+          },
+          "acknowledgedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "context": {
+            "$ref": "#/components/schemas/PortalDocumentContext"
+          }
+        }
+      },
       "PortalFirstSignInInput": {
         "required": [
           "acknowledged"
@@ -127291,7 +127328,7 @@
           "bundles": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ClientBundleView"
+              "$ref": "#/components/schemas/PortalFinalBundleView"
             }
           }
         }
@@ -127305,7 +127342,8 @@
           "version",
           "sha256",
           "acknowledgedAt",
-          "comments"
+          "comments",
+          "context"
         ],
         "type": "object",
         "properties": {
@@ -127341,6 +127379,9 @@
             "items": {
               "$ref": "#/components/schemas/PortalDocumentComment"
             }
+          },
+          "context": {
+            "$ref": "#/components/schemas/PortalDocumentContext"
           }
         }
       },

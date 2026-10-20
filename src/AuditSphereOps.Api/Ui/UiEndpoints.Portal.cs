@@ -63,7 +63,7 @@ public static partial class UiEndpoints
       .WithUiResponse<PortalRequestHistory>();
     group.MapUiGet("/portal/documents", (HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalReviewQuery.GetAsync(db, actor, ct)))
-      .WithUiResponse<PortalReviewDocuments>();
+      .WithUiResponse<PortalReviewDocuments>(includeConflict: true);
     group.MapUiGet("/portal/finance", (HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalFinanceQuery.GetAsync(db, actor, ct)))
       .WithUiResponse<PortalClientFinanceView>();

@@ -35,8 +35,19 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.UploadSignedRepresentationAsync(db, manager, letterId, letter.ContentSha256, "Client Director", pdf)).ErrorCode);
     var scan = await AuditDeliverableService.UploadSignedRepresentationAsync(db, client, letterId, letter.ContentSha256, "Client Director", pdf);
     Assert.True(scan.Succeeded, scan.Message);
+    var realScanIds = new HashSet<Guid> { scan.Value };
     Assert.Equal(scan.Value, (await AuditDeliverableService.UploadSignedRepresentationAsync(db, client, letterId, letter.ContentSha256, "Client Director", pdf)).Value);
     Assert.Equal(ErrorCodes.IdempotencyConflict, (await AuditDeliverableService.UploadSignedRepresentationAsync(db, client, letterId, letter.ContentSha256, "Different Director", pdf)).ErrorCode);
+    static byte[] HistoryPdf(int revision) => AuditDeliverableRenderer.RenderPdf(new("Synthetic management", "Management-signed representation scan",
+      $"TEST-SCAN-{revision:D2}", new DateOnly(2026, 12, 31), "Auditors",
+      [new("Synthetic acceptance fixture", [$"Distinct retained upload fixture {revision}; the original scan remains the verified one."])]));
+    for (var revision = 1; revision <= 20; revision++)
+    {
+      var additional = await AuditDeliverableService.UploadSignedRepresentationAsync(db, client, letterId, letter.ContentSha256,
+        "Client Director", HistoryPdf(revision));
+      Assert.True(additional.Succeeded, additional.Message);
+      Assert.True(realScanIds.Add(additional.Value));
+    }
     var row = (await AuditDeliverableService.GetSignedRepresentationAsync(db, client, scan.Value)).Value!;
     Assert.Equal(pdf, row.Content);
     Assert.Equal(Hashing.Sha256Hex(pdf), row.ContentSha256);
@@ -45,6 +56,20 @@ public sealed partial class AuditDeliverablesTests
     var verification = await AuditDeliverableService.VerifySignedRepresentationAsync(db, partner, row.Id, row.ContentSha256, "Verified executive management authority, signature and completeness.");
     Assert.True(verification.Succeeded, verification.Message);
     Assert.Equal(verification.Value, (await AuditDeliverableService.VerifySignedRepresentationAsync(db, partner, row.Id, row.ContentSha256, "Reviewed again.")).Value);
+    var clientDocuments = await ClientPortalReviewQuery.GetAsync(db, client);
+    Assert.True(clientDocuments.Succeeded, clientDocuments.Message);
+    var clientHistory = clientDocuments.Value!.SignedLetters;
+    Assert.Equal(21, clientHistory.Count);
+    Assert.Equal(realScanIds.Order(), clientHistory.Select(x => x.Id).Order());
+    Assert.Equal(clientHistory.OrderByDescending(x => x.UploadedAt).ThenByDescending(x => x.Id).Select(x => x.Id), clientHistory.Select(x => x.Id));
+    var originalHistory = Assert.Single(clientHistory, x => x.Id == row.Id);
+    Assert.Equal(row.ContentSha256, originalHistory.ContentSha256);
+    Assert.True(originalHistory.Verified);
+    Assert.True(originalHistory.Current);
+    Assert.Equal(20, (await AuditDeliverableService.SignedRepresentationsAsync(db, manager, w.EngagementId)).Count);
+    await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => AuditDeliverableService.SignedRepresentationsAsync(db, client, 0, w.EngagementId));
+    await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => AuditDeliverableService.SignedRepresentationsAsync(db, client,
+      AuditDeliverableService.MaxClientPortalSignedLetters + 2, w.EngagementId));
     Assert.Null(await AuditDeliverableService.CurrentClearanceAsync(db, client, w.EngagementId));
     var siblingClient = Guid.NewGuid(); var siblingEngagement = Guid.NewGuid();
     db.PracticeClients.Add(new PracticeClient { Id = siblingClient, FirmId = w.FirmId, LegalName = "Sibling B", CreatedAt = DateTimeOffset.UtcNow });
@@ -65,8 +90,32 @@ public sealed partial class AuditDeliverablesTests
     db.Findings.Add(new AuditSphereOps.Domain.Audit.Finding { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, ActorId = w.U["manager"].Id,
       FindingType = "New finding", ImpactDescription = "Additional review required", CreatedAt = DateTimeOffset.UtcNow });
     await db.SaveChangesAsync();
-    Assert.False((await AuditDeliverableService.SignedRepresentationsAsync(db, client, w.EngagementId)).Single().Current);
+    Assert.False(Assert.Single(await AuditDeliverableService.SignedRepresentationsAsync(db, client,
+      AuditDeliverableService.MaxClientPortalSignedLetters + 1, w.EngagementId), x => x.Id == row.Id).Current);
     Assert.Equal(ErrorCodes.GenerationStale, (await AuditDeliverableService.VerifySignedRepresentationAsync(db, partner, row.Id, row.ContentSha256, "Reviewed again after changes.")).ErrorCode);
+
+    // Projection-boundary rows only: these 80 short payloads have scoped database keys but are not actual PDFs or signed scans.
+    db.SignedRepresentationLetters.AddRange(Enumerable.Range(1, 80).Select(revision =>
+    {
+      var content = System.Text.Encoding.UTF8.GetBytes($"projection-only-scan-{revision}");
+      return new SignedRepresentationLetter
+      {
+        Id = Guid.NewGuid(), FirmId = row.FirmId, ClientId = row.ClientId, EngagementId = row.EngagementId,
+        DeliverableId = row.DeliverableId, DeliverableSha256 = row.DeliverableSha256,
+        ContentSha256 = Hashing.Sha256Hex(content), Content = content, ManagementSignatory = "Projection only",
+        UploadedByUserId = client.UserId, UploadedAt = row.UploadedAt
+      };
+    }));
+    await db.SaveChangesAsync();
+    var sentinelHistory = await AuditDeliverableService.SignedRepresentationsAsync(db, client,
+      AuditDeliverableService.MaxClientPortalSignedLetters + 1, w.EngagementId);
+    Assert.Equal(101, sentinelHistory.Count);
+    Assert.Equal(sentinelHistory.OrderByDescending(x => x.UploadedAt).ThenByDescending(x => x.Id).Select(x => x.Id),
+      sentinelHistory.Select(x => x.Id));
+    var overflow = await ClientPortalReviewQuery.GetAsync(db, client);
+    Assert.Equal(ErrorCodes.GateBlocked, overflow.ErrorCode);
+    Assert.Null(overflow.Value);
+
     await db.Users.Where(x => x.Id == client.UserId).ExecuteUpdateAsync(x => x.SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
     Assert.False((await AuditDeliverableService.GetSignedRepresentationAsync(db, client, row.Id)).Succeeded);
     Assert.Empty(await AuditDeliverableService.SignedRepresentationsAsync(db, client, w.EngagementId));
@@ -255,6 +304,10 @@ public sealed partial class AuditDeliverablesTests
       var clientBundles = clientPortalReview.Value!.Bundles;
       Assert.Equal(11, clientBundles.Count);
       var clientBundle = Assert.Single(clientBundles, x => x.Id == row.Id);
+      var contextEngagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == w.EngagementId);
+      var contextClient = await db.PracticeClients.AsNoTracking().SingleAsync(x => x.Id == contextEngagement.PracticeClientId);
+      Assert.Equal(new PortalDocumentContext(contextClient.LegalName, contextEngagement.ServiceRoute,
+        contextEngagement.PeriodStart, contextEngagement.PeriodEnd), clientBundle.Context);
       Assert.Equal(row.ContentSha256, clientBundle.Sha256);
       Assert.Equal(row.ManifestSha256, clientBundle.ManifestSha256);
       Assert.Null(clientBundle.AcknowledgedAt);

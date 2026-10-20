@@ -51,7 +51,7 @@ public sealed class CompletionDeliverablesJourneyTests
     {
       db.Users.AddRange(partner, manager, accountingReviewer, financeReviewer);
       db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, partner, "Partner"), PbcSeed.Grant(f.FirmId, manager, "Manager"));
-      await db.Engagements.Where(x => x.Id == f.EngagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodEnd, "2026-12-31"));
+      await db.Engagements.Where(x => x.Id == f.EngagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodStart, "2026-01-01").SetProperty(x => x.PeriodEnd, "2026-12-31"));
       db.GoingConcernAssessments.Add(new GoingConcernAssessment { Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId, AssessmentDate = new DateOnly(2027, 2, 1),
         PeriodCoveredTo = new DateOnly(2028, 3, 31), ForecastReviewOutcome = "Reviewed", DisclosureAdequate = true, Conclusion = GoingConcernConclusions.NoMaterialUncertainty, Rationale = "Forecast reviewed",
         Currency = "QAR", RecordedByUserId = manager.Id, ReviewedByUserId = partner.Id, RecordedAt = now, ReviewedAt = now });
@@ -266,15 +266,28 @@ public sealed class CompletionDeliverablesJourneyTests
     await clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).WaitForAsync(new() { Timeout = 20000 });
     DateTimeOffset expectedAssembly;
     string expectedBundleHash;
+    string expectedClientName;
+    string expectedService;
+    string expectedPeriodStart;
+    string expectedPeriodEnd;
     await using (var verify = host.CreateDbContext())
     {
       var retainedBundle = await verify.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
       expectedAssembly = retainedBundle.AssembledAt;
       expectedBundleHash = retainedBundle.ContentSha256;
+      expectedClientName = await verify.PracticeClients.Where(x => x.Id == f.ClientId).Select(x => x.LegalName).SingleAsync();
+      var expectedEngagement = await verify.Engagements.AsNoTracking().SingleAsync(x => x.Id == f.EngagementId);
+      expectedService = expectedEngagement.ServiceRoute;
+      expectedPeriodStart = expectedEngagement.PeriodStart;
+      expectedPeriodEnd = expectedEngagement.PeriodEnd;
       Assert.False(await verify.ClientBundleAcknowledgements.AnyAsync(x => x.BundleId == retainedBundle.Id));
     }
     var bundleCard = clientPage.Locator("article.document").Filter(new()
       { Has = clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }) });
+    await Assertions.Expect(bundleCard).ToContainTextAsync(expectedClientName);
+    await Assertions.Expect(bundleCard).ToContainTextAsync(expectedService);
+    await Assertions.Expect(bundleCard).ToContainTextAsync(expectedPeriodStart);
+    await Assertions.Expect(bundleCard).ToContainTextAsync(expectedPeriodEnd);
     await Assertions.Expect(bundleCard).ToContainTextAsync("Final bundle assembled at");
     await Assertions.Expect(bundleCard).ToContainTextAsync(expectedAssembly.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture));
     var assemblyTime = bundleCard.Locator("time").First;

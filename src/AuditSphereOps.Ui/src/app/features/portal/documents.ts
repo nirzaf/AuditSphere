@@ -7,10 +7,11 @@ import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { revision } from './contracts';
 import { clientUtcTime } from '../clients/client-contracts';
+const portalDocumentContext = obj({ clientLegalName: text, serviceRoute: text, periodStart: text, periodEnd: text });
 export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, deliverableId: guid, kind: text, title: text, version: revision,
-  sha256, acknowledgedAt: nullable(instant), comments: arr(obj({ body: text, fromClient: bool, resolution: nullable(text) }), 1000) }), 200),
+  sha256, acknowledgedAt: nullable(instant), comments: arr(obj({ body: text, fromClient: bool, resolution: nullable(text) }), 1000), context: portalDocumentContext }), 200),
   signedLetters: arr(obj({ id: guid, deliverableId: guid, version: nat, managementSignatory: text, contentSha256: sha256, uploadedAt: instant, verified: bool, current: bool }), 100),
-  bundles: arr(obj({ id: guid, sha256, manifestSha256: sha256, assembledAt: instant, acknowledgedAt: nullable(instant) }), 100) });
+  bundles: arr(obj({ id: guid, sha256, manifestSha256: sha256, assembledAt: instant, acknowledgedAt: nullable(instant), context: portalDocumentContext }), 100) });
 @Component({ selector: 'audit-portal-documents', imports: [ReactiveFormsModule, MatButtonModule, ...SHARED], template: `
   <section class="panel"><h2>Documents for your review</h2><audit-state [loading]="ws.loading()" [error]="ws.error()" label="your shared documents" />
     <audit-command-message [message]="message()" [failed]="failed()" />
@@ -18,6 +19,10 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
     @if (ws.data(); as w) {
       @for (d of w.documents; track d.reviewId) {
         <article class="document"><h3><a [href]="'/api/deliverables/' + d.deliverableId + '/download'">{{ d.title }} v{{ d.version }}</a></h3><p class="fingerprint">SHA-256 {{ d.sha256 }}</p>
+          <dl class="context"><dt>Client legal name</dt><dd>{{ d.context.clientLegalName || 'Not recorded' }}</dd>
+            <dt>Service</dt><dd>{{ d.context.serviceRoute || 'Service not recorded' }}</dd>
+            <dt>Period start</dt><dd>{{ d.context.periodStart || 'Not recorded' }}</dd>
+            <dt>Period end</dt><dd>{{ d.context.periodEnd || 'Not recorded' }}</dd></dl>
           @for (c of d.comments; track $index) { <p>{{ c.fromClient ? 'Client' : 'Auditor' }}: {{ c.body }} @if(c.resolution) { — resolved: {{ c.resolution }} }</p> }
           @if (d.acknowledgedAt) { <p>Acknowledged {{ d.acknowledgedAt }}</p> }
           @else {
@@ -41,8 +46,12 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
           @for (s of w.signedLetters; track s.id) { @if (s.deliverableId === d.deliverableId) { <p><a [href]="'/api/representation-scans/' + s.id + '/download'">Management-signed PDF</a> <audit-status [value]="!s.current ? 'STALE' : s.verified ? 'VERIFIED' : 'PENDING_REVIEW'" /></p> } }
         </article>
       } @empty { <p>No reports or letters are shared with your current scope.</p> }
-      @for (b of w.bundles; track b.id) { <article class="document"><p><a [href]="'/api/deliverable-bundles/' + b.id + '/download'" [attr.aria-label]="'Download five-part final bundle assembled at ' + utcTime(b.assembledAt) + '; bundle ' + b.id">Download five-part final bundle</a></p>
+      @for (b of w.bundles; track b.id) { <article class="document"><p><a [href]="'/api/deliverable-bundles/' + b.id + '/download'" [attr.aria-label]="bundleDownloadLabel(b)">Download five-part final bundle</a></p>
         <p class="fingerprint">ZIP SHA-256 {{ b.sha256 }} · manifest SHA-256 {{ b.manifestSha256 }}</p>
+        <dl class="context"><dt>Client legal name</dt><dd>{{ b.context.clientLegalName || 'Not recorded' }}</dd>
+          <dt>Service</dt><dd>{{ b.context.serviceRoute || 'Service not recorded' }}</dd>
+          <dt>Period start</dt><dd>{{ b.context.periodStart || 'Not recorded' }}</dd>
+          <dt>Period end</dt><dd>{{ b.context.periodEnd || 'Not recorded' }}</dd></dl>
         <p>Final bundle assembled at <time [attr.datetime]="b.assembledAt">{{ utcTime(b.assembledAt) }}</time>. This is an assembly time, not evidence of delivery or client receipt.</p>
         @if (b.acknowledgedAt) { <p>Receipt acknowledged by your client account at <time [attr.datetime]="b.acknowledgedAt">{{ utcTime(b.acknowledgedAt) }}</time>. This is a client report, not proof of email delivery or an independently observed download.</p> }
         @else { <label><input type="checkbox" [checked]="receiptReviewed() === b.id" (change)="reviewReceipt(b.id, $event)" /> I confirm that I received this exact final bundle.</label>
@@ -50,7 +59,7 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
       </article> }
     }
   </section>
-`, styles: `.fingerprint { overflow-wrap: anywhere; } .document { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } textarea { width: 100%; min-height: 6rem; }` })
+`, styles: `.fingerprint { overflow-wrap: anywhere; } .document { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .context { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .25rem .75rem; margin-block: .75rem; } .context dt { font-weight: 600; } .context dd { min-width: 0; margin: 0; overflow-wrap: anywhere; } textarea { width: 100%; min-height: 6rem; }` })
 export class PortalDocuments {
   private readonly api = inject(Api); private readonly session = inject(SessionService); private readonly fb = inject(FormBuilder);
   readonly utcTime = clientUtcTime;
@@ -61,6 +70,10 @@ export class PortalDocuments {
   private pendingComment: { reviewId: string; requestId: string; body: string } | null = null;
   readonly commentPending = signal(false);
   readonly commentUncertain = signal(false);
+  bundleDownloadLabel(bundle: ReturnType<typeof sharedDocuments>['bundles'][number]): string {
+    const context = bundle.context;
+    return `Download five-part final bundle for client ${context.clientLegalName || 'not recorded'}; service ${context.serviceRoute || 'not recorded'}; period start ${context.periodStart || 'not recorded'}; period end ${context.periodEnd || 'not recorded'}; current bundle ${bundle.id}; assembled ${this.utcTime(bundle.assembledAt)}`;
+  }
   /** This editor visit ended (the portal shell closed or the page left); late command callbacks must not touch it. */
   private destroyed = false;
   constructor() { inject(DestroyRef).onDestroy(() => { this.destroyed = true; }); effect(() => {
