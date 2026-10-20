@@ -244,6 +244,62 @@
       },
       "accessibilityLimit": "Human assistive-technology review with recorded AT/browser versions and meaningful-announcement review remains outstanding. Complete supported-state acceptance is not claimed; the workflow editor was checked at 390x844 with no horizontal overflow."
     },
+    "accessibilityRenderedSweep20261020": {
+      "sourceCommit": "12ab201aa93bde9523e187ec8994c08fe6ac45a2",
+      "recordedAtUtc": "2026-10-20T11:37:53Z",
+      "result": "PARTIAL_RENDERED_REVIEW",
+      "builtInBrowser": {
+        "uiSource": "Current Angular workspace at the recorded source commit.",
+        "apiSource": "The existing local API on 127.0.0.1:5029 was not rebuilt or source-pinned; API-dependent states are not treated as current-source acceptance.",
+        "viewport": "1280x720",
+        "routes": [
+          "/ui/app/work",
+          "/ui/app/practice/leads",
+          "/ui/app/practice/resources",
+          "/ui/app/accounting",
+          "/ui/app/engagements/e1000000-0000-0000-0000-000000000001/audit-fieldwork",
+          "/ui/app/practice/workflow-templates",
+          "/ui/app/practice/time",
+          "/ui/app/practice/analytics",
+          "/ui/app/finance",
+          "/ui/app/finance/books",
+          "/ui/app/finance/fee-agreements",
+          "/ui/app/accounting/mappings",
+          "/ui/app/accounting/journals",
+          "/ui/app/accounting/reviews",
+          "/ui/app/consolidation",
+          "/ui/app/administration/users",
+          "/ui/app/operations"
+        ],
+        "observations": [
+          "Each inspected route rendered one main-content level-one heading.",
+          "The rendered-control name proxy found no buttons or form controls without ARIA naming, associated label text, visible text, placeholder or title; no duplicate DOM IDs were found.",
+          "Tables exposed column headers; tables with captions exposed those captions in the accessibility tree. Review and consolidation tables without captions remain in heading-labelled regions and expose their column headers.",
+          "Status and blocked/denied feedback used status or alert semantics. Finance routes were correctly denied for the current local identity; the directory-reader prerequisite remained visibly blocked.",
+          "The My Work Board and Calendar views exposed selected state and named task groups. Compact navigation changed to an expanded-state label with aria-pressed=true while navigation link names remained available; the control was restored to expanded navigation.",
+          "At the available 1280x720 viewport there was no horizontal overflow on the inspected routes. A separate 390x844 workflow-template-editor check is recorded under workflowTemplateAuthoringUi.",
+          "Fresh built-in-browser console inspection reported zero errors across the inspected staff routes. No business, financial or approval records were changed."
+        ],
+        "environmentLimited": [
+          "Resource planning returned an accessible Unsupported response alert because its API response came from the existing unverified local API process; the route is not marked as passed.",
+          "Client-portal review requires a separate client identity and was not performed.",
+          "This sweep did not cover native 200%/400% zoom, reduced-motion or human screen-reader announcements."
+        ]
+      },
+      "ci": {
+        "fastRun": "39414673969",
+        "fastRunSource": "12ab201aa93bde9523e187ec8994c08fe6ac45a2",
+        "fastRunResult": "PASS",
+        "fullRun": "39410131489",
+        "fullRunSource": "9941a9352531299940ca9fb84ff9b91ef3acd399",
+        "fullRunResultAtRecordedTime": "IN_PROGRESS: Angular, Domain and build/contracts/publication passed; API and Playwright E2E still running with no reported failure."
+      },
+      "notDone": [
+        "Qualified screen-reader review with AT/browser versions and meaningful-announcement observations.",
+        "Full supported-state, native zoom, reduced-motion and client-portal accessibility acceptance.",
+        "Current-source API-backed resource-planning acceptance and full release run completion."
+      ]
+    },
     "workflowAnnualPeriodBinding": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
       "jsonPath": "keys.targetedVerification.workflowAnnualPeriodBinding"
