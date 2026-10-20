@@ -29,6 +29,7 @@ public sealed class AngularWorkpaperCommandJourneyTests
     const string originalConclusion = "Original acknowledged conclusion.";
     const string editedWork = "Synthetic exact autosave intent.";
     const string editedConclusion = "Synthetic exact autosave conclusion.";
+    long initialDraftRevision;
     await using (var db = host.CreateDbContext())
     {
       db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Partner", f.ClientId, f.EngagementId));
@@ -40,6 +41,7 @@ public sealed class AngularWorkpaperCommandJourneyTests
       var saved = await AuditPlanningService.SaveWorkpaperDraftAsync(db, actor,
         new SaveWorkpaperDraftRequest(workpaperId, 0, 1, 1, 1, Guid.NewGuid(), originalWork, originalConclusion));
       Assert.True(saved.Succeeded, saved.Message);
+      initialDraftRevision = saved.Value!.DraftRevision;
     }
     var origin = await host.StartApiForIdentityAsync(f.Staff, new Dictionary<string, string>
     { ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true" });
@@ -113,8 +115,10 @@ public sealed class AngularWorkpaperCommandJourneyTests
     if (superseded)
     {
       await using var later = host.CreateDbContext();
+      var currentDraft = await later.WorkpaperDrafts.AsNoTracking().SingleAsync(x => x.WorkpaperId == workpaperId);
+      Assert.Equal(initialDraftRevision + 1, currentDraft.DraftRevision);
       var saved = await AuditPlanningService.SaveWorkpaperDraftAsync(later, actor,
-        new SaveWorkpaperDraftRequest(workpaperId, 2, 1, 1, 1, Guid.NewGuid(),
+        new SaveWorkpaperDraftRequest(workpaperId, currentDraft.DraftRevision, 1, 1, 1, Guid.NewGuid(),
           "Later current work must not be rolled back.", "Later current conclusion."));
       Assert.True(saved.Succeeded, saved.Message);
     }
@@ -133,7 +137,7 @@ public sealed class AngularWorkpaperCommandJourneyTests
       {
         await Assertions.Expect(page.GetByLabel("Work performed", new() { Exact = true })).ToHaveValueAsync("Later current work must not be rolled back.");
         var verified = page.GetByRole(AriaRole.Region, new() { Name = "Verified workpaper receipt", Exact = true });
-        await Assertions.Expect(verified).ToContainTextAsync("revision 1 → 2");
+        await Assertions.Expect(verified).ToContainTextAsync($"revision {initialDraftRevision} → {initialDraftRevision + 1}");
       }
     }
     else
@@ -166,7 +170,7 @@ public sealed class AngularWorkpaperCommandJourneyTests
       Assert.Equal(f.Staff.SessionEpoch, receipt.ActorEpoch);
       Assert.Equal(1, await proof.WorkpaperCommandEvents.AsNoTracking().CountAsync(x => x.WorkpaperId == workpaperId && x.RequestId == retainedId));
       var draft = await proof.WorkpaperDrafts.AsNoTracking().SingleAsync(x => x.WorkpaperId == workpaperId);
-      Assert.Equal(action == "SAVE_DRAFT" ? superseded ? 3 : 2 : 1, draft.DraftRevision);
+      Assert.Equal(action == "SAVE_DRAFT" ? initialDraftRevision + (superseded ? 2 : 1) : initialDraftRevision, draft.DraftRevision);
       Assert.Equal(superseded ? "Later current work must not be rolled back." : action == "SAVE_DRAFT" ? editedWork : originalWork, draft.WorkPerformed);
       Assert.Equal(superseded ? "Later current conclusion." : action == "SAVE_DRAFT" ? editedConclusion : originalConclusion, draft.Conclusion);
       var original = await WorkpaperCommandWorkspace.LookupAsync(proof, actor, workpaperId, retainedId, retainedHash);

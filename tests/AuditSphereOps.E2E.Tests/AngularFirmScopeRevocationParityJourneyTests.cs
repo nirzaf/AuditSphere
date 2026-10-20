@@ -160,7 +160,7 @@ public sealed class AngularFirmScopeRevocationParityJourneyTests
     {
       var refresh = page.GetByRole(AriaRole.Button, new() { Name = page == accessPage ? "Refresh access" : "Refresh operations", Exact = true });
       var unavailable = page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true });
-      if (!await unavailable.IsVisibleAsync())
+      if (!await unavailable.IsVisibleAsync() && await refresh.IsVisibleAsync())
       {
         try { await refresh.ClickAsync(new() { Timeout = 5000 }); }
         catch (PlaywrightException)

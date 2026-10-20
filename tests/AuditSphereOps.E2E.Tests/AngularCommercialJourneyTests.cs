@@ -284,7 +284,7 @@ public sealed class AngularCommercialJourneyTests
     var routePath = $"/ui/app/practice/leads/{leadId:D}";
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(routePath));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Opportunities", Exact = true, Level = 1 })).ToBeVisibleAsync();
     await page.GetByLabel("Service route", new() { Exact = true }).FillAsync("AccountingOnly");
     await page.GetByLabel("Entity scope", new() { Exact = true }).FillAsync("Synthetic entity");
     await page.GetByLabel("Period start", new() { Exact = true }).FillAsync("2026-01-01");
@@ -439,7 +439,7 @@ public sealed class AngularCommercialJourneyTests
 
     await page.GotoAsync(origin + $"/ui/app/practice/leads/{leadId:D}");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = "Opportunities", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Opportunities", Exact = true, Level = 1 })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Prepare initial proposal", Exact = true }).ClickAsync();
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Service profile", Exact = true }).FillAsync("Retry recovery profile");
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables", Exact = true }).FillAsync("Retry recovery report");

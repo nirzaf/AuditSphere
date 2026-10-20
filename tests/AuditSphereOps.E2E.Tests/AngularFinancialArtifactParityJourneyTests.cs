@@ -623,9 +623,17 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     Assert.DoesNotContain(mappingId.ToString("D"), await mappingPage.Locator("body").InnerTextAsync());
     Assert.DoesNotContain("Current and prior allocation comparison", await mappingPage.Locator("body").InnerTextAsync());
 
-    await journalPage.GetByRole(AriaRole.Button, new() { Name = "Refresh journal review", Exact = true }).ClickAsync();
-    await journalPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
-      .WaitForAsync(new() { Timeout = 15000 });
+    var journalUnavailable = journalPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true });
+    var refreshJournalReview = journalPage.GetByRole(AriaRole.Button, new() { Name = "Refresh journal review", Exact = true });
+    if (!await journalUnavailable.IsVisibleAsync() && await refreshJournalReview.IsVisibleAsync())
+    {
+      try { await refreshJournalReview.ClickAsync(new() { Timeout = 5000 }); }
+      catch (PlaywrightException)
+      {
+        // Revocation may replace the refresh action while the click is being dispatched.
+      }
+    }
+    await journalUnavailable.WaitForAsync(new() { Timeout = 15000 });
     Assert.DoesNotContain("AJ-SYN", await journalPage.Locator("body").InnerTextAsync());
     Assert.DoesNotContain("100.123456", await journalPage.Locator("body").InnerTextAsync());
     Assert.DoesNotContain("Exact journal context", await journalPage.Locator("body").InnerTextAsync());
