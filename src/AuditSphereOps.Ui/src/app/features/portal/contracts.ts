@@ -6,7 +6,7 @@ export const revision: Decoder<string> = (v, p) => {
 export const firstSignIn = obj({ completed: bool, identityPath: text, canComplete: bool, message: text });
 const portalWorkspaceShape = obj({ firstSignIn, pendingOnboarding: bool, engagementCount: nat, hasMoreRequests: bool,
   requests: arr(obj({ id: guid, area: text, objective: text, periodStart: date, periodEnd: date, dueDate: date, state: text, delegated: bool,
-    clarificationReason: nullable(text), clarificationReasonTruncated: bool, canWrite: bool }), 50),
+    clarificationReason: nullable(text), clarificationReasonTruncated: bool, canWrite: bool, canUpload: bool, canReply: bool }), 50),
   packages: arr(obj({ id: guid, framework: text, periodStart: date, periodEnd: date, currency: str(3) }), 100),
   asOfDateUtc: nullable(date), hasMorePackages: bool, packagePage: nat, packagePageSize: nat });
 type PortalWorkspace = ReturnType<typeof portalWorkspaceShape>;
@@ -22,6 +22,8 @@ export const portalWorkspace: Decoder<PortalWorkspace> = (value, path) => {
       clarificationReason: Object.prototype.hasOwnProperty.call(request, 'clarificationReason') ? request['clarificationReason'] : null,
       clarificationReasonTruncated: Object.prototype.hasOwnProperty.call(request, 'clarificationReasonTruncated') ? request['clarificationReasonTruncated'] : false,
       canWrite: Object.prototype.hasOwnProperty.call(request, 'canWrite') ? request['canWrite'] : false,
+      canUpload: Object.prototype.hasOwnProperty.call(request, 'canUpload') ? request['canUpload'] : false,
+      canReply: Object.prototype.hasOwnProperty.call(request, 'canReply') ? request['canReply'] : false,
     };
   }) : raw['requests'];
   return portalWorkspaceShape({
@@ -50,7 +52,7 @@ const portalUpload = obj({ id: guid, fileName: text, receivedByteCount: revision
   state: text, transferState: nullable(text), sha256, createdAt: instant });
 const portalConversation = obj({ id: guid, at: instant, speaker: text, body: text });
 const portalRequestShape = obj({ id: guid, area: text, objective: text, instructions: text, requestedFormat: text, dueDate: date, state: text,
-  revision, firstSignIn, canWrite: bool, canManageDelegations: bool, canDelegate: bool,
+  revision, firstSignIn, canWrite: bool, canUpload: bool, canReply: bool, canManageDelegations: bool, canDelegate: bool,
   delegations: arr(obj({ id: guid, delegateUserId: guid, delegateName: text, createdAt: instant }), 500),
   candidates: arr(obj({ userId: guid, name: text }), 500), uploads: arr(portalUpload, 50), conversation: arr(portalConversation, 50),
   clarificationReason: nullable(text), hasMoreUploads: bool, hasMoreConversation: bool, acceptance: nullable(portalAcceptance) });
@@ -61,6 +63,8 @@ export const portalRequest: Decoder<ReturnType<typeof portalRequestShape>> = (va
     hasMoreUploads: Object.prototype.hasOwnProperty.call(raw, 'hasMoreUploads') ? raw['hasMoreUploads'] : false,
     hasMoreConversation: Object.prototype.hasOwnProperty.call(raw, 'hasMoreConversation') ? raw['hasMoreConversation'] : false,
     acceptance: Object.prototype.hasOwnProperty.call(raw, 'acceptance') ? raw['acceptance'] : null,
+    canUpload: Object.prototype.hasOwnProperty.call(raw, 'canUpload') ? raw['canUpload'] : false,
+    canReply: Object.prototype.hasOwnProperty.call(raw, 'canReply') ? raw['canReply'] : false,
   }, path);
 };
 export const portalRequestHistory = obj({ requestId: guid, uploadPage: nat, conversationPage: nat, pageSize: nat,

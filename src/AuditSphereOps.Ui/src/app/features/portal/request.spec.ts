@@ -8,11 +8,12 @@ import { SessionService } from '../../core/session';
 import { ClientPbcRequest } from './request';
 
 const id = '40000000-0000-4000-8000-000000000001';
-const requestWorkspace = (canWrite = true, canDelegate = true) => ({
+const requestWorkspace = (canWrite = true, canDelegate = true, capabilities: { canUpload?: boolean; canReply?: boolean } = {}) => ({
   id, area: 'Synthetic request', objective: 'Supply synthetic support', instructions: 'Synthetic instructions',
   requestedFormat: 'PDF', dueDate: '2027-01-31', state: 'SENT', revision: '3',
   firstSignIn: { completed: true, identityPath: 'EXTERNAL_IDENTITY', canComplete: false, message: '' },
-  canWrite, canManageDelegations: canDelegate, canDelegate, delegations: [], candidates: [], uploads: [], conversation: [], clarificationReason: null,
+  canWrite, canUpload: capabilities.canUpload ?? canWrite, canReply: capabilities.canReply ?? canWrite,
+  canManageDelegations: canDelegate, canDelegate, delegations: [], candidates: [], uploads: [], conversation: [], clarificationReason: null,
   hasMoreUploads: false, hasMoreConversation: false,
 });
 
@@ -62,6 +63,33 @@ describe('Client request draft polling', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(input.getAttribute('aria-describedby')).toBe('portal-reply-error');
     fixture.componentInstance.sendReply();
+    http.expectNone(request => request.method === 'POST');
+    fixture.destroy();
+  });
+
+  it.each([
+    { state: 'CLARIFICATION_REQUIRED', notice: 'Reply to the audit team before providing replacement files.' },
+    { state: 'UNDER_REVIEW', notice: 'The request is under review. Uploads are unavailable, but you can still reply to the audit team.' },
+  ])('keeps reply available and upload controls disabled in $state when capabilities are split', ({ state, notice }) => {
+    const fixture = TestBed.createComponent(ClientPbcRequest);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush({
+      ...requestWorkspace(false, false, { canReply: true }), state,
+    });
+    TestBed.tick(); fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const dropZone = root.querySelector<HTMLElement>('.drop-zone')!;
+    expect(dropZone).not.toBeNull();
+    expect(dropZone.getAttribute('aria-disabled')).toBe('true');
+    expect(root.querySelector<HTMLInputElement>('#portal-file')?.disabled).toBe(true);
+    const upload = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find(button => button.textContent?.trim() === 'Upload file')!;
+    expect(upload.disabled).toBe(true);
+    const reply = root.querySelector<HTMLTextAreaElement>('#portal-reply')!;
+    expect(reply).not.toBeNull();
+    expect(root.textContent).toContain(notice);
+    expect(root.textContent).toContain('Reply to the audit team');
     http.expectNone(request => request.method === 'POST');
     fixture.destroy();
   });
@@ -187,6 +215,17 @@ describe('Client request draft polling', () => {
     poll.flush(requestWorkspace()); TestBed.tick(); fixture.detectChanges();
     expect(component.reply.controls.body.value).toBe('Unsent synthetic reply');
     expect(component.file()).toBe(file);
+
+    await vi.advanceTimersByTimeAsync(30_000); fixture.detectChanges();
+    const reducedCapabilities = http.expectOne(`/api/ui/portal/requests/${id}`);
+    reducedCapabilities.flush({ ...requestWorkspace(true, true, { canUpload: false, canReply: true }), state: 'UNDER_REVIEW' });
+    TestBed.tick(); fixture.detectChanges();
+    expect(component.reply.controls.body.value).toBe('');
+    expect(component.file()).toBeNull();
+    expect(component.hash()).toBe('');
+    expect(root.querySelector('#portal-reply')).not.toBeNull();
+    expect(root.querySelector('.drop-zone')?.getAttribute('aria-disabled')).toBe('true');
+    http.expectNone((request) => request.method === 'POST');
 
     const session = TestBed.inject(SessionService);
     session.current.update(actor => actor ? { ...actor, generation: '2' } : null);

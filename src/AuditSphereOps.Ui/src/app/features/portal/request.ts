@@ -40,7 +40,7 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
       @if (w.acceptance; as acceptance) {
         <section class="panel acceptance-evidence" aria-labelledby="reviewer-acceptance-heading">
           <h2 id="reviewer-acceptance-heading">Recorded reviewer acceptance</h2>
-          <p>Acceptance recorded by assigned reviewer at <time [attr.datetime]="acceptance.acceptedAt">{{ utcTime(acceptance.acceptedAt) }}</time>.</p>
+          <p>Acceptance recorded by assigned reviewer at <time [attr.datetime]="acceptance.acceptedAt">{{ utcTime(acceptance.acceptedAt) }}</time></p>
           <dl class="acceptance-details">
             <div><dt>Acceptance receipt ID</dt><dd><code>{{ acceptance.id }}</code></dd></div>
             <div><dt>Upload intent ID</dt><dd><code>{{ acceptance.uploadIntentId }}</code></dd></div>
@@ -61,11 +61,18 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
       }
       <section class="panel" aria-labelledby="upload-heading"><h2 id="upload-heading">Upload requested files</h2>
         @if (!w.firstSignIn.completed) { <p role="status">Uploads open after your first portal sign-in is complete.</p><a routerLink="/portal">Complete first sign-in</a> }
-        @else if (!w.canWrite) { <p role="status">Uploads and replies are closed for this request. Released documents remain available.</p> }
+        @else if (!w.canUpload && w.canReply && w.state === 'CLARIFICATION_REQUIRED') {
+          <p role="status">Reply to the audit team before providing replacement files.</p>
+        }
+        @else if (!w.canUpload && w.canReply && (w.state === 'UNDER_REVIEW' || w.state === 'RECEIVED' || w.state === 'RESUBMITTED')) {
+          <p role="status">The request is under review. Uploads are unavailable, but you can still reply to the audit team.</p>
+        }
+        @else if (!w.canUpload && w.canReply) { <p role="status">Uploads are unavailable for this request, but you can still reply to the audit team.</p> }
+        @else if (!w.canUpload && !w.canReply) { <p role="status">Uploads and replies are closed for this request. Released documents remain available.</p> }
         <div class="drop-zone" [class.drop-zone-active]="dragOver()"
-          [class.drop-zone-disabled]="busy() || !w.canWrite || !w.firstSignIn.completed"
+          [class.drop-zone-disabled]="busy() || !w.canUpload || !w.firstSignIn.completed"
           tabindex="0" role="button" aria-describedby="portal-drop-help" aria-controls="portal-file"
-          [attr.aria-disabled]="busy() || !w.canWrite || !w.firstSignIn.completed"
+          [attr.aria-disabled]="busy() || !w.canUpload || !w.firstSignIn.completed"
           (click)="openFilePicker($event, fileInput)" (keydown)="activateFilePicker($event, fileInput)"
           (dragenter)="dragEnter($event)" (dragover)="dragEnter($event)" (dragleave)="dragLeave()" (drop)="drop($event)">
           <strong>Drop a file here</strong> <span class="muted">or</span>
@@ -74,9 +81,9 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
         </div>
         <label class="sr-only" for="portal-file">Choose a file (up to 250 MB)</label>
         <input #fileInput id="portal-file" class="sr-only" type="file" (change)="choose($event)"
-          [disabled]="busy() || !w.canWrite || !w.firstSignIn.completed" />
+          [disabled]="busy() || !w.canUpload || !w.firstSignIn.completed" />
         @if (file(); as f) { <p>{{ f.name }} · {{ f.size }} bytes</p><p class="fingerprint">SHA-256 {{ hash() || 'Calculating fingerprint…' }}</p> }
-        <button matButton="filled" (click)="upload()" [disabled]="busy() || !hash() || !w.canWrite || !w.firstSignIn.completed || uncertain() || uploadUncertain()">{{ busy() ? 'Working…' : 'Upload file' }}</button>
+        <button matButton="filled" (click)="upload()" [disabled]="busy() || !hash() || !w.canUpload || !w.firstSignIn.completed || uncertain() || uploadUncertain()">{{ busy() ? 'Working…' : 'Upload file' }}</button>
         @if (sent() > 0) { <mat-progress-bar [value]="progress()" aria-label="Upload progress" /><p role="status">{{ sent() }} of {{ file()?.size ?? sent() }} bytes staged. Trusted staff completion is still required.</p> }
       </section>
       @if (w.canManageDelegations) {
@@ -107,7 +114,7 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
             <button matButton (click)="nextConversationPage(h.hasMoreConversation)" [disabled]="!h.hasMoreConversation || history.loading()">Next messages</button>
           </nav>
         }
-        @if (w.canWrite) { <form [formGroup]="reply" (ngSubmit)="sendReply()">
+        @if (w.canReply) { <form [formGroup]="reply" (ngSubmit)="sendReply()">
           @let replyInvalid = reply.controls.body.touched && reply.controls.body.invalid;
           <label for="portal-reply">Reply to the audit team</label><textarea id="portal-reply" formControlName="body" maxlength="4000"
             [attr.aria-invalid]="replyInvalid ? 'true' : null" [attr.aria-describedby]="replyInvalid ? 'portal-reply-error' : null"></textarea>
@@ -120,7 +127,7 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
         @for (u of h.uploads; track u.id) { <article class="receipt"><h3>{{ u.fileName }}</h3><audit-status [value]="u.state" />
           <p>{{ u.receivedByteCount }} / {{ u.declaredByteCount }} bytes · provider {{ u.transferState ?? 'Not dispatched' }}</p>
           <p>Upload intent created <time [attr.datetime]="u.createdAt">{{ utcTime(u.createdAt) }}</time></p><p class="fingerprint">SHA-256 {{ u.sha256 }}</p>
-          @if (w.canWrite && w.firstSignIn.completed && canResume(u)) {
+          @if (w.canUpload && w.firstSignIn.completed && canResume(u)) {
             <p>To continue safely, choose the exact same file again. Its name, size, and SHA-256 must match this receipt.</p>
             <button matButton (click)="resumeUpload(u)" [disabled]="busy() || !matchesUpload(u)">Resume staged upload</button>
           }
@@ -133,7 +140,7 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
       </section>
       }
     }
-  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .acceptance-evidence { min-width: 0; } .acceptance-details { display: grid; gap: .6rem; margin-block: .75rem; min-width: 0; } .acceptance-details > div { display: grid; grid-template-columns: minmax(9rem, .7fr) minmax(0, 1.3fr); gap: .5rem 1rem; min-width: 0; } .acceptance-details dt { font-weight: 600; } .acceptance-details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; } .acceptance-details code { white-space: normal; overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; } .history-pages { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block: .75rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; } @media (max-width: 40rem) { .acceptance-details > div { grid-template-columns: minmax(0, 1fr); gap: .15rem; } }`
+  `, styles: `input[type=file], button, select { min-height: 44px; } textarea { width: 100%; min-height: 7rem; } .fingerprint { overflow-wrap: anywhere; } .acceptance-evidence { min-width: 0; } .acceptance-details { display: grid; gap: .6rem; margin-block: .75rem; min-width: 0; } .acceptance-details > div { display: grid; grid-template-columns: minmax(9rem, .7fr) minmax(0, 1.3fr); gap: .5rem 1rem; min-width: 0; } .acceptance-details dt { font-weight: 600; } .acceptance-details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; } .acceptance-details code { white-space: normal; overflow-wrap: anywhere; } .conversation { padding-left: 1.25rem; overflow-wrap: anywhere; } .history-pages { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-block: .75rem; } time { display: block; font-size: .875rem; } .receipt { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .drop-zone { border: 2px dashed var(--mat-sys-outline-variant); border-radius: 8px; padding: 1.25rem 1rem; text-align: center; margin-block: .75rem; cursor: pointer; display: grid; gap: .35rem; } .drop-zone:focus-visible, .drop-zone-active { border-color: var(--mat-sys-primary); background: color-mix(in srgb, var(--mat-sys-primary) 6%, transparent); outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; } .drop-zone-choose { color: var(--mat-sys-primary); text-decoration: underline; } .drop-zone-disabled { cursor: not-allowed; opacity: .65; } @media (max-width: 40rem) { .acceptance-details > div { grid-template-columns: minmax(0, 1fr); gap: .15rem; } }`
 })
 export class ClientPbcRequest {
   private readonly api = inject(Api); private readonly session = inject(SessionService);
@@ -186,7 +193,7 @@ export class ClientPbcRequest {
         return;
       }
 
-      const authorization = `${workspace.canWrite}:${workspace.canManageDelegations}:${workspace.canDelegate}:${workspace.firstSignIn.completed}`;
+      const authorization = `${workspace.canUpload}:${workspace.canReply}:${workspace.canManageDelegations}:${workspace.canDelegate}:${workspace.firstSignIn.completed}`;
       if (this.lastDraftContext && (this.lastDraftContext.identity !== identity || this.lastDraftContext.authorization !== authorization)) {
         this.clearDrafts();
       }
@@ -205,7 +212,7 @@ export class ClientPbcRequest {
     this.reply.reset(); this.delegation.reset();
     this.uploadUncertain.set(false); this.uncertain.set(false);
   }
-  private currentWorkspace(): { id: string; canWrite: boolean; canManageDelegations: boolean; canDelegate: boolean; firstSignIn: { completed: boolean } } | null {
+  private currentWorkspace(): { id: string; canUpload: boolean; canReply: boolean; canManageDelegations: boolean; canDelegate: boolean; firstSignIn: { completed: boolean } } | null {
     const workspace = this.ws.data();
     return this.session.current() && !this.ws.error() && !this.history.error() && !this.ws.loading() && workspace?.id === this.id()
       ? workspace : null;
@@ -245,6 +252,7 @@ export class ClientPbcRequest {
     const input = event.target as HTMLInputElement;
     const selected = input.files?.[0] ?? null;
     input.value = '';
+    if (!this.canChooseFile()) return;
     await this.selectFile(selected);
   }
   openFilePicker(event: MouseEvent, input: HTMLInputElement): void {
@@ -276,7 +284,7 @@ export class ClientPbcRequest {
   }
   private canChooseFile(): boolean {
     const request = this.ws.data();
-    return !this.busy() && !!request?.canWrite && request.firstSignIn.completed;
+    return !this.busy() && !!request?.canUpload && request.firstSignIn.completed;
   }
   private async selectFile(selected: File | null): Promise<void> {
     const sequence = ++this.selection;
@@ -300,7 +308,7 @@ export class ClientPbcRequest {
     } finally { this.busy.set(false); }
   }
   sendReply(): void { if (this.reply.invalid || !this.reply.controls.body.value.trim()) return;
-    if (!this.currentWorkspace()?.canWrite) return;
+    if (!this.currentWorkspace()?.canReply) return;
     void this.command(`/api/ui/portal/requests/${this.id()}/reply`, this.reply.getRawValue(), 'Reply added to the request timeline.'); }
   delegate(): void { if (this.delegation.invalid || !this.currentWorkspace()?.canDelegate) return;
     void this.command(`/api/ui/portal/requests/${this.id()}/delegations`, this.delegation.getRawValue(), 'Delegation recorded.'); }
@@ -308,7 +316,7 @@ export class ClientPbcRequest {
     void this.command(`/api/ui/portal/requests/${this.id()}/delegations/${id}/revoke`, {}, 'Delegation revoked.'); }
   async upload(): Promise<void> {
     const file = this.file(), hash = this.hash(), requestId = this.id();
-    if (!file || !hash || !requestId || this.busy() || this.uncertain() || !this.currentWorkspace()?.canWrite) return;
+    if (!file || !hash || !requestId || this.busy() || this.uncertain() || !this.currentWorkspace()?.canUpload) return;
     const generation = this.session.invalidation(), abort = this.abort; this.busy.set(true); this.message.set(''); this.sent.set(0);
     try {
       const started = await this.api.command(`/api/ui/portal/requests/${requestId}/uploads`, { fileName: file.name,
@@ -325,7 +333,7 @@ export class ClientPbcRequest {
   }
   async resumeUpload(upload: PortalUploadRow): Promise<void> {
     const file = this.file(), hash = this.hash(), requestId = this.id(), current = this.currentWorkspace();
-    if (!file || !hash || !requestId || !current?.canWrite || !current.firstSignIn.completed || !this.canResume(upload) ||
+    if (!file || !hash || !requestId || !current?.canUpload || !current.firstSignIn.completed || !this.canResume(upload) ||
         !this.matchesUpload(upload) || this.busy()) return;
     const generation = this.session.invalidation(), abort = this.abort;
     this.busy.set(true); this.failed.set(false); this.message.set('');

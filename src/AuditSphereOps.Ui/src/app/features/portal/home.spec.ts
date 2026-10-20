@@ -13,6 +13,7 @@ const id = (n: number) => `40000000-0000-4000-8000-${n.toString().padStart(12, '
 const requestRows = (count: number, start = 1) => Array.from({ length: count }, (_, index) => ({
   id: id(start + index), area: `Synthetic request ${start + index}`, objective: 'Synthetic objective',
   periodStart: '2026-01-01', periodEnd: '2026-12-31', dueDate: '2027-01-31', state: 'SENT', delegated: false,
+  canWrite: false, canUpload: false, canReply: false,
 }));
 const packages = Array.from({ length: 26 }, (_, index) => ({
   id: id(index + 101), framework: `Framework ${index + 1}`, periodStart: '2026-01-01',
@@ -287,14 +288,22 @@ describe('Client portal workspace paging', () => {
     const fixture = TestBed.createComponent(ClientPortalHome);
     fixture.detectChanges(); TestBed.tick();
     const clarification = { ...requestRows(1, 201)[0], state: 'CLARIFICATION_REQUIRED', dueDate: '2026-10-14',
-      clarificationReason: 'Please replace the unsigned schedule.', clarificationReasonTruncated: true, canWrite: true };
+      clarificationReason: 'Please replace the unsigned schedule.', clarificationReasonTruncated: true,
+      canWrite: true, canUpload: false, canReply: true };
     const clarification2 = { ...requestRows(1, 202)[0], state: 'CLARIFICATION_REQUIRED', dueDate: '2026-10-14',
-      clarificationReason: null, clarificationReasonTruncated: false, canWrite: false };
-    const pending = { ...requestRows(1, 203)[0], state: 'ACKNOWLEDGED', dueDate: '2026-10-15', canWrite: true };
-    const review = { ...requestRows(1, 204)[0], state: 'UNDER_REVIEW', dueDate: '2026-10-16', canWrite: false };
-    const completed = { ...requestRows(1, 205)[0], state: 'CLOSED', dueDate: '2026-10-17', canWrite: false };
-    const unknown = { ...requestRows(1, 206)[0], state: 'FUTURE_STATE', dueDate: '2026-10-18', canWrite: true };
-    const value = { ...portal([clarification, clarification2, pending, review, completed, unknown], true), asOfDateUtc: '2026-10-15' };
+      clarificationReason: null, clarificationReasonTruncated: false,
+      canWrite: false, canUpload: false, canReply: false };
+    const pending = { ...requestRows(1, 203)[0], state: 'ACKNOWLEDGED', dueDate: '2026-10-15',
+      canWrite: true, canUpload: true, canReply: true };
+    const review = { ...requestRows(1, 204)[0], state: 'UNDER_REVIEW', dueDate: '2026-10-16',
+      canWrite: false, canUpload: false, canReply: true };
+    const completed = { ...requestRows(1, 205)[0], state: 'CLOSED', dueDate: '2026-10-17',
+      canWrite: false, canUpload: false, canReply: false };
+    const unknown = { ...requestRows(1, 206)[0], state: 'FUTURE_STATE', dueDate: '2026-10-18',
+      canWrite: true, canUpload: false, canReply: false };
+    const resubmitted = { ...requestRows(1, 207)[0], state: 'RESUBMITTED', dueDate: '2026-10-19',
+      canWrite: false, canUpload: true, canReply: true };
+    const value = { ...portal([clarification, clarification2, pending, review, completed, unknown, resubmitted], true), asOfDateUtc: '2026-10-15' };
     http.expectOne('/api/ui/portal?page=0&pageSize=10').flush(value);
     TestBed.tick(); fixture.detectChanges();
     http.expectOne('/api/ui/portal/branding').flush(branding);
@@ -308,7 +317,7 @@ describe('Client portal workspace paging', () => {
     const root = fixture.nativeElement as HTMLElement;
     const groupHeadings = Array.from(root.querySelectorAll('h3[id^="portal-request-group-"]')).map((heading) => heading.textContent?.trim());
     expect(groupHeadings).toEqual([
-      'Needs re-upload (2)', 'Documents to provide (1)', 'Under firm review (1)', 'Completed requests (1)', 'Status needs review (1)',
+      'Needs re-upload (2)', 'Documents to provide (1)', 'Under firm review (2)', 'Completed requests (1)', 'Status needs review (1)',
     ]);
     expect(root.textContent).toContain('Please replace the unsigned schedule.');
     expect(root.textContent).toContain('Open request for the full reason.');
@@ -317,6 +326,15 @@ describe('Client portal workspace paging', () => {
     expect(root.textContent).toContain('Due today');
     expect(root.textContent).toContain('Provide requested document');
     expect(root.textContent).toContain('Action counts describe this request page, not all engagements.');
+    const action = (requestId: number) => root.querySelector<HTMLAnchorElement>(
+      `.portal-action-link[href="/portal/requests/${id(requestId)}"]`)!;
+    expect(action(201).textContent?.trim()).toBe('Reply to audit team');
+    expect(action(201).getAttribute('aria-label')).toMatch(/^Reply to audit team for Synthetic request 201: Synthetic objective/);
+    expect(action(204).textContent?.trim()).toBe('Reply to audit team');
+    expect(action(204).getAttribute('aria-label')).toMatch(/^Reply to audit team for Synthetic request 204: Synthetic objective/);
+    expect(action(203).textContent?.trim()).toBe('Provide requested document');
+    expect(action(207).textContent?.trim()).toBe('Provide requested document');
+    expect(action(207).getAttribute('aria-label')).toMatch(/^Provide requested document for Synthetic request 207:/);
     const unknownActions = Array.from(root.querySelectorAll('a[href="/portal/requests/40000000-0000-4000-8000-000000000206"]'));
     expect(unknownActions.some((link) => link.textContent?.trim() === 'View request')).toBe(true);
     expect(unknownActions.some((link) => link.textContent?.trim() === 'Provide requested document')).toBe(false);
@@ -326,7 +344,7 @@ describe('Client portal workspace paging', () => {
   it('keeps first-sign-in gating visible and links to the existing request detail route', () => {
     const fixture = TestBed.createComponent(ClientPortalHome);
     fixture.detectChanges(); TestBed.tick();
-    const gated = { ...requestRows(1, 301)[0], state: 'SENT', canWrite: false };
+    const gated = { ...requestRows(1, 301)[0], state: 'SENT', canWrite: false, canUpload: false, canReply: false };
     http.expectOne('/api/ui/portal?page=0&pageSize=10').flush({
       ...portal([gated], false),
       firstSignIn: { completed: false, identityPath: 'EXTERNAL_IDENTITY', canComplete: true, message: 'Acknowledge portal terms.' },
@@ -351,7 +369,7 @@ describe('Client portal workspace paging', () => {
   it('keeps completed requests view-only and exposes continuation for older package summaries', () => {
     const fixture = TestBed.createComponent(ClientPortalHome);
     fixture.detectChanges(); TestBed.tick();
-    const closed = { ...requestRows(1, 401)[0], state: 'CLOSED', canWrite: false };
+    const closed = { ...requestRows(1, 401)[0], state: 'CLOSED', canWrite: false, canUpload: false, canReply: false };
     http.expectOne('/api/ui/portal?page=0&pageSize=10').flush({
       ...portal([closed], false), hasMorePackages: true,
     });

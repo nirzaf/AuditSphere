@@ -40899,6 +40899,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
             "content": {
@@ -127456,6 +127466,14 @@
           "canWrite": {
             "type": "boolean",
             "default": false
+          },
+          "canUpload": {
+            "type": "boolean",
+            "default": false
+          },
+          "canReply": {
+            "type": "boolean",
+            "default": false
           }
         }
       },
@@ -127564,6 +127582,14 @@
                 "$ref": "#/components/schemas/PortalPbcAcceptance"
               }
             ]
+          },
+          "canUpload": {
+            "type": "boolean",
+            "default": false
+          },
+          "canReply": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

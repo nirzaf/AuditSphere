@@ -173,6 +173,63 @@ public sealed class UiPortalContractTests
   }
 
   [Theory]
+  [InlineData("state", PbcStates.Sent, "financial_packages", HttpStatusCode.Conflict)]
+  [InlineData("revision", PbcStates.Sent, "financial_packages", HttpStatusCode.Conflict)]
+  [InlineData("window", PbcStates.UnderReview, "commercial_deliverable_bundles", HttpStatusCode.OK)]
+  [InlineData("grant", PbcStates.UnderReview, "financial_packages", HttpStatusCode.Forbidden)]
+  public async Task PortalHomeActionsRecheckRequestStateRevisionAndTheReplyOnlyWindow(
+    string mutation, string initialState, string triggerTable, HttpStatusCode expectedStatus)
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-ACTION-READ-FENCE");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateSentRequestAsync(pg, seed);
+    // State projection fixture only; no professional review or provider completion is asserted.
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+      await setup.PbcRequests.Where(x => x.Id == requestId).ExecuteUpdateAsync(s => s.SetProperty(x => x.State, initialState));
+    var affected = 0;
+    var interceptor = new AfterPortalRead(triggerTable, async () =>
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      affected = mutation switch
+      {
+        "state" => await db.PbcRequests.Where(x => x.Id == requestId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.State, PbcStates.UnderReview)),
+        "revision" => await db.PbcRequests.Where(x => x.Id == requestId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.Revision, x => x.Revision + 1)),
+        "window" => await db.Engagements.Where(x => x.Id == seed.EngagementId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "Closed")),
+        "grant" => await db.RoleGrants.Where(x => x.FirmId == seed.FirmId && x.UserId == seed.Client.Id && x.RevokedAt == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow)),
+        _ => throw new ArgumentOutOfRangeException(nameof(mutation))
+      };
+    });
+    using var factory = InterceptingFactory(pg.ConnectionString, seed.Client.Subject, seed.Client.TenantId, pg.Options, interceptor);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignInAsync(client);
+    interceptor.Arm();
+    using var response = await client.GetAsync("/api/ui/portal?page=0&pageSize=10");
+    Assert.True(interceptor.Fired);
+    Assert.True(affected > 0);
+    Assert.Equal(expectedStatus, response.StatusCode);
+    var body = await response.Content.ReadAsStringAsync();
+    if (expectedStatus == HttpStatusCode.OK)
+    {
+      var workspace = JsonSerializer.Deserialize<PortalWorkspace>(body, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+      var item = Assert.Single(workspace!.Requests);
+      Assert.False(item.CanWrite);
+      Assert.False(item.CanUpload);
+      Assert.False(item.CanReply);
+    }
+    else
+    {
+      Assert.DoesNotContain(requestId.ToString(), body, StringComparison.OrdinalIgnoreCase);
+      Assert.DoesNotContain("canUpload", body, StringComparison.Ordinal);
+      Assert.DoesNotContain("canReply", body, StringComparison.Ordinal);
+      Assert.Contains(expectedStatus == HttpStatusCode.Conflict ? "generation.stale" : "scope.denied", body, StringComparison.Ordinal);
+    }
+  }
+
+  [Theory]
   [InlineData("detail", "revision", HttpStatusCode.Conflict, "generation.stale")]
   [InlineData("history", "revision", HttpStatusCode.Conflict, "generation.stale")]
   [InlineData("detail", "owner", HttpStatusCode.Forbidden, "scope.denied")]
@@ -597,6 +654,21 @@ public sealed class UiPortalContractTests
 
   private sealed record PortalFixture(PbcSeed.Fixture Seed, string ClientBSubject, string ClientBTenant,
     PortalTestContext ClientA, PortalTestContext ClientB);
+
+  private sealed class AfterPortalRead(string table, Func<Task> mutate) : DbCommandInterceptor
+  {
+    private int armed;
+    private int fired;
+    public bool Fired => Volatile.Read(ref fired) == 1;
+    public void Arm() => Volatile.Write(ref armed, 1);
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (Volatile.Read(ref armed) == 1 && command.CommandText.Contains(table, StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref fired, 1, 0) == 0) await mutate();
+      return result;
+    }
+  }
 
   private sealed class AfterAuditDeliverablesRead(Func<Task> mutate) : DbCommandInterceptor
   {

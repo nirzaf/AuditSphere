@@ -29,7 +29,7 @@ describe('client portal contracts', () => {
     expect(clientRequestStatusLabel('CLOSED')).toBe('Approved');
     expect(clientRequestStatusLabel('CLARIFICATION_REQUIRED')).toBe('Rejected / Re-upload Required');
   });
-  it('decodes portalRequest with optional clarificationReason', () => {
+  it('defaults missing capability flags to false without deriving them from legacy canWrite', () => {
     const req = {
       id: crypto.randomUUID(), area: 'Cash', objective: 'Bank confirmation', instructions: 'Upload statements',
       requestedFormat: 'PDF', dueDate: '2027-01-31', state: 'CLARIFICATION_REQUIRED', revision: '2',
@@ -41,7 +41,25 @@ describe('client portal contracts', () => {
     expect(decoded.clarificationReason).toBe('Pages 3 and 4 are missing from the statement scan.');
     expect(decoded.canManageDelegations).toBe(false);
     expect(decoded.state).toBe('CLARIFICATION_REQUIRED');
+    expect(decoded.canWrite).toBe(true);
+    expect(decoded.canUpload).toBe(false);
+    expect(decoded.canReply).toBe(false);
     expect(decoded.acceptance).toBeNull();
+
+    const listedRequest = { id: req.id, area: req.area, objective: req.objective, periodStart: '2026-01-01', periodEnd: '2026-12-31',
+      dueDate: req.dueDate, state: req.state, delegated: false, canWrite: true };
+    const workspace = { firstSignIn: req.firstSignIn, pendingOnboarding: false, engagementCount: 1, hasMoreRequests: false,
+      requests: [listedRequest], packages: [], asOfDateUtc: null, hasMorePackages: false, packagePage: 0, packagePageSize: 10 };
+    const decodedWorkspace = decode(portalWorkspace, workspace);
+    expect(decodedWorkspace.requests[0].canUpload).toBe(false);
+    expect(decodedWorkspace.requests[0].canReply).toBe(false);
+
+    for (const capability of ['canUpload', 'canReply'] as const) {
+      expect(() => decode(portalRequest, { ...req, [capability]: 'true' })).toThrow();
+      expect(() => decode(portalWorkspace, { ...workspace,
+        requests: [{ ...listedRequest, [capability]: 1 }],
+      })).toThrow();
+    }
   });
   it('decodes exact acceptance receipt strings and rejects malformed provided receipts', () => {
     const request = {

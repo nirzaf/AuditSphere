@@ -53,7 +53,7 @@ public static partial class UiEndpoints
     group.MapGet("/portal", (int? page, int? pageSize, int? packagePage, int? packagePageSize, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.GetAsync(db, actor, page ?? 0, pageSize ?? 50,
         packagePage ?? 0, packagePageSize ?? 10, ct)))
-      .WithUiResponse<PortalWorkspace>();
+      .WithUiResponse<PortalWorkspace>(includeConflict: true);
     group.MapGet("/portal/requests/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.RequestAsync(db, actor, id, ct)))
       .WithUiResponse<PortalRequestWorkspace>(includeConflict: true);

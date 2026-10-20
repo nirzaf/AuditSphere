@@ -10,8 +10,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Documents;
 
+/// <summary>CanUpload is request-level eligibility; each upload still validates its specific file and active intent.</summary>
 public sealed record PortalRequestItem(Guid Id, string Area, string Objective, string PeriodStart, string PeriodEnd, string DueDate, string State, bool Delegated,
-  string? ClarificationReason = null, bool ClarificationReasonTruncated = false, bool CanWrite = false);
+  string? ClarificationReason = null, bool ClarificationReasonTruncated = false, bool CanWrite = false, bool CanUpload = false, bool CanReply = false);
 public sealed record PortalPackageItem(Guid Id, string Framework, string PeriodStart, string PeriodEnd, string Currency);
 public sealed record PortalWorkspace(FirstSignInStatus FirstSignIn, bool PendingOnboarding, int EngagementCount,
   IReadOnlyList<PortalRequestItem> Requests, bool HasMoreRequests, IReadOnlyList<PortalPackageItem> Packages,
@@ -26,7 +27,7 @@ public sealed record PortalRequestWorkspace(Guid Id, string Area, string Objecti
   IReadOnlyList<PbcDelegationRow> Delegations, IReadOnlyList<PbcDelegateCandidate> Candidates,
   IReadOnlyList<PortalUploadItem> Uploads, IReadOnlyList<PortalConversationItem> Conversation,
   string? ClarificationReason = null, bool HasMoreUploads = false, bool HasMoreConversation = false, bool CanManageDelegations = false,
-  PortalPbcAcceptance? Acceptance = null);
+  PortalPbcAcceptance? Acceptance = null, bool CanUpload = false, bool CanReply = false);
 public sealed record PortalRequestHistory(Guid RequestId, int UploadPage, int ConversationPage, int PageSize,
   IReadOnlyList<PortalUploadItem> Uploads, bool HasMoreUploads,
   IReadOnlyList<PortalConversationItem> Conversation, bool HasMoreConversation);
@@ -53,7 +54,8 @@ public static class ClientPortalWorkspaceQuery
       {
         Item = new PortalRequestItem(x.Id, x.Area, x.Objective, x.PeriodStart, x.PeriodEnd, x.DueDate, x.State, x.ClientOwnerUserId != actor.UserId),
         x.EngagementId,
-        x.ClarificationReason
+        x.ClarificationReason,
+        x.Revision
       }).ToListAsync(ct);
     var packages = await db.FinancialPackages.AsNoTracking().Where(x => x.FirmId == actor.FirmId && engagements.Contains(x.EngagementId) && x.Status == AccountingPackageStates.PackageValidated)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Skip(packagePage * packagePageSize).Take(packagePageSize + 1)
@@ -72,12 +74,22 @@ public static class ClientPortalWorkspaceQuery
       if (truncated) clarification = clarification![..2000];
       var canWrite = uploadWindows.GetValueOrDefault(row.EngagementId) &&
         row.Item.State is (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.PartiallyReceived or PbcStates.ClarificationRequired);
-      return row.Item with { ClarificationReason = clarification, ClarificationReasonTruncated = truncated, CanWrite = canWrite };
+      var canUpload = uploadWindows.GetValueOrDefault(row.EngagementId) && CanUploadInState(row.Item.State);
+      var canReply = uploadWindows.GetValueOrDefault(row.EngagementId) && CanReplyInState(row.Item.State);
+      return row.Item with
+      {
+        ClarificationReason = clarification,
+        ClarificationReasonTruncated = truncated,
+        CanWrite = canWrite,
+        CanUpload = canUpload,
+        CanReply = canReply
+      };
     }).ToArray();
     var packageItems = packages.Take(packagePageSize).ToArray();
     var asOfDateUtc = DateOnly.FromDateTime(DateTime.UtcNow);
     var requestIds = requests.Select(x => x.Item.Id).ToArray();
-    var writableRequests = requestPage.Where((_, index) => requestItems[index].CanWrite).ToArray();
+    var writableRequests = requestPage.Where((_, index) =>
+      requestItems[index].CanWrite || requestItems[index].CanUpload || requestItems[index].CanReply).ToArray();
     if (writableRequests.Length > 0)
     {
       var currentUploadWindows = new Dictionary<Guid, bool>();
@@ -85,19 +97,26 @@ public static class ClientPortalWorkspaceQuery
         currentUploadWindows[engagementId] = (await ClientPortalService.RequireUploadWindowAsync(db, actor, engagementId, ct)).Succeeded;
       requestItems = requestItems.Select((item, index) => item with
       {
-        CanWrite = item.CanWrite && currentUploadWindows.GetValueOrDefault(requestPage[index].EngagementId)
+        CanWrite = item.CanWrite && currentUploadWindows.GetValueOrDefault(requestPage[index].EngagementId),
+        CanUpload = item.CanUpload && currentUploadWindows.GetValueOrDefault(requestPage[index].EngagementId),
+        CanReply = item.CanReply && currentUploadWindows.GetValueOrDefault(requestPage[index].EngagementId)
       }).ToArray();
     }
+    var pendingOnboarding = await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor, ct);
     // Re-evaluate participation and grants after the prerequisite reads and before releasing the snapshot; cookie epoch
     // is also checked by the façade. The upload route still makes the authoritative decision for every write.
     var currentEngagements = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor, ct);
     var stillAssigned = await ClientPortalService.ParticipantRequests(db, actor).Where(x => requestIds.Contains(x.Id))
-      .Select(x => x.Id).ToListAsync(ct);
+      .Select(x => new { x.Id, x.State, x.Revision }).ToListAsync(ct);
     if (!await IsClientAsync(db, actor, ct) || !engagements.Order().SequenceEqual(currentEngagements.Order()) ||
-        !requestIds.Order().SequenceEqual(stillAssigned.Order()))
+        !requestIds.Order().SequenceEqual(stillAssigned.Select(x => x.Id).Order()))
       return CommandResult<PortalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Portal unavailable.");
+    var currentRequests = stillAssigned.ToDictionary(x => x.Id);
+    if (requests.Any(row => !currentRequests.TryGetValue(row.Item.Id, out var current) ||
+        row.Item.State != current.State || row.Revision != current.Revision))
+      return CommandResult<PortalWorkspace>.Fail(ErrorCodes.GenerationStale, "A request changed while the portal was loading. Reload the current version.");
     return CommandResult<PortalWorkspace>.Ok(new(firstSignIn,
-      await ClientPortalService.HasPendingCommercialOnboardingAsync(db, actor, ct), engagements.Count,
+      pendingOnboarding, engagements.Count,
       requestItems, requests.Count > pageSize, packageItems, asOfDateUtc, packages.Count > packagePageSize, packagePage, packagePageSize));
   }
 
@@ -135,6 +154,8 @@ public static class ClientPortalWorkspaceQuery
       var messages = history.Value.Conversation;
       var firstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct);
       var window = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
+      var canUpload = window.Succeeded && CanUploadInState(request.State);
+      var canReply = window.Succeeded && CanReplyInState(request.State);
       var canManageDelegations = request.ClientOwnerUserId == actor.UserId &&
         await ClientPortalService.IsPrimaryContactAsync(db, actor, request.ClientId, ct);
       var canDelegate = canManageDelegations && request.State is not (PbcStates.Accepted or PbcStates.Closed);
@@ -145,14 +166,16 @@ public static class ClientPortalWorkspaceQuery
         window.Succeeded && request.State is not (PbcStates.Accepted or PbcStates.Closed), canDelegate,
         delegations, candidates.Where(x => delegations.All(d => d.DelegateUserId != x.UserId)).Take(500).ToArray(),
         uploads, messages, request.ClarificationReason, history.Value.HasMoreUploads, history.Value.HasMoreConversation,
-        canManageDelegations, acceptance);
+        canManageDelegations, acceptance, canUpload, canReply);
       await snapshot.CommitAsync(ct);
     }
 
     // Re-evaluate capability inputs outside the snapshot as well. A primary-contact or release-window
     // change must not publish stale candidate identities or writable controls. Recheck scope last.
-    var currentCanWrite = request.State is not (PbcStates.Accepted or PbcStates.Closed) &&
-      (await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct)).Succeeded;
+    var currentWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
+    var currentCanWrite = request.State is not (PbcStates.Accepted or PbcStates.Closed) && currentWindow.Succeeded;
+    var currentCanUpload = currentWindow.Succeeded && CanUploadInState(request.State);
+    var currentCanReply = currentWindow.Succeeded && CanReplyInState(request.State);
     var currentCanManageDelegations = request.ClientOwnerUserId == actor.UserId &&
       await ClientPortalService.IsPrimaryContactAsync(db, actor, request.ClientId, ct);
     var currentCanDelegate = currentCanManageDelegations && request.State is not (PbcStates.Accepted or PbcStates.Closed);
@@ -160,6 +183,7 @@ public static class ClientPortalWorkspaceQuery
     if (!current.Succeeded || current.Value is null)
       return CommandResult<PortalRequestWorkspace>.Fail(current.ErrorCode!, current.Message!);
     if (!SameRequest(request, current.Value) || workspace.CanWrite != currentCanWrite ||
+        workspace.CanUpload != currentCanUpload || workspace.CanReply != currentCanReply ||
         workspace.CanManageDelegations != currentCanManageDelegations || workspace.CanDelegate != currentCanDelegate)
       return CommandResult<PortalRequestWorkspace>.Fail(ErrorCodes.GenerationStale, "The request changed while it was being read. Reload the current version.");
     return CommandResult<PortalRequestWorkspace>.Ok(workspace);
@@ -238,6 +262,11 @@ public static class ClientPortalWorkspaceQuery
     original.Objective == current.Objective && original.AcceptanceCriteria == current.AcceptanceCriteria &&
     original.RequestedFormat == current.RequestedFormat && original.DueDate == current.DueDate &&
     original.ClarificationReason == current.ClarificationReason;
+  private static bool CanUploadInState(string state) => state is
+    (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.PartiallyReceived or PbcStates.Resubmitted);
+  private static bool CanReplyInState(string state) => state is
+    (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.PartiallyReceived or PbcStates.Received or
+      PbcStates.UnderReview or PbcStates.ClarificationRequired or PbcStates.Resubmitted);
   private static Task<bool> IsClientAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
     db.Users.AsNoTracking().AnyAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.UserKind == "Client" &&
       !x.Disabled && x.SessionEpoch == actor.SessionEpoch, ct);

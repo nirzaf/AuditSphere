@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Documents;
@@ -42,7 +43,7 @@ public sealed class PortalActionCenterApiTests
 
     using var factory = Factory(pg, clientUser);
     using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
-    await SignIn(client);
+    var csrf = await SignIn(client);
     using var response = await client.GetAsync("/api/ui/portal?page=0&pageSize=50");
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     var responseBody = await response.Content.ReadAsStringAsync();
@@ -53,21 +54,58 @@ public sealed class PortalActionCenterApiTests
     var item = Assert.Single(workspace.Requests, x => x.Id == requestId);
     Assert.True(workspace.FirstSignIn.Completed);
     Assert.True(item.CanWrite);
+    AssertHomeActionFlags(responseBody, requestId, canUpload: false, canReply: true);
     Assert.Equal(reason, item.ClarificationReason);
     Assert.False(item.ClarificationReasonTruncated);
     Assert.DoesNotContain(workspace.Requests, x => x.Id == foreignRequestId);
     Assert.NotNull(workspace.AsOfDateUtc);
     Assert.False(workspace.HasMorePackages);
 
+    using var reply = await Post(client, csrf, $"/api/ui/portal/requests/{requestId}/reply",
+      new { Body = "The clarified item is ready for review." });
+    Assert.Equal(HttpStatusCode.OK, reply.StatusCode);
+    using (var resubmittedResponse = await client.GetAsync("/api/ui/portal?page=0&pageSize=50"))
+    {
+      Assert.Equal(HttpStatusCode.OK, resubmittedResponse.StatusCode);
+      var resubmittedBody = await resubmittedResponse.Content.ReadAsStringAsync();
+      var resubmittedWorkspace = JsonSerializer.Deserialize<PortalWorkspace>(resubmittedBody,
+        new JsonSerializerOptions(JsonSerializerDefaults.Web));
+      var resubmittedItem = Assert.Single(resubmittedWorkspace!.Requests, x => x.Id == requestId);
+      Assert.Equal(PbcStates.Resubmitted, resubmittedItem.State);
+      Assert.False(resubmittedItem.CanWrite);
+      AssertHomeActionFlags(resubmittedBody, requestId, canUpload: true, canReply: true);
+    }
+    using (var resubmittedDetailResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}"))
+    {
+      Assert.Equal(HttpStatusCode.OK, resubmittedDetailResponse.StatusCode);
+      var resubmittedDetailBody = await resubmittedDetailResponse.Content.ReadAsStringAsync();
+      var resubmittedDetail = JsonSerializer.Deserialize<PortalRequestWorkspace>(resubmittedDetailBody,
+        new JsonSerializerOptions(JsonSerializerDefaults.Web));
+      Assert.Equal(PbcStates.Resubmitted, resubmittedDetail!.State);
+      Assert.True(resubmittedDetail.CanWrite);
+      AssertDetailActionFlags(resubmittedDetailBody, canUpload: true, canReply: true);
+    }
+    await using (var afterReply = new AuditSphereDbContext(pg.Options))
+    {
+      var persisted = await afterReply.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId);
+      Assert.Equal(PbcStates.Resubmitted, persisted.State);
+      revision = persisted.Revision;
+    }
+
     await using (var db = new AuditSphereDbContext(pg.Options))
       await db.PbcRequests.Where(x => x.Id == requestId).ExecuteUpdateAsync(s => s
         .SetProperty(x => x.State, PbcStates.Sent)
         .SetProperty(x => x.ClarificationReason, (string?)null));
-    var sentWorkspace = await client.GetFromJsonAsync<PortalWorkspace>("/api/ui/portal?page=0&pageSize=50");
+    using var sentResponse = await client.GetAsync("/api/ui/portal?page=0&pageSize=50");
+    Assert.Equal(HttpStatusCode.OK, sentResponse.StatusCode);
+    var sentBody = await sentResponse.Content.ReadAsStringAsync();
+    var sentWorkspace = JsonSerializer.Deserialize<PortalWorkspace>(sentBody,
+      new JsonSerializerOptions(JsonSerializerDefaults.Web));
     var sentItem = Assert.Single(sentWorkspace!.Requests, x => x.Id == requestId);
     Assert.True(sentItem.CanWrite);
     Assert.Null(sentItem.ClarificationReason);
     Assert.False(sentItem.ClarificationReasonTruncated);
+    AssertHomeActionFlags(sentBody, requestId, canUpload: true, canReply: true);
 
     using var foreignRequest = await client.GetAsync($"/api/ui/portal/requests/{foreignRequestId}");
     Assert.NotEqual(HttpStatusCode.OK, foreignRequest.StatusCode);
@@ -259,7 +297,21 @@ public sealed class PortalActionCenterApiTests
     using var factory = Factory(pg, clientUser);
     using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
     var csrf = await SignIn(client);
-    foreach (var state in new[] { PbcStates.Accepted, PbcStates.Closed, PbcStates.UnderReview, PbcStates.Resubmitted })
+    var stateCases = new (string State, bool CanWrite, bool CanUpload, bool CanReply, bool DetailCanWrite)[]
+    {
+      (PbcStates.Sent, true, true, true, true),
+      (PbcStates.Acknowledged, true, true, true, true),
+      (PbcStates.PartiallyReceived, true, true, true, true),
+      (PbcStates.Resubmitted, false, true, true, true),
+      (PbcStates.Received, false, false, true, true),
+      (PbcStates.UnderReview, false, false, true, true),
+      (PbcStates.ClarificationRequired, true, false, true, true),
+      (PbcStates.Accepted, false, false, false, false),
+      (PbcStates.Closed, false, false, false, false),
+    };
+    // These direct state writes are read-side projections for the state matrix; the clarification reply above
+    // separately exercises the real command transition to RESUBMITTED.
+    foreach (var (state, canWrite, canUpload, canReply, detailCanWrite) in stateCases)
     {
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
@@ -270,15 +322,38 @@ public sealed class PortalActionCenterApiTests
           .SetProperty(x => x.AcceptedAt, acceptedAt)
           .SetProperty(x => x.AcceptedByUserId, acceptedBy));
       }
-      var workspace = await client.GetFromJsonAsync<PortalWorkspace>("/api/ui/portal?page=0&pageSize=50");
+      using var workspaceResponse = await client.GetAsync("/api/ui/portal?page=0&pageSize=50");
+      Assert.Equal(HttpStatusCode.OK, workspaceResponse.StatusCode);
+      var workspaceBody = await workspaceResponse.Content.ReadAsStringAsync();
+      var workspace = JsonSerializer.Deserialize<PortalWorkspace>(workspaceBody,
+        new JsonSerializerOptions(JsonSerializerDefaults.Web));
       var item = Assert.Single(workspace!.Requests, x => x.Id == requestId);
-      Assert.False(item.CanWrite);
+      Assert.Equal(canWrite, item.CanWrite);
       Assert.Null(item.ClarificationReason);
       Assert.False(item.ClarificationReasonTruncated);
+      AssertHomeActionFlags(workspaceBody, requestId, canUpload, canReply);
       // Legacy state/timestamps alone must not manufacture exact reviewer acceptance evidence.
-      var detail = await client.GetFromJsonAsync<PortalRequestWorkspace>($"/api/ui/portal/requests/{requestId}");
+      using var detailResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}");
+      Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+      var detailBody = await detailResponse.Content.ReadAsStringAsync();
+      var detail = JsonSerializer.Deserialize<PortalRequestWorkspace>(detailBody,
+        new JsonSerializerOptions(JsonSerializerDefaults.Web));
       Assert.NotNull(detail);
+      Assert.Equal(detailCanWrite, detail.CanWrite);
       Assert.Null(detail.Acceptance);
+      AssertDetailActionFlags(detailBody, canUpload, canReply);
+
+      if (state is PbcStates.UnderReview or PbcStates.Received or PbcStates.ClarificationRequired)
+      {
+        Assert.True(workspace.FirstSignIn.Completed);
+        var stateUploadCount = await CountUploads(pg, requestId);
+        using var stateUploadResponse = await Post(client, csrf, $"/api/ui/portal/requests/{requestId}/uploads", new
+        {
+          FileName = "eligibility-probe.pdf", ContentType = "application/pdf", ByteCount = "1", Sha256 = new string('a', 64)
+        });
+        Assert.NotEqual(HttpStatusCode.OK, stateUploadResponse.StatusCode);
+        Assert.Equal(stateUploadCount, await CountUploads(pg, requestId));
+      }
     }
 
     var notOnboarded = PbcSeed.User(f.FirmId, "Client");
@@ -399,6 +474,22 @@ public sealed class PortalActionCenterApiTests
   {
     await using var db = new AuditSphereDbContext(pg.Options);
     return await db.PbcUploadIntents.CountAsync(x => x.PbcRequestId == requestId);
+  }
+
+  private static void AssertHomeActionFlags(string body, Guid requestId, bool canUpload, bool canReply)
+  {
+    using var json = JsonDocument.Parse(body);
+    var request = json.RootElement.GetProperty("requests").EnumerateArray()
+      .Single(x => x.GetProperty("id").GetGuid() == requestId);
+    Assert.Equal(canUpload, request.GetProperty("canUpload").GetBoolean());
+    Assert.Equal(canReply, request.GetProperty("canReply").GetBoolean());
+  }
+
+  private static void AssertDetailActionFlags(string body, bool canUpload, bool canReply)
+  {
+    using var json = JsonDocument.Parse(body);
+    Assert.Equal(canUpload, json.RootElement.GetProperty("canUpload").GetBoolean());
+    Assert.Equal(canReply, json.RootElement.GetProperty("canReply").GetBoolean());
   }
 
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg, AppUser user) => new(new Dictionary<string, string?>

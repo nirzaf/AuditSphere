@@ -15,6 +15,102 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularClientPortalJourneyTests
 {
   [Fact]
+  public async Task ClientReplyAndUploadAvailabilityFollowReviewClarificationAndResubmission()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PBC-CAPABILITIES");
+    var f = host.Fixture;
+    var staged = await PbcSeed.StageUploadAsync(host.Database, f, PbcSeed.Actor(f.Client, "ClientUser"), host.RequestId,
+      "Synthetic first submission"u8.ToArray());
+    try
+    {
+      var (store, handler) = PbcSeed.Boundary(
+        new SimulationPbcProviderSink(Path.Combine(staged.StagingRoot, "provider")), host.Database);
+      await using (var db = host.CreateDbContext())
+      {
+        var complete = await PbcService.CompleteUploadAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+          new(staged.UploadIntentId, staged.DeclaredSha256Hex), store, handler);
+        Assert.True(complete.Succeeded, complete.Message);
+      }
+      var options = new WorkerOptions(f.FirmId, "Test", AllowSimulationAdapters: true);
+      Assert.True(await new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options).ProcessNextAsync());
+      await using (var db = host.CreateDbContext())
+      {
+        var request = await db.PbcRequests.SingleAsync(x => x.Id == host.RequestId);
+        var review = await PbcService.ChangeStateAsync(db, PbcSeed.Actor(f.Reviewer, "Reviewer"),
+          new(host.RequestId, PbcStates.UnderReview, request.Revision));
+        Assert.True(review.Succeeded, review.Message);
+      }
+      var origin = await host.StartApiForIdentityAsync(f.Client, new Dictionary<string, string> {
+        ["AngularUi__Enabled"] = "true"
+      });
+      using var playwright = await Playwright.CreateAsync();
+      await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+      await using var context = await browser.NewContextAsync(new() { ViewportSize = new() { Width = 320, Height = 844 } });
+      var page = await context.NewPageAsync();
+      var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
+      await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fui%2Fportal");
+      var replyLink = page.GetByRole(AriaRole.Link, new() { Name = "Reply to audit team for Cash", Exact = false });
+      var provideLink = page.GetByRole(AriaRole.Link, new() { Name = "Provide requested document for Cash", Exact = false });
+      await Assertions.Expect(replyLink).ToBeVisibleAsync();
+      await Assertions.Expect(provideLink).ToHaveCountAsync(0);
+      await replyLink.ClickAsync();
+      var chooser = page.GetByLabel("Choose a file (up to 250 MB)", new() { Exact = true });
+      await Assertions.Expect(chooser).ToBeDisabledAsync();
+      var reply = page.GetByLabel("Reply to the audit team", new() { Exact = true });
+      await reply.FillAsync("Please advise if further details are required.");
+      await page.GetByRole(AriaRole.Button, new() { Name = "Send reply", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByText("Reply added to the request timeline.", new() { Exact = true })).ToBeVisibleAsync();
+      await using (var db = host.CreateDbContext())
+      {
+        Assert.Equal(PbcStates.UnderReview, (await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == host.RequestId)).State);
+        var clarification = await PbcService.RequestMoreFilesAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+          new(host.RequestId, "Please supply the missing final page.", origin));
+        Assert.True(clarification.Succeeded, clarification.Message);
+      }
+      await page.GetByRole(AriaRole.Button, new() { Name = "Refresh request", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Alert).Filter(new() { HasText = "Auditor note / rejection reason:" })
+        .GetByText("Please supply the missing final page.", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(chooser).ToBeDisabledAsync();
+      await Assertions.Expect(page.GetByText("Reply to the audit team before providing replacement files.", new() { Exact = true })).ToBeVisibleAsync();
+      var path = $"/ui/portal/requests/{host.RequestId}";
+      await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "pbc-capabilities");
+      await reply.FillAsync("The replacement final page follows in this resubmission.");
+      await page.GetByRole(AriaRole.Button, new() { Name = "Send reply", Exact = true }).ClickAsync();
+      await Assertions.Expect(page.GetByText("Reply added to the request timeline.", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(chooser).ToBeEnabledAsync();
+      await using (var afterReply = host.CreateDbContext())
+        Assert.Equal(PbcStates.Resubmitted, (await afterReply.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == host.RequestId)).State);
+      await page.GetByRole(AriaRole.Navigation, new() { Name = "Request location", Exact = true })
+        .GetByRole(AriaRole.Link, new() { Name = "Client portal", Exact = true }).ClickAsync();
+      await Assertions.Expect(provideLink).ToBeVisibleAsync();
+      await provideLink.ClickAsync();
+      var bytes = "Synthetic replacement final page"u8.ToArray();
+      await chooser.SetInputFilesAsync(new FilePayload { Name = "replacement-final-page.txt", MimeType = "text/plain", Buffer = bytes });
+      var upload = page.GetByRole(AriaRole.Button, new() { Name = "Upload file", Exact = true });
+      await Assertions.Expect(upload).ToBeEnabledAsync();
+      await upload.ClickAsync();
+      await Assertions.Expect(page.GetByText("File bytes staged. Your audit team must verify trusted completion and suitability before the request is received or accepted.", new() { Exact = true })).ToBeVisibleAsync();
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "replacement-final-page.txt", Exact = true })).ToBeVisibleAsync();
+      await using (var db = host.CreateDbContext())
+      {
+        var replacement = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x =>
+          x.PbcRequestId == host.RequestId && x.FileName == "replacement-final-page.txt");
+        Assert.NotEqual(staged.UploadIntentId, replacement.Id);
+        Assert.Equal(PbcUploadStates.Chunking, replacement.State);
+        Assert.Equal(bytes.Length, replacement.ReceivedByteCount);
+        Assert.Equal(Hashing.Sha256Hex(bytes), replacement.DeclaredSha256Hex);
+        // The reply opens resubmission; starting the replacement upload then moves it to partial receipt,
+        // never provider-received or reviewer-accepted merely because browser staging completed.
+        Assert.Equal(PbcStates.PartiallyReceived, (await db.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == host.RequestId)).State);
+        Assert.Empty(await db.PbcAcceptanceReceipts.ToListAsync());
+      }
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+      Assert.Empty(errors);
+    }
+    finally { PbcSeed.DeleteDirectory(staged.StagingRoot); }
+  }
+
+  [Fact]
   public async Task ClientSeesRetainedAcceptanceForOnlyTheExactReviewedUpload()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-PBC-ACCEPTANCE");

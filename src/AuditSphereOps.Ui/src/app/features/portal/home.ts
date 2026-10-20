@@ -52,8 +52,9 @@ interface PortalShell { generation: number; onboarding: boolean }
                     <p>{{ clarificationPreview(r) }}</p>
                     @if (r.clarificationReasonTruncated) { <p>Open request for the full reason.</p> }
                   }
-                  <a matButton="outlined" class="portal-action-link" [routerLink]="['/portal/requests', r.id]">
-                    {{ canProvideDocument(r) ? 'Provide requested document' : 'View request' }}
+                  <a matButton="outlined" class="portal-action-link" [routerLink]="['/portal/requests', r.id]"
+                    [attr.aria-label]="requestActionAccessibleLabel(r)">
+                    {{ requestActionLabel(r) }}
                   </a>
                 </article>
               }
@@ -160,8 +161,12 @@ export class ClientPortalHome {
   clarificationPreview(request: PortalRequestItem): string {
     return request.clarificationReason?.trim() ? request.clarificationReason : "Open the request to review the firm's instructions.";
   }
-  canProvideDocument(request: PortalRequestItem): boolean {
-    return request.canWrite && ['SENT', 'ACKNOWLEDGED', 'PARTIALLY_RECEIVED', 'CLARIFICATION_REQUIRED'].includes(request.state);
+  requestActionLabel(request: PortalRequestItem): string {
+    if (request.canUpload) return 'Provide requested document';
+    return request.canReply ? 'Reply to audit team' : 'View request';
+  }
+  requestActionAccessibleLabel(request: PortalRequestItem): string {
+    return `${this.requestActionLabel(request)} for ${request.area}: ${request.objective} (${request.id})`;
   }
   constructor() {
     effect(() => { this.session.invalidation(); if (!this.session.current()) { this.terms.reset(); this.message.set(''); } });
