@@ -21,13 +21,15 @@ const dateOnly: Decoder<string> = (value, path) => {
 
 type RuleDefinition = {
   name: string; sourceKind: typeof SOURCE_KINDS[number]; recipientKind: typeof RECIPIENT_KINDS[number];
-  offsetDays: number; repeatEveryDays: number; timeZoneId: string; quietHoursStart: string;
+  offsetDays: number; repeatEveryDays: number; maxScheduledWindowCount: number | null;
+  timeZoneId: string; quietHoursStart: string;
   quietHoursEnd: string; effectiveFromUtc: string;
 };
 
 const definitionDecoder = obj({
   name: str(160), sourceKind: oneOf(...SOURCE_KINDS), recipientKind: oneOf(...RECIPIENT_KINDS),
-  offsetDays: int, repeatEveryDays: int, timeZoneId: str(100), quietHoursStart: str(5),
+  offsetDays: int, repeatEveryDays: int, maxScheduledWindowCount: optionalNullable(int),
+  timeZoneId: str(100), quietHoursStart: str(5),
   quietHoursEnd: str(5), effectiveFromUtc: instant,
 });
 
@@ -99,7 +101,8 @@ type Execution = ReturnType<typeof decodeReminderRuleExecutions>['items'][number
 type Draft = {
   ruleId: string | null; revisionId: string | null; expectedRevision: number | null; requestKey: string | null; definition: {
     name: string; sourceKind: string; recipientKind: string; offsetDays: number | null;
-    repeatEveryDays: number | null; timeZoneId: string; quietHoursStart: string;
+    repeatEveryDays: number | null; maxScheduledWindowCount: number | null;
+    timeZoneId: string; quietHoursStart: string;
     quietHoursEnd: string; effectiveFromUtc: string;
   };
 };
@@ -114,7 +117,7 @@ type PendingCommand =
 function blankDraft(ruleId: string | null = null, requestKey: string | null = null): Draft {
   return { ruleId, revisionId: null, expectedRevision: null, requestKey, definition: {
     name: '', sourceKind: '', recipientKind: '', offsetDays: null, repeatEveryDays: null,
-    timeZoneId: '', quietHoursStart: '', quietHoursEnd: '', effectiveFromUtc: '',
+    maxScheduledWindowCount: null, timeZoneId: '', quietHoursStart: '', quietHoursEnd: '', effectiveFromUtc: '',
   } };
 }
 
@@ -125,8 +128,18 @@ function createRequestKey(): string | null {
 
 function sameDefinition(a: RuleDefinition, b: RuleDefinition): boolean {
   return a.name === b.name && a.sourceKind === b.sourceKind && a.recipientKind === b.recipientKind &&
-    a.offsetDays === b.offsetDays && a.repeatEveryDays === b.repeatEveryDays && a.timeZoneId === b.timeZoneId &&
-    a.quietHoursStart === b.quietHoursStart && a.quietHoursEnd === b.quietHoursEnd && a.effectiveFromUtc === b.effectiveFromUtc;
+    a.offsetDays === b.offsetDays && a.repeatEveryDays === b.repeatEveryDays &&
+    a.maxScheduledWindowCount === b.maxScheduledWindowCount && a.timeZoneId === b.timeZoneId &&
+    a.quietHoursStart === b.quietHoursStart && a.quietHoursEnd === b.quietHoursEnd &&
+    sameInstant(a.effectiveFromUtc, b.effectiveFromUtc);
+}
+
+function sameInstant(a: string, b: string): boolean {
+  // Match the instant across server UTC formatting without discarding sub-millisecond precision.
+  const remainder = (value: string) => (value.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1] ?? '')
+    .slice(3).replace(/0+$/, '');
+  return validOffsetInstant(a) && validOffsetInstant(b) && Date.parse(a) === Date.parse(b) &&
+    remainder(a) === remainder(b);
 }
 
 function validOffsetInstant(value: string): boolean {
@@ -185,8 +198,18 @@ function validOffsetInstant(value: string): boolean {
               <label>Recipient kind <select name="recipientKind" [(ngModel)]="draft.definition.recipientKind" required>
                 <option value="">Choose a recipient</option><option value="RESPONSIBLE_STAFF">Responsible staff</option><option value="ENGAGEMENT_REVIEWER">Engagement reviewer</option>
               </select></label>
-              <label>Offset (days) <input name="offsetDays" type="number" [(ngModel)]="draft.definition.offsetDays" required /></label>
-              <label>Repeat every (days) <input name="repeatEveryDays" type="number" [(ngModel)]="draft.definition.repeatEveryDays" required /></label>
+              <label>Offset (days) <input name="offsetDays" type="number" min="-30" max="365" step="1" [(ngModel)]="draft.definition.offsetDays" required /></label>
+              <label>Repeat every (days) <input name="repeatEveryDays" type="number" min="0" max="90" step="1"
+                [(ngModel)]="draft.definition.repeatEveryDays" (ngModelChange)="setRepeatEveryDays($event)" required /></label>
+              @if (draft.definition.repeatEveryDays !== null && draft.definition.repeatEveryDays > 0) {
+                <label>Maximum scheduled windows per source due revision
+                  <input name="maxScheduledWindowCount" type="number" min="1" max="100" step="1"
+                    [(ngModel)]="draft.definition.maxScheduledWindowCount" required />
+                  <small>Counts scheduled windows, not retries or proven mail delivery.</small>
+                </label>
+              } @else if (draft.definition.repeatEveryDays === 0) {
+                <p class="muted">A one-time rule has one scheduled window.</p>
+              }
               <label>Time zone identifier <input name="timeZoneId" [(ngModel)]="draft.definition.timeZoneId" maxlength="100" required /></label>
               <label>Quiet hours start <input name="quietStart" type="time" [(ngModel)]="draft.definition.quietHoursStart" required /></label>
               <label>Quiet hours end <input name="quietEnd" type="time" [(ngModel)]="draft.definition.quietHoursEnd" required /></label>
@@ -207,6 +230,7 @@ function validOffsetInstant(value: string): boolean {
               <dt>Source</dt><dd>{{ sourceLabel(r.definition.sourceKind) }}</dd>
               <dt>Recipient</dt><dd>{{ recipientLabel(r.definition.recipientKind) }}</dd>
               <dt>Offset / repeat</dt><dd>{{ r.definition.offsetDays }} days / {{ r.definition.repeatEveryDays }} days</dd>
+              <dt>Scheduled window limit</dt><dd>{{ r.definition.repeatEveryDays === 0 ? 'One window' : r.definition.maxScheduledWindowCount ?? 'Needs revision' }}</dd>
               <dt>Time zone</dt><dd>{{ r.definition.timeZoneId }}</dd>
               <dt>Quiet hours</dt><dd>{{ r.definition.quietHoursStart }}–{{ r.definition.quietHoursEnd }}</dd>
               <dt>Effective from</dt><dd>{{ r.definition.effectiveFromUtc }}</dd>
@@ -451,7 +475,14 @@ export class WorkflowReminderRules implements NavigationProtected {
     const mode = this.draftMode();
     if (!this.catalog()?.canManage || !mode || this.busy() || this.uncertain()) return;
     const value = this.toDefinition(current);
-    if (!value) { this.fail('Enter every rule field explicitly, including a valid ISO 8601 effective instant with a UTC offset.'); return; }
+    if (!value) {
+      const maximum = current.definition.maxScheduledWindowCount;
+      if (current.definition.repeatEveryDays !== null && current.definition.repeatEveryDays > 0 &&
+          (!Number.isSafeInteger(maximum) || maximum! < 1 || maximum! > 100)) {
+        this.fail('Enter an explicit maximum of 1 to 100 scheduled windows for this repeating rule.');
+      } else this.fail('Enter every rule field explicitly, including a valid ISO 8601 effective instant with a UTC offset.');
+      return;
+    }
     const requestKey = mode === 'edit' ? null : current.requestKey;
     if (mode !== 'edit' && !requestKey) { this.fail('This draft has no retained request identity. Start a new draft before saving.'); return; }
     const body: SaveDraftBody = Object.freeze({ ruleId: current.ruleId, definition: Object.freeze({ ...value }),
@@ -602,7 +633,13 @@ export class WorkflowReminderRules implements NavigationProtected {
   recipientLabel(kind: string): string { return kind === 'RESPONSIBLE_STAFF' ? 'Responsible staff' : kind === 'ENGAGEMENT_REVIEWER' ? 'Engagement reviewer' : kind; }
   evaluationCodeLabel(code: string | null): string {
     if (!code) return 'Outcome not recorded';
+    if (code === 'NEEDS_REVISION') return 'Needs revision: repeating rule has no reviewed window limit';
+    if (code === 'SCHEDULE_WINDOWS_EXHAUSTED') return 'Schedule windows exhausted for one or more source due revisions';
     return code.toLowerCase().split('_').map(part => part ? part[0].toUpperCase() + part.slice(1) : '').join(' ');
+  }
+
+  setRepeatEveryDays(value: number | null): void {
+    if (value === 0) this.draft.definition.maxScheduledWindowCount = null;
   }
 
   private focusDetailAfterChange(origin?: EventTarget | null): void {
@@ -841,8 +878,12 @@ export class WorkflowReminderRules implements NavigationProtected {
     if (!d.name || !(SOURCE_KINDS as readonly string[]).includes(d.sourceKind) || !(RECIPIENT_KINDS as readonly string[]).includes(d.recipientKind) ||
       !Number.isSafeInteger(d.offsetDays) || !Number.isSafeInteger(d.repeatEveryDays) || !d.timeZoneId ||
       !d.quietHoursStart || !d.quietHoursEnd || !validOffsetInstant(d.effectiveFromUtc)) return null;
+    if (d.repeatEveryDays! > 0 && (!Number.isSafeInteger(d.maxScheduledWindowCount) ||
+        d.maxScheduledWindowCount! < 1 || d.maxScheduledWindowCount! > 100) ||
+        d.repeatEveryDays === 0 && d.maxScheduledWindowCount !== null) return null;
     return { name: d.name, sourceKind: d.sourceKind as RuleDefinition['sourceKind'], recipientKind: d.recipientKind as RuleDefinition['recipientKind'],
-      offsetDays: d.offsetDays!, repeatEveryDays: d.repeatEveryDays!, timeZoneId: d.timeZoneId,
+      offsetDays: d.offsetDays!, repeatEveryDays: d.repeatEveryDays!, maxScheduledWindowCount: d.maxScheduledWindowCount,
+      timeZoneId: d.timeZoneId,
       quietHoursStart: d.quietHoursStart, quietHoursEnd: d.quietHoursEnd, effectiveFromUtc: d.effectiveFromUtc };
   }
 

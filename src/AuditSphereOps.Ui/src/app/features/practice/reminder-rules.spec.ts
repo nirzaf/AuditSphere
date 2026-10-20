@@ -14,7 +14,8 @@ const revisionId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const digest = 'a'.repeat(64);
 const definition = {
   name: 'Task due follow-up', sourceKind: 'TASK_DUE', recipientKind: 'RESPONSIBLE_STAFF',
-  offsetDays: -2, repeatEveryDays: 3, timeZoneId: 'Asia/Qatar', quietHoursStart: '21:00', quietHoursEnd: '08:00',
+  offsetDays: -2, repeatEveryDays: 3, maxScheduledWindowCount: 3,
+  timeZoneId: 'Asia/Qatar', quietHoursStart: '21:00', quietHoursEnd: '08:00',
   effectiveFromUtc: '2026-10-19T00:00:00Z',
 } as const;
 const revision = (overrides: Partial<ReturnType<typeof decodeReminderRuleRevision>> = {}): ReturnType<typeof decodeReminderRuleRevision> => ({
@@ -48,6 +49,10 @@ describe('workflow reminder rule contract', () => {
       lastEvaluatedAt: '2026-10-19T01:00:00Z', lastEvaluationCode: 'NO_DUE_SOURCES' }] }, 'catalog').items[0])
       .toMatchObject({ lastEvaluatedAt: '2026-10-19T01:00:00Z', lastEvaluationCode: 'NO_DUE_SOURCES' });
     expect(decodeReminderRuleRevision(revision(), 'revision').canReview).toBe(true);
+    const legacyDefinition = Object.fromEntries(Object.entries(definition)
+      .filter(([key]) => key !== 'maxScheduledWindowCount'));
+    expect(decodeReminderRuleRevision({ ...revision(), definition: legacyDefinition }, 'legacy').definition)
+      .toMatchObject({ repeatEveryDays: 3, maxScheduledWindowCount: null });
     expect(() => decodeReminderRuleRevision({ ...revision(), blocker: undefined }, 'revision')).toThrow();
     const missingCursor = { ...catalogPage() } as Record<string, unknown>;
     delete missingCursor['nextCursor'];
@@ -78,14 +83,19 @@ describe('workflow reminder rule administration', () => {
     const requestKey = component.draft.requestKey;
     expect(requestKey).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(component.draft.definition).toMatchObject({ name: '', sourceKind: '', recipientKind: '', offsetDays: null,
-      repeatEveryDays: null, timeZoneId: '', quietHoursStart: '', quietHoursEnd: '', effectiveFromUtc: '' });
+      repeatEveryDays: null, maxScheduledWindowCount: null,
+      timeZoneId: '', quietHoursStart: '', quietHoursEnd: '', effectiveFromUtc: '' });
+    component.draft.definition = { ...definition, maxScheduledWindowCount: null };
+    await component.saveDraft();
+    expect(component.message()).toContain('maximum of 1 to 100 scheduled windows');
+    http.expectNone('/api/ui/practice/reminder-rules/drafts');
     component.draft.definition = { ...definition };
     const saving = component.saveDraft();
     const request = http.expectOne('/api/ui/practice/reminder-rules/drafts');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ ruleId: null, definition, expectedRevision: null, requestKey });
     const createdRuleId = '99999999-9999-4999-8999-999999999999';
-    const saved = revision({ ruleId: createdRuleId, createdByUserId: user, lastEditedByUserId: user, canEdit: true, canReview: false });
+    const saved = revision({ ruleId: createdRuleId, definition: { ...definition, effectiveFromUtc: '2026-10-19T00:00:00+00:00' }, createdByUserId: user, lastEditedByUserId: user, canEdit: true, canReview: false });
     request.flush({ value: saved });
     await saving;
     http.expectOne(rootUrl).flush(catalogPage(createdRuleId));

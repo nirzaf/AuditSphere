@@ -35,7 +35,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | PM-01 | PARTIAL | Named staff, countdown, phase checklists, operational task dates and saved Audit Plan milestones mapped to phases are delivered. A saved statutory cutoff is displayed as user-entered plan data; approved/versioned jurisdictional source mapping, legal validation and broad browser acceptance remain. |
 | PM-02 | PARTIAL | Digest-bound task groups and task queues retain their pinned template source. Reviewed task-edge amendments enforce scope, revisions and replay while preserving original template edges. The focused plan journey completes every task yet activation remains blocked, with no activation/materiality/opinion/release/freeze records created. Template-declared domain rules and broader role/browser/release acceptance remain open; evidence is in `status.json` under `workflowTemplateProfessionalBoundary`. |
 | PM-03 | OWNER_DECISION | DEC-01 and DEC-03 gate the recurrence action. |
-| PM-04 | PARTIAL | Reminder rule administration and escalation remain. |
+| PM-04 | PARTIAL | Versioned reminder administration, independent review and finite schedule windows are implemented behind existing flags. Broader escalation and release/live acceptance remain. |
 | PM-05 | OWNER_DECISION | The quotation timeline is delivered. DEC-01, DEC-02 and DEC-09 gate the rest. |
 | PM-06 | PARTIAL | Local behaviour present; live journeys are BLOCKED_EXTERNAL. |
 | PM-07 | PARTIAL | The engagement communication timeline is built. Comments, mentions and a connected inbox are not. |

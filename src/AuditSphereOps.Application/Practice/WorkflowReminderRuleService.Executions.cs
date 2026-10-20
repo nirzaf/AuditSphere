@@ -25,7 +25,13 @@ public static partial class WorkflowReminderRuleService
                 where operation.FirmId == actor.FirmId && revision.RuleId == ruleId &&
                   operation.OperationKind == WorkflowReminderTaskHandler.Kind &&
                   operation.ClientId != null && operation.EngagementId != null
-                select new { Operation = operation, RuleVersion = revision.Version };
+                select new
+                {
+                  Operation = operation,
+                  RuleVersion = revision.Version,
+                  revision.RepeatEveryDays,
+                  revision.MaxScheduledWindowCount
+                };
     if (after is not null)
       query = query.Where(x => x.Operation.CreatedAt < after.CreatedAt ||
         x.Operation.CreatedAt == after.CreatedAt && x.Operation.Id.CompareTo(after.OperationId) < 0);
@@ -54,13 +60,20 @@ public static partial class WorkflowReminderRuleService
           x.ReminderRuleRevisionId == operation.TargetId && x.ReminderOperationId == operation.Id)
         ? resultId : null;
       var missingEvidence = operation.Status == OperationState.COMPLETED && taskId is null;
+      var errorCode = missingEvidence ? "workflow-reminder-result-evidence-unavailable" : operation.ErrorCode;
+      if (!missingEvidence && operation.Status == OperationState.PROVIDER_BLOCKED && validIntent &&
+          operation.ErrorCode == "provider-or-integrity-blocked" &&
+          row.MaxScheduledWindowCount is { } maximum &&
+          AuditSphereOps.Domain.Practice.WorkflowReminderSchedule.ScheduledWindowNumber(
+            intent!.OccurrenceKey, row.RepeatEveryDays) is { } windowNumber && windowNumber > maximum)
+        errorCode = "workflow-reminder-schedule-windows-exhausted";
       var sourceHref = !validIntent ? null : intent!.SourceKind == "TASK_DUE"
         ? $"/app/work?engagementId={operation.EngagementId:D}&taskId={intent.SourceId:D}"
         : $"/app/engagements/{operation.EngagementId:D}/pbc";
       items.Add(new(operation.Id, operation.TargetId, row.RuleVersion,
         operation.ClientId!.Value, operation.EngagementId!.Value,
         missingEvidence ? "EVIDENCE_UNAVAILABLE" : operation.Status.ToString(),
-        missingEvidence ? "workflow-reminder-result-evidence-unavailable" : operation.ErrorCode,
+        errorCode,
         operation.CreatedAt, operation.NextAttemptAt,
         validIntent ? intent!.SourceKind : null, validIntent ? intent!.SourceId : null,
         validIntent ? intent!.DueRevision : null, validIntent ? intent!.SourceDueDate : null,

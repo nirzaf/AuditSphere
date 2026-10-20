@@ -23,6 +23,43 @@ public sealed class WorkflowReminderRuleTests
     new(2026, 10, 19, 12, 0, 0, TimeSpan.Zero);
 
   [Fact]
+  public void RecurringSchedulesRequireReviewedBoundsAndKeepLegacyDigestAndWindowIdentity()
+  {
+    var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    foreach (var definition in new[]
+      {
+        Definition() with { MaxScheduledWindowCount = null },
+        Definition() with { RepeatEveryDays = 0, MaxScheduledWindowCount = null }
+      })
+    {
+      var legacy = new LegacyReminderRuleDefinition(definition.Name, definition.SourceKind,
+        definition.RecipientKind, definition.OffsetDays, definition.RepeatEveryDays,
+        definition.TimeZoneId, definition.QuietHoursStart, definition.QuietHoursEnd,
+        definition.EffectiveFromUtc);
+      Assert.Equal(JsonSerializer.Serialize(legacy, options), JsonSerializer.Serialize(definition, options));
+      Assert.Equal(WorkflowReminderRuleService.Digest(definition),
+        WorkflowReminderRuleService.Digest(WorkflowReminderRuleService.NormalizeAndValidate(
+          definition, allowLegacyUnboundedRecurring: true).Value!));
+    }
+
+    Assert.False(WorkflowReminderRuleService.NormalizeAndValidate(
+      Definition() with { MaxScheduledWindowCount = null }).Succeeded);
+    Assert.True(WorkflowReminderRuleService.NormalizeAndValidate(
+      Definition() with { RepeatEveryDays = 0, MaxScheduledWindowCount = null }).Succeeded);
+    Assert.False(WorkflowReminderRuleService.NormalizeAndValidate(
+      Definition() with { RepeatEveryDays = 0 }).Succeeded);
+
+    var boundary = WorkflowReminderSchedule.Evaluate(DateOnly.MinValue, DateOnly.MinValue,
+      offsetDays: -30, repeatEveryDays: 7, maxScheduledWindowCount: 4);
+    Assert.Equal(WorkflowReminderScheduleDisposition.Exhausted, boundary.Disposition);
+    Assert.Equal(5, boundary.WindowNumber);
+    Assert.Equal("WINDOW:4", WorkflowReminderSchedule.CurrentOccurrenceKey(
+      DateOnly.MinValue, DateOnly.MinValue, offsetDays: -30, repeatEveryDays: 7));
+    Assert.Null(WorkflowReminderSchedule.ScheduledWindowNumber("WINDOW:00", 7));
+    Assert.Null(WorkflowReminderSchedule.ScheduledWindowNumber("WINDOW:01", 7));
+  }
+
+  [Fact]
   public async Task RuleReviewAndPublicationRequireIndependentExactDigestAndSealVersions()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -100,6 +137,9 @@ public sealed class WorkflowReminderRuleTests
       Assert.Equal(savedDraft.ContentDigest, reviewedRevision.ContentDigest);
       await Assert.ThrowsAsync<PostgresException>(async () =>
         await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE workflow_reminder_rule_revisions SET quiet_hours_start = '20:00' WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
+      var reviewedBoundMutation = await Assert.ThrowsAsync<PostgresException>(async () =>
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE workflow_reminder_rule_revisions SET status = 'PUBLISHED', published_by_user_id = {author.UserId}, published_session_epoch = {author.SessionEpoch}, published_at = {DateTimeOffset.UtcNow}, max_scheduled_window_count = 2 WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
+      Assert.Contains("schedule bound is immutable", reviewedBoundMutation.MessageText, StringComparison.Ordinal);
 
       var wrongPublicationDigest = await WorkflowReminderRuleService.PublishAsync(db, author, ruleId,
         firstRevisionId, new(reviewedRevision.Revision, TamperDigest(reviewedRevision.ContentDigest), "Publish reviewed rule."));
@@ -118,6 +158,9 @@ public sealed class WorkflowReminderRuleTests
       Assert.Equal(WorkflowReminderRuleStatuses.Published, publishedRevision.Status);
       Assert.Equal(author.UserId, publishedRevision.PublishedByUserId);
       Assert.Equal(reviewer.UserId, publishedRevision.ReviewedByUserId);
+      var publishedBoundMutation = await Assert.ThrowsAsync<PostgresException>(async () =>
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE workflow_reminder_rule_revisions SET status = 'SUPERSEDED', max_scheduled_window_count = 2 WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
+      Assert.Contains("schedule bound is immutable", publishedBoundMutation.MessageText, StringComparison.Ordinal);
 
       var nextDefinition = definition with { QuietHoursStart = "20:00" };
       var nextDraft = await WorkflowReminderRuleService.SaveDraftAsync(db, author,
@@ -271,11 +314,241 @@ public sealed class WorkflowReminderRuleTests
   }
 
   [Fact]
+  public async Task DiscoveryCapsScheduleWindowsPerDueRevisionAndResetsForANewDueRevision()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var context = await SeedReminderContextAsync(pg);
+    var published = await CreatePublishedRuleAsync(pg, context.Author, context.Reviewer,
+      Definition() with { OffsetDays = 0, RepeatEveryDays = 1, MaxScheduledWindowCount = 2 });
+    var sourceTaskId = await CreateSourceTaskAsync(pg, context.Fixture, new DateOnly(2026, 10, 17));
+    var harness = CreateHarness(pg, context.Fixture,
+      new DateTimeOffset(2026, 10, 17, 12, 0, 0, TimeSpan.Zero), new WorkflowReminderOptions(Enabled: true));
+
+    Assert.Equal(1, await harness.Discovery.EnqueuePendingAsync());
+    Assert.Equal(1, await harness.Worker.DrainAsync());
+    Assert.Equal(0, await harness.Discovery.EnqueuePendingAsync());
+    harness.Clock.SetUtcNow(new DateTimeOffset(2026, 10, 18, 12, 0, 0, TimeSpan.Zero));
+    Assert.Equal(1, await harness.Discovery.EnqueuePendingAsync());
+    Assert.Equal(1, await harness.Worker.DrainAsync());
+    harness.Clock.SetUtcNow(new DateTimeOffset(2026, 10, 19, 12, 0, 0, TimeSpan.Zero));
+    Assert.Equal(0, await harness.Discovery.EnqueuePendingAsync());
+
+    long previousDueRevision;
+    await using (var exhausted = new AuditSphereDbContext(pg.Options))
+    {
+      var head = await exhausted.WorkflowReminderRules.AsNoTracking().SingleAsync(x => x.Id == published.RuleId);
+      Assert.Equal("SCHEDULE_WINDOWS_EXHAUSTED", head.LastEvaluationCode);
+      var operations = await exhausted.DurableOperations.AsNoTracking()
+        .Where(x => x.OperationKind == WorkflowReminderTaskHandler.Kind).ToListAsync();
+      Assert.Equal(2, operations.Count);
+      var intents = operations.Select(x => WorkflowReminderTaskHandler.Parse(x.PayloadJson))
+        .OrderBy(x => x.OccurrenceKey, StringComparer.Ordinal).ToArray();
+      Assert.Equal(new[] { "WINDOW:0", "WINDOW:1" }, intents.Select(x => x.OccurrenceKey).ToArray());
+      previousDueRevision = intents.Max(x => x.DueRevision);
+      Assert.False(await exhausted.WorkflowTaskActivities.AsNoTracking().AnyAsync(x =>
+        x.WorkTaskId == sourceTaskId && x.Kind == WorkflowTaskActivityKinds.DueDateChanged));
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var binding = await db.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == sourceTaskId);
+      var changed = await EngagementWorkflowTaskService.ChangeDueDateAsync(db, context.Author, sourceTaskId,
+        new DateOnly(2026, 10, 19), binding.Revision);
+      Assert.True(changed.Succeeded, changed.Message);
+      Assert.Equal(1, await db.WorkflowTaskActivities.AsNoTracking().CountAsync(x =>
+        x.WorkTaskId == sourceTaskId && x.Kind == WorkflowTaskActivityKinds.DueDateChanged));
+    }
+    Assert.Equal(1, await harness.Discovery.EnqueuePendingAsync());
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      var operations = await verify.DurableOperations.AsNoTracking()
+        .Where(x => x.OperationKind == WorkflowReminderTaskHandler.Kind).ToListAsync();
+      Assert.Equal(3, operations.Count);
+      var nextDueRevision = Assert.Single(operations.Select(x => WorkflowReminderTaskHandler.Parse(x.PayloadJson)),
+        x => x.DueRevision > previousDueRevision);
+      Assert.Equal("WINDOW:0", nextDueRevision.OccurrenceKey);
+    }
+  }
+
+  [Theory]
+  [InlineData("WINDOW:2", "workflow-reminder-schedule-windows-exhausted")]
+  [InlineData("WINDOW:00", "provider-or-integrity-blocked")]
+  public async Task ExecutionBlocksInvalidScheduledWindowsAndProjectsTheirErrors(string occurrenceKey, string expectedError)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var context = await SeedReminderContextAsync(pg);
+    var published = await CreatePublishedRuleAsync(pg, context.Author, context.Reviewer,
+      Definition() with { OffsetDays = 0, RepeatEveryDays = 1, MaxScheduledWindowCount = 2 });
+    var sourceTaskId = await CreateSourceTaskAsync(pg, context.Fixture, new DateOnly(2026, 10, 17));
+    var harness = CreateHarness(pg, context.Fixture, ReminderNoonUtc, new WorkflowReminderOptions(Enabled: true));
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      await using var tx = await db.Database.BeginTransactionAsync();
+      var source = await WorkflowReminderRuntime.SourceAsync(db, context.Fixture.FirmId,
+        context.Fixture.ClientId, context.Fixture.EngagementId, WorkflowReminderSourceKinds.TaskDue,
+        sourceTaskId, locked: false, CancellationToken.None);
+      Assert.NotNull(source);
+      var intent = new WorkflowReminderIntent(published.RevisionId, published.ContentDigest, source!.Kind,
+        source.Id, source.Revision, source.DueRevision, source.Digest, source.DueDate,
+        context.Fixture.Staff.Id, context.Author.UserId, context.Author.SessionEpoch, occurrenceKey);
+      var key = "workflow-reminder:" + Hashing.Sha256Hex(JsonSerializer.Serialize(intent));
+      var queued = await harness.Store.EnqueueAsync(db, new OperationRequest(context.Fixture.FirmId,
+        context.Fixture.ClientId, context.Fixture.EngagementId, WorkflowReminderTaskHandler.Kind,
+        published.RevisionId, published.Revision, key, JsonSerializer.Serialize(intent), context.Author.UserId),
+        harness.Handler, CancellationToken.None);
+      Assert.True(queued.Succeeded, queued.Message);
+      await tx.CommitAsync();
+    }
+
+    Assert.Equal(1, await harness.Worker.DrainAsync());
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var operation = await verify.DurableOperations.AsNoTracking()
+      .SingleAsync(x => x.OperationKind == WorkflowReminderTaskHandler.Kind);
+    Assert.Equal(OperationState.PROVIDER_BLOCKED, operation.Status);
+    Assert.Equal("provider-or-integrity-blocked", operation.ErrorCode);
+    var executions = await WorkflowReminderRuleService.ExecutionsAsync(verify, context.Author,
+      published.RuleId);
+    Assert.True(executions.Succeeded, executions.Message);
+    Assert.Equal(expectedError, Assert.Single(executions.Value!.Items).ErrorCode);
+    Assert.False(await verify.WorkflowTaskBindings.AsNoTracking().AnyAsync(x => x.ReminderOperationId == operation.Id));
+  }
+
+  [Fact]
+  public async Task LegacyPublishedRepeatingRuleKeepsItsDigestAndIsVisibleAsNeedsRevision()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var context = await SeedReminderContextAsync(pg);
+    var definition = Definition() with { MaxScheduledWindowCount = null };
+    var now = ReminderNoonUtc;
+    var ruleId = Guid.CreateVersion7();
+    var revisionId = Guid.CreateVersion7();
+    var legacyDraftRuleId = Guid.CreateVersion7();
+    var legacyDraftRevisionId = Guid.CreateVersion7();
+    var legacyDraftRequestKey = Guid.CreateVersion7();
+    var legacyCreationDigest = LegacyCreationRequestDigest(null, context.Author.UserId, definition);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var rule = new WorkflowReminderRule
+      {
+        Id = ruleId, FirmId = context.Fixture.FirmId, CreatedByUserId = context.Author.UserId,
+        CreatedAt = now.AddMinutes(-2), Revision = 1
+      };
+      var revision = new WorkflowReminderRuleRevision
+      {
+        Id = revisionId, FirmId = context.Fixture.FirmId, RuleId = ruleId, Version = 1,
+        CreationRequestKey = Guid.CreateVersion7(), CreationRequestDigest = legacyCreationDigest,
+        Name = definition.Name, SourceKind = definition.SourceKind, RecipientKind = definition.RecipientKind,
+        OffsetDays = definition.OffsetDays, RepeatEveryDays = definition.RepeatEveryDays,
+        MaxScheduledWindowCount = null, TimeZoneId = definition.TimeZoneId,
+        QuietHoursStart = definition.QuietHoursStart, QuietHoursEnd = definition.QuietHoursEnd,
+        EffectiveFromUtc = definition.EffectiveFromUtc, Status = WorkflowReminderRuleStatuses.Published,
+        ContentDigest = WorkflowReminderRuleService.Digest(definition), CreatedByUserId = context.Author.UserId,
+        LastEditedByUserId = context.Author.UserId, ReviewedByUserId = context.Reviewer.UserId,
+        PublishedByUserId = context.Author.UserId, PublishedSessionEpoch = context.Author.SessionEpoch,
+        CreatedAt = now.AddMinutes(-2), UpdatedAt = now, ReviewedAt = now.AddMinutes(-1), PublishedAt = now,
+        Revision = 3
+      };
+      db.WorkflowReminderRules.Add(rule);
+      db.WorkflowReminderRuleRevisions.Add(revision);
+      db.WorkflowReminderRuleDecisions.Add(new WorkflowReminderRuleDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = context.Fixture.FirmId, RuleId = ruleId, RuleRevisionId = revisionId,
+        Kind = WorkflowReminderDecisionKinds.Reviewed, ContentDigest = revision.ContentDigest,
+        Rationale = "Independent historical review retained.", ActorUserId = context.Reviewer.UserId,
+        OccurredAt = now.AddMinutes(-1)
+      });
+      db.WorkflowReminderRuleDecisions.Add(new WorkflowReminderRuleDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = context.Fixture.FirmId, RuleId = ruleId, RuleRevisionId = revisionId,
+        Kind = WorkflowReminderDecisionKinds.Published, ContentDigest = revision.ContentDigest,
+        Rationale = "Historical publication retained.", ActorUserId = context.Author.UserId, OccurredAt = now
+      });
+      await db.SaveChangesAsync();
+      rule.CurrentPublishedRevisionId = revisionId;
+      await db.SaveChangesAsync();
+
+      var legacyDraftRule = new WorkflowReminderRule
+      {
+        Id = legacyDraftRuleId, FirmId = context.Fixture.FirmId, CreatedByUserId = context.Author.UserId,
+        CreatedAt = now.AddMinutes(-3), Revision = 1
+      };
+      var legacyDraftRevision = new WorkflowReminderRuleRevision
+      {
+        Id = legacyDraftRevisionId, FirmId = context.Fixture.FirmId, RuleId = legacyDraftRuleId, Version = 1,
+        CreationRequestKey = legacyDraftRequestKey, CreationRequestDigest = legacyCreationDigest,
+        Name = definition.Name, SourceKind = definition.SourceKind, RecipientKind = definition.RecipientKind,
+        OffsetDays = definition.OffsetDays, RepeatEveryDays = definition.RepeatEveryDays,
+        MaxScheduledWindowCount = null, TimeZoneId = definition.TimeZoneId,
+        QuietHoursStart = definition.QuietHoursStart, QuietHoursEnd = definition.QuietHoursEnd,
+        EffectiveFromUtc = definition.EffectiveFromUtc, Status = WorkflowReminderRuleStatuses.Draft,
+        ContentDigest = WorkflowReminderRuleService.Digest(definition), CreatedByUserId = context.Author.UserId,
+        LastEditedByUserId = context.Author.UserId, CreatedAt = now.AddMinutes(-3), UpdatedAt = now.AddMinutes(-3),
+        Revision = 1
+      };
+      db.WorkflowReminderRules.Add(legacyDraftRule);
+      db.WorkflowReminderRuleRevisions.Add(legacyDraftRevision);
+      db.WorkflowReminderRuleDecisions.Add(new WorkflowReminderRuleDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = context.Fixture.FirmId, RuleId = legacyDraftRuleId,
+        RuleRevisionId = legacyDraftRevisionId, Kind = WorkflowReminderDecisionKinds.DraftCreated,
+        ContentDigest = legacyDraftRevision.ContentDigest, Rationale = "Historical draft receipt retained.",
+        ActorUserId = context.Author.UserId, OccurredAt = now.AddMinutes(-3)
+      });
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var replay = await WorkflowReminderRuleService.SaveDraftAsync(db, context.Author,
+        new(null, definition, RequestKey: legacyDraftRequestKey));
+      Assert.True(replay.Succeeded, replay.Message);
+      Assert.Equal(legacyDraftRevisionId, replay.Value!.RevisionId);
+      Assert.Equal(definition, replay.Value.Definition);
+
+      var changedIntent = await WorkflowReminderRuleService.SaveDraftAsync(db, context.Author,
+        new(null, definition with { Name = "Changed legacy reminder intent" }, RequestKey: legacyDraftRequestKey));
+      Assert.False(changedIntent.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
+
+      var receipt = await WorkflowReminderRuleService.ReceiptAsync(db, context.Author, legacyDraftRequestKey);
+      Assert.True(receipt.Succeeded, receipt.Message);
+      Assert.Equal(legacyDraftRevisionId, receipt.Value!.RevisionId);
+
+      var existingRevisionCount = await db.WorkflowReminderRuleRevisions.CountAsync(x => x.FirmId == context.Fixture.FirmId);
+      var unboundedCreate = await WorkflowReminderRuleService.SaveDraftAsync(db, context.Author,
+        new(null, definition, RequestKey: Guid.CreateVersion7()));
+      Assert.False(unboundedCreate.Succeeded);
+      Assert.Equal("workflow.reminder.invalid", unboundedCreate.ErrorCode);
+      Assert.Contains("explicit maximum", unboundedCreate.Message, StringComparison.Ordinal);
+      Assert.Equal(existingRevisionCount,
+        await db.WorkflowReminderRuleRevisions.CountAsync(x => x.FirmId == context.Fixture.FirmId));
+
+      var view = await WorkflowReminderRuleService.GetAsync(db, context.Author, ruleId, revisionId);
+      Assert.True(view.Succeeded, view.Message);
+      Assert.Contains("needs a new independently reviewed revision", view.Value!.Blocker, StringComparison.Ordinal);
+      Assert.True(view.Value.CanSuspend);
+      Assert.Equal(definition, view.Value.Definition);
+    }
+    var harness = CreateHarness(pg, context.Fixture, ReminderNoonUtc, new WorkflowReminderOptions(Enabled: true));
+    Assert.Equal(0, await harness.Discovery.EnqueuePendingAsync());
+    await using var check = new AuditSphereDbContext(pg.Options);
+    Assert.Equal("NEEDS_REVISION", await check.WorkflowReminderRules.AsNoTracking()
+      .Where(x => x.Id == ruleId).Select(x => x.LastEvaluationCode).SingleAsync());
+    var catalog = await WorkflowReminderRuleService.ListAsync(check, context.Author,
+      new WorkflowReminderOptions(Enabled: true));
+    Assert.True(catalog.Succeeded, catalog.Message);
+    Assert.Equal("NEEDS_REVISION", Assert.Single(catalog.Value!.Items, x => x.RuleId == ruleId).LastEvaluationCode);
+    Assert.Empty(await check.DurableOperations.AsNoTracking()
+      .Where(x => x.OperationKind == WorkflowReminderTaskHandler.Kind).ToListAsync());
+  }
+
+  [Fact]
   public async Task DueDateRevisionCreatesANewOccurrenceButSourceRevisionAloneDoesNotDuplicateIt()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var context = await SeedReminderContextAsync(pg);
-    var definition = Definition() with { OffsetDays = 0, RepeatEveryDays = 0 };
+    var definition = Definition() with { OffsetDays = 0, RepeatEveryDays = 0, MaxScheduledWindowCount = null };
     var published = await CreatePublishedRuleAsync(pg, context.Author, context.Reviewer, definition);
     var sourceTaskId = await CreateSourceTaskAsync(pg, context.Fixture, new DateOnly(2026, 10, 18));
     var harness = CreateHarness(pg, context.Fixture, ReminderNoonUtc, new WorkflowReminderOptions(Enabled: true));
@@ -351,7 +624,7 @@ public sealed class WorkflowReminderRuleTests
     await using var pg = await PgTestSchema.CreateAsync();
     var context = await SeedReminderContextAsync(pg);
     var published = await CreatePublishedRuleAsync(pg, context.Author, context.Reviewer,
-      Definition() with { OffsetDays = 0, RepeatEveryDays = 0 });
+      Definition() with { OffsetDays = 0, RepeatEveryDays = 0, MaxScheduledWindowCount = null });
     var sourceTaskId = await CreateSourceTaskAsync(pg, context.Fixture, new DateOnly(2026, 10, 18));
     var harness = CreateHarness(pg, context.Fixture, ReminderNoonUtc, new WorkflowReminderOptions(Enabled: true));
     var sourceBefore = await CaptureSourceAsync(pg, context.Fixture, sourceTaskId);
@@ -501,7 +774,7 @@ public sealed class WorkflowReminderRuleTests
     var dispatcher = new OperationDispatcher(store, registry, workerOptions);
     var discovery = new WorkflowReminderDiscovery(factory, store, handler, workerOptions, reminderOptions, clock);
     var worker = new AuditSphereOps.Worker.Worker(dispatcher, [discovery], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
-    return new(discovery, worker, clock);
+    return new(discovery, worker, clock, store, handler);
   }
 
   private static async Task<SourceSnapshot> CaptureSourceAsync(
@@ -625,13 +898,15 @@ public sealed class WorkflowReminderRuleTests
     TimeZoneId: "UTC",
     QuietHoursStart: "21:00",
     QuietHoursEnd: "07:00",
-    EffectiveFromUtc: new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero));
+    EffectiveFromUtc: new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero),
+    MaxScheduledWindowCount: 3);
 
   private static string TamperDigest(string digest) =>
     digest[..^1] + (digest[^1] == '0' ? "1" : "0");
 
   private sealed record ReminderHarness(WorkflowReminderDiscovery Discovery,
-    AuditSphereOps.Worker.Worker Worker, MutableClock Clock);
+    AuditSphereOps.Worker.Worker Worker, MutableClock Clock, IOperationStore Store,
+    WorkflowReminderTaskHandler Handler);
 
   private sealed record SourceSnapshot(string Title, string Status, DateOnly? DueDate, Guid? AssigneeUserId,
     Guid BindingId, long BindingRevision, string SourceKey, Guid? ReminderRuleRevisionId,
@@ -639,6 +914,25 @@ public sealed class WorkflowReminderRuleTests
 
   private sealed record PbcSourceSnapshot(string State, long Revision, string DueDate, Guid? FirmOwnerUserId,
     Guid? ReviewerUserId, string Area, int ApprovalCount, int MaterialityApprovalCount);
+
+  private sealed record LegacyReminderRuleDefinition(
+    string Name, string SourceKind, string RecipientKind, int OffsetDays, int RepeatEveryDays,
+    string TimeZoneId, string QuietHoursStart, string QuietHoursEnd, DateTimeOffset EffectiveFromUtc);
+
+  private static string LegacyCreationRequestDigest(
+    Guid? requestedRuleId, Guid creatorUserId, WorkflowReminderRuleDefinition definition)
+  {
+    var legacyDefinition = new LegacyReminderRuleDefinition(definition.Name, definition.SourceKind,
+      definition.RecipientKind, definition.OffsetDays, definition.RepeatEveryDays,
+      definition.TimeZoneId, definition.QuietHoursStart, definition.QuietHoursEnd,
+      definition.EffectiveFromUtc);
+    return Hashing.Sha256Hex(JsonSerializer.SerializeToUtf8Bytes(new
+    {
+      requestedRuleId,
+      creatorUserId,
+      definition = legacyDefinition
+    }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+  }
 
   private sealed class MutableClock(DateTimeOffset initial) : TimeProvider
   {

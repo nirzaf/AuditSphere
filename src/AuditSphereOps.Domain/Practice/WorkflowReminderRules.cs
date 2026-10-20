@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace AuditSphereOps.Domain.Practice;
 
 /// <summary>Allowed sources for reviewed, firm-configured workflow reminders.</summary>
@@ -21,6 +23,71 @@ public static class WorkflowReminderRuleStatuses
   public const string Reviewed = "REVIEWED";
   public const string Published = "PUBLISHED";
   public const string Superseded = "SUPERSEDED";
+}
+
+public enum WorkflowReminderScheduleDisposition
+{
+  NotDue,
+  Scheduled,
+  Exhausted,
+  NeedsRevision
+}
+
+public sealed record WorkflowReminderScheduleEvaluation(
+  WorkflowReminderScheduleDisposition Disposition, string? OccurrenceKey, int? WindowNumber);
+
+/// <summary>Deterministic schedule-window counting for one source due-date revision.</summary>
+public static class WorkflowReminderSchedule
+{
+  public const int MaximumAllowedWindowCount = 100;
+
+  public static WorkflowReminderScheduleEvaluation Evaluate(
+    DateOnly dueDate, DateOnly today, int offsetDays, int repeatEveryDays, int? maxScheduledWindowCount)
+  {
+    if (repeatEveryDays is < 0 or > 90 || offsetDays is < -30 or > 365 ||
+        repeatEveryDays > 0 && maxScheduledWindowCount is not (>= 1 and <= MaximumAllowedWindowCount) ||
+        repeatEveryDays == 0 && maxScheduledWindowCount is not null)
+      return new(WorkflowReminderScheduleDisposition.NeedsRevision, null, null);
+
+    var elapsedDays = (long)today.DayNumber - dueDate.DayNumber - offsetDays;
+    if (elapsedDays < 0)
+      return new(WorkflowReminderScheduleDisposition.NotDue, null, null);
+
+    if (repeatEveryDays == 0)
+      return new(WorkflowReminderScheduleDisposition.Scheduled, "ONCE", 1);
+
+    var windowIndex = (int)(elapsedDays / repeatEveryDays);
+    var windowNumber = windowIndex + 1;
+    if (windowNumber > maxScheduledWindowCount)
+      return new(WorkflowReminderScheduleDisposition.Exhausted, null, windowNumber);
+
+    return new(WorkflowReminderScheduleDisposition.Scheduled, $"WINDOW:{windowIndex}", windowNumber);
+  }
+
+  /// <summary>Returns the latest due window without applying the rule's maximum, for queued retry validation.</summary>
+  public static string? CurrentOccurrenceKey(DateOnly dueDate, DateOnly today, int offsetDays, int repeatEveryDays)
+  {
+    if (repeatEveryDays is < 0 or > 90 || offsetDays is < -30 or > 365) return null;
+    var elapsedDays = (long)today.DayNumber - dueDate.DayNumber - offsetDays;
+    if (elapsedDays < 0) return null;
+    if (repeatEveryDays == 0) return "ONCE";
+    var windowIndex = (int)(elapsedDays / repeatEveryDays);
+    return $"WINDOW:{windowIndex}";
+  }
+
+  /// <summary>Maps an immutable schedule key to its one-based window number.</summary>
+  public static int? ScheduledWindowNumber(string occurrenceKey, int repeatEveryDays)
+  {
+    if (repeatEveryDays == 0) return occurrenceKey == "ONCE" ? 1 : null;
+    if (repeatEveryDays is < 1 or > 90 || !occurrenceKey.StartsWith("WINDOW:", StringComparison.Ordinal) ||
+        !int.TryParse(occurrenceKey.AsSpan(7), NumberStyles.None, CultureInfo.InvariantCulture, out var zeroBased) ||
+        zeroBased < 0 || zeroBased == int.MaxValue)
+      return null;
+    if (!string.Equals(occurrenceKey,
+        "WINDOW:" + zeroBased.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+      return null;
+    return zeroBased + 1;
+  }
 }
 
 /// <summary>Append-only rule catalogue decisions.</summary>
@@ -77,6 +144,8 @@ public sealed class WorkflowReminderRuleRevision
   public string RecipientKind { get; set; } = string.Empty;
   public int OffsetDays { get; set; }
   public int RepeatEveryDays { get; set; }
+  /// <summary>Reviewed cap on scheduled windows for each exact source due-date revision; null is legacy/ONCE only.</summary>
+  public int? MaxScheduledWindowCount { get; set; }
   public string TimeZoneId { get; set; } = string.Empty;
   public string QuietHoursStart { get; set; } = string.Empty;
   public string QuietHoursEnd { get; set; } = string.Empty;

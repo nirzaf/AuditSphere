@@ -15242,6 +15242,22 @@
       }
     },
     "targetedVerification": {
+      "workflowHistory20261020": {
+        "workflowTrackerReconciliation": {
+          "baseCommit": "52c9f91b94b843f5c0f3c6825cd4d03e006055bd",
+          "scope": "Source-read reconciliation of stale v2.2 rows 5.5, AC-4, AC-10, list browser caveat and supporting capabilities; no runtime behavior changed",
+          "evidence": "CommercialDocumentService.cs exact dispatch/quotation/hash/generation checks; AnnualEngagementPreparationWorkspace.cs reference-only fields; existing annual tests and recorded scoped run provenance",
+          "verification": "Documentation health, naming, narrative metrics and diff checks; no additional test run for documentation-only change",
+          "remaining": "Full workflow/release and external/professional acceptance unchanged"
+        },
+        "workflowReminderRules20261020": {
+          "result": "FOCUSED_PASS",
+          "implementationCommit": "442e1b5ab8f0af4e5de839aa68e96e8775699744",
+          "ciRun": "Fast 39348072973 PASS; release 39348671685 running at 442e1b5a.",
+          "checks": "Reminder Domain1, Angular4; access sweep1, deep E2E3; response E2E1; affected E2E17; build/EF/OpenAPI pass.",
+          "limits": "No full local suites; current full CI pending; human AT and live provider remain external."
+        }
+      },
       "accessibilityFollowUps20261020": {
         "keyboardScrollReducedMotionFollowUp": {
           "route": "/ui/app/work",

@@ -354,11 +354,8 @@
       "key": "targetedVerification.workflowDomainEvidencePrerequisites"
     },
     "workflowTrackerReconciliation": {
-      "baseCommit": "52c9f91b94b843f5c0f3c6825cd4d03e006055bd",
-      "scope": "Source-read reconciliation of stale v2.2 rows 5.5, AC-4, AC-10, list browser caveat and supporting capabilities; no runtime behavior changed",
-      "evidence": "CommercialDocumentService.cs exact dispatch/quotation/hash/generation checks; AnnualEngagementPreparationWorkspace.cs reference-only fields; existing annual tests and recorded scoped run provenance",
-      "verification": "Documentation health, naming, narrative metrics and diff checks; no additional test run for documentation-only change",
-      "remaining": "Full workflow/release and external/professional acceptance unchanged"
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowHistory20261020.workflowTrackerReconciliation"
     },
     "workflowTaskDependencyAmendments": {
       "archivedTo": "docs/execution/status-archive-2026-10.json",
@@ -1163,11 +1160,8 @@
       "limits": "No full local suites; human assistive-technology, broader workflow roles and current-source full release remain unverified."
     },
     "workflowReminderRules20261020": {
-      "result": "FOCUSED_PASS",
-      "implementationCommit": "442e1b5ab8f0af4e5de839aa68e96e8775699744",
-      "ciRun": "Fast 39348072973 PASS; release 39348671685 running at 442e1b5a.",
-      "checks": "Reminder Domain1, Angular4; access sweep1, deep E2E3; response E2E1; affected E2E17; build/EF/OpenAPI pass.",
-      "limits": "No full local suites; current full CI pending; human AT and live provider remain external."
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowHistory20261020.workflowReminderRules20261020"
     },
     "fullReleaseVerification20261020": {
       "run": "39410131489",
@@ -1200,6 +1194,13 @@
         "API"
       ],
       "deployment": "NOT_RUN"
+    },
+    "workflowReminderScheduleBound20261020": {
+      "status": "FOCUSED_PASS",
+      "source": "uncommitted worktree after 34236556",
+      "checks": "Release solution build; 3 changed Domain cases; 4 Angular specs; EF/OpenAPI drift; component lint; owned accessibility E2E 1/1; built-in browser draft validation/save/readback",
+      "pending": "Responsive inspection, current-source full CI; human AT; no deployment",
+      "guide": "docs/operations/auditsphere-operations-guide-workflow-reminders-current.md"
     }
   },
   "externalGates": [

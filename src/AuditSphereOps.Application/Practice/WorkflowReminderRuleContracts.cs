@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace AuditSphereOps.Application.Practice;
 
 /// <summary>Explicit operational policy; no active rules or professional decisions are inferred.</summary>
 public sealed record WorkflowReminderRuleDefinition(
   string Name, string SourceKind, string RecipientKind, int OffsetDays, int RepeatEveryDays,
-  string TimeZoneId, string QuietHoursStart, string QuietHoursEnd, DateTimeOffset EffectiveFromUtc);
+  string TimeZoneId, string QuietHoursStart, string QuietHoursEnd, DateTimeOffset EffectiveFromUtc,
+  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? MaxScheduledWindowCount = null);
 
 public sealed record WorkflowReminderRuleDraftRequest(
   Guid? RuleId, WorkflowReminderRuleDefinition Definition, long? ExpectedRevision = null,

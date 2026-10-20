@@ -112,7 +112,10 @@ public static partial class WorkflowReminderRuleService
     if (!auth.Succeeded) return Fail<WorkflowReminderRuleRevisionView>(auth);
     if (request is null) return Invalid<WorkflowReminderRuleRevisionView>("Provide a complete reminder rule definition.");
     var requestKey = request.RequestKey.GetValueOrDefault();
-    var normalized = NormalizeAndValidate(request.Definition);
+    // A pre-bound recurring draft may be replayed with its original request key.
+    // Canonicalize that legacy shape for exact receipt matching, then reject it
+    // below if it would create or edit a revision.
+    var normalized = NormalizeAndValidate(request.Definition, allowLegacyUnboundedRecurring: true);
     if (!normalized.Succeeded || normalized.Value is null)
       return Invalid<WorkflowReminderRuleRevisionView>(normalized.Message ?? "The reminder rule definition is invalid.");
 
@@ -150,6 +153,9 @@ public static partial class WorkflowReminderRuleService
 
     auth = await AuthorizeAsync(db, actor, ConfigureRoles, ct);
     if (!auth.Succeeded) return Fail<WorkflowReminderRuleRevisionView>(auth);
+    if (RequiresRevision(definition))
+      return Invalid<WorkflowReminderRuleRevisionView>(
+        "A repeating reminder rule requires an explicit maximum scheduled-window count from 1 to 100.");
 
     var now = DateTimeOffset.UtcNow;
     WorkflowReminderRule rule;
@@ -258,6 +264,9 @@ public static partial class WorkflowReminderRuleService
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A reminder rule author or last editor cannot review that revision.");
     if (!TryGetVerifiedDefinition(revision, out var canonicalDefinition))
       return CommandResult.Fail("workflow.reminder.invalid", "The saved reminder definition is invalid or its digest does not match.");
+    if (RequiresRevision(canonicalDefinition))
+      return CommandResult.Fail("workflow.reminder.needs-revision",
+        "A repeating reminder rule needs an explicit reviewed maximum scheduled-window count before review.");
     var digest = Digest(canonicalDefinition);
     if (!IsDigest(request.ContentDigest) || digest != revision.ContentDigest || digest != request.ContentDigest)
       return CommandResult.Fail("workflow.reminder.invalid", "The saved reminder definition or review digest is invalid.");
@@ -299,6 +308,9 @@ public static partial class WorkflowReminderRuleService
       return CommandResult.Fail(ErrorCodes.StaleRevision, "Publish requires the exact independently reviewed reminder revision.");
     if (!TryGetVerifiedDefinition(revision, out var canonicalDefinition))
       return CommandResult.Fail("workflow.reminder.invalid", "The reviewed reminder definition is invalid or its digest does not match.");
+    if (RequiresRevision(canonicalDefinition))
+      return CommandResult.Fail("workflow.reminder.needs-revision",
+        "A repeating reminder rule needs an explicit reviewed maximum scheduled-window count before publication.");
     var digest = Digest(canonicalDefinition);
     if (!IsDigest(request.ContentDigest) || digest != revision.ContentDigest || digest != request.ContentDigest)
       return CommandResult.Fail("workflow.reminder.invalid", "The reviewed reminder definition or publication digest is invalid.");
@@ -373,7 +385,7 @@ public static partial class WorkflowReminderRuleService
   }
 
   internal static CommandResult<WorkflowReminderRuleDefinition> NormalizeAndValidate(
-    WorkflowReminderRuleDefinition? definition)
+    WorkflowReminderRuleDefinition? definition, bool allowLegacyUnboundedRecurring = false)
   {
     if (definition is null)
       return Invalid<WorkflowReminderRuleDefinition>("Provide every required reminder rule field.");
@@ -383,21 +395,30 @@ public static partial class WorkflowReminderRuleService
     var zone = (definition.TimeZoneId ?? string.Empty).Trim();
     var quietStart = (definition.QuietHoursStart ?? string.Empty).Trim();
     var quietEnd = (definition.QuietHoursEnd ?? string.Empty).Trim();
+    var missingRecurringBound = definition.RepeatEveryDays > 0 && definition.MaxScheduledWindowCount is null;
+    var invalidRecurringBound = definition.MaxScheduledWindowCount is < 1 or > WorkflowReminderSchedule.MaximumAllowedWindowCount ||
+      definition.RepeatEveryDays == 0 && definition.MaxScheduledWindowCount is not null;
     if (name.Length is < 2 or > 160 ||
         source is not (WorkflowReminderSourceKinds.TaskDue or WorkflowReminderSourceKinds.PbcDue) ||
         recipient is not (WorkflowReminderRecipientKinds.ResponsibleStaff or WorkflowReminderRecipientKinds.EngagementReviewer) ||
         definition.OffsetDays is < -30 or > 365 || definition.RepeatEveryDays is < 0 or > 90 ||
+        invalidRecurringBound || missingRecurringBound && !allowLegacyUnboundedRecurring ||
         zone.Length is < 1 or > 100 || !ValidTime(quietStart) || !ValidTime(quietEnd) ||
         definition.EffectiveFromUtc == default)
-      return Invalid<WorkflowReminderRuleDefinition>("Enter a name, supported source and recipient, bounded thresholds, timezone, quiet hours, and effective date.");
+      return Invalid<WorkflowReminderRuleDefinition>(missingRecurringBound && !allowLegacyUnboundedRecurring
+        ? "A repeating reminder rule requires an explicit maximum scheduled-window count from 1 to 100."
+        : "Enter a name, supported source and recipient, bounded thresholds, timezone, quiet hours, and effective date.");
     try { _ = TimeZoneInfo.FindSystemTimeZoneById(zone); }
     catch (TimeZoneNotFoundException) { return Invalid<WorkflowReminderRuleDefinition>("Choose a supported timezone."); }
     catch (InvalidTimeZoneException) { return Invalid<WorkflowReminderRuleDefinition>("Choose a valid timezone."); }
 
     return CommandResult<WorkflowReminderRuleDefinition>.Ok(new WorkflowReminderRuleDefinition(name, source, recipient,
       definition.OffsetDays, definition.RepeatEveryDays, zone, quietStart, quietEnd,
-      definition.EffectiveFromUtc.ToUniversalTime()));
+      definition.EffectiveFromUtc.ToUniversalTime(), definition.MaxScheduledWindowCount));
   }
+
+  internal static bool RequiresRevision(WorkflowReminderRuleDefinition definition) =>
+    definition.RepeatEveryDays > 0 && definition.MaxScheduledWindowCount is null;
 
   internal static string Digest(WorkflowReminderRuleDefinition definition) =>
     Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(definition, Json)));
@@ -429,8 +450,11 @@ public static partial class WorkflowReminderRuleService
     if (rule.Revision != request.ExpectedRevision)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The reminder rule state changed; reload before changing it.");
     if (rule.CurrentPublishedRevisionId != revision.Id || revision.Status != WorkflowReminderRuleStatuses.Published ||
-        !TryGetVerifiedDefinition(revision, out _) || request.ContentDigest != revision.ContentDigest)
+        !TryGetVerifiedDefinition(revision, out var currentDefinition) || request.ContentDigest != revision.ContentDigest)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "The current published reminder revision changed or its digest is invalid.");
+    if (!suspend && RequiresRevision(currentDefinition))
+      return CommandResult.Fail("workflow.reminder.needs-revision",
+        "A repeating reminder rule needs an explicit reviewed maximum scheduled-window count before it can resume.");
     if (suspend == rule.SuspendedAt.HasValue)
       return CommandResult.Fail(ErrorCodes.ProtectedState, suspend ? "The reminder rule is already suspended." : "The reminder rule is not suspended.");
 
@@ -464,11 +488,13 @@ public static partial class WorkflowReminderRuleService
     var independentReview = revision.ReviewedByUserId is not null &&
       revision.ReviewedByUserId != revision.CreatedByUserId && revision.ReviewedByUserId != revision.LastEditedByUserId;
     var canReview = canManage && revision.Status == WorkflowReminderRuleStatuses.Draft && digestMatches &&
-      revision.CreatedByUserId != actor.UserId && revision.LastEditedByUserId != actor.UserId;
-    var canPublish = canManage && revision.Status == WorkflowReminderRuleStatuses.Reviewed && independentReview && digestMatches;
+      !RequiresRevision(definition) && revision.CreatedByUserId != actor.UserId && revision.LastEditedByUserId != actor.UserId;
+    var canPublish = canManage && revision.Status == WorkflowReminderRuleStatuses.Reviewed && independentReview && digestMatches &&
+      !RequiresRevision(definition);
     var canSuspend = canManage && currentPublished && !rule.SuspendedAt.HasValue && digestMatches;
-    var canResume = canManage && currentPublished && rule.SuspendedAt.HasValue && digestMatches;
+    var canResume = canManage && currentPublished && rule.SuspendedAt.HasValue && digestMatches && !RequiresRevision(definition);
     string? blocker = !digestMatches ? "Saved rule content does not match its canonical digest."
+      : RequiresRevision(definition) ? "This legacy repeating rule needs a new independently reviewed revision with a maximum scheduled-window count."
       : revision.Status == WorkflowReminderRuleStatuses.Published && !currentPublished ? "This published revision is no longer current."
       : currentPublished && rule.SuspendedAt.HasValue ? "This rule is suspended."
       : revision.Status is not WorkflowReminderRuleStatuses.Published ? "Only a published rule can create reminder intents."
@@ -500,12 +526,16 @@ public static partial class WorkflowReminderRuleService
 
   private static WorkflowReminderRuleDefinition ToDefinition(WorkflowReminderRuleRevision revision) =>
     new(revision.Name, revision.SourceKind, revision.RecipientKind, revision.OffsetDays, revision.RepeatEveryDays,
-      revision.TimeZoneId, revision.QuietHoursStart, revision.QuietHoursEnd, revision.EffectiveFromUtc);
+      revision.TimeZoneId, revision.QuietHoursStart, revision.QuietHoursEnd, revision.EffectiveFromUtc,
+      revision.MaxScheduledWindowCount);
 
   private static bool TryGetVerifiedDefinition(
     WorkflowReminderRuleRevision revision, out WorkflowReminderRuleDefinition definition)
   {
-    var normalized = NormalizeAndValidate(ToDefinition(revision));
+    // Existing recurring revisions had no bound. Their historical digest remains
+    // verifiable because a null bound is omitted from canonical JSON; execution and
+    // review still fail closed until a new revision is reviewed.
+    var normalized = NormalizeAndValidate(ToDefinition(revision), allowLegacyUnboundedRecurring: true);
     if (normalized.Succeeded && normalized.Value is { } value && Digest(value) == revision.ContentDigest)
     {
       definition = value;
@@ -522,6 +552,7 @@ public static partial class WorkflowReminderRuleService
     revision.RecipientKind = definition.RecipientKind;
     revision.OffsetDays = definition.OffsetDays;
     revision.RepeatEveryDays = definition.RepeatEveryDays;
+    revision.MaxScheduledWindowCount = definition.MaxScheduledWindowCount;
     revision.TimeZoneId = definition.TimeZoneId;
     revision.QuietHoursStart = definition.QuietHoursStart;
     revision.QuietHoursEnd = definition.QuietHoursEnd;

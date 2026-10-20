@@ -95,6 +95,8 @@ public sealed class WorkflowReminderTaskHandler(WorkflowReminderOptions options,
         x.OccurredAt >= stateChangedAt.Value, ct))
       throw new OperationBlockedException("workflow-reminder-recovery-review-required", authorization: true);
     var definition = WorkflowReminderRuntime.Definition(revision);
+    if (WorkflowReminderRuleService.RequiresRevision(definition))
+      throw new OperationBlockedException("workflow-reminder-needs-revision");
     var valid = WorkflowReminderRuleService.NormalizeAndValidate(definition);
     if (!valid.Succeeded || WorkflowReminderRuleService.Digest(definition) != intent.RuleDigest)
       throw new OperationBlockedException("workflow-reminder-definition-invalid");
@@ -116,7 +118,13 @@ public sealed class WorkflowReminderTaskHandler(WorkflowReminderOptions options,
       throw new OperationDeferredException(definition.EffectiveFromUtc - now);
     var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now,
       TimeZoneInfo.FindSystemTimeZoneById(definition.TimeZoneId)).DateTime);
-    var currentOccurrence = WorkflowReminderRuntime.Occurrence(source.DueDate, today,
+    var scheduledWindowNumber = WorkflowReminderSchedule.ScheduledWindowNumber(
+      intent.OccurrenceKey, definition.RepeatEveryDays);
+    if (scheduledWindowNumber is null)
+      throw new OperationBlockedException("workflow-reminder-occurrence-invalid");
+    if (definition.MaxScheduledWindowCount is { } maximum && scheduledWindowNumber > maximum)
+      throw new OperationBlockedException("workflow-reminder-schedule-windows-exhausted");
+    var currentOccurrence = WorkflowReminderSchedule.CurrentOccurrenceKey(source.DueDate, today,
       definition.OffsetDays, definition.RepeatEveryDays);
     if (currentOccurrence is null || !WorkflowReminderRuntime.OccurrenceHasStarted(intent.OccurrenceKey, currentOccurrence))
       throw new OperationBlockedException("workflow-reminder-occurrence-not-due");
@@ -181,7 +189,8 @@ internal static class WorkflowReminderRuntime
 
   internal static WorkflowReminderRuleDefinition Definition(WorkflowReminderRuleRevision revision) =>
     new(revision.Name, revision.SourceKind, revision.RecipientKind, revision.OffsetDays, revision.RepeatEveryDays,
-      revision.TimeZoneId, revision.QuietHoursStart, revision.QuietHoursEnd, revision.EffectiveFromUtc);
+      revision.TimeZoneId, revision.QuietHoursStart, revision.QuietHoursEnd, revision.EffectiveFromUtc,
+      revision.MaxScheduledWindowCount);
 
   internal static async Task RequirePublisherAsync(IAuditSphereDbContext db, Guid firmId, Guid userId,
     long epoch, CancellationToken ct)
@@ -275,12 +284,6 @@ internal static class WorkflowReminderRuntime
       if (auth.Succeeded) recipients.Add(userId);
     }
     return recipients;
-  }
-
-  internal static string? Occurrence(DateOnly dueDate, DateOnly today, int offsetDays, int repeatEveryDays)
-  {
-    var elapsed = (long)today.DayNumber - dueDate.DayNumber - offsetDays;
-    return elapsed < 0 ? null : repeatEveryDays == 0 ? "ONCE" : $"WINDOW:{elapsed / repeatEveryDays}";
   }
 
   internal static bool OccurrenceHasStarted(string expected, string current) =>

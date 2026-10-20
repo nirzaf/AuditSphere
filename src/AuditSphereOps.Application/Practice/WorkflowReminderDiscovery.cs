@@ -38,6 +38,11 @@ public sealed class WorkflowReminderDiscovery(
       await FinishBatchAsync(scan, null, "NOT_EFFECTIVE", advance: false, ct);
       return 0;
     }
+    if (WorkflowReminderRuleService.RequiresRevision(definition))
+    {
+      await FinishBatchAsync(scan, null, "NEEDS_REVISION", advance: false, ct);
+      return 0;
+    }
     var validated = WorkflowReminderRuleService.NormalizeAndValidate(definition);
     if (!validated.Succeeded || WorkflowReminderRuleService.Digest(definition) != revision.ContentDigest)
     {
@@ -79,9 +84,19 @@ public sealed class WorkflowReminderDiscovery(
         var source = await WorkflowReminderRuntime.SourceAsync(db, worker.FirmId,
           candidate.ClientId, candidate.EngagementId, definition.SourceKind, candidate.Id, true, ct);
         if (source is null) { blocked = "SOURCE_NOT_ELIGIBLE"; continue; }
-        var occurrence = WorkflowReminderRuntime.Occurrence(source.DueDate, today,
-          definition.OffsetDays, definition.RepeatEveryDays);
-        if (occurrence is null) continue;
+        var schedule = WorkflowReminderSchedule.Evaluate(source.DueDate, today,
+          definition.OffsetDays, definition.RepeatEveryDays, definition.MaxScheduledWindowCount);
+        if (schedule.Disposition == WorkflowReminderScheduleDisposition.NotDue) continue;
+        if (schedule.Disposition == WorkflowReminderScheduleDisposition.NeedsRevision)
+        {
+          blocked = "NEEDS_REVISION";
+          continue;
+        }
+        if (schedule.Disposition == WorkflowReminderScheduleDisposition.Exhausted)
+        {
+          blocked = "SCHEDULE_WINDOWS_EXHAUSTED";
+          continue;
+        }
         var recipients = await WorkflowReminderRuntime.RecipientsAsync(db, worker.FirmId, source,
           definition.RecipientKind, clock.GetUtcNow(), ct);
         if (recipients.Count == 0) { blocked = "NO_ELIGIBLE_RECIPIENT"; continue; }
@@ -89,7 +104,7 @@ public sealed class WorkflowReminderDiscovery(
         {
           var intent = new WorkflowReminderIntent(revision.Id, revision.ContentDigest, source.Kind,
             source.Id, source.Revision, source.DueRevision, source.Digest, source.DueDate,
-            recipient, publisher, epoch, occurrence);
+            recipient, publisher, epoch, schedule.OccurrenceKey!);
           var sourceKey = WorkflowReminderRuntime.TaskSourceKey(intent);
           if (await db.WorkflowTaskBindings.AsNoTracking().AnyAsync(x => x.FirmId == worker.FirmId &&
               x.ClientId == source.ClientId && x.EngagementId == source.EngagementId && x.SourceKey == sourceKey, ct))
@@ -172,7 +187,7 @@ public sealed class WorkflowReminderDiscovery(
     await using var db = await factory.CreateAsync(ct);
     if (definition.SourceKind == "TASK_DUE")
     {
-      var query = from binding in db.WorkflowTaskBindings.AsNoTracking()
+      var baseQuery = from binding in db.WorkflowTaskBindings.AsNoTracking()
                   join task in db.WorkTasks.AsNoTracking()
                     on new { binding.FirmId, Id = binding.WorkTaskId } equals new { task.FirmId, task.Id }
                   where binding.FirmId == worker.FirmId && binding.ReminderRuleRevisionId == null &&
@@ -180,23 +195,29 @@ public sealed class WorkflowReminderDiscovery(
                     (task.Status == PracticeTimeStates.TaskOpen || task.Status == PracticeTimeStates.TaskInProgress) &&
                     task.DueDate.HasValue && task.DueDate.Value <= cutoff
                   select new { task.Id, binding.ClientId, binding.EngagementId, DueDate = task.DueDate!.Value };
+      var query = baseQuery;
       if (scan.SourceId is { } afterId && DateOnly.TryParseExact(scan.DueDate, "yyyy-MM-dd",
           CultureInfo.InvariantCulture, DateTimeStyles.None, out var afterDate))
         query = query.Where(x => x.DueDate > afterDate || x.DueDate == afterDate && x.Id.CompareTo(afterId) > 0);
       var rows = await query.OrderBy(x => x.DueDate).ThenBy(x => x.Id).Take(options.BatchSize).ToListAsync(ct);
+      if (rows.Count == 0 && scan.SourceId is not null)
+        rows = await baseQuery.OrderBy(x => x.DueDate).ThenBy(x => x.Id).Take(options.BatchSize).ToListAsync(ct);
       return rows.Select(x => new Candidate(x.Id, x.ClientId, x.EngagementId,
         x.DueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))).ToList();
     }
     if (definition.SourceKind != "PBC_DUE") return [];
     var maximumDate = cutoff.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-    var pbc = db.PbcRequests.AsNoTracking().Where(x => x.FirmId == worker.FirmId &&
+    var basePbc = db.PbcRequests.AsNoTracking().Where(x => x.FirmId == worker.FirmId &&
       (x.State == PbcStates.Sent || x.State == PbcStates.Acknowledged || x.State == PbcStates.PartiallyReceived ||
        x.State == PbcStates.ClarificationRequired) && string.Compare(x.DueDate, maximumDate) <= 0);
+    var pbc = basePbc;
     if (scan.SourceId is { } pbcAfterId && scan.DueDate is { } pbcAfterDate)
       pbc = pbc.Where(x => string.Compare(x.DueDate, pbcAfterDate) > 0 ||
         x.DueDate == pbcAfterDate && x.Id.CompareTo(pbcAfterId) > 0);
-    return await pbc.OrderBy(x => x.DueDate).ThenBy(x => x.Id).Take(options.BatchSize)
-      .Select(x => new Candidate(x.Id, x.ClientId, x.EngagementId, x.DueDate)).ToListAsync(ct);
+    var pbcRows = await pbc.OrderBy(x => x.DueDate).ThenBy(x => x.Id).Take(options.BatchSize).ToListAsync(ct);
+    if (pbcRows.Count == 0 && scan.SourceId is not null)
+      pbcRows = await basePbc.OrderBy(x => x.DueDate).ThenBy(x => x.Id).Take(options.BatchSize).ToListAsync(ct);
+    return pbcRows.Select(x => new Candidate(x.Id, x.ClientId, x.EngagementId, x.DueDate)).ToList();
   }
 
   private Task<AuditSphereOps.Domain.Completion.FirmSafetyState?> LockFirmAsync(

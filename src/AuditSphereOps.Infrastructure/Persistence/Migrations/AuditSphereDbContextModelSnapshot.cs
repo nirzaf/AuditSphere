@@ -27623,6 +27623,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("last_edited_by_user_id");
 
+                    b.Property<int?>("MaxScheduledWindowCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_scheduled_window_count");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(160)
@@ -27744,6 +27748,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("workflow_reminder_rule_revisions", null, t =>
                         {
+                            t.HasCheckConstraint("ck_workflow_reminder_rule_revision_schedule_window_bound", "max_scheduled_window_count IS NULL OR max_scheduled_window_count BETWEEN 1 AND 100");
+
                             t.HasCheckConstraint("ck_workflow_reminder_rule_revision_values", "version >= 1 AND revision >= 1 AND creation_request_key <> '00000000-0000-0000-0000-000000000000'::uuid AND creation_request_digest ~ '^[0-9a-f]{64}$' AND status IN ('DRAFT','REVIEWED','PUBLISHED','SUPERSEDED') AND length(trim(name)) BETWEEN 2 AND 160 AND source_kind IN ('TASK_DUE','PBC_DUE') AND recipient_kind IN ('RESPONSIBLE_STAFF','ENGAGEMENT_REVIEWER') AND offset_days BETWEEN -30 AND 365 AND repeat_every_days BETWEEN 0 AND 90 AND length(trim(time_zone_id)) BETWEEN 1 AND 100 AND quiet_hours_start ~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$' AND quiet_hours_end ~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$' AND content_digest ~ '^[0-9a-f]{64}$' AND ((status = 'DRAFT' AND reviewed_by_user_id IS NULL AND reviewed_at IS NULL AND published_by_user_id IS NULL AND published_at IS NULL AND published_session_epoch IS NULL) OR (status = 'REVIEWED' AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL AND reviewed_by_user_id <> created_by_user_id AND reviewed_by_user_id <> last_edited_by_user_id AND published_by_user_id IS NULL AND published_at IS NULL AND published_session_epoch IS NULL) OR (status IN ('PUBLISHED','SUPERSEDED') AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL AND reviewed_by_user_id <> created_by_user_id AND reviewed_by_user_id <> last_edited_by_user_id AND published_by_user_id IS NOT NULL AND published_at IS NOT NULL AND published_session_epoch >= 1))");
                         });
                 });
