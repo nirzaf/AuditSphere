@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Accessibility recheck and current-SHA release verification (2026-10-20)
+
+The current `master` source (`adb1fc36764b53eecca51c1e223426409234ecf2`) was inspected in the built-in browser. Its unauthenticated `/ui/app/work` route redirects to the access-unavailable shell, so no staff/client workflow was treated as verified. At 320×844 the document width was 305px; the skip link target exists, keyboard focus showed a 3px outline, and activating it focused the main landmark. Measured text contrast ranged from 6.46:1 to 17.06:1. No business data changed. A qualified human screen-reader review and authenticated workflow acceptance remain open.
+
+Full release verification [39428908800](https://github.com/nirzaf/AuditSphere/actions/runs/39428908800) is running on this exact SHA. Angular full specs and build/contracts/publication passed; the unfiltered Domain, API and Playwright E2E jobs are still in progress. The detailed observation is in [`targetedVerification.accessibilityRenderedSweep20261020.currentHeadFollowUp`](status.json).
+
 > **Reading note:** Any older section that says the Web host remains present or that
 > retirement is `NOT_READY` describes the state when it was written. The owner retired
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
