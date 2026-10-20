@@ -6,7 +6,7 @@ import { Api, CommandState, UNKNOWN_OUTCOME } from '../../core/api';
 import { Drafts } from '../../core/drafts';
 import { SessionService } from '../../core/session';
 import { TabDrafts } from '../../core/tab-drafts';
-import { arr, bool, date, dec, decimalInput, guid, nat, nullable, obj, str, text } from '../../core/decode';
+import { arr, bool, date, dec, decimalInput, guid, nat, nullable, obj, sha256, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { decodeExpenseCreateLookup, decodeExpenseId, ExpenseCreateReference, expenseCreateReference, hashExpenseCreation } from './books-contracts';
 
@@ -29,7 +29,7 @@ const pnlMonth = obj({ periodCode: text, revenue: dec, expenses: dec, profit: de
 export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: arr(tbRow), totalDebit: dec, totalCredit: dec, balanced: bool,
   revenue: dec, expenses: dec, profit: dec, cumulativeProfit: dec, assets: dec, liabilities: dec, equity: dec, positionReconciles: bool,
   currency: nullable(text), activityPage: nat, activityPageSize: nat, totalActivityCount: nat, hasMoreActivity: bool,
-  profitLossActivity: arr(pnlActivity, 100), monthlyProfitLoss: arr(pnlMonth, 1200) });
+  profitLossActivity: arr(pnlActivity, 100), monthlyProfitLoss: arr(pnlMonth, 1200), reportIdentity: sha256 });
 
 @Component({
   selector: 'audit-firm-expense-rejection-dialog',
@@ -623,12 +623,26 @@ export class FirmBooks {
     this.postVerificationMessage.set('');
   }
 
-  async trialBalance(activityPage = 1): Promise<void> {
-    const from = this.from.trim();
-    const to = this.to.trim();
+  async trialBalance(activityPage?: number): Promise<void> {
+    if (this.tbBusy()) return;
+    const continuation = activityPage !== undefined;
+    const page = activityPage ?? 1;
+    const priorReport = this.tb();
+    const reportIdentity = continuation ? priorReport?.reportIdentity : undefined;
+    if (continuation && !reportIdentity) {
+      this.tbError.set('Reload the first report page before continuing.');
+      this.tb.set(null);
+      return;
+    }
+    const from = (continuation && priorReport ? priorReport.fromPeriod : this.from).trim();
+    const to = (continuation && priorReport ? priorReport.toPeriod : this.to).trim();
     this.tbBusy.set(true); this.tbError.set(''); this.tbExportMessage.set(''); this.tb.set(null);
     try {
-      this.tb.set(await this.api.get(`/api/ui/finance/books/trial-balance?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&activityPage=${activityPage}`, decodeTrialBalance));
+      const identityQuery = reportIdentity ? `&reportIdentity=${encodeURIComponent(reportIdentity)}` : '';
+      const result = await this.api.get(`/api/ui/finance/books/trial-balance?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&activityPage=${page}${identityQuery}`, decodeTrialBalance);
+      if (reportIdentity && result.reportIdentity !== reportIdentity)
+        throw new Error('The firm-books report changed. Reload the first page before continuing.');
+      this.tb.set(result);
     } catch (e) {
       this.tbError.set(e instanceof Error && e.message ? e.message : 'Trial balance unavailable.');
     } finally { this.tbBusy.set(false); }
@@ -639,12 +653,13 @@ export class FirmBooks {
     if (!report || this.exportingTb() || this.tbBusy()) return;
     this.exportingTb.set(true); this.tbExportMessage.set(''); this.tbExportFailed.set(false);
     const result = await this.api.download('/api/ui/finance/books/trial-balance/export',
-      { fromPeriod: report.fromPeriod, toPeriod: report.toPeriod }, metadata =>
+      { fromPeriod: report.fromPeriod, toPeriod: report.toPeriod, reportIdentity: report.reportIdentity }, metadata =>
         metadata.fileName === `firm-trial-balance-${report.fromPeriod}-${report.toPeriod}.csv` &&
         metadata.contentType.startsWith('text/csv') && metadata.byteCount <= 8_000_000 &&
         metadata.headers['x-firm-trial-balance-from'] === report.fromPeriod &&
         metadata.headers['x-firm-trial-balance-to'] === report.toPeriod &&
-        metadata.headers['x-firm-trial-balance-currency'] === (report.currency ?? ''));
+        metadata.headers['x-firm-trial-balance-currency'] === (report.currency ?? '') &&
+        metadata.headers['x-firm-trial-balance-identity'] === report.reportIdentity);
     this.exportingTb.set(false); this.tbExportFailed.set(!result.ok);
     this.tbExportMessage.set(result.ok
       ? `The trial balance and P&L detail for ${report.fromPeriod} to ${report.toPeriod} were exported.`

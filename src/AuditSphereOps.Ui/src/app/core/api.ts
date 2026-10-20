@@ -81,7 +81,7 @@ export class Api {
     } catch (e) {
       const status = e instanceof HttpErrorResponse ? e.status : 0;
       if (status === 401) this.session.refresh();
-      throw new Error(status === 400 || status === 403 ? Api.message(e, 'Not available in your current scope.') : 'Temporarily unavailable. Retry shortly.');
+      throw new Error(status === 400 || status === 403 || status === 409 ? Api.message(e, 'Not available in your current scope.') : 'Temporarily unavailable. Retry shortly.');
     }
     if (generation !== this.session.invalidation()) throw new Error('Your session changed. Load this information again after signing in.');
     try { return decode(decoder, value); } catch { throw new Error('Unsupported response.'); }

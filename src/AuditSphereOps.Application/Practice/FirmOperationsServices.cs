@@ -462,7 +462,7 @@ public sealed record FirmProfitLossActivity(Guid LineId, Guid PostingId, Guid Jo
 public sealed record FirmTrialBalanceView(string FromPeriod, string ToPeriod, IReadOnlyList<FirmTrialBalanceRow> Rows, decimal TotalDebit, decimal TotalCredit, bool Balanced,
   decimal Revenue, decimal Expenses, decimal Profit, decimal CumulativeProfit, decimal Assets, decimal Liabilities, decimal Equity, bool PositionReconciles,
   string? Currency, int ActivityPage, int ActivityPageSize, int TotalActivityCount, bool HasMoreActivity,
-  IReadOnlyList<FirmProfitLossActivity> ProfitLossActivity, IReadOnlyList<FirmProfitLossMonth> MonthlyProfitLoss);
+  IReadOnlyList<FirmProfitLossActivity> ProfitLossActivity, IReadOnlyList<FirmProfitLossMonth> MonthlyProfitLoss, string ReportIdentity = "");
 /// <summary>
 /// One accounting month of the firm's operating profit and loss, from the same posted lines as the range totals, so the months in
 /// a range add up to those totals exactly. The comparator is the same month one year earlier and is null when the firm has no
@@ -470,7 +470,7 @@ public sealed record FirmTrialBalanceView(string FromPeriod, string ToPeriod, IR
 /// </summary>
 public sealed record FirmProfitLossMonth(string PeriodCode, decimal Revenue, decimal Expenses, decimal Profit,
   decimal? PriorYearRevenue, decimal? PriorYearExpenses, decimal? PriorYearProfit);
-public sealed record FirmTrialBalanceCsvExport(string FileName, string Currency, string Csv);
+public sealed record FirmTrialBalanceCsvExport(string FileName, string Currency, string Csv, string ReportIdentity = "");
 
 /// <summary>
 /// The firm's own operating expenses (rent, salaries, petty cash…) with source evidence, prepared by finance,
@@ -677,12 +677,16 @@ public static class FirmExpenseService
   public const int MaxMonthlyProfitLossMonths = 1200;
 
   public static async Task<CommandResult<FirmTrialBalanceView>> TrialBalanceAsync(IClientAccountingDbContext db, ActorContext actor,
-    string fromPeriod, string toPeriod, CancellationToken ct = default, int activityPage = 1, bool includeAllActivities = false)
+    string fromPeriod, string toPeriod, CancellationToken ct = default, int activityPage = 1, bool includeAllActivities = false,
+    string? expectedReportIdentity = null)
   {
     if (!IsPeriod(fromPeriod) || !IsPeriod(toPeriod) || string.CompareOrdinal(fromPeriod, toPeriod) > 0 || activityPage is < 1 or > 100_000)
       return CommandResult<FirmTrialBalanceView>.Fail("ledger.invalid", "Choose a valid YYYY-MM period range and activity page.");
     var auth = await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers, "Partner", "Administrator"], ct);
     if (!auth.Succeeded) return CommandResult<FirmTrialBalanceView>.Fail(auth.ErrorCode!, auth.Message!);
+    if ((activityPage > 1 || includeAllActivities) && string.IsNullOrWhiteSpace(expectedReportIdentity))
+      return CommandResult<FirmTrialBalanceView>.Fail(ErrorCodes.GenerationStale,
+        "Reload the first report page before continuing or exporting it.");
     if (db.Database.CurrentTransaction is not null)
       return CommandResult<FirmTrialBalanceView>.Fail(ErrorCodes.GateBlocked,
         "Open this report in a separate read context so its source snapshot and current access can be verified.");
@@ -712,17 +716,26 @@ public static class FirmExpenseService
       where line.FirmId == actor.FirmId && periodIds.Contains(posting.PeriodId)
       select new
       {
-        line.FirmAccountId, line.Debit, line.Credit, PostingId = posting.Id,
-        posting.ReversalOfPostingId, posting.PeriodId, posting.Currency, journal.PostingPurpose
+        LineId = line.Id, line.FirmAccountId, line.Debit, line.Credit, PostingId = posting.Id,
+        posting.ReversalOfPostingId, posting.PeriodId, posting.Currency, JournalId = journal.Id,
+        PostedAt = posting.PostedAt, journal.JournalNumber, journal.PostingPurpose
       }).ToListAsync(ct);
-    var accounts = await db.FirmAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderBy(x => x.Code).ToListAsync(ct);
-    var currencies = lines.Select(x => x.Currency).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    var accounts = await db.FirmAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
+      .OrderBy(x => x.Code).ThenBy(x => x.Id).ToListAsync(ct);
+    var currencyValues = lines.Select(x => x.Currency).Distinct(StringComparer.Ordinal)
+      .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ThenBy(x => x, StringComparer.Ordinal).ToArray();
+    var currencies = currencyValues.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     if (currencies.Length > 1)
       return CommandResult<FirmTrialBalanceView>.Fail("ledger.currency-mixed",
         "This report contains posted amounts in more than one currency. Filter or translate each currency separately before reconciling it.");
     var currency = currencies.SingleOrDefault() ?? await db.FirmFinanceProfiles.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.Approved)
       .OrderByDescending(x => x.ApprovedAt).Select(x => x.FunctionalCurrency).FirstOrDefaultAsync(ct);
+    var postedJournalIds = lines.Select(x => x.JournalId).Distinct().ToArray();
+    var journalLines = await db.FirmJournalLines.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && postedJournalIds.Contains(x.JournalId))
+      .OrderBy(x => x.JournalId).ThenBy(x => x.Id)
+      .Select(x => new { x.Id, x.JournalId, x.FirmAccountId, x.Debit, x.Credit, x.Description }).ToListAsync(ct);
     static (decimal Debit, decimal Credit) Net(decimal debit, decimal credit) => debit >= credit ? (MoneyPolicy.Normalize(debit - credit), 0m) : (0m, MoneyPolicy.Normalize(credit - debit));
     var rows = accounts.Select(a =>
     {
@@ -820,6 +833,25 @@ public static class FirmExpenseService
       x.AccountId, x.AccountCode, x.AccountName, x.Description,
       x.AccountType == LedgerStates.AccountRevenue ? MoneyPolicy.Normalize(x.Credit - x.Debit) : 0m,
       x.AccountType == LedgerStates.AccountExpense ? MoneyPolicy.Normalize(x.Debit - x.Credit) : 0m)).ToList();
+    // This canonical envelope is deliberately independent of the requested activity page. All source
+    // collections are ordered explicitly before JSON serialization, and the hash is taken inside this
+    // repeatable-read transaction so the first page, later pages and export compare the same snapshot.
+    var reportIdentity = Hashing.Sha256Hex(System.Text.Json.JsonSerializer.Serialize(new
+    {
+      FirmId = actor.FirmId,
+      IdentityVersion = "firm-trial-balance/v1",
+      FromPeriod = fromPeriod,
+      ToPeriod = toPeriod,
+      Currency = currency,
+      Periods = periods.OrderBy(x => x.PeriodCode, StringComparer.Ordinal).ThenBy(x => x.Id)
+        .Select(x => new { x.Id, x.PeriodCode }).ToArray(),
+      Accounts = accounts.OrderBy(x => x.Code, StringComparer.Ordinal).ThenBy(x => x.Id)
+        .Select(x => new { x.Id, x.Code, x.Name, x.AccountType, x.NormalSide, x.PostingAllowed }).ToArray(),
+      PostedLines = lines.OrderBy(x => x.PeriodId).ThenBy(x => x.PostingId).ThenBy(x => x.LineId)
+        .Select(x => new { x.LineId, x.FirmAccountId, x.Debit, x.Credit, x.PostingId, x.ReversalOfPostingId,
+          x.PeriodId, x.Currency, x.JournalId, x.PostedAt, x.JournalNumber, x.PostingPurpose }).ToArray(),
+      JournalLines = journalLines.Select(x => new { x.Id, x.JournalId, x.FirmAccountId, x.Debit, x.Credit, x.Description }).ToArray()
+    }));
     var assets = Balance(LedgerStates.AccountAsset, true);
     var liabilities = Balance(LedgerStates.AccountLiability, false);
     var equity = Balance(LedgerStates.AccountEquity, false);
@@ -830,15 +862,19 @@ public static class FirmExpenseService
     var finalAuth = await AuthorizeAsync(db, actor, [.. Preparers, .. Reviewers, "Partner", "Administrator"], ct);
     if (!finalAuth.Succeeded)
       return CommandResult<FirmTrialBalanceView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (expectedReportIdentity is not null && !string.Equals(expectedReportIdentity, reportIdentity, StringComparison.Ordinal))
+      return CommandResult<FirmTrialBalanceView>.Fail(ErrorCodes.GenerationStale,
+        "The firm-books report changed. Reload the first page before continuing or exporting it.");
     return CommandResult<FirmTrialBalanceView>.Ok(new(fromPeriod, toPeriod, rows, totalDebit, totalCredit, totalDebit == totalCredit,
       revenue, expenses, profit, cumulativeProfit, assets, liabilities, equity, assets == liabilities + equity + cumulativeProfit,
-      currency, activityPage, TrialBalanceActivityPageSize, totalActivityCount, hasMoreActivity, profitLossActivity, monthlyProfitLoss));
+      currency, activityPage, TrialBalanceActivityPageSize, totalActivityCount, hasMoreActivity, profitLossActivity, monthlyProfitLoss, reportIdentity));
   }
 
   public static async Task<CommandResult<FirmTrialBalanceCsvExport>> ExportTrialBalanceAsync(IClientAccountingDbContext db,
-    ActorContext actor, string fromPeriod, string toPeriod, CancellationToken ct = default)
+    ActorContext actor, string fromPeriod, string toPeriod, CancellationToken ct = default, string? expectedReportIdentity = null)
   {
-    var report = await TrialBalanceAsync(db, actor, fromPeriod, toPeriod, ct, activityPage: 1, includeAllActivities: true);
+    var report = await TrialBalanceAsync(db, actor, fromPeriod, toPeriod, ct, activityPage: 1, includeAllActivities: true,
+      expectedReportIdentity: expectedReportIdentity);
     if (!report.Succeeded || report.Value is null)
       return CommandResult<FirmTrialBalanceCsvExport>.Fail(report.ErrorCode!, report.Message!);
     var value = report.Value;
@@ -868,7 +904,7 @@ public static class FirmExpenseService
         SafeText(activityLine.JournalNumber), SafeText(activityLine.PostingPurpose), SafeText(activityLine.Description), Amount(activityLine.RevenueActivity),
         Amount(activityLine.ExpenseActivity), "" }.Select(Cell)));
     return CommandResult<FirmTrialBalanceCsvExport>.Ok(new(
-      $"firm-trial-balance-{value.FromPeriod}-{value.ToPeriod}.csv", value.Currency ?? string.Empty, csv.ToString()));
+      $"firm-trial-balance-{value.FromPeriod}-{value.ToPeriod}.csv", value.Currency ?? string.Empty, csv.ToString(), value.ReportIdentity));
   }
 
   private static bool IsPeriod(string value) => DateOnly.TryParseExact((value ?? "") + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);

@@ -488,12 +488,14 @@ public sealed partial class FirmOperationsTests
       Assert.Equal((10_000m, 18_000m, -8_000m, -8_000m),
         (januaryTb.Revenue, januaryTb.Expenses, januaryTb.Profit, januaryTb.CumulativeProfit));
       Assert.Equal("QAR", januaryTb.Currency);
+      Assert.Matches("^[0-9a-f]{64}$", januaryTb.ReportIdentity);
       Assert.Equal(2, januaryTb.TotalActivityCount);
       Assert.Contains(januaryTb.ProfitLossActivity, x => x.JournalNumber == "J-REV" && x.RevenueActivity == 10_000m);
       Assert.Contains(januaryTb.ProfitLossActivity, x => x.AccountCode == "6200" && x.ExpenseActivity == 18_000m);
       Assert.True(januaryTb.PositionReconciles);
 
       var tb = (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02")).Value!;
+      Assert.Matches("^[0-9a-f]{64}$", tb.ReportIdentity);
       Assert.True(tb.Balanced);
       var bank = tb.Rows.Single(x => x.Code == "1000");
       Assert.Equal((42_000m, 0m, 0m, 6_650m, 35_350m), (bank.OpeningDebit, bank.MovementDebit, bank.OpeningCredit, bank.MovementCredit, bank.ClosingDebit));
@@ -509,6 +511,21 @@ public sealed partial class FirmOperationsTests
       Assert.Equal(6_500m, tb.ProfitLossActivity[0].ExpenseActivity);
       Assert.DoesNotContain(tb.ProfitLossActivity, x => x.JournalNumber is "J-OPEN" or "J-CLOSE");
       Assert.Equal(tb.TotalDebit, tb.TotalCredit);
+      var continuation = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02",
+        activityPage: 2, expectedReportIdentity: tb.ReportIdentity);
+      Assert.True(continuation.Succeeded, continuation.Message);
+      Assert.Equal(tb.ReportIdentity, continuation.Value!.ReportIdentity);
+      Assert.Empty(continuation.Value.ProfitLossActivity);
+      var unboundContinuation = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02", activityPage: 2);
+      Assert.Equal(ErrorCodes.GenerationStale, unboundContinuation.ErrorCode);
+      Assert.Null(unboundContinuation.Value);
+      var unboundExport = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02");
+      Assert.Equal(ErrorCodes.GenerationStale, unboundExport.ErrorCode);
+      Assert.Null(unboundExport.Value);
+      var mismatchedExport = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02",
+        expectedReportIdentity: new string('0', 64));
+      Assert.Equal(ErrorCodes.GenerationStale, mismatchedExport.ErrorCode);
+      Assert.Null(mismatchedExport.Value);
       // Month by month: each month carries only its own operating activity, and the months add up to the range totals.
       var twoMonths = (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-01", "2026-02")).Value!;
       Assert.Equal([("2026-01", 10_000m, 18_000m, -8_000m), ("2026-02", 0m, 6_500m, -6_500m)],
@@ -520,14 +537,17 @@ public sealed partial class FirmOperationsTests
       Assert.Equal(("2026-02", -6_500m), (Assert.Single(tb.MonthlyProfitLoss).PeriodCode, tb.MonthlyProfitLoss[0].Profit));
       // A range far wider than the stored periods is still bounded by them.
       Assert.Equal(2, (await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "1990-01", "2099-12")).Value!.MonthlyProfitLoss.Count);
-      var export = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02");
+      var export = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-02", "2026-02",
+        expectedReportIdentity: tb.ReportIdentity);
       Assert.True(export.Succeeded, export.Message);
+      Assert.Equal(tb.ReportIdentity, export.Value!.ReportIdentity);
       Assert.Contains("PROFIT_LOSS_SUMMARY", export.Value!.Csv);
       Assert.Contains("PROFIT_LOSS_ACTIVITY", export.Value.Csv);
       Assert.Contains("\"PROFIT_LOSS_MONTH\",\"2026-02\",\"2026-02\",\"QAR\"", export.Value.Csv);
       Assert.Contains("6500", export.Value.Csv);
       Assert.DoesNotContain("J-OPEN", export.Value.Csv);
-      var januaryExport = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-01", "2026-01");
+      var januaryExport = await FirmExpenseService.ExportTrialBalanceAsync(db, w.A("partner", "Partner"), "2026-01", "2026-01",
+        expectedReportIdentity: januaryTb.ReportIdentity);
       Assert.True(januaryExport.Succeeded, januaryExport.Message);
       Assert.Contains("'=HYPERLINK", januaryExport.Value!.Csv);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.TrialBalanceAsync(db, w.A("staff", "Staff"), "2026-02", "2026-02")).ErrorCode);
@@ -785,6 +805,15 @@ public sealed partial class FirmOperationsTests
           freshView.MonthlyProfitLoss[0].Profit));
       Assert.Equal(2, freshView.TotalActivityCount);
       Assert.Equal(150m, freshView.ProfitLossActivity.Sum(x => x.RevenueActivity));
+      Assert.NotEqual(firstView.ReportIdentity, freshView.ReportIdentity);
+      var staleContinuation = await FirmExpenseService.TrialBalanceAsync(freshDb, reader, "2026-03", "2026-03",
+        activityPage: 2, expectedReportIdentity: firstView.ReportIdentity);
+      Assert.Equal(ErrorCodes.GenerationStale, staleContinuation.ErrorCode);
+      Assert.Null(staleContinuation.Value);
+      var boundContinuation = await FirmExpenseService.TrialBalanceAsync(freshDb, reader, "2026-03", "2026-03",
+        activityPage: 2, expectedReportIdentity: freshView.ReportIdentity);
+      Assert.True(boundContinuation.Succeeded, boundContinuation.Message);
+      Assert.Equal(freshView.ReportIdentity, boundContinuation.Value!.ReportIdentity);
     }
 
     await using (var ambientDb = new AuditSphereDbContext(pg.Options))

@@ -22837,6 +22837,13 @@
               ],
               "format": "int32"
             }
+          },
+          {
+            "name": "reportIdentity",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -22872,6 +22879,16 @@
           },
           "403": {
             "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -22983,6 +23000,16 @@
           },
           "403": {
             "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -112973,6 +113000,12 @@
           },
           "toPeriod": {
             "type": "string"
+          },
+          "reportIdentity": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -113169,6 +113202,10 @@
             "items": {
               "$ref": "#/components/schemas/FirmProfitLossMonth"
             }
+          },
+          "reportIdentity": {
+            "type": "string",
+            "default": ""
           }
         }
       },

@@ -219,6 +219,7 @@ describe('Finance & Firm Ledger Contracts', () => {
       totalActivityCount: 0,
       hasMoreActivity: false,
       profitLossActivity: [],
+      reportIdentity: 'a'.repeat(64),
       monthlyProfitLoss: [
         { periodCode: '2026-01', revenue: '50000.00', expenses: '20000.00', profit: '30000.00',
           priorYearRevenue: null, priorYearExpenses: null, priorYearProfit: null },
@@ -226,6 +227,8 @@ describe('Finance & Firm Ledger Contracts', () => {
     };
 
     const decoded = decodeTrialBalance(raw, 'trialBalance');
+    expect(decoded.reportIdentity).toBe(raw.reportIdentity);
+    expect(() => decodeTrialBalance({ ...raw, reportIdentity: undefined }, 'trialBalance')).toThrow();
     expect(decoded.balanced).toBe(true);
     expect(decoded.positionReconciles).toBe(true);
     expect(decoded.currency).toBe('QAR');

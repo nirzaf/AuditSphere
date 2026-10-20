@@ -12,7 +12,7 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record FirmExpenseReviewInput(bool Approve, string? Comment);
-  public sealed record FirmTrialBalanceExportInput(string FromPeriod, string ToPeriod);
+  public sealed record FirmTrialBalanceExportInput(string FromPeriod, string ToPeriod, string? ReportIdentity = null);
   public sealed record FirmExpenseForm(DateOnly ExpenseDate, string Amount, Guid ExpenseAccountId,
     Guid PaymentAccountId, Guid RequestId, string RequestHash, string Category, string Payee,
     string Description, string Currency, IFormFile Evidence);
@@ -22,10 +22,10 @@ public static partial class UiEndpoints
     group.MapGet("/finance/books", (int? expensePage, Guid? expenseId, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => FirmBooksWorkspaceQuery.GetAsync(db, actor, ct, expensePage ?? 1, expenseId)))
       .Produces<FirmBooksWorkspace>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
-    group.MapGet("/finance/books/trial-balance", (string from, string to, int? activityPage, HttpContext http) =>
+    group.MapGet("/finance/books/trial-balance", (string from, string to, int? activityPage, string? reportIdentity, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FirmExpenseService.TrialBalanceAsync(
-        db, actor, from.Trim(), to.Trim(), ct, activityPage ?? 1)))
-      .Produces<FirmTrialBalanceView>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
+        db, actor, from.Trim(), to.Trim(), ct, activityPage ?? 1, expectedReportIdentity: reportIdentity)))
+      .Produces<FirmTrialBalanceView>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapPost("/finance/books/trial-balance/export", async (FirmTrialBalanceExportInput input, HttpContext http,
       TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
@@ -35,19 +35,19 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Failure("csrf.invalid", "Refresh the page and try again.", 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await FirmExpenseService.ExportTrialBalanceAsync(db, actor,
-        input?.FromPeriod ?? "", input?.ToPeriod ?? "", http.RequestAborted);
+        input?.FromPeriod ?? "", input?.ToPeriod ?? "", http.RequestAborted, input?.ReportIdentity);
       if (!result.Succeeded || result.Value is null)
-        return Failure(result.ErrorCode, result.Message,
-          result.ErrorCode == ErrorCodes.ScopeDenied ? 403 : 400);
+        return Failure(result.ErrorCode, result.Message);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null)
         return Failure("session.unavailable", "Sign in again.", 401);
       http.Response.Headers["X-Firm-Trial-Balance-From"] = input?.FromPeriod ?? "";
       http.Response.Headers["X-Firm-Trial-Balance-To"] = input?.ToPeriod ?? "";
       http.Response.Headers["X-Firm-Trial-Balance-Currency"] = result.Value.Currency;
+      http.Response.Headers["X-Firm-Trial-Balance-Identity"] = result.Value.ReportIdentity;
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(Encoding.UTF8.GetBytes(result.Value.Csv), "text/csv; charset=utf-8", result.Value.FileName);
     }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
-      .Produces<string>(200, "text/csv").Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
+      .Produces<string>(200, "text/csv").Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapUiPost("/finance/books/expenses", async http =>
     {
       if (!http.Request.HasFormContentType) return Invalid("Send the expense as a form with its source document.");

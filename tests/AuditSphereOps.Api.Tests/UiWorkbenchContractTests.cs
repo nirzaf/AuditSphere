@@ -6,6 +6,7 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Tests;
 
@@ -136,5 +137,61 @@ public sealed class UiWorkbenchContractTests
     Assert.Equal("12345678.120000", listed.GetProperty("amount").GetString());
     Assert.False(listed.TryGetProperty("evidenceContent", out _));
     Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync("/api/ui/finance/books/trial-balance?from=2026-13&to=2026-01")).StatusCode);
+  }
+
+  [Fact]
+  public async Task FirmTrialBalanceContinuationAndExportRequireTheFirstPageIdentity()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("FIRM-REPORT-IDENTITY-API");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var periodId = Guid.CreateVersion7();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "FinanceManager"));
+      db.FirmPeriods.Add(new FirmPeriod { Id = periodId, FirmId = seed.FirmId, PeriodCode = "2099-12" });
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = Factory(pg.ConnectionString, seed.Admin.Subject, seed.Admin.TenantId);
+    using var admin = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var proof = await SignInAsync(admin);
+    const string firstPageUrl = "/api/ui/finance/books/trial-balance?from=2099-12&to=2099-12";
+    using var firstResponse = await admin.GetAsync(firstPageUrl);
+    Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+    var firstPage = await firstResponse.Content.ReadFromJsonAsync<JsonElement>();
+    var identity = firstPage.GetProperty("reportIdentity").GetString()!;
+    Assert.Matches("^[0-9a-f]{64}$", identity);
+
+    using var continuationResponse = await admin.GetAsync(
+      firstPageUrl + "&activityPage=2&reportIdentity=" + Uri.EscapeDataString(identity));
+    Assert.Equal(HttpStatusCode.OK, continuationResponse.StatusCode);
+    var continuation = await continuationResponse.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.Equal(identity, continuation.GetProperty("reportIdentity").GetString());
+
+    using var unboundContinuation = await admin.GetAsync(firstPageUrl + "&activityPage=2");
+    Assert.Equal(HttpStatusCode.Conflict, unboundContinuation.StatusCode);
+    Assert.Equal("generation.stale", (await unboundContinuation.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+
+    using var export = await PostAsync(admin, "/api/ui/finance/books/trial-balance/export",
+      JsonContent.Create(new { fromPeriod = "2099-12", toPeriod = "2099-12", reportIdentity = identity }), proof);
+    Assert.Equal(HttpStatusCode.OK, export.StatusCode);
+    Assert.Equal(identity, Assert.Single(export.Headers.GetValues("X-Firm-Trial-Balance-Identity")));
+    Assert.Equal("text/csv", export.Content.Headers.ContentType!.MediaType);
+
+    using var unboundExport = await PostAsync(admin, "/api/ui/finance/books/trial-balance/export",
+      JsonContent.Create(new { fromPeriod = "2099-12", toPeriod = "2099-12" }), proof);
+    Assert.Equal(HttpStatusCode.Conflict, unboundExport.StatusCode);
+    Assert.Equal("generation.stale", (await unboundExport.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+    Assert.Null(unboundExport.Content.Headers.ContentDisposition);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.Equal(1, await db.FirmPeriods.Where(x => x.Id == periodId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.PeriodCode, "2099-11")));
+    using var staleExport = await PostAsync(admin, "/api/ui/finance/books/trial-balance/export",
+      JsonContent.Create(new { fromPeriod = "2099-12", toPeriod = "2099-12", reportIdentity = identity }), proof);
+    Assert.Equal(HttpStatusCode.Conflict, staleExport.StatusCode);
+    Assert.Equal("generation.stale", (await staleExport.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+    Assert.Null(staleExport.Content.Headers.ContentDisposition);
+    Assert.Equal("application/json", staleExport.Content.Headers.ContentType!.MediaType);
   }
 }
