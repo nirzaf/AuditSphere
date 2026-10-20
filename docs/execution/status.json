@@ -1337,7 +1337,7 @@
         "ranOn": "e1fcf453"
       }
     },
-    "latestAttempt": "394029/e182 FAST PASS; release 393951/6bce API/E2E pending (Angular/Domain/build PASS); browser 320px, skip, nav keyboard PASS; human AT pending.",
+    "latestAttempt": "394029/e182 FAST PASS; release 393951/6bce Angular/Domain/build/API PASS; E2E pending; browser smoke PASS; human AT pending.",
     "notes": "Historical suite details are in runs; no live-provider acceptance.",
     "migrationHead": "20261018072145_StaffAllocationPhaseRiskArea"
   },
