@@ -41011,6 +41011,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
             "content": {
@@ -41151,6 +41161,16 @@
           },
           "403": {
             "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -43055,6 +43075,16 @@
           },
           "403": {
             "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -127300,6 +127330,10 @@
             "default": false
           },
           "hasMoreConversation": {
+            "type": "boolean",
+            "default": false
+          },
+          "canManageDelegations": {
             "type": "boolean",
             "default": false
           }

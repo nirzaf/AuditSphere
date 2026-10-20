@@ -466,16 +466,64 @@ public sealed class AngularClientPortalJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Upload file", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("File bytes staged. Your audit team must verify trusted completion and suitability before the request is received or accepted.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.Locator(".receipt")).ToContainTextAsync("angular-client-evidence.txt");
+    DateTimeOffset expectedUploadAt;
+    DateTimeOffset expectedReplyAt;
     await using (var db = host.CreateDbContext())
     {
       var upload = await db.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.PbcRequestId == requestId);
+      expectedUploadAt = upload.CreatedAt;
+      expectedReplyAt = await db.PbcCommunications.Where(x => x.PbcRequestId == requestId &&
+        x.Body == "The requested statements are attached.").Select(x => x.CreatedAt).SingleAsync();
       Assert.Equal(PbcUploadStates.Chunking, upload.State); Assert.Equal(bytes.Length, upload.ReceivedByteCount);
       Assert.Equal(AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(bytes), upload.DeclaredSha256Hex);
       var chunks = await db.PbcUploadChunks.AsNoTracking().Where(x => x.PbcUploadIntentId == upload.Id).ToListAsync();
       Assert.Single(chunks); Assert.Equal(bytes.Length, chunks[0].ByteCount);
       Assert.False(await db.PbcRequestDelegations.AnyAsync(x => x.PbcRequestId == requestId && x.RevokedAt == null));
+      // Public-history projection fixtures only; these rows do not claim email or provider delivery.
+      var firstMessageAt = await db.PbcCommunications.Where(x => x.PbcRequestId == requestId).MinAsync(x => x.CreatedAt);
+      db.PbcCommunications.AddRange(Enumerable.Range(0, 31).Select(index => new PbcCommunication
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PbcRequestId = requestId, AuthorUserId = f.Staff.Id, Kind = PbcCommunicationKinds.StaffMessage,
+        Body = $"Paged synthetic message {index:D2}", CreatedAt = firstMessageAt.AddMinutes(-40 + index)
+      }));
+      await db.SaveChangesAsync();
     }
+    var uploadTime = page.Locator(".receipt time");
+    Assert.Equal(expectedUploadAt, DateTimeOffset.Parse((await uploadTime.GetAttributeAsync("datetime"))!));
+    await Assertions.Expect(uploadTime).ToHaveTextAsync(expectedUploadAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture));
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh request", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.Locator(".conversation li")).ToHaveCountAsync(25);
+    await Assertions.Expect(page.Locator(".conversation")).ToContainTextAsync("Paged synthetic message 00");
+    var nextMessages = page.GetByRole(AriaRole.Button, new() { Name = "Next messages", Exact = true });
+    await nextMessages.FocusAsync();
+    await page.Keyboard.PressAsync("Space");
+    await Assertions.Expect(page.Locator(".conversation")).ToContainTextAsync("Paged synthetic message 25");
+    var retainedReply = page.Locator(".conversation li").Filter(new() { HasText = "The requested statements are attached." });
+    await Assertions.Expect(retainedReply).ToBeVisibleAsync();
+    Assert.Equal(expectedReplyAt, DateTimeOffset.Parse((await retainedReply.Locator("time").GetAttributeAsync("datetime"))!));
+    await Assertions.Expect(retainedReply.Locator("time")).ToHaveTextAsync(expectedReplyAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture));
+    Guid closedDelegationId;
+    await using (var db = host.CreateDbContext())
+    {
+      var delegated = await ClientPortalService.DelegateRequestAsync(db, PbcSeed.Actor(primary, "ClientUser"), requestId, colleagueId);
+      Assert.True(delegated.Succeeded, delegated.Message);
+      closedDelegationId = delegated.Value;
+      // Terminal read projection only: this is not evidence that professional review or acceptance occurred.
+      await db.PbcRequests.Where(x => x.Id == requestId).ExecuteUpdateAsync(s =>
+        s.SetProperty(x => x.State, PbcStates.Closed).SetProperty(x => x.Revision, x => x.Revision + 1));
+    }
+    await page.GetByRole(AriaRole.Button, new() { Name = "Refresh request", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Request delegations", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByLabel("Colleague", new() { Exact = true })).ToHaveCountAsync(0);
+    var revokeClosed = page.GetByRole(AriaRole.Button, new() { Name = "Revoke delegation for Finance Colleague", Exact = true });
+    await revokeClosed.FocusAsync();
+    await page.Keyboard.PressAsync("Space");
+    await Assertions.Expect(page.GetByText("Delegation revoked.", new() { Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+      Assert.NotNull((await db.PbcRequestDelegations.AsNoTracking().SingleAsync(x => x.Id == closedDelegationId)).RevokedAt);
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/ui/portal/requests/" + requestId, "pbc-request-history");
     await page.GotoAsync(origin + "/ui/portal/requests/" + Guid.NewGuid());
     await Assertions.Expect(page.GetByText("This request is not available in your current access scope.", new() { Exact = true })).ToBeVisibleAsync();
     await page.GotoAsync(origin + "/ui/portal/requests/" + requestId);

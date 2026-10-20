@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
@@ -22,7 +23,7 @@ public sealed record PortalRequestWorkspace(Guid Id, string Area, string Objecti
   string DueDate, string State, string Revision, FirstSignInStatus FirstSignIn, bool CanWrite, bool CanDelegate,
   IReadOnlyList<PbcDelegationRow> Delegations, IReadOnlyList<PbcDelegateCandidate> Candidates,
   IReadOnlyList<PortalUploadItem> Uploads, IReadOnlyList<PortalConversationItem> Conversation,
-  string? ClarificationReason = null, bool HasMoreUploads = false, bool HasMoreConversation = false);
+  string? ClarificationReason = null, bool HasMoreUploads = false, bool HasMoreConversation = false, bool CanManageDelegations = false);
 public sealed record PortalRequestHistory(Guid RequestId, int UploadPage, int ConversationPage, int PageSize,
   IReadOnlyList<PortalUploadItem> Uploads, bool HasMoreUploads,
   IReadOnlyList<PortalConversationItem> Conversation, bool HasMoreConversation);
@@ -99,35 +100,93 @@ public static class ClientPortalWorkspaceQuery
 
   public static async Task<CommandResult<PortalRequestWorkspace>> RequestAsync(IAuditSphereDbContext db, ActorContext actor, Guid requestId, CancellationToken ct = default)
   {
-    if (!await IsClientAsync(db, actor, ct)) return Denied();
-    var request = await ClientPortalService.ParticipantRequests(db, actor).SingleOrDefaultAsync(x => x.Id == requestId, ct);
-    if (request is null || !await AuthorizedAsync(db, actor, request, ct)) return Denied();
-    var history = await ReadRequestHistoryAsync(db, actor, request, 0, 0, 25, ct);
-    if (!history.Succeeded || history.Value is null) return Denied();
-    var uploads = history.Value.Uploads;
-    var messages = history.Value.Conversation;
-    var firstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct);
-    var window = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
-    var canDelegate = request.ClientOwnerUserId == actor.UserId && await ClientPortalService.IsPrimaryContactAsync(db, actor, request.ClientId, ct);
-    var delegations = canDelegate ? await ClientPortalService.DelegationsAsync(db, actor, request, ct) : [];
-    var candidates = canDelegate ? await ClientPortalService.DelegateCandidatesAsync(db, actor, request, ct) : [];
-    if (!await AuthorizedAsync(db, actor, request, ct)) return Denied();
-    return CommandResult<PortalRequestWorkspace>.Ok(new(request.Id, request.Area, request.Objective, request.AcceptanceCriteria, request.RequestedFormat,
-      request.DueDate, request.State, request.Revision.ToString(CultureInfo.InvariantCulture), firstSignIn,
-      window.Succeeded && request.State is not (PbcStates.Accepted or PbcStates.Closed), canDelegate,
-      delegations, candidates.Where(x => delegations.All(d => d.DelegateUserId != x.UserId)).Take(500).ToArray(),
-      uploads, messages, request.ClarificationReason, history.Value.HasMoreUploads, history.Value.HasMoreConversation));
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<PortalRequestWorkspace>.Fail(ErrorCodes.GateBlocked, "Request detail requires an independent read snapshot.");
+
+    PbcRequest? request;
+    PortalRequestWorkspace workspace;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      if (!await IsClientAsync(db, actor, ct)) return Denied();
+      request = await ClientPortalService.ParticipantRequests(db, actor).SingleOrDefaultAsync(x => x.Id == requestId, ct);
+      if (request is null || !await AuthorizedAsync(db, actor, request, ct)) return Denied();
+      var history = await ReadRequestHistoryAsync(db, actor, request, 0, 0, 25, ct);
+      if (!history.Succeeded || history.Value is null) return Denied();
+      var uploads = history.Value.Uploads;
+      var messages = history.Value.Conversation;
+      var firstSignIn = await ClientPortalService.GetFirstSignInStatusAsync(db, actor, ct);
+      var window = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
+      var canManageDelegations = request.ClientOwnerUserId == actor.UserId &&
+        await ClientPortalService.IsPrimaryContactAsync(db, actor, request.ClientId, ct);
+      var canDelegate = canManageDelegations && request.State is not (PbcStates.Accepted or PbcStates.Closed);
+      var delegations = canManageDelegations ? await ClientPortalService.DelegationsAsync(db, actor, request, ct) : [];
+      var candidates = canDelegate ? await ClientPortalService.DelegateCandidatesAsync(db, actor, request, ct) : [];
+      workspace = new(request.Id, request.Area, request.Objective, request.AcceptanceCriteria, request.RequestedFormat,
+        request.DueDate, request.State, request.Revision.ToString(CultureInfo.InvariantCulture), firstSignIn,
+        window.Succeeded && request.State is not (PbcStates.Accepted or PbcStates.Closed), canDelegate,
+        delegations, candidates.Where(x => delegations.All(d => d.DelegateUserId != x.UserId)).Take(500).ToArray(),
+        uploads, messages, request.ClarificationReason, history.Value.HasMoreUploads, history.Value.HasMoreConversation, canManageDelegations);
+      await snapshot.CommitAsync(ct);
+    }
+
+    // Re-evaluate capability inputs outside the snapshot as well. A primary-contact or release-window
+    // change must not publish stale candidate identities or writable controls. Recheck scope last.
+    var currentCanWrite = request.State is not (PbcStates.Accepted or PbcStates.Closed) &&
+      (await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct)).Succeeded;
+    var currentCanManageDelegations = request.ClientOwnerUserId == actor.UserId &&
+      await ClientPortalService.IsPrimaryContactAsync(db, actor, request.ClientId, ct);
+    var currentCanDelegate = currentCanManageDelegations && request.State is not (PbcStates.Accepted or PbcStates.Closed);
+    var current = await FreshParticipantRequestAsync(db, actor, requestId, ct);
+    if (!current.Succeeded || current.Value is null)
+      return CommandResult<PortalRequestWorkspace>.Fail(current.ErrorCode!, current.Message!);
+    if (!SameRequest(request, current.Value) || workspace.CanWrite != currentCanWrite ||
+        workspace.CanManageDelegations != currentCanManageDelegations || workspace.CanDelegate != currentCanDelegate)
+      return CommandResult<PortalRequestWorkspace>.Fail(ErrorCodes.GenerationStale, "The request changed while it was being read. Reload the current version.");
+    return CommandResult<PortalRequestWorkspace>.Ok(workspace);
   }
 
   public static async Task<CommandResult<PortalRequestHistory>> RequestHistoryAsync(IAuditSphereDbContext db, ActorContext actor,
     Guid requestId, int uploadPage, int conversationPage, int pageSize, CancellationToken ct = default)
   {
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.GateBlocked, "Request history requires an independent read snapshot.");
     if (uploadPage is < 0 or > 10000 || conversationPage is < 0 or > 10000 || pageSize is not (10 or 25 or 50) ||
         !await IsClientAsync(db, actor, ct)) return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+
+    PbcRequest? request;
+    CommandResult<PortalRequestHistory> history;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      if (!await IsClientAsync(db, actor, ct))
+        return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+      request = await ClientPortalService.ParticipantRequests(db, actor).SingleOrDefaultAsync(x => x.Id == requestId, ct);
+      if (request is null || !await AuthorizedAsync(db, actor, request, ct))
+        return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+      history = await ReadRequestHistoryAsync(db, actor, request, uploadPage, conversationPage, pageSize, ct);
+      if (!history.Succeeded || history.Value is null)
+        return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+      await snapshot.CommitAsync(ct);
+    }
+
+    var current = await FreshParticipantRequestAsync(db, actor, requestId, ct);
+    if (!current.Succeeded || current.Value is null)
+      return CommandResult<PortalRequestHistory>.Fail(current.ErrorCode!, current.Message!);
+    if (!SameRequest(request, current.Value))
+      return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.GenerationStale, "The request changed while it was being read. Reload the current version.");
+    return history;
+  }
+
+  private static async Task<CommandResult<PbcRequest>> FreshParticipantRequestAsync(IAuditSphereDbContext db, ActorContext actor,
+    Guid requestId, CancellationToken ct)
+  {
+    if (!await IsClientAsync(db, actor, ct))
+      return CommandResult<PbcRequest>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+    // Use the same non-draft participation query as the initial read. A hidden or withdrawn
+    // request remains indistinguishable from an unknown request, including after a draft transition.
     var request = await ClientPortalService.ParticipantRequests(db, actor).SingleOrDefaultAsync(x => x.Id == requestId, ct);
     if (request is null || !await AuthorizedAsync(db, actor, request, ct))
-      return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
-    return await ReadRequestHistoryAsync(db, actor, request, uploadPage, conversationPage, pageSize, ct);
+      return CommandResult<PbcRequest>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
+    return CommandResult<PbcRequest>.Ok(request);
   }
 
   private static async Task<CommandResult<PortalRequestHistory>> ReadRequestHistoryAsync(IAuditSphereDbContext db, ActorContext actor,
@@ -149,13 +208,19 @@ public static class ClientPortalWorkspaceQuery
     var conversationRows = messageItems.Select(x => new PortalConversationItem(x.Id, x.CreatedAt.ToUniversalTime().ToString("O"),
       x.Kind is PbcCommunicationKinds.ClientMessage or PbcCommunicationKinds.ClientAction ? "Client"
         : x.Kind == PbcCommunicationKinds.Email ? "Email notification" : "Audit team", x.Body)).ToArray();
-    if (!await IsClientAsync(db, actor, ct) || !await AuthorizedAsync(db, actor, request, ct))
-      return CommandResult<PortalRequestHistory>.Fail(ErrorCodes.ScopeDenied, "Request unavailable.");
     return CommandResult<PortalRequestHistory>.Ok(new(request.Id, uploadPage, conversationPage, pageSize,
       uploadRows, uploads.Count > pageSize, conversationRows, messages.Count > pageSize));
   }
+  private static bool SameRequest(PbcRequest original, PbcRequest current) =>
+    original.Id == current.Id && original.FirmId == current.FirmId && original.ClientId == current.ClientId &&
+    original.EngagementId == current.EngagementId && original.ClientOwnerUserId == current.ClientOwnerUserId &&
+    original.State == current.State && original.Revision == current.Revision && original.Area == current.Area &&
+    original.Objective == current.Objective && original.AcceptanceCriteria == current.AcceptanceCriteria &&
+    original.RequestedFormat == current.RequestedFormat && original.DueDate == current.DueDate &&
+    original.ClarificationReason == current.ClarificationReason;
   private static Task<bool> IsClientAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
-    db.Users.AsNoTracking().AnyAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.UserKind == "Client" && !x.Disabled, ct);
+    db.Users.AsNoTracking().AnyAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.UserKind == "Client" &&
+      !x.Disabled && x.SessionEpoch == actor.SessionEpoch, ct);
   private static async Task<bool> AuthorizedAsync(IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct) =>
     (await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, request.ClientId, request.EngagementId, ["ClientUser"]), ct)).Succeeded &&
     await ClientPortalService.IsRequestParticipantAsync(db, actor, request, ct);

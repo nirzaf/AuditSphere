@@ -56,11 +56,11 @@ public static partial class UiEndpoints
       .WithUiResponse<PortalWorkspace>();
     group.MapGet("/portal/requests/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.RequestAsync(db, actor, id, ct)))
-      .WithUiResponse<PortalRequestWorkspace>();
+      .WithUiResponse<PortalRequestWorkspace>(includeConflict: true);
     group.MapGet("/portal/requests/{id:guid}/history", (Guid id, int? uploadPage, int? conversationPage, int? pageSize, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalWorkspaceQuery.RequestHistoryAsync(db, actor, id,
         uploadPage ?? 0, conversationPage ?? 0, pageSize ?? 25, ct)))
-      .WithUiResponse<PortalRequestHistory>();
+      .WithUiResponse<PortalRequestHistory>(includeConflict: true);
     group.MapUiGet("/portal/documents", (HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalReviewQuery.GetAsync(db, actor, ct)))
       .WithUiResponse<PortalReviewDocuments>(includeConflict: true);
@@ -153,7 +153,7 @@ public static partial class UiEndpoints
           return CommandResult.Fail(ErrorCodes.ScopeDenied, "Delegation unavailable.");
         return await ClientPortalService.RevokeDelegationAsync(db, actor, delegationId, ct);
       }))
-      .WithUiResponse<UiValueResponse<bool>>();
+      .WithUiResponse<UiValueResponse<bool>>(includeConflict: true);
     group.MapPost("/portal/requests/{id:guid}/uploads", (Guid id, PortalUploadInput i, HttpContext http) => CommandAsync(http,
       async (db, actor, ct) =>
       {

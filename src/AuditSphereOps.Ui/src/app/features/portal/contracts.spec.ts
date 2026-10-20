@@ -34,11 +34,12 @@ describe('client portal contracts', () => {
       id: crypto.randomUUID(), area: 'Cash', objective: 'Bank confirmation', instructions: 'Upload statements',
       requestedFormat: 'PDF', dueDate: '2027-01-31', state: 'CLARIFICATION_REQUIRED', revision: '2',
       firstSignIn: { completed: true, identityPath: 'EXTERNAL_IDENTITY', canComplete: false, message: 'Done' },
-      canWrite: true, canDelegate: false, delegations: [], candidates: [], uploads: [], conversation: [],
+      canWrite: true, canManageDelegations: false, canDelegate: false, delegations: [], candidates: [], uploads: [], conversation: [],
       clarificationReason: 'Pages 3 and 4 are missing from the statement scan.'
     };
     const decoded = decode(portalRequest, req);
     expect(decoded.clarificationReason).toBe('Pages 3 and 4 are missing from the statement scan.');
+    expect(decoded.canManageDelegations).toBe(false);
     expect(decoded.state).toBe('CLARIFICATION_REQUIRED');
   });
 });

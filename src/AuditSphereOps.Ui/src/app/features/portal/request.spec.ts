@@ -12,7 +12,7 @@ const requestWorkspace = (canWrite = true, canDelegate = true) => ({
   id, area: 'Synthetic request', objective: 'Supply synthetic support', instructions: 'Synthetic instructions',
   requestedFormat: 'PDF', dueDate: '2027-01-31', state: 'SENT', revision: '3',
   firstSignIn: { completed: true, identityPath: 'EXTERNAL_IDENTITY', canComplete: false, message: '' },
-  canWrite, canDelegate, delegations: [], candidates: [], uploads: [], conversation: [], clarificationReason: null,
+  canWrite, canManageDelegations: canDelegate, canDelegate, delegations: [], candidates: [], uploads: [], conversation: [], clarificationReason: null,
   hasMoreUploads: false, hasMoreConversation: false,
 });
 
@@ -61,6 +61,40 @@ describe('Client request draft polling', () => {
     expect(input.getAttribute('aria-describedby')).toBe('portal-reply-error');
     fixture.componentInstance.sendReply();
     http.expectNone(request => request.method === 'POST');
+    fixture.destroy();
+  });
+
+  it('lets a delegation manager revoke existing grants on a closed request without showing creation controls', async () => {
+    const fixture = TestBed.createComponent(ClientPbcRequest);
+    fixture.detectChanges(); TestBed.tick();
+    const delegationId = '40000000-0000-4000-8000-000000000021';
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush({
+      ...requestWorkspace(false, false), state: 'CLOSED', canManageDelegations: true,
+      delegations: [{ id: delegationId, delegateUserId: '40000000-0000-4000-8000-000000000022',
+        delegateName: 'Assigned colleague', createdAt: '2026-10-20T12:00:00Z' }],
+    });
+    TestBed.tick(); fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const section = root.querySelector<HTMLElement>('#delegate-heading')?.parentElement!;
+    const revoke = section.querySelector<HTMLButtonElement>('button[aria-label="Revoke delegation for Assigned colleague"]')!;
+    expect(revoke).not.toBeNull();
+    expect(root.querySelector('#portal-delegate')).toBeNull();
+    expect(section.textContent).toContain('New delegations cannot be added to an accepted or closed request.');
+    expect(section.textContent).not.toContain('No other eligible client users are available.');
+
+    revoke.click();
+    const revokeRequest = http.expectOne(`/api/ui/portal/requests/${id}/delegations/${delegationId}/revoke`);
+    expect(revokeRequest.request.method).toBe('POST');
+    revokeRequest.flush({ value: true });
+    await vi.waitFor(() => {
+      TestBed.tick(); fixture.detectChanges();
+      expect(root.textContent).toContain('Delegation revoked.');
+    });
+    http.expectOne(`/api/ui/portal/requests/${id}`).flush({
+      ...requestWorkspace(false, false), state: 'CLOSED', canManageDelegations: true,
+    });
+    TestBed.tick(); fixture.detectChanges();
     fixture.destroy();
   });
 
@@ -120,7 +154,7 @@ describe('Client request draft polling', () => {
     fixture.destroy();
   });
 
-  it('loads independently bounded history pages for the same request and clears the request on history denial', () => {
+  it.each([403, 409])('loads bounded history pages and clears protected content on history status %i', status => {
     const fixture = TestBed.createComponent(ClientPbcRequest);
     fixture.detectChanges(); TestBed.tick();
     const summary = { ...requestWorkspace(), hasMoreUploads: true, hasMoreConversation: true };
@@ -129,35 +163,47 @@ describe('Client request draft polling', () => {
 
     const component = fixture.componentInstance;
     component.nextConversationPage(true); TestBed.tick(); fixture.detectChanges();
-    const olderMessages = http.expectOne(`/api/ui/portal/requests/${id}/history?uploadPage=0&conversationPage=1&pageSize=25`);
-    olderMessages.flush({ requestId: id, uploadPage: 0, conversationPage: 1, pageSize: 25,
+    const nextMessages = http.expectOne(`/api/ui/portal/requests/${id}/history?uploadPage=0&conversationPage=1&pageSize=25`);
+    nextMessages.flush({ requestId: id, uploadPage: 0, conversationPage: 1, pageSize: 25,
       uploads: [], hasMoreUploads: true,
-      conversation: [{ id: '40000000-0000-4000-8000-000000000011', at: '2026-10-17T10:00:00Z', speaker: 'Audit team', body: 'Older synthetic message' }],
+      conversation: [{ id: '40000000-0000-4000-8000-000000000011', at: '2026-10-17T13:00:00+03:00', speaker: 'Audit team', body: 'Next-page synthetic message' }],
       hasMoreConversation: false });
     TestBed.tick(); fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Older synthetic message');
+    const root = fixture.nativeElement as HTMLElement;
+    const conversationPages = root.querySelector<HTMLElement>('nav[aria-label="Conversation pages"]')!;
+    expect(Array.from(conversationPages.querySelectorAll('button')).map(button => button.textContent?.trim()))
+      .toEqual(['Previous messages', 'Next messages']);
+    expect(root.textContent).toContain('Next-page synthetic message');
     expect(fixture.nativeElement.textContent).toContain('Synthetic request');
+    const conversationTime = root.querySelector<HTMLElement>('.conversation time')!;
+    expect(conversationTime.getAttribute('datetime')).toBe('2026-10-17T13:00:00+03:00');
+    expect(conversationTime.textContent).toBe('2026-10-17 10:00 UTC');
 
     component.nextUploadPage(true); TestBed.tick(); fixture.detectChanges();
     const olderUploads = http.expectOne(`/api/ui/portal/requests/${id}/history?uploadPage=1&conversationPage=1&pageSize=25`);
     olderUploads.flush({ requestId: id, uploadPage: 1, conversationPage: 1, pageSize: 25,
       uploads: [{ id: '40000000-0000-4000-8000-000000000012', fileName: 'older.pdf', receivedByteCount: '1', declaredByteCount: '1',
-        state: 'STAGED', transferState: null, sha256: 'a'.repeat(64), createdAt: '2026-10-16T10:00:00Z' }],
+        state: 'STAGED', transferState: null, sha256: 'a'.repeat(64), createdAt: '2026-10-16T13:00:00+03:00' }],
       hasMoreUploads: false,
-      conversation: [{ id: '40000000-0000-4000-8000-000000000011', at: '2026-10-17T10:00:00Z', speaker: 'Audit team', body: 'Older synthetic message' }],
+      conversation: [{ id: '40000000-0000-4000-8000-000000000011', at: '2026-10-17T13:00:00+03:00', speaker: 'Audit team', body: 'Next-page synthetic message' }],
       hasMoreConversation: false });
     TestBed.tick(); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('older.pdf');
-    expect(fixture.nativeElement.textContent).toContain('Older synthetic message');
+    expect(fixture.nativeElement.textContent).toContain('Next-page synthetic message');
+    const receipt = root.querySelector<HTMLElement>('.receipt')!;
+    const createdTime = receipt.querySelector('time')!;
+    expect(createdTime.getAttribute('datetime')).toBe('2026-10-16T13:00:00+03:00');
+    expect(createdTime.textContent).toBe('2026-10-16 10:00 UTC');
 
     component.reply.controls.body.setValue('Private draft cleared after denial');
     component.previousUploadPage(); TestBed.tick(); fixture.detectChanges();
     http.expectOne(`/api/ui/portal/requests/${id}/history?uploadPage=0&conversationPage=1&pageSize=25`)
-      .flush({ code: 'scope.denied', message: 'Denied' }, { status: 403, statusText: 'Forbidden' });
+      .flush({ code: status === 403 ? 'scope.denied' : 'generation.stale', message: 'Refresh required' },
+        { status, statusText: status === 403 ? 'Forbidden' : 'Conflict' });
     TestBed.tick(); fixture.detectChanges();
     expect(component.reply.controls.body.value).toBe('');
     expect(fixture.nativeElement.textContent).not.toContain('Synthetic request');
-    expect(fixture.nativeElement.textContent).not.toContain('Older synthetic message');
+    expect(fixture.nativeElement.textContent).not.toContain('Next-page synthetic message');
     expect(fixture.nativeElement.textContent).not.toContain('older.pdf');
     fixture.destroy();
   });

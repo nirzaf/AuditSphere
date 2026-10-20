@@ -87,6 +87,210 @@ public sealed class UiPortalContractTests
   }
 
   [Fact]
+  public async Task PortalRequestDetailAndHistory_ReturnCurrentParticipantEvidence()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-REQUEST-READ-POSITIVE");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateSentRequestAsync(pg, seed);
+    var candidateId = await AddPrimaryContactAndCandidateAsync(pg, seed);
+
+    using var factory = Factory(pg.ConnectionString, seed.Client.Subject, seed.Client.TenantId);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignInAsync(client);
+
+    using var detailResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}");
+    Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+    var detail = await detailResponse.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.Equal(requestId, detail.GetProperty("id").GetGuid());
+    Assert.Equal("SENT", detail.GetProperty("state").GetString());
+    Assert.Equal("2", detail.GetProperty("revision").GetString());
+    Assert.True(detail.GetProperty("canWrite").GetBoolean());
+    Assert.True(detail.GetProperty("canDelegate").GetBoolean());
+    Assert.Contains(detail.GetProperty("candidates").EnumerateArray(), candidate =>
+      candidate.GetProperty("userId").GetGuid() == candidateId);
+    Assert.Contains(detail.GetProperty("conversation").EnumerateArray(),
+      message => message.GetProperty("body").GetString() is { } body && body.Contains("Bank statements", StringComparison.Ordinal));
+
+    using var historyResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}/history");
+    Assert.Equal(HttpStatusCode.OK, historyResponse.StatusCode);
+    var history = await historyResponse.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.Equal(requestId, history.GetProperty("requestId").GetGuid());
+    Assert.Contains(history.GetProperty("conversation").EnumerateArray(),
+      message => message.GetProperty("body").GetString() is { } body && body.Contains("Bank statements", StringComparison.Ordinal));
+
+    Guid delegationId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var delegated = await ClientPortalService.DelegateRequestAsync(db,
+        PbcSeed.Actor(seed.Client, "ClientUser"), requestId, candidateId);
+      Assert.True(delegated.Succeeded, delegated.ErrorCode);
+      delegationId = delegated.Value;
+    }
+
+    // Projection-only terminal-state fixture; this does not record a professional approval.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var closed = await db.PbcRequests.Where(x => x.FirmId == seed.FirmId && x.ClientId == seed.ClientId &&
+          x.EngagementId == seed.EngagementId && x.Id == requestId)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.State, PbcStates.Closed)
+          .SetProperty(x => x.Revision, x => x.Revision + 1));
+      Assert.Equal(1, closed);
+    }
+
+    using var closedResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}");
+    Assert.Equal(HttpStatusCode.OK, closedResponse.StatusCode);
+    var closedDetail = await closedResponse.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.Equal("CLOSED", closedDetail.GetProperty("state").GetString());
+    Assert.False(closedDetail.GetProperty("canWrite").GetBoolean());
+    Assert.False(closedDetail.GetProperty("canDelegate").GetBoolean());
+    Assert.True(closedDetail.GetProperty("canManageDelegations").GetBoolean());
+    Assert.Empty(closedDetail.GetProperty("candidates").EnumerateArray());
+    Assert.Contains(closedDetail.GetProperty("delegations").EnumerateArray(), delegation =>
+      delegation.GetProperty("id").GetGuid() == delegationId);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var blocked = await ClientPortalService.DelegateRequestAsync(db,
+        PbcSeed.Actor(seed.Client, "ClientUser"), requestId, candidateId);
+      Assert.False(blocked.Succeeded);
+      Assert.Equal("pbc.delegation.state", blocked.ErrorCode);
+    }
+
+    using var revokeRequest = new HttpRequestMessage(HttpMethod.Post,
+      $"/api/ui/portal/requests/{requestId}/delegations/{delegationId}/revoke");
+    revokeRequest.Headers.Add("X-XSRF-TOKEN", csrf);
+    using var revokeResponse = await client.SendAsync(revokeRequest);
+    Assert.Equal(HttpStatusCode.OK, revokeResponse.StatusCode);
+    var revokeBody = await revokeResponse.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.True(revokeBody.GetProperty("value").GetBoolean());
+
+    using var afterRevokeResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}");
+    Assert.Equal(HttpStatusCode.OK, afterRevokeResponse.StatusCode);
+    var afterRevoke = await afterRevokeResponse.Content.ReadFromJsonAsync<JsonElement>();
+    Assert.True(afterRevoke.GetProperty("canManageDelegations").GetBoolean());
+    Assert.Empty(afterRevoke.GetProperty("delegations").EnumerateArray());
+    Assert.Empty(afterRevoke.GetProperty("candidates").EnumerateArray());
+  }
+
+  [Theory]
+  [InlineData("detail", "revision", HttpStatusCode.Conflict, "generation.stale")]
+  [InlineData("history", "revision", HttpStatusCode.Conflict, "generation.stale")]
+  [InlineData("detail", "owner", HttpStatusCode.Forbidden, "scope.denied")]
+  [InlineData("history", "owner", HttpStatusCode.Forbidden, "scope.denied")]
+  [InlineData("detail", "grant", HttpStatusCode.Forbidden, "scope.denied")]
+  [InlineData("history", "grant", HttpStatusCode.Forbidden, "scope.denied")]
+  [InlineData("detail", "primary", HttpStatusCode.Conflict, "generation.stale")]
+  [InlineData("detail", "window", HttpStatusCode.Conflict, "generation.stale")]
+  public async Task PortalRequestReads_RecheckRequestAndGrantAfterCommunicationsAreRead(
+    string route, string mutation, HttpStatusCode expectedStatus, string expectedCode)
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-REQUEST-READ-FENCE");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var requestId = await CreateSentRequestAsync(pg, seed);
+    var affectedRows = 0;
+    var replacementOwnerId = Guid.Empty;
+    if (mutation == "primary")
+      await AddPrimaryContactAndCandidateAsync(pg, seed);
+    if (mutation == "owner")
+    {
+      var replacementOwner = PbcSeed.User(seed.FirmId, "Client");
+      replacementOwnerId = replacementOwner.Id;
+      await using var db = new AuditSphereDbContext(pg.Options);
+      db.Users.Add(replacementOwner);
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, replacementOwner, "ClientUser",
+        clientId: seed.ClientId, engagementId: seed.EngagementId));
+      await db.SaveChangesAsync();
+    }
+
+    var interceptor = new AfterPbcCommunicationsRead(async () =>
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      affectedRows = mutation switch
+      {
+        "revision" => await AcknowledgeRequestAsync(db, seed, requestId),
+        "owner" => await db.PbcRequests.Where(x => x.FirmId == seed.FirmId && x.ClientId == seed.ClientId &&
+            x.EngagementId == seed.EngagementId && x.Id == requestId)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.ClientOwnerUserId, replacementOwnerId)
+            .SetProperty(x => x.Revision, x => x.Revision + 1)),
+        "grant" => await db.RoleGrants.Where(x => x.FirmId == seed.FirmId && x.UserId == seed.Client.Id &&
+            x.Role == "ClientUser" && x.ClientId == seed.ClientId && x.EngagementId == seed.EngagementId && x.RevokedAt == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow)),
+        "primary" => await db.ClientContacts.Where(x => x.FirmId == seed.FirmId && x.PracticeClientId == seed.ClientId &&
+            x.Email == seed.Client.Email && x.Primary)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.Primary, false)),
+        "window" => await db.Engagements.Where(x => x.FirmId == seed.FirmId && x.Id == seed.EngagementId && x.Status == "Active")
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "Closed")),
+        _ => throw new ArgumentOutOfRangeException(nameof(mutation))
+      };
+    });
+
+    using var factory = InterceptingFactory(pg.ConnectionString, seed.Client.Subject,
+      seed.Client.TenantId, pg.Options, interceptor);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignInAsync(client);
+    interceptor.Arm();
+
+    var path = route == "history"
+      ? $"/api/ui/portal/requests/{requestId}/history"
+      : $"/api/ui/portal/requests/{requestId}";
+    using var response = await client.GetAsync(path);
+    Assert.True(interceptor.Fired, "The test must mutate request identity/state or the grant after pbc_communications rows are read.");
+    Assert.Equal(1, affectedRows);
+    Assert.Equal(expectedStatus, response.StatusCode);
+    var body = await response.Content.ReadAsStringAsync();
+    using var error = JsonDocument.Parse(body);
+    Assert.Equal(expectedCode, error.RootElement.GetProperty("code").GetString());
+    Assert.DoesNotContain("Bank statements", body, StringComparison.Ordinal);
+    Assert.DoesNotContain("Complete period with readable account identity.", body, StringComparison.Ordinal);
+  }
+
+  private static async Task<Guid> CreateSentRequestAsync(OwnedPostgresDatabase pg, PbcSeed.Fixture seed)
+  {
+    Guid requestId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await PbcService.CreateRequestAsync(db, PbcSeed.Actor(seed.Staff, "Staff"),
+        new(seed.EngagementId, "Bank statements", "TEST ENTITY", "2026-01-01", "2026-12-31", "Cash", "PDF or CSV",
+          "12 months", seed.Client.Id, seed.Staff.Id, seed.Reviewer.Id, "2027-01-31", "Confidential",
+          "Complete period with readable account identity."));
+      Assert.True(created.Succeeded, created.Message);
+      requestId = created.Value;
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var sent = await PbcService.ChangeStateAsync(db, PbcSeed.Actor(seed.Staff, "Staff"),
+        new(requestId, PbcStates.Sent, 1));
+      Assert.True(sent.Succeeded, sent.Message);
+    }
+    return requestId;
+  }
+
+  private static async Task<int> AcknowledgeRequestAsync(AuditSphereDbContext db, PbcSeed.Fixture seed, Guid requestId)
+  {
+    var acknowledged = await PbcService.ChangeStateAsync(db, PbcSeed.Actor(seed.Client, "ClientUser"),
+      new(requestId, PbcStates.Acknowledged, 2));
+    return acknowledged.Succeeded ? 1 : 0;
+  }
+
+  private static async Task<Guid> AddPrimaryContactAndCandidateAsync(OwnedPostgresDatabase pg, PbcSeed.Fixture seed)
+  {
+    var candidate = PbcSeed.User(seed.FirmId, "Client");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.Users.Add(candidate);
+    db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, candidate, "ClientUser",
+      clientId: seed.ClientId, engagementId: seed.EngagementId));
+    db.ClientContacts.Add(new()
+    {
+      Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
+      FullName = seed.Client.DisplayName, Email = seed.Client.Email, Role = "Primary contact",
+      Primary = true, IsActive = true
+    });
+    await db.SaveChangesAsync();
+    return candidate.Id;
+  }
+
+  [Fact]
   public async Task PortalUploadResume_RotatesCapabilityForExactFileAndKeepsItOutOfReads()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-PORTAL-UPLOAD-RESUME");
@@ -406,6 +610,24 @@ public sealed class UiPortalContractTests
     {
       if (Volatile.Read(ref armed) == 1 && result.HasRows &&
           command.CommandText.Contains("audit_deliverables", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref fired, 1, 0) == 0)
+        await mutate();
+      return result;
+    }
+  }
+
+  private sealed class AfterPbcCommunicationsRead(Func<Task> mutate) : DbCommandInterceptor
+  {
+    private int armed;
+    private int fired;
+    public bool Fired => Volatile.Read(ref fired) == 1;
+    public void Arm() => Volatile.Write(ref armed, 1);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (Volatile.Read(ref armed) == 1 && result.HasRows &&
+          command.CommandText.Contains("pbc_communications", StringComparison.OrdinalIgnoreCase) &&
           Interlocked.CompareExchange(ref fired, 1, 0) == 0)
         await mutate();
       return result;

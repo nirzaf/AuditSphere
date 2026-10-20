@@ -7,6 +7,7 @@ import { Api, routeGuid, UNKNOWN_OUTCOME } from '../../core/api';
 import { decode, guid, nat, obj, sha256, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
+import { clientUtcTime } from '../clients/client-contracts';
 import { clientRequestStatusLabel, portalRequest, portalRequestHistory } from './contracts';
 
 const startReceipt = obj({ uploadIntentId: guid, pbcRequestId: guid, receivedByteCount: nat, capability: sha256 });
@@ -56,28 +57,32 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
         <button matButton="filled" (click)="upload()" [disabled]="busy() || !hash() || !w.canWrite || !w.firstSignIn.completed || uncertain() || uploadUncertain()">{{ busy() ? 'Working…' : 'Upload file' }}</button>
         @if (sent() > 0) { <mat-progress-bar [value]="progress()" aria-label="Upload progress" /><p role="status">{{ sent() }} of {{ file()?.size ?? sent() }} bytes staged. Trusted staff completion is still required.</p> }
       </section>
-      @if (w.canDelegate) {
-        <section class="panel" aria-labelledby="delegate-heading"><h2 id="delegate-heading">Delegate this request</h2>
-          <p>Only colleagues with current access to this engagement are eligible. Delegation permits uploads and replies for this request.</p>
+      @if (w.canManageDelegations) {
+        <section class="panel" aria-labelledby="delegate-heading"><h2 id="delegate-heading">{{ w.canDelegate ? 'Delegate this request' : 'Request delegations' }}</h2>
+          @if (w.canDelegate) { <p>Only colleagues with current access to this engagement are eligible. Delegation permits uploads and replies for this request.</p> }
           @for (d of w.delegations; track d.id) { <p>{{ d.delegateName }} · {{ d.createdAt }}
             <button matButton (click)="revoke(d.id)" [disabled]="busy() || uncertain()" [attr.aria-label]="'Revoke delegation for ' + d.delegateName">Revoke</button></p> }
-          <form [formGroup]="delegation" (ngSubmit)="delegate()"><label for="portal-delegate">Colleague</label>
-            <select id="portal-delegate" formControlName="userId"><option value="">Select a colleague</option>
-              @for (c of w.candidates; track c.userId) { <option [value]="c.userId">{{ c.name }}</option> }</select>
-            <button matButton="filled" [disabled]="delegation.invalid || busy() || uncertain()">Delegate</button>
-          </form>
-          @if (!w.candidates.length) { <p>No other eligible client users are available.</p> }
+          @if (w.canDelegate) {
+            <form [formGroup]="delegation" (ngSubmit)="delegate()"><label for="portal-delegate">Colleague</label>
+              <select id="portal-delegate" formControlName="userId"><option value="">Select a colleague</option>
+                @for (c of w.candidates; track c.userId) { <option [value]="c.userId">{{ c.name }}</option> }</select>
+              <button matButton="filled" [disabled]="delegation.invalid || busy() || uncertain()">Delegate</button>
+            </form>
+            @if (!w.candidates.length) { <p>No other eligible client users are available.</p> }
+          } @else if (w.state === 'ACCEPTED' || w.state === 'CLOSED') {
+            <p role="status">New delegations cannot be added to an accepted or closed request. Existing delegations remain available for management.</p>
+          }
         </section>
       }
       <section class="panel" aria-labelledby="conversation-heading"><h2 id="conversation-heading">Conversation timeline</h2>
         @if (requestHistory(); as h) {
-          <ol class="conversation">@for (m of h.conversation; track m.id) { <li><strong>{{ m.speaker }}</strong> <time [attr.datetime]="m.at">{{ m.at }}</time><p>{{ m.body }}</p></li> }
+          <ol class="conversation">@for (m of h.conversation; track m.id) { <li><strong>{{ m.speaker }}</strong> <time [attr.datetime]="m.at">{{ utcTime(m.at) }}</time><p>{{ m.body }}</p></li> }
             @empty { <li>{{ history.loading() ? 'Loading conversation…' : 'No messages on this page.' }}</li> }
           </ol>
           <nav class="history-pages" aria-label="Conversation pages">
             <button matButton (click)="previousConversationPage()" [disabled]="conversationPage() === 0 || history.loading()">Previous messages</button>
             <span aria-live="polite">Page {{ conversationPage() + 1 }} · {{ h.conversation.length }} shown</span>
-            <button matButton (click)="nextConversationPage(h.hasMoreConversation)" [disabled]="!h.hasMoreConversation || history.loading()">Older messages</button>
+            <button matButton (click)="nextConversationPage(h.hasMoreConversation)" [disabled]="!h.hasMoreConversation || history.loading()">Next messages</button>
           </nav>
         }
         @if (w.canWrite) { <form [formGroup]="reply" (ngSubmit)="sendReply()">
@@ -91,7 +96,8 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
       @if (requestHistory(); as h) {
       <section class="panel"><h2>Transfer receipts</h2>
         @for (u of h.uploads; track u.id) { <article class="receipt"><h3>{{ u.fileName }}</h3><audit-status [value]="u.state" />
-          <p>{{ u.receivedByteCount }} / {{ u.declaredByteCount }} bytes · provider {{ u.transferState ?? 'Not dispatched' }}</p><p class="fingerprint">SHA-256 {{ u.sha256 }}</p>
+          <p>{{ u.receivedByteCount }} / {{ u.declaredByteCount }} bytes · provider {{ u.transferState ?? 'Not dispatched' }}</p>
+          <p>Upload intent created <time [attr.datetime]="u.createdAt">{{ utcTime(u.createdAt) }}</time></p><p class="fingerprint">SHA-256 {{ u.sha256 }}</p>
           @if (w.canWrite && w.firstSignIn.completed && canResume(u)) {
             <p>To continue safely, choose the exact same file again. Its name, size, and SHA-256 must match this receipt.</p>
             <button matButton (click)="resumeUpload(u)" [disabled]="busy() || !matchesUpload(u)">Resume staged upload</button>
@@ -109,6 +115,7 @@ const fingerprint = async (bytes: ArrayBuffer): Promise<string> =>
 })
 export class ClientPbcRequest {
   private readonly api = inject(Api); private readonly session = inject(SessionService);
+  readonly utcTime = clientUtcTime;
   readonly id = routeGuid();
   readonly ws = this.api.resource(() => this.id() ? `/api/ui/portal/requests/${this.id()}` : null, portalRequest, 'This request is not available in your current access scope.');
   readonly uploadPage = signal(0); readonly conversationPage = signal(0); readonly historyActive = signal(false);
@@ -157,7 +164,7 @@ export class ClientPbcRequest {
         return;
       }
 
-      const authorization = `${workspace.canWrite}:${workspace.canDelegate}:${workspace.firstSignIn.completed}`;
+      const authorization = `${workspace.canWrite}:${workspace.canManageDelegations}:${workspace.canDelegate}:${workspace.firstSignIn.completed}`;
       if (this.lastDraftContext && (this.lastDraftContext.identity !== identity || this.lastDraftContext.authorization !== authorization)) {
         this.clearDrafts();
       }
@@ -176,7 +183,7 @@ export class ClientPbcRequest {
     this.reply.reset(); this.delegation.reset();
     this.uploadUncertain.set(false); this.uncertain.set(false);
   }
-  private currentWorkspace(): { id: string; canWrite: boolean; canDelegate: boolean; firstSignIn: { completed: boolean } } | null {
+  private currentWorkspace(): { id: string; canWrite: boolean; canManageDelegations: boolean; canDelegate: boolean; firstSignIn: { completed: boolean } } | null {
     const workspace = this.ws.data();
     return this.session.current() && !this.ws.error() && !this.history.error() && !this.ws.loading() && workspace?.id === this.id()
       ? workspace : null;
@@ -275,7 +282,7 @@ export class ClientPbcRequest {
     void this.command(`/api/ui/portal/requests/${this.id()}/reply`, this.reply.getRawValue(), 'Reply added to the request timeline.'); }
   delegate(): void { if (this.delegation.invalid || !this.currentWorkspace()?.canDelegate) return;
     void this.command(`/api/ui/portal/requests/${this.id()}/delegations`, this.delegation.getRawValue(), 'Delegation recorded.'); }
-  revoke(id: string): void { if (!this.currentWorkspace()?.canDelegate) return;
+  revoke(id: string): void { if (!this.currentWorkspace()?.canManageDelegations) return;
     void this.command(`/api/ui/portal/requests/${this.id()}/delegations/${id}/revoke`, {}, 'Delegation revoked.'); }
   async upload(): Promise<void> {
     const file = this.file(), hash = this.hash(), requestId = this.id();

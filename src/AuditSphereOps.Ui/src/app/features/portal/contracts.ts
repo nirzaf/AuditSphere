@@ -37,7 +37,8 @@ const portalUpload = obj({ id: guid, fileName: text, receivedByteCount: revision
   state: text, transferState: nullable(text), sha256, createdAt: instant });
 const portalConversation = obj({ id: guid, at: instant, speaker: text, body: text });
 const portalRequestShape = obj({ id: guid, area: text, objective: text, instructions: text, requestedFormat: text, dueDate: date, state: text,
-  revision, firstSignIn, canWrite: bool, canDelegate: bool, delegations: arr(obj({ id: guid, delegateUserId: guid, delegateName: text, createdAt: instant }), 500),
+  revision, firstSignIn, canWrite: bool, canManageDelegations: bool, canDelegate: bool,
+  delegations: arr(obj({ id: guid, delegateUserId: guid, delegateName: text, createdAt: instant }), 500),
   candidates: arr(obj({ userId: guid, name: text }), 500), uploads: arr(portalUpload, 50), conversation: arr(portalConversation, 50),
   clarificationReason: nullable(text), hasMoreUploads: bool, hasMoreConversation: bool });
 export const portalRequest: Decoder<ReturnType<typeof portalRequestShape>> = (value, path) => {
