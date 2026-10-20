@@ -21,6 +21,8 @@ public sealed record BundleAssemblyState(IReadOnlyList<string> Blockers, IReadOn
 
 public static partial class AuditDeliverableService
 {
+  internal const int MaxClientPortalBundles = 100;
+
   /// <summary>All byte assembly is local. The financial release/checkpoint and posted invoice must already exist.</summary>
   public static async Task<CommandResult<Guid>> AssembleBundleAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
     bool financialStatementsReviewed, CancellationToken ct = default, IReportSigningCredentialSource? signing = null)
@@ -314,12 +316,17 @@ public static partial class AuditDeliverableService
     return auth.Succeeded ? CommandResult<CommercialDeliverableBundle>.Ok(bundle) : CommandResult<CommercialDeliverableBundle>.Fail(auth.ErrorCode!, auth.Message!);
   }
 
-  public static async Task<IReadOnlyList<ClientBundleView>> ClientBundlesAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  public static Task<IReadOnlyList<ClientBundleView>> ClientBundlesAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+    => ClientBundlesAsync(db, actor, MaxClientPortalBundles + 1, engagementId, ct);
+
+  internal static async Task<IReadOnlyList<ClientBundleView>> ClientBundlesAsync(IAuditSphereDbContext db, ActorContext actor, int maxItems, Guid engagementId,
+    CancellationToken ct = default)
   {
+    if (maxItems < 1 || maxItems > MaxClientPortalBundles + 1) throw new ArgumentOutOfRangeException(nameof(maxItems));
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
     if (engagement is null || !(await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, engagement.PracticeClientId, engagementId, ["ClientUser"]), ct)).Succeeded) return [];
-    var bundles = await db.CommercialDeliverableBundles.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
-      .OrderByDescending(x => x.AssembledAt).Take(10)
+    var bundles = await db.CommercialDeliverableBundles.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId)
+      .OrderByDescending(x => x.AssembledAt).ThenByDescending(x => x.Id).Take(maxItems)
       .Select(x => new { x.Id, x.ContentSha256, x.ManifestSha256, x.AssembledAt }).ToListAsync(ct);
     var bundleIds = bundles.Select(x => x.Id).ToArray();
     var acknowledgements = await db.ClientBundleAcknowledgements.AsNoTracking().Where(x =>

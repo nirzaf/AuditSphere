@@ -28,8 +28,9 @@ public static class ClientPortalReviewQuery
         x.Version.ToString(System.Globalization.CultureInfo.InvariantCulture), x.ContentSha256, x.AcknowledgedAt,
         x.Comments.Select(c => new PortalDocumentComment(c.Body, c.FromClient, c.Resolution)).ToArray())));
       scans.AddRange(await AuditDeliverableService.SignedRepresentationsAsync(db, actor, engagementId, ct));
-      bundles.AddRange(await AuditDeliverableService.ClientBundlesAsync(db, actor, engagementId, ct));
-      if (documents.Count > 200 || scans.Count > 100 || bundles.Count > 100 || documents.Any(x => x.Comments.Count > 1000))
+      var bundleLimit = AuditDeliverableService.MaxClientPortalBundles - bundles.Count + 1;
+      bundles.AddRange(await AuditDeliverableService.ClientBundlesAsync(db, actor, bundleLimit, engagementId, ct));
+      if (documents.Count > 200 || scans.Count > 100 || bundles.Count > AuditDeliverableService.MaxClientPortalBundles || documents.Any(x => x.Comments.Count > 1000))
         return CommandResult<PortalReviewDocuments>.Fail(ErrorCodes.GateBlocked, "Contact your audit team for a bounded document archive review.");
     }
     var current = await ClientPortalService.AuthorizedPortalEngagementIdsAsync(db, actor, ct);

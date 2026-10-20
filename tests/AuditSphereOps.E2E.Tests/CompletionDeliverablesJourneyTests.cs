@@ -264,8 +264,31 @@ public sealed class CompletionDeliverablesJourneyTests
     Assert.EndsWith(".zip", bundleDownload.SuggestedFilename);
     await clientPage.ReloadAsync();
     await clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).WaitForAsync(new() { Timeout = 20000 });
+    DateTimeOffset expectedAssembly;
+    string expectedBundleHash;
+    await using (var verify = host.CreateDbContext())
+    {
+      var retainedBundle = await verify.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
+      expectedAssembly = retainedBundle.AssembledAt;
+      expectedBundleHash = retainedBundle.ContentSha256;
+      Assert.False(await verify.ClientBundleAcknowledgements.AnyAsync(x => x.BundleId == retainedBundle.Id));
+    }
+    var bundleCard = clientPage.Locator("article.document").Filter(new()
+      { Has = clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }) });
+    await Assertions.Expect(bundleCard).ToContainTextAsync("Final bundle assembled at");
+    await Assertions.Expect(bundleCard).ToContainTextAsync(expectedAssembly.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture));
+    var assemblyTime = bundleCard.Locator("time").First;
+    Assert.True(DateTimeOffset.TryParse(await assemblyTime.GetAttributeAsync("datetime"), out var actualAssembly));
+    Assert.Equal(expectedAssembly, actualAssembly);
+    await Assertions.Expect(bundleCard).Not.ToContainTextAsync("Receipt acknowledged by your client account");
     var clientDownload = await clientPage.RunAndWaitForDownloadAsync(() => clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).ClickAsync());
     Assert.EndsWith(".zip", clientDownload.SuggestedFilename);
+    Assert.Equal(expectedBundleHash, Hashing.Sha256Hex(await File.ReadAllBytesAsync((await clientDownload.PathAsync())!)));
+    await using (var verify = host.CreateDbContext())
+      Assert.False(await verify.ClientBundleAcknowledgements.AnyAsync(x => x.EngagementId == f.EngagementId));
+    await clientPage.SetViewportSizeAsync(390, 844);
+    Assert.True(await clientPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    await OwnedBrowserFixtureHandoff.WaitAsync(clientOrigin, "/portal", "portal-bundle-history");
     // Rollback/reference presentation must pass the same host policy, even when a prior image-only bundle exists.
     var requiredOrigin = await StartIdentityAsync(partner, required: true);
     var completionPath = $"/app/engagements/{f.EngagementId:D}/completion";

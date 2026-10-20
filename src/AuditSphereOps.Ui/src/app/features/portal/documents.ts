@@ -6,6 +6,7 @@ import { arr, bool, guid, instant, nat, nullable, obj, sha256, text } from '../.
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 import { revision } from './contracts';
+import { clientUtcTime } from '../clients/client-contracts';
 export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, deliverableId: guid, kind: text, title: text, version: revision,
   sha256, acknowledgedAt: nullable(instant), comments: arr(obj({ body: text, fromClient: bool, resolution: nullable(text) }), 1000) }), 200),
   signedLetters: arr(obj({ id: guid, deliverableId: guid, version: nat, managementSignatory: text, contentSha256: sha256, uploadedAt: instant, verified: bool, current: bool }), 100),
@@ -40,9 +41,10 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
           @for (s of w.signedLetters; track s.id) { @if (s.deliverableId === d.deliverableId) { <p><a [href]="'/api/representation-scans/' + s.id + '/download'">Management-signed PDF</a> <audit-status [value]="!s.current ? 'STALE' : s.verified ? 'VERIFIED' : 'PENDING_REVIEW'" /></p> } }
         </article>
       } @empty { <p>No reports or letters are shared with your current scope.</p> }
-      @for (b of w.bundles; track b.id) { <article class="document"><p><a [href]="'/api/deliverable-bundles/' + b.id + '/download'">Download five-part final bundle</a></p>
+      @for (b of w.bundles; track b.id) { <article class="document"><p><a [href]="'/api/deliverable-bundles/' + b.id + '/download'" [attr.aria-label]="'Download five-part final bundle assembled at ' + utcTime(b.assembledAt) + '; bundle ' + b.id">Download five-part final bundle</a></p>
         <p class="fingerprint">ZIP SHA-256 {{ b.sha256 }} · manifest SHA-256 {{ b.manifestSha256 }}</p>
-        @if (b.acknowledgedAt) { <p>Receipt acknowledged by your client account at {{ b.acknowledgedAt }}. This is a client report, not proof of email delivery or an independently observed download.</p> }
+        <p>Final bundle assembled at <time [attr.datetime]="b.assembledAt">{{ utcTime(b.assembledAt) }}</time>. This is an assembly time, not evidence of delivery or client receipt.</p>
+        @if (b.acknowledgedAt) { <p>Receipt acknowledged by your client account at <time [attr.datetime]="b.acknowledgedAt">{{ utcTime(b.acknowledgedAt) }}</time>. This is a client report, not proof of email delivery or an independently observed download.</p> }
         @else { <label><input type="checkbox" [checked]="receiptReviewed() === b.id" (change)="reviewReceipt(b.id, $event)" /> I confirm that I received this exact final bundle.</label>
           <button matButton (click)="acknowledgeBundle(b)" [disabled]="busy() || uncertain() || receiptReviewed() !== b.id">Record receipt acknowledgment</button> }
       </article> }
@@ -51,6 +53,7 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
 `, styles: `.fingerprint { overflow-wrap: anywhere; } .document { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } textarea { width: 100%; min-height: 6rem; }` })
 export class PortalDocuments {
   private readonly api = inject(Api); private readonly session = inject(SessionService); private readonly fb = inject(FormBuilder);
+  readonly utcTime = clientUtcTime;
   readonly ws = this.api.resource(() => '/api/ui/portal/documents', sharedDocuments);
   readonly review = this.fb.nonNullable.group({ body: ['', Validators.maxLength(4000)], reviewed: false });
   readonly signed = this.fb.nonNullable.group({ signatory: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(200)]] });

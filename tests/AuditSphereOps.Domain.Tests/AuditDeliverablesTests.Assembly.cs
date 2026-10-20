@@ -162,11 +162,28 @@ public sealed partial class AuditDeliverablesTests
       Assert.True(assembled.Succeeded, assembled.Message);
       var again = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);
       Assert.Equal(assembled.Value, again.Value);
+      var managementLetterId = await db.CommercialDeliverableBundles.AsNoTracking()
+        .Where(x => x.FirmId == w.FirmId && x.Id == assembled.Value).Select(x => x.ManagementLetterId).SingleAsync();
+      var review = await AuditDeliverableService.ShareWithClientAsync(db, manager, managementLetterId);
+      Assert.True(review.Succeeded, review.Message);
+      Assert.Null(await db.ClientDeliverableReviews.AsNoTracking().Where(x => x.Id == review.Value).Select(x => x.AcknowledgedAt).SingleAsync());
+      var previousBundleId = assembled.Value;
+      for (var revision = 1; revision <= 10; revision++)
+      {
+        var comment = await AuditDeliverableService.CommentAsync(db, manager, review.Value, Guid.NewGuid(), $"Synthetic staff comment {revision}");
+        Assert.True(comment.Succeeded, comment.Message);
+        var resolved = await AuditDeliverableService.ResolveCommentAsync(db, partner, comment.Value, $"Reviewed and resolved for snapshot {revision}.");
+        Assert.True(resolved.Succeeded, resolved.Message);
+        var nextBundle = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);
+        Assert.True(nextBundle.Succeeded, nextBundle.Message);
+        Assert.NotEqual(previousBundleId, nextBundle.Value);
+        previousBundleId = nextBundle.Value;
+      }
       var policyChanged = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true, default,
         new ReportCertificateSigningTests.FixedSource(null, required: true));
       Assert.Equal(ErrorCodes.GateBlocked, policyChanged.ErrorCode);
       Assert.Contains("signature image only", policyChanged.Message);
-      Assert.Single(await db.CommercialDeliverableBundles.ToListAsync());
+      Assert.Equal(11, await db.CommercialDeliverableBundles.CountAsync());
       var row = (await AuditDeliverableService.GetBundleAsync(db, client, assembled.Value)).Value!;
       Assert.Equal(signedId, row.SignedReportId);
       Assert.Equal(releaseId, row.FinancialPackageReleaseId);
@@ -232,12 +249,17 @@ public sealed partial class AuditDeliverablesTests
       using var pdf = PdfSharp.Pdf.IO.PdfReader.Open(certified, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
       Assert.True(pdf.PageCount > 1);
       Assert.Contains(pdf.Internals.GetAllObjects(), x => x is PdfSharp.Pdf.PdfDictionary d && d.Elements.GetName("/Subtype") == "/Image");
-      Assert.Single(await db.CommercialDeliverableBundles.ToListAsync());
-      var clientBundles = await AuditDeliverableService.ClientBundlesAsync(db, client, w.EngagementId);
-      var clientBundle = Assert.Single(clientBundles);
+      Assert.Equal(11, await db.CommercialDeliverableBundles.CountAsync());
+      var clientPortalReview = await ClientPortalReviewQuery.GetAsync(db, client);
+      Assert.True(clientPortalReview.Succeeded, clientPortalReview.Message);
+      var clientBundles = clientPortalReview.Value!.Bundles;
+      Assert.Equal(11, clientBundles.Count);
+      var clientBundle = Assert.Single(clientBundles, x => x.Id == row.Id);
       Assert.Equal(row.ContentSha256, clientBundle.Sha256);
       Assert.Equal(row.ManifestSha256, clientBundle.ManifestSha256);
       Assert.Null(clientBundle.AcknowledgedAt);
+      Assert.Equal(clientBundles.OrderByDescending(x => x.AssembledAt).ThenByDescending(x => x.Id).Select(x => x.Id),
+        clientBundles.Select(x => x.Id));
 
       // Concurrent retries for the same client user and exact bundle return one immutable receipt.
       await using var receiptDbA = new AuditSphereDbContext(pg.Options);
@@ -254,7 +276,7 @@ public sealed partial class AuditDeliverablesTests
         row.ContentSha256, row.ManifestSha256, false)).ErrorCode);
       Assert.Equal(ErrorCodes.ScopeDenied, (await ClientBundleAcknowledgementCommands.AcknowledgeAsync(db, partner, row.Id,
         row.ContentSha256, row.ManifestSha256, true)).ErrorCode);
-      var acknowledgedView = Assert.Single(await AuditDeliverableService.ClientBundlesAsync(db, client, w.EngagementId));
+      var acknowledgedView = Assert.Single(await AuditDeliverableService.ClientBundlesAsync(db, client, w.EngagementId), x => x.Id == row.Id);
       Assert.NotNull(acknowledgedView.AcknowledgedAt);
       var receipt = await db.ClientBundleAcknowledgements.AsNoTracking().SingleAsync(x => x.BundleId == row.Id);
       Assert.Equal(client.UserId, receipt.AcknowledgedByUserId);
@@ -273,6 +295,27 @@ public sealed partial class AuditDeliverablesTests
         new(outsider.Id, w.FirmId, outsider.SessionEpoch, ["ClientUser"]), row.Id, row.ContentSha256, row.ManifestSha256, true)).ErrorCode);
       Assert.False((await AuditDeliverableService.GetBundleAsync(db, client with { FirmId = Guid.NewGuid() }, row.Id)).Succeeded);
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM commercial_deliverable_bundles WHERE id = {row.Id}"));
+
+      // Projection-boundary fixture only: add 90 bounded view rows reusing the real bundle's exact proof foreign keys.
+      // These compact rows exercise the aggregate 101st-item gate; they do not claim to be independently assembled bundles.
+      var projectionManifest = "{}";
+      var projectionContent = new byte[] { 0x50 };
+      db.CommercialDeliverableBundles.AddRange(Enumerable.Range(1, 90).Select(revision => new CommercialDeliverableBundle
+      {
+        Id = Guid.NewGuid(), FirmId = row.FirmId, ClientId = row.ClientId, EngagementId = row.EngagementId,
+        SignedReportId = row.SignedReportId, FinancialPackageReleaseId = row.FinancialPackageReleaseId,
+        FinancialPackageArtifactId = row.FinancialPackageArtifactId, FinancialStatementCompositionId = row.FinancialStatementCompositionId,
+        CompositionManifestDigest = row.CompositionManifestDigest, ManagementLetterId = row.ManagementLetterId,
+        SignedRepresentationLetterId = row.SignedRepresentationLetterId, BalanceInvoiceId = row.BalanceInvoiceId,
+        SourceDigest = Hashing.Sha256Hex($"client-bundle-projection-boundary-{revision}"), ManifestJson = projectionManifest,
+        ManifestSha256 = Hashing.Sha256Hex(projectionManifest), Content = projectionContent,
+        ContentSha256 = Hashing.Sha256Hex(projectionContent), AssembledByUserId = row.AssembledByUserId,
+        AssembledAt = row.AssembledAt.AddTicks(revision)
+      }));
+      await db.SaveChangesAsync();
+      var overflow = await ClientPortalReviewQuery.GetAsync(db, client);
+      Assert.Equal(ErrorCodes.GateBlocked, overflow.ErrorCode);
+      Assert.Null(overflow.Value);
     }
   }
 

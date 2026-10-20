@@ -12,16 +12,18 @@ const bundleId = '33333333-3333-4333-8333-333333333333';
 const receiptId = '44444444-4444-4444-8444-444444444444';
 const contentSha256 = 'a'.repeat(64);
 const manifestSha256 = 'b'.repeat(64);
+const bundleAssembledAt = '2026-10-15T13:00:00+03:00';
+const bundleAcknowledgedAt = '2026-10-15T13:05:00+03:00';
 const documentReviewId = '55555555-5555-4555-8555-555555555555';
 const deliverableId = '66666666-6666-4666-8666-666666666666';
 type SharedComment = { body: string; fromClient: boolean; resolution: string | null };
-const bundle = (acknowledgedAt: string | null = null) => ({
-  id: bundleId, sha256: contentSha256, manifestSha256, assembledAt: '2026-10-15T10:00:00Z', acknowledgedAt,
+const bundle = (acknowledgedAt: string | null = null, assembledAt = '2026-10-15T10:00:00Z') => ({
+  id: bundleId, sha256: contentSha256, manifestSha256, assembledAt, acknowledgedAt,
 });
 const sharedDocument = { reviewId: documentReviewId, deliverableId, kind: 'AUDIT_REPORT', title: 'Audited financial statements',
   version: '3', sha256: contentSha256, acknowledgedAt: null, comments: [] as SharedComment[] };
-const documents = (acknowledgedAt: string | null = null, items: Array<typeof sharedDocument> = []) => ({
-  documents: items, signedLetters: [], bundles: [bundle(acknowledgedAt)],
+const documents = (acknowledgedAt: string | null = null, items: Array<typeof sharedDocument> = [], assembledAt?: string) => ({
+  documents: items, signedLetters: [], bundles: [bundle(acknowledgedAt, assembledAt)],
 });
 
 describe('client document comments', () => {
@@ -154,13 +156,20 @@ describe('client final bundle receipt acknowledgement', () => {
   it('requires a deliberate exact-bundle confirmation and labels the saved state as client-reported', async () => {
     const fixture = TestBed.createComponent(PortalDocuments);
     fixture.detectChanges(); TestBed.tick();
-    http.expectOne('/api/ui/portal/documents').flush(documents());
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [], bundleAssembledAt));
     TestBed.tick(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     const button = () => Array.from(root.querySelectorAll('button')).find(x => x.textContent?.includes('Record receipt acknowledgment'))!;
     expect(button().disabled).toBe(true);
     expect(root.textContent).toContain(contentSha256);
     expect(root.textContent).toContain(manifestSha256);
+    expect(root.textContent).toContain('Final bundle assembled at 2026-10-15 10:00 UTC.');
+    expect(root.textContent).toContain('not evidence of delivery or client receipt');
+    const initialAssemblyTime = root.querySelector('time');
+    expect(initialAssemblyTime?.getAttribute('datetime')).toBe(bundleAssembledAt);
+    expect(initialAssemblyTime?.textContent).toBe('2026-10-15 10:00 UTC');
+    const bundleLink = root.querySelector<HTMLAnchorElement>(`a[href='/api/deliverable-bundles/${bundleId}/download']`);
+    expect(bundleLink?.getAttribute('aria-label')).toBe(`Download five-part final bundle assembled at 2026-10-15 10:00 UTC; bundle ${bundleId}`);
 
     const checkbox = root.querySelector('input[type="checkbox"]') as HTMLInputElement;
     checkbox.checked = true; checkbox.dispatchEvent(new Event('change'));
@@ -172,11 +181,37 @@ describe('client final bundle receipt acknowledgement', () => {
     post.flush({ value: receiptId });
     await action; fixture.detectChanges();
 
-    http.expectOne('/api/ui/portal/documents').flush(documents('2026-10-15T10:05:00Z'));
+    http.expectOne('/api/ui/portal/documents').flush(documents(bundleAcknowledgedAt, [], bundleAssembledAt));
     await fixture.whenStable(); TestBed.tick(); fixture.detectChanges();
     expect(root.textContent).toContain('Receipt acknowledged by your client account');
     expect(root.textContent).toContain('not proof of email delivery');
+    const times = Array.from(root.querySelectorAll('time'));
+    const assembledTime = times.find(time => time.getAttribute('datetime') === bundleAssembledAt);
+    const acknowledgedTime = times.find(time => time.getAttribute('datetime') === bundleAcknowledgedAt);
+    expect(assembledTime?.textContent).toBe('2026-10-15 10:00 UTC');
+    expect(acknowledgedTime?.textContent).toBe('2026-10-15 10:05 UTC');
     expect(root.querySelector('input[type="checkbox"]')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('renders every retained bundle with a distinct download identity even when assembly times match', () => {
+    const fixture = TestBed.createComponent(PortalDocuments);
+    fixture.detectChanges(); TestBed.tick();
+    const retained = Array.from({ length: 11 }, (_, index) => ({
+      ...bundle(), id: `33333333-3333-4333-8333-${String(index + 1).padStart(12, '0')}`,
+    }));
+    http.expectOne('/api/ui/portal/documents').flush({ ...documents(), bundles: retained });
+    TestBed.tick(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const links = Array.from(root.querySelectorAll<HTMLAnchorElement>("a[href^='/api/deliverable-bundles/']"));
+    expect(links).toHaveLength(11);
+    expect(links.map(link => link.getAttribute('href'))).toEqual(retained.map(b => `/api/deliverable-bundles/${b.id}/download`));
+    expect(new Set(links.map(link => link.getAttribute('aria-label'))).size).toBe(11);
+    expect(links.every(link => link.getAttribute('aria-label')?.includes('2026-10-15 10:00 UTC'))).toBe(true);
+    expect(root.textContent).not.toContain('Receipt acknowledged by your client account');
+    expect(Array.from(root.querySelectorAll('button')).filter(b => b.textContent?.includes('Record receipt acknowledgment'))
+      .every(button => button.disabled)).toBe(true);
+    http.expectNone(request => request.method === 'POST');
     fixture.destroy();
   });
 
