@@ -1,8 +1,8 @@
 {
   "schemaVersion": "1",
   "archiveOf": "docs/execution/status.json",
-  "archivedOn": "2026-10-12",
-  "note": "Keys moved verbatim from status.json. Values are unchanged; only the JSON layout is normalised. No script reads these keys; query them with jq when needed. On 2026-10-12, the closed workflowChangesRequiredQueue evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit. On 2026-10-12, the closed workflowExperienceV22 evidence (seven-phase projection and Dual-Key readiness, commit f7753f72) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed steV22OwnerDecisions evidence (ADR-0017, commit 53a8f9af) was moved verbatim from status.json for the same reason; three of its four open items were closed by the later qatarSundayWeekStart record. On 2026-10-12, the closed qatarSundayWeekStart evidence (commit 733ab239) was moved verbatim from status.json for the same reason. On 2026-10-12, the closed practiceManagementBaselineSlice evidence (commit fa89e248) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementWorkflowViewsSlice evidence (commit 75f8f945) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed practiceManagementReportingSlice evidence (commit 7ee45fc6) was moved verbatim from status.json for the same reason. On 2026-10-14, the superseded cp11CashFlowSourceAllocations evidence (commit 0b8f7b2d) was moved verbatim from status.json for the same reason. On 2026-10-14, the closed cp11SourceReviewAndPresentation evidence (commit 2bf0e81b) was moved verbatim from status.json for the same reason. On 2026-10-15, the closed CP-11 targetedVerification records currentCashFlowPackageJourney and canonicalPackageRequiredPopulation were moved verbatim from status.json to keep the live ledger below its 100 KB limit; the cash-flow source fence that superseded them is recorded in productionReadinessStoryCp11. On 2026-10-15, closed targetedVerification records workflowTaskDependencyAmendments, workflowDomainEvidencePrerequisites, workflowClientWait, workflowTaskActivity were moved here to keep status.json within its size budget. On 2026-10-15, closed workflowReviewTurnaround and workflowCiRegressionGate records were moved verbatim to keys.targetedVerification to make room for current UX evidence. On 2026-10-15, the detailed AS-PAR-002 migration coverage narrative was moved verbatim from the active item to keys.angularMigrationAsPar002Details20261015; the current ledger retains the open acceptance summary. On 2026-10-17, the superseded detailed AS-PM8 currentFollowUp evidence was moved verbatim to keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017; the live status retains the PARTIAL result and latest commit-pinned release verification. On 2026-10-17, five detailed Angular migration follow-up evidence records (cross-firm isolation, administrator revocation fencing, not-assigned browser denial, administrator group-revocation fencing and administration review freshness) were moved verbatim from status.json to keys.targetedVerification to keep the live ledger below its 100 KB limit; the status file retains result and scope-status pointers. On 2026-10-17, the 2026-10-15 detailed production-readiness baseline was moved verbatim to keys.targetedVerification.productionReadinessStoryCp11Baseline20261015; the live status retains current open gates and follow-up evidence. On 2026-10-17, detailed Atomic Task 01 implementation verification was moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask01 to keep the live ledger below its 100 KB limit; the current ledger retains a partial-status pointer. On 2026-10-17, detailed Atomic Task 02 and Task 03 implementation verification records were moved verbatim from status.json to keys.targetedVerification.atomicAuditWorkingProcessTask02 and atomicAuditWorkingProcessTask03 to keep the live ledger below its 100 KB limit; the current ledger retains partial-status pointers. On 2026-10-18, the older Angular finding-recovery verification was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the PBC exact-version acceptance slice was added to the live ledger. On 2026-10-18, the detailed Angular migration acceptance batch was moved verbatim to keys.targetedVerification.angularMigrationAcceptanceBatch; the live status retains its PARTIAL verdict, open items and archive pointer. On 2026-10-18, the prior detailed ste22F07WorkflowPhaseCues operational-deadline evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesBeforeMilestoneDisplay20261018 before recording the saved Audit Plan milestone display slice. On 2026-10-18, detailed NR-11/NR-12 cross-ledger and feature-off evidence was moved verbatim to keys.targetedVerification.practiceManagementCrossLedgerBoundaries20261018 to make room for new exact-SHA evidence; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the latest detailed ste22F07WorkflowPhaseCues evidence was moved verbatim to keys.targetedVerification.ste22F07WorkflowPhaseCuesLatest20261018; the live status retains its PARTIAL state, remaining gates and archive pointer. On 2026-10-18, the detailed staffingCertificationRevocationRace20261018 evidence was moved verbatim to keys.targetedVerification.staffingCertificationRevocationRace20261018; the live ledger retains its result and CI pointer. On 2026-10-18, detailed workflowDependencyGraphLimit20261018 test evidence was moved verbatim from status.json to keep the live ledger below its size limit; a compact status pointer remains. On 2026-10-18, detailed workflowTaskRequiredDesignation20261018 evidence was moved verbatim from status.json to keep the live ledger below its 100 KB limit; the live ledger retains its archive pointer. On 2026-10-18, the older accounting-maintenance recovery evidence and detailed production-readiness follow-up were moved verbatim to the October archive; live status retains pointers and current open gates. On 2026-10-18, detailed ASPM-CRM-01 lead-history evidence was recorded under keys.targetedVerification.aspmCrmLeadHistory20261018; the live status retains its current result and pointer. On 2026-10-18, the compact CRM lead-history pointer was removed after its detailed evidence had been archived; QAR 20,000 commercial fee acceptance evidence was added under keys.targetedVerification.aspmCom03QarAcceptance20261018. On 2026-10-18, FIN-03 all-invoice-type query evidence and the full-release Domain failure diagnosis were added; the EF-wrapped retained-history assertion was corrected and focused-pass. On 2026-10-18, the closed 2026-10-17 baseline run list and its source/timestamp were moved verbatim under keys.targetedVerification.legacyVerificationRuns20261017; status.json retains a pointer. The current Angular quality evidence is recorded separately against source 3194fe3b. On 2026-10-18, the pre-Task-06 Angular-quality observations were moved verbatim to keys.targetedVerification.angularQualityBaseline20261018; the live entry now records the Task 06 implementation and retains Task 07 as partial. On 2026-10-19, the detailed 2026-10-11 client-site rollout local-verification record was moved verbatim to keys.targetedVerification.clientSitesDefaultRollout20261011; the live ledger retains its source/date, full-suite NOT_RUN state, unresolved external-acceptance note, and archive pointer. On 2026-10-19, the detailed dated API/Angular parity snapshot (all 51 task rows and incremental verification/browser evidence) was moved verbatim to keys.apiAngularParityStatus20261018; the live ledger retains PARTIAL, the uniform implementation-pending/acceptance-unverified states for all 51 tasks, the recorded in-progress release run, pending browser/provider acceptance, the tracker, and an archive pointer. On 2026-10-19, the preceding record-backed Angular accessibility cohort was retained verbatim under keys.targetedVerification.angularQualityRecordBackedChecks20261019; the active ledger keeps its pointer, incomplete-state/native-keyboard limits and human-review gate alongside the newer focus evidence. On 2026-10-19, superseded Angular-quality CI records were moved verbatim to keys.targetedVerification.angularQualityPriorCi20261019; current failures and exact-source verification remain active. On 2026-10-19, detailed review-focus evidence was retained verbatim under keys.targetedVerification.angularQualityReviewFocus20261019; the active summary preserves its source, superseding fix and open acceptance gates. Planning focus-intent detail archived verbatim with active pointer on 2026-10-19. Preceding full-CI observation archived verbatim before terminal failure update. Terminal full-CI8b927 detail retained verbatim before current rerun pointer. On 2026-10-19, closed Angular accessibility follow-up details (followUp, reviewFocusFollowUp, focusIntentFollowUp, consolidationFocusFollowUp, samplingKeyboardFollowUp, roleDialogKeyboardFollowUp, evidenceKeyboardFollowUp) were moved verbatim from status.json to keys.targetedVerification.angularQualityAccessibilityFollowUps20261019; the live ledger retains a pointer. On 2026-10-20, the prior detailed Angular-quality matrix was moved verbatim to keys.targetedVerification.angularQualityBeforeWorkflowTemplateTaskGroups20261020 to make room for current focused accessibility and CI evidence.",
+  "archivedOn": "2026-10-20",
+  "note": "Closed verification detail moved from status.json to keep the current evidence ledger within its enforced size budget.",
   "keys": {
     "verification": {
       "firmExpenseCreationRecovery": {
@@ -21602,6 +21602,126 @@
         "fullLocal": "NOT_RUN per policy."
       },
       "limits": "No schema/dependency/provider/permission/default-send change. No throughput/index-plan claim. General versioned rule catalogue and live provider acceptance remain open."
+    },
+    "targetedVerification.accessibilityRenderedSweep20261020": {
+      "sourceCommit": "12ab201aa93bde9523e187ec8994c08fe6ac45a2",
+      "recordedAtUtc": "2026-10-20T11:50:19Z",
+      "result": "PARTIAL_RENDERED_REVIEW",
+      "builtInBrowser": {
+        "uiSource": "Current Angular workspace at the recorded source commit.",
+        "apiSource": "The existing local API on 127.0.0.1:5029 was not rebuilt or source-pinned; API-dependent states are not treated as current-source acceptance.",
+        "viewport": "1280x720",
+        "routes": [
+          "/ui/app/work",
+          "/ui/app/practice/leads",
+          "/ui/app/practice/resources",
+          "/ui/app/accounting",
+          "/ui/app/engagements/e1000000-0000-0000-0000-000000000001/audit-fieldwork",
+          "/ui/app/practice/workflow-templates",
+          "/ui/app/practice/time",
+          "/ui/app/practice/analytics",
+          "/ui/app/finance",
+          "/ui/app/finance/books",
+          "/ui/app/finance/fee-agreements",
+          "/ui/app/accounting/mappings",
+          "/ui/app/accounting/journals",
+          "/ui/app/accounting/reviews",
+          "/ui/app/consolidation",
+          "/ui/app/administration/users",
+          "/ui/app/operations"
+        ],
+        "observations": [
+          "Each inspected route rendered one main-content level-one heading.",
+          "The rendered-control name proxy found no buttons or form controls without ARIA naming, associated label text, visible text, placeholder or title; no duplicate DOM IDs were found.",
+          "Tables exposed column headers; tables with captions exposed those captions in the accessibility tree. Review and consolidation tables without captions remain in heading-labelled regions and expose their column headers.",
+          "Status and blocked/denied feedback used status or alert semantics. Finance routes were correctly denied for the current local identity; the directory-reader prerequisite remained visibly blocked.",
+          "The My Work Board and Calendar controls exposed their selected state, and board tasks appeared in named status regions. Compact navigation changed its accessible name and aria-pressed state while navigation link names remained available; the control was restored. These view toggles were not activated by keyboard in this sweep.",
+          "At the available 1280x720 viewport there was no horizontal overflow on the inspected routes. A separate 390x844 workflow-template-editor check is recorded under workflowTemplateAuthoringUi.",
+          "Fresh built-in-browser console inspection reported zero errors across the inspected staff routes. No business, financial or approval records were changed."
+        ],
+        "keyboardActivationFollowUp": {
+          "sourceCommit": "766dbfc61659ddcbeb79539ebb9261c3c3a840f7",
+          "recordedAtUtc": "2026-10-20T11:43:26Z",
+          "result": "PASS",
+          "actions": "Space activated Compact sidebar navigation, then Expand sidebar navigation; Space activated Board, Calendar and List. aria-pressed reflected each selected state and the UI was restored to expanded sidebar/List.",
+          "focusVisibleAfterSequence": true,
+          "unnamedNavigationLinksAfterCompact": 0,
+          "browserConsoleErrors": 0,
+          "businessDataChanged": false
+        },
+        "nativeZoomFollowUp": {
+          "recordedAtUtc": "2026-10-20T11:50:19Z",
+          "browser": "Chrome native page zoom",
+          "result": "PARTIAL_PASS",
+          "observations": [
+            "At 200%, the My Work heading, helper text and cards reflowed vertically without visible page-level horizontal clipping.",
+            "At 400%, the header wrapped, navigation collapsed to a named Open navigation control, and ordinary content wrapped. The workflow task table retained its own horizontal scrollbar as a two-dimensional data table.",
+            "Chrome's zoom indicator confirmed 200% and 400%; zoom was restored to 100% and the temporary native-browser tab was closed."
+          ],
+          "cssViewportWidth": "NOT_CAPTURED",
+          "keyboardTableScroll": "NOT_CHECKED",
+          "browserConsoleErrors": 0
+        },
+        "environmentLimited": [
+          "Resource planning returned an accessible Unsupported response alert because its API response came from the existing unverified local API process; the route is not marked as passed.",
+          "Client-portal review requires a separate client identity and was not performed.",
+          "Native 200%/400% zoom was visually reviewed, but exact CSS viewport widths and keyboard-only scrolling of the task table were not captured. Reduced-motion behavior and human screen-reader announcements remain unreviewed."
+        ]
+      },
+      "ci": {
+        "fastRun": "39420353260",
+        "fastRunSource": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
+        "fastRunResult": "PASS: docs health, Angular build/specs, .NET Release build, fast architecture/rounding guards, EF model drift, publication and OpenAPI drift all passed on this exact source commit.",
+        "fullRun": "39410131489",
+        "fullRunSource": "9941a9352531299940ca9fb84ff9b91ef3acd399",
+        "fullRunResultAtRecordedTime": "IN_PROGRESS at 2026-10-20T12:18:57Z on earlier source commit 9941a9352531299940ca9fb84ff9b91ef3acd399: Angular, Domain and build/contracts/publication passed; API and Playwright E2E remained in progress with no reported failure.",
+        "acceptanceImageRun": "39420353130",
+        "acceptanceImageRunSource": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
+        "acceptanceImageRunResult": "PASS: API, worker and migration images built and pushed successfully; no deployment was performed."
+      },
+      "notDone": [
+        "Qualified screen-reader review with AT/browser versions and meaningful-announcement observations.",
+        "Exact CSS viewport widths at 200% and 400% native zoom were not recorded; full supported-state review and client-portal acceptance with a client identity remain open.",
+        "Current-source API-backed resource-planning acceptance; the API used in the browser sweep was not source-pinned.",
+        "Full release API and Playwright E2E results remain pending on earlier source commit 9941a9352531299940ca9fb84ff9b91ef3acd399."
+      ],
+      "keyboardScrollReducedMotionFollowUp": {
+        "sourceCommit": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
+        "recordedAtUtc": "2026-10-20T12:18:57Z",
+        "result": "PASS_SCOPED",
+        "route": "/ui/app/work",
+        "uiSource": "Current Angular workspace served from the development server on 127.0.0.1:4301.",
+        "apiSource": "Existing local API on 127.0.0.1:5029 was not rebuilt or source-pinned; the synthetic queue was read only and no business action was invoked.",
+        "cssViewport": {
+          "width": 390,
+          "height": 844,
+          "documentWidth": 375,
+          "pageHorizontalOverflow": false
+        },
+        "tableKeyboardScroll": {
+          "regions": [
+            "Submitted procedure reviews",
+            "Operational task list"
+          ],
+          "instructionsLinkedWithAriaDescribedby": true,
+          "arrowRight": "Operational task region scrollLeft changed from 0 to 272.",
+          "end": "Moved to the 580px maximum scroll position.",
+          "home": "Returned from the end to scrollLeft 0.",
+          "descendantControlKeys": "Not intercepted; also covered by the focused Angular spec."
+        },
+        "reducedMotion": {
+          "prefersReducedMotion": true,
+          "normalTransitionDuration": "150ms",
+          "reducedTransitionDuration": "0.01ms"
+        },
+        "browserErrors": 0,
+        "localVerification": {
+          "focusedSpec": "work-queue.spec.ts: 32/32 passed.",
+          "angularDevelopmentBuild": "Passed with four pre-existing NG8107 optional-chain warnings in src/app/features/audit/completion.ts:128-133.",
+          "fullSuitesLocally": "NOT_RUN per project policy."
+        },
+        "businessRecordsChanged": false
+      }
     }
   }
 }
