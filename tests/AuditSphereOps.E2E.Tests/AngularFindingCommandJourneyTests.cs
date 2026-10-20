@@ -37,8 +37,13 @@ public sealed class AngularFindingCommandJourneyTests
     var origin = await host.StartApiForIdentityAsync(f.Admin, new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
     using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync(); var page = await context.NewPageAsync();
-    var errors = new List<string>(); var identities = new List<(string Id, string Hash)>();
+    var errors = new List<string>(); var identities = new List<(string Id, string Hash)>(); var recoveryStateStatuses = new List<int>();
     page.PageError += (_, error) => errors.Add(error);
+    page.Response += (_, response) =>
+    {
+      if (response.Request.Method == "GET" && response.Url.Contains($"/api/ui/findings/{findingId:D}/commands/state", StringComparison.Ordinal))
+        recoveryStateStatuses.Add(response.Status);
+    };
     var actionsUrl = $"/api/ui/findings/{findingId:D}/commands/actions";
     page.Request += (_, request) =>
     {
@@ -64,9 +69,19 @@ public sealed class AngularFindingCommandJourneyTests
       await Assertions.Expect(recovery).ToBeVisibleAsync(); await page.UnrouteAsync(pattern); await page.ReloadAsync();
       await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Id); await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Hash);
       await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Exact finding preview", Exact = true })).ToHaveCountAsync(0);
-      var (lookupStatus, lookupBody) = await PlaywrightResponseCapture.RunAsync(page,
-        request => request.Method == "GET" && request.Url.Contains($"/api/ui/findings/{findingId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
-        () => recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact finding receipt", Exact = true }).ClickAsync());
+      recoveryStateStatuses.Clear();
+      (int Status, string Body) lookup;
+      try
+      {
+        lookup = await PlaywrightResponseCapture.RunAsync(page,
+          request => request.Method == "GET" && request.Url.Contains($"/api/ui/findings/{findingId:D}/commands/receipts/{identities[0].Id}?requestHash={identities[0].Hash}", StringComparison.Ordinal),
+          () => recovery.GetByRole(AriaRole.Button, new() { Name = "Look up exact finding receipt", Exact = true }).ClickAsync());
+      }
+      catch (TimeoutException exception)
+      {
+        throw new TimeoutException($"{exception.Message} Finding command-state HTTP statuses: {string.Join(", ", recoveryStateStatuses)}", exception);
+      }
+      var (lookupStatus, lookupBody) = lookup;
       Assert.True(lookupStatus == 200, $"Exact synthetic finding receipt lookup returned HTTP {lookupStatus}: {lookupBody}");
       using var lookupDocument = JsonDocument.Parse(lookupBody);
       var found = lookupDocument.RootElement.GetProperty("found").GetBoolean();

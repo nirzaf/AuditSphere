@@ -59,7 +59,13 @@ export class FindingCommandState {
     if (!this.executing) { ++this.operation; this.busy.set(false); }
   }
   inputChanged(): void { this.invalidate(false, false); }
-  private ready() { return !this.destroyed && !!this.session.current()?.staff && !!this.id() && this.context()?.id === this.id(); }
+  private ready(): boolean {
+    const id = this.id(), actor = this.session.current(), data = this.context(), epoch = this.session.invalidation();
+    const scopeKey = JSON.stringify([id, actor?.firmId, actor?.userId, actor?.generation, actor?.staff, epoch]);
+    const contextKey = JSON.stringify([id, data?.id ?? null, data?.engagementId ?? null]);
+    return !this.destroyed && !!actor?.staff && !!id && data?.id === id &&
+      this.scopeKey === scopeKey && this.contextKey === contextKey;
+  }
   canPrepare(action: FindingAction): boolean {
     return this.ready() && this.allowed(action) && !this.busy() && (!this.uncertain() || !this.storageUnavailable() && this.pending().length === 1 &&
       this.pending()[0].findingId === this.id() && this.pending()[0].action === action && this.absent().includes(action));

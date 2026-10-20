@@ -56,7 +56,7 @@ describe('Finding reviewed command recovery', () => {
     await flow.prepare(input); expect(last.requestId).toBe(requestId); expect(flow.reviewed()).toBe(false);
     await flow.execute(); expect(api.command).toHaveBeenCalledTimes(3); flow.reviewed.set(true); await flow.execute(); expect(api.command.mock.calls.at(-1)![1].requestId).toBe(requestId);
   });
-  it('keeps exact receipt recovery through equivalent resource refreshes and temporary loading', async () => {
+  it('waits for scope synchronization before exact receipt recovery and preserves equivalent refreshes', async () => {
     const action = 'DESIGNATE_MANAGEMENT_LETTER';
     await flow.prepare(() => fields(action)); flow.reviewed.set(true);
     api.command.mockResolvedValueOnce({ ok: false, unknown: true, message: 'Lost response' }); await flow.execute();
@@ -64,7 +64,12 @@ describe('Finding reviewed command recovery', () => {
 
     context.set(null); TestBed.tick();
     expect(flow.uncertain()).toBe(true); expect(flow.canReconcile(action)).toBe(false);
-    context.set({ id: id(1), engagementId: id(20) }); TestBed.tick();
+    context.set({ id: id(1), engagementId: id(20) });
+    expect(flow.canReconcile(action)).toBe(false);
+    const readsBeforeScopeSettled = api.get.mock.calls.length;
+    await flow.reconcile(action);
+    expect(api.get).toHaveBeenCalledTimes(readsBeforeScopeSettled);
+    TestBed.tick();
     expect(flow.canReconcile(action)).toBe(true);
 
     api.get.mockImplementationOnce(async (_url, decoder) => {
