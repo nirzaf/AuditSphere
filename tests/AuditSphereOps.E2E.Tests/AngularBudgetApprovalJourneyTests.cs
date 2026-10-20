@@ -21,8 +21,8 @@ public sealed class AngularBudgetApprovalJourneyTests
     var errors = new List<string>(); page.PageError += (_,e) => errors.Add(e);
     var path = (canonical?"":"/ui")+"/app/engagements/"+f.EngagementId;
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
-    await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
     var planning = page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
+    await Assertions.Expect(planning).ToBeVisibleAsync();
     var draftAssent = planning.GetByLabel("I reviewed this draft for independent approval.",new(){Exact=true});
     var reviewButton = planning.GetByRole(AriaRole.Button,new(){Name="Review budget approval",Exact=true});
     var previewPattern = "**/budget-approval/preview";
@@ -129,7 +129,7 @@ public sealed class AngularBudgetApprovalJourneyTests
     await Assertions.Expect(verifyReceipt).ToBeVisibleAsync();
     await Assertions.Expect(verifyReceipt).ToBeEnabledAsync();
     await Assertions.Expect(planning).Not.ToContainTextAsync("No approved budget is available.");
-    await page.ReloadAsync();await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+    await page.ReloadAsync();await Assertions.Expect(planning).ToBeVisibleAsync();
     await planning.GetByRole(AriaRole.Button,new(){Name="Verify approval request receipt",Exact=true}).ClickAsync();
     await Assertions.Expect(planning.GetByRole(AriaRole.Region,new(){Name="Budget approval receipt",Exact=true})).ToContainTextAsync("801.000000");
     await planning.GetByRole(AriaRole.Button,new(){Name="Acknowledge budget approval",Exact=true}).ClickAsync();

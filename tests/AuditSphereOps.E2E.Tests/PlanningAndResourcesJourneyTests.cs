@@ -93,10 +93,10 @@ public sealed class PlanningAndResourcesJourneyTests
 
     // Staffing at the four levels (associate omitted: the fixture's staff user is added to prove the list order).
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/engagements/{f.EngagementId:D}")}");
-    await page.GetByText("Team and budget", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
-    await page.GetByRole(AriaRole.Heading, new() { Name = "Engagement team", Exact = true }).WaitForAsync(new() { Timeout = 20000 });
-    await SettleAsync();
     var planning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
+    await Assertions.Expect(planning.GetByRole(AriaRole.Heading, new() { Name = "Engagement team", Exact = true }))
+      .ToBeVisibleAsync(new() { Timeout = 20000 });
+    await SettleAsync();
     async Task StaffAsync(Guid userId, string name, string level)
     {
       await planning.GetByLabel("Person", new() { Exact = true }).SelectOptionAsync(userId.ToString());

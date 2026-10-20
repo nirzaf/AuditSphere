@@ -21,7 +21,8 @@ public sealed class AngularBudgetPreparationJourneyTests
       async () =>
       {
         await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
-        await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true}))
+          .ToBeVisibleAsync();
       });
     Assert.Equal(200, planningResponse);
     using var planningDocument = JsonDocument.Parse(planningResponseBody);
@@ -53,8 +54,7 @@ public sealed class AngularBudgetPreparationJourneyTests
       async () =>
       {
         await page.ReloadAsync();
-        await page.GetByText("Team and budget",new(){Exact=true})
-          .Or(planning.GetByLabel("Currency",new(){Exact=true})).First.ScrollIntoViewIfNeededAsync();
+        await Assertions.Expect(planning).ToBeVisibleAsync();
       });
     Assert.True(restoredPlanningStatus is >= 200 and < 300,
       $"Planning recovery returned HTTP {restoredPlanningStatus}: {restoredPlanningBody}");

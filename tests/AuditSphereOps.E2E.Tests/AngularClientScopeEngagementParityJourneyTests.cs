@@ -159,6 +159,11 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
       new() { Name = "Engagement details", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByText(f.EngagementId.ToString("D"), new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByText(privateHold, new() { Exact = true })).ToBeVisibleAsync();
+    var initialPlanning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
+    await Assertions.Expect(initialPlanning).ToBeVisibleAsync();
+    await Assertions.Expect(initialPlanning.GetByRole(AriaRole.Heading,
+      new() { Name = "Engagement team", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(initialPlanning.GetByRole(AriaRole.Progressbar)).ToHaveCountAsync(0);
     var documentToken = Guid.NewGuid().ToString("N");
     await page.EvaluateAsync("token => window.__engagementParityToken = token", documentToken);
 
@@ -418,7 +423,16 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
 
   private static async Task<string> NavigateAsync(IPage page, string path, string expectedText)
   {
-    await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }", path);
+    var planning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
+    if (await planning.CountAsync() > 0)
+    {
+      await Assertions.Expect(planning).ToBeVisibleAsync();
+      await Assertions.Expect(planning.GetByRole(AriaRole.Progressbar)).ToHaveCountAsync(0);
+    }
+    var navigatedPath = await page.EvaluateAsync<string>(
+      "path => { history.pushState({}, '', path); const pathname = location.pathname; dispatchEvent(new PopStateEvent('popstate')); return pathname; }",
+      path);
+    Assert.Equal(path, navigatedPath);
     await page.WaitForFunctionAsync("path => location.pathname === path", path);
     await Assertions.Expect(page.GetByText(expectedText, new() { Exact = false }).First)
       .ToBeVisibleAsync(new() { Timeout = 15000 });

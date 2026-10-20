@@ -33,8 +33,7 @@ public sealed class AngularPlanningNavigationJourneyTests
         };
         await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
         var planning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
-        await page.GetByText("Team and budget", new() { Exact = true })
-            .Or(planning.GetByLabel("Currency", new() { Exact = true })).First.ScrollIntoViewIfNeededAsync();
+        await Assertions.Expect(planning).ToBeVisibleAsync();
         await planning.GetByLabel("Currency", new() { Exact = true }).FillAsync("USD");
         await page.GetByRole(AriaRole.Link, new() { Name = "PBC requests", Exact = true }).ClickAsync();
         var dialog = page.GetByRole(AriaRole.Dialog);
@@ -50,8 +49,7 @@ public sealed class AngularPlanningNavigationJourneyTests
             async () =>
             {
                 await page.GotoAsync(origin + path);
-                await page.GetByText("Team and budget", new() { Exact = true })
-                    .Or(planning.GetByLabel("Currency", new() { Exact = true })).First.ScrollIntoViewIfNeededAsync();
+                await Assertions.Expect(planning).ToBeVisibleAsync();
             });
         Assert.True(planningStatus is >= 200 and < 300,
             $"Planning data did not reload before restoring the saved budget fields (HTTP {planningStatus}): {planningBody}");

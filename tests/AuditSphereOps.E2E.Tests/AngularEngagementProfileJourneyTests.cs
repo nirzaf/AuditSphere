@@ -56,7 +56,8 @@ public sealed class AngularEngagementProfileJourneyTests
       {
         await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
         await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Engagement details",Exact=true})).ToBeVisibleAsync();
-        await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true}))
+          .ToBeVisibleAsync();
       });
     Assert.True(planningStatus is >= 200 and < 300,
       $"Engagement planning returned HTTP {planningStatus}: {planningResponseBody}");
@@ -115,7 +116,8 @@ public sealed class AngularEngagementProfileJourneyTests
       {
         await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
         await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Engagement details",Exact=true})).ToBeVisibleAsync();
-        await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true}))
+          .ToBeVisibleAsync();
       });
     Assert.True(planningStatus is >= 200 and < 300,
       $"Engagement planning returned HTTP {planningStatus}: {planningResponseBody}");

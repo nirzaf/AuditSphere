@@ -31,8 +31,8 @@ public sealed class AngularPlanningAssentJourneyTests
                 Interlocked.Increment(ref writes);
         };
         await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
-        await page.GetByText("Team and budget", new() { Exact = true }).ScrollIntoViewIfNeededAsync();
         var planning = page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true });
+        await Assertions.Expect(planning).ToBeVisibleAsync();
         var person = planning.GetByLabel("Person", new() { Exact = true });
         await Assertions.Expect(person).ToBeVisibleAsync();
         var candidates = await person.Locator("option").EvaluateAllAsync<string[]>("options => options.map(option => option.value).filter(Boolean)");

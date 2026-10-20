@@ -20,8 +20,8 @@ public sealed class AngularStaffingChangeJourneyTests
     var errors = new List<string>(); page.PageError += (_,e) => errors.Add(e);
     var path = (canonical?"":"/ui")+"/app/engagements/"+f.EngagementId;
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
-    await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
     var planning = page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
+    await Assertions.Expect(planning).ToBeVisibleAsync();
     var roleAssent = planning.GetByLabel("I reviewed the engagement role and client-site access.",new(){Exact=true});
     var assignmentReview = planning.GetByRole(AriaRole.Button,new(){Name="Review team assignment",Exact=true});
     var previewPattern = "**/staffing-change/preview";
@@ -91,7 +91,7 @@ public sealed class AngularStaffingChangeJourneyTests
       // Pending recovery is visible before the command is sent. Wait until the fetched
       // response has been aborted and Angular has settled the unknown outcome before reload.
       await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Verify staffing request receipt",Exact=true})).ToBeEnabledAsync();
-      await page.ReloadAsync(); await page.GetByText("Team and budget",new(){Exact=true}).ScrollIntoViewIfNeededAsync();
+      await page.ReloadAsync(); await Assertions.Expect(planning).ToBeVisibleAsync();
       await planning.GetByRole(AriaRole.Button,new(){Name="Verify staffing request receipt",Exact=true}).ClickAsync();
       await Assertions.Expect(planning.GetByRole(AriaRole.Button,new(){Name="Acknowledge staffing change",Exact=true})).ToBeVisibleAsync();
       await planning.GetByRole(AriaRole.Button,new(){Name="Acknowledge staffing change",Exact=true}).ClickAsync();
