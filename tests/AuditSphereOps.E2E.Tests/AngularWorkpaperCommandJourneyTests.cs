@@ -53,6 +53,7 @@ public sealed class AngularWorkpaperCommandJourneyTests
     var dropped = false;
     var retryStatus = 0;
     var retryBody = "";
+    var firstDispatchFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var retryFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     page.PageError += (_, error) => errors.Add(error);
     page.Console += (_, message) =>
@@ -76,27 +77,35 @@ public sealed class AngularWorkpaperCommandJourneyTests
       var hash = body.RootElement.GetProperty("expectedRequestHash").GetString()!;
       if (writes == 1)
       {
-        retainedId = id; retainedHash = hash;
-        Assert.Equal(action != "SAVE_DRAFT", body.RootElement.GetProperty("reviewed").GetBoolean());
-        if (committed)
+        try
         {
-          var response = await route.FetchAsync();
-          var responseBody = await response.TextAsync();
-          Assert.True(response.Status == 200, $"Committed {action} returned HTTP {response.Status}: {responseBody}");
-          if (action == "SAVE_DRAFT")
+          retainedId = id; retainedHash = hash;
+          Assert.Equal(action != "SAVE_DRAFT", body.RootElement.GetProperty("reviewed").GetBoolean());
+          if (committed)
           {
-            using var receipt = JsonDocument.Parse(responseBody);
-            var root = receipt.RootElement;
-            Assert.Equal(retainedId.ToString("D"), root.GetProperty("requestId").GetString());
-            Assert.Equal(retainedHash, root.GetProperty("requestHash").GetString());
-            Assert.Equal(action, root.GetProperty("action").GetString());
-            var after = root.GetProperty("commandEvent").GetProperty("after").GetProperty("draft");
-            Assert.Equal(initialDraftRevision + 1, long.Parse(after.GetProperty("draftRevision").GetString()!, System.Globalization.CultureInfo.InvariantCulture));
-            Assert.Equal(editedWork, after.GetProperty("workPerformed").GetString());
-            Assert.Equal(editedConclusion, after.GetProperty("conclusion").GetString());
+            var response = await route.FetchAsync();
+            var responseBody = await response.TextAsync();
+            Assert.True(response.Status == 200, $"Committed {action} returned HTTP {response.Status}: {responseBody}");
+            if (action == "SAVE_DRAFT")
+            {
+              using var receipt = JsonDocument.Parse(responseBody);
+              var root = receipt.RootElement.GetProperty("value");
+              Assert.Equal(retainedId.ToString("D"), root.GetProperty("requestId").GetString());
+              Assert.Equal(retainedHash, root.GetProperty("requestHash").GetString());
+              Assert.Equal(action, root.GetProperty("action").GetString());
+              var after = root.GetProperty("commandEvent").GetProperty("after").GetProperty("draft");
+              Assert.Equal(initialDraftRevision + 1, long.Parse(after.GetProperty("draftRevision").GetString()!, System.Globalization.CultureInfo.InvariantCulture));
+              Assert.Equal(editedWork, after.GetProperty("workPerformed").GetString());
+              Assert.Equal(editedConclusion, after.GetProperty("conclusion").GetString());
+            }
           }
+          dropped = true; await route.AbortAsync("failed");
+          firstDispatchFinished.TrySetResult();
         }
-        dropped = true; await route.AbortAsync("failed");
+        catch (Exception error)
+        {
+          firstDispatchFinished.TrySetException(error);
+        }
       }
       else
       {
@@ -119,6 +128,8 @@ public sealed class AngularWorkpaperCommandJourneyTests
       await ReviewAndConfirm(page, action, originalWork, originalConclusion);
     }
     var recovery = page.GetByRole(AriaRole.Region, new() { Name = "Workpaper request recovery", Exact = true });
+    // Pending recovery is rendered before dispatch finishes; it does not prove commit.
+    await firstDispatchFinished.Task.WaitAsync(TimeSpan.FromSeconds(30));
     await Assertions.Expect(recovery).ToBeVisibleAsync(); Assert.Equal(1, writes);
     var checkpoint = await page.EvaluateAsync<string>("() => JSON.stringify(Object.entries(sessionStorage).filter(([key]) => key.includes('workpaper-command-request/'))) ");
     Assert.Contains(retainedId.ToString("D"), checkpoint, StringComparison.Ordinal);
