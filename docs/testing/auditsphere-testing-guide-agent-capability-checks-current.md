@@ -73,7 +73,7 @@ console/network errors and screenshots. Live tenant acceptance remains separate.
 
 ## Inspecting an owned browser fixture
 
-The analytics paging, reviewed engagement-creation and scoped assessment journeys support an optional
+The analytics paging, reviewed engagement-creation, scoped assessment and client upload-recovery journeys support an optional
 built-in-browser handoff through `OwnedBrowserFixtureHandoff`. Supply unique
 basenames in `AUDITSPHERE_BROWSER_FIXTURE_READY_FILE` and
 `AUDITSPHERE_BROWSER_FIXTURE_RELEASE_FILE` when running one journey. The ready JSON
@@ -84,6 +84,10 @@ release file to finish; otherwise the host expires after 90 seconds. The test re
 its ready file and disposes the owned database. This is local synthetic evidence;
 it grants no tenant access and cannot establish live acceptance. Normal CI leaves
 both variables unset and does not pause.
+
+For the client portal, select `AUDITSPHERE_BROWSER_FIXTURE_TARGET=accessibility-client-portal`
+and the existing `LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt` test.
+The synthetic client has completed first sign-in; the ready route opens its exact PBC request.
 
 ## Evidence and measurement
 

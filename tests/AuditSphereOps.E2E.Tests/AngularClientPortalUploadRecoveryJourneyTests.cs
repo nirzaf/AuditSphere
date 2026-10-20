@@ -147,5 +147,6 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
     }
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     Assert.Empty(errors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, new Uri(page.Url).PathAndQuery, "accessibility-client-portal");
   }
 }
