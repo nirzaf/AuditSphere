@@ -16,7 +16,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Accessibility recheck and current-SHA release verification (2026-10-20)
 
-The built-in browser exposes only the unauthenticated `/ui/` shell; staff/client journeys remain unreviewed. Earlier keyboard, viewport and contrast evidence is source-pinned in [`accessibilityRenderedSweep20261020`](status.json). Automated screen-reader proxies pass; qualified human assistive-technology review and authenticated client-portal acceptance remain open.
+An owned synthetic client fixture now supports authenticated built-in-browser inspection. PBC request checks covered mobile reflow, named controls, skip-link focus, navigation Escape/focus restoration and unsent-reply keyboard behavior. Evidence is in [`accessibilityRenderedSweep20261020`](status.json). Full staff/client state coverage and qualified human assistive-technology acceptance remain open.
 
 The preceding release exposed a test race: recovery renders before the intercepted command completes. The workpaper journey now awaits dispatch before database proof or a superseding save, unwraps the API `value` envelope and propagates callback failures. Earlier focused passes did not prove asynchronous assertions finished. Exact receipt, content, revision and duplicate-write protections remain enforced.
 

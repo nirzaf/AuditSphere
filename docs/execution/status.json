@@ -261,7 +261,7 @@
       },
       "notDone": [
         "Qualified screen-reader review with AT/browser versions and meaningful-announcement observations.",
-        "Full supported-state and client-portal acceptance with a client identity.",
+        "Full supported-state/client-portal acceptance beyond the owned PBC upload/reply fixture.",
         "Current-source API-backed resource-planning acceptance; the browser API was not source-pinned.",
         "Full API and Playwright E2E release results on the current source commit."
       ],
@@ -281,12 +281,19 @@
         "browser": "Built-in browser; unauthenticated /ui/app/work redirects to /ui/ Access unavailable.",
         "renderedChecks": "320x844: document width 305px; skip target #main exists; Tab shows 3px focus outline and Enter focuses main. Text contrast ratios: skip 6.70, brand 17.06/12.02, heading 10.96, body 15.71, sign-in 6.46.",
         "limits": "No authenticated staff/client workflow or qualified human screen-reader review.",
-        "releaseVerification": "39449112933 FAILURE on 6ba8302bcfa54b86b253c3e873b2090e4f73000e: fast CI 39449064836 PASS; Angular/build/contracts/publication PASS; Domain 1457/1457, API 363/363 PASS; E2E 324/325, superseded SAVE_DRAFT expected revision 2 but observed 1 at test line 133. Four accessibility proxy tests PASS. Exact focused case 1/1 and Release solution build 0 warnings/errors PASS locally; full local suites NOT_RUN.",
+        "releaseVerification": "39449112933 attempt 1 FAILED on 6ba8302bcfa54b86b253c3e873b2090e4f73000e: E2E 324/325 (superseded SAVE_DRAFT expected revision 2, observed 1). Domain 1457/1457, API 363/363, Angular/build/contracts and four accessibility proxies PASS. Prior focused pass did not prove callback assertions completed; correction below.",
         "dispatchSynchronization": {
           "sourceCommit": "67c8bbcf9ef7ebeef136cb81768e58323ad6b565",
           "correction": "Await first route interception before database proof; unwrap value envelope and propagate callback exceptions. Earlier focused passes did not prove asynchronous receipt assertions completed. All receipt/revision/no-duplicate invariants retained.",
           "localVerification": "LostResponseReloadRetainsExactIdentityAndRecoveryNeverBlindlyResends: all 7 theory cases PASS; Release dependencies/test project rebuilt; 2.2225 minutes test time. Full local suites NOT_RUN.",
-          "releaseVerification": "PENDING in CI on corrected source; prior-source rerun cannot verify this fix."
+          "releaseVerification": "39468155496 IN_PROGRESS on a97ce47d0c938a24b24287237f05f7f0d3bb63ab; prior-source rerun superseded."
+        },
+        "clientPortalBrowser": {
+          "sourceCommit": "e8dc61c031814d9046f547876a72c1febb69ce45",
+          "fixture": "Owned synthetic client PBC request after staged-upload recovery; external effects off; disposed after inspection.",
+          "checks": "Built-in browser: 390x844/320x844, document widths 375/305; main landmark 1; named controls, no duplicate IDs or console warnings/errors. Skip activates main. Keyboard opens navigation; Escape restores opener with 3px outline. Tab from reply reaches Send reply with 3px outline. Nonblank draft enables Send; clearing disables it. No reply sent; viewport reset.",
+          "test": "LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt PASS 1/1, 1.9000 minutes. Full local suites NOT_RUN.",
+          "limits": "One client state; no real screen reader, live-provider or complete client-workflow acceptance."
         }
       }
     },
