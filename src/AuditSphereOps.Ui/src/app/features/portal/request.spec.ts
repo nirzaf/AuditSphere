@@ -33,13 +33,15 @@ describe('Client request draft polling', () => {
     try { http.verify(); } finally { TestBed.resetTestingModule(); vi.useRealTimers(); }
   });
 
-  it('associates a touched invalid reply with its error and clears that state after correction', () => {
+  it('associates reply validation with its error and blocks whitespace-only submission', () => {
     const fixture = TestBed.createComponent(ClientPbcRequest);
     fixture.detectChanges(); TestBed.tick();
     http.expectOne(`/api/ui/portal/requests/${id}`).flush(requestWorkspace());
     TestBed.tick(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     const input = root.querySelector<HTMLTextAreaElement>('#portal-reply')!;
+    const send = Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+      .find(button => button.textContent?.trim() === 'Send reply')!;
     expect(input.getAttribute('aria-invalid')).toBeNull();
     fixture.componentInstance.reply.controls.body.markAsTouched(); fixture.detectChanges();
     expect(input.getAttribute('aria-invalid')).toBe('true');
@@ -47,9 +49,17 @@ describe('Client request draft polling', () => {
     expect(error.textContent).toContain('Enter a reply');
     expect(error.getAttribute('role')).toBe('alert');
     fixture.componentInstance.reply.controls.body.setValue('Corrected synthetic reply'); fixture.detectChanges();
+    expect(fixture.componentInstance.reply.controls.body.valid).toBe(true);
+    expect(send.disabled).toBe(false);
     expect(input.getAttribute('aria-invalid')).toBeNull();
     expect(input.getAttribute('aria-describedby')).toBeNull();
     expect(root.querySelector('#portal-reply-error')).toBeNull();
+    fixture.componentInstance.reply.controls.body.setValue(' \t\n  '); fixture.detectChanges();
+    expect(fixture.componentInstance.reply.controls.body.invalid).toBe(true);
+    expect(send.disabled).toBe(true);
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toBe('portal-reply-error');
+    fixture.componentInstance.sendReply();
     http.expectNone(request => request.method === 'POST');
     fixture.destroy();
   });

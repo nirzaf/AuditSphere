@@ -116,7 +116,7 @@ export class ClientPbcRequest {
     ? `/api/ui/portal/requests/${this.id()}/history?uploadPage=${this.uploadPage()}&conversationPage=${this.conversationPage()}&pageSize=25`
     : null, portalRequestHistory, 'This request history is unavailable in your current access scope.');
   private readonly fb = inject(FormBuilder);
-  readonly reply = this.fb.nonNullable.group({ body: ['', [Validators.required, Validators.maxLength(4000)]] });
+  readonly reply = this.fb.nonNullable.group({ body: ['', [Validators.required, Validators.maxLength(4000), Validators.pattern(/\S/)]] });
   readonly delegation = this.fb.nonNullable.group({ userId: ['', Validators.required] });
   readonly file = signal<File | null>(null); readonly hash = signal(''); readonly sent = signal(0);
   readonly dragOver = signal(false);
