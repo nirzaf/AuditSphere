@@ -10,10 +10,11 @@ namespace AuditSphereOps.Application.Practice;
 
 public sealed record TimePeriodOption(Guid Id, Guid ClientId, string Label);
 public sealed record TimeEngagementOption(Guid Id, Guid ClientId, string Label, Guid? MappingVersionId, IReadOnlyList<string> FsliCodes);
-public sealed record TimeTaskOption(Guid Id, string Title, string Status, Guid? MappingVersionId, string? FsliCode);
+public sealed record TimeTaskOption(Guid Id, string Title, string Status, Guid? MappingVersionId, string? FsliCode,
+  string Phase = BudgetPhases.Unassigned);
 public sealed record TimeEntryRow(Guid Id, DateOnly WorkDate, Guid TaskId, string TaskTitle, Guid UserId, int DurationMinutes, string Activity,
   string BillableClassification, string Narrative, string Status, Guid? MappingVersionId, string? FsliCode, int StartMinute = 540,
-  string? LastReturnReason = null);
+  string? LastReturnReason = null, string Phase = BudgetPhases.Unassigned);
 public sealed record PracticeTimeWorkspace(bool FirmWide, bool IsApprover, IReadOnlyList<TimePeriodOption> Periods,
   IReadOnlyList<TimeEngagementOption> Engagements, IReadOnlyList<TimeTaskOption> OpenTasks,
   IReadOnlyList<TimeEntryRow> MyEntries, IReadOnlyList<TimeEntryRow> AwaitingApproval);
@@ -101,10 +102,10 @@ public static class PracticeTimeWorkspaceQuery
       (x.ClientId.HasValue && scopedEngagementClients.TryGetValue(x.EngagementId.Value, out var clientId) && clientId == x.ClientId.Value)).ToList();
     var taskById = visibleTasks.ToDictionary(x => x.Id);
     var openTasks = visibleTasks.Where(x => x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted)
-      .Select(x => new TimeTaskOption(x.Id, x.Title, x.Status, x.MappingVersionId, x.FsliCode)).ToList();
+      .Select(x => new TimeTaskOption(x.Id, x.Title, x.Status, x.MappingVersionId, x.FsliCode, x.Phase)).ToList();
 
     TimeEntryRow Row(TimeEntry x) => new(x.Id, x.WorkDate, x.TaskId, taskById[x.TaskId].Title, x.UserId, x.DurationMinutes, x.Activity,
-      x.BillableClassification, x.Narrative, x.Status, x.MappingVersionId, x.FsliCode, x.StartMinute, x.LastReturnReason);
+      x.BillableClassification, x.Narrative, x.Status, x.MappingVersionId, x.FsliCode, x.StartMinute, x.LastReturnReason, x.Phase);
     var myEntries = (await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
         (firmWide || (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value)) ||
           (!x.EngagementId.HasValue && x.ClientId.HasValue && directClientIds.Contains(x.ClientId.Value))))

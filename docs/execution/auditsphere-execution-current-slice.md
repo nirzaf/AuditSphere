@@ -310,7 +310,7 @@ The [parity implementation tracker](auditsphere-execution-tracker-api-angular-pa
 
 The allocation-reversal history route and correction handoff are connected. Review corrections restore API startup/contract generation, forward independent history pages, preserve exact normalized source ordering, clear scope-specific forms and review assent, and allow independent approval after reconciliation. Intercompany option-bound commands require reporting-period membership and reject negative revision sentinels. The ownership query now applies filtering/paging before its final DTO projection. Oversized readiness is a visible unavailable subpanel, never a partial success; full paged readiness still needs implementation.
 
-Focused API, Domain and Angular checks passed for the affected slices; the emitted contract and drift check passed. Built-in browser smoke verified the synthetic overview, scope, external-pack history/source lines and recovered ownership panel. This was read-only browser coverage, not the complete submission/review/pinning journey or responsive/live-provider acceptance. Exact code snapshot, cohorts and limitations are under `apiAngularParity.localVerification` in [status.json](status.json). PR #46 is merged; PR #47 awaits its updated-head CI and merge. Task statuses retain their remaining acceptance work.
+Focused API, Domain and Angular checks passed for the affected slices; the emitted contract and drift check passed. Built-in browser smoke verified the synthetic overview, scope, external-pack history/source lines and recovered ownership panel. This was read-only browser coverage, not the complete submission/review/pinning journey or responsive/live-provider acceptance. Exact code snapshot, cohorts and limitations are under `apiAngularParity.localVerification` in [status.json](status.json). PR #46 and #47 are merged. Task statuses retain their remaining acceptance work.
 
 GL upload checkpoint and earlier CI observations are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Current accessibility and release evidence remains above and in [status.json](status.json).
 
@@ -326,4 +326,8 @@ Reusable templates now declare materiality, exact PBC and exact procedure prereq
 
 ## Brief quotation timeline — 2026-10-20
 
-New brief quotations require a timeline; drafts and historical recovery remain supported. Source `63259300`: Domain 3/3, Angular 5/5, commercial E2E 1/1, built-in 390px check and code review passed. Full CI is pending; no deployment. Evidence: `quotationTimeline20261020` in [status.json](status.json).
+New brief quotations require a timeline; drafts and historical recovery remain supported. Focused and browser checks passed; current release is pending. Evidence: `quotationTimeline20261020` in [status.json](status.json).
+
+## Practice time phase
+
+Optional phase capture and retained display pass focused/API/browser checks. Full acceptance remains open; see `practiceTimePhase20261020` in `status.json`.

@@ -245,7 +245,7 @@
           "sourceCommit": "67c8bbcf9ef7ebeef136cb81768e58323ad6b565",
           "correction": "Await first route interception before database proof; unwrap value envelope and propagate callback exceptions. Earlier focused passes did not prove asynchronous receipt assertions completed. All receipt/revision/no-duplicate invariants retained.",
           "localVerification": "LostResponseReloadRetainsExactIdentityAndRecoveryNeverBlindlyResends: all 7 theory cases PASS; Release dependencies/test project rebuilt; 2.2225 minutes test time. Full local suites NOT_RUN.",
-          "releaseVerification": "39468155496 IN_PROGRESS on a97ce47d0c938a24b24287237f05f7f0d3bb63ab; prior-source rerun superseded."
+          "releaseVerification": "39468155496 SUCCESS on a97ce47d0c938a24b24287237f05f7f0d3bb63ab; historical full pass, not current-source verification."
         },
         "clientPortalBrowser": {
           "sourceCommit": "e8dc61c031814d9046f547876a72c1febb69ce45",
@@ -1178,24 +1178,19 @@
       "scope": "Owned Test API WorkflowExperience=false; /ui/app/work My tasks, Team and review inbox HTTP403; no task rows/actions or console errors; no writes. Accessibility fixture 1/1. Live configuration and other switches unverified."
     },
     "quotationTimeline20261020": {
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.practiceWorkflowHistory20261020.quotationTimeline20261020",
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "scope": "New brief quotations require an offered execution timeline; drafts may omit it; existing immutable quotation replay is preserved. Pair preflight prevents letter creation before timeline refusal.",
-      "checks": "Domain 3/3; Angular documents 5/5; focused commercial E2E 1/1; builds/lint/OpenAPI passed. Built-in browser: disabled generate after assent, 390x844 no overflow, no console errors.",
-      "pending": "Current-source full CI; no deployment. Independent code review found no actionable issues.",
-      "sourceCommit": "632593003540c0668d5ef21be3f29cc81414f7ea"
+      "pending": "Current-source full release and professional/live gates remain open."
     },
     "practiceTimePhase20261020": {
       "status": "FOCUSED_AND_BROWSER_PASS_NOT_FULL_ACCEPTANCE",
-      "scope": "Optional budget phase forwarded API-to-command; absent phase stays UNASSIGNED; FSLI remains optional per ADR-0013.",
+      "scope": "Optional supported budget phase on task creation; persisted task phase and retained entry phase projected to pickers/personal/approval views. Omitted legacy payload uses UNASSIGNED; FSLI remains optional per ADR-0013. No historical mutation.",
       "checks": [
-        "API selected/omitted phase: Passed 1, Failed 0, Skipped 0",
-        "Angular time-tracker-ui.spec.ts: 7/7 after waiting for NgModel registration",
-        "Angular build passed with existing diagnostics; OpenAPI drift passed; diff check passed",
-        "Independent review confirmed supported phases and unchanged authorization.",
-        "Owned built-in browser: selected Fieldwork, created firm task without FSLI, task visible; console clean. Accessibility E2E Passed 1, Failed 0, Skipped 0."
+        "Focused API selected/omitted tasks plus own and independent approval readback: Passed 1, Failed 0, Skipped 0",
+        "Angular time-tracker-ui.spec.ts: 8/8; build/component lint/OpenAPI drift passed",
+        "Owned accessibility E2E: Passed 1, Failed 0, Skipped 0; built-in Planning task readback;390px no overflow; console clean."
       ],
-      "pending": "Full release CI39488865780 active on exact source; no deployment. Retained phase display follow-up remains.",
-      "sourceCommit": "f2fdeb72e9aedb34376f2b4d19df7342221ad215"
+      "pending": "Current-source full CI and broader role/human acceptance. No migration or deployment."
     }
   },
   "externalGates": [

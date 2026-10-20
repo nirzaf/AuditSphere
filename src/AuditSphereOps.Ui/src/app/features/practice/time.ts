@@ -18,19 +18,26 @@ export const supportedBudgetPhases = [
   { value: 'COMPLETION', label: 'Completion' },
   { value: 'REPORTING', label: 'Reporting' },
 ] as const;
+const unassignedBudgetPhase = 'UNASSIGNED';
 type SupportedBudgetPhase = typeof supportedBudgetPhases[number]['value'];
 const isSupportedBudgetPhase = (value: unknown): value is SupportedBudgetPhase =>
   supportedBudgetPhases.some(phase => phase.value === value);
 
 const entryShape = obj({ id: guid, workDate: date, taskId: guid, taskTitle: text, userId: guid, durationMinutes: nat, startMinute: nat, activity: text,
-  billableClassification: text, narrative: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)),
+  billableClassification: text, narrative: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), phase: str(100),
   lastReturnReason: nullable(str(2000)) });
 const entry: Decoder<ReturnType<typeof entryShape>> = (value, path) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new DecodeError(`${path || 'response'}: expected object`);
   const source = value as Record<string, unknown>;
-  return entryShape({ ...source, startMinute: source['startMinute'] ?? 540, lastReturnReason: source['lastReturnReason'] ?? null }, path);
+  return entryShape({ ...source, phase: source['phase'] ?? unassignedBudgetPhase,
+    startMinute: source['startMinute'] ?? 540, lastReturnReason: source['lastReturnReason'] ?? null }, path);
 };
-const taskOption = obj({ id: guid, title: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)) });
+const taskOptionShape = obj({ id: guid, title: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), phase: str(100) });
+const taskOption: Decoder<ReturnType<typeof taskOptionShape>> = (value, path) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new DecodeError(`${path || 'response'}: expected object`);
+  const source = value as Record<string, unknown>;
+  return taskOptionShape({ ...source, phase: source['phase'] ?? unassignedBudgetPhase }, path);
+};
 export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(obj({ id: guid, clientId: guid, label: text }), 5000),
   engagements: arr(obj({ id: guid, clientId: guid, label: text, mappingVersionId: nullable(guid), fsliCodes: arr(str(100), 2000) }), 5000),
   openTasks: arr(taskOption, 5000), myEntries: arr(entry, 500), awaitingApproval: arr(entry, 500) });
@@ -75,7 +82,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
         @if (!v.openTasks.length) { <p>No open tasks are currently available to book time against. Create or assign an open task first.</p> }
         @else {
           <form class="inline-form" (submit)="$event.preventDefault(); saveDraft()">
-            <label>Work task <select name="task" [(ngModel)]="draft.task" (ngModelChange)="touchDraft()" required>@for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }}){{ t.fsliCode ? ' · FSLI ' + t.fsliCode + ' · map ' + (t.mappingVersionId ?? '').slice(0, 8) : '' }}</option> }</select></label>
+            <label>Work task <select name="task" [(ngModel)]="draft.task" (ngModelChange)="touchDraft()" required>@for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }}) · {{ phaseLabel(t.phase) }}{{ t.fsliCode ? ' · FSLI ' + t.fsliCode + ' · map ' + (t.mappingVersionId ?? '').slice(0, 8) : '' }}</option> }</select></label>
             <label>Work date (UTC) <input type="date" name="date" [(ngModel)]="draft.date" (ngModelChange)="touchDraft()" required /></label>
             <label>Start time (UTC) <input type="time" name="startTime" [(ngModel)]="draft.startTime" (ngModelChange)="touchDraft()" required /></label>
             <label>Duration (minutes) <input type="number" name="minutes" min="1" max="1440" step="1" [(ngModel)]="draft.minutes" (ngModelChange)="touchDraft()" required /></label>
@@ -93,7 +100,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
         <label>Open work task to track
           <select name="trackerTask" [ngModel]="trackerTask()" (ngModelChange)="trackerTask.set($event)" [disabled]="tracker().phase !== 'IDLE'">
             <option value="">Choose a task</option>
-            @for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }})</option> }
+            @for (t of v.openTasks; track t.id) { <option [value]="t.id">{{ t.title }} ({{ t.status }}) · {{ phaseLabel(t.phase) }}</option> }
           </select>
         </label>
         @if (tracker().phase === 'RUNNING') { <p role="timer" aria-live="off">Active time {{ elapsedText() }}</p> }
@@ -133,12 +140,12 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
         <h2 id="my-time-heading">My recorded time</h2>
         <div class="table-scroll"><table>
           <caption>My recorded time entries</caption>
-          <thead><tr><th scope="col">Date</th><th scope="col">Task</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Classification</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Date</th><th scope="col">Task</th><th scope="col">Phase</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Classification</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>@for (e of v.myEntries; track e.id) {
-            <tr><td>{{ e.workDate }}</td><td>{{ e.taskTitle }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m ({{ (e.durationMinutes / 60).toFixed(1) }}h)</td><td>{{ e.billableClassification }}</td>
+            <tr><td>{{ e.workDate }}</td><td>{{ e.taskTitle }}</td><td>{{ phaseLabel(e.phase) }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m ({{ (e.durationMinutes / 60).toFixed(1) }}h)</td><td>{{ e.billableClassification }}</td>
               <td><audit-status [value]="e.status" />@if (e.lastReturnReason) { <small class="return-feedback">Latest return feedback: {{ e.lastReturnReason }}</small> }</td>
               <td>@if (e.status === 'DRAFT' || e.status === 'RETURNED') { <button matButton (click)="act(e.id, 'submit', e.status === 'RETURNED' ? 'Returned time was resubmitted for approval.' : 'Time entry was submitted for approval.')" [disabled]="cmd.busy()">{{ e.status === 'RETURNED' ? 'Resubmit' : 'Submit' }}</button> }</td></tr>
-          } @empty { <tr><td colspan="7">You have not recorded any time entries in the current firm scope.</td></tr> }</tbody>
+          } @empty { <tr><td colspan="8">You have not recorded any time entries in the current firm scope.</td></tr> }</tbody>
         </table></div>
       </section>
       <section class="panel" aria-labelledby="rates-heading">
@@ -151,9 +158,9 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
           <p>Independent approval segregation: managers and partners cannot approve their own time entries.</p>
           <div class="table-scroll"><table>
             <caption>Time entries awaiting my approval</caption>
-            <thead><tr><th scope="col">Date</th><th scope="col">Staff user</th><th scope="col">Task</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Activity</th><th scope="col">Narrative</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+            <thead><tr><th scope="col">Date</th><th scope="col">Staff user</th><th scope="col">Task</th><th scope="col">Phase</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Activity</th><th scope="col">Narrative</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
             <tbody>@for (e of v.awaitingApproval; track e.id) {
-              <tr><td>{{ e.workDate }}</td><td><code>{{ e.userId }}</code></td><td>{{ e.taskTitle }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m</td><td>{{ e.activity }}</td><td>{{ e.narrative }}</td>
+              <tr><td>{{ e.workDate }}</td><td><code>{{ e.userId }}</code></td><td>{{ e.taskTitle }}</td><td>{{ phaseLabel(e.phase) }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m</td><td>{{ e.activity }}</td><td>{{ e.narrative }}</td>
                 <td>
                   <button matButton="filled" (click)="act(e.id, 'approve', 'Time entry was approved.')" [disabled]="cmd.busy()">Approve</button>
                   @if (returningTimeId() === e.id) {
@@ -162,7 +169,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
                     <button matButton type="button" (click)="cancelReturn()" [disabled]="cmd.busy()">Cancel</button>
                   } @else { <button matButton type="button" (click)="beginReturn(e.id)" [disabled]="cmd.busy()">Return with reason</button> }
                 </td></tr>
-            } @empty { <tr><td colspan="8">No pending submitted time entries awaiting approval.</td></tr> }</tbody>
+            } @empty { <tr><td colspan="9">No pending submitted time entries awaiting approval.</td></tr> }</tbody>
           </table></div>
         </section>
       }
@@ -179,6 +186,7 @@ export class PracticeTime implements NavigationProtected {
   readonly view = this.api.resource(() => '/api/ui/practice/time', decodeTime, 'Sign in with an authorized internal staff identity to view and record time.');
   readonly cmd = new CommandState(this.api);
   readonly budgetPhases = supportedBudgetPhases;
+  phaseLabel(phase: string): string { return supportedBudgetPhases.find(x => x.value === phase)?.label ?? phase; }
   task = { title: '', period: '', engagement: '', phase: '', fsli: '', due: '' };
   draft = { task: '', date: new Date().toISOString().slice(0, 10), startTime: '09:00', minutes: 60, role: 'Staff', activity: 'Fieldwork', billable: true, narrative: '' };
   readonly tracker = signal<TrackerState>(emptyTracker());

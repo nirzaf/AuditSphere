@@ -65,6 +65,40 @@ describe('foreground practice time tracker integration', () => {
     } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
   });
 
+  it('renders stored phases in task selectors and both time tables and defaults legacy payloads to UNASSIGNED', async () => {
+    const savedEntry = {
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 30, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE', narrative: '',
+      status: 'DRAFT', mappingVersionId: null, fsliCode: null, lastReturnReason: null,
+    };
+    const legacy = decode(decodeTime, { ...workspace, myEntries: [savedEntry], awaitingApproval: [savedEntry] });
+    expect(legacy.openTasks[0].phase).toBe('UNASSIGNED');
+    expect(legacy.myEntries[0].phase).toBe('UNASSIGNED');
+    expect(legacy.awaitingApproval[0].phase).toBe('UNASSIGNED');
+
+    const pendingEntryId = '44444444-4444-4444-8444-444444444444';
+    const payload = {
+      ...workspace,
+      isApprover: true,
+      openTasks: [{ ...workspace.openTasks[0], phase: 'FIELDWORK' }],
+      myEntries: [{ ...savedEntry, phase: 'COMPLETION' }],
+      awaitingApproval: [{ ...savedEntry, id: pendingEntryId, status: 'SUBMITTED', phase: 'UNASSIGNED' }],
+    };
+    const { fixture, http } = open(payload);
+    try {
+      await fixture.whenStable();
+      const taskOption = fixture.nativeElement.querySelector(`select[name="task"] option[value="${taskId}"]`) as HTMLOptionElement;
+      const trackerOption = fixture.nativeElement.querySelector(`select[name="trackerTask"] option[value="${taskId}"]`) as HTMLOptionElement;
+      expect(taskOption.textContent).toContain('Fieldwork');
+      expect(trackerOption.textContent).toContain('Fieldwork');
+
+      const myEntryRow = fixture.nativeElement.querySelector('[aria-labelledby="my-time-heading"] tbody tr') as HTMLTableRowElement;
+      const approvalRow = fixture.nativeElement.querySelector('[aria-labelledby="queue-heading"] tbody tr') as HTMLTableRowElement;
+      expect(myEntryRow.cells[2].textContent?.trim()).toBe('Completion');
+      expect(approvalRow.cells[3].textContent?.trim()).toBe('UNASSIGNED');
+    } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
+  });
+
   it('defaults an absent legacy start minute to 09:00 and sends midnight explicitly as zero', async () => {
     const oldEntry = {
       id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,

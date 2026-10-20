@@ -50,9 +50,28 @@ public sealed class PracticeTimeStartMinuteApiTests
       engagementId = f.EngagementId
     });
 
-    await using var db = new AuditSphereDbContext(pg.Options);
-    Assert.Equal(BudgetPhases.Fieldwork, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == selected)).Phase);
-    Assert.Equal(BudgetPhases.Unassigned, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == omitted)).Phase);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(BudgetPhases.Fieldwork, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == selected)).Phase);
+      Assert.Equal(BudgetPhases.Unassigned, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == omitted)).Phase);
+    }
+
+    var adminWorkspace = (await admin.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    Assert.Equal(BudgetPhases.Fieldwork, Assert.Single(adminWorkspace.OpenTasks, x => x.Id == selected).Phase);
+    Assert.Equal(BudgetPhases.Unassigned, Assert.Single(adminWorkspace.OpenTasks, x => x.Id == omitted).Phase);
+
+    using var staffFactory = Factory(pg, f.Staff);
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var staffCsrf = await SignIn(staff);
+    var selectedEntry = await CreatedAsync(staff, staffCsrf, Draft(selected, 600, 30));
+    var omittedEntry = await CreatedAsync(staff, staffCsrf, Draft(omitted, 630, 30));
+    var staffWorkspace = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    Assert.Equal(BudgetPhases.Fieldwork, Assert.Single(staffWorkspace.MyEntries, x => x.Id == selectedEntry).Phase);
+    Assert.Equal(BudgetPhases.Unassigned, Assert.Single(staffWorkspace.MyEntries, x => x.Id == omittedEntry).Phase);
+
+    await AssertOkAsync(staff, staffCsrf, $"{EntriesPath}/{selectedEntry}/submit");
+    var approvalWorkspace = (await admin.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    Assert.Equal(BudgetPhases.Fieldwork, Assert.Single(approvalWorkspace.AwaitingApproval, x => x.Id == selectedEntry).Phase);
   }
 
   [Fact]

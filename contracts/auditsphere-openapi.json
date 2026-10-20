@@ -136534,6 +136534,10 @@
               "null",
               "string"
             ]
+          },
+          "phase": {
+            "type": "string",
+            "default": "UNASSIGNED"
           }
         }
       },
@@ -136601,6 +136605,10 @@
               "null",
               "string"
             ]
+          },
+          "phase": {
+            "type": "string",
+            "default": "UNASSIGNED"
           }
         }
       },
