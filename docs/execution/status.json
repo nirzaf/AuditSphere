@@ -1181,6 +1181,11 @@
       "integrationFindings": "HTTP source-selection forwarding and activity-write failures fixed; plan E2E rerun passed. Independent code review source-reference finding fixed without changing materiality binding semantics.",
       "sourceCommit": "d03a3ae0cc6650d1761de36a6d07003d9c20ac7a",
       "browser": "Owned plan journey 1/1; built-in browser retained exact PBC source, blocked duplicate plan, showed pending evidence; 390x844 no overflow or console errors. E2E preceded additive evaluated-source display; final display covered by focused Domain/Angular checks."
+    },
+    "workflowFeatureOffBrowser20261020": {
+      "sourceCommit": "c0174b843d79f2014b5fb4a551608cbd2c24f33a",
+      "result": "FOCUSED_PASS",
+      "scope": "Owned Test API WorkflowExperience=false; /ui/app/work My tasks, Team and review inbox HTTP403; no task rows/actions or console errors; no writes. Accessibility fixture 1/1. Live configuration and other switches unverified."
     }
   },
   "externalGates": [
