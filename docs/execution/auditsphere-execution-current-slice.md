@@ -14,9 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Client final-bundle history
+## Client document context and retained history
 
-The portal shows retained assembly time in UTC, separate from client-reported receipt. Each download has an exact accessible bundle identity. The collection reader now uses the existing archive bound with an overflow sentinel instead of silently dropping bundles after the tenth per engagement. Original bytes, hashes, acknowledgement and client scope remain intact. Focused evidence is under `portalBundleHistory20261021` in [status.json](status.json). Signed-representation history, complete client-public chronology, contextual labels, human AT and full current-source release acceptance remain open. No live delivery or professional acceptance is claimed.
+Shared documents and final bundles now show the exact authorized client legal name, recorded service and reporting dates. Empty historical fields are explicitly not recorded. One bounded read snapshot covers context and evidence; fresh session, grant-set and context checks run before returning it. A changed grant refuses the payload; changed context requires a refresh. The client signed-scan archive uses the existing aggregate bound and overflow refusal, while the staff latest-history limit stays unchanged. Bytes, hashes, review decisions and receipt commands are preserved.
+
+Focused checks and owned mobile-browser evidence are under `portalDocumentContext20261021` in [status.json](status.json). Earlier bundle evidence is preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Complete client-public chronology and actor/time proof, qualified human screen-reader review, full current-source CI and professional/live-provider acceptance remain open. Owner authorization does not constitute human assistive-technology review; no such sign-off was recorded.
 
 ## Recent read-only evidence views
 
