@@ -27,6 +27,7 @@ export class FindingCommandState {
   private executing = false;
   private destroyed = false;
   private scopeKey = '';
+  private contextKey = '';
   private input: (() => unknown) | null = null;
   private fingerprint = '';
   constructor(private readonly id: () => string | null, private readonly context: () => { id: string; engagementId: string } | null,
@@ -37,9 +38,15 @@ export class FindingCommandState {
     effect(() => {
       const id = this.id(), data = this.context(), actor = this.session.current(), epoch = this.session.invalidation();
       untracked(() => {
-        const key = `${id}/${actor?.firmId}/${actor?.userId}/${actor?.generation}/${actor?.staff}/${epoch}`;
-        if (key !== this.scopeKey) { this.scopeKey = key; ++this.operation; this.executing = false; this.busy.set(false); this.pending.set([]); this.storageUnavailable.set(false); this.receipt.set(null); }
-        this.invalidate(this.receipt()?.findingId === id && !!actor?.staff);
+        const key = JSON.stringify([id, actor?.firmId, actor?.userId, actor?.generation, actor?.staff, epoch]);
+        const contextKey = JSON.stringify([id, data?.id ?? null, data?.engagementId ?? null]);
+        let changed = false;
+        if (key !== this.scopeKey) {
+          this.scopeKey = key; ++this.operation; this.executing = false; this.busy.set(false);
+          this.pending.set([]); this.storageUnavailable.set(false); this.receipt.set(null); changed = true;
+        }
+        if (contextKey !== this.contextKey) { this.contextKey = contextKey; changed = true; }
+        if (changed) this.invalidate(this.receipt()?.findingId === id && !!actor?.staff);
         if (id && data?.id === id && actor?.staff) this.restore(id);
       });
     });
@@ -70,7 +77,11 @@ export class FindingCommandState {
   private base() { return `/api/ui/findings/${this.id()}/commands`; }
   private ticket() {
     const generation = this.generation, id = this.id(), actor = this.session.current(), epoch = this.session.invalidation(), data = this.context();
-    return () => !this.destroyed && generation === this.generation && id === this.id() && actor === this.session.current() && epoch === this.session.invalidation() && data === this.context();
+    return () => {
+      const current = this.context(), currentActor = this.session.current();
+      return !this.destroyed && generation === this.generation && id === this.id() && actor === currentActor && epoch === this.session.invalidation() &&
+        data?.id === current?.id && data?.engagementId === current?.engagementId;
+    };
   }
   async prepare(input: () => unknown): Promise<void> {
     if (!this.ready() || this.busy()) return;
@@ -127,9 +138,13 @@ export class FindingCommandState {
     if (!this.drafts.clear(this.scope(pending.findingId, pending.action).entity)) { this.message.set('Receipt verified, but the tab checkpoint could not be cleared. Restore storage and look up this receipt again.'); return false; }
     this.pending.update(list => list.filter(p => p !== pending)); this.absent.set([]); this.failed.set(false); this.message.set('Exact finding amendment receipt verified.'); this.accepted(receipt); return true;
   }
+  canReconcile(action: FindingAction): boolean {
+    const pending = this.pending().find(p => p.action === action);
+    return this.ready() && !this.busy() && !!pending && pending.findingId === this.id();
+  }
   async reconcile(action: FindingAction): Promise<void> {
     const pending = this.pending().find(p => p.action === action);
-    if (!pending || !this.ready() || pending.findingId !== this.id() || this.busy()) return;
+    if (!pending || !this.canReconcile(action)) return;
     this.preview.set(null); this.reviewed.set(false); this.absent.set([]); const valid = this.ticket(), operation = ++this.operation; let refresh = false; this.busy.set(true);
     try {
       const state = await this.api.get(this.base() + '/state', decodeFindingCommandState);

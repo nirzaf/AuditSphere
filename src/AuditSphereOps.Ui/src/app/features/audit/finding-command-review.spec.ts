@@ -10,7 +10,7 @@ describe('Exact finding review display', () => {
   afterEach(() => TestBed.resetTestingModule());
   it('renders structured before/after and exact identity, with fresh explicit assent', async () => {
     const p = preview({ requestId: id(50), fields: { action: 'RECORD_RESPONSE', response: { managementResponse: 'Proposed exact response', corrected: false } } });
-    const flow = { preview: signal(p), receipt: signal(null), pending: signal([]), absent: signal([]), reviewed: signal(false), busy: signal(false), uncertain: signal(false),
+    const flow = { preview: signal(p), receipt: signal(null), pending: signal([]), absent: signal([]), reviewed: signal(false), busy: signal(false), uncertain: signal(false), canReconcile: vi.fn(() => false),
       message: signal(''), failed: signal(false), execute: vi.fn<() => void>() };
     TestBed.configureTestingModule({ imports: [FindingCommandReview], providers: [{ provide: SessionService, useValue: { current: signal({ userId: id(90) }) } }] });
     const fixture = TestBed.createComponent(FindingCommandReview); fixture.componentRef.setInput('flow', flow as unknown as FindingCommandState); await fixture.whenStable();
@@ -29,5 +29,17 @@ describe('Exact finding review display', () => {
     const r = receipt(p);
     const removal = { ...p, before: r.amendment.after, canonicalInput: decodeFindingFields({ action: 'UNDESIGNATE_MANAGEMENT_LETTER' }, '') };
     expect(component.rows(removal)).toContainEqual({ label: 'Letter recommendation', before: 'Exact letter recommendation', after: 'None' });
+  });
+  it('keeps receipt lookup unavailable until the exact finding scope is ready', async () => {
+    const available = signal(false), canReconcile = vi.fn(() => available());
+    const flow = { preview: signal(null), receipt: signal(null), pending: signal([{ findingId: id(1), action: 'DESIGNATE_MANAGEMENT_LETTER',
+      reference: { requestId: id(50), requestHash: 'a'.repeat(64) } }]), absent: signal([]), reviewed: signal(false), busy: signal(false), uncertain: signal(true),
+      canReconcile, reconcile: vi.fn<() => void>(), message: signal(''), failed: signal(false) };
+    TestBed.configureTestingModule({ imports: [FindingCommandReview], providers: [{ provide: SessionService, useValue: { current: signal({ userId: id(90) }) } }] });
+    const fixture = TestBed.createComponent(FindingCommandReview); fixture.componentRef.setInput('flow', flow as unknown as FindingCommandState); await fixture.whenStable();
+    const lookup = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button')!;
+    expect(lookup.disabled).toBe(true);
+    available.set(true); fixture.detectChanges();
+    expect(lookup.disabled).toBe(false);
   });
 });

@@ -80,7 +80,21 @@ public sealed class AngularWorkpaperCommandJourneyTests
         Assert.Equal(action != "SAVE_DRAFT", body.RootElement.GetProperty("reviewed").GetBoolean());
         if (committed)
         {
-          var response = await route.FetchAsync(); Assert.Equal(200, response.Status);
+          var response = await route.FetchAsync();
+          var responseBody = await response.TextAsync();
+          Assert.True(response.Status == 200, $"Committed {action} returned HTTP {response.Status}: {responseBody}");
+          if (action == "SAVE_DRAFT")
+          {
+            using var receipt = JsonDocument.Parse(responseBody);
+            var root = receipt.RootElement;
+            Assert.Equal(retainedId.ToString("D"), root.GetProperty("requestId").GetString());
+            Assert.Equal(retainedHash, root.GetProperty("requestHash").GetString());
+            Assert.Equal(action, root.GetProperty("action").GetString());
+            var after = root.GetProperty("commandEvent").GetProperty("after").GetProperty("draft");
+            Assert.Equal(initialDraftRevision + 1, long.Parse(after.GetProperty("draftRevision").GetString()!, System.Globalization.CultureInfo.InvariantCulture));
+            Assert.Equal(editedWork, after.GetProperty("workPerformed").GetString());
+            Assert.Equal(editedConclusion, after.GetProperty("conclusion").GetString());
+          }
         }
         dropped = true; await route.AbortAsync("failed");
       }

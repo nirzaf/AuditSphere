@@ -25,7 +25,7 @@ import { FindingPreview, FindingSnapshot } from './finding-command-contracts';
       <p role="alert">The finding command outcome is not confirmed. Matching history is not an actor-owned receipt. Do not repeat blindly.</p>
       @for (p of flow().pending(); track p.findingId + p.action) {
         <p>{{ p.action }} · finding {{ p.findingId }} · request {{ p.reference.requestId }} · <code>{{ p.reference.requestHash }}</code></p>
-        <button matButton="outlined" (click)="flow().reconcile(p.action)" [disabled]="flow().busy()">Look up exact finding receipt</button>
+        <button matButton="outlined" (click)="flow().reconcile(p.action)" [disabled]="!flow().canReconcile(p.action)">Look up exact finding receipt</button>
         @if (flow().absent().includes(p.action)) { <p>No receipt was found at lookup time. A delayed command may still commit. Re-enter the exact original intent and prepare a fresh preview of this same request before explicitly submitting again.</p> }
       }
     </section>

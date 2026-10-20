@@ -56,6 +56,27 @@ describe('Finding reviewed command recovery', () => {
     await flow.prepare(input); expect(last.requestId).toBe(requestId); expect(flow.reviewed()).toBe(false);
     await flow.execute(); expect(api.command).toHaveBeenCalledTimes(3); flow.reviewed.set(true); await flow.execute(); expect(api.command.mock.calls.at(-1)![1].requestId).toBe(requestId);
   });
+  it('keeps exact receipt recovery through equivalent resource refreshes and temporary loading', async () => {
+    const action = 'DESIGNATE_MANAGEMENT_LETTER';
+    await flow.prepare(() => fields(action)); flow.reviewed.set(true);
+    api.command.mockResolvedValueOnce({ ok: false, unknown: true, message: 'Lost response' }); await flow.execute();
+    expect(flow.canReconcile(action)).toBe(true);
+
+    context.set(null); TestBed.tick();
+    expect(flow.uncertain()).toBe(true); expect(flow.canReconcile(action)).toBe(false);
+    context.set({ id: id(1), engagementId: id(20) }); TestBed.tick();
+    expect(flow.canReconcile(action)).toBe(true);
+
+    api.get.mockImplementationOnce(async (_url, decoder) => {
+      context.set({ ...context()! }); TestBed.tick();
+      return decoder(state(), '');
+    }).mockImplementationOnce(async (_url, decoder) => decoder({ found: true, receipt: receipt(last, id(90), session.current().generation) }, ''));
+    const priorReads = api.get.mock.calls.length;
+    await flow.reconcile(action);
+    expect(api.get).toHaveBeenCalledTimes(priorReads + 2);
+    expect(String(api.get.mock.calls[priorReads + 1][0])).toContain('/receipts/');
+    expect(flow.receipt()?.requestId).toBe(last.requestId); expect(flow.uncertain()).toBe(false);
+  });
   for (const phase of ['state', 'preview', 'execute'] as const) for (const failure of [false, true]) {
     it(`discards A-B-A late ${phase} ${failure ? 'error' : 'success'}`, async () => {
       const input = () => fields('RECORD_RESPONSE');
