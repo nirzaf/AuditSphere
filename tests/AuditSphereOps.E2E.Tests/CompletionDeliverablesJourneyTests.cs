@@ -270,6 +270,8 @@ public sealed class CompletionDeliverablesJourneyTests
     string expectedService;
     string expectedPeriodStart;
     string expectedPeriodEnd;
+    SignedRepresentationLetter expectedScan;
+    int expectedLetterVersion;
     await using (var verify = host.CreateDbContext())
     {
       var retainedBundle = await verify.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
@@ -280,6 +282,8 @@ public sealed class CompletionDeliverablesJourneyTests
       expectedService = expectedEngagement.ServiceRoute;
       expectedPeriodStart = expectedEngagement.PeriodStart;
       expectedPeriodEnd = expectedEngagement.PeriodEnd;
+      expectedScan = await verify.SignedRepresentationLetters.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
+      expectedLetterVersion = await verify.AuditDeliverables.Where(x => x.Id == expectedScan.DeliverableId).Select(x => x.Version).SingleAsync();
       Assert.False(await verify.ClientBundleAcknowledgements.AnyAsync(x => x.BundleId == retainedBundle.Id));
     }
     var bundleCard = clientPage.Locator("article.document").Filter(new()
@@ -297,10 +301,23 @@ public sealed class CompletionDeliverablesJourneyTests
     var clientDownload = await clientPage.RunAndWaitForDownloadAsync(() => clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).ClickAsync());
     Assert.EndsWith(".zip", clientDownload.SuggestedFilename);
     Assert.Equal(expectedBundleHash, Hashing.Sha256Hex(await File.ReadAllBytesAsync((await clientDownload.PathAsync())!)));
+    var scanCard = clientPage.Locator(".signed-scan");
+    await Assertions.Expect(scanCard).ToContainTextAsync(expectedScan.ManagementSignatory);
+    await Assertions.Expect(scanCard.Locator("dt:has-text('Source letter version') + dd"))
+      .ToHaveTextAsync(expectedLetterVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    await Assertions.Expect(scanCard).ToContainTextAsync(expectedScan.ContentSha256);
+    var uploadedTime = scanCard.Locator("time");
+    Assert.True(DateTimeOffset.TryParse(await uploadedTime.GetAttributeAsync("datetime"), out var actualUploaded));
+    Assert.Equal(expectedScan.UploadedAt, actualUploaded);
+    var scanDownload = await clientPage.RunAndWaitForDownloadAsync(() => scanCard.GetByRole(AriaRole.Link,
+      new() { Name = "Management-signed PDF" }).ClickAsync());
+    Assert.Equal(expectedScan.ContentSha256, Hashing.Sha256Hex(await File.ReadAllBytesAsync((await scanDownload.PathAsync())!)));
     await using (var verify = host.CreateDbContext())
       Assert.False(await verify.ClientBundleAcknowledgements.AnyAsync(x => x.EngagementId == f.EngagementId));
     await clientPage.SetViewportSizeAsync(390, 844);
-    Assert.True(await clientPage.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+    var portalWidths = await clientPage.EvaluateAsync<int[]>("() => [innerWidth, document.documentElement.scrollWidth]");
+    Assert.True(portalWidths[1] <= portalWidths[0] + 1,
+      $"Portal content width {portalWidths[1]} exceeds viewport {portalWidths[0]}.");
     await OwnedBrowserFixtureHandoff.WaitAsync(clientOrigin, "/portal", "portal-bundle-history");
     // Rollback/reference presentation must pass the same host policy, even when a prior image-only bundle exists.
     var requiredOrigin = await StartIdentityAsync(partner, required: true);

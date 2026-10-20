@@ -165,6 +165,68 @@ describe('client document comments', () => {
   });
 });
 
+describe('client retained signed representation scans', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [PortalDocuments],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(SessionService).current.set({ userId, firmId, generation: '1', staff: false });
+  });
+
+  afterEach(() => {
+    try { TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true }); }
+    finally { TestBed.resetTestingModule(); }
+  });
+
+  it('renders all 21 retained scans with exact identity, UTC metadata, source context and separate statuses', () => {
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(PortalDocuments);
+    fixture.detectChanges(); TestBed.tick();
+    const scans = Array.from({ length: 21 }, (_, index) => {
+      const id = `77777777-7777-4777-8777-${String(index + 1).padStart(12, '0')}`;
+      const uploadedAt = `2026-10-16T${String(13 + Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}:00+03:00`;
+      return {
+        id, deliverableId, version: 3, managementSignatory: `Management Signatory ${index + 1}`,
+        contentSha256: (index + 1).toString(16).padStart(64, '0'), uploadedAt,
+        verified: index % 3 === 0, current: index % 2 === 0,
+      };
+    });
+    http.expectOne('/api/ui/portal/documents').flush({
+      ...documents(null, [{ ...sharedDocument, kind: 'REPRESENTATION_LETTER' }]), signedLetters: scans,
+    });
+    TestBed.tick(); fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const card = root.querySelector<HTMLElement>('article.document')!;
+    const rows = Array.from(card.querySelectorAll<HTMLElement>('.signed-scan'));
+    expect(rows).toHaveLength(21);
+    expect(displayedContext(card.querySelector('dl.context')!)).toEqual({
+      'Client legal name': 'Evidence Client Ltd', Service: 'STATUTORY_AUDIT',
+      'Period start': '2025-01-01', 'Period end': '2025-12-31',
+    });
+    rows.forEach((row, index) => {
+      const scan = scans[index];
+      const link = row.querySelector<HTMLAnchorElement>('a')!;
+      const uploaded = row.querySelector('time')!;
+      const statuses = Array.from(row.querySelectorAll('audit-status')).map(x => x.textContent?.trim());
+      const utcUpload = `2026-10-16 ${String(10 + Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')} UTC`;
+      expect(link.textContent?.trim()).toBe('Management-signed PDF scan');
+      expect(link.getAttribute('href')).toBe(`/api/representation-scans/${scan.id}/download`);
+      expect(link.getAttribute('aria-label')).toBe(`Download Management-signed PDF scan for client Evidence Client Ltd; management signatory ${scan.managementSignatory}; source letter version ${scan.version}; uploaded ${utcUpload}; scan ${scan.id}`);
+      expect(row.textContent).toContain(`Management signatory${scan.managementSignatory}`);
+      expect(row.textContent).toContain(`Source letter version${scan.version}`);
+      expect(row.textContent).toContain(`Scan SHA-256${scan.contentSha256}`);
+      expect(uploaded.getAttribute('datetime')).toBe(scan.uploadedAt);
+      expect(uploaded.textContent).toBe(utcUpload);
+      expect(statuses).toEqual([scan.current ? 'current' : 'stale', scan.verified ? 'verification recorded' : 'not verified']);
+      expect(row.textContent).toContain('does not verify signature authenticity');
+    });
+    http.expectNone(request => request.method === 'POST');
+    fixture.destroy();
+  });
+});
+
 describe('client final bundle receipt acknowledgement', () => {
   let http: HttpTestingController;
 

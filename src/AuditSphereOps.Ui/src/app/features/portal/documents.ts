@@ -12,6 +12,8 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
   sha256, acknowledgedAt: nullable(instant), comments: arr(obj({ body: text, fromClient: bool, resolution: nullable(text) }), 1000), context: portalDocumentContext }), 200),
   signedLetters: arr(obj({ id: guid, deliverableId: guid, version: nat, managementSignatory: text, contentSha256: sha256, uploadedAt: instant, verified: bool, current: bool }), 100),
   bundles: arr(obj({ id: guid, sha256, manifestSha256: sha256, assembledAt: instant, acknowledgedAt: nullable(instant), context: portalDocumentContext }), 100) });
+type SignedScan = ReturnType<typeof sharedDocuments>['signedLetters'][number];
+type PortalDocumentContext = ReturnType<typeof sharedDocuments>['documents'][number]['context'];
 @Component({ selector: 'audit-portal-documents', imports: [ReactiveFormsModule, MatButtonModule, ...SHARED], template: `
   <section class="panel"><h2>Documents for your review</h2><audit-state [loading]="ws.loading()" [error]="ws.error()" label="your shared documents" />
     <audit-command-message [message]="message()" [failed]="failed()" />
@@ -43,7 +45,20 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
               <button matButton="filled" [disabled]="busy() || uncertain() || signed.invalid || !file()">Upload signed PDF</button>
             </form> }
           }
-          @for (s of w.signedLetters; track s.id) { @if (s.deliverableId === d.deliverableId) { <p><a [href]="'/api/representation-scans/' + s.id + '/download'">Management-signed PDF</a> <audit-status [value]="!s.current ? 'STALE' : s.verified ? 'VERIFIED' : 'PENDING_REVIEW'" /></p> } }
+          @for (s of w.signedLetters; track s.id) { @if (s.deliverableId === d.deliverableId) {
+            <section class="signed-scan">
+              <p><a [href]="'/api/representation-scans/' + s.id + '/download'" [attr.aria-label]="scanDownloadLabel(s, d.context)">Management-signed PDF scan</a></p>
+              <dl class="context">
+                <dt>Management signatory</dt><dd>{{ s.managementSignatory }}</dd>
+                <dt>Source letter version</dt><dd>{{ s.version }}</dd>
+                <dt>Scan uploaded</dt><dd><time [attr.datetime]="s.uploadedAt">{{ utcTime(s.uploadedAt) }}</time></dd>
+                <dt>Scan SHA-256</dt><dd class="fingerprint">{{ s.contentSha256 }}</dd>
+                <dt>Source letter status</dt><dd><audit-status [value]="s.current ? 'CURRENT' : 'STALE'" /></dd>
+                <dt>Separate verification status</dt><dd><audit-status [value]="s.verified ? 'VERIFICATION RECORDED' : 'NOT VERIFIED'" /></dd>
+              </dl>
+              <p class="scan-note">Uploading a scan or acknowledging a document alone does not verify signature authenticity.</p>
+            </section>
+          } }
         </article>
       } @empty { <p>No reports or letters are shared with your current scope.</p> }
       @for (b of w.bundles; track b.id) { <article class="document"><p><a [href]="'/api/deliverable-bundles/' + b.id + '/download'" [attr.aria-label]="bundleDownloadLabel(b)">Download five-part final bundle</a></p>
@@ -59,7 +74,7 @@ export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, delive
       </article> }
     }
   </section>
-`, styles: `.fingerprint { overflow-wrap: anywhere; } .document { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .context { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .25rem .75rem; margin-block: .75rem; } .context dt { font-weight: 600; } .context dd { min-width: 0; margin: 0; overflow-wrap: anywhere; } textarea { width: 100%; min-height: 6rem; }` })
+`, styles: `.fingerprint { overflow-wrap: anywhere; } .document { padding-block: 1rem; border-bottom: 1px solid var(--mat-sys-outline-variant); } .context { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.3fr); gap: .25rem .75rem; margin-block: .75rem; } .context dt { min-width: 0; font-weight: 600; overflow-wrap: anywhere; } .context dd { min-width: 0; margin: 0; overflow-wrap: anywhere; } .signed-scan { margin-block: .75rem; padding: .75rem; border-inline-start: 3px solid var(--mat-sys-outline-variant); } .scan-note { font-size: .875rem; } textarea { width: 100%; min-height: 6rem; }` })
 export class PortalDocuments {
   private readonly api = inject(Api); private readonly session = inject(SessionService); private readonly fb = inject(FormBuilder);
   readonly utcTime = clientUtcTime;
@@ -73,6 +88,9 @@ export class PortalDocuments {
   bundleDownloadLabel(bundle: ReturnType<typeof sharedDocuments>['bundles'][number]): string {
     const context = bundle.context;
     return `Download five-part final bundle for client ${context.clientLegalName || 'not recorded'}; service ${context.serviceRoute || 'not recorded'}; period start ${context.periodStart || 'not recorded'}; period end ${context.periodEnd || 'not recorded'}; current bundle ${bundle.id}; assembled ${this.utcTime(bundle.assembledAt)}`;
+  }
+  scanDownloadLabel(scan: SignedScan, context: PortalDocumentContext): string {
+    return `Download Management-signed PDF scan for client ${context.clientLegalName || 'not recorded'}; management signatory ${scan.managementSignatory}; source letter version ${scan.version}; uploaded ${this.utcTime(scan.uploadedAt)}; scan ${scan.id}`;
   }
   /** This editor visit ended (the portal shell closed or the page left); late command callbacks must not touch it. */
   private destroyed = false;

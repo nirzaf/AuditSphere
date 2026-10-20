@@ -58,10 +58,12 @@ describe('Client portal workspace paging', () => {
     const summary = (requests: ReturnType<typeof requestRows>, more: boolean) => ({ ...portal(requests, more), packages: [] });
     const settle = () => { TestBed.tick(); fixture.detectChanges(); };
     const reviewId = id(501), letterReviewId = id(502), commentId = id(503);
+    const context = { clientLegalName: 'Synthetic Portal Client', serviceRoute: 'FinancialStatementAudit',
+      periodStart: '2026-01-01', periodEnd: '2026-12-31' };
     const shared = { documents: [
-      { reviewId, deliverableId: id(511), kind: 'AUDIT_REPORT', title: 'Audited financial statements', version: '3', sha256: 'a'.repeat(64), acknowledgedAt: null, comments: [] },
+      { reviewId, deliverableId: id(511), kind: 'AUDIT_REPORT', title: 'Audited financial statements', version: '3', sha256: 'a'.repeat(64), acknowledgedAt: null, comments: [], context },
       { reviewId: letterReviewId, deliverableId: id(512), kind: 'REPRESENTATION_LETTER', title: 'Representation letter', version: '2', sha256: 'b'.repeat(64),
-        acknowledgedAt: '2026-10-15T10:00:00Z', comments: [] },
+        acknowledgedAt: '2026-10-15T10:00:00Z', comments: [], context },
     ], signedLetters: [], bundles: [] };
     http.expectOne('/api/ui/portal?page=0&pageSize=10').flush(summary(requestRows(10), true)); settle();
     http.expectOne('/api/ui/portal/branding').flush(branding);
@@ -71,6 +73,8 @@ describe('Client portal workspace paging', () => {
     settle();
     const editor = () => fixture.debugElement.query(By.directive(PortalDocuments))?.componentInstance as PortalDocuments | undefined;
     const original = editor()!;
+    expect(root.textContent).toContain(context.clientLegalName);
+    expect(root.textContent).toContain(context.periodEnd);
     const button = (text: string) => Array.from(root.querySelectorAll('button')).find((b) => b.textContent?.trim() === text)!;
     const pollSummary = async (url: string, value: ReturnType<typeof summary>) => {
       await vi.advanceTimersByTimeAsync(30_000); fixture.detectChanges();
