@@ -23,10 +23,37 @@ namespace AuditSphereOps.Api.Tests;
 public sealed class PracticeTimeStartMinuteApiTests
 {
   private const string EntriesPath = "/api/ui/practice/time/entries";
+  private const string TasksPath = "/api/ui/practice/time/tasks";
   private const string WorkspacePath = "/api/ui/practice/time";
   private const string WorkDate = "2026-10-15";
   private const string IntervalMessage = "Time must fit within one bounded 24-hour work date.";
   private const string OverlapMessage = "The time entry overlaps another active entry.";
+
+  [Fact]
+  public async Task TaskPhaseIsForwardedWhenSelectedAndOmittedPhaseRemainsUnassigned()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TIME-TASK-PHASE");
+    var f = await PbcSeed.SeedAsync(pg);
+    using var factory = Factory(pg, f.Admin);
+    using var admin = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(admin);
+
+    var selected = await CreatedTaskAsync(admin, csrf, new
+    {
+      title = "Synthetic phase-tagged practice task",
+      engagementId = f.EngagementId,
+      phase = BudgetPhases.Fieldwork
+    });
+    var omitted = await CreatedTaskAsync(admin, csrf, new
+    {
+      title = "Synthetic unassigned practice task",
+      engagementId = f.EngagementId
+    });
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(BudgetPhases.Fieldwork, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == selected)).Phase);
+    Assert.Equal(BudgetPhases.Unassigned, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == omitted)).Phase);
+  }
 
   [Fact]
   public async Task StartMinuteIsForwardedValidatedPersistedAndReturnedWithoutFalseOverlap()
@@ -292,6 +319,16 @@ public sealed class PracticeTimeStartMinuteApiTests
   private static async Task<Guid> CreatedAsync(HttpClient c, string csrf, object body)
   {
     using var response = await Post(c, csrf, EntriesPath, body);
+    var text = await response.Content.ReadAsStringAsync();
+    Assert.True(response.StatusCode == HttpStatusCode.OK, text);
+    using var doc = JsonDocument.Parse(text);
+    Assert.Equal(["value"], doc.RootElement.EnumerateObject().Select(x => x.Name));
+    return doc.RootElement.GetProperty("value").GetGuid();
+  }
+
+  private static async Task<Guid> CreatedTaskAsync(HttpClient c, string csrf, object body)
+  {
+    using var response = await Post(c, csrf, TasksPath, body);
     var text = await response.Content.ReadAsStringAsync();
     Assert.True(response.StatusCode == HttpStatusCode.OK, text);
     using var doc = JsonDocument.Parse(text);

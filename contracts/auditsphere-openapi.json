@@ -144909,6 +144909,12 @@
               "null",
               "string"
             ]
+          },
+          "phase": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       }

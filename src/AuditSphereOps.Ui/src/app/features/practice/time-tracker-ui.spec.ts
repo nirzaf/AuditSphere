@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { decode } from '../../core/decode';
 import { SessionService } from '../../core/session';
-import { decodeTime, PracticeTime } from './time';
+import { decodeTime, PracticeTime, supportedBudgetPhases } from './time';
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const taskId = '22222222-2222-4222-8222-222222222222';
@@ -34,6 +34,37 @@ function open(initialWorkspace: object = workspace) {
 }
 
 describe('foreground practice time tracker integration', () => {
+  it('offers only assignable budget phases and forwards optional selections without requiring FSLI mapping', async () => {
+    const { fixture, component, http } = open();
+    try {
+      await fixture.whenStable();
+      expect(supportedBudgetPhases.map(phase => phase.value)).toEqual(['PLANNING', 'FIELDWORK', 'COMPLETION', 'REPORTING']);
+      const phaseSelect = fixture.nativeElement.querySelector('select[name="phase"]') as HTMLSelectElement;
+      expect(Array.from(phaseSelect.options).map(option => option.value)).toEqual(['', 'PLANNING', 'FIELDWORK', 'COMPLETION', 'REPORTING']);
+      phaseSelect.value = 'FIELDWORK';
+      phaseSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      await fixture.whenStable();
+      expect(component.task.phase).toBe('FIELDWORK');
+
+      component.task.title = 'Firm-wide fieldwork support';
+      const creating = component.createTask();
+      const selectedPost = http.expectOne('/api/ui/practice/time/tasks');
+      expect(selectedPost.request.body).toMatchObject({ title: 'Firm-wide fieldwork support', phase: 'FIELDWORK', engagementId: null,
+        mappingVersionId: null, fsliCode: null });
+      selectedPost.flush({ value: entryId });
+      await creating;
+      http.expectOne('/api/ui/practice/time').flush(workspace);
+
+      component.task.title = 'Firm-wide unassigned support';
+      const creatingWithoutPhase = component.createTask();
+      const unassignedPost = http.expectOne('/api/ui/practice/time/tasks');
+      expect(unassignedPost.request.body).not.toHaveProperty('phase');
+      unassignedPost.flush({ value: entryId });
+      await creatingWithoutPhase;
+      http.expectOne('/api/ui/practice/time').flush(workspace);
+    } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
+  });
+
   it('defaults an absent legacy start minute to 09:00 and sends midnight explicitly as zero', async () => {
     const oldEntry = {
       id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,

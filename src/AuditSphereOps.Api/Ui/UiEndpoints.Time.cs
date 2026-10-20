@@ -7,7 +7,7 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record WorkTaskInput(string Title, Guid? ReportingPeriodId, string? DueDate,
-    Guid? EngagementId = null, Guid? MappingVersionId = null, string? FsliCode = null);
+    Guid? EngagementId = null, Guid? MappingVersionId = null, string? FsliCode = null, string? Phase = null);
   public sealed record TimeDraftInput(Guid TaskId, string WorkDate, int DurationMinutes, string Role, string Activity, bool Billable, string? Narrative,
     int? StartMinute = null);
   public sealed record TimeReturnInput(string Reason);
@@ -44,6 +44,7 @@ public static partial class UiEndpoints
           EngagementId: engagement?.Id,
           ReportingPeriodId: period?.Id,
           DueDate: due,
+          Phase: input.Phase,
           MappingVersionId: engagement?.MappingVersionId is not null && input.MappingVersionId is not null ? input.MappingVersionId : null,
           FsliCode: input.MappingVersionId is not null ? input.FsliCode : null), ct);
       });

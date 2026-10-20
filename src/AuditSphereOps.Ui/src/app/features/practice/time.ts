@@ -12,6 +12,16 @@ import { NavigationProtected } from '../../core/unsaved-changes';
 import { SHARED } from '../../core/ui';
 import { applyTracker, draftSegments, emptyTracker, TrackerDraft, TrackerState } from './time-tracker';
 
+export const supportedBudgetPhases = [
+  { value: 'PLANNING', label: 'Planning' },
+  { value: 'FIELDWORK', label: 'Fieldwork' },
+  { value: 'COMPLETION', label: 'Completion' },
+  { value: 'REPORTING', label: 'Reporting' },
+] as const;
+type SupportedBudgetPhase = typeof supportedBudgetPhases[number]['value'];
+const isSupportedBudgetPhase = (value: unknown): value is SupportedBudgetPhase =>
+  supportedBudgetPhases.some(phase => phase.value === value);
+
 const entryShape = obj({ id: guid, workDate: date, taskId: guid, taskTitle: text, userId: guid, durationMinutes: nat, startMinute: nat, activity: text,
   billableClassification: text, narrative: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)),
   lastReturnReason: nullable(str(2000)) });
@@ -36,7 +46,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
       <p role="status">{{ v.openTasks.length }} open tasks in scope · {{ v.myEntries.length }} of my time entries shown{{ v.isApprover ? ' · ' + v.awaitingApproval.length + ' awaiting my review' : '' }}</p>
       <section class="panel" aria-labelledby="task-heading">
         <h2 id="task-heading">Create work task</h2>
-        <p>Scope a task to an authorized client period or engagement. Engagement tasks can optionally pin a destination from the current approved FSLI mapping; the exact mapping and code are copied to time entries. Due dates are never inferred.</p>
+        <p>Scope a task to an authorized client period or engagement. Budget phase is optional. Engagement tasks can also optionally pin a destination from the current approved FSLI mapping; the exact mapping and code are copied to time entries. Due dates are never inferred.</p>
         <form class="inline-form" (submit)="$event.preventDefault(); createTask()">
           <label>Task title <input name="title" [(ngModel)]="task.title" (ngModelChange)="touchTask()" required maxlength="200" autocomplete="off" /></label>
           <label>Reporting period (optional) <select name="period" [(ngModel)]="task.period" (ngModelChange)="touchTask()">
@@ -45,6 +55,10 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
           <label>Engagement (optional) <select name="engagement" [(ngModel)]="task.engagement" (ngModelChange)="engagementChanged()">
             <option value="">No engagement link</option>
             @for (e of v.engagements; track e.id) { <option [value]="e.id">{{ e.label }}</option> }</select></label>
+          <label>Budget phase (optional) <select name="phase" [(ngModel)]="task.phase" (ngModelChange)="touchTask()">
+            <option value="">No phase (UNASSIGNED)</option>
+            @for (phase of budgetPhases; track phase.value) { <option [value]="phase.value">{{ phase.label }}</option> }
+          </select></label>
           @if (selectedEngagement(); as engagement) {
             <label>FSLI mapping (optional) <select name="fsli" [(ngModel)]="task.fsli" (ngModelChange)="touchTask()">
               <option value="">No FSLI attribution</option>
@@ -164,7 +178,8 @@ export class PracticeTime implements NavigationProtected {
   private readonly dialog = inject(MatDialog);
   readonly view = this.api.resource(() => '/api/ui/practice/time', decodeTime, 'Sign in with an authorized internal staff identity to view and record time.');
   readonly cmd = new CommandState(this.api);
-  task = { title: '', period: '', engagement: '', fsli: '', due: '' };
+  readonly budgetPhases = supportedBudgetPhases;
+  task = { title: '', period: '', engagement: '', phase: '', fsli: '', due: '' };
   draft = { task: '', date: new Date().toISOString().slice(0, 10), startTime: '09:00', minutes: 60, role: 'Staff', activity: 'Fieldwork', billable: true, narrative: '' };
   readonly tracker = signal<TrackerState>(emptyTracker());
   readonly trackerTask = signal('');
@@ -184,9 +199,11 @@ export class PracticeTime implements NavigationProtected {
   private static validTask(value: unknown): PracticeTime['task'] | null {
     if (!value || typeof value !== 'object') return null;
     const v = value as Record<string, unknown>;
+    const phase = v['phase'] ?? '';
     return typeof v['title'] === 'string' && v['title'].length <= 200 && typeof v['period'] === 'string' &&
-      typeof v['engagement'] === 'string' && typeof v['fsli'] === 'string' && typeof v['due'] === 'string'
-      ? { title: v['title'], period: v['period'], engagement: v['engagement'], fsli: v['fsli'], due: v['due'] } : null;
+      typeof v['engagement'] === 'string' && (phase === '' || isSupportedBudgetPhase(phase)) &&
+      typeof v['fsli'] === 'string' && typeof v['due'] === 'string'
+      ? { title: v['title'], period: v['period'], engagement: v['engagement'], phase, fsli: v['fsli'], due: v['due'] } : null;
   }
   private static validDraft(value: unknown): PracticeTime['draft'] | null {
     if (!value || typeof value !== 'object') return null;
@@ -239,12 +256,13 @@ export class PracticeTime implements NavigationProtected {
   }
 
   private reload = () => this.view.reload();
-  createTask(): void {
+  createTask(): Promise<boolean> {
     const engagement = this.selectedEngagement();
-    this.cmd.run('/api/ui/practice/time/tasks', { title: this.task.title, reportingPeriodId: this.task.period || null,
+    return this.cmd.run('/api/ui/practice/time/tasks', { title: this.task.title, reportingPeriodId: this.task.period || null,
       dueDate: this.task.due || null, engagementId: engagement?.id ?? null,
-      mappingVersionId: this.task.fsli ? engagement?.mappingVersionId ?? null : null, fsliCode: this.task.fsli || null },
-      'Work task created.', () => { this.task = { title: '', period: '', engagement: '', fsli: '', due: '' }; this.drafts.clear('practice-task'); }).finally(this.reload);
+      mappingVersionId: this.task.fsli ? engagement?.mappingVersionId ?? null : null, fsliCode: this.task.fsli || null,
+      ...(this.task.phase ? { phase: this.task.phase } : {}) },
+      'Work task created.', () => { this.task = { title: '', period: '', engagement: '', phase: '', fsli: '', due: '' }; this.drafts.clear('practice-task'); }).finally(this.reload);
   }
   async saveDraft(): Promise<void> {
     if (this.cmd.busy() || this.cmd.uncertain()) return;
