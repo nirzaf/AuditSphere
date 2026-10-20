@@ -1114,19 +1114,9 @@
       "limits": "No full suites locally; current-source full release, all accounting writers outside this reconciliation family, professional policy and live acceptance remain open."
     },
     "deadlineExactTask20261019": {
-      "codeCommit": "2a0bbc7aab4a43da84b43101a1a9d83f7e7868fe",
-      "result": "FOCUSED_PASS",
-      "behavior": "TASK_DUE links bind engagement/task IDs. My work loads the exact authorized task without widening the queue view; invalid/mismatched contexts clear evidence. Actions require a server queue row with matching current revision/status. Mutations/recovery refresh selected evidence.",
-      "verification": {
-        "api": "Passed 1, failed 0, skipped 0; scoped exact source links, no writes and session revocation. /tmp/auditsphere-deadline-task-results/deadline-exact-task-api.trx",
-        "angular": "Affected specs pass 36/36 after repairing an old-context fixture href, extra recovery reloads and chip-case expectation; original scope/cancellation/assignment assertions retained.",
-        "browser": "Passed 1, failed 0, skipped 0: native Enter follows unassigned overdue task absent from MY_TASKS; real exact-task API identity, read-only behavior and 390px reflow. Missing System.Text.Json import repaired before execution. /tmp/auditsphere-deadline-task-results/deadline-exact-task-browser.trx",
-        "builtIn": "Owned desktop fixture: exact unassigned task visible with My tasks empty; native Tab works; no warnings/errors. /tmp/auditsphere-deadline-exact-task-built-in-20261019.png. Tab/handoff cleaned.",
-        "build": "Angular production build passes with existing commercial SCSS/optional-chain warnings; Application/API pass.",
-        "review": "Cicero reviewed route/context/error/refresh behavior; Mill extended API and real browser evidence."
-      },
-      "ci": "Fast 39276998678 passed f36a74db; later source CI queued. Full 39266247908 remains active on older 5b907e34, not current acceptance.",
-      "limits": "No full local suites; human assistive-technology, broader workflow roles and current-source full release remain unverified."
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.quotationTimelineHistory20261020.deadlineExactTask20261019",
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "remaining": "Broader role and release acceptance remain open."
     },
     "workflowReminderRules20261020": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
@@ -1186,6 +1176,13 @@
       "sourceCommit": "c0174b843d79f2014b5fb4a551608cbd2c24f33a",
       "result": "FOCUSED_PASS",
       "scope": "Owned Test API WorkflowExperience=false; /ui/app/work My tasks, Team and review inbox HTTP403; no task rows/actions or console errors; no writes. Accessibility fixture 1/1. Live configuration and other switches unverified."
+    },
+    "quotationTimeline20261020": {
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "scope": "New brief quotations require an offered execution timeline; drafts may omit it; existing immutable quotation replay is preserved. Pair preflight prevents letter creation before timeline refusal.",
+      "checks": "Domain 3/3; Angular documents 5/5; focused commercial E2E 1/1; builds/lint/OpenAPI passed. Built-in browser: disabled generate after assent, 390x844 no overflow, no console errors.",
+      "pending": "Current-source full CI; no deployment. Independent code review found no actionable issues.",
+      "sourceCommit": "632593003540c0668d5ef21be3f29cc81414f7ea"
     }
   },
   "externalGates": [

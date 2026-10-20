@@ -323,3 +323,7 @@ Implementation is pushed at `a7df1799`; focused and mobile evidence is retained 
 ## Template evidence prerequisites — 2026-10-20
 
 Reusable templates now declare materiality, exact PBC and exact procedure prerequisites. Plans bind authorized engagement sources, retain immutable origin and recover receipts without duplicate tasks. Task completion still cannot approve professional evidence. Focused PostgreSQL, Angular and browser evidence, repaired HTTP/activity issues and release limits are tracked under `templateEvidencePrerequisites20261020` in [status.json](status.json). The [operator guide](../operations/auditsphere-operations-guide-workflow-template-evidence-current.md) describes configuration and recovery. Broad supported-state, human AT and full current-source release acceptance remain open.
+
+## Brief quotation timeline — 2026-10-20
+
+New brief quotations require a timeline; drafts and historical recovery remain supported. Source `63259300`: Domain 3/3, Angular 5/5, commercial E2E 1/1, built-in 390px check and code review passed. Full CI is pending; no deployment. Evidence: `quotationTimeline20261020` in [status.json](status.json).
