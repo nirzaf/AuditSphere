@@ -1337,7 +1337,7 @@
         "ranOn": "e1fcf453"
       }
     },
-    "latestAttempt": "Full 393951/6bce pending; Angular 1487, Domain1457/build pass. E2E393594:325/325, six a11y passed.",
+    "latestAttempt": "394029/e182 FAST PASS; release 393951/6bce API/E2E pending (Angular/Domain/build PASS); browser 320px, skip, nav keyboard PASS; human AT pending.",
     "notes": "Historical suite details are in runs; no live-provider acceptance.",
     "migrationHead": "20261018072145_StaffAllocationPhaseRiskArea"
   },
