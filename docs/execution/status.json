@@ -1197,10 +1197,11 @@
     },
     "workflowReminderScheduleBound20261020": {
       "status": "FOCUSED_PASS",
-      "source": "uncommitted worktree after 34236556",
+      "source": "a7df1799e1f063fcc6219d32fc2d8be09cf24df9",
       "checks": "Release solution build; 3 changed Domain cases; 4 Angular specs; EF/OpenAPI drift; component lint; owned accessibility E2E 1/1; built-in browser draft validation/save/readback",
       "pending": "Responsive inspection, current-source full CI; human AT; no deployment",
-      "guide": "docs/operations/auditsphere-operations-guide-workflow-reminders-current.md"
+      "guide": "docs/operations/auditsphere-operations-guide-workflow-reminders-current.md",
+      "fullCiRun": 39475043022
     }
   },
   "externalGates": [
