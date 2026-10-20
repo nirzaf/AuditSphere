@@ -113,12 +113,25 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
     await TemplateGate.WaitAsync();
     try
     {
-      await using var admin = new NpgsqlConnection(adminConnectionString);
+      // PostgreSQL advisory locks are scoped to the current database. Always use the canonical
+      // administration database so callers connected through auditsphere_tests share the same
+      // cross-process template lock as callers already connected through postgres.
+      var adminBuilder = new NpgsqlConnectionStringBuilder(adminConnectionString)
+      {
+        Database = "postgres",
+        Pooling = false
+      };
+      await using var admin = new NpgsqlConnection(adminBuilder.ConnectionString);
       await admin.OpenAsync();
       if (admin.PostgreSqlVersion.Major != 18)
         throw new InvalidOperationException("Database tests require PostgreSQL 18.");
 
-      await ExecuteOnAsync(admin, "SELECT pg_advisory_lock(hashtext('auditsphere_tpl'))");
+      await using (var acquireLock = new NpgsqlCommand(
+        "SELECT pg_advisory_lock(hashtext('auditsphere_tpl'))", admin)
+      {
+        CommandTimeout = 120
+      })
+        await acquireLock.ExecuteNonQueryAsync();
       try
       {
         if (await ScalarOnAsync(admin, $"SELECT 1 FROM pg_database WHERE datname = '{template}'") is null)
