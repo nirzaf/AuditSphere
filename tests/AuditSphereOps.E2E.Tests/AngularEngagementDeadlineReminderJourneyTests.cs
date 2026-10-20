@@ -96,25 +96,27 @@ public sealed class AngularEngagementDeadlineReminderJourneyTests
       new() { Name = "Open task", Exact = true });
     await Assertions.Expect(sourceLink).ToHaveAttributeAsync("href", selectedTaskPath);
     var exactTaskEndpoint = $"/api/ui/engagements/{f.EngagementId:D}/workflow/tasks?taskId={overdueTaskId:D}";
-    var exactTaskResponseTask = page.WaitForResponseAsync(response =>
-      response.Request.Method == "GET" && response.Url.EndsWith(exactTaskEndpoint, StringComparison.Ordinal));
-    var (myTasksStatus, myTasksBody) = await PlaywrightResponseCapture.RunAsync(page,
-      request => request.Method == "GET" && request.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
-        request.Url.Contains("view=MY_TASKS", StringComparison.Ordinal),
+    var capturedResponses = await PlaywrightResponseCapture.RunMultipleAsync(page,
+      [
+        request => request.Method == "GET" && request.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
+          request.Url.Contains("view=MY_TASKS", StringComparison.Ordinal),
+        request => request.Method == "GET" && request.Url.EndsWith(exactTaskEndpoint, StringComparison.Ordinal)
+      ],
       async () =>
       {
         await sourceLink.FocusAsync();
         await Assertions.Expect(sourceLink).ToBeFocusedAsync();
         await sourceLink.PressAsync("Enter");
       });
+    var (myTasksStatus, myTasksBody) = capturedResponses[0];
     Assert.InRange(myTasksStatus, 200, 299);
     using (var myTasks = JsonDocument.Parse(myTasksBody))
       Assert.DoesNotContain(myTasks.RootElement.GetProperty("tasks").EnumerateArray(), row =>
         row.GetProperty("taskId").GetGuid() == overdueTaskId);
 
-    var exactTaskResponse = await exactTaskResponseTask;
-    Assert.InRange(exactTaskResponse.Status, 200, 299);
-    using (var exactTask = JsonDocument.Parse(await exactTaskResponse.TextAsync()))
+    var (exactTaskStatus, exactTaskBody) = capturedResponses[1];
+    Assert.InRange(exactTaskStatus, 200, 299);
+    using (var exactTask = JsonDocument.Parse(exactTaskBody))
     {
       Assert.Equal(f.EngagementId, exactTask.RootElement.GetProperty("engagementId").GetGuid());
       var selected = Assert.Single(exactTask.RootElement.GetProperty("tasks").EnumerateArray());
