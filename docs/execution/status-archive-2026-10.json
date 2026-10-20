@@ -18917,6 +18917,22 @@
           "checks": "API2/2: all categories, paging, exact revisions, sibling denial, late revocation. Angular16/16; E2E1/1 after selector fix; Angular build/lint and OpenAPI drift passed. Built-in mobile390px: selector/table agree, no overflow or console warnings/errors, exact GL acceptance link.",
           "limits": "ASPM-ACC-05 PARTIAL. Bank/AR/AP work packs and approved monthly handover absent; full source/proof association matrix, human AT and current-source full CI pending. No deployment/provider actions.",
           "screenshot": "/tmp/auditsphere-period-evidence-mobile-20261021.png"
+        },
+        "portalDocumentContext20261021": {
+          "sourceCommit": "fc189137",
+          "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "checks": "API3/3: exact client/context privacy, late grant revocation403 and changed context409. Domain2/2:21 actual signed PDF uploads retained, staff latest20 preserved,101 overflow refused,11 actual bundles preserve context/bytes/hash/receipt/scope. Angular8/8 after updating the expected contextual download label; production build passed with existing warnings. Production TS lint and OpenAPI drift passed. Release solution build0warnings/0errors. E2E1/1: released bundle context equals DB, ZIP hash/time/receipt/signing refusal preserved.",
+          "browser": "Owned synthetic client fixture390x844:375px document width, context/UTC/time/hash visible,0 unnamed controls and0 console warnings/errors; no receipt clicked.",
+          "limits": "CLIENT-04 PARTIAL: full client-public chronology/actor-time proof, human screen-reader review, full current-source CI and live/professional acceptance remain open. No schema/config/provider/deployment actions.",
+          "screenshot": "/tmp/auditsphere-portal-context-mobile-20261021.png"
+        },
+        "portalScanPresentation20261021": {
+          "sourceCommit": "02e34f85",
+          "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "checks": "Angular documents/home16/16;21 scans retain distinct names/hash/time/source-version and independent source/verification states. Production Angular build/lint and rebuilt E2E project passed. E2E1/1 after fixing real390px grid overflow: metadata/upload time and downloaded PDF hash equal DB; bundle receipt/signing guards preserved. CI39507160230 failed the home fixture missing context; corrected without dropping draft/file/polling assertions.",
+          "pending": "New fast CI and full current-source CI remain pending; complete public chronology/actor-time proof, qualified human AT and professional/live acceptance remain open. No provider/deployment/config changes.",
+          "screenshot": "/tmp/auditsphere-scan-history-mobile-20261021.png",
+          "browser": "Owned synthetic client390/320px:375/305px document width, retained metadata and separate verification record visible,0 console warnings/errors. No receipt or business command clicked."
         }
       }
     },

@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## PBC request snapshots and terminal delegation management
+
+Request detail and history now read one consistent snapshot, then recheck the current client session, participation, request metadata and capability inputs before returning content. Lost scope is refused; changed requests or capabilities require refresh without a partial payload. A primary owner can still inspect and revoke existing delegations after request acceptance/closure; creation remains forbidden. The separate management flag preserves that authorized recovery path without exposing new candidates.
+
+Conversation paging keeps its existing chronological order and now uses the matching forward label. Conversation and upload-intent times show UTC with retained semantic timestamps; intent creation is not provider completion. Focused cases first reproduced stale success responses, then verified the fences, closed-request revocation and normal client journey. Results and exact source are under `pbcRequestReadSnapshot20261021` in [status.json](status.json). Full public chronology, whole-state/qualified human AT, current-source full release and live-provider/professional acceptance remain open.
+
 ## Signed-scan identity and portal CI fixture correction
 
 Retained scan rows now show the management-provided signatory, source-letter version, UTC upload time, hash and distinct accessible download identity. Source currentness and a separately recorded verification decision are displayed independently; upload or acknowledgement does not establish authenticity. The real client journey caught narrow-screen overflow from long labels; wrapping columns now preserve reflow. The parent portal fixture now includes the required server context while retaining its draft, file, polling and in-flight command checks. Focused results and limits are under `portalScanPresentation20261021` in [status.json](status.json). Full release, complete public chronology and qualified human AT acceptance remain open.
