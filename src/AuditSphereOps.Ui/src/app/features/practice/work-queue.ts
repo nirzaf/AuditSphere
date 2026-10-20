@@ -164,6 +164,7 @@ const queueViews: { key: QueueView; label: string }[] = [
   template: `
     <audit-page-header title="My work" eyebrow="Engagement tasks"
       description="Operational tasks across your current client and engagement grants. Task completion never replaces audit review or engagement approval." />
+    <p id="work-table-scroll-instructions" class="sr-only">When a table region is focused, use the left and right arrow keys to scroll horizontally. Home and End move to the start and end.</p>
     <p><a matButton routerLink="/app/practice/workflow-templates">Manage workflow templates</a></p>
     <section class="work-summary" aria-labelledby="work-summary-heading">
       <h2 id="work-summary-heading">Work overview</h2>
@@ -191,7 +192,7 @@ const queueViews: { key: QueueView; label: string }[] = [
       <audit-state [loading]="reviews.loading()" [error]="reviews.error()" label="review inbox" />
       @if (reviews.data(); as inbox) {
         <p role="status">{{ inbox.reviews.length }} current submission(s) awaiting review outside the task queue.</p>
-        <div class="table-scroll" role="region" aria-label="Submitted procedure reviews" tabindex="0"><table>
+        <div class="table-scroll" role="region" aria-label="Submitted procedure reviews" aria-describedby="work-table-scroll-instructions" tabindex="0" (keydown)="scrollWorkTable($event)"><table>
           <caption>Current procedure submissions awaiting independent review</caption>
           <thead><tr><th scope="col">Submitted</th><th scope="col">Client / engagement</th><th scope="col">Procedure</th><th scope="col">Prepared by</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
           <tbody>
@@ -395,7 +396,7 @@ const queueViews: { key: QueueView; label: string }[] = [
         }
       }
       @if (display() === 'LIST') {
-      <div class="table-scroll" role="region" aria-label="Operational task list" tabindex="0"><table>
+      <div class="table-scroll" role="region" aria-label="Operational task list" aria-describedby="work-table-scroll-instructions" tabindex="0" (keydown)="scrollWorkTable($event)"><table>
         <caption>{{ labelFor(result.view) }} — workflow tasks</caption>
         <thead><tr><th scope="col">Due</th><th scope="col">Client / engagement</th><th scope="col">Task</th><th scope="col">Owner</th><th scope="col">Operational status</th><th scope="col">Prerequisites</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
@@ -654,6 +655,21 @@ export class WorkflowWorkQueue {
 
   labelFor(value: string): string {
     return this.views.find(x => x.key === value)?.label ?? 'Work';
+  }
+
+  scrollWorkTable(event: KeyboardEvent): void {
+    if (event.target !== event.currentTarget || !(event.currentTarget instanceof HTMLElement)) return;
+    const region = event.currentTarget;
+    const maxScroll = region.scrollWidth - region.clientWidth;
+    if (maxScroll <= 0) return;
+    const step = Math.max(40, Math.floor(region.clientWidth * 0.8));
+    const nextScroll = event.key === 'ArrowRight' ? region.scrollLeft + step
+      : event.key === 'ArrowLeft' ? region.scrollLeft - step
+        : event.key === 'Home' ? 0
+          : event.key === 'End' ? maxScroll : null;
+    if (nextScroll === null) return;
+    event.preventDefault();
+    region.scrollLeft = Math.max(0, Math.min(maxScroll, nextScroll));
   }
 
   refreshTaskWorkspaces(): void {

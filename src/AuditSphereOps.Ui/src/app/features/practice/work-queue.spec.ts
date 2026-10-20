@@ -141,6 +141,47 @@ describe('workflow queue assignment filters', () => {
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 
+  it('keyboard-scrolls the named task tables without consuming keys from their controls', () => {
+    const { fixture, http, host } = start();
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
+        .flush({ view: 'MY_TASKS', tasks: [task], hasMore: false, nextCursor: null, summary: summary() });
+      http.expectOne('/api/ui/work/reviews?pageSize=50').flush({ reviews: [], hasMore: false, nextCursor: null });
+      TestBed.tick();
+
+      for (const label of ['Submitted procedure reviews', 'Operational task list']) {
+        const region = host.querySelector<HTMLElement>(`[role="region"][aria-label="${label}"]`)!;
+        expect(region.getAttribute('aria-describedby')).toBe('work-table-scroll-instructions');
+        Object.defineProperties(region, {
+          clientWidth: { configurable: true, value: 200 },
+          scrollWidth: { configurable: true, value: 1000 },
+        });
+        region.focus();
+        const right = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+        region.dispatchEvent(right);
+        expect(right.defaultPrevented).toBe(true);
+        expect(region.scrollLeft).toBe(160);
+
+        const end = new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true });
+        region.dispatchEvent(end);
+        expect(region.scrollLeft).toBe(800);
+        const home = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true });
+        region.dispatchEvent(home);
+        expect(region.scrollLeft).toBe(0);
+
+        if (label === 'Operational task list') {
+          const control = region.querySelector<HTMLElement>('button, a, input')!;
+          control.focus();
+          const nativeKey = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+          control.dispatchEvent(nativeKey);
+          expect(nativeKey.defaultPrevented).toBe(false);
+          expect(region.scrollLeft).toBe(0);
+        }
+      }
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
   const tasksUrl = (query: string) => `/api/ui/work/tasks?${query}`;
   const task = {
     taskId: '22222222-2222-4222-8222-222222222222', clientId: '33333333-3333-4333-8333-333333333333', clientName: 'Client A',
