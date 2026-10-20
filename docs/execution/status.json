@@ -281,7 +281,7 @@
         "browser": "Built-in browser; unauthenticated /ui/app/work redirects to /ui/ Access unavailable.",
         "renderedChecks": "320x844: document width 305px; skip target #main exists; Tab shows 3px focus outline and Enter focuses main. Text contrast ratios: skip 6.70, brand 17.06/12.02, heading 10.96, body 15.71, sign-in 6.46.",
         "limits": "No authenticated staff/client workflow or qualified human screen-reader review.",
-        "releaseVerification": "39428908800 IN_PROGRESS on this SHA; Angular full specs and build/contracts/publication pass; unfiltered Domain/API/E2E running."
+        "releaseVerification": "39428908800 IN_PROGRESS on code SHA adb1fc3; Angular/build/contracts pass; Domain 1457/1457 and API 363/363 PASS; E2E running."
       }
     },
     "workflowAnnualPeriodBinding": {
