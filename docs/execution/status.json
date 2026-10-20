@@ -1158,15 +1158,9 @@
       "remaining": "Complete client-public chronology, human AT, current-source full CI and live/professional acceptance remain open."
     },
     "workflowEvidenceSourcePicker20261021": {
-      "sourceCommit": "ae69e7be6fb5081e42990ea1db24b79fa7f77987",
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.workflowEvidenceSourcePicker20261021",
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "behavior": "Lazy paged exact-engagement PBC/procedure discovery; literal case-insensitive search; selected identity resolved outside current page/query. Recorded states are informational. RR snapshot plus final current authorization, feature-off404 and stale-context selection refusal. Manual IDs and preview/assent/completion gates retained; source changes focus Preview task plan.",
-      "checks": "API4/4:27-source paging per kind, literal wildcard search, off-page selection, foreign/sibling/client denials, invalid bounds, disabled flag and deterministic grant/session races. Existing Domain1/1 exact binding/provenance. Angular picker4/4 and plan4/4. Final E2E1/1: keyboard selects both sources, focus restoration, exact stored rules and blocked completion without professional approval. Release solution0warnings/0errors; Angular production build passed with4 existing completion optional-chain warnings and1 existing commercial style-budget warning. Modified productionTS lint, OpenAPI drift and docs checks passed.",
-      "browser": "Owned built-in browser: real read-only plan preview, request search and Space selection for both kinds; exact IDs retained, draft/planned/missing-result states preserved, fresh assent required. At390px document375px; no console warning/error. Screenshot preceded focus correction; final focused E2E proves corrected focus.",
-      "screenshot": "/tmp/auditsphere-workflow-source-picker-mobile-20261021.png",
-      "repairs": "Corrected whitespace-only test assertion, waited for search response before keyboard selection, and repaired Material button ElementRef query during focus change. No expected domain outcomes weakened.",
-      "ci": "FAST_CI_PASS run39513687155 on18aef7a08167674a957ffaa4d3a3685f581249f8 (same implementation ae69e7be). Full release39502778802 oldera74b4b8c FAILED: API migration probe after refused downgrade; not current-source acceptance.",
-      "limits": "WF-03 and whole tool remain PARTIAL: complete supported-state/browser/qualified human AT, current-source full CI, methodology and external acceptance remain open. No schema, config, deployment or provider changes; no full suites locally."
+      "ci": "39513687155 FAST_CI_PASS on18aef7a0; full current-source acceptance remains open."
     },
     "portalPbcAcceptance20261021": {
       "sourceCommit": "b7f7a107440666ccdd1d3750f4a1799c4db02e4a",
@@ -1176,6 +1170,14 @@
       "browser": "Built-in owned synthetic client: closed request retains recorded acceptance and exact fields; at320px document305px, no console warnings/errors. Screenshot/tmp/auditsphere-client-pbc-acceptance-320-20261021.png. Fixture disposed; no browser mutations or live professional/provider acceptance.",
       "limits": "CLIENT-02/04 remainPARTIAL: full public chronology/actor-time acceptance, whole-state browser/human AT, current-source full release and professional/live-provider gates remain open. No migration/config/deployment/provider permission changes; no full local suites.",
       "ci": "Fast CI39513687155 PASS on18aef7a0. Full release39502778802 oldera74b4b8c FAILED: Domain/E2E/Angular/contractsPASS; API downgrade probe reads a newer removed nullable column after refusal. Diagnosis/fix tracked separately; new-source CI not yet run."
+    },
+    "workflowEvidenceDowngradeRecovery20261021": {
+      "sourceCommit": "90a75d976df4a100390cc32316d8f825266a4c2e",
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "failure": "Full release39502778802 on a74b4b8c: API366/367, only WorkflowEvidenceApiTests.EvidenceChangesRequireCookieCsrfManagerScopeAndCurrentRevisionAndRecoverOnlyTheOwnersReceipt failed42703 (current-model read of removed nullable lineage column). Official downloaded API TRX confirms1failure; Domain/E2E/Angular/build/contracts jobsPASS.",
+      "repair": "Test only: exact retained rule identity is read against the intermediate schema after the existing refused downgrade; re-upgrade restores all latest migrations, then original whole-table Assert.Single and exact ID/firm/receipt/task/kind/source/state/reason/null-lineage assertions pass. No production guard or migration changed.",
+      "verification": "Independent focused local API1/1PASS, with Release binaries rebuilt by agent; parent captured another final1/1PASS in tests/AuditSphereOps.Api.Tests/TestResults/workflow-evidence-downgrade-recovery-20261021.trx and /tmp/auditsphere-workflow-evidence-downgrade-recovery-20261021.log. Independent review corrected an initially filtered count to preserve original whole-table invariant; diff check passed.",
+      "limits": "Historical full run remainsFAILED; current-source full regressionNOT_RUN. Fast CI does not run this complete API cohort; full suites remain CI/CD only. No full local suites, provider effects or production database operations."
     }
   },
   "externalGates": [

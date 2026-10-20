@@ -18993,6 +18993,17 @@
               }
             }
           }
+        },
+        "workflowEvidenceSourcePicker20261021": {
+          "sourceCommit": "ae69e7be6fb5081e42990ea1db24b79fa7f77987",
+          "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "behavior": "Lazy paged exact-engagement PBC/procedure discovery; literal case-insensitive search; selected identity resolved outside current page/query. Recorded states are informational. RR snapshot plus final current authorization, feature-off404 and stale-context selection refusal. Manual IDs and preview/assent/completion gates retained; source changes focus Preview task plan.",
+          "checks": "API4/4:27-source paging per kind, literal wildcard search, off-page selection, foreign/sibling/client denials, invalid bounds, disabled flag and deterministic grant/session races. Existing Domain1/1 exact binding/provenance. Angular picker4/4 and plan4/4. Final E2E1/1: keyboard selects both sources, focus restoration, exact stored rules and blocked completion without professional approval. Release solution0warnings/0errors; Angular production build passed with4 existing completion optional-chain warnings and1 existing commercial style-budget warning. Modified productionTS lint, OpenAPI drift and docs checks passed.",
+          "browser": "Owned built-in browser: real read-only plan preview, request search and Space selection for both kinds; exact IDs retained, draft/planned/missing-result states preserved, fresh assent required. At390px document375px; no console warning/error. Screenshot preceded focus correction; final focused E2E proves corrected focus.",
+          "screenshot": "/tmp/auditsphere-workflow-source-picker-mobile-20261021.png",
+          "repairs": "Corrected whitespace-only test assertion, waited for search response before keyboard selection, and repaired Material button ElementRef query during focus change. No expected domain outcomes weakened.",
+          "ci": "FAST_CI_PASS run39513687155 on18aef7a08167674a957ffaa4d3a3685f581249f8 (same implementation ae69e7be). Full release39502778802 oldera74b4b8c FAILED: API migration probe after refused downgrade; not current-source acceptance.",
+          "limits": "WF-03 and whole tool remain PARTIAL: complete supported-state/browser/qualified human AT, current-source full CI, methodology and external acceptance remain open. No schema, config, deployment or provider changes; no full suites locally."
         }
       }
     },

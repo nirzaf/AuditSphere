@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Workflow evidence downgrade-test recovery
+
+The historical full release failed in one API migration probe after later compatible down-migrations removed a nullable lineage column and an older retained-evidence guard correctly refused further rollback. The test now reads the retained identity in that intermediate schema, restores the latest migrations, then checks the original whole-table single-record invariant and retained fields. Production migrations, refusal guards and authorization assertions are unchanged. Exact source, focused results and historical release outcome are in `workflowEvidenceDowngradeRecovery20261021` in [status.json](status.json); this is not a current full regression pass.
+
+The next identified portal correction is to distinguish upload availability from reply availability using the existing command gates. Detail currently shares one flag; review/clarification states permit replies but not a new upload, while the home action filter omits the upload-eligible resubmitted state. Preserve the commands and their final checks; do not invent new state transitions or professional decisions.
+
 ## Retained PBC reviewer acceptance in the client portal
 
 Client request detail now distinguishes a retained exact-upload acceptance receipt from the current request status. The receipt’s file identity, revisions, hash, byte count and UTC decision time survive closure; reviewer IDs and provider internals remain private. Legacy terminal statuses without that receipt do not create an acceptance event or time. The existing snapshot, participation and current-session fences still govern the read. Angular keeps retained integer strings exact and refuses malformed supplied receipt content.
