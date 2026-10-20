@@ -1164,13 +1164,9 @@
       "responsive": "390x844 built-in browser: bound input/help visible; no page overflow or console errors; owned accessibility E2E 1/1"
     },
     "templateEvidencePrerequisites20261020": {
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.templateEvidencePrerequisites20261020",
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "scope": "Versioned template evidence declarations, exact engagement source selection and pinned origin; no automatic professional approvals.",
-      "checks": "5 focused Domain cases passed (2 new, 2 legacy, 1 source-reference); Angular template 5/5, plan 4/4, evidence panel 6/6; targeted builds, lint, EF/OpenAPI and docs passed.",
-      "pending": "Full current-source CI, broad role/supported-state acceptance and human AT; no deployment or live enablement.",
-      "integrationFindings": "HTTP source-selection forwarding and activity-write failures fixed; plan E2E rerun passed. Independent code review source-reference finding fixed without changing materiality binding semantics.",
-      "sourceCommit": "d03a3ae0cc6650d1761de36a6d07003d9c20ac7a",
-      "browser": "Owned plan journey 1/1; built-in browser retained exact PBC source, blocked duplicate plan, showed pending evidence; 390x844 no overflow or console errors. E2E preceded additive evaluated-source display; final display covered by focused Domain/Angular checks."
+      "pending": "Full current-source CI, broad role/supported-state acceptance and human AT; no deployment or live enablement."
     },
     "workflowFeatureOffBrowser20261020": {
       "sourceCommit": "c0174b843d79f2014b5fb4a551608cbd2c24f33a",
@@ -1183,14 +1179,27 @@
       "pending": "Current-source full release and professional/live gates remain open."
     },
     "practiceTimePhase20261020": {
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261020.practiceTimePhase20261020",
       "status": "FOCUSED_AND_BROWSER_PASS_NOT_FULL_ACCEPTANCE",
-      "scope": "Optional supported budget phase on task creation; persisted task phase and retained entry phase projected to pickers/personal/approval views. Omitted legacy payload uses UNASSIGNED; FSLI remains optional per ADR-0013. No historical mutation.",
-      "checks": [
-        "Focused API selected/omitted tasks plus own and independent approval readback: Passed 1, Failed 0, Skipped 0",
-        "Angular time-tracker-ui.spec.ts: 8/8; build/component lint/OpenAPI drift passed",
-        "Owned accessibility E2E: Passed 1, Failed 0, Skipped 0; built-in Planning task readback;390px no overflow; console clean."
-      ],
       "pending": "Current-source full CI and broader role/human acceptance. No migration or deployment."
+    },
+    "releaseRun39475043022": {
+      "status": "FAIL",
+      "sourceCommit": "a7df1799e1f063fcc6219d32fc2d8be09cf24df9",
+      "checks": "Domain/API/Angular/build/contracts passed; E2E323/325. Two finding lost-committed cases timed out after commands/state before exact receipt lookup.",
+      "pending": "Root cause investigation; no test weakening or full local suite.",
+      "followUp": {
+        "sourceCommit": "dea3c018",
+        "checks": "Readiness synchronization guard: Angular29/29; rebuilt finding E2E9/9. Pre-fix local cohort also9/9, so CI root cause remains unproven; timeout diagnostics now retain state HTTP status. Build/lint passed.",
+        "pending": "Current-source full CI required; no full local suite."
+      }
+    },
+    "firmReportIdentity20261020": {
+      "sourceCommit": "90f1f512",
+      "status": "FOCUSED_AND_BROWSER_PASS_NOT_FULL_ACCEPTANCE",
+      "scope": "Canonical repeatable-read source identity binds both paging directions and CSV export; missing/stale identity409, no file. Calculations/auth unchanged.",
+      "checks": "Domain2/2; API1/1; Angular books3/3 and finance5/5; built-in synthetic calculate/export clean; E2E1/1; build/lint/OpenAPI pass; independent review no blocking finding.",
+      "pending": "Current-source full CI; broader accounting/FX decisions remain open. No migration/deployment."
     }
   },
   "externalGates": [

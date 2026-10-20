@@ -299,11 +299,6 @@ Matching counterparties can now be discovered through bounded pages and search. 
 
 Components and readiness now have independent bounded pages and complete counts. Exact component correction remains available when the selected component is outside the displayed page. The focused browser check loaded the current contract and retained evidence using the synthetic local database with external effects disabled. This does not establish multi-page browser or full workflow acceptance. Current verification evidence and remaining gates are in `status.json` under `apiAngularParity.localVerification.pagingSlice`. Continue the original parity specification; do not equate this slice with completion of all tasks.
 
-## Documentation reconciliation — initial delivery (historical)
-
-The initial documentation slice was delivered through PR #46, and the companion API/Angular integration through PR #47; both are merged to `master`. This paragraph records delivery history only. Current dispositions, evidence and open gates are in the [reconciliation report](auditsphere-execution-report-documentation-reconciliation-current.md) and [`status.json`](status.json). D1-DRAFT-01 remains an unapproved review packet; qualified T003/G16/EOS and external acceptance requirements remain open.
-
-
 ## API and Angular bidirectional parity — active implementation
 
 The [parity implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md) covers the attached API/Angular specification independently of the R2R and audit-programme task identifiers. Current source contains the authorization, decimal precision, workflow entry, recovery, supplier selection, portal refresh/history and consolidation ownership slices. Code presence is not final functional acceptance; current checks and remaining tasks are recorded under `apiAngularParity` in [status.json](status.json).
@@ -331,3 +326,7 @@ New brief quotations require a timeline; drafts and historical recovery remain s
 ## Practice time phase
 
 Optional phase capture and retained display pass focused/API/browser checks. Full acceptance remains open; see `practiceTimePhase20261020` in `status.json`.
+
+## Firm reports and finding recovery
+
+Report paging/export now binds one source identity; finding recovery waits for synchronized context. Focused and browser checks passed. Full current-source CI remains pending; see `firmReportIdentity20261020` and `releaseRun39475043022` in `status.json`.
