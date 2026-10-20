@@ -19396,38 +19396,11 @@
             }
           },
           "401": {
-            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "message": {
-                          "type": "string"
-                        }
-                      }
-                    },
-                    {
-                      "required": [
-                        "code"
-                      ],
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ClientNativeErrorHttpResponse"
                 }
               }
             }

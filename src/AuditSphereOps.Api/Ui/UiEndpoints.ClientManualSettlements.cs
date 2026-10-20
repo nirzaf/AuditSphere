@@ -62,12 +62,14 @@ public static partial class UiEndpoints
       if (!TryRequest(clientId, input, out var request)) return Failure("request.invalid");
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, actor, request, http.RequestAborted);
+      if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       if (!result.Succeeded) return Failure(result.ErrorCode);
       http.Response.Headers["X-AuditSphere-Intent-Hash"] = ClientOperationalLedgerWorkspace.SettlementIntentHash(actor, request, result.Value!.Digest);
       return Results.Ok(result.Value);
     }).Produces<ClientManualSettlementPreview>()
       .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
-      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status401Unauthorized);
 
     group.MapPost("/accounting/clients/{clientId:guid}/manual-settlements", async (Guid clientId,
       ClientManualSettlementHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf,

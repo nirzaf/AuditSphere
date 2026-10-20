@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -75,6 +76,16 @@ public sealed partial class ClientAccountingTests
       request = request with { CounterpartyId = party.Id };
       var preview = await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, maker, request);
       Assert.True(preview.Succeeded, preview.Message);
+      var journalCountBeforeSiblingAttempt = await db.ClientOperationalJournals.CountAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA);
+      var originCountBeforeSiblingAttempt = await db.ClientManualSettlementOrigins.CountAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA);
+      var siblingPreview = await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, clientBActor, request);
+      Assert.False(siblingPreview.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingPreview.ErrorCode);
+      var siblingCreate = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, clientBActor, request, preview.Value!.Digest);
+      Assert.False(siblingCreate.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingCreate.ErrorCode);
+      Assert.Equal(journalCountBeforeSiblingAttempt, await db.ClientOperationalJournals.CountAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA));
+      Assert.Equal(originCountBeforeSiblingAttempt, await db.ClientManualSettlementOrigins.CountAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA));
       var created = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, maker, request, preview.Value!.Digest);
       Assert.True(created.Succeeded, created.Message);
       var replay = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, maker, request, preview.Value.Digest);
@@ -201,6 +212,14 @@ public sealed partial class ClientAccountingTests
     var scope = await SeedAsync(pg);
     var maker = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var siblingPreparer = User(scope.FirmId, "client-b-supplier-payment-preparer");
+    await using (var grants = new AuditSphereDbContext(pg.Options))
+    {
+      grants.Users.Add(siblingPreparer);
+      grants.RoleGrants.Add(Grant(scope.FirmId, siblingPreparer, "AccountingPreparer", scope.ClientB));
+      await grants.SaveChangesAsync();
+    }
+    var siblingActor = Actor(siblingPreparer, "AccountingPreparer");
     Guid periodId, supplierId, apRoleId, chartId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -251,6 +270,16 @@ public sealed partial class ClientAccountingTests
       Assert.True(preview.Succeeded, preview.Message);
       Assert.Equal("2100", preview.Value!.ControlAccountCode);
       Assert.Equal("1000", preview.Value.CashAccountCode);
+      var journalCountBeforeSiblingAttempt = await db.ClientOperationalJournals.CountAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA);
+      var originCountBeforeSiblingAttempt = await db.ClientManualSettlementOrigins.CountAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA);
+      var siblingPreview = await ClientOperationalLedgerWorkspace.PreviewSettlementAsync(db, siblingActor, settlement);
+      Assert.False(siblingPreview.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingPreview.ErrorCode);
+      var siblingCreate = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, siblingActor, settlement, preview.Value.Digest);
+      Assert.False(siblingCreate.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, siblingCreate.ErrorCode);
+      Assert.Equal(journalCountBeforeSiblingAttempt, await db.ClientOperationalJournals.CountAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA));
+      Assert.Equal(originCountBeforeSiblingAttempt, await db.ClientManualSettlementOrigins.CountAsync(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA));
       var created = await ClientOperationalLedgerWorkspace.CreateSettlementDraftAsync(db, maker, settlement, preview.Value.Digest);
       Assert.True(created.Succeeded, created.Message);
       var journal = await ClientOperationalLedgerWorkspace.PreviewAsync(db, maker, scope.ClientA, created.Value!.JournalId);
