@@ -47,7 +47,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | PM-13 | OWNER_DECISION | DEC-02 and DEC-08; provider acceptance is BLOCKED_EXTERNAL. |
 | PM-14 | BLOCKED_EXTERNAL | Live tenant, custody and drill evidence. |
 | PM-15 | OPTIONAL | DEC-11. |
-| PM-16 | PARTIAL | No keyboard or screen-reader journey was executed. |
+| PM-16 | PARTIAL | Focused keyboard, dialog, live-region, responsive and screen-reader-proxy checks are recorded in `status.json` under `accessibilityRenderedSweep20261020`. These technical checks do not replace independent human screen-reader acceptance, which remains pending. |
 | PM-17 | OPTIONAL | DEC-11. No decision recorded. |
 
 ## Candidate gaps from the prior review

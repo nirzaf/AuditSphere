@@ -1185,15 +1185,17 @@
       "sourceCommit": "632593003540c0668d5ef21be3f29cc81414f7ea"
     },
     "practiceTimePhase20261020": {
-      "status": "FOCUSED_PASS_BROWSER_PENDING",
+      "status": "FOCUSED_AND_BROWSER_PASS_NOT_FULL_ACCEPTANCE",
       "scope": "Optional budget phase forwarded API-to-command; absent phase stays UNASSIGNED; FSLI remains optional per ADR-0013.",
       "checks": [
         "API selected/omitted phase: Passed 1, Failed 0, Skipped 0",
         "Angular time-tracker-ui.spec.ts: 7/7 after waiting for NgModel registration",
         "Angular build passed with existing diagnostics; OpenAPI drift passed; diff check passed",
-        "Independent review confirmed supported phases and unchanged authorization."
+        "Independent review confirmed supported phases and unchanged authorization.",
+        "Owned built-in browser: selected Fieldwork, created firm task without FSLI, task visible; console clean. Accessibility E2E Passed 1, Failed 0, Skipped 0."
       ],
-      "pending": "Built-in browser phase flow and current-source full CI. No migration or deployment."
+      "pending": "Full release CI39488865780 active on exact source; no deployment. Retained phase display follow-up remains.",
+      "sourceCommit": "f2fdeb72e9aedb34376f2b4d19df7342221ad215"
     }
   },
   "externalGates": [
