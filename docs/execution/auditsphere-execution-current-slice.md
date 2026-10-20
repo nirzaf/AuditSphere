@@ -19,9 +19,13 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Accessibility reflow and CI follow-up (2026-10-20)
+## Versioned reminders and accessibility CI follow-up (2026-10-20)
 
-Source commit `84365454` repairs the two response-body-after-navigation E2E failures and stabilizes deferred planning loading. The focused Playwright cohort passed 4/4 and the Angular production build succeeded. Fast CI `39336107556` passed Docs, Angular and .NET Release on `6875b7e`; the earlier 76-byte `status.json` budget failure was fixed in `724c22ea`. Exact-SHA full run `39334129733` passed Angular, build/contracts/publication and Domain; API and Playwright E2E were still running at the last check. The 2026-10-20 browser recheck used the tracked Angular source at `6875b7e` plus existing reminder-rule WIP, served on port 4301. Its API proxy pointed to an older local API on port 5029, which returned an unsupported Portfolio response; business-screen acceptance was not claimed.
+The versioned reminder catalogue now spans API, Application, Domain, persistence, Worker and Angular. Drafts are revision-fenced and digest-bound; a separate reviewer must approve before publication. The reminder-rules screen exposes the expected firm-wide authorization denial, and its accessibility sweep asserts both the visible state and HTTP 403.
+
+Focused on `1ef72d28`: reminder Domain 1/1, Angular 4/4, accessibility sweep E2E 1/1, deep E2E 3/3, response-capture E2E 1/1; build, EF and OpenAPI passed. Built-in browser shows the unauthenticated “Access unavailable” state and sign-in link; staff denial passes in E2E. Fast CI `39344753287` passed on `4bd7c2fb`; fast CI `39346062823` and full run `39346069835` are active for `1ef72d28`. No full suite ran locally.
+
+Older full run `39334129733` (`84365454`) failed: Angular, Domain and contracts/publication passed; API failed after 68 minutes without TRX/log artifacts (cause unverified); E2E passed 310/325, with 15 failures. One reminder E2E read a response body after navigation; fixed in `1ef72d28` and focused rerun passed 1/1. Other failures included 30-second UI timeouts. The superseded `4bd7c2fb` full run was cancelled; current full run continues. Human screen-reader acceptance remains `BLOCKED_EXTERNAL`; provider and live release acceptance remain separate.
 
 ## Mobile navigation accessibility follow-up (2026-10-19)
 
