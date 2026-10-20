@@ -18933,6 +18933,66 @@
           "pending": "New fast CI and full current-source CI remain pending; complete public chronology/actor-time proof, qualified human AT and professional/live acceptance remain open. No provider/deployment/config changes.",
           "screenshot": "/tmp/auditsphere-scan-history-mobile-20261021.png",
           "browser": "Owned synthetic client390/320px:375/305px document width, retained metadata and separate verification record visible,0 console warnings/errors. No receipt or business command clicked."
+        },
+        "pbcRequestReadSnapshot20261021": {
+          "sourceCommit": "c2b1813d",
+          "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "counterfactual": "Original ffd7eed1 query plus new API cases:4 failures (owner/revision changed yet200),2 existing grant refusals passed. No production data used.",
+          "checks": "Final API9/9: scope/revision/primary/window races, positive current authority and actual closed-request revokeHTTP. Domain1/1 retains history bounds/order/isolation. Angular request5/5 and contracts5/5; new revoke spec now waits for public completion before expecting refresh. E2E1/1: first sign-in, real delegation/revoke, reply/chunks/hash,31 extra projection-only history rows, keyboard paging, retained DB timestamps, closed-request revoke and later session withdrawal. Release solution0warnings/0errors; Angular build/lint and OpenAPI drift passed.",
+          "browser": "Final owned fixture390px/375px document: closed creation/reply controls absent, Space opens page2 with8 rows, UTC upload time and no console warnings/errors. Closed status is a projection fixture, not professional acceptance.",
+          "priorFastCi": "39507966683 FAST_CI_PASS on ffd7eed1; new-source CI pending. Full release39502778802 still has API/E2E running on older a74b4b8c.",
+          "limits": "CLIENT-02/04 remainPARTIAL: complete client-public chronology, whole-state browser/AT, current-source full CI and live/professional acceptance remain open. No schema/config/deployment/provider changes.",
+          "screenshot": "/tmp/auditsphere-pbc-history-mobile-20261021.png"
+        },
+        "accessibilityRenderedSweep20261020CurrentRecord": {
+          "sourceCommit": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
+          "recordedAtUtc": "2026-10-20T12:18:57Z",
+          "result": "PARTIAL_RENDERED_REVIEW",
+          "history": "status-archive-2026-10.json#keys.targetedVerification.accessibilityRenderedSweep20261020",
+          "keyboardScrollReducedMotionFollowUp": {
+            "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+            "jsonPath": "keys.targetedVerification.accessibilityFollowUps20261020.keyboardScrollReducedMotionFollowUp"
+          },
+          "notDone": [
+            "Qualified screen-reader review with AT/browser versions and meaningful-announcement observations.",
+            "Full supported-state/client-portal acceptance beyond the owned PBC upload/reply fixture.",
+            "Current-source API-backed resource-planning acceptance; the browser API was not source-pinned.",
+            "Full API and Playwright E2E release results on the current source commit."
+          ],
+          "currentSourceViewportAndKeyboardFollowUp": {
+            "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+            "jsonPath": "keys.targetedVerification.accessibilityFollowUps20261020.currentSourceViewportAndKeyboardFollowUp"
+          },
+          "targetedCurrentSourceE2eRerun": "On 6546ffb, the three classes that failed 39410131489 pass 9/9; full current-source API/E2E remains unverified.",
+          "localSolutionBuild": "dotnet build AuditSphereOps.slnx --no-restore -c Release --maxcpucount:1 passed, 0 warnings/errors on the current working tree.",
+          "documentationHealthRecovery": "39421407299 exceeded 100KB; details archived. Validators and follow-up CI pass.",
+          "currentHeadFollowUp": {
+            "sourceCommit": "adb1fc36764b53eecca51c1e223426409234ecf2",
+            "browser": "Built-in browser; unauthenticated /ui/app/work redirects to /ui/ Access unavailable.",
+            "renderedChecks": "320x844: document width 305px; skip target #main exists; Tab shows 3px focus outline and Enter focuses main. Text contrast ratios: skip 6.70, brand 17.06/12.02, heading 10.96, body 15.71, sign-in 6.46.",
+            "limits": "No authenticated staff/client workflow or qualified human screen-reader review.",
+            "releaseVerification": "39449112933 attempt 1 FAILED on 6ba8302bcfa54b86b253c3e873b2090e4f73000e: E2E 324/325 (superseded SAVE_DRAFT expected revision 2, observed 1). Domain 1457/1457, API 363/363, Angular/build/contracts and four accessibility proxies PASS. Prior focused pass did not prove callback assertions completed; correction below.",
+            "dispatchSynchronization": {
+              "sourceCommit": "67c8bbcf9ef7ebeef136cb81768e58323ad6b565",
+              "correction": "Await first route interception before database proof; unwrap value envelope and propagate callback exceptions. Earlier focused passes did not prove asynchronous receipt assertions completed. All receipt/revision/no-duplicate invariants retained.",
+              "localVerification": "LostResponseReloadRetainsExactIdentityAndRecoveryNeverBlindlyResends: all 7 theory cases PASS; Release dependencies/test project rebuilt; 2.2225 minutes test time. Full local suites NOT_RUN.",
+              "releaseVerification": "39468155496 SUCCESS on a97ce47d0c938a24b24287237f05f7f0d3bb63ab; historical full pass, not current-source verification."
+            },
+            "clientPortalBrowser": {
+              "sourceCommit": "e8dc61c031814d9046f547876a72c1febb69ce45",
+              "fixture": "Owned synthetic client PBC request after staged-upload recovery; external effects off; disposed after inspection.",
+              "checks": "Built-in browser: 390x844/320x844, document widths 375/305; main landmark 1; named controls, no duplicate IDs or console warnings/errors. Skip activates main. Keyboard opens navigation; Escape restores opener with 3px outline. Tab from reply reaches Send reply with 3px outline. Nonblank draft enables Send; clearing disables it. No reply sent; viewport reset.",
+              "test": "LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt PASS 1/1, 1.9000 minutes. Full local suites NOT_RUN.",
+              "limits": "One client state; no real screen reader, live-provider or complete client-workflow acceptance.",
+              "replyValidation": {
+                "sourceCommit": "01f19d82fb9df139c88c552d6145e10ecb990952",
+                "behavior": "Whitespace-only replies fail validation. Touched invalid reply references portal-reply-error with aria-describedby and aria-invalid=true; correction clears both and enables Send.",
+                "verification": "request.spec.ts 3/3 PASS; component lint and production build PASS (existing completion/style warnings). Upload-recovery E2E 1/1 PASS, 47.6613 seconds. Built-in browser at 390px: spaces/tab/newline keep Send disabled and expose linked error; ordinary text enables Send. No reply sent or console errors; fixture disposed. Full local suites NOT_RUN.",
+                "environmentRecovery": "Initial fixture refused unhashed development assets; production rebuild resolved it. ESLint intentionally excludes spec files; component-only lint passed.",
+                "release": "NOT_VERIFIED by ongoing full run 39468155496 on preceding source a97ce47d; full local suites NOT_RUN."
+              }
+            }
+          }
         }
       }
     },

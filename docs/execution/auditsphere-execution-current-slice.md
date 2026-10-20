@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Workflow evidence source discovery and keyboard continuity
+
+Operational plan previews now discover exact-engagement PBC and procedure references through a lazy, paged search. Current selections resolve independently of the search/page; manual identifiers remain available. Recorded status is informational, including draft requests and planned procedures. Snapshot reads end with fresh authorization; session/context changes refuse stale results. Selecting a source clears the old preview and assent and restores keyboard focus to the persistent preview action. Preview and task completion still enforce source scope and professional evidence independently.
+
+The owned browser exercised both bindings and mobile reflow without creating tasks or approving professional evidence. The focused automated journey separately created the exact operational rules and confirmed completion remained blocked. Source identity, focused results, repaired checks and CI limits are under `workflowEvidenceSourcePicker20261021` in [status.json](status.json). WF-03, whole-state accessibility, qualified human AT, current-source full release and professional/live-provider acceptance remain open. No deployment or Microsoft configuration changed.
+
 ## PBC request snapshots and terminal delegation management
 
 Request detail and history now read one consistent snapshot, then recheck the current client session, participation, request metadata and capability inputs before returning content. Lost scope is refused; changed requests or capabilities require refresh without a partial payload. A primary owner can still inspect and revoke existing delegations after request acceptance/closure; creation remains forbidden. The separate management flag preserves that authorized recovery path without exposing new candidates.
