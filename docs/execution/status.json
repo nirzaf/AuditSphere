@@ -276,7 +276,7 @@
           "The rendered-control name proxy found no buttons or form controls without ARIA naming, associated label text, visible text, placeholder or title; no duplicate DOM IDs were found.",
           "Tables exposed column headers; tables with captions exposed those captions in the accessibility tree. Review and consolidation tables without captions remain in heading-labelled regions and expose their column headers.",
           "Status and blocked/denied feedback used status or alert semantics. Finance routes were correctly denied for the current local identity; the directory-reader prerequisite remained visibly blocked.",
-          "The My Work Board and Calendar views exposed selected state and named task groups. Compact navigation changed to an expanded-state label with aria-pressed=true while navigation link names remained available; the control was restored to expanded navigation.",
+          "The My Work Board and Calendar controls exposed their selected state, and board tasks appeared in named status regions. Compact navigation changed its accessible name and aria-pressed state while navigation link names remained available; the control was restored. These view toggles were not activated by keyboard in this sweep.",
           "At the available 1280x720 viewport there was no horizontal overflow on the inspected routes. A separate 390x844 workflow-template-editor check is recorded under workflowTemplateAuthoringUi.",
           "Fresh built-in-browser console inspection reported zero errors across the inspected staff routes. No business, financial or approval records were changed."
         ],
