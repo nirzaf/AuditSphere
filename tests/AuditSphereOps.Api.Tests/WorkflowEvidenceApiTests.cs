@@ -65,7 +65,31 @@ public sealed class WorkflowEvidenceApiTests
     Assert.True(refused.MessageText.Contains("Retained workflow evidence", StringComparison.Ordinal) ||
       refused.MessageText.Contains("PermanentFileFreeze", StringComparison.Ordinal), refused.MessageText);
     Assert.Contains(migrations[index], await retained.Database.GetAppliedMigrationsAsync());
-    Assert.Single(await retained.WorkflowTaskEvidenceRules.ToListAsync());
+    // The later template-evidence migration's Down committed before this retained-history guard refused
+    // the earlier downgrade. Its nullable lineage column is therefore absent until the latest migration
+    // is reapplied; avoid projecting the current whole EF entity against that intermediate schema.
+    await using (var partial = new AuditSphereDbContext(pg.Options))
+    {
+      var retainedRuleId = await partial.Database.SqlQuery<Guid>($"""
+        SELECT id AS "Value" FROM workflow_task_evidence_rules
+        WHERE firm_id = {f.FirmId} AND id = {result.RuleRevisionId}
+        """).SingleAsync();
+      Assert.Equal(result.RuleRevisionId, retainedRuleId);
+    }
+
+    await using var restored = new AuditSphereDbContext(pg.Options);
+    await restored.Database.MigrateAsync();
+    Assert.Equal(migrations, await restored.Database.GetAppliedMigrationsAsync());
+    var retainedRule = Assert.Single(await restored.WorkflowTaskEvidenceRules.AsNoTracking().ToListAsync());
+    Assert.Equal(result.RuleRevisionId, retainedRule.Id);
+    Assert.Equal(f.FirmId, retainedRule.FirmId);
+    Assert.Equal(result.IdempotencyKey, retainedRule.IdempotencyKey);
+    Assert.Equal(result.TaskRevision, retainedRule.TaskRevision);
+    Assert.Equal(change.Kind, retainedRule.Kind);
+    Assert.Equal(Guid.Empty, retainedRule.SourceId);
+    Assert.Equal(WorkflowEvidenceRuleStates.Required, retainedRule.State);
+    Assert.Equal(change.Reason, retainedRule.Reason);
+    Assert.Null(retainedRule.WorkflowTemplateEvidenceRequirementId);
   }
 
   [Fact]
