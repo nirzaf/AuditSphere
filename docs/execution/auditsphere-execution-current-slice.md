@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Retained PBC reviewer acceptance in the client portal
+
+Client request detail now distinguishes a retained exact-upload acceptance receipt from the current request status. The receipt’s file identity, revisions, hash, byte count and UTC decision time survive closure; reviewer IDs and provider internals remain private. Legacy terminal statuses without that receipt do not create an acceptance event or time. The existing snapshot, participation and current-session fences still govern the read. Angular keeps retained integer strings exact and refuses malformed supplied receipt content.
+
+Focused database, API, Angular, real local-command browser and built-in mobile observations are under `portalPbcAcceptance20261021` in [status.json](status.json). Local provider simulation is explicitly not live tenant or qualified professional acceptance. CLIENT-02/04, complete client-public chronology, whole-state/human AT and current-source full release remain open. Earlier signed-scan and document-context handoffs are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
 ## Workflow evidence source discovery and keyboard continuity
 
 Operational plan previews now discover exact-engagement PBC and procedure references through a lazy, paged search. Current selections resolve independently of the search/page; manual identifiers remain available. Recorded status is informational, including draft requests and planned procedures. Snapshot reads end with fresh authorization; session/context changes refuse stale results. Selecting a source clears the old preview and assent and restores keyboard focus to the persistent preview action. Preview and task completion still enforce source scope and professional evidence independently.
@@ -25,16 +31,6 @@ The owned browser exercised both bindings and mobile reflow without creating tas
 Request detail and history now read one consistent snapshot, then recheck the current client session, participation, request metadata and capability inputs before returning content. Lost scope is refused; changed requests or capabilities require refresh without a partial payload. A primary owner can still inspect and revoke existing delegations after request acceptance/closure; creation remains forbidden. The separate management flag preserves that authorized recovery path without exposing new candidates.
 
 Conversation paging keeps its existing chronological order and now uses the matching forward label. Conversation and upload-intent times show UTC with retained semantic timestamps; intent creation is not provider completion. Focused cases first reproduced stale success responses, then verified the fences, closed-request revocation and normal client journey. Results and exact source are under `pbcRequestReadSnapshot20261021` in [status.json](status.json). Full public chronology, whole-state/qualified human AT, current-source full release and live-provider/professional acceptance remain open.
-
-## Signed-scan identity and portal CI fixture correction
-
-Retained scan rows now show the management-provided signatory, source-letter version, UTC upload time, hash and distinct accessible download identity. Source currentness and a separately recorded verification decision are displayed independently; upload or acknowledgement does not establish authenticity. The real client journey caught narrow-screen overflow from long labels; wrapping columns now preserve reflow. The parent portal fixture now includes the required server context while retaining its draft, file, polling and in-flight command checks. Focused results and limits are under `portalScanPresentation20261021` in [status.json](status.json). Full release, complete public chronology and qualified human AT acceptance remain open.
-
-## Client document context and retained history
-
-Shared documents and final bundles now show the exact authorized client legal name, recorded service and reporting dates. Empty historical fields are explicitly not recorded. One bounded read snapshot covers context and evidence; fresh session, grant-set and context checks run before returning it. A changed grant refuses the payload; changed context requires a refresh. The client signed-scan archive uses the existing aggregate bound and overflow refusal, while the staff latest-history limit stays unchanged. Bytes, hashes, review decisions and receipt commands are preserved.
-
-Focused checks and owned mobile-browser evidence are under `portalDocumentContext20261021` in [status.json](status.json). Earlier bundle evidence is preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Complete client-public chronology and actor/time proof, qualified human screen-reader review, full current-source CI and professional/live-provider acceptance remain open. Owner authorization does not constitute human assistive-technology review; no such sign-off was recorded.
 
 ## Recent read-only evidence views
 
