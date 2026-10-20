@@ -285,9 +285,9 @@
           "test": "LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt PASS 1/1, 1.9000 minutes. Full local suites NOT_RUN.",
           "limits": "One client state; no real screen reader, live-provider or complete client-workflow acceptance.",
           "replyValidation": {
-            "sourceCommit": "b9b51372809f8e9a993fc4b9ec220175e958b867",
-            "behavior": "Touched invalid reply references portal-reply-error with aria-describedby and aria-invalid=true; correction removes both and the error.",
-            "verification": "request.spec.ts 3/3 PASS; component lint PASS; production Angular build PASS (four existing completion NG8107 warnings and commercial style budget warning). Upload-recovery E2E 1/1 PASS, 1.2652 minutes; current production bundle inspected in built-in browser at 390px, width 375px. Error/correction attributes and Send enabled state confirmed; no reply sent, no console errors; fixture disposed.",
+            "sourceCommit": "01f19d82fb9df139c88c552d6145e10ecb990952",
+            "behavior": "Whitespace-only replies fail validation. Touched invalid reply references portal-reply-error with aria-describedby and aria-invalid=true; correction clears both and enables Send.",
+            "verification": "request.spec.ts 3/3 PASS; component lint and production build PASS (existing completion/style warnings). Upload-recovery E2E 1/1 PASS, 47.6613 seconds. Built-in browser at 390px: spaces/tab/newline keep Send disabled and expose linked error; ordinary text enables Send. No reply sent or console errors; fixture disposed. Full local suites NOT_RUN.",
             "environmentRecovery": "Initial fixture refused unhashed development assets; production rebuild resolved it. ESLint intentionally excludes spec files; component-only lint passed.",
             "release": "NOT_VERIFIED by ongoing full run 39468155496 on preceding source a97ce47d; full local suites NOT_RUN."
           }
