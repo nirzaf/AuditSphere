@@ -19,21 +19,13 @@ which the full suite was run; per-slice records carry their own evidence.
 > the host and merged that removal to `master` as `e7ebe27c`; the current tree contains
 > only Angular.
 
-## Accessibility and CI follow-up (2026-10-20)
-
-Current source is `6bce7e77f66dc6b77f8b1ac326037a2e91d94304` on `master`. The API test database fixture now clones the fingerprinted migrated template for full-state tests; partial-migration tests retain their fresh migration path. Test-host logging is reduced to Warning by default. Focused API cohorts passed 9/9 and 6/6.
-
-Fast CI run `39394925908` passed. Exact-source full release run `39395144233` has passed Angular **1,487/1,487** (172 spec files), Domain **1,457/1,457**, and build/contracts/publication. API and Playwright E2E are still running; their results are not inferred from these completed jobs. The prior run `39380954200` on `10e37750` saw PostgreSQL `57P03` and runner exit 143; it is superseded, not counted as a pass.
-
-The built-in browser still renders `Access unavailable` at the local reminder-rules route, so authenticated workflow inspection was unavailable. The current full E2E run includes `AngularAccessibilitySweepTests`, `AngularAccessibilityDeepAcceptanceTests` and `AngularShellNavigationJourneyTests`. Earlier responsive, keyboard and native zoom observations remain in `status.json`. Qualified human screen-reader review and the complete supported-state matrix remain open; automated browser checks do not certify full accessibility.
-
 ## Versioned reminders and accessibility CI follow-up (2026-10-20)
 
-The versioned reminder catalogue now spans API, Application, Domain, persistence, Worker and Angular. Drafts are revision-fenced and digest-bound; a separate reviewer must approve before publication. The reminder-rules screen exposes the expected firm-wide authorization denial, and its accessibility sweep asserts both the visible state and HTTP 403.
+The reminder catalogue spans API, Application, Domain, persistence, Worker and Angular. Drafts are revision-fenced and digest-bound; a separate reviewer approves publication. The reminder-rules page exposes its firm-wide denial state and verifies HTTP 403.
 
-Focused on `1ef72d28`: reminder Domain 1/1, Angular 4/4, accessibility sweep E2E 1/1, deep E2E 3/3, response-capture E2E 1/1; build, EF and OpenAPI passed. Built-in browser shows the unauthenticated “Access unavailable” state and sign-in link; staff denial passes in E2E. Fast CI `39344753287` passed on `4bd7c2fb`; fast CI `39346062823` and full run `39346069835` are active for `1ef72d28`. No full suite ran locally.
+The API test database fixture now clones the fingerprinted migrated template for full-state tests; partial-migration tests retain fresh migration. Test-host default logging is Warning. Focused API cohorts passed 9/9 and 6/6. Fast CI [39394925908](https://github.com/nirzaf/AuditSphere/actions/runs/39394925908) passed on `6bce7e77`. Full release [39395144233](https://github.com/nirzaf/AuditSphere/actions/runs/39395144233) on the same code passed Angular 1,487/1,487 (172 files), Domain 1,457/1,457, and build/contracts/publication; API and E2E are still running. The earlier run `39380954200` saw PostgreSQL `57P03` and runner exit 143 and is superseded, not counted as a pass.
 
-Older full run `39334129733` (`84365454`) failed: Angular, Domain and contracts/publication passed; API failed after 68 minutes without TRX/log artifacts (cause unverified); E2E passed 310/325, with 15 failures. One reminder E2E read a response body after navigation; fixed in `1ef72d28` and focused rerun passed 1/1. Other failures included 30-second UI timeouts. The superseded `4bd7c2fb` full run was cancelled; current full run continues. Human screen-reader acceptance remains `BLOCKED_EXTERNAL`; provider and live release acceptance remain separate.
+The built-in browser showed `Access unavailable` on the local reminder-rules route, so authenticated rendered workflow checks remain unavailable. The full E2E includes accessibility sweep, deep semantics/focus and staff/client navigation suites. Earlier keyboard, responsive and zoom observations are retained in `status.json`; qualified human screen-reader review and complete supported-state coverage remain open.
 
 ## Mobile navigation accessibility follow-up (2026-10-19)
 

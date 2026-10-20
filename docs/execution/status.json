@@ -1156,71 +1156,6 @@
       "ciRun": "Fast 39348072973 PASS; release 39348671685 running at 442e1b5a.",
       "checks": "Reminder Domain1, Angular4; access sweep1, deep E2E3; response E2E1; affected E2E17; build/EF/OpenAPI pass.",
       "limits": "No full local suites; current full CI pending; human AT and live provider remain external."
-    },
-    "accessibilityCiFollowUp20261020": {
-      "sourceCommit": "6bce7e77f66dc6b77f8b1ac326037a2e91d94304",
-      "implementationCommit": "6bce7e77f66dc6b77f8b1ac326037a2e91d94304",
-      "change": "Full-state API/E2E tests now clone the fingerprinted migrated PostgreSQL template; test-host default logging is Warning to reduce runner pressure and excessive logs.",
-      "focusedApiVerification": [
-        {
-          "cohort": "DirectoryContinuationApiTests.InvalidContinuationRefusesBeforeProviderCall",
-          "passed": 9,
-          "failed": 0,
-          "result": "PASS"
-        },
-        {
-          "cohort": "DirectoryBindingApiTests, WorkspaceProvisioningApiTests, AccountingPreparationCreationApiTests prior CI failures",
-          "passed": 6,
-          "failed": 0,
-          "result": "PASS"
-        }
-      ],
-      "fastCi": {
-        "run": "39394925908",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39394925908",
-        "sourceCommit": "6bce7e77f66dc6b77f8b1ac326037a2e91d94304",
-        "result": "PASS"
-      },
-      "fullRelease": {
-        "run": "39395144233",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39395144233",
-        "sourceCommit": "6bce7e77f66dc6b77f8b1ac326037a2e91d94304",
-        "status": "IN_PROGRESS",
-        "angular": {
-          "result": "PASS",
-          "files": 172,
-          "passed": 1487,
-          "failed": 0
-        },
-        "domain": {
-          "result": "PASS",
-          "passed": 1457,
-          "failed": 0
-        },
-        "buildContractsPublication": "PASS",
-        "api": "IN_PROGRESS",
-        "playwrightE2e": "IN_PROGRESS"
-      },
-      "supersededApiFailure": {
-        "run": "39380954200",
-        "sourceCommit": "10e3775094522a3880f75008068e45206f33bfe7",
-        "observed": "PostgreSQL 57P03 during several tests followed by runner exit 143; final diagnostics were not uploaded.",
-        "disposition": "Superseded by the template-clone fixture optimization and exact-source full run; not counted as a passing run."
-      },
-      "browser": {
-        "route": "http://127.0.0.1:50989/ui/app/practice/reminder-rules",
-        "result": "BLOCKED_AUTHENTICATION",
-        "observation": "Built-in browser rendered Access unavailable and a sign-in link; authenticated workflow could not be inspected in this session."
-      },
-      "automatedAccessibility": {
-        "result": "PENDING_FULL_E2E",
-        "includedSuites": [
-          "AngularAccessibilitySweepTests",
-          "AngularAccessibilityDeepAcceptanceTests",
-          "AngularShellNavigationJourneyTests"
-        ]
-      },
-      "humanScreenReaderReview": "BLOCKED_EXTERNAL: a qualified reviewer must record actual assistive technology and browser versions, reading order, names/roles/states, announcements and findings."
     }
   },
   "externalGates": [
@@ -1402,7 +1337,7 @@
         "ranOn": "e1fcf453"
       }
     },
-    "latestAttempt": "Run 39395144233 on 6bce7e77f66dc6b77f8b1ac326037a2e91d94304: IN_PROGRESS at 2026-10-20T09:16Z; Angular 1487/1487, Domain 1457/1457, and build/contracts/publication PASS; API and Playwright E2E are still running. Full suites run in CI only.",
+    "latestAttempt": "Run 39395144233 on 6bce7e77: Angular 1487/1487, Domain 1457/1457, build/contracts PASS; API/E2E IN_PROGRESS. Full CI only.",
     "notes": "Historical suite details are in runs; no live-provider acceptance.",
     "migrationHead": "20261018072145_StaffAllocationPhaseRiskArea"
   },
