@@ -576,14 +576,14 @@ export function isResponseChannel(value: string): boolean {
             ></textarea>
           </label>
           <label
-            >Timeline (optional)<textarea
+            >Estimated execution timeline (required for a new quotation)<textarea
               name="timeline"
               [(ngModel)]="draft.timeline"
               (ngModelChange)="reviewed = false"
               [disabled]="busy() || revisionCreatePending()"
               maxlength="4000"
             ></textarea>
-            <small>Offered to the client on the quotation. A changed timeline is a new revision and needs a fresh acceptance.</small>
+            <small>A draft may omit this; generating a new brief quotation requires it. A changed offered timeline is a new revision and needs fresh acceptance.</small>
           </label>
           <label
             >Fee<input

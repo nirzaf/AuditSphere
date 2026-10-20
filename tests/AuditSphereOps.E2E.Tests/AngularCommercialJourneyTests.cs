@@ -623,7 +623,8 @@ public sealed class AngularCommercialJourneyTests
         new(lead.Value, "FinancialStatementAudit", "Entity", "2026-01-01", "2026-12-31", 1m, "QAR"));
       Assert.True(opportunity.Succeeded, opportunity.Message);
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, actor,
-        new(opportunity.Value, "Standard", "Scope", "", "Report", "", 1m, "QAR", "2026-01-01", "2026-12-31", 0));
+        new(opportunity.Value, "Standard", "Scope", "", "Report", "", 1m, "QAR", "2026-01-01", "2026-12-31", 0,
+          Timeline: "Synthetic fieldwork in March; report by April"));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
       db.RateCardVersions.Add(new RateCardVersion

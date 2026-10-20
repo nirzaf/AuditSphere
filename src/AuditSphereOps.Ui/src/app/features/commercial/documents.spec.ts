@@ -42,6 +42,7 @@ describe('Commercial document contract', () => {
         decodeDocuments({ ...workspace, documents: [{ ...artifact, ...change }] }),
       ).toThrow();
     expect(() => decodeDocuments({ ...workspace, profileVersion: 2 })).toThrow();
+    expect(() => decodeDocuments({ ...workspace, quotationBlockers: [42] })).toThrow();
   });
   it('bounds artifact history and blocker messages', () => {
     expect(() => decodeDocuments({ ...workspace, documents: Array(101).fill(artifact) })).toThrow();
@@ -66,6 +67,23 @@ describe('Commercial document command focus recovery', () => {
     http.verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
   });
+  it('shows the server timeline blocker and refuses a new brief quotation command', () => {
+    const fixture = TestBed.createComponent(CommercialDocuments);
+    fixture.componentRef.setInput('proposalId', id);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne(workspaceUrl).flush({ ...workspace, documents: [], quotationBlockers: ['Provide an estimated execution timeline.'] });
+    fixture.detectChanges(); TestBed.tick();
+    fixture.componentInstance.reviewed = true;
+    fixture.detectChanges();
+    const button = [...fixture.nativeElement.querySelectorAll('button')].find(
+      (element) => element.textContent.trim() === 'Generate brief quotation',
+    ) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Provide an estimated execution timeline.');
+    fixture.componentInstance.generate('quotation');
+    http.expectNone(workspaceUrl + '/quotation');
+  });
+
   it('focuses tender refusal status for retry and preserves later body interaction', () => {
     const fixture = TestBed.createComponent(CommercialDocuments);
     fixture.componentRef.setInput('proposalId', id);

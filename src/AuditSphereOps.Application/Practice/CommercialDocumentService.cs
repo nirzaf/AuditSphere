@@ -29,6 +29,7 @@ public static partial class CommercialDocumentService
 {
   private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
   private static readonly string[] ProfileRoles = ["Administrator", "Partner"];
+  internal const string QuotationTimelineRequiredMessage = "Add an estimated execution timeline in a new proposal revision before generating a new brief quotation.";
   private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
   public static async Task<CommandResult<Guid>> SaveProfileAsync(
@@ -142,6 +143,19 @@ public static partial class CommercialDocumentService
   public static async Task<CommandResult<GeneratedProposalDocuments>> GenerateProposalDocumentsAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid proposalId, CancellationToken ct = default)
   {
+    // Preflight this immutable proposal term before either member of the pair can be created.
+    var auth = await AuthorizeAsync(db, actor, CommercialRoles, ct);
+    if (!auth.Succeeded) return CommandResult<GeneratedProposalDocuments>.Fail(auth.ErrorCode!, auth.Message!);
+    var proposal = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == proposalId, ct);
+    if (proposal is null) return CommandResult<GeneratedProposalDocuments>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (string.IsNullOrWhiteSpace(proposal.Timeline))
+    {
+      var currentQuotationId = await db.QuotationVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ProposalId == proposalId)
+        .OrderByDescending(x => x.Revision).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+      if (currentQuotationId is null || !await db.CommercialDocuments.AsNoTracking().AnyAsync(x =>
+          x.FirmId == actor.FirmId && x.QuotationVersionId == currentQuotationId && x.Kind == CommercialDocumentKinds.Quotation, ct))
+        return CommandResult<GeneratedProposalDocuments>.Fail(ErrorCodes.GateBlocked, QuotationTimelineRequiredMessage);
+    }
     var letter = await GenerateEngagementLetterAsync(db, actor, proposalId, ct);
     if (!letter.Succeeded) return CommandResult<GeneratedProposalDocuments>.Fail(letter.ErrorCode!, letter.Message!);
     var quotation = await GenerateBriefQuotationAsync(db, actor, proposalId, ct);
@@ -230,6 +244,9 @@ public static partial class CommercialDocumentService
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.GenerationStale, "The historical letter belongs to an earlier risk clearance; use a newly approved commercial revision for reissue.");
       return CommandResult<CommercialDocument>.Ok(previous);
     }
+
+    if (!engagementLetter && string.IsNullOrWhiteSpace(proposal.Timeline))
+      return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, QuotationTimelineRequiredMessage);
 
     var lead = await db.Leads.AsNoTracking().SingleAsync(x => x.Id == opportunity.LeadId && x.FirmId == actor.FirmId, ct);
     var clientName = proposal.PracticeClientId.HasValue

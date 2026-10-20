@@ -44,6 +44,7 @@ interface Workspace {
   credentials: string | null;
   methodology: string | null;
   commonBlockers: string[];
+  quotationBlockers?: string[] | null;
   letterBlockers: string[];
   tenderBlockers: string[];
   documents: Artifact[];
@@ -71,6 +72,9 @@ export function decodeDocuments(value: unknown): Workspace {
         (v[k] as unknown[]).length <= 20 &&
         (v[k] as unknown[]).every((x) => typeof x === 'string'),
     ) ||
+    !(v['quotationBlockers'] === undefined || v['quotationBlockers'] === null ||
+      (Array.isArray(v['quotationBlockers']) && v['quotationBlockers'].length <= 20 &&
+       v['quotationBlockers'].every((item: unknown) => typeof item === 'string'))) ||
     !Array.isArray(v['documents']) ||
     v['documents'].length > 100
   )
@@ -143,13 +147,13 @@ export function decodeDocuments(value: unknown): Workspace {
         >
         <h3>Brief quotation</h3>
         <ul>
-          @for (b of w.commonBlockers; track b) {
+          @for (b of quotationBlockers(w); track b) {
             <li>{{ b }}</li>
           }
         </ul>
         <button
           matButton
-          [disabled]="busy() || uncertain() || !reviewed || w.commonBlockers.length > 0"
+          [disabled]="busy() || uncertain() || !reviewed || quotationBlockers(w).length > 0"
           (click)="generate('quotation', $event.currentTarget)"
         >
           Generate brief quotation
@@ -362,6 +366,9 @@ export class CommercialDocuments {
       { injector: this.renderInjector },
     );
   }
+  quotationBlockers(workspace: Workspace): string[] {
+    return [...workspace.commonBlockers, ...(workspace.quotationBlockers ?? [])];
+  }
   generate(kind: 'quotation' | 'letter' | 'tender', trigger?: EventTarget | null): void {
     const w = this.data();
     if (
@@ -369,6 +376,7 @@ export class CommercialDocuments {
       !w.quotationId ||
       !w.profileVersion ||
       !this.reviewed ||
+      (kind === 'quotation' && this.quotationBlockers(w).length > 0) ||
       this.busy() ||
       this.uncertain()
     )

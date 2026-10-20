@@ -72,7 +72,7 @@ public sealed class CommercialWorkflowTests
     bool nonStandard = false, string? note = null, IReadOnlyList<QuotationHoursLine>? lines = null) =>
     new(proposalId, lines ?? StandardLines, complexity, risk, discount, nonStandard, note);
 
-  private static async Task<(Guid LeadId, Guid OpportunityId, Guid ProposalId)> DraftProposalAsync(PgTestSchema pg, World w)
+  private static async Task<(Guid LeadId, Guid OpportunityId, Guid ProposalId)> DraftProposalAsync(PgTestSchema pg, World w, string timeline = "Fieldwork in March 2027; report by 30 April 2027")
   {
     await using var db = new AuditSphereDbContext(pg.Options);
     var lead = await PracticeCrmService.CreateLeadAsync(db, w.Prep, new CreateLeadRequest("Gulf Trading LLC", "Referral", "A. Owner", "owner@gulf.example.test"));
@@ -84,7 +84,7 @@ public sealed class CommercialWorkflowTests
     var proposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunity.Value, "AUDIT-2026",
       "Statutory audit of the 2026 financial statements", "Tax advisory", "Independent auditor's report and management letter",
       "Client supplies the trial balance", 1m, "QAR", "2026-01-01", "2026-12-31",
-      Timeline: "Fieldwork in March 2027; report by 30 April 2027"));
+      Timeline: timeline));
     Assert.True(proposal.Succeeded, proposal.Message);
     return (lead.Value, opportunity.Value, proposal.Value);
   }
@@ -828,6 +828,54 @@ public sealed class CommercialWorkflowTests
     using var archive = new ZipArchive(new MemoryStream(bytes));
     using var reader = new StreamReader(archive.GetEntry("word/document.xml")!.Open());
     return System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(reader.ReadToEnd(), "<[^>]+>", " "));
+  }
+
+  [Fact]
+  public async Task BriefQuotationRequiresTimelineForNewArtifactsButRecoversRetainedLegacyDocument()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w, " ");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var quotation = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId));
+    Assert.True(quotation.Succeeded, quotation.Message);
+    Assert.True((await QuotationService.SubmitAsync(db, w.Prep, quotation.Value)).Succeeded);
+    Assert.True((await CommercialDocumentService.SaveProfileAsync(db, w.Partner,
+      new("Synthetic Firm", "Doha", "", "", "#0F766E", "Reviewed terms"))).Succeeded);
+    var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
+    Assert.True(string.IsNullOrWhiteSpace(proposal.Timeline));
+    var blocked = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId);
+    Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+    Assert.Contains("timeline", blocked.Message, StringComparison.OrdinalIgnoreCase);
+    var blockedPair = await CommercialDocumentService.GenerateProposalDocumentsAsync(db, w.Partner, proposalId);
+    Assert.Equal(ErrorCodes.GateBlocked, blockedPair.ErrorCode);
+    Assert.Empty(await db.CommercialDocuments.ToListAsync());
+    var workspace = await CommercialDocumentWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
+    Assert.True(workspace.Succeeded, workspace.Message);
+    Assert.Single(workspace.Value!.QuotationBlockers!);
+    Assert.Empty(workspace.Value.CommonBlockers);
+
+    // Model an immutable pre-policy artifact rather than editing proposal terms or bypassing the new generator.
+    var profile = await db.FirmCommercialProfiles.AsNoTracking().SingleAsync();
+    var bytes = CommercialDocumentRenderer.RenderDocx(new(profile, "Quotation", "LEGACY-R1",
+      new DateOnly(2026, 10, 1), "Synthetic Client",
+      [new DocumentSection("Scope", [proposal.Scope])], false));
+    var retained = new CommercialDocument {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProposalId = proposalId,
+      QuotationVersionId = quotation.Value, Kind = CommercialDocumentKinds.Quotation,
+      TemplateVersion = CommercialDocumentRenderer.QuotationTemplate, ProfileVersion = profile.Version,
+      FileName = "legacy-quotation.docx", ContentType = CommercialDocumentRenderer.DocxContentType,
+      Bytes = bytes, Sha256Hex = Hashing.Sha256Hex(bytes), CreatedByUserId = w.Prep.UserId,
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.CommercialDocuments.Add(retained); await db.SaveChangesAsync();
+    var recovered = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId);
+    Assert.True(recovered.Succeeded, recovered.Message);
+    Assert.Equal(retained.Id, recovered.Value!.Id);
+    Assert.Equal(retained.Sha256Hex, recovered.Value.Sha256Hex);
+    Assert.Equal(bytes, recovered.Value.Bytes);
+    Assert.Single(await db.CommercialDocuments.ToListAsync());
+    Assert.Empty((await CommercialDocumentWorkspaceQuery.GetAsync(db, w.Prep, proposalId)).Value!.QuotationBlockers!);
   }
 
   [Theory]

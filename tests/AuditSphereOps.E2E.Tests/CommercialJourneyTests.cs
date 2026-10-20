@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.Playwright;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.E2E.Tests;
 
@@ -37,7 +38,8 @@ public sealed class CommercialJourneyTests
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, admin,
         new CreateOpportunityRequest(lead.Value, "FinancialStatementAudit", "JOURNEY", "2026-01-01", "2026-12-31", 10000m, "QAR"));
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, admin, new ReviseProposalRequest(opportunity.Value, "AUDIT-2026",
-        "Statutory audit", "Tax advisory", "Independent auditor's report", "Trial balance supplied by the client", 1m, "QAR", "2026-01-01", "2026-12-31"));
+        "Statutory audit", "Tax advisory", "Independent auditor's report", "Trial balance supplied by the client", 1m, "QAR", "2026-01-01", "2026-12-31",
+        Timeline: "Synthetic fieldwork in March; report by April"));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
     }
@@ -123,6 +125,35 @@ public sealed class CommercialJourneyTests
     await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this revision and confirm the selected commercial action.", Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Submit for independent internal review", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Status).Last).ToContainTextAsync("Commercial action recorded.");
+
+    // A draft may omit the timeline, but a new brief quotation may not.
+    Guid missingTimelineProposalId;
+    await using (var db = host.CreateDbContext())
+    {
+      var actor = PbcSeed.Actor(partner, "Partner");
+      var original = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
+      var originalOpportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == original.OpportunityId);
+      var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
+        new(originalOpportunity.LeadId, "FinancialStatementAudit", "TIMELINE-CASE", "2027-01-01", "2027-12-31", 10000m, "QAR"));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var draft = await PracticeCrmService.ReviseProposalAsync(db, actor,
+        new(opportunity.Value, "AUDIT-2027", "Synthetic timeline refusal", "", "Report", "", 10000m, "QAR", "2027-01-01", "2027-12-31"));
+      Assert.True(draft.Succeeded, draft.Message); missingTimelineProposalId = draft.Value;
+      var saved = await QuotationService.SaveAsync(db, actor,
+        new(draft.Value, [new("Partner", "Audit", 10m)], 1m, 0m, 0m, false, null));
+      Assert.True(saved.Succeeded, saved.Message);
+      Assert.True((await QuotationService.SubmitAsync(db, actor, saved.Value)).Succeeded);
+    }
+    var missingTimelinePath = $"/app/practice/proposals/{missingTimelineProposalId:D}";
+    await page.GotoAsync(origin + missingTimelinePath);
+    await page.Locator("#proposal-fee-agreement").ScrollIntoViewIfNeededAsync();
+    documents = page.Locator("audit-commercial-documents");
+    await Assertions.Expect(documents.GetByText("Add an estimated execution timeline in a new proposal revision before generating a new brief quotation.", new() { Exact = true })).ToBeVisibleAsync();
+    await documents.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this quotation, firm profile and document action.", Exact = true }).CheckAsync();
+    await Assertions.Expect(documents.GetByRole(AriaRole.Button, new() { Name = "Generate brief quotation", Exact = true })).ToBeDisabledAsync();
+    await using (var db = host.CreateDbContext())
+      Assert.False(await db.CommercialDocuments.AnyAsync(x => x.ProposalId == missingTimelineProposalId));
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, missingTimelinePath, "quotation-timeline");
 
     Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
     Assert.DoesNotContain(diagnostics, x => x.Contains("unhandled exception on the current circuit", StringComparison.OrdinalIgnoreCase));

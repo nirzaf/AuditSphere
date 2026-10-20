@@ -410,7 +410,7 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
             ></textarea>
           </label>
           <label
-            >Timeline (optional)<textarea
+            >Estimated execution timeline (required for a new quotation)<textarea
               name="timeline"
               [(ngModel)]="timeline"
               (ngModelChange)="proposalReviewed = false"

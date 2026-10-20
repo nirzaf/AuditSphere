@@ -36,7 +36,7 @@ No lifecycle rule, gate, stage mapping or module boundary changed. The eleven-st
 | PM-02 | PARTIAL | Digest-bound task groups and task queues retain their pinned template source. Reviewed task-edge amendments enforce scope, revisions and replay while preserving original template edges. The focused plan journey completes every task yet activation remains blocked, with no activation/materiality/opinion/release/freeze records created. Template-declared materiality/PBC/procedure prerequisites now pin exact source bindings and immutable origin, with focused scope/replay and browser evidence. Broader role and release acceptance remains open; see `status.json` under `workflowTemplateProfessionalBoundary` and `templateEvidencePrerequisites20261020`. |
 | PM-03 | OWNER_DECISION | DEC-01 and DEC-03 gate the recurrence action. |
 | PM-04 | PARTIAL | Versioned reminder administration, independent review and finite schedule windows are implemented behind existing flags. Broader escalation and release/live acceptance remain. |
-| PM-05 | OWNER_DECISION | The quotation timeline is delivered. DEC-01, DEC-02 and DEC-09 gate the rest. |
+| PM-05 | OWNER_DECISION | The timeline is required for new brief quotations; early drafts and historical artifact recovery remain supported. DEC-01, DEC-02 and DEC-09 gate the rest. |
 | PM-06 | PARTIAL | Local behaviour present; live journeys are BLOCKED_EXTERNAL. |
 | PM-07 | PARTIAL | The engagement communication timeline is built. Comments, mentions and a connected inbox are not. |
 | PM-08 | PARTIAL | Aliases, non-billable valuation and the utilization basis are closed. Staff-level views wait on DEC-05. |

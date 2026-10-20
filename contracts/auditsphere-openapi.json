@@ -100095,6 +100095,15 @@
             "items": {
               "$ref": "#/components/schemas/CommercialArtifact"
             }
+          },
+          "quotationBlockers": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

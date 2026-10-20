@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Shared;
+using AuditSphereOps.Domain.Practice;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Practice;
@@ -13,7 +14,7 @@ public sealed record CommercialArtifact(Guid Id, Guid? QuotationId, string Kind,
 public sealed record CommercialDocumentWorkspace(Guid ProposalId, Guid? QuotationId, string? ProfileVersion,
   string? FirmName, string? History, string? Credentials, string? Methodology,
   IReadOnlyList<string> CommonBlockers, IReadOnlyList<string> LetterBlockers, IReadOnlyList<string> TenderBlockers,
-  IReadOnlyList<CommercialArtifact> Documents);
+  IReadOnlyList<CommercialArtifact> Documents, IReadOnlyList<string>? QuotationBlockers = null);
 
 public static class CommercialDocumentWorkspaceQuery
 {
@@ -61,11 +62,16 @@ public static class CommercialDocumentWorkspaceQuery
     var documents = await db.CommercialDocuments.AsNoTracking().Where(d => d.FirmId == actor.FirmId && d.ProposalId == proposalId)
       .OrderByDescending(d => d.CreatedAt).ThenBy(d => d.Id).Take(100)
       .Select(d => new { d.Id, d.QuotationVersionId, d.Kind, d.TemplateVersion, d.ProfileVersion, d.FileName, d.ContentType, d.Sha256Hex, d.CreatedAt }).ToListAsync(ct);
+    var quotationBlockers = new List<string>();
+    if (string.IsNullOrWhiteSpace(proposal.Timeline) && (quotation is null ||
+        !await db.CommercialDocuments.AsNoTracking().AnyAsync(d => d.FirmId == actor.FirmId &&
+          d.QuotationVersionId == quotation.Id && d.Kind == CommercialDocumentKinds.Quotation, ct)))
+      quotationBlockers.Add(CommercialDocumentService.QuotationTimelineRequiredMessage);
     if (!(await CommercialWorkspaceQuery.ProposalAsync(db, actor, proposalId, ct)).Succeeded)
       return CommandResult<CommercialDocumentWorkspace>.Fail(ErrorCodes.ScopeDenied, "Documents unavailable.");
     return CommandResult<CommercialDocumentWorkspace>.Ok(new(proposalId, quotation?.Id,
       p?.Version.ToString(CultureInfo.InvariantCulture), p?.LegalName, p?.FirmHistoryAndRegistrations, p?.IndustryCredentials, p?.AuditMethodology,
       common, letter, tender, documents.Select(d => new CommercialArtifact(d.Id, d.QuotationVersionId, d.Kind, d.TemplateVersion,
-        d.ProfileVersion.ToString(CultureInfo.InvariantCulture), d.FileName, d.ContentType, d.Sha256Hex, d.CreatedAt)).ToArray()));
+        d.ProfileVersion.ToString(CultureInfo.InvariantCulture), d.FileName, d.ContentType, d.Sha256Hex, d.CreatedAt)).ToArray(), quotationBlockers));
   }
 }
