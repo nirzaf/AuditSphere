@@ -377,7 +377,11 @@
     },
     "workflowTemplateProfessionalBoundary": {
       "archivedTo": "docs/execution/status-archive-2026-10.json",
-      "key": "targetedVerification.workflowTemplateProfessionalBoundary"
+      "key": "targetedVerification.workflowTemplateProfessionalBoundary",
+      "recheck": {
+        "sourceCommit": "f2e8f6235455109a2e34f15487ceca224df751e0",
+        "result": "3/3 focused PostgreSQL tests PASS: plan/activation separation, reviewed-edge scope/fences/replay, retained template edges. Domain source unchanged since 6ba8302b; existing Release binaries used. Full local suites NOT_RUN."
+      }
     },
     "trialBalanceReportSignedEquity": {
       "archivedTo": "docs/execution/status-archive-2026-10.json",
