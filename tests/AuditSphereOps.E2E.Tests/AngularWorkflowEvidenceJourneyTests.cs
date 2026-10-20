@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,71 @@ namespace AuditSphereOps.E2E.Tests;
 
 public sealed class AngularWorkflowEvidenceJourneyTests
 {
+  [Fact]
+  public async Task TemplatePrerequisitesRequireExactBindingAndRemainPendingAfterPlanCreation()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TEMPLATE-EVIDENCE");
+    var f = host.Fixture; Guid revisionId; Guid pbcId;
+    await using (var db = host.CreateDbContext())
+    {
+      var engagement = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
+      engagement.ServiceRoute = "FinancialStatementAudit";
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner"));
+      await db.SaveChangesAsync();
+      var request = await PbcService.CreateRequestAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+        new(f.EngagementId, "Synthetic template evidence", "TEST ENTITY", "2026-01-01", "2026-12-31", "Cash", "PDF",
+          "", f.Client.Id, f.Staff.Id, f.Reviewer.Id, "2027-01-31", "Confidential", "Signed and readable."));
+      Assert.True(request.Succeeded, request.Message); pbcId = request.Value;
+      var draft = await WorkflowTemplateService.CreateDraftAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        new(null, "Synthetic evidence-bound plan", "FinancialStatementAudit", null,
+          [new("EVIDENCE", WorkflowTaskPhases.AuditPlanning, "Wait for authoritative evidence", "Review the existing sources.",
+            null, null, null, null, true, 1, EvidenceRequirements:
+              [new("materiality", WorkflowEvidenceKinds.CurrentMateriality), new("request", WorkflowEvidenceKinds.AcceptedPbc)])]));
+      Assert.True(draft.Succeeded, draft.Message); revisionId = draft.Value;
+      var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == revisionId);
+      var reviewed = await WorkflowTemplateService.ReviewAsync(db, PbcSeed.Actor(f.Reviewer, "Partner"), revision.TemplateId,
+        revision.Id, revision.Revision, "Independently reviewed the operational evidence declarations.");
+      Assert.True(reviewed.Succeeded, reviewed.Message);
+      var published = await WorkflowTemplateService.PublishAsync(db, PbcSeed.Actor(f.Reviewer, "Partner"), revision.TemplateId,
+        revision.Id, revision.Revision, "Publish the exact reviewed operational prerequisites.");
+      Assert.True(published.Succeeded, published.Message);
+    }
+    var origin = await host.StartApiForIdentityAsync(f.Admin, new Dictionary<string, string> {
+      ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true", ["WorkflowExperience__Enabled"] = "true"
+    });
+    using var playwright = await Playwright.CreateAsync(); await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync(); var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
+    var path = $"/app/engagements/{f.EngagementId}?templateRevisionId={revisionId}#engagement-task-plan";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
+    await Assertions.Expect(page.GetByRole(AriaRole.Radio, new() { Name = "Synthetic evidence-bound plan" })).ToBeCheckedAsync();
+    var preview = page.GetByRole(AriaRole.Button, new() { Name = "Preview task plan", Exact = true });
+    await preview.ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true })).ToHaveCountAsync(0);
+    var source = page.GetByLabel("Exact source reference for request", new() { Exact = true });
+    await source.FillAsync(pbcId.ToString()); await source.PressAsync("Tab");
+    await preview.ClickAsync();
+    var create = page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true });
+    await Assertions.Expect(create).ToBeDisabledAsync();
+    await page.GetByLabel("I reviewed this exact plan, staffing, dates, and template revision.", new() { Exact = true }).CheckAsync();
+    await create.ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Plan receipt confirmed", Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+    {
+      var rules = await db.WorkflowTaskEvidenceRules.AsNoTracking().ToListAsync();
+      Assert.Equal(2, rules.Count);
+      Assert.All(rules, rule => { Assert.Equal(WorkflowEvidenceRuleStates.Required, rule.State); Assert.NotNull(rule.WorkflowTemplateEvidenceRequirementId); });
+      Assert.Contains(rules, rule => rule.PbcRequestId == pbcId);
+      Assert.Single(await db.WorkflowTaskPlanReceipts.ToListAsync());
+      Assert.Empty(await db.MaterialityApprovals.ToListAsync());
+      var binding = await db.WorkflowTaskBindings.SingleAsync(x => x.TemplateRevisionId == revisionId);
+      var evidence = await WorkflowTaskEvidenceQuery.GetAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.EngagementId, binding.WorkTaskId);
+      Assert.True(evidence.Succeeded, evidence.Message);
+      Assert.All(evidence.Value!.Rules, rule => Assert.False(rule.Satisfied));
+    }
+    Assert.Empty(errors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "template-evidence");
+  }
+
   [Fact]
   public async Task ReviewedPrerequisiteRecoversLostReplyAndKeepsOperationalCompletionSeparateFromProfessionalApproval()
   {

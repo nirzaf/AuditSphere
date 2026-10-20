@@ -11,9 +11,12 @@ namespace AuditSphereOps.Application.Practice;
 
 public sealed record WorkflowEvidenceRuleView(Guid Id, string Kind, Guid? SourceId, string State,
   int Version, bool Satisfied, string SourceState, string Message, long? SourceRevision,
-  long? InputGeneration, string Reason, DateTimeOffset OccurredAt);
+  long? InputGeneration, string Reason, DateTimeOffset OccurredAt,
+  Guid? TemplateRequirementId = null, string? TemplateRequirementKey = null, Guid? EvaluatedSourceId = null);
 public sealed record WorkflowTaskEvidenceWorkspace(Guid EngagementId, Guid TaskId, long TaskRevision,
   bool CanManage, IReadOnlyList<WorkflowEvidenceRuleView> Rules);
+internal sealed record WorkflowEvidenceEvaluation(bool Satisfied, string State, string Message,
+  long? Revision = null, long? Generation = null, Guid? SourceId = null, string? SourceFingerprint = null);
 
 /// <summary>Exact-scope live evidence reads. No financial values, private conclusions or stored satisfaction flags.</summary>
 public static class WorkflowTaskEvidenceQuery
@@ -79,7 +82,14 @@ public static class WorkflowTaskEvidenceQuery
       .OrderBy(x => x.Kind).ThenBy(x => x.SourceId).Take(801).ToListAsync(ct);
     if (heads.Count > 800 || heads.GroupBy(x => x.WorkflowTaskBindingId).Any(x => x.Count() > MaximumRules))
       throw new InvalidOperationException("The task evidence rule bound was exceeded.");
-    var cache = new Dictionary<(Guid EngagementId, string Kind, Guid SourceId), EvidenceState>();
+    var templateRequirementIds = heads.Where(x => x.WorkflowTemplateEvidenceRequirementId.HasValue)
+      .Select(x => x.WorkflowTemplateEvidenceRequirementId!.Value).Distinct().ToArray();
+    var templateRequirements = templateRequirementIds.Length == 0
+      ? new Dictionary<Guid, WorkflowTemplateEvidenceRequirement>()
+      : await db.WorkflowTemplateEvidenceRequirements.AsNoTracking().Where(x =>
+          x.FirmId == firmId && templateRequirementIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, ct);
+    var cache = new Dictionary<(Guid EngagementId, string Kind, Guid SourceId), WorkflowEvidenceEvaluation>();
     var output = new Dictionary<Guid, IReadOnlyList<WorkflowEvidenceRuleView>>();
     foreach (var binding in bindings)
     {
@@ -94,26 +104,39 @@ public static class WorkflowTaskEvidenceQuery
           state = await EvaluateSourceAsync(db, rule, ct);
           cache[key] = state;
         }
+        string? templateRequirementKey = null;
+        if (rule.WorkflowTemplateEvidenceRequirementId is { } requirementId)
+        {
+          if (!templateRequirements.TryGetValue(requirementId, out var requirement) ||
+              requirement.Kind != rule.Kind || requirement.TemplateStepId != binding.TemplateStepId ||
+              requirement.TemplateRevisionId != binding.TemplateRevisionId)
+            throw new InvalidOperationException("Evidence template provenance does not match its task declaration.");
+          templateRequirementKey = requirement.RequirementKey;
+        }
         rows.Add(new(rule.Id, rule.Kind, rule.SourceId == Guid.Empty ? null : rule.SourceId, rule.State,
           rule.Version, state.Satisfied, state.State, state.Message, state.Revision, state.Generation,
-          rule.Reason, rule.OccurredAt));
+          rule.Reason, rule.OccurredAt, rule.WorkflowTemplateEvidenceRequirementId, templateRequirementKey, state.SourceId));
       }
       output[binding.Id] = rows;
     }
     return output;
   }
 
-  private sealed record EvidenceState(bool Satisfied, string State, string Message, long? Revision = null, long? Generation = null);
-
-  private static async Task<EvidenceState> EvaluateSourceAsync(IAuditSphereDbContext db, WorkflowTaskEvidenceRule rule, CancellationToken ct)
+  internal static async Task<WorkflowEvidenceEvaluation> EvaluateSourceAsync(
+    IAuditSphereDbContext db, WorkflowTaskEvidenceRule rule, CancellationToken ct)
   {
     if (rule.Kind == WorkflowEvidenceKinds.AcceptedPbc)
     {
-      var state = await db.PbcRequests.AsNoTracking().Where(x => x.FirmId == rule.FirmId &&
+      var source = await db.PbcRequests.AsNoTracking().Where(x => x.FirmId == rule.FirmId &&
         x.ClientId == rule.ClientId && x.EngagementId == rule.EngagementId && x.Id == rule.PbcRequestId)
-        .Select(x => x.State).SingleOrDefaultAsync(ct);
-      var satisfied = state is PbcStates.Accepted or PbcStates.Closed;
-      return new(satisfied, state ?? "MISSING", satisfied ? "The exact PBC request is accepted or closed." : "Accept or close the exact PBC request in its workspace.");
+        .Select(x => new { x.State, x.Revision, x.UpdatedAt }).SingleOrDefaultAsync(ct);
+      var generation = await db.ClientSafetyStates.AsNoTracking().Where(x =>
+        x.FirmId == rule.FirmId && x.Id == rule.ClientId).Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
+      var satisfied = source?.State is PbcStates.Accepted or PbcStates.Closed;
+      return new(satisfied, source?.State ?? "MISSING",
+        satisfied ? "The exact PBC request is accepted or closed." : "Accept or close the exact PBC request in its workspace.",
+        source?.Revision, generation, SourceId: rule.PbcRequestId,
+        SourceFingerprint: source is null ? null : $"{source.Revision}:{source.State}:{source.UpdatedAt:O}:{generation}");
     }
     if (rule.Kind == WorkflowEvidenceKinds.CurrentMateriality)
     {
@@ -121,14 +144,27 @@ public static class WorkflowTaskEvidenceQuery
       var latestAssessment = await db.MaterialityAssessments.AsNoTracking().Where(x => x.FirmId == rule.FirmId &&
         x.ClientId == rule.ClientId && x.EngagementId == rule.EngagementId)
         .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+      var generation = await db.ClientSafetyStates.AsNoTracking().Where(x =>
+        x.FirmId == rule.FirmId && x.Id == rule.ClientId).Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
       var satisfied = current?.State == MaterialityCalculationStates.Approved && current.AssessmentId == latestAssessment;
+      var calculation = current?.Calculation;
+      var fingerprint = calculation is null ? null : string.Join(':', current!.AssessmentId.ToString("N"),
+        latestAssessment?.ToString("N") ?? string.Empty, calculation.Id.ToString("N"),
+        calculation.MappingVersionId.ToString("N"), calculation.MappingVersionNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        calculation.DatasetId.ToString("N"), calculation.DatasetDigest, calculation.InputHash, current.State,
+        generation?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty);
       return new(satisfied, current is null ? "MISSING" : current.AssessmentId != latestAssessment ? "STALE" : current.State,
-        satisfied ? "Current source-bound materiality has independent Partner approval." : "Recalculate or independently approve the current materiality in audit planning.");
+        satisfied ? "Current source-bound materiality has independent Partner approval." : "Recalculate or independently approve the current materiality in audit planning.",
+        calculation?.MappingVersionNumber, generation, current?.AssessmentId, fingerprint);
     }
     if (rule.Kind != WorkflowEvidenceKinds.ReviewedProcedure)
       return new(false, "UNSUPPORTED", "This evidence evaluator is not supported.");
     var evaluated = await AuditFieldworkService.EvaluateProcedureEvidenceForAuthorizedScopeAsync(
       db, rule.FirmId, rule.ClientId, rule.EngagementId, rule.AuditProcedureId!.Value, ct);
-    return new(evaluated.Satisfied, evaluated.State, evaluated.Message, evaluated.Revision, evaluated.InputGeneration);
+    var procedureFingerprint = string.Join(':', evaluated.ResultId?.ToString("N") ?? string.Empty,
+      evaluated.ReviewId?.ToString("N") ?? string.Empty, evaluated.ReviewerUserId?.ToString("N") ?? string.Empty,
+      evaluated.State);
+    return new(evaluated.Satisfied, evaluated.State, evaluated.Message, evaluated.Revision, evaluated.InputGeneration,
+      rule.AuditProcedureId, procedureFingerprint);
   }
 }

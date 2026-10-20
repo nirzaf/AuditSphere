@@ -104,6 +104,17 @@ public sealed class WorkflowTemplateStep
   public string? PbcAcceptanceCriteria { get; set; }
 }
 
+/// <summary>Immutable, stable-key declaration of one domain-evidence prerequisite on an exact template step.</summary>
+public sealed class WorkflowTemplateEvidenceRequirement
+{
+  public Guid Id { get; set; }
+  public Guid FirmId { get; set; }
+  public Guid TemplateRevisionId { get; set; }
+  public Guid TemplateStepId { get; set; }
+  public string RequirementKey { get; set; } = string.Empty;
+  public string Kind { get; set; } = string.Empty;
+}
+
 public sealed class WorkflowTemplateDependency
 {
   public Guid Id { get; set; }

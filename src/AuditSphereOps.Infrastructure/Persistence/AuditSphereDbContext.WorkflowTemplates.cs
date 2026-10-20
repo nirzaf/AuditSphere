@@ -102,6 +102,24 @@ public sealed partial class AuditSphereDbContext
         "stable_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND phase IN ('CLIENT_ONBOARDING','AUDIT_PLANNING','AUDIT_FIELDWORK','MANAGER_REVIEW','PARTNER_SIGNOFF','REPORT_DELIVERY','ARCHIVE_CLOSE') AND length(trim(title)) BETWEEN 1 AND 200 AND length(instructions) <= 4000 AND (suggested_staffing_level IS NULL OR suggested_staffing_level IN ('ENGAGEMENT_PARTNER','AUDIT_MANAGER','SENIOR_AUDITOR','STAFF_ASSOCIATE')) AND (estimated_effort_minutes IS NULL OR estimated_effort_minutes BETWEEN 1 AND 1000000) AND (due_date_offset_days IS NULL OR due_date_offset_days BETWEEN -3650 AND 3650) AND (pbc_request_reference IS NULL OR length(trim(pbc_request_reference)) BETWEEN 1 AND 120) AND (task_group_name IS NULL OR length(trim(task_group_name)) BETWEEN 1 AND 120) AND ((pbc_objective IS NULL AND pbc_entity_scope IS NULL AND pbc_area IS NULL AND pbc_requested_format IS NULL AND pbc_control_totals IS NULL AND pbc_confidentiality IS NULL AND pbc_acceptance_criteria IS NULL) OR (length(trim(pbc_objective)) BETWEEN 1 AND 2000 AND length(trim(pbc_entity_scope)) BETWEEN 1 AND 500 AND length(trim(pbc_area)) BETWEEN 1 AND 200 AND length(trim(pbc_requested_format)) BETWEEN 1 AND 200 AND (pbc_control_totals IS NULL OR length(trim(pbc_control_totals)) BETWEEN 1 AND 2000) AND length(trim(pbc_confidentiality)) BETWEEN 1 AND 100 AND length(trim(pbc_acceptance_criteria)) BETWEEN 1 AND 4000)) AND sort_order BETWEEN 1 AND 100000");
     });
 
+    var evidenceRequirement = b.Entity<WorkflowTemplateEvidenceRequirement>();
+    evidenceRequirement.HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_workflow_template_evidence_requirements_firm_id_id");
+    evidenceRequirement.HasIndex(x => new
+      { x.FirmId, x.TemplateRevisionId, x.TemplateStepId, x.RequirementKey }).IsUnique()
+      .HasDatabaseName("UX_workflow_template_evidence_requirements_step_key");
+    evidenceRequirement.Property(x => x.RequirementKey).HasMaxLength(80);
+    evidenceRequirement.Property(x => x.Kind).HasMaxLength(40);
+    evidenceRequirement.HasOne<WorkflowTemplateRevision>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.TemplateRevisionId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    evidenceRequirement.HasOne<WorkflowTemplateStep>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.TemplateRevisionId, x.TemplateStepId })
+      .HasPrincipalKey(x => new { x.FirmId, x.TemplateRevisionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    evidenceRequirement.ToTable("workflow_template_evidence_requirements", t =>
+      t.HasCheckConstraint("ck_workflow_template_evidence_requirement_values",
+        "requirement_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND kind IN ('CURRENT_MATERIALITY_APPROVED','PBC_ACCEPTED_OR_CLOSED','CURRENT_PROCEDURE_REVIEWED')"));
+
     b.Entity<WorkflowTemplateDependency>().HasAlternateKey(x => new { x.FirmId, x.TemplateRevisionId, x.Id })
       .HasName("AK_workflow_template_dependencies_revision_id");
     b.Entity<WorkflowTemplateDependency>().HasIndex(x => new { x.FirmId, x.TemplateRevisionId, x.PredecessorStepId, x.SuccessorStepId }).IsUnique();

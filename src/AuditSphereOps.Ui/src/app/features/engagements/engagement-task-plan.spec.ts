@@ -59,6 +59,33 @@ describe('Engagement task plan preview and receipt recovery', () => {
     return fixture;
   }
 
+  it('binds an exact evidence source to the preview and invalidates prior assent on changes', async () => {
+    const fixture = open(), component = fixture.componentInstance;
+    component.selectTemplate(revisionId);
+    component.selectEvidence('planning', 'pbc-request', templateId);
+    const previewing = component.previewPlan();
+    const request = TestBed.inject(HttpTestingController).expectOne({ method: 'POST', url: `/api/ui/engagements/${engagementId}/task-plan/preview` });
+    expect(request.request.body.evidenceSelections).toEqual([{ stepKey: 'planning', requirementKey: 'pbc-request', sourceId: templateId }]);
+    request.flush({ value: { ...preview, steps: [{ ...preview.steps[0], evidenceRequirements: [{ requirementKey: 'pbc-request',
+      kind: 'PBC_ACCEPTED_OR_CLOSED', sourceId: templateId, bindingRequired: true, satisfied: false,
+      sourceState: 'SENT', message: 'PBC remains pending.', sourceRevision: 1, inputGeneration: null }] }] } });
+    await previewing;
+    component.reviewed.set(true);
+    expect(component.canExecute()).toBe(true);
+    component.selectEvidence('planning', 'pbc-request', 'invalid-source');
+    expect(component.evidenceSelections()).toEqual([]);
+    expect(component.reviewed()).toBe(false); expect(component.plan()).toBeNull(); expect(component.canExecute()).toBe(false);
+    component.selectTemplate(revisionId);
+    expect(component.evidenceSelections()).toEqual([]);
+    const invalidPreview = component.previewPlan();
+    TestBed.inject(HttpTestingController).expectOne({ method: 'POST', url: `/api/ui/engagements/${engagementId}/task-plan/preview` })
+      .flush({ value: { ...preview, steps: [{ ...preview.steps[0], evidenceRequirements: [{ requirementKey: 'pbc-request',
+        kind: 'PBC_ACCEPTED_OR_CLOSED', sourceId: templateId, bindingRequired: false, satisfied: true,
+        sourceState: 'SENT', message: 'Unsupported satisfaction.', sourceRevision: 1, inputGeneration: null }] }] } });
+    await invalidPreview;
+    expect(component.plan()).toBeNull(); expect(component.failed()).toBe(true); expect(component.canExecute()).toBe(false);
+  });
+
   it('preselects only a current published annual reference without preview or assent', () => {
     const fixture = open(revisionId), component = fixture.componentInstance;
     expect(component.selectedRevisionId()).toBe(revisionId);

@@ -28267,7 +28267,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("workflow_task_binding_id");
 
+                    b.Property<Guid?>("WorkflowTemplateEvidenceRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workflow_template_evidence_requirement_id");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "WorkflowTemplateEvidenceRequirementId");
 
                     b.HasIndex("FirmId", "ActorUserId", "IdempotencyKey")
                         .IsUnique();
@@ -28539,6 +28545,52 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.ToTable("workflow_template_dependencies", null, t =>
                         {
                             t.HasCheckConstraint("ck_workflow_template_dependency_values", "predecessor_step_id <> successor_step_id AND dependency_type = 'TASK_COMPLETED'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateEvidenceRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("RequirementKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("requirement_key");
+
+                    b.Property<Guid>("TemplateRevisionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_revision_id");
+
+                    b.Property<Guid>("TemplateStepId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_step_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_workflow_template_evidence_requirements_firm_id_id");
+
+                    b.HasIndex("FirmId", "TemplateRevisionId", "TemplateStepId", "RequirementKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_workflow_template_evidence_requirements_step_key");
+
+                    b.ToTable("workflow_template_evidence_requirements", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_workflow_template_evidence_requirement_values", "requirement_key ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$' AND kind IN ('CURRENT_MATERIALITY_APPROVED','PBC_ACCEPTED_OR_CLOSED','CURRENT_PROCEDURE_REVIEWED')");
                         });
                 });
 
@@ -36676,6 +36728,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateEvidenceRequirement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "WorkflowTemplateEvidenceRequirementId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AuditSphereOps.Domain.Audit.AuditProcedure", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "AuditProcedureId")
@@ -36782,6 +36840,23 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_workflow_template_dependencies_workflow_template_steps_fir~1");
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateEvidenceRequirement", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateRevision", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.WorkflowTemplateStep", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TemplateRevisionId", "TemplateStepId")
+                        .HasPrincipalKey("FirmId", "TemplateRevisionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.WorkflowTemplateRevision", b =>

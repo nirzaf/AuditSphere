@@ -23,6 +23,9 @@ public sealed record WorkflowTemplatePbcDefinition(
   string Confidentiality,
   string AcceptanceCriteria);
 
+public sealed record WorkflowTemplateEvidenceRequirementDraft(string RequirementKey, string Kind);
+public sealed record WorkflowTemplateEvidenceRequirementView(string RequirementKey, string Kind);
+
 public sealed record WorkflowTemplateStepDraft(
   string StableKey,
   string Phase,
@@ -36,7 +39,8 @@ public sealed record WorkflowTemplateStepDraft(
   int SortOrder,
   IReadOnlyList<string>? DependsOnStepKeys = null,
   WorkflowTemplatePbcDefinition? PbcDefinition = null,
-  string? TaskGroupName = null);
+  string? TaskGroupName = null,
+  IReadOnlyList<WorkflowTemplateEvidenceRequirementDraft>? EvidenceRequirements = null);
 
 public sealed record SaveWorkflowTemplateDraftRequest(
   Guid? TemplateId,
@@ -60,7 +64,8 @@ public sealed record WorkflowTemplateStepView(
   int SortOrder,
   IReadOnlyList<string> DependsOnStepKeys,
   WorkflowTemplatePbcDefinition? PbcDefinition = null,
-  string? TaskGroupName = null);
+  string? TaskGroupName = null,
+  IReadOnlyList<WorkflowTemplateEvidenceRequirementView>? EvidenceRequirements = null);
 
 public sealed record WorkflowTemplateRevisionView(
   Guid TemplateId,
@@ -235,7 +240,10 @@ public static class WorkflowTemplateService
 
     var oldSteps = await db.WorkflowTemplateSteps.Where(x => x.FirmId == actor.FirmId && x.TemplateRevisionId == revisionId).ToListAsync(ct);
     var oldEdges = await db.WorkflowTemplateDependencies.Where(x => x.FirmId == actor.FirmId && x.TemplateRevisionId == revisionId).ToListAsync(ct);
+    var oldEvidenceRequirements = await db.WorkflowTemplateEvidenceRequirements
+      .Where(x => x.FirmId == actor.FirmId && x.TemplateRevisionId == revisionId).ToListAsync(ct);
     db.WorkflowTemplateDependencies.RemoveRange(oldEdges);
+    db.WorkflowTemplateEvidenceRequirements.RemoveRange(oldEvidenceRequirements);
     db.WorkflowTemplateSteps.RemoveRange(oldSteps);
     await db.SaveChangesAsync(ct);
     revision.Name = definition.Value!.Name;
@@ -382,7 +390,9 @@ public static class WorkflowTemplateService
       string.IsNullOrWhiteSpace(s.PbcRequestReference) ? null : s.PbcRequestReference.Trim(), s.RequiredTask, s.SortOrder,
       (s.DependsOnStepKeys ?? []).Select(k => (k ?? string.Empty).Trim()).ToArray(),
       NormalizePbcDefinition(s.PbcDefinition),
-      string.IsNullOrWhiteSpace(s.TaskGroupName) ? null : s.TaskGroupName.Trim())).ToArray();
+      string.IsNullOrWhiteSpace(s.TaskGroupName) ? null : s.TaskGroupName.Trim(),
+      (s.EvidenceRequirements ?? []).Select(requirement => new WorkflowTemplateEvidenceRequirementDraft(
+        (requirement.RequirementKey ?? string.Empty).Trim(), (requirement.Kind ?? string.Empty).Trim())).ToArray())).ToArray();
     var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     foreach (var step in steps)
     {
@@ -395,6 +405,18 @@ public static class WorkflowTemplateService
         return (null, $"Step '{step.StableKey}' has an unknown phase or a field outside its allowed range.");
       if (step.DependsOnStepKeys!.Count > 100 || step.DependsOnStepKeys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != step.DependsOnStepKeys.Count)
         return (null, $"Step '{step.StableKey}' has duplicate or excessive dependencies.");
+      var evidenceRequirements = step.EvidenceRequirements ?? [];
+      if (evidenceRequirements.Count > 8)
+        return (null, $"Step '{step.StableKey}' may declare at most eight evidence requirements.");
+      var requirementKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+      foreach (var requirement in evidenceRequirements)
+        if (requirement.RequirementKey.Length is < 1 or > 80 ||
+            !System.Text.RegularExpressions.Regex.IsMatch(requirement.RequirementKey, "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$") ||
+            !requirementKeys.Add(requirement.RequirementKey) ||
+            !WorkflowEvidenceKinds.All.Contains(requirement.Kind, StringComparer.Ordinal))
+          return (null, $"Step '{step.StableKey}' has an invalid or duplicate evidence requirement key or unsupported evidence kind.");
+      if (evidenceRequirements.Count(x => x.Kind == WorkflowEvidenceKinds.CurrentMateriality) > 1)
+        return (null, $"Step '{step.StableKey}' may declare current approved materiality only once.");
       if (step.PbcDefinition is { } pbc && (!step.DueDateOffsetDays.HasValue || !ValidPbcDefinition(pbc)))
         return (null, $"Step '{step.StableKey}' has an incomplete PBC request definition. Enter the objective, entity scope, area, requested format, confidentiality and acceptance criteria within their limits, and a due-date offset.");
     }
@@ -448,39 +470,60 @@ public static class WorkflowTemplateService
 
   private static string Digest(WorkflowTemplateDefinition definition)
   {
+    object StepDigest(WorkflowTemplateStepDraft step)
+    {
+      if (step.EvidenceRequirements is { Count: > 0 })
+        return new
+        {
+          step.StableKey, step.Phase, step.Title, step.Instructions, step.SuggestedStaffingLevel,
+          step.EstimatedEffortMinutes, step.DueDateOffsetDays, step.PbcRequestReference, step.RequiredTask,
+          step.SortOrder,
+          dependencies = step.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase),
+          step.TaskGroupName,
+          pbcDefinition = step.PbcDefinition,
+          evidenceRequirements = step.EvidenceRequirements.OrderBy(requirement => requirement.RequirementKey, StringComparer.Ordinal)
+            .Select(requirement => new { requirement.RequirementKey, requirement.Kind })
+        };
+      if (step.PbcDefinition is null && step.TaskGroupName is null)
+        return new
+        {
+          step.StableKey, step.Phase, step.Title, step.Instructions, step.SuggestedStaffingLevel,
+          step.EstimatedEffortMinutes, step.DueDateOffsetDays, step.PbcRequestReference, step.RequiredTask,
+          step.SortOrder,
+          dependencies = step.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase)
+        };
+      if (step.PbcDefinition is null)
+        return new
+        {
+          step.StableKey, step.Phase, step.Title, step.Instructions, step.SuggestedStaffingLevel,
+          step.EstimatedEffortMinutes, step.DueDateOffsetDays, step.PbcRequestReference, step.RequiredTask,
+          step.SortOrder,
+          dependencies = step.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase), step.TaskGroupName
+        };
+      if (step.TaskGroupName is null)
+        return new
+        {
+          step.StableKey, step.Phase, step.Title, step.Instructions, step.SuggestedStaffingLevel,
+          step.EstimatedEffortMinutes, step.DueDateOffsetDays, step.PbcRequestReference, step.RequiredTask,
+          step.SortOrder,
+          dependencies = step.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase),
+          pbcDefinition = step.PbcDefinition
+        };
+      return new
+      {
+        step.StableKey, step.Phase, step.Title, step.Instructions, step.SuggestedStaffingLevel,
+        step.EstimatedEffortMinutes, step.DueDateOffsetDays, step.PbcRequestReference, step.RequiredTask,
+        step.SortOrder,
+        dependencies = step.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase), step.TaskGroupName,
+        pbcDefinition = step.PbcDefinition
+      };
+    }
+
     var bytes = JsonSerializer.SerializeToUtf8Bytes(new
     {
       definition.Name, definition.ServiceRoute, definition.IndustryKey,
-      // A step without a typed PBC definition keeps its original digest shape, so existing revisions still verify.
-      steps = definition.Steps.OrderBy(x => x.SortOrder).Select(x => x.PbcDefinition is null && x.TaskGroupName is null
-        ? (object)new
-        {
-          x.StableKey, x.Phase, x.Title, x.Instructions, x.SuggestedStaffingLevel, x.EstimatedEffortMinutes,
-          x.DueDateOffsetDays, x.PbcRequestReference, x.RequiredTask, x.SortOrder,
-          dependencies = x.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase)
-        }
-        : x.PbcDefinition is null
-        ? (object)new
-        {
-          x.StableKey, x.Phase, x.Title, x.Instructions, x.SuggestedStaffingLevel, x.EstimatedEffortMinutes,
-          x.DueDateOffsetDays, x.PbcRequestReference, x.RequiredTask, x.SortOrder,
-          dependencies = x.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase), x.TaskGroupName
-        }
-        : x.TaskGroupName is null
-        ? (object)new
-        {
-          x.StableKey, x.Phase, x.Title, x.Instructions, x.SuggestedStaffingLevel, x.EstimatedEffortMinutes,
-          x.DueDateOffsetDays, x.PbcRequestReference, x.RequiredTask, x.SortOrder,
-          dependencies = x.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase),
-          pbcDefinition = x.PbcDefinition
-        }
-        : new
-        {
-          x.StableKey, x.Phase, x.Title, x.Instructions, x.SuggestedStaffingLevel, x.EstimatedEffortMinutes,
-          x.DueDateOffsetDays, x.PbcRequestReference, x.RequiredTask, x.SortOrder,
-          dependencies = x.DependsOnStepKeys!.Order(StringComparer.OrdinalIgnoreCase), x.TaskGroupName,
-          pbcDefinition = x.PbcDefinition
-        })
+      // Empty/missing declarations retain the exact pre-feature anonymous-object digest shape.
+      steps = definition.Steps.OrderBy(x => x.SortOrder).Select(StepDigest).ToArray()
     }, Json);
     return Convert.ToHexStringLower(SHA256.HashData(bytes));
   }
@@ -502,6 +545,13 @@ public static class WorkflowTemplateService
         PbcControlTotals = step.PbcDefinition?.ControlTotals, PbcConfidentiality = step.PbcDefinition?.Confidentiality,
         PbcAcceptanceCriteria = step.PbcDefinition?.AcceptanceCriteria
       });
+    foreach (var step in steps)
+      foreach (var requirement in step.EvidenceRequirements ?? [])
+        db.WorkflowTemplateEvidenceRequirements.Add(new WorkflowTemplateEvidenceRequirement
+        {
+          Id = Guid.CreateVersion7(), FirmId = firmId, TemplateRevisionId = revisionId,
+          TemplateStepId = ids[step.StableKey], RequirementKey = requirement.RequirementKey, Kind = requirement.Kind
+        });
     foreach (var step in steps)
       foreach (var predecessor in step.DependsOnStepKeys!)
         db.WorkflowTemplateDependencies.Add(new WorkflowTemplateDependency
@@ -526,6 +576,12 @@ public static class WorkflowTemplateService
                               select new { edge.SuccessorStepId, step.StableKey }).ToListAsync(ct);
     var byStep = dependencies.GroupBy(x => x.SuccessorStepId)
       .ToDictionary(x => x.Key, x => (IReadOnlyList<string>)x.Select(y => y.StableKey).Order(StringComparer.OrdinalIgnoreCase).ToArray());
+    var evidenceRequirements = await db.WorkflowTemplateEvidenceRequirements.AsNoTracking()
+      .Where(x => x.FirmId == revision.FirmId && x.TemplateRevisionId == revision.Id && ids.Contains(x.TemplateStepId))
+      .OrderBy(x => x.RequirementKey).ToListAsync(ct);
+    var requirementsByStep = evidenceRequirements.GroupBy(x => x.TemplateStepId)
+      .ToDictionary(x => x.Key, x => (IReadOnlyList<WorkflowTemplateEvidenceRequirementView>)x
+        .Select(requirement => new WorkflowTemplateEvidenceRequirementView(requirement.RequirementKey, requirement.Kind)).ToArray());
     var template = await db.WorkflowTemplates.AsNoTracking().SingleAsync(x => x.FirmId == revision.FirmId && x.Id == revision.TemplateId, ct);
     return new WorkflowTemplateRevisionView(revision.TemplateId, revision.Id, revision.Version, revision.Name,
       revision.ServiceRoute, revision.IndustryKey, revision.Status, revision.ContentDigest, revision.Revision,
@@ -533,7 +589,8 @@ public static class WorkflowTemplateService
       revision.UpdatedAt, revision.PublishedAt, template.ArchivedAt,
       steps.Select(s => new WorkflowTemplateStepView(s.Id, s.StableKey, s.Phase, s.Title, s.Instructions,
         s.SuggestedStaffingLevel, s.EstimatedEffortMinutes, s.DueDateOffsetDays, s.PbcRequestReference,
-        s.RequiredTask, s.SortOrder, byStep.GetValueOrDefault(s.Id, []), PbcDefinitionOf(s), s.TaskGroupName)).ToArray());
+        s.RequiredTask, s.SortOrder, byStep.GetValueOrDefault(s.Id, []), PbcDefinitionOf(s), s.TaskGroupName,
+        requirementsByStep.GetValueOrDefault(s.Id, []))).ToArray());
   }
 
   private static async Task<WorkflowTemplateDefinition> LoadDefinitionAsync(
@@ -549,10 +606,17 @@ public static class WorkflowTemplateService
                        select new { edge.SuccessorStepId, predecessor.StableKey }).ToListAsync(ct);
     var dependencies = edges.GroupBy(x => x.SuccessorStepId)
       .ToDictionary(x => x.Key, x => (IReadOnlyList<string>)x.Select(y => y.StableKey).ToArray());
+    var evidenceRows = await db.WorkflowTemplateEvidenceRequirements.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.TemplateRevisionId == revision.Id)
+      .ToListAsync(ct);
+    var evidenceByStep = evidenceRows.GroupBy(x => x.TemplateStepId)
+      .ToDictionary(x => x.Key, x => (IReadOnlyList<WorkflowTemplateEvidenceRequirementDraft>)x
+        .Select(requirement => new WorkflowTemplateEvidenceRequirementDraft(requirement.RequirementKey, requirement.Kind)).ToArray());
     return new WorkflowTemplateDefinition(revision.Name, revision.ServiceRoute, revision.IndustryKey,
       steps.Select(s => new WorkflowTemplateStepDraft(s.StableKey, s.Phase, s.Title, s.Instructions,
         s.SuggestedStaffingLevel, s.EstimatedEffortMinutes, s.DueDateOffsetDays, s.PbcRequestReference,
-        s.RequiredTask, s.SortOrder, dependencies.GetValueOrDefault(s.Id, []), PbcDefinitionOf(s), s.TaskGroupName)).ToArray());
+        s.RequiredTask, s.SortOrder, dependencies.GetValueOrDefault(s.Id, []), PbcDefinitionOf(s), s.TaskGroupName,
+        evidenceByStep.GetValueOrDefault(s.Id, []))).ToArray());
   }
 
   private static WorkflowTemplateDecision Decision(ActorContext actor, Guid templateId, Guid revisionId, string kind,

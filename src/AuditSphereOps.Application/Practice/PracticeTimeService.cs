@@ -939,7 +939,7 @@ public static partial class PracticeTimeService
     return CommandResult.Ok();
   }
 
-  private static void AddWorkflowTaskActivity(
+  internal static void AddWorkflowTaskActivity(
     IAuditSphereDbContext db, ActorContext actor, WorkTask task, WorkflowTaskBinding binding,
     string kind, Guid? assigneeUserId, long revision, DateTimeOffset occurredAt,
     DateOnly? previousDueDate = null, DateOnly? newDueDate = null, string? reason = null)

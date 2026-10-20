@@ -25,6 +25,8 @@ public sealed class WorkflowTaskEvidenceRule
   public Guid ClientId { get; set; }
   public Guid EngagementId { get; set; }
   public Guid WorkflowTaskBindingId { get; set; }
+  /// <summary>Exact immutable template declaration that created this rule; null for legacy and manual rules.</summary>
+  public Guid? WorkflowTemplateEvidenceRequirementId { get; set; }
   public Guid RuleKey { get; set; }
   public string DependencyType { get; set; } = WorkflowDependencyTypes.DomainEvidenceSatisfied;
   public string Kind { get; set; } = string.Empty;

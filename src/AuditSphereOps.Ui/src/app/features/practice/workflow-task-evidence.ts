@@ -8,9 +8,12 @@ import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
 const kind = oneOf('CURRENT_MATERIALITY_APPROVED', 'PBC_ACCEPTED_OR_CLOSED', 'CURRENT_PROCEDURE_REVIEWED');
+const optionalNullable = <T>(decoder: (value: unknown, path: string) => T) =>
+  (value: unknown, path: string): T | null => value === undefined ? null : nullable(decoder)(value, path);
 const taskEvidence = obj({ engagementId: guid, taskId: guid, taskRevision: int, canManage: bool,
   rules: arr(obj({ id: guid, kind, sourceId: nullable(guid), state: oneOf('REQUIRED', 'WITHDRAWN'),
     version: int, satisfied: bool, sourceState: str(40), message: str(1000), sourceRevision: nullable(int),
+    evaluatedSourceId: optionalNullable(guid), templateRequirementId: optionalNullable(guid), templateRequirementKey: optionalNullable(str(80)),
     inputGeneration: nullable(int), reason: str(1000), occurredAt: instant }), 8) });
 export const decodeTaskEvidence = (value: unknown, path: string) => {
   const result = taskEvidence(value, path);
@@ -20,7 +23,8 @@ export const decodeTaskEvidence = (value: unknown, path: string) => {
     const reference = `${rule.kind}:${rule.sourceId}`;
     if (references.has(reference) || rule.version < 1 || !rule.reason.trim() ||
       (rule.sourceRevision !== null && rule.sourceRevision < 1) || (rule.inputGeneration !== null && rule.inputGeneration < 1) ||
-      ((rule.kind === 'CURRENT_MATERIALITY_APPROVED') !== (rule.sourceId === null))) throw new Error('Invalid prerequisite reference.');
+      ((rule.kind === 'CURRENT_MATERIALITY_APPROVED') !== (rule.sourceId === null)) ||
+      ((rule.templateRequirementId === null) !== (rule.templateRequirementKey === null))) throw new Error('Invalid prerequisite reference.');
     references.add(reference);
     if (rule.satisfied && !(rule.kind === 'CURRENT_MATERIALITY_APPROVED' ? rule.sourceState === 'APPROVED' :
       rule.kind === 'PBC_ACCEPTED_OR_CLOSED' ? ['ACCEPTED', 'CLOSED'].includes(rule.sourceState) : rule.sourceState === 'REVIEWED_CURRENT'))
@@ -48,6 +52,10 @@ type Change = { kind: Kind; sourceId: string | null; required: boolean; reason: 
             <li>
               <strong>{{ label(rule.kind) }}</strong> · {{ rule.state === 'WITHDRAWN' ? 'Withdrawn' : rule.satisfied ? 'Satisfied' : 'Pending' }}
               <p>{{ rule.message }}@if (rule.sourceRevision !== null) { · Result revision {{ rule.sourceRevision }} }@if (rule.inputGeneration !== null) { · Current generation {{ rule.inputGeneration }} }</p>
+              @if (rule.kind === 'CURRENT_MATERIALITY_APPROVED' && rule.evaluatedSourceId) {
+                <small>Evaluated materiality assessment: {{ rule.evaluatedSourceId }}</small>
+              }
+              @if (rule.templateRequirementId) { <small>Template prerequisite: {{ rule.templateRequirementKey }} · {{ rule.templateRequirementId }}</small> }
               @if (rule.sourceId) { <small>Source reference: {{ rule.sourceId }}</small> }
               <small>Change version {{ rule.version }} · {{ rule.reason }}</small>
               @if (data.canManage && !pending()) {

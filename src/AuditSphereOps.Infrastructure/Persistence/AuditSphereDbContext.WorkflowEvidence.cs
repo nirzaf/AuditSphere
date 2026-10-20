@@ -29,6 +29,9 @@ public sealed partial class AuditSphereDbContext
     rule.HasOne<AuditProcedure>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.AuditProcedureId })
       .HasPrincipalKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    rule.HasOne<WorkflowTemplateEvidenceRequirement>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.WorkflowTemplateEvidenceRequirementId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     rule.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.ActorUserId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     rule.ToTable("workflow_task_evidence_rules", t =>

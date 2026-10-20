@@ -6,6 +6,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -120,6 +121,83 @@ public sealed class WorkflowTemplateTests
       Assert.True((await db.WorkflowTemplates.SingleAsync(x => x.Id == templateId)).ArchivedAt.HasValue);
       Assert.Equal(8, await db.WorkflowTemplateDecisions.CountAsync());
     }
+  }
+
+  [Fact]
+  public async Task TemplateDeclaredEvidenceRequirementsKeepLegacyDigestAndValidateBounds()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
+    var author = User(firmId, "EvidenceAuthor");
+    var reviewer = User(firmId, "EvidenceReviewer");
+    var actor = Actor(author, "Administrator");
+    await SeedAsync(pg.Options, firmId, author, reviewer);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    const string legacyDigest = "3a3fd4ad5a4218e85b36884a3d9406c603653cea8b5ffae78f516e26c4b2d42e";
+    var missing = await WorkflowTemplateService.CreateDraftAsync(db, actor, Request(null, [Step("A", 1)]));
+    var empty = await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      Request(null, [Step("A", 1) with { EvidenceRequirements = [] }]));
+    Assert.True(missing.Succeeded, missing.Message);
+    Assert.True(empty.Succeeded, empty.Message);
+    Assert.Equal(legacyDigest,
+      (await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == missing.Value)).ContentDigest);
+    Assert.Equal(legacyDigest,
+      (await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == empty.Value)).ContentDigest);
+
+    var declarations = new[]
+    {
+      new WorkflowTemplateEvidenceRequirementDraft("CURRENT", WorkflowEvidenceKinds.CurrentMateriality),
+      new WorkflowTemplateEvidenceRequirementDraft("PBC", WorkflowEvidenceKinds.AcceptedPbc)
+    };
+    var declared = await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      Request(null, [Step("A", 1) with { EvidenceRequirements = declarations }]));
+    Assert.True(declared.Succeeded, declared.Message);
+    var declaredTemplate = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == declared.Value);
+    var reviewerActor = Actor(reviewer, "Partner");
+    var review = await WorkflowTemplateService.ReviewAsync(db, reviewerActor, declaredTemplate.TemplateId,
+      declaredTemplate.Id, declaredTemplate.Revision, "Review immutable evidence declarations.");
+    Assert.True(review.Succeeded, review.Message);
+    declaredTemplate = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == declared.Value);
+    var publish = await WorkflowTemplateService.PublishAsync(db, reviewerActor, declaredTemplate.TemplateId,
+      declaredTemplate.Id, declaredTemplate.Revision, "Publish immutable evidence declarations.");
+    Assert.True(publish.Succeeded, publish.Message);
+    var view = await WorkflowTemplateService.GetRevisionAsync(db, actor, declaredTemplate.TemplateId, declaredTemplate.Id);
+    Assert.True(view.Succeeded, view.Message);
+    Assert.Equal(declarations.Select(x => new WorkflowTemplateEvidenceRequirementView(x.RequirementKey, x.Kind)),
+      Assert.Single(view.Value!.Steps).EvidenceRequirements!);
+    var declarationId = await db.WorkflowTemplateEvidenceRequirements.AsNoTracking()
+      .Where(x => x.TemplateRevisionId == declaredTemplate.Id).Select(x => x.Id).FirstAsync();
+    const string rewrittenKey = "REWRITTEN";
+    var updateGuard = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE workflow_template_evidence_requirements SET requirement_key = {rewrittenKey} WHERE id = {declarationId}"));
+    Assert.Equal("P0001", updateGuard.SqlState);
+    var deleteGuard = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"DELETE FROM workflow_template_evidence_requirements WHERE id = {declarationId}"));
+    Assert.Equal("P0001", deleteGuard.SqlState);
+    Assert.Equal(2, await db.WorkflowTemplateEvidenceRequirements.CountAsync(x => x.TemplateRevisionId == declaredTemplate.Id));
+
+    var excessive = await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      Request(null, [Step("A", 1) with
+      {
+        EvidenceRequirements = Enumerable.Range(1, 9)
+          .Select(index => new WorkflowTemplateEvidenceRequirementDraft($"PBC_{index}", WorkflowEvidenceKinds.AcceptedPbc))
+          .ToArray()
+      }]));
+    Assert.False(excessive.Succeeded);
+    Assert.Equal("workflow.template-invalid", excessive.ErrorCode);
+    var duplicateMateriality = await WorkflowTemplateService.CreateDraftAsync(db, actor,
+      Request(null, [Step("A", 1) with
+      {
+        EvidenceRequirements =
+        [
+          new("CURRENT_A", WorkflowEvidenceKinds.CurrentMateriality),
+          new("CURRENT_B", WorkflowEvidenceKinds.CurrentMateriality)
+        ]
+      }]));
+    Assert.False(duplicateMateriality.Succeeded);
+    Assert.Equal("workflow.template-invalid", duplicateMateriality.ErrorCode);
+    Assert.Equal(3, await db.WorkflowTemplates.CountAsync());
   }
 
   private static SaveWorkflowTemplateDraftRequest Request(Guid? templateId, IReadOnlyList<WorkflowTemplateStepDraft> steps) =>

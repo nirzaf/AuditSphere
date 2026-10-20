@@ -141019,6 +141019,105 @@
           "occurredAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "templateRequirementId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "templateRequirementKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "evaluatedSourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "WorkflowPlanEvidenceInput": {
+        "required": [
+          "stepKey",
+          "requirementKey",
+          "sourceId"
+        ],
+        "type": "object",
+        "properties": {
+          "stepKey": {
+            "type": "string"
+          },
+          "requirementKey": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "WorkflowPlanEvidenceRequirementPreview": {
+        "required": [
+          "requirementKey",
+          "kind",
+          "sourceId",
+          "bindingRequired",
+          "satisfied",
+          "sourceState",
+          "message",
+          "sourceRevision",
+          "inputGeneration"
+        ],
+        "type": "object",
+        "properties": {
+          "requirementKey": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bindingRequired": {
+            "type": "boolean"
+          },
+          "satisfied": {
+            "type": "boolean"
+          },
+          "sourceState": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "inputGeneration": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -141058,6 +141157,15 @@
             ],
             "items": {
               "$ref": "#/components/schemas/WorkflowPlanPbcOwnerInput"
+            }
+          },
+          "evidenceSelections": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPlanEvidenceInput"
             }
           }
         }
@@ -141303,6 +141411,15 @@
             "items": {
               "$ref": "#/components/schemas/WorkflowPlanPbcOwnerInput"
             }
+          },
+          "evidenceSelections": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPlanEvidenceInput"
+            }
           }
         }
       },
@@ -141409,6 +141526,15 @@
                 "$ref": "#/components/schemas/WorkflowPlanPbcPreview"
               }
             ]
+          },
+          "evidenceRequirements": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPlanEvidenceRequirementPreview"
+            }
           }
         }
       },
@@ -143105,6 +143231,36 @@
           }
         }
       },
+      "WorkflowTemplateEvidenceRequirementInput": {
+        "required": [
+          "requirementKey",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "requirementKey": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowTemplateEvidenceRequirementView": {
+        "required": [
+          "requirementKey",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "requirementKey": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
       "WorkflowTemplatePbcDefinition": {
         "required": [
           "objective",
@@ -143423,6 +143579,15 @@
               "null",
               "string"
             ]
+          },
+          "evidenceRequirements": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTemplateEvidenceRequirementInput"
+            }
           }
         }
       },
@@ -143521,6 +143686,15 @@
               "null",
               "string"
             ]
+          },
+          "evidenceRequirements": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTemplateEvidenceRequirementView"
+            }
           }
         }
       },

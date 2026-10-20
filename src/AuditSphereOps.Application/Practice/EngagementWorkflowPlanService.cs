@@ -13,20 +13,26 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record WorkflowPlanOwnerSelection(string StepKey, Guid AssigneeUserId);
+public sealed record WorkflowPlanEvidenceSelection(string StepKey, string RequirementKey, Guid SourceId);
 /// <summary>Explicit current owners for one typed PBC step. Nothing is copied from an earlier request or year.</summary>
 public sealed record WorkflowPlanPbcOwnerSelection(string StepKey, Guid ClientOwnerUserId, Guid FirmOwnerUserId,
   Guid ReviewerUserId);
 public sealed record PreviewEngagementWorkflowPlanRequest(Guid TemplateRevisionId,
   IReadOnlyList<WorkflowPlanOwnerSelection>? Owners = null,
-  IReadOnlyList<WorkflowPlanPbcOwnerSelection>? PbcOwners = null);
+  IReadOnlyList<WorkflowPlanPbcOwnerSelection>? PbcOwners = null,
+  IReadOnlyList<WorkflowPlanEvidenceSelection>? EvidenceSelections = null);
 public sealed record ExecuteEngagementWorkflowPlanRequest(Guid TemplateRevisionId, string ExpectedPreviewDigest,
   Guid IdempotencyKey, IReadOnlyList<WorkflowPlanOwnerSelection>? Owners = null,
-  IReadOnlyList<WorkflowPlanPbcOwnerSelection>? PbcOwners = null);
+  IReadOnlyList<WorkflowPlanPbcOwnerSelection>? PbcOwners = null,
+  IReadOnlyList<WorkflowPlanEvidenceSelection>? EvidenceSelections = null);
 /// <summary>Creates the still-pending PBC drafts of an executed plan (for example after activation) for the same steps.</summary>
 public sealed record CreateWorkflowPlanPbcDraftsRequest(Guid TemplateRevisionId, string ExpectedPreviewDigest,
   IReadOnlyList<WorkflowPlanPbcOwnerSelection>? PbcOwners = null);
 public sealed record WorkflowPlanOwnerCandidate(Guid UserId, string DisplayName, string StaffingLevel);
 public sealed record WorkflowPlanPbcCandidate(Guid UserId, string DisplayName);
+public sealed record WorkflowPlanEvidenceRequirementPreview(string RequirementKey, string Kind, Guid? SourceId,
+  bool BindingRequired, bool Satisfied, string SourceState, string Message,
+  long? SourceRevision, long? InputGeneration);
 /// <summary>
 /// The exact request a typed template step will create: fresh, unsent, current period and current owners. A linked
 /// step shows the request already bound to its task; an unresolved legacy reference is descriptive only.
@@ -38,7 +44,8 @@ public sealed record WorkflowPlanStepPreview(string StepKey, Guid TemplateStepId
   string Phase, int SortOrder, DateOnly? DueDate, int? PlannedEffortMinutes, string? SuggestedStaffingLevel,
   Guid? SelectedAssigneeUserId, IReadOnlyList<WorkflowPlanOwnerCandidate> EligibleOwners,
   IReadOnlyList<string> DependsOnStepKeys, bool MissingEligibleAssignee, Guid? ExistingTaskId,
-  WorkflowPlanPbcPreview? Pbc = null);
+  WorkflowPlanPbcPreview? Pbc = null,
+  IReadOnlyList<WorkflowPlanEvidenceRequirementPreview>? EvidenceRequirements = null);
 public sealed record EngagementWorkflowPlanPreview(Guid EngagementId, long EngagementGeneration, Guid TemplateId,
   Guid TemplateRevisionId, int TemplateVersion, string TemplateName, string TemplateContentDigest,
   Guid? MilestonePlanId, long? MilestonePlanRevision, DateOnly? ScheduleBasisDate, string PreviewDigest,
@@ -59,6 +66,9 @@ public sealed record EngagementWorkflowPlanReceipt(Guid ReceiptId, Guid Engageme
 /// </summary>
 public static class EngagementWorkflowPlanService
 {
+  private sealed record ResolvedEvidencePreview(Guid TemplateRequirementId, string StepKey,
+    WorkflowPlanEvidenceRequirementPreview View, string? SourceFingerprint);
+
   private static readonly string[] ReadRoles = ["Administrator", "Partner", "Manager", "Senior", "Staff"];
   private static readonly string[] ConfigureRoles = ["Administrator", "Partner", "Manager"];
   // Same reviewer population the PBC inbox offers; expiry and the scope are checked here as well.
@@ -108,16 +118,20 @@ public static class EngagementWorkflowPlanService
     var configure = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, ConfigureRoles, InternalOnly: true), ct);
     var loaded = await LoadPreviewAsync(db, actor, engagement, request.TemplateRevisionId, request.Owners,
-      request.PbcOwners, ct);
-    return loaded.Succeeded
-      ? CommandResult<EngagementWorkflowPlanPreview>.Ok(loaded.Value! with
-        { CanExecute = configure.Succeeded && !loaded.Value!.AlreadyInstantiated &&
-            (!engagement.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) ||
-              loaded.Value.Steps.All(x => x.Pbc?.State is not null &&
-                (x.Pbc.State is WorkflowPlanPbcStates.Linked or WorkflowPlanPbcStates.UnresolvedReference) ||
-                x.Pbc is null || x.Pbc.State == WorkflowPlanPbcStates.ReadyDraft)),
-          CanCreatePbcDrafts = configure.Succeeded && loaded.Value!.CanCreatePbcDrafts })
-      : CommandResult<EngagementWorkflowPlanPreview>.Fail(loaded.ErrorCode!, loaded.Message!);
+      request.PbcOwners, request.EvidenceSelections, ct);
+    if (!loaded.Succeeded)
+      return CommandResult<EngagementWorkflowPlanPreview>.Fail(loaded.ErrorCode!, loaded.Message!);
+    var preview = loaded.Value!;
+    var pbcReady = !engagement.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) ||
+      preview.Steps.All(step => step.Pbc is null ||
+        step.Pbc.State is WorkflowPlanPbcStates.Linked or WorkflowPlanPbcStates.UnresolvedReference or WorkflowPlanPbcStates.ReadyDraft);
+    var evidenceBindingsReady = preview.Steps.SelectMany(step => step.EvidenceRequirements ?? [])
+      .All(requirement => !requirement.BindingRequired || requirement.SourceId.HasValue);
+    return CommandResult<EngagementWorkflowPlanPreview>.Ok(preview with
+    {
+      CanExecute = configure.Succeeded && !preview.AlreadyInstantiated && pbcReady && evidenceBindingsReady,
+      CanCreatePbcDrafts = configure.Succeeded && preview.CanCreatePbcDrafts
+    });
   }
 
   public static async Task<CommandResult<EngagementWorkflowPlanReceipt>> ExecuteAsync(
@@ -178,15 +192,21 @@ public static class EngagementWorkflowPlanService
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.ProtectedState,
         "Choose the current published revision of an active workflow template.");
 
-    var preview = await LoadPreviewAsync(db, actor, engagement, revision.Id, request.Owners, request.PbcOwners, ct);
+    var preview = await LoadPreviewAsync(db, actor, engagement, revision.Id, request.Owners,
+      request.PbcOwners, request.EvidenceSelections, ct);
     if (!preview.Succeeded)
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(preview.ErrorCode!, preview.Message!);
+    var planPreview = preview.Value!;
     if (engagement.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) &&
-        preview.Value!.Steps.Any(x => x.Pbc is { Definition: not null } &&
+        planPreview.Steps.Any(x => x.Pbc is { Definition: not null } &&
           x.Pbc.State is not (WorkflowPlanPbcStates.ReadyDraft or WorkflowPlanPbcStates.Linked)))
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked,
         "Assign eligible client, firm and reviewer owners for every typed PBC step before executing this active plan.");
-    if (!string.Equals(preview.Value!.PreviewDigest, request.ExpectedPreviewDigest, StringComparison.Ordinal))
+    if (planPreview.Steps.SelectMany(step => step.EvidenceRequirements ?? [])
+        .Any(requirement => requirement.BindingRequired && !requirement.SourceId.HasValue))
+      return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked,
+        "Select an exact authorized source for every declared evidence prerequisite before executing this plan.");
+    if (!string.Equals(planPreview.PreviewDigest, request.ExpectedPreviewDigest, StringComparison.Ordinal))
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.StaleRevision,
         "Engagement, staffing, schedule or template inputs changed after preview. Review a fresh task plan.");
 
@@ -215,11 +235,11 @@ public static class EngagementWorkflowPlanService
         "Template task rows exist without a plan receipt. Review the existing engagement tasks before retrying.");
 
     var bindingsByTemplateStep = new Dictionary<Guid, WorkflowTaskBinding>();
-    foreach (var step in preview.Value.Steps)
+    foreach (var step in planPreview.Steps)
     {
       var stepRow = await db.WorkflowTemplateSteps.AsNoTracking().SingleAsync(x =>
         x.FirmId == actor.FirmId && x.TemplateRevisionId == revision.Id && x.Id == step.TemplateStepId, ct);
-      var stepDigest = Digest(new { preview.Value.PreviewDigest, step.StepKey, step.TemplateStepId, step.DueDate,
+      var stepDigest = Digest(new { planPreview.PreviewDigest, step.StepKey, step.TemplateStepId, step.DueDate,
         step.SelectedAssigneeUserId, step.SortOrder });
       var binding = new WorkflowTaskBinding
       {
@@ -245,7 +265,7 @@ public static class EngagementWorkflowPlanService
 
     if (engagement.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
     {
-      foreach (var step in preview.Value.Steps.Where(x => x.Pbc?.State == WorkflowPlanPbcStates.ReadyDraft))
+      foreach (var step in planPreview.Steps.Where(x => x.Pbc?.State == WorkflowPlanPbcStates.ReadyDraft))
       {
         var plan = step.Pbc!;
         var definition = plan.Definition!;
@@ -259,6 +279,65 @@ public static class EngagementWorkflowPlanService
           return CommandResult<EngagementWorkflowPlanReceipt>.Fail(createdPbc.ErrorCode!, createdPbc.Message!);
         bindingsByTemplateStep[step.TemplateStepId].PbcRequestId = createdPbc.Value;
       }
+    }
+
+    var templateEvidenceRequirements = await db.WorkflowTemplateEvidenceRequirements.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.TemplateRevisionId == revision.Id)
+      .OrderBy(x => x.TemplateStepId).ThenBy(x => x.RequirementKey).ToListAsync(ct);
+    var planTaskIds = bindingsByTemplateStep.Values.Select(x => x.WorkTaskId).ToArray();
+    var tasksById = await db.WorkTasks.Where(x => x.FirmId == actor.FirmId && planTaskIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, ct);
+    foreach (var requirement in templateEvidenceRequirements)
+    {
+      if (!bindingsByTemplateStep.TryGetValue(requirement.TemplateStepId, out var binding))
+        return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked,
+          "The published template evidence declaration is outside its task plan.");
+      var step = planPreview.Steps.Single(x => x.TemplateStepId == requirement.TemplateStepId);
+      var evidencePreview = (step.EvidenceRequirements ?? []).SingleOrDefault(x =>
+        string.Equals(x.RequirementKey, requirement.RequirementKey, StringComparison.Ordinal));
+      if (evidencePreview is null || evidencePreview.Kind != requirement.Kind)
+        return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.StaleRevision,
+          "A declared evidence prerequisite changed after preview. Review a fresh task plan.");
+      var sourceId = requirement.Kind == WorkflowEvidenceKinds.CurrentMateriality
+        ? Guid.Empty
+        : evidencePreview.SourceId ?? Guid.Empty;
+      if (sourceId == Guid.Empty && requirement.Kind != WorkflowEvidenceKinds.CurrentMateriality)
+        return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked,
+          "Select an exact authorized source for every declared evidence prerequisite before executing this plan.");
+      if (binding.Revision == long.MaxValue)
+        return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.ProtectedState,
+          "The task revision cannot advance to include its declared evidence prerequisites.");
+
+      binding.Revision++;
+      var now = DateTimeOffset.UtcNow;
+      var reason = $"Template prerequisite '{requirement.RequirementKey}' ({requirement.Kind}) declared on step '{step.StepKey}'.";
+      var requestDigest = Digest(new
+      {
+        PlanPreviewDigest = planPreview.PreviewDigest,
+        step.StepKey,
+        TemplateRequirementId = requirement.Id,
+        requirement.RequirementKey,
+        requirement.Kind,
+        SourceId = sourceId
+      });
+      db.WorkflowTaskEvidenceRules.Add(new WorkflowTaskEvidenceRule
+      {
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId,
+        EngagementId = engagement.Id, WorkflowTaskBindingId = binding.Id,
+        WorkflowTemplateEvidenceRequirementId = requirement.Id, RuleKey = Guid.CreateVersion7(),
+        Kind = requirement.Kind, SourceId = sourceId,
+        PbcRequestId = requirement.Kind == WorkflowEvidenceKinds.AcceptedPbc ? sourceId : null,
+        AuditProcedureId = requirement.Kind == WorkflowEvidenceKinds.ReviewedProcedure ? sourceId : null,
+        Version = 1, State = WorkflowEvidenceRuleStates.Required, TaskRevision = binding.Revision,
+        ActorUserId = actor.UserId, IdempotencyKey = Guid.CreateVersion7(), RequestDigest = requestDigest,
+        Reason = reason, OccurredAt = now
+      });
+      var task = tasksById[binding.WorkTaskId];
+      PracticeTimeService.AddWorkflowTaskActivity(db, actor, task, binding,
+        WorkflowTaskActivityKinds.EvidenceChanged, null, binding.Revision, now);
+      // The activity trigger requires one binding revision increment per activity row. Flush each pair inside the
+      // surrounding plan transaction so multiple declared prerequisites remain atomic while advancing consecutively.
+      await db.SaveChangesAsync(ct);
     }
 
     var templateDependencies = await db.WorkflowTemplateDependencies.AsNoTracking().Where(x =>
@@ -283,11 +362,11 @@ public static class EngagementWorkflowPlanService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = engagement.PracticeClientId,
       EngagementId = engagement.Id, TemplateId = template.Id, TemplateRevisionId = revision.Id,
       TemplateVersion = revision.Version, EngagementGeneration = engagement.Generation,
-      MilestonePlanId = preview.Value.MilestonePlanId,
-      MilestonePlanRevision = preview.Value.MilestonePlanRevision,
-      ScheduleBasisDate = preview.Value.ScheduleBasisDate,
-      IdempotencyKey = request.IdempotencyKey, RequestDigest = preview.Value.PreviewDigest,
-      TaskCount = preview.Value.Steps.Count, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
+      MilestonePlanId = planPreview.MilestonePlanId,
+      MilestonePlanRevision = planPreview.MilestonePlanRevision,
+      ScheduleBasisDate = planPreview.ScheduleBasisDate,
+      IdempotencyKey = request.IdempotencyKey, RequestDigest = planPreview.PreviewDigest,
+      TaskCount = planPreview.Steps.Count, CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.WorkflowTaskPlanReceipts.Add(receipt);
     await db.SaveChangesAsync(ct);
@@ -359,11 +438,12 @@ public static class EngagementWorkflowPlanService
         revision.Status is not (WorkflowTemplateStates.Published or WorkflowTemplateStates.Superseded))
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.ProtectedState,
         "The retained typed PBC definition is no longer available for fresh review.");
-    var preview = await LoadPreviewAsync(db, actor, engagement, revision.Id, null, request.PbcOwners, ct,
+    var preview = await LoadPreviewAsync(db, actor, engagement, revision.Id, null, request.PbcOwners, null, ct,
       allowSupersededPinnedRevision: true);
     if (!preview.Succeeded)
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(preview.ErrorCode!, preview.Message!);
-    if (!string.Equals(preview.Value!.PreviewDigest, request.ExpectedPreviewDigest, StringComparison.Ordinal))
+    var pbcPreview = preview.Value!;
+    if (!string.Equals(pbcPreview.PreviewDigest, request.ExpectedPreviewDigest, StringComparison.Ordinal))
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.StaleRevision,
         "Engagement, owner eligibility or template inputs changed after preview. Review the PBC drafts again.");
     var boundRequests = await db.WorkflowTaskBindings.AsNoTracking().Where(x =>
@@ -378,7 +458,7 @@ public static class EngagementWorkflowPlanService
       if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<EngagementWorkflowPlanReceipt>.Ok(await ReceiptViewAsync(db, receipt, replayed: true, ct));
     }
-    if (!preview.Value.CanCreatePbcDrafts)
+    if (!pbcPreview.CanCreatePbcDrafts)
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked,
         "No eligible pending PBC draft is ready to create.");
 
@@ -386,7 +466,7 @@ public static class EngagementWorkflowPlanService
       x.EngagementId == engagement.Id && x.TemplateRevisionId == revision.Id).ToListAsync(ct);
     var bindingByStep = bindings.Where(x => x.TemplateStepId.HasValue)
       .ToDictionary(x => x.TemplateStepId!.Value);
-    foreach (var step in preview.Value.Steps.Where(x => x.Pbc?.State == WorkflowPlanPbcStates.ReadyDraft))
+    foreach (var step in pbcPreview.Steps.Where(x => x.Pbc?.State == WorkflowPlanPbcStates.ReadyDraft))
     {
       if (!bindingByStep.TryGetValue(step.TemplateStepId, out var binding) || binding.PbcRequestId.HasValue ||
           !step.Pbc!.DueDate.HasValue || !step.Pbc.ClientOwnerUserId.HasValue ||
@@ -412,13 +492,16 @@ public static class EngagementWorkflowPlanService
   private static async Task<CommandResult<EngagementWorkflowPlanPreview>> LoadPreviewAsync(
     IAuditSphereDbContext db, ActorContext actor, Engagement engagement, Guid revisionId,
     IReadOnlyList<WorkflowPlanOwnerSelection>? requestedOwners,
-    IReadOnlyList<WorkflowPlanPbcOwnerSelection>? requestedPbcOwners, CancellationToken ct,
+    IReadOnlyList<WorkflowPlanPbcOwnerSelection>? requestedPbcOwners,
+    IReadOnlyList<WorkflowPlanEvidenceSelection>? requestedEvidenceSelections, CancellationToken ct,
     bool allowSupersededPinnedRevision = false)
   {
     if (requestedOwners is { Count: > 100 })
       return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid", "Owner selections are limited to 100 template steps.");
     if (requestedPbcOwners is { Count: > 100 })
       return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid", "PBC owner selections are limited to 100 template steps.");
+    if (requestedEvidenceSelections is { Count: > 800 })
+      return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid", "Evidence selections are limited to 800 template requirements.");
     var ownerMap = new Dictionary<string, Guid>(StringComparer.Ordinal);
     foreach (var owner in requestedOwners ?? [])
     {
@@ -436,6 +519,16 @@ public static class EngagementWorkflowPlanService
           !pbcOwnerMap.TryAdd(key, owner))
         return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid",
           "PBC owner selections must use unique step keys and three distinct active user IDs.");
+    }
+    var evidenceSelectionMap = new Dictionary<(string StepKey, string RequirementKey), Guid>();
+    foreach (var selection in requestedEvidenceSelections ?? [])
+    {
+      var stepKey = (selection.StepKey ?? string.Empty).Trim();
+      var requirementKey = (selection.RequirementKey ?? string.Empty).Trim();
+      if (stepKey.Length is < 1 or > 80 || requirementKey.Length is < 1 or > 80 ||
+          selection.SourceId == Guid.Empty || !evidenceSelectionMap.TryAdd((stepKey, requirementKey), selection.SourceId))
+        return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid",
+          "Evidence selections must use unique template step and requirement keys with non-empty source IDs.");
     }
 
     var revision = await db.WorkflowTemplateRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -462,6 +555,23 @@ public static class EngagementWorkflowPlanService
         pbcOwnerMap.Keys.Any(key => steps.Single(x => x.StableKey == key).PbcObjective is null))
       return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid",
         "A PBC owner selection references a step without a typed PBC definition in this template revision.");
+
+    var evidenceRequirements = await db.WorkflowTemplateEvidenceRequirements.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.TemplateRevisionId == revision.Id)
+      .OrderBy(x => x.TemplateStepId).ThenBy(x => x.RequirementKey).ToListAsync(ct);
+    var evidenceByStep = evidenceRequirements.GroupBy(x => x.TemplateStepId)
+      .ToDictionary(x => x.Key, x => (IReadOnlyList<WorkflowTemplateEvidenceRequirement>)x.ToArray());
+    if (evidenceRequirements.Count > steps.Count * WorkflowTaskEvidenceQuery.MaximumRules ||
+        evidenceRequirements.Any(x => !WorkflowEvidenceKinds.All.Contains(x.Kind, StringComparer.Ordinal) ||
+          !steps.Any(step => step.Id == x.TemplateStepId && step.StableKey.Length > 0)) ||
+        evidenceByStep.Values.Any(x => x.Count > WorkflowTaskEvidenceQuery.MaximumRules))
+      return CommandResult<EngagementWorkflowPlanPreview>.Fail(ErrorCodes.GateBlocked,
+        "The published template has unsupported or excessive evidence requirements.");
+    var declaredSelectionKeys = evidenceRequirements.Select(requirement =>
+      (steps.Single(step => step.Id == requirement.TemplateStepId).StableKey, requirement.RequirementKey)).ToHashSet();
+    if (evidenceSelectionMap.Keys.Any(key => !declaredSelectionKeys.Contains(key)))
+      return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid",
+        "An evidence selection references a step or requirement outside this template revision.");
 
     var templateIds = steps.Select(x => x.Id).ToArray();
     var predecessorById = steps.ToDictionary(x => x.Id, x => x.StableKey);
@@ -514,11 +624,23 @@ public static class EngagementWorkflowPlanService
         "Save the engagement statutory milestone plan before previewing template due dates.");
     var existing = await db.WorkflowTaskBindings.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.EngagementId == engagement.Id && x.TemplateRevisionId == revision.Id)
-      .Select(x => new { x.TemplateStepId, x.WorkTaskId, x.PbcRequestId }).ToListAsync(ct);
+      .Select(x => new { x.Id, x.TemplateStepId, x.WorkTaskId, x.PbcRequestId }).ToListAsync(ct);
     var existingByStep = existing.Where(x => x.TemplateStepId.HasValue)
       .GroupBy(x => x.TemplateStepId!.Value).ToDictionary(x => x.Key, x => x.First().WorkTaskId);
+    var existingBindingByStep = existing.Where(x => x.TemplateStepId.HasValue)
+      .GroupBy(x => x.TemplateStepId!.Value).ToDictionary(x => x.Key, x => x.First().Id);
+    var existingBindingIds = existing.Select(x => x.Id).ToArray();
+    List<WorkflowTaskEvidenceRule> existingEvidenceHeads = existingBindingIds.Length == 0 ? [] :
+      await WorkflowTaskEvidenceQuery.Heads(db, actor.FirmId)
+        .Where(x => existingBindingIds.Contains(x.WorkflowTaskBindingId)).ToListAsync(ct);
+    if (existingEvidenceHeads.Where(x => x.WorkflowTemplateEvidenceRequirementId.HasValue)
+        .GroupBy(x => (x.WorkflowTaskBindingId, x.WorkflowTemplateEvidenceRequirementId))
+        .Any(x => x.Count() > 1))
+      return CommandResult<EngagementWorkflowPlanPreview>.Fail(ErrorCodes.GateBlocked,
+        "The retained task plan has conflicting evidence declaration bindings.");
 
     var planSteps = new List<WorkflowPlanStepPreview>(steps.Count);
+    var resolvedEvidence = new List<ResolvedEvidencePreview>(evidenceRequirements.Count);
     foreach (var step in steps)
     {
       var eligible = candidates.Where(x => step.SuggestedStaffingLevel is null || x.StaffingLevel == step.SuggestedStaffingLevel).ToArray();
@@ -600,10 +722,37 @@ public static class EngagementWorkflowPlanService
             dueDate, clientOwnerId, firmOwnerId, reviewerId, null, allOwners ? "DRAFT" : null);
         }
       }
+      var stepEvidenceViews = new List<WorkflowPlanEvidenceRequirementPreview>();
+      var stepResolvedEvidence = new List<ResolvedEvidencePreview>();
+      if (evidenceByStep.TryGetValue(step.Id, out var declaredEvidence))
+      {
+        foreach (var requirement in declaredEvidence)
+        {
+          Guid? selectedSourceId = evidenceSelectionMap.TryGetValue((step.StableKey, requirement.RequirementKey), out var sourceId)
+            ? sourceId : null;
+          WorkflowTaskEvidenceRule? existingRule = null;
+          if (existingBindingByStep.TryGetValue(step.Id, out var existingBindingId))
+            existingRule = existingEvidenceHeads.SingleOrDefault(x =>
+              x.WorkflowTaskBindingId == existingBindingId &&
+              x.WorkflowTemplateEvidenceRequirementId == requirement.Id);
+          var resolved = await ResolveEvidencePreviewAsync(db, actor.FirmId, engagement, step.StableKey,
+            requirement, selectedSourceId, existingRule, ct);
+          if (!resolved.Succeeded)
+            return CommandResult<EngagementWorkflowPlanPreview>.Fail(resolved.ErrorCode!, resolved.Message!);
+          var resolvedRequirement = resolved.Value!;
+          stepEvidenceViews.Add(resolvedRequirement.View);
+          stepResolvedEvidence.Add(resolvedRequirement);
+          resolvedEvidence.Add(resolvedRequirement);
+        }
+      }
+      if (HasDuplicateResolvedEvidenceSources(stepResolvedEvidence))
+        return CommandResult<EngagementWorkflowPlanPreview>.Fail("workflow.plan-invalid",
+          $"Step '{step.StableKey}' binds more than one prerequisite to the same evidence kind and source. Choose a distinct exact source for each declaration.");
       planSteps.Add(new WorkflowPlanStepPreview(step.StableKey, step.Id, step.Title, step.Instructions, step.Phase,
         step.SortOrder, dueDate, step.EstimatedEffortMinutes, step.SuggestedStaffingLevel, selected,
         eligible, stepDependencies ?? [], step.SuggestedStaffingLevel is not null && eligible.Length == 0,
-        existingTaskId == Guid.Empty ? null : existingTaskId, pbc));
+        existingTaskId == Guid.Empty ? null : existingTaskId, pbc,
+        stepEvidenceViews.Count == 0 ? null : stepEvidenceViews));
     }
 
     var latestPublishedVersion = await db.WorkflowTemplateRevisions.AsNoTracking().Where(x =>
@@ -625,7 +774,13 @@ public static class EngagementWorkflowPlanService
       Roster = rosterDigest,
       Steps = planSteps.Select(x => new { x.StepKey, x.TemplateStepId, x.Phase, x.SortOrder, x.DueDate,
         x.PlannedEffortMinutes, x.SuggestedStaffingLevel, x.SelectedAssigneeUserId, DependsOn = x.DependsOnStepKeys,
-        x.Pbc?.State, x.Pbc?.ClientOwnerUserId, x.Pbc?.FirmOwnerUserId, x.Pbc?.ReviewerUserId }).ToArray()
+        x.Pbc?.State, x.Pbc?.ClientOwnerUserId, x.Pbc?.FirmOwnerUserId, x.Pbc?.ReviewerUserId }).ToArray(),
+      EvidenceRequirements = resolvedEvidence.Select(x => new
+      {
+        x.TemplateRequirementId, x.StepKey, x.View.RequirementKey, x.View.Kind, x.View.SourceId,
+        x.View.BindingRequired, x.View.Satisfied, x.View.SourceState, x.View.SourceRevision,
+        x.View.InputGeneration, x.SourceFingerprint
+      }).ToArray()
     });
     var receipt = await db.WorkflowTaskPlanReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.EngagementId == engagement.Id && x.TemplateRevisionId == revision.Id, ct);
@@ -637,6 +792,100 @@ public static class EngagementWorkflowPlanService
         .Select(x => new WorkflowPlanPbcCandidate(x.UserId, x.DisplayName)).ToArray(), reviewerCandidates,
       CanCreatePbcDrafts: engagement.Status.Equals("Active", StringComparison.OrdinalIgnoreCase) &&
         planSteps.Any(x => x.Pbc?.State == WorkflowPlanPbcStates.ReadyDraft)));
+  }
+
+  private static bool HasDuplicateResolvedEvidenceSources(IReadOnlyList<ResolvedEvidencePreview> requirements)
+  {
+    var identities = new HashSet<(string Kind, Guid SourceId)>();
+    foreach (var requirement in requirements)
+    {
+      // Current materiality resolves to the engagement context; its task rule uses Guid.Empty even when a current
+      // assessment ID is shown in the preview. Unselected PBC/procedure declarations remain visible and unresolved.
+      Guid? sourceId = requirement.View.Kind == WorkflowEvidenceKinds.CurrentMateriality
+        ? Guid.Empty
+        : requirement.View.SourceId;
+      if (sourceId.HasValue && !identities.Add((requirement.View.Kind, sourceId.Value))) return true;
+    }
+    return false;
+  }
+
+  private static async Task<CommandResult<ResolvedEvidencePreview>> ResolveEvidencePreviewAsync(
+    IAuditSphereDbContext db, Guid firmId, Engagement engagement, string stepKey,
+    WorkflowTemplateEvidenceRequirement requirement, Guid? selectedSourceId,
+    WorkflowTaskEvidenceRule? existingRule, CancellationToken ct)
+  {
+    if (!WorkflowEvidenceKinds.All.Contains(requirement.Kind, StringComparer.Ordinal))
+      return CommandResult<ResolvedEvidencePreview>.Fail(ErrorCodes.GateBlocked,
+        "The published template contains an unsupported evidence prerequisite.");
+
+    if (requirement.Kind == WorkflowEvidenceKinds.CurrentMateriality)
+    {
+      if (selectedSourceId.HasValue)
+        return CommandResult<ResolvedEvidencePreview>.Fail("workflow.plan-invalid",
+          "Current materiality resolves from the engagement context and does not accept a selected source.");
+      if (existingRule is not null && (existingRule.Kind != requirement.Kind ||
+          existingRule.SourceId != Guid.Empty ||
+          existingRule.WorkflowTemplateEvidenceRequirementId != requirement.Id))
+        return CommandResult<ResolvedEvidencePreview>.Fail(ErrorCodes.GateBlocked,
+          "The retained task evidence rule does not match its template declaration.");
+      var contextRule = new WorkflowTaskEvidenceRule
+      {
+        FirmId = firmId, ClientId = engagement.PracticeClientId, EngagementId = engagement.Id,
+        Kind = requirement.Kind, SourceId = Guid.Empty
+      };
+      var evaluation = await WorkflowTaskEvidenceQuery.EvaluateSourceAsync(db, contextRule, ct);
+      return CommandResult<ResolvedEvidencePreview>.Ok(new ResolvedEvidencePreview(requirement.Id, stepKey,
+        new WorkflowPlanEvidenceRequirementPreview(requirement.RequirementKey, requirement.Kind,
+          evaluation.SourceId, false, evaluation.Satisfied, evaluation.State, evaluation.Message,
+          evaluation.Revision, evaluation.Generation), evaluation.SourceFingerprint));
+    }
+
+    Guid? sourceId = selectedSourceId;
+    if (existingRule is not null)
+    {
+      if (existingRule.Kind != requirement.Kind ||
+          existingRule.WorkflowTemplateEvidenceRequirementId != requirement.Id || existingRule.SourceId == Guid.Empty)
+        return CommandResult<ResolvedEvidencePreview>.Fail(ErrorCodes.GateBlocked,
+          "The retained task evidence rule does not match its template declaration.");
+      if (sourceId.HasValue && sourceId.Value != existingRule.SourceId)
+        return CommandResult<ResolvedEvidencePreview>.Fail(ErrorCodes.StaleRevision,
+          "The retained task plan is already bound to a different exact evidence source.");
+      sourceId = existingRule.SourceId;
+    }
+
+    if (!sourceId.HasValue)
+    {
+      var sourceLabel = requirement.Kind == WorkflowEvidenceKinds.AcceptedPbc ? "PBC request" : "audit procedure";
+      return CommandResult<ResolvedEvidencePreview>.Ok(new ResolvedEvidencePreview(requirement.Id, stepKey,
+        new WorkflowPlanEvidenceRequirementPreview(requirement.RequirementKey, requirement.Kind, null,
+          true, false, "SOURCE_REQUIRED", $"Select the exact {sourceLabel} in this engagement.", null, null), null));
+    }
+
+    var sourceExists = requirement.Kind switch
+    {
+      WorkflowEvidenceKinds.AcceptedPbc => await db.PbcRequests.AsNoTracking().AnyAsync(x =>
+        x.FirmId == firmId && x.ClientId == engagement.PracticeClientId &&
+        x.EngagementId == engagement.Id && x.Id == sourceId.Value, ct),
+      WorkflowEvidenceKinds.ReviewedProcedure => await db.AuditProcedures.AsNoTracking().AnyAsync(x =>
+        x.FirmId == firmId && x.ClientId == engagement.PracticeClientId &&
+        x.EngagementId == engagement.Id && x.Id == sourceId.Value, ct),
+      _ => false
+    };
+    if (!sourceExists)
+      return CommandResult<ResolvedEvidencePreview>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var sourceRule = new WorkflowTaskEvidenceRule
+    {
+      FirmId = firmId, ClientId = engagement.PracticeClientId, EngagementId = engagement.Id,
+      Kind = requirement.Kind, SourceId = sourceId.Value,
+      PbcRequestId = requirement.Kind == WorkflowEvidenceKinds.AcceptedPbc ? sourceId : null,
+      AuditProcedureId = requirement.Kind == WorkflowEvidenceKinds.ReviewedProcedure ? sourceId : null
+    };
+    var sourceEvaluation = await WorkflowTaskEvidenceQuery.EvaluateSourceAsync(db, sourceRule, ct);
+    return CommandResult<ResolvedEvidencePreview>.Ok(new ResolvedEvidencePreview(requirement.Id, stepKey,
+      new WorkflowPlanEvidenceRequirementPreview(requirement.RequirementKey, requirement.Kind, sourceId,
+        true, sourceEvaluation.Satisfied, sourceEvaluation.State, sourceEvaluation.Message,
+        sourceEvaluation.Revision, sourceEvaluation.Generation), sourceEvaluation.SourceFingerprint));
   }
 
   private static async Task<EngagementWorkflowPlanReceipt> ReceiptViewAsync(

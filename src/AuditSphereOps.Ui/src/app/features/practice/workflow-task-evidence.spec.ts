@@ -21,10 +21,14 @@ describe('task evidence contract', () => {
       sourceRevision: 3, inputGeneration: 2, sourceState: 'STALE_GENERATION' }] }, 'evidence');
     expect(decoded.rules[0].sourceRevision).toBe(3); expect(decoded.rules[0].inputGeneration).toBe(2);
     expect(decoded.rules[0].satisfied).toBe(false);
+    expect(decoded.rules[0].templateRequirementId).toBeNull();
+    const declared = decodeTaskEvidence({ ...workspace, rules: [{ ...rule, templateRequirementId: user, templateRequirementKey: 'planning-materiality', evaluatedSourceId: task }] }, 'evidence');
+    expect(declared.rules[0].templateRequirementKey).toBe('planning-materiality');
+    expect(declared.rules[0].sourceId).toBeNull(); expect(declared.rules[0].evaluatedSourceId).toBe(task);
   });
   it('rejects unsupported, inconsistent, duplicate and over-bound prerequisites', () => {
     for (const item of [{ ...rule, kind: 'MANUAL_SATISFIED' }, { ...rule, sourceId: task },
-      { ...rule, satisfied: true }, { ...rule, version: 0 }, { ...rule, reason: '' },
+      { ...rule, satisfied: true }, { ...rule, templateRequirementId: user }, { ...rule, version: 0 }, { ...rule, reason: '' },
       { ...rule, kind: 'CURRENT_PROCEDURE_REVIEWED', sourceId: null }, { ...rule, inputGeneration: -1 }])
       expect(() => decodeTaskEvidence({ ...workspace, rules: [item] }, 'evidence')).toThrow();
     expect(() => decodeTaskEvidence({ ...workspace, rules: [rule, rule] }, 'evidence')).toThrow();

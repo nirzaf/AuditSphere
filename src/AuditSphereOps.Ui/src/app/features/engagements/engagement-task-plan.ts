@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
-import { arr, bool, date, decode, guid, instant, int, nullable, obj, str } from '../../core/decode';
+import { arr, bool, date, decode, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
@@ -22,12 +22,31 @@ const pbcDefinition = obj({ objective: str(500), entityScope: str(500), area: st
 const pbcPreview = obj({ state: str(40), reference: nullable(str(200)), definition: nullable(pbcDefinition),
   periodStart: date, periodEnd: date, dueDate: nullable(date), clientOwnerUserId: nullable(guid), firmOwnerUserId: nullable(guid),
   reviewerUserId: nullable(guid), pbcRequestId: nullable(guid), pbcRequestState: nullable(str(40)) });
+const evidencePreview = obj({ requirementKey: str(80), kind: oneOf('CURRENT_MATERIALITY_APPROVED', 'PBC_ACCEPTED_OR_CLOSED', 'CURRENT_PROCEDURE_REVIEWED'), sourceId: nullable(guid),
+  bindingRequired: bool, satisfied: bool, sourceState: str(80), message: str(1000),
+  sourceRevision: nullable(int), inputGeneration: nullable(int) });
+const optionalEvidence = (value: unknown, path: string) => {
+  const requirements = value === undefined || value === null ? [] : arr(evidencePreview, 8)(value, path);
+  const keys = new Set<string>();
+  for (const requirement of requirements) {
+    if (!requirement.requirementKey.trim() || keys.has(requirement.requirementKey) ||
+        requirement.sourceRevision !== null && requirement.sourceRevision < 1 ||
+        requirement.inputGeneration !== null && requirement.inputGeneration < 1)
+      throw new Error('Invalid template evidence reference.');
+    keys.add(requirement.requirementKey);
+    if (requirement.satisfied && (requirement.sourceId === null || !(requirement.kind === 'CURRENT_MATERIALITY_APPROVED'
+      ? requirement.sourceState === 'APPROVED' : requirement.kind === 'PBC_ACCEPTED_OR_CLOSED'
+      ? ['ACCEPTED', 'CLOSED'].includes(requirement.sourceState) : requirement.sourceState === 'REVIEWED_CURRENT')))
+      throw new Error('Evidence state does not support satisfaction.');
+  }
+  return requirements;
+};
 const planStep = obj({
   stepKey: str(80), templateStepId: guid, title: str(200), instructions: str(4000), phase: str(40),
   sortOrder: int, dueDate: nullable(date), plannedEffortMinutes: nullable(int),
   suggestedStaffingLevel: nullable(str(80)), selectedAssigneeUserId: nullable(guid),
   eligibleOwners: arr(ownerCandidate, 100), dependsOnStepKeys: arr(str(80), 100),
-  missingEligibleAssignee: bool, existingTaskId: nullable(guid), pbc: nullable(pbcPreview),
+  evidenceRequirements: optionalEvidence, missingEligibleAssignee: bool, existingTaskId: nullable(guid), pbc: nullable(pbcPreview),
 });
 const planPreview = obj({
   engagementId: guid, engagementGeneration: int, templateId: guid, templateRevisionId: guid,
@@ -142,6 +161,25 @@ function isPendingPlan(value: unknown): value is PendingPlan {
                 } @else {
                   <p>No eligible engagement staff is currently assigned; the task will remain unassigned.</p>
                 }
+                @if (step.evidenceRequirements.length) {
+                  <section aria-label="Authoritative evidence prerequisites">
+                    <h5>Evidence prerequisites</h5>
+                    <p>Plan creation binds sources only. Existing source workflows retain approval and review authority.</p>
+                    @for (requirement of step.evidenceRequirements; track requirement.requirementKey) {
+                      <p><strong>{{ requirement.requirementKey }}</strong> · {{ requirement.kind }} · {{ requirement.sourceState }}</p>
+                      <p [attr.role]="requirement.bindingRequired ? 'status' : null">{{ requirement.message }}</p>
+                      @if (requirement.kind !== 'CURRENT_MATERIALITY_APPROVED' && !preview.alreadyInstantiated) {
+                        <label>Exact source reference for {{ requirement.requirementKey }}
+                          <input [value]="evidenceValue(step.stepKey, requirement.requirementKey, requirement.sourceId)"
+                            (change)="selectEvidence(step.stepKey, requirement.requirementKey, $any($event.target).value)"
+                            maxlength="36" [attr.aria-describedby]="'plan-evidence-help-' + step.templateStepId + '-' + requirement.requirementKey"
+                            [disabled]="busy() || pending() !== null || corruptPending()" />
+                        </label>
+                        <small [id]="'plan-evidence-help-' + step.templateStepId + '-' + requirement.requirementKey">Use the exact PBC request or procedure identifier from this engagement’s authorized workspace, then preview again.</small>
+                      } @else if (requirement.sourceId) { <p>Source <code>{{ requirement.sourceId }}</code></p> }
+                    }
+                  </section>
+                }
                 @if (step.existingTaskId) { <p>Existing task <code>{{ step.existingTaskId }}</code></p> }
                 @if (step.pbc; as pbc) {
                   <section class="pbc-plan" aria-label="PBC request plan">
@@ -166,7 +204,7 @@ function isPendingPlan(value: unknown): value is PendingPlan {
             }
           </ol>
           @if (!preview.canExecute && !preview.alreadyInstantiated) {
-            <p role="status">This account can preview the plan but cannot instantiate it. A Partner, Manager, or Administrator must review and execute it.</p>
+            <p role="status">Plan creation is blocked. Review any missing evidence source bindings above and the account’s current permissions. Only an authorized Partner, Manager, or Administrator may execute a complete plan.</p>
           }
           @if (preview.canExecute && !preview.alreadyInstantiated) {
             <label class="review-check"><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" /> I reviewed this exact plan, staffing, dates, and template revision.</label>
@@ -212,6 +250,7 @@ export class EngagementTaskPlan {
   readonly receipt = signal<PlanReceipt | null>(null);
   readonly pending = signal<PendingPlan | null>(null);
   readonly corruptPending = signal(false);
+  readonly evidenceSelections = signal<Array<{ stepKey: string; requirementKey: string; sourceId: string }>>([]);
   readonly ownerSelections = signal<Record<string, string>>({});
   readonly pbcOwnerSelections = signal<Record<string, { clientOwnerUserId: string; firmOwnerUserId: string; reviewerUserId: string }>>({});
   readonly reviewed = signal(false);
@@ -239,6 +278,7 @@ export class EngagementTaskPlan {
         this.plan.set(null);
         this.receipt.set(null);
         this.ownerSelections.set({});
+        this.evidenceSelections.set([]);
         this.pbcOwnerSelections.set({});
         this.reviewed.set(false);
         this.uncertain.set(false);
@@ -263,6 +303,7 @@ export class EngagementTaskPlan {
     this.plan.set(null);
     this.receipt.set(null);
     this.ownerSelections.set({});
+        this.evidenceSelections.set([]);
     this.pbcOwnerSelections.set({});
     this.reviewed.set(false);
     this.message.set('');
@@ -276,6 +317,27 @@ export class EngagementTaskPlan {
     this.plan.set(null);
     this.reviewed.set(false);
     this.message.set('Owner selection changed. Preview the plan again to review the updated digest.');
+  }
+
+  evidenceValue(stepKey: string, requirementKey: string, fallback: string | null): string {
+    return this.evidenceSelections().find(selection => selection.stepKey === stepKey &&
+      selection.requirementKey === requirementKey)?.sourceId ?? fallback ?? '';
+  }
+
+  selectEvidence(stepKey: string, requirementKey: string, raw: string): void {
+    if (this.busy() || this.pending() || this.corruptPending()) return;
+    const sourceId = raw.trim();
+    if (sourceId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sourceId)) {
+      this.evidenceSelections.update(selections => selections.filter(selection =>
+        selection.stepKey !== stepKey || selection.requirementKey !== requirementKey));
+      this.failed.set(true); this.reviewed.set(false); this.plan.set(null);
+      this.message.set('Enter a valid exact source identifier from this engagement.');
+      return;
+    }
+    this.evidenceSelections.update(selections => [...selections.filter(selection => selection.stepKey !== stepKey ||
+      selection.requirementKey !== requirementKey), ...(sourceId ? [{ stepKey, requirementKey, sourceId }] : [])]);
+    this.plan.set(null); this.reviewed.set(false); this.failed.set(false);
+    this.message.set('Evidence source changed. Preview again to verify scope and review the updated digest.');
   }
 
   selectPbcOwner(stepKey: string, role: 'clientOwnerUserId' | 'firmOwnerUserId' | 'reviewerUserId', userId: string): void {
@@ -302,7 +364,7 @@ export class EngagementTaskPlan {
     this.message.set('');
     try {
       const result = await this.api.command<unknown>(this.planUrl('preview'), {
-        templateRevisionId: this.selectedRevisionId(), owners: this.ownerPayload(), pbcOwners: this.pbcOwnerPayload(),
+        templateRevisionId: this.selectedRevisionId(), owners: this.ownerPayload(), pbcOwners: this.pbcOwnerPayload(), evidenceSelections: this.evidenceSelections(),
       });
       if (!result.ok) {
         this.failed.set(true);
@@ -348,7 +410,7 @@ export class EngagementTaskPlan {
         templateRevisionId: pendingPlan.templateRevisionId,
         expectedPreviewDigest: pendingPlan.previewDigest,
         idempotencyKey: pendingPlan.idempotencyKey,
-        owners: this.ownerPayload(), pbcOwners: this.pbcOwnerPayload(),
+        owners: this.ownerPayload(), pbcOwners: this.pbcOwnerPayload(), evidenceSelections: this.evidenceSelections(),
       });
       if (!result.ok) {
         this.failed.set(true);

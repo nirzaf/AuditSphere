@@ -28,6 +28,10 @@ describe('workflow template contract', () => {
     expect(decodeTemplateCatalog(catalog, 'catalog')[0].version).toBe(1);
     expect(decodeTemplateRevision(revision, 'revision').steps[0].dueDateOffsetDays).toBe(14);
     expect(decodeTemplateRevision(revision, 'revision').steps[0].taskGroupName).toBe('Planning');
+    expect(decodeTemplateRevision(revision, 'revision').steps[0].evidenceRequirements).toEqual([]);
+    expect(() => decodeTemplateRevision({ ...revision, steps: [{ ...revision.steps[0], evidenceRequirements: [{ requirementKey: 'evidence', kind: 'AUTOMATIC_APPROVAL' }] }] }, 'revision')).toThrow();
+    const requirement = { requirementKey: 'materiality', kind: 'CURRENT_MATERIALITY_APPROVED' };
+    expect(() => decodeTemplateRevision({ ...revision, steps: [{ ...revision.steps[0], evidenceRequirements: [requirement, requirement] }] }, 'revision')).toThrow();
     expect(() => decodeTemplateRevision({ ...revision, revision: '1' }, 'revision')).toThrow();
   });
 });
@@ -102,6 +106,7 @@ describe('workflow template authoring screen', () => {
     component.draft.serviceRoute = 'FinancialStatementAudit';
     component.draft.steps[0].title = 'Approve the plan';
     component.draft.steps[0].taskGroupName = '  Planning  ';
+    component.draft.steps[0].evidenceRequirements = [{ requirementKey: ' materiality ', kind: 'CURRENT_MATERIALITY_APPROVED' }];
     const saving = component.saveDraft();
     const request = http.expectOne('/api/ui/practice/workflow-templates/drafts');
     expect(request.request.body.templateId).toBeNull();
@@ -109,7 +114,7 @@ describe('workflow template authoring screen', () => {
     expect(request.request.body.steps[0]).toMatchObject({
       stableKey: 'step-1', phase: 'AUDIT_FIELDWORK', title: 'Approve the plan',
       requiredTask: true, sortOrder: 1, dependsOnStepKeys: [],
-      taskGroupName: 'Planning',
+      taskGroupName: 'Planning', evidenceRequirements: [{ requirementKey: 'materiality', kind: 'CURRENT_MATERIALITY_APPROVED' }],
     });
     request.flush({ value: revisionId });
     await saving;

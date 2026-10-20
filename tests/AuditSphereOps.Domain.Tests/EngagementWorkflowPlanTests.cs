@@ -1,7 +1,10 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
@@ -256,6 +259,230 @@ public sealed class EngagementWorkflowPlanTests
       var dependency = await db.WorkflowTaskDependencies.SingleAsync(x => x.EngagementId == engagementId);
       dependency.CreatedAt = dependency.CreatedAt.AddSeconds(1);
       await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+    }
+  }
+
+  [Fact]
+  public async Task TemplateDeclaredEvidenceRequirementsBindExactSourcesAndPreserveProvenance()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var admin = PbcSeed.Actor(f.Admin, "Administrator");
+    var partner = PbcSeed.Actor(f.Reviewer, "Partner");
+    Guid revisionId;
+    Guid pbcA;
+    Guid pbcB;
+    Guid foreignPbc;
+    Guid procedureId;
+    Guid foreignProcedure;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var engagement = await db.Engagements.SingleAsync(x => x.Id == f.EngagementId);
+      engagement.ServiceRoute = "FinancialStatementAudit";
+      engagement.PeriodStart = "2026-01-01";
+      engagement.PeriodEnd = "2026-12-31";
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner"));
+      await db.SaveChangesAsync();
+
+      async Task<Guid> CreatePbcAsync(PbcSeed.Fixture scope, string label)
+      {
+        var created = await PbcService.CreateRequestAsync(db, PbcSeed.Actor(scope.Staff, "Staff"),
+          new(scope.EngagementId, $"Synthetic plan source {label}", "TEST ENTITY", "2026-01-01", "2026-12-31",
+            "Cash", "PDF", "", scope.Client.Id, scope.Staff.Id, scope.Reviewer.Id,
+            "2027-01-31", "Confidential", "Signed and readable."));
+        Assert.True(created.Succeeded, created.Message);
+        return created.Value;
+      }
+
+      pbcA = await CreatePbcAsync(f, "A");
+      pbcB = await CreatePbcAsync(f, "B");
+      foreignPbc = await CreatePbcAsync(foreign, "foreign");
+      procedureId = Guid.NewGuid();
+      foreignProcedure = Guid.NewGuid();
+      db.AuditProcedures.AddRange(
+        new AuditProcedure
+        {
+          Id = procedureId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+          SourceProcedureId = "SYN-PLAN-01", Title = "Synthetic exact procedure source",
+          Status = AuditProcedureStatuses.Planned, CreatedAt = DateTimeOffset.UtcNow
+        },
+        new AuditProcedure
+        {
+          Id = foreignProcedure, FirmId = foreign.FirmId, ClientId = foreign.ClientId,
+          EngagementId = foreign.EngagementId, SourceProcedureId = "SYN-PLAN-FOR-01",
+          Title = "Synthetic foreign procedure source", Status = AuditProcedureStatuses.Planned,
+          CreatedAt = DateTimeOffset.UtcNow
+        });
+      await db.SaveChangesAsync();
+
+      var declarations = new[]
+      {
+        new WorkflowTemplateEvidenceRequirementDraft("CURRENT_MATERIALITY", WorkflowEvidenceKinds.CurrentMateriality),
+        new WorkflowTemplateEvidenceRequirementDraft("PBC_A", WorkflowEvidenceKinds.AcceptedPbc),
+        new WorkflowTemplateEvidenceRequirementDraft("PBC_B", WorkflowEvidenceKinds.AcceptedPbc),
+        new WorkflowTemplateEvidenceRequirementDraft("PROCEDURE", WorkflowEvidenceKinds.ReviewedProcedure)
+      };
+      var draft = await WorkflowTemplateService.CreateDraftAsync(db, admin,
+        new SaveWorkflowTemplateDraftRequest(null, "Exact evidence prerequisites", "FinancialStatementAudit",
+          "ProfessionalServices", [Step("EVIDENCE", 1, 0) with
+          {
+            DueDateOffsetDays = null,
+            EvidenceRequirements = declarations
+          }]));
+      Assert.True(draft.Succeeded, draft.Message);
+      revisionId = draft.Value;
+      var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == revisionId);
+      var reviewed = await WorkflowTemplateService.ReviewAsync(db, partner, revision.TemplateId, revisionId,
+        revision.Revision, "Review exact operational source declarations.");
+      Assert.True(reviewed.Succeeded, reviewed.Message);
+      revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Id == revisionId);
+      var published = await WorkflowTemplateService.PublishAsync(db, partner, revision.TemplateId, revisionId,
+        revision.Revision, "Publish exact operational source declarations.");
+      Assert.True(published.Succeeded, published.Message);
+
+      var templateView = await WorkflowTemplateService.GetRevisionAsync(db, admin, revision.TemplateId, revisionId);
+      Assert.True(templateView.Succeeded, templateView.Message);
+      Assert.Equal(declarations.Select(x => new WorkflowTemplateEvidenceRequirementView(x.RequirementKey, x.Kind)),
+        Assert.Single(templateView.Value!.Steps).EvidenceRequirements);
+
+      var missing = await EngagementWorkflowPlanService.PreviewAsync(db, admin, f.EngagementId,
+        new PreviewEngagementWorkflowPlanRequest(revisionId));
+      Assert.True(missing.Succeeded, missing.Message);
+      var missingPreview = missing.Value!;
+      Assert.False(missingPreview.CanExecute);
+      var missingByKey = Assert.Single(missingPreview.Steps).EvidenceRequirements!
+        .ToDictionary(x => x.RequirementKey);
+      Assert.False(missingByKey["CURRENT_MATERIALITY"].BindingRequired);
+      Assert.Null(missingByKey["CURRENT_MATERIALITY"].SourceId);
+      Assert.True(missingByKey["PBC_A"].BindingRequired);
+      Assert.Equal("SOURCE_REQUIRED", missingByKey["PBC_A"].SourceState);
+
+      WorkflowPlanEvidenceSelection[] selections =
+      [
+        new("EVIDENCE", "PBC_A", pbcA),
+        new("EVIDENCE", "PBC_B", pbcB),
+        new("EVIDENCE", "PROCEDURE", procedureId)
+      ];
+      var wrongPbc = await EngagementWorkflowPlanService.PreviewAsync(db, admin, f.EngagementId,
+        new PreviewEngagementWorkflowPlanRequest(revisionId, EvidenceSelections: selections.Select(x =>
+          x.RequirementKey == "PBC_A" ? x with { SourceId = foreignPbc } : x).ToArray()));
+      Assert.False(wrongPbc.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, wrongPbc.ErrorCode);
+      Assert.Equal("Access denied.", wrongPbc.Message);
+
+      var wrongProcedure = await EngagementWorkflowPlanService.PreviewAsync(db, admin, f.EngagementId,
+        new PreviewEngagementWorkflowPlanRequest(revisionId, EvidenceSelections: selections.Select(x =>
+          x.RequirementKey == "PROCEDURE" ? x with { SourceId = foreignProcedure } : x).ToArray()));
+      Assert.False(wrongProcedure.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, wrongProcedure.ErrorCode);
+      Assert.Equal("Access denied.", wrongProcedure.Message);
+
+      var duplicateSource = await EngagementWorkflowPlanService.PreviewAsync(db, admin, f.EngagementId,
+        new PreviewEngagementWorkflowPlanRequest(revisionId, EvidenceSelections: selections.Select(x =>
+          x.RequirementKey == "PBC_B" ? x with { SourceId = pbcA } : x).ToArray()));
+      Assert.False(duplicateSource.Succeeded);
+      Assert.Equal("workflow.plan-invalid", duplicateSource.ErrorCode);
+
+      var preview = await EngagementWorkflowPlanService.PreviewAsync(db, admin, f.EngagementId,
+        new PreviewEngagementWorkflowPlanRequest(revisionId, EvidenceSelections: selections));
+      Assert.True(preview.Succeeded, preview.Message);
+      var selectedPreview = preview.Value!;
+      Assert.True(selectedPreview.CanExecute);
+      var previewByKey = Assert.Single(selectedPreview.Steps).EvidenceRequirements!.ToDictionary(x => x.RequirementKey);
+      Assert.True(previewByKey["PBC_A"].BindingRequired);
+      Assert.Equal(pbcA, previewByKey["PBC_A"].SourceId);
+      Assert.False(previewByKey["PBC_A"].Satisfied);
+
+      var executeRequest = new ExecuteEngagementWorkflowPlanRequest(revisionId, selectedPreview.PreviewDigest,
+        Guid.NewGuid(), EvidenceSelections: selections);
+      var sentPbc = await PbcService.ChangeStateAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+        new PbcStateChangeRequest(pbcA, PbcStates.Sent, 1));
+      Assert.True(sentPbc.Succeeded, sentPbc.Message);
+      var staleExecute = await EngagementWorkflowPlanService.ExecuteAsync(db, admin, f.EngagementId, executeRequest);
+      Assert.False(staleExecute.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, staleExecute.ErrorCode);
+      Assert.Empty(await db.WorkflowTaskBindings.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+      Assert.Empty(await db.WorkflowTaskEvidenceRules.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+      Assert.Empty(await db.WorkflowTaskPlanReceipts.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+
+      var currentPreview = await EngagementWorkflowPlanService.PreviewAsync(db, admin, f.EngagementId,
+        new PreviewEngagementWorkflowPlanRequest(revisionId, EvidenceSelections: selections));
+      Assert.True(currentPreview.Succeeded, currentPreview.Message);
+      var refreshedPreview = currentPreview.Value!;
+      Assert.NotEqual(selectedPreview.PreviewDigest, refreshedPreview.PreviewDigest);
+      executeRequest = executeRequest with { ExpectedPreviewDigest = refreshedPreview.PreviewDigest };
+      var executed = await EngagementWorkflowPlanService.ExecuteAsync(db, admin, f.EngagementId, executeRequest);
+      Assert.True(executed.Succeeded, executed.Message);
+      var executeReceipt = executed.Value!;
+      Assert.False(executeReceipt.Replayed);
+      Assert.Equal(1, executeReceipt.TaskCount);
+      var binding = await db.WorkflowTaskBindings.SingleAsync(x => x.EngagementId == f.EngagementId &&
+        x.TemplateRevisionId == revisionId);
+      var declarationIds = await db.WorkflowTemplateEvidenceRequirements.AsNoTracking()
+        .Where(x => x.TemplateRevisionId == revisionId).ToDictionaryAsync(x => x.RequirementKey, x => x.Id);
+      var rules = await db.WorkflowTaskEvidenceRules.Where(x => x.WorkflowTaskBindingId == binding.Id)
+        .OrderBy(x => x.TaskRevision).ToListAsync();
+      Assert.Equal(4, rules.Count);
+      Assert.All(rules, rule =>
+      {
+        Assert.Equal(1, rule.Version);
+        Assert.Equal(WorkflowEvidenceRuleStates.Required, rule.State);
+        Assert.NotNull(rule.WorkflowTemplateEvidenceRequirementId);
+        Assert.Contains(rule.WorkflowTemplateEvidenceRequirementId!.Value, declarationIds.Values);
+      });
+      var ruleByKey = rules.ToDictionary(x => declarationIds.Single(pair =>
+        pair.Value == x.WorkflowTemplateEvidenceRequirementId).Key);
+      Assert.Equal(Guid.Empty, ruleByKey["CURRENT_MATERIALITY"].SourceId);
+      Assert.Null(ruleByKey["CURRENT_MATERIALITY"].PbcRequestId);
+      Assert.Equal(pbcA, ruleByKey["PBC_A"].SourceId);
+      Assert.Equal(pbcA, ruleByKey["PBC_A"].PbcRequestId);
+      Assert.Equal(pbcB, ruleByKey["PBC_B"].SourceId);
+      Assert.Equal(procedureId, ruleByKey["PROCEDURE"].SourceId);
+      Assert.Equal(procedureId, ruleByKey["PROCEDURE"].AuditProcedureId);
+
+      var workspace = await WorkflowTaskEvidenceQuery.GetAsync(db, admin, f.EngagementId, binding.WorkTaskId);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      Assert.Equal(4, workspace.Value!.Rules.Count);
+      var materialityView = Assert.Single(workspace.Value.Rules, x => x.TemplateRequirementKey == "CURRENT_MATERIALITY");
+      Assert.Equal(declarationIds["CURRENT_MATERIALITY"], materialityView.TemplateRequirementId);
+      Assert.Null(materialityView.SourceId);
+      var pbcView = Assert.Single(workspace.Value.Rules, x => x.TemplateRequirementKey == "PBC_A");
+      Assert.Equal(declarationIds["PBC_A"], pbcView.TemplateRequirementId);
+      Assert.Equal(pbcA, pbcView.SourceId);
+      Assert.Empty(await db.MaterialityApprovals.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+      Assert.Empty(await db.AuditProcedureReviews.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+      Assert.Empty(await db.AuditOpinionDecisions.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+      Assert.Empty(await db.Releases.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+
+      // Receipt recovery remains ahead of today's binding gate after a lost response.
+      var replay = await EngagementWorkflowPlanService.ExecuteAsync(db, admin, f.EngagementId,
+        executeRequest with { EvidenceSelections = null });
+      Assert.True(replay.Succeeded, replay.Message);
+      var replayReceipt = replay.Value!;
+      Assert.True(replayReceipt.Replayed);
+      Assert.Equal(executeReceipt.ReceiptId, replayReceipt.ReceiptId);
+      Assert.Equal(4, await db.WorkflowTaskEvidenceRules.CountAsync(x => x.WorkflowTaskBindingId == binding.Id));
+
+      var withdrawn = await PracticeTimeService.ChangeWorkflowEvidenceAsync(db, admin, f.EngagementId,
+        binding.WorkTaskId, new WorkflowEvidenceChangeRequest(WorkflowEvidenceKinds.AcceptedPbc, pbcA,
+          false, "Withdraw the operational coordination rule.", binding.Revision, Guid.NewGuid()));
+      Assert.True(withdrawn.Succeeded, withdrawn.Message);
+      var withdrawalReceipt = withdrawn.Value!;
+      var successor = await db.WorkflowTaskEvidenceRules.SingleAsync(x => x.Id == withdrawalReceipt.RuleRevisionId);
+      Assert.Equal(2, successor.Version);
+      Assert.Equal(WorkflowEvidenceRuleStates.Withdrawn, successor.State);
+      Assert.Equal(declarationIds["PBC_A"], successor.WorkflowTemplateEvidenceRequirementId);
+      var afterWithdrawal = await WorkflowTaskEvidenceQuery.GetAsync(db, admin, f.EngagementId, binding.WorkTaskId);
+      var afterWithdrawalWorkspace = afterWithdrawal.Value!;
+      Assert.Equal(declarationIds["PBC_A"],
+        Assert.Single(afterWithdrawalWorkspace.Rules, x => x.TemplateRequirementKey == "PBC_A").TemplateRequirementId);
+      Assert.Equal(2, Assert.Single(afterWithdrawalWorkspace.Rules, x => x.TemplateRequirementKey == "PBC_A").Version);
+      Assert.Empty(await db.MaterialityApprovals.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+      Assert.Empty(await db.AuditProcedureReviews.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+      Assert.Empty(await db.AuditOpinionDecisions.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
+      Assert.Empty(await db.Releases.Where(x => x.EngagementId == f.EngagementId).ToListAsync());
     }
   }
 

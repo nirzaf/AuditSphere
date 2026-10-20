@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { Api, CommandState } from '../../core/api';
-import { arr, bool, guid, instant, int, nullable, obj, str } from '../../core/decode';
+import { arr, bool, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
@@ -16,11 +16,27 @@ export const decodeTemplateCatalog = arr(templateItem, 100);
 
 const optionalNullable = <T>(decoder: (value: unknown, path: string) => T) =>
   (value: unknown, path: string): T | null => value === undefined ? null : nullable(decoder)(value, path);
+const EVIDENCE_KINDS = [
+  ['CURRENT_MATERIALITY_APPROVED', 'Current approved materiality'],
+  ['PBC_ACCEPTED_OR_CLOSED', 'Accepted or closed PBC request'],
+  ['CURRENT_PROCEDURE_REVIEWED', 'Current reviewed procedure'],
+] as const;
+const evidenceRequirement = obj({ requirementKey: str(80), kind: oneOf(...EVIDENCE_KINDS.map(kind => kind[0])) });
+const evidenceRequirements = (value: unknown, path: string) => {
+  const requirements = value === undefined || value === null ? [] : arr(evidenceRequirement, 8)(value, path);
+  const keys = new Set<string>();
+  for (const requirement of requirements) {
+    if (!requirement.requirementKey.trim() || keys.has(requirement.requirementKey))
+      throw new Error('Invalid template evidence requirement key.');
+    keys.add(requirement.requirementKey);
+  }
+  return requirements;
+};
 const templateStep = obj({
   id: guid, stableKey: str(80), phase: str(40), title: str(200), instructions: str(4000),
   suggestedStaffingLevel: nullable(str(32)), estimatedEffortMinutes: nullable(int), dueDateOffsetDays: nullable(int),
   pbcRequestReference: nullable(str(120)), requiredTask: bool, sortOrder: int, dependsOnStepKeys: arr(str(80), 100),
-  taskGroupName: optionalNullable(str(120)),
+  taskGroupName: optionalNullable(str(120)), evidenceRequirements,
   pbcDefinition: nullable(obj({ objective: str(2000), entityScope: str(500), area: str(200), requestedFormat: str(200),
     controlTotals: nullable(str(2000)), confidentiality: str(100), acceptanceCriteria: str(4000) })),
 });
@@ -36,6 +52,7 @@ type TemplateStepDraft = {
   stableKey: string; phase: string; title: string; instructions: string; taskGroupName: string; suggestedStaffingLevel: string;
   estimatedEffortMinutes: number | null; dueDateOffsetDays: number | null; pbcRequestReference: string;
   requiredTask: boolean; sortOrder: number; dependsOnText: string;
+  evidenceRequirements: { requirementKey: string; kind: string }[];
   pbcDefinition: { objective: string; entityScope: string; area: string; requestedFormat: string;
     controlTotals: string; confidentiality: string; acceptanceCriteria: string } | null;
 };
@@ -58,7 +75,7 @@ const STAFFING_LEVELS = [
 function emptyStep(sortOrder = 1): TemplateStepDraft {
   return { stableKey: `step-${sortOrder}`, phase: 'AUDIT_FIELDWORK', title: '', instructions: '',
     taskGroupName: '', suggestedStaffingLevel: '', estimatedEffortMinutes: null, dueDateOffsetDays: null,
-    pbcRequestReference: '', requiredTask: true, sortOrder, dependsOnText: '', pbcDefinition: null };
+    pbcRequestReference: '', requiredTask: true, sortOrder, dependsOnText: '', evidenceRequirements: [], pbcDefinition: null };
 }
 function emptyDraft(templateId: string | null = null): TemplateDraft {
   return { templateId, revisionId: null, expectedRevision: null, name: '', serviceRoute: '', industryKey: '', steps: [emptyStep()] };
@@ -123,6 +140,20 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
                   <label>Due-date offset (days) <input type="number" min="-3650" max="3650" [name]="'step-offset-' + i" [(ngModel)]="step.dueDateOffsetDays" /></label>
                   <label>Sort order <input type="number" min="1" max="100000" [name]="'step-order-' + i" [(ngModel)]="step.sortOrder" required /></label>
                   <label>Prerequisite step keys (comma separated) <input [name]="'step-dependencies-' + i" [(ngModel)]="step.dependsOnText" maxlength="8100" /></label>
+                  <fieldset class="wide"><legend>Authoritative evidence prerequisites</legend>
+                    <p>These requirements block operational task completion until the existing evidence workflow is satisfied. They never approve evidence. Exact PBC or procedure sources are selected for each engagement plan.</p>
+                    @for (requirement of step.evidenceRequirements; track $index; let j = $index) {
+                      <label>Requirement key <input [name]="'evidence-key-' + i + '-' + j"
+                        [(ngModel)]="requirement.requirementKey" maxlength="80" required /></label>
+                      <label>Evidence kind <select [name]="'evidence-kind-' + i + '-' + j" [(ngModel)]="requirement.kind" required>
+                        <option value="">Choose evidence kind</option>
+                        @for (kind of evidenceKinds; track kind[0]) { <option [value]="kind[0]">{{ kind[1] }}</option> }
+                      </select></label>
+                      <button matButton type="button" (click)="step.evidenceRequirements.splice(j, 1)">Remove requirement {{ j + 1 }}</button>
+                    }
+                    <button matButton type="button" [disabled]="step.evidenceRequirements.length >= 8"
+                      (click)="step.evidenceRequirements.push({ requirementKey: '', kind: '' })">Add evidence prerequisite</button>
+                  </fieldset>
                   <label>PBC request reference (optional) <input [name]="'step-pbc-' + i" [(ngModel)]="step.pbcRequestReference" maxlength="120" /></label>
                   @if (!step.pbcDefinition) { <button matButton type="button" (click)="step.pbcDefinition = emptyPbcDefinition()">Add typed PBC instruction</button> }
                   @if (step.pbcDefinition; as pbc) {
@@ -169,6 +200,9 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
               @if (step.taskGroupName) { <small>Task group: {{ step.taskGroupName }}</small> }
               @if (step.instructions) { <p>{{ step.instructions }}</p> }
               <small>Key {{ step.stableKey }} · {{ step.suggestedStaffingLevel ?? 'No suggested owner' }} · {{ step.estimatedEffortMinutes ?? 'No effort estimate' }} min · {{ step.dueDateOffsetDays ?? 'No due-date offset' }} days</small>
+              @for (requirement of step.evidenceRequirements; track requirement.requirementKey) {
+                <small>Evidence prerequisite {{ requirement.requirementKey }}: {{ evidenceLabel(requirement.kind) }}</small>
+              }
               @if (step.dependsOnStepKeys.length) { <small>Prerequisites: {{ step.dependsOnStepKeys.join(', ') }}</small> }
               @if (step.pbcRequestReference) { <small>PBC reference: {{ step.pbcRequestReference }}</small> }
               @if (step.pbcDefinition; as pbc) { <div class="muted"><strong>Typed PBC instruction</strong><p>{{ pbc.objective }}</p>
@@ -190,6 +224,9 @@ function emptyDraft(templateId: string | null = null): TemplateDraft {
   styleUrl: './workflow-templates.scss',
 })
 export class WorkflowTemplates {
+  readonly evidenceKinds = EVIDENCE_KINDS;
+  evidenceLabel(kind: string): string { return EVIDENCE_KINDS.find(item => item[0] === kind)?.[1] ?? kind; }
+
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
   private readonly hostElement = inject(ElementRef<HTMLElement>);
@@ -310,6 +347,7 @@ export class WorkflowTemplates {
         estimatedEffortMinutes: step.estimatedEffortMinutes, dueDateOffsetDays: step.dueDateOffsetDays,
         pbcRequestReference: step.pbcRequestReference.trim() || null, requiredTask: step.requiredTask,
         taskGroupName: step.taskGroupName.trim() || null,
+        evidenceRequirements: step.evidenceRequirements.map(requirement => ({ requirementKey: requirement.requirementKey.trim(), kind: requirement.kind })),
         sortOrder: step.sortOrder, dependsOnStepKeys: step.dependsOnText.split(',').map(x => x.trim()).filter(Boolean),
         pbcDefinition: step.pbcDefinition ? { ...step.pbcDefinition,
           controlTotals: step.pbcDefinition.controlTotals.trim() || null } : null,
@@ -408,6 +446,7 @@ export class WorkflowTemplates {
         taskGroupName: step.taskGroupName ?? '',
         suggestedStaffingLevel: step.suggestedStaffingLevel ?? '', estimatedEffortMinutes: step.estimatedEffortMinutes,
         dueDateOffsetDays: step.dueDateOffsetDays, pbcRequestReference: step.pbcRequestReference ?? '',
+        evidenceRequirements: step.evidenceRequirements.map(requirement => ({ ...requirement })),
         requiredTask: step.requiredTask, sortOrder: step.sortOrder, dependsOnText: step.dependsOnStepKeys.join(', '),
         pbcDefinition: step.pbcDefinition ? { ...step.pbcDefinition, controlTotals: step.pbcDefinition.controlTotals ?? '' } : null,
       })),

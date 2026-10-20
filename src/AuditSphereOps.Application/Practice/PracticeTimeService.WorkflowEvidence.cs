@@ -87,6 +87,7 @@ public static partial class PracticeTimeService
       WorkflowTaskBindingId = binding.Id, RuleKey = previous?.RuleKey ?? Guid.CreateVersion7(), Kind = request.Kind,
       SourceId = sourceId, PbcRequestId = request.Kind == WorkflowEvidenceKinds.AcceptedPbc ? sourceId : null,
       AuditProcedureId = request.Kind == WorkflowEvidenceKinds.ReviewedProcedure ? sourceId : null,
+      WorkflowTemplateEvidenceRequirementId = previous?.WorkflowTemplateEvidenceRequirementId,
       State = state, Version = (previous?.Version ?? 0) + 1, TaskRevision = binding.Revision,
       ActorUserId = actor.UserId, IdempotencyKey = request.IdempotencyKey, RequestDigest = digest,
       Reason = reason, OccurredAt = now

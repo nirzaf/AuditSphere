@@ -32,7 +32,8 @@ public static partial class UiEndpoints
     string StableKey, string Phase, string Title, string Instructions, string? SuggestedStaffingLevel,
     int? EstimatedEffortMinutes, int? DueDateOffsetDays, string? PbcRequestReference, bool RequiredTask,
     int SortOrder, IReadOnlyList<string>? DependsOnStepKeys, WorkflowTemplatePbcDefinitionInput? PbcDefinition = null,
-    string? TaskGroupName = null);
+    string? TaskGroupName = null, IReadOnlyList<WorkflowTemplateEvidenceRequirementInput>? EvidenceRequirements = null);
+  public sealed record WorkflowTemplateEvidenceRequirementInput(string RequirementKey, string Kind);
   public sealed record WorkflowTemplatePbcDefinitionInput(string Objective, string EntityScope, string Area,
     string RequestedFormat, string? ControlTotals, string Confidentiality, string AcceptanceCriteria);
   public sealed record WorkflowTemplateDraftInput(
@@ -40,14 +41,17 @@ public static partial class UiEndpoints
     IReadOnlyList<WorkflowTemplateStepInput> Steps, long? ExpectedRevision);
   public sealed record WorkflowTemplateDecisionInput(long ExpectedRevision, string Rationale);
   public sealed record WorkflowTemplateArchiveInput(string Rationale);
+  public sealed record WorkflowPlanEvidenceInput(string StepKey, string RequirementKey, Guid SourceId);
   public sealed record WorkflowPlanOwnerInput(string StepKey, Guid AssigneeUserId);
   public sealed record WorkflowPlanPbcOwnerInput(string StepKey, Guid ClientOwnerUserId, Guid FirmOwnerUserId,
     Guid ReviewerUserId);
   public sealed record WorkflowPlanPreviewInput(Guid TemplateRevisionId, IReadOnlyList<WorkflowPlanOwnerInput>? Owners,
-    IReadOnlyList<WorkflowPlanPbcOwnerInput>? PbcOwners = null);
+    IReadOnlyList<WorkflowPlanPbcOwnerInput>? PbcOwners = null,
+    IReadOnlyList<WorkflowPlanEvidenceInput>? EvidenceSelections = null);
   public sealed record WorkflowPlanExecuteInput(Guid TemplateRevisionId, string ExpectedPreviewDigest,
     Guid IdempotencyKey, IReadOnlyList<WorkflowPlanOwnerInput>? Owners,
-    IReadOnlyList<WorkflowPlanPbcOwnerInput>? PbcOwners = null);
+    IReadOnlyList<WorkflowPlanPbcOwnerInput>? PbcOwners = null,
+    IReadOnlyList<WorkflowPlanEvidenceInput>? EvidenceSelections = null);
   public sealed record WorkflowPlanPbcDraftsInput(Guid TemplateRevisionId, string ExpectedPreviewDigest,
     IReadOnlyList<WorkflowPlanPbcOwnerInput>? PbcOwners = null);
 
@@ -242,7 +246,10 @@ public static partial class UiEndpoints
         new PreviewEngagementWorkflowPlanRequest(input.TemplateRevisionId,
           (input.Owners ?? []).Select(x => new WorkflowPlanOwnerSelection(x.StepKey, x.AssigneeUserId)).ToArray(),
           (input.PbcOwners ?? []).Select(x => new WorkflowPlanPbcOwnerSelection(x.StepKey, x.ClientOwnerUserId,
-            x.FirmOwnerUserId, x.ReviewerUserId)).ToArray()), ct)))
+            x.FirmOwnerUserId, x.ReviewerUserId)).ToArray(),
+          (input.EvidenceSelections ?? []).Select(x => x is null
+            ? new WorkflowPlanEvidenceSelection(string.Empty, string.Empty, Guid.Empty)
+            : new WorkflowPlanEvidenceSelection(x.StepKey, x.RequirementKey, x.SourceId)).ToArray()), ct)))
       .WithT046Response<UiValueResponse<EngagementWorkflowPlanPreview>>(includeNotFound: true);
     plans.MapPost("/execute", (Guid engagementId, WorkflowPlanExecuteInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => EngagementWorkflowPlanService.ExecuteAsync(db, actor, engagementId,
@@ -250,7 +257,10 @@ public static partial class UiEndpoints
           input.IdempotencyKey,
           (input.Owners ?? []).Select(x => new WorkflowPlanOwnerSelection(x.StepKey, x.AssigneeUserId)).ToArray(),
           (input.PbcOwners ?? []).Select(x => new WorkflowPlanPbcOwnerSelection(x.StepKey, x.ClientOwnerUserId,
-            x.FirmOwnerUserId, x.ReviewerUserId)).ToArray()), ct)))
+            x.FirmOwnerUserId, x.ReviewerUserId)).ToArray(),
+          (input.EvidenceSelections ?? []).Select(x => x is null
+            ? new WorkflowPlanEvidenceSelection(string.Empty, string.Empty, Guid.Empty)
+            : new WorkflowPlanEvidenceSelection(x.StepKey, x.RequirementKey, x.SourceId)).ToArray()), ct)))
       .WithT046Response<UiValueResponse<EngagementWorkflowPlanReceipt>>(includeConflict: true, includeNotFound: true);
     plans.MapPost("/pbc-drafts", (Guid engagementId, WorkflowPlanPbcDraftsInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => EngagementWorkflowPlanService.CreatePbcDraftsAsync(db, actor,
@@ -329,5 +339,8 @@ public static partial class UiEndpoints
         x.RequiredTask, x.SortOrder, x.DependsOnStepKeys, x.PbcDefinition is null ? null :
           new WorkflowTemplatePbcDefinition(x.PbcDefinition.Objective, x.PbcDefinition.EntityScope, x.PbcDefinition.Area,
             x.PbcDefinition.RequestedFormat, x.PbcDefinition.ControlTotals, x.PbcDefinition.Confidentiality,
-            x.PbcDefinition.AcceptanceCriteria), x.TaskGroupName)).ToArray(), input.ExpectedRevision);
+            x.PbcDefinition.AcceptanceCriteria), x.TaskGroupName,
+        (x.EvidenceRequirements ?? []).Select(requirement => requirement is null
+          ? new WorkflowTemplateEvidenceRequirementDraft(string.Empty, string.Empty)
+          : new WorkflowTemplateEvidenceRequirementDraft(requirement.RequirementKey, requirement.Kind)).ToArray())).ToArray(), input.ExpectedRevision);
 }

@@ -135,6 +135,7 @@ public sealed class WorkflowEvidenceRuleTests
     Assert.Equal(ErrorCodes.ScopeDenied, (await PracticeTimeService.ChangeWorkflowEvidenceAsync(db, admin, f.EngagementId, task, change)).ErrorCode);
     Assert.True((await PracticeTimeService.ChangeWorkflowEvidenceAsync(db, admin, f.EngagementId, task, change with { SourceId = requestId, IdempotencyKey = Guid.NewGuid() })).Succeeded);
     Assert.False(Assert.Single((await WorkflowTaskEvidenceQuery.GetAsync(db, admin, f.EngagementId, task)).Value!.Rules).Satisfied);
+    Assert.Equal(requestId, Assert.Single((await WorkflowTaskEvidenceQuery.GetAsync(db, admin, f.EngagementId, task)).Value!.Rules).EvaluatedSourceId);
     var request = await db.PbcRequests.SingleAsync(x => x.Id == requestId);
     request.State = PbcStates.Sent; await db.SaveChangesAsync();
     Assert.Equal(task, Assert.Single((await WorkflowTaskQueueQuery.GetAsync(db, admin, new("WAITING_FOR_CLIENT"))).Value!.Tasks).TaskId);

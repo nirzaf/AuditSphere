@@ -154,6 +154,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<WorkflowTemplate> WorkflowTemplates => Set<WorkflowTemplate>();
   public DbSet<WorkflowTemplateRevision> WorkflowTemplateRevisions => Set<WorkflowTemplateRevision>();
   public DbSet<WorkflowTemplateStep> WorkflowTemplateSteps => Set<WorkflowTemplateStep>();
+  public DbSet<WorkflowTemplateEvidenceRequirement> WorkflowTemplateEvidenceRequirements => Set<WorkflowTemplateEvidenceRequirement>();
   public DbSet<WorkflowTemplateDependency> WorkflowTemplateDependencies => Set<WorkflowTemplateDependency>();
   public DbSet<WorkflowTemplateDecision> WorkflowTemplateDecisions => Set<WorkflowTemplateDecision>();
   public DbSet<WorkflowTaskPlanReceipt> WorkflowTaskPlanReceipts => Set<WorkflowTaskPlanReceipt>();
