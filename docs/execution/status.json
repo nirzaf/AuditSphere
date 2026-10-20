@@ -10,7 +10,7 @@
   "specificationSha256": "07eff62f4ce6aa40e2367a8f33bb8797e5b89140de272c1f09efbb2c599a54c1",
   "repository": "nirzaf/AuditSphere",
   "branch": "master",
-  "headCommit": "9941a9352531299940ca9fb84ff9b91ef3acd399",
+  "headCommit": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
   "verifiedCommit": "f0ed61c9c0531aa8c45e6336a0232ae4441bf207",
   "remoteHeadVerified": true,
   "verifiedCommitWasRemoteHead": false,
@@ -310,18 +310,59 @@
         ]
       },
       "ci": {
-        "fastRun": "39417060834",
-        "fastRunSource": "e54f6e7102ef735b047fb3421033b82ac148f068",
-        "fastRunResult": "IN_PROGRESS: Angular and docs jobs passed; .NET Release job is running with no reported failure.",
+        "fastRun": "39420353260",
+        "fastRunSource": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
+        "fastRunResult": "PASS: docs health, Angular build/specs, .NET Release build, fast architecture/rounding guards, EF model drift, publication and OpenAPI drift all passed on this exact source commit.",
         "fullRun": "39410131489",
         "fullRunSource": "9941a9352531299940ca9fb84ff9b91ef3acd399",
-        "fullRunResultAtRecordedTime": "IN_PROGRESS: Angular, Domain and build/contracts/publication passed; API and Playwright E2E still running with no reported failure."
+        "fullRunResultAtRecordedTime": "IN_PROGRESS at 2026-10-20T12:18:57Z on earlier source commit 9941a9352531299940ca9fb84ff9b91ef3acd399: Angular, Domain and build/contracts/publication passed; API and Playwright E2E remained in progress with no reported failure.",
+        "acceptanceImageRun": "39420353130",
+        "acceptanceImageRunSource": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
+        "acceptanceImageRunResult": "PASS: API, worker and migration images built and pushed successfully; no deployment was performed."
       },
       "notDone": [
         "Qualified screen-reader review with AT/browser versions and meaningful-announcement observations.",
-        "Full supported-state and reduced-motion acceptance; record exact CSS viewport widths at 200%/400%, test keyboard-only table scrolling, and complete client-portal acceptance.",
-        "Current-source API-backed resource-planning acceptance and full release run completion."
-      ]
+        "Exact CSS viewport widths at 200% and 400% native zoom were not recorded; full supported-state review and client-portal acceptance with a client identity remain open.",
+        "Current-source API-backed resource-planning acceptance; the API used in the browser sweep was not source-pinned.",
+        "Full release API and Playwright E2E results remain pending on earlier source commit 9941a9352531299940ca9fb84ff9b91ef3acd399."
+      ],
+      "keyboardScrollReducedMotionFollowUp": {
+        "sourceCommit": "4f6b964ee39f30bdd858cf8f30a2dbcee297514d",
+        "recordedAtUtc": "2026-10-20T12:18:57Z",
+        "result": "PASS_SCOPED",
+        "route": "/ui/app/work",
+        "uiSource": "Current Angular workspace served from the development server on 127.0.0.1:4301.",
+        "apiSource": "Existing local API on 127.0.0.1:5029 was not rebuilt or source-pinned; the synthetic queue was read only and no business action was invoked.",
+        "cssViewport": {
+          "width": 390,
+          "height": 844,
+          "documentWidth": 375,
+          "pageHorizontalOverflow": false
+        },
+        "tableKeyboardScroll": {
+          "regions": [
+            "Submitted procedure reviews",
+            "Operational task list"
+          ],
+          "instructionsLinkedWithAriaDescribedby": true,
+          "arrowRight": "Operational task region scrollLeft changed from 0 to 272.",
+          "end": "Moved to the 580px maximum scroll position.",
+          "home": "Returned from the end to scrollLeft 0.",
+          "descendantControlKeys": "Not intercepted; also covered by the focused Angular spec."
+        },
+        "reducedMotion": {
+          "prefersReducedMotion": true,
+          "normalTransitionDuration": "150ms",
+          "reducedTransitionDuration": "0.01ms"
+        },
+        "browserErrors": 0,
+        "localVerification": {
+          "focusedSpec": "work-queue.spec.ts: 32/32 passed.",
+          "angularDevelopmentBuild": "Passed with four pre-existing NG8107 optional-chain warnings in src/app/features/audit/completion.ts:128-133.",
+          "fullSuitesLocally": "NOT_RUN per project policy."
+        },
+        "businessRecordsChanged": false
+      }
     },
     "workflowAnnualPeriodBinding": {
       "archivedEvidence": "docs/execution/status-archive-2026-10.json",
