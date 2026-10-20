@@ -1,15 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using AuditSphereOps.Domain.Acceptance;
-using AuditSphereOps.Domain.Accounting;
-using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
-using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
-using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
-using AuditSphereOps.Domain.Microsoft365;
 
 namespace AuditSphereOps.Infrastructure.Persistence;
 

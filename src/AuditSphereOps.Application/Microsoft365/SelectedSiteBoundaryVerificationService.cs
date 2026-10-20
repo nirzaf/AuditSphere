@@ -2,7 +2,6 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Microsoft365;
-using AuditSphereOps.Domain.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Microsoft365;

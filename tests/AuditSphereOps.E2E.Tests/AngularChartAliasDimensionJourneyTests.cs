@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Tests;
-using AuditSphereOps.Infrastructure.Persistence;
 
 namespace AuditSphereOps.E2E.Tests;
 

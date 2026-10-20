@@ -4,7 +4,6 @@ using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Completion;
-using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Practice;

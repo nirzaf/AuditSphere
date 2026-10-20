@@ -4,7 +4,6 @@ using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Accounting;
-using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 

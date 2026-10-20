@@ -1,8 +1,6 @@
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Shared;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace AuditSphereOps.Api.Ui;
 

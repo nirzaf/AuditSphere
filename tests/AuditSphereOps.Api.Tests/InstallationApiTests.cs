@@ -5,7 +5,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Api.Authentication;
-using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;

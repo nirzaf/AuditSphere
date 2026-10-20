@@ -1,4 +1,3 @@
-using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Domain.Audit;

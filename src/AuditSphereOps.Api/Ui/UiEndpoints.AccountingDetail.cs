@@ -1,6 +1,5 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Api.HttpBoundary;
-using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Api.Ui;
 

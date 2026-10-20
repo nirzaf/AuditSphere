@@ -3,7 +3,6 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 

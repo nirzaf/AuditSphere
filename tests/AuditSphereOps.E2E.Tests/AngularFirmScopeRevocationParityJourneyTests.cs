@@ -2,7 +2,6 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
 namespace AuditSphereOps.E2E.Tests;

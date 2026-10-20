@@ -1,15 +1,12 @@
 using System.Net;
 using System.Security.Cryptography;
-using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Domain.Completion;
-using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
-using AuditSphereOps.Infrastructure.Providers;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;

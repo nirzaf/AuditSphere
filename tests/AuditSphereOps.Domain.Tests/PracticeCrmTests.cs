@@ -1,6 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
-using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;

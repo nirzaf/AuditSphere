@@ -1,7 +1,6 @@
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Completion;
-using AuditSphereOps.Domain.Tests;
 using Microsoft.Playwright;
 
 namespace AuditSphereOps.E2E.Tests;

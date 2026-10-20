@@ -1,11 +1,6 @@
 using System.Text.Json;
-using System.Security.Cryptography;
-using System.Text;
 using AuditSphereOps.Application.Abstractions;
-using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Application.Security;
-using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;

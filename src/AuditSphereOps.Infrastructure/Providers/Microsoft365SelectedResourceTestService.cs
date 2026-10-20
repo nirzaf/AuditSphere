@@ -1,6 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Security;
-using AuditSphereOps.Domain.Security;
 
 namespace AuditSphereOps.Infrastructure.Providers;
 

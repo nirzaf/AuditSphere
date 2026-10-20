@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Documents;
-using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;

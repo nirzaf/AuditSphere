@@ -7,7 +7,6 @@ using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
-using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 

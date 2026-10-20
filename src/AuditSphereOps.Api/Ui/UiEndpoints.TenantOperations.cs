@@ -1,5 +1,4 @@
 using AuditSphereOps.Application.Microsoft365;
-using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Api.Authentication;
 

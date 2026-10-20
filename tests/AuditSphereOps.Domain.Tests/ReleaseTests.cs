@@ -3,8 +3,6 @@ using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
-using AuditSphereOps.Domain.Practice;
-using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;

@@ -5,7 +5,6 @@ using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Microsoft365;
-using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 

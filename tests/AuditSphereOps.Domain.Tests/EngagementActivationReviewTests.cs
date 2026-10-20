@@ -1,5 +1,4 @@
 using AuditSphereOps.Application.Acceptance;
-using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;

@@ -7,9 +7,7 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql;
+
 namespace AuditSphereOps.Api.Tests;
 public sealed class EngagementCreationReviewApiTests
 {

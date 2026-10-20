@@ -1,7 +1,5 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
-using AuditSphereOps.Domain.Accounting;
-using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;

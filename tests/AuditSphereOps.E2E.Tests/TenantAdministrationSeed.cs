@@ -1,6 +1,5 @@
 using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Security;
-using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.E2E.Tests;
 

@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
@@ -7,7 +6,6 @@ using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Domain.Accounting;
-using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;

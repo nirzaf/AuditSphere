@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Acceptance;
-using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;

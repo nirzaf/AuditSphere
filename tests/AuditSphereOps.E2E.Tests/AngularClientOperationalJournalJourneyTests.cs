@@ -1,7 +1,5 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Acceptance;
-using AuditSphereOps.Domain.Accounting;
-using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;

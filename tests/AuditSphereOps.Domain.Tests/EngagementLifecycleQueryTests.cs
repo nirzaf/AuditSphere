@@ -5,7 +5,6 @@ using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
-using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Records;

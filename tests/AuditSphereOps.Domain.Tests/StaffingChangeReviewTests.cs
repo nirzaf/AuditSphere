@@ -2,7 +2,6 @@ using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
-using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

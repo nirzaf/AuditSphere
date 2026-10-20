@@ -1,7 +1,6 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Practice;
-using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;

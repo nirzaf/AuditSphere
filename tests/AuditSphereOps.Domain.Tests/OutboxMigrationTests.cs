@@ -1,8 +1,6 @@
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
-using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;

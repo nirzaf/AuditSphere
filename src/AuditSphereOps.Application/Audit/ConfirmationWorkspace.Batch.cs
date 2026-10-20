@@ -1,7 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Records;
-using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;

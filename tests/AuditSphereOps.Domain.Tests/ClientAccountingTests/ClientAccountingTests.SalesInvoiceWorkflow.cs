@@ -1,5 +1,4 @@
 using AuditSphereOps.Application.Accounting;
-using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;

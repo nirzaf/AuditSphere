@@ -1,4 +1,3 @@
-using AuditSphereOps.Domain.Accounting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 namespace AuditSphereOps.E2E.Tests;

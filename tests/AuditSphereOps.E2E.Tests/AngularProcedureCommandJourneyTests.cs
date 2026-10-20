@@ -1,6 +1,5 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Audit;
-using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;

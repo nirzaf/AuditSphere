@@ -1,6 +1,5 @@
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Practice;
-using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Api.Ui;
 

@@ -3,7 +3,6 @@ using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
-using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
 

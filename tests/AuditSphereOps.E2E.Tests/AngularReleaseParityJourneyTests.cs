@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Application.Security;
@@ -7,7 +6,6 @@ using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Records;
-using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;

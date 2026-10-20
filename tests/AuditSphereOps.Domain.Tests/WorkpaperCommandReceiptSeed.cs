@@ -2,7 +2,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+
 namespace AuditSphereOps.Domain.Tests;
 /// <summary>Synthetic workpaper evidence only; no live or professional approval.</summary>
 internal static class WorkpaperCommandReceiptSeed

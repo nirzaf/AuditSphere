@@ -1,10 +1,8 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
-using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Shared;
 using System.Text.Json;
 using AuditSphereOps.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 

@@ -1,7 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 

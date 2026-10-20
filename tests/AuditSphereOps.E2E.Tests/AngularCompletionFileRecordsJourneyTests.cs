@@ -1,5 +1,4 @@
 using AuditSphereOps.Application.Records;
-using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Tests;

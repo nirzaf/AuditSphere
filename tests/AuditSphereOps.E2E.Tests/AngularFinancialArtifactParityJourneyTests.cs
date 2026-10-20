@@ -3,7 +3,6 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
-using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;

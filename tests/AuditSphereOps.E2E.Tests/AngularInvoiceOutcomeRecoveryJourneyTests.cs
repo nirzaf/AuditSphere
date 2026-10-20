@@ -1,5 +1,4 @@
 using AuditSphereOps.Application.Practice;
-using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;

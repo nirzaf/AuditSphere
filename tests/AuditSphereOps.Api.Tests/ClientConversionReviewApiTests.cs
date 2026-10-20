@@ -6,9 +6,6 @@ using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql;
 
 namespace AuditSphereOps.Api.Tests;
 

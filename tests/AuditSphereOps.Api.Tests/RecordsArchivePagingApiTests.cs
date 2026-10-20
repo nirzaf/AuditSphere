@@ -5,7 +5,6 @@ using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
-using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Tests;
 

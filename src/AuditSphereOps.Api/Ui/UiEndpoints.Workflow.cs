@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Http;
-
 namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints

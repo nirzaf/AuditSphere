@@ -1,33 +1,13 @@
 using System.Buffers;
-using System.Security.Claims;
 using System.Security.Cryptography;
 using AuditSphereOps.Api.Contracts;
 using Microsoft.OpenApi;
-using AuditSphereOps.Application.Abstractions;
-using AuditSphereOps.Application.Accounting;
-using AuditSphereOps.Application.Completion;
-using AuditSphereOps.Application.Diagnostics;
 using AuditSphereOps.Application.Documents;
-using AuditSphereOps.Application.Microsoft365;
-using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Npgsql;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
-using Serilog;
 using AuditSphereOps.Api.Authentication;
-using AuditSphereOps.Api.Diagnostics;
 using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Infrastructure.Persistence;
-using AuditSphereOps.Infrastructure.Providers;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace AuditSphereOps.Api;
 

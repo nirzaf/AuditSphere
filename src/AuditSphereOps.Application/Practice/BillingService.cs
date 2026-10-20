@@ -3,11 +3,9 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
-using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using System.Text.Json;
 
 namespace AuditSphereOps.Application.Practice;
 

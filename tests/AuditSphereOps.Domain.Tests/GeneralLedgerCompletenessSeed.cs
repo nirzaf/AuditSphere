@@ -2,7 +2,6 @@ using WorkerHost = AuditSphereOps.Worker.Worker;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;

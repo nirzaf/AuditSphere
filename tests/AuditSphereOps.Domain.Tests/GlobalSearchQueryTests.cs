@@ -1,7 +1,6 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Search;
-using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;

@@ -1,13 +1,10 @@
-using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
-using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
-using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Records;

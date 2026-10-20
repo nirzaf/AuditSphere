@@ -1,14 +1,11 @@
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Domain.Acceptance;
-using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
-using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace AuditSphereOps.Domain.Tests;
 

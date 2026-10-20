@@ -1,7 +1,6 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 

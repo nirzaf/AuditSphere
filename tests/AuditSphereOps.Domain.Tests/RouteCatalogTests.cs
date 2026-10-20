@@ -6,7 +6,6 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace AuditSphereOps.Domain.Tests;
 

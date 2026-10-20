@@ -1,8 +1,6 @@
-using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
-using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;

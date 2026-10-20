@@ -5,7 +5,6 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Application.Security;
-using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Reviews;

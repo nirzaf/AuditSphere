@@ -2,7 +2,6 @@ using System.Text.Json;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
-using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Documents;

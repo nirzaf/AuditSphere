@@ -1,6 +1,5 @@
 using System.Globalization;
 using AuditSphereOps.Application.Practice;
-using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Api.Authentication;

@@ -3,7 +3,6 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 

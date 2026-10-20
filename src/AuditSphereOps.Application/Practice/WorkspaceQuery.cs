@@ -1,9 +1,3 @@
-using AuditSphereOps.Application.Abstractions;
-using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Application.Security;
-using AuditSphereOps.Domain.Shared;
-using Microsoft.EntityFrameworkCore;
-
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record WorkspaceEngagement(Guid Id, string ServiceRoute, string Status,

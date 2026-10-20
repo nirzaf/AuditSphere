@@ -1,4 +1,3 @@
-using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;

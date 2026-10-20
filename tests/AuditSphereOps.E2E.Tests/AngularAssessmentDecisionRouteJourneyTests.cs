@@ -1,4 +1,3 @@
-using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;

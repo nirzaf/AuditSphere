@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
@@ -6,14 +5,11 @@ using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Application.Operations;
-using AuditSphereOps.Domain.Documents;
-using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
 

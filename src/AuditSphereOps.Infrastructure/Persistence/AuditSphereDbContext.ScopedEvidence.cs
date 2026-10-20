@@ -9,7 +9,6 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Reviews;
 using AuditSphereOps.Domain.Security;
-using AuditSphereOps.Domain.Microsoft365;
 
 namespace AuditSphereOps.Infrastructure.Persistence;
 

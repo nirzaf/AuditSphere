@@ -1,10 +1,6 @@
 using System.Data.Common;
-using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
-using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
-using AuditSphereOps.Domain.Practice;
-using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

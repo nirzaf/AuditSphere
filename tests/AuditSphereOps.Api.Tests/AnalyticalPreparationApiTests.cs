@@ -2,14 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
-using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
 namespace AuditSphereOps.Api.Tests;

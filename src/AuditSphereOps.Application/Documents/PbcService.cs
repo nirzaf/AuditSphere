@@ -9,7 +9,6 @@ using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 
 namespace AuditSphereOps.Application.Documents;

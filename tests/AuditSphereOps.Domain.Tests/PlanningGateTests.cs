@@ -1,6 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Audit;
-using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;

@@ -1,8 +1,6 @@
-using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Audit;
-using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
