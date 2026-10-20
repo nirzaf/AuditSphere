@@ -225,6 +225,8 @@ replay/approval/readback); the group-report export/archive leg is a declared M37
 
 ## Documents, PBC and records
 
+- Client final-bundle history: `Application/Completion/AuditDeliverableService.Bundle.cs`, `Application/Documents/ClientPortalReviewQuery.cs` and Angular `features/portal/documents.ts`. The portal requests the remaining bounded collection allowance plus one sentinel rather than silently taking ten per engagement. Overflow fails without a partial archive. Ordering is stable within each engagement. Visible assembly and client-reported receipt times use UTC; download names include the exact bundle identity. Assembly/download does not create a receipt acknowledgement or prove provider delivery. Signed-representation history and the broader public chronology retain separate acceptance work.
+
 - Application: `Application/Documents/PbcService.cs`, `Application/Records/RecordsArchiveService.cs`
 
 - Persistence: `AuditSphereDbContext.Documents.cs`, `.Pbc.cs`

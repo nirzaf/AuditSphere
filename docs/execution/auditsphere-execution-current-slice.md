@@ -14,15 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Recorded communication history
+## Client final-bundle history
 
-The management-only outbound history now counts its complete authorized population while bounding displayed rows. Counts and rows share a database snapshot, followed by a fresh scope/grant check. Payment vouchers follow their retained document and agreement; provider acceptance is never shown as delivery time. The table has explicit headers, descriptive links and a named keyboard-scroll region. Evidence and fixture limitations are under `communicationHistory20261021` in [status.json](status.json). Client-public chronology, full actor/time proof, human AT and full release acceptance remain open.
+The portal shows retained assembly time in UTC, separate from client-reported receipt. Each download has an exact accessible bundle identity. The collection reader now uses the existing archive bound with an overflow sentinel instead of silently dropping bundles after the tenth per engagement. Original bytes, hashes, acknowledgement and client scope remain intact. Focused evidence is under `portalBundleHistory20261021` in [status.json](status.json). Signed-representation history, complete client-public chronology, contextual labels, human AT and full current-source release acceptance remain open. No live delivery or professional acceptance is claimed.
 
-## Exact-period accounting evidence
+## Recent read-only evidence views
 
-The accounting period page exposes separately paginated retained books, sources, completeness, reconciliation proofs, specialist schedules, PBC date matches and tasks. Each evidence page uses client-wide authorization, a consistent database snapshot and a fresh authorization fence before returning. Exact revisions remain strings. Receipt and proof history is not a current-validity or readiness decision. The category selector is verified against its displayed table; scope changes clear old results. Details and limits are recorded under `accountingPeriodEvidence20261021` in [status.json](status.json).
-
-ASPM-ACC-05 remains partial: typed bank/AR/AP work packs and approved monthly handover acceptance are not supplied by this view. Human screen-reader acceptance and full current-source CI remain separate gates. No deployment or provider action occurred.
+Period evidence and management-only communication history are recorded under `accountingPeriodEvidence20261021` and `communicationHistory20261021` in [status.json](status.json), with their full handoffs preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Professional policies, client-public chronology, human AT and full release acceptance remain open.
 
 ## Accessibility recheck and current-SHA release verification (2026-10-20)
 

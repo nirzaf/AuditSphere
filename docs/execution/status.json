@@ -558,22 +558,8 @@
       "unrelatedJobs": "API and Playwright E2E jobs in the same release run were still in progress when recorded."
     },
     "cp13EquityComponentTransfers": {
-      "recordedAtUtc": "2026-10-17T05:24:13Z",
-      "codeCommit": "8ea17226cd2caaad973730c42a2232dc00dcdfa7",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp13EquityComponentTransfers",
       "status": "PARTIAL",
-      "verified": {
-        "domainFocusedCohort": "24/24 passed before the final presentation-label assertion change; the final EquityComponentTransfer_PresentsLinkedZeroSumRows_AndReconcilesBothComponents test passed 1/1 afterward.",
-        "angularSpec": "financial-package-build.spec.ts: 31/31 passed.",
-        "angularProductionBuild": "PASS; existing commercial/settings.scss component-style budget warning (7.53 kB vs 4.00 kB).",
-        "efModelDrift": "PASS: no pending model changes.",
-        "documentation": "Markdown health, filename, and narrative-metric validators passed before this status/handoff update.",
-        "gitDiffCheck": "PASS before implementation commit."
-      },
-      "notRun": [
-        "Authenticated built-in-browser workflow; no isolated seeded local session was available.",
-        "Full Domain, API, E2E, and Angular suites; these remain CI/release verification responsibilities.",
-        "Database migration; generated only, not applied to local development or VPS."
-      ],
       "open": [
         "Resolve each component to accepted source evidence rather than preparer-entered references.",
         "Obtain approved professional policy for reserves, profit convention, distributions and opening balances.",
@@ -1198,6 +1184,14 @@
       "checks": "Domain6/6: full counts/bounds, wrong-client/sibling denial, late revocation, concurrent insert snapshot and three existing commercial worker variants with voucher inclusion and delivery-state semantics. Angular5/5, build/lint passed; E2E1/1 verifies HTTP200, 202total/200rows, private-body exclusion and keyboard/mobile scope. Built-in390px:375px page width, native table scrolling/focus, no console errors/warnings.",
       "limits": "Synthetic read-only acceptance; fixture corrected for explicit email and required portal URL. Browser handoff expired during capture; fresh owned fixture passed. CLIENT-04 remains PARTIAL: client-public chronology, full actor/time proof, qualified human AT, current-source full CI and live delivery remain open. No schema/deployment/provider actions.",
       "screenshot": "/tmp/auditsphere-communication-history-mobile-20261021.png"
+    },
+    "portalBundleHistory20261021": {
+      "sourceCommit": "ac9b5484",
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "checks": "Domain1/1: eleven actual staff-comment/Partner-resolution assembled snapshots retained, original hash/receipt/immutability and scope checks preserved; aggregate101 refusal uses explicitly projection-only negative rows. Angular7/7 incl UTC offsets, semantic time and eleven distinct accessible download identities. Final E2E1/1: Partner release, client ZIP hash equals retained bytes, assembly timestamp equals DB, no implicit receipt, mobile390px and required-signing replay refusal. Build/lint passed.",
+      "browser": "Built-in client card: UTC assembly distinct from unreported receipt;390px width/375px document, no console errors/warnings. Read-only synthetic fixture, no acknowledgement clicked.",
+      "limits": "CLIENT-04 PARTIAL. Signed-representation reader still caps20; contextual labels and complete public chronology remain. Human AT, full current-source CI and live provider/professional acceptance pending. No schema/config/deployment changes.",
+      "screenshot": "/tmp/auditsphere-portal-bundle-history-mobile-20261021.png"
     }
   },
   "externalGates": [
