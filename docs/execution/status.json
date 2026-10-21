@@ -1197,14 +1197,14 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.releaseFailureTriageEarlierThreeE2eFailures20261021"
     },
     "currentSourceCi20261021": {
-      "sourceCommit": "e4dfef2560794232446ad5aa6373aa50698785cb",
-      "observedAtUtc": "2026-10-21T13:30:23Z",
-      "localBuild": "PASS: Release solution build; 0 warnings, 0 errors (1.19s).",
+      "sourceCommit": "ea7f8f856d93446b3dce828582dfa76cabdfedbd",
+      "observedAtUtc": "2026-10-21T14:15:35Z",
+      "localBuild": "PASS: Release solution build; 0 warnings/errors (10.02s).",
       "fastCi": {
-        "run": "39606521756",
+        "run": "39614032897",
         "status": "PASS",
-        "observed": "Angular build/full specs, Docs Health, .NET Release build, fast guards, EF/OpenAPI drift and publication PASS on the exact source SHA.",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39606521756"
+        "observed": "Angular build/specs; docs; .NET Release, guards, EF/OpenAPI drift and publication passed on exact SHA.",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39614032897"
       },
       "fullRelease": {
         "run": "39602288744",
@@ -1224,11 +1224,19 @@
     },
     "accessibilityReview20261021": {
       "result": "PARTIAL_AGENT_REVIEW",
-      "sourceCommit": "e4dfef2560794232446ad5aa6373aa50698785cb",
+      "sourceCommit": "ea7f8f856d93446b3dce828582dfa76cabdfedbd",
       "humanAssistiveTechnology": "OPEN",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021",
-      "agentReview": "PASS_SOURCE_REVIEW: shell/navigation; no actionable findings on e4dfef25; proxy cohort 3/3 archived, UI unchanged.",
-      "browser": "PARTIAL: local ports 4304/5029/4300 unavailable. Prior anonymous shell: Tab showed skip; Enter focused main with 3px ring. Authenticated/SR checks open."
+      "agentReview": "Purchase recovery live regions contain status text only; Angular specs 10/10 and 7/7 pass.",
+      "browser": "NOT_RUN: local app unavailable; authenticated and screen-reader checks open."
+    },
+    "purchaseCommandRecovery20261021": {
+      "status": "FOCUSED_LOCAL_PASS",
+      "sourceCommit": "ea7f8f856d93446b3dce828582dfa76cabdfedbd",
+      "T020": "invoice 10/10+1/1",
+      "T021": "credit 7/7+1/1",
+      "T022": "allocations 7/7+1/1",
+      "T023": "supplier page 26 in T020/T021 specs"
     }
   },
   "externalGates": [
