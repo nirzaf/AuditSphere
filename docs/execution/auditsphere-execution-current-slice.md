@@ -16,7 +16,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Release E2E failure triage
 
-The accounting revocation journey now handles the expected removal of refresh actions during session revocation, then still requires the denial screen and removal of protected content. Its focused browser regression passes. The separate finding-receipt recovery conflict remains unresolved: state returned a conflict before receipt lookup; the safety guard remains intact. Exact evidence and scope are under `releaseFailureTriage20261021` in [status.json](status.json). No full local suites or external changes were performed.
+The accounting revocation journey now handles the expected removal of refresh actions during session revocation, then still requires the denial screen and removal of protected content. Its focused browser regression passes. The finding lost-committed test now proves the forwarded server command succeeded before receipt recovery; its previously failing case passes. The old CI log cannot prove the exact race, and product conflict/authorization guards remain intact. A fresh full CI run is still required. Exact evidence and scope are under `releaseFailureTriage20261021` in [status.json](status.json). No full local suites or external changes were performed.
 
 ## Annual engagement source-context safety
 
@@ -29,13 +29,6 @@ The existing annual journey covers foreign-source denial, stale-template refusal
 The portal now combines retained document sharing/acknowledgement, associated signed-scan upload, bundle assembly and current-account bundle receipt events into a read-only paged history. It preserves exact fractional-time ordering and links to the existing source cards. Internal work and identities stay private; delivery, signature verification and professional approval are not inferred. Unorderable timestamps remain visibly unresolved.
 
 The real browser journey caught and repaired focus loss; built-in inspection also caught base-URL fragment resolution. Source links now retain the portal route and keyboard destination, with stale navigation guards and long-text reflow. Focused evidence, intermediate failures and repairs, final artifacts and CI scope are under `portalDocumentHistory20261021` in [status.json](status.json). Complete commercial/PBC chronology, human screen-reader review, current-source full release and professional/live acceptance remain open. Earlier template notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
-
-## Retained shared-document milestone times
-
-Client document cards now show the retained sharing time and document acknowledgement as separate semantic UTC times. Legacy missing share metadata is explicitly unrecorded. Acknowledgement belongs to the shared review record and is not attributed to the current account; internal actor identities stay private. Existing snapshot, final authorization/context fences, review controls and signature/provider boundaries are unchanged.
-
-Exact source, focused API/Angular/real-command browser results, fixture repairs, built-in narrow-screen observations and artifacts are under `portalDocumentMilestones20261021` in [status.json](status.json). This advances client-visible history but does not complete a unified chronology, qualified human accessibility review, current-source full release or professional/live acceptance. Earlier PBC acceptance notes remain in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
-
 
 ## Separate client upload and reply capabilities
 

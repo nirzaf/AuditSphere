@@ -1222,7 +1222,13 @@
       "releaseSource": "68f7c7dcbe7181540589427f419ecd8d352a9256",
       "finding": "Domain/API/Angular/contracts PASS; E2E failed2. Accounting queue refresh click races expected session-revocation outlet replacement. Conditional short click then mandatory Access unavailable/data-clearing assertions preserves security proof. Focused AccountingQueuesAndDetailsClearAfterRouteChangesAndGrantRevocation PASS1/1,61s.",
       "artifact": "tests/AuditSphereOps.E2E.Tests/TestResults/accounting-revocation-race-20261021.trx",
-      "remaining": "Finding lost-committed recovery state GET409 prevented receipt GET. Conflict guard retained; log lacks body/snapshots, cause not yet established. No full local suites; current-source full release and human/live acceptance pending."
+      "remaining": "Both failing cases now pass focused local checks; current-source full CI must establish release resolution. No full local suites or external changes; human/live acceptance pending.",
+      "findingRecovery": {
+        "sourceCommit": "3ad5802f3ad3840e47c12b49d0048e227fb7125f",
+        "result": "PASS1/1,55s: exact previously failing UNDESIGNATE_MANAGEMENT_LETTER lost-committed browser case. Test now waits for forwarded server response and asserts HTTP200 before reload/recovery; all request/hash/actor/revision/single-amendment assertions retained.",
+        "artifact": "tests/AuditSphereOps.E2E.Tests/TestResults/finding-committed-recovery-20261021.trx",
+        "diagnosis": "Api.command may timeout30s before route.Fetch completes; former test did not prove committed precondition. CI409 body/snapshots absent, so exact historical cause remains unproven. Independent review found no blocker. Product state/auth guards unchanged."
+      }
     }
   },
   "externalGates": [
