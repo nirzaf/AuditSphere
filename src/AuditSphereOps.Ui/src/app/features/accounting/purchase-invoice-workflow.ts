@@ -132,8 +132,8 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
   @if (suppliers() !== null && !supplierBusy() && !supplierError() && !supplierBookkeepingActive()) { <p role="status">Bookkeeping service is inactive. Saved purchase history and recovery remain available; new purchase preparation is blocked.</p> }
   @if (draftsError()) { <p role="alert">{{ draftsError() }}</p> }
   @if (pendingCommand() || pendingRecoveryBlocked()) {
-    <section aria-label="Unresolved purchase command" role="status">
-      @if (pendingCommand(); as pending) { <p>The {{ pending.kind }} command {{ pending.body['commandId'] }} is still unresolved. Editing and new purchase actions are locked until its exact outcome is found or the identical request is retried.</p>
+    <section aria-label="Unresolved purchase command">
+      @if (pendingCommand(); as pending) { <p role="status">The {{ pending.kind }} command {{ pending.body['commandId'] }} is still unresolved. Editing and new purchase actions are locked until its exact outcome is found or the identical request is retried.</p>
         <button matButton type="button" [disabled]="busy()" (click)="reconcilePendingOutcome()">Check saved command outcome</button>
         <button matButton type="button" [disabled]="busy()" (click)="retryPendingOutcome()">Retry exact saved command</button>
       } @else { <p role="alert">A saved purchase command reference could not be safely read. No new purchase command is allowed in this tab.</p> }

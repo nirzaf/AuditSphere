@@ -189,6 +189,19 @@ describe('Client purchase draft lifecycle', () => {
     flushHistoryReads();
   });
 
+  it('keeps recovery controls outside the live status announcement', () => {
+    const fixture = open(), c = fixture.componentInstance;
+    c.pendingDraftSave.set({ clientId: client, actorId: actor, body: { commandId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } });
+    fixture.detectChanges();
+
+    const recovery = fixture.nativeElement.querySelector('[aria-label="Unresolved purchase command"]') as HTMLElement;
+    const announcement = recovery.querySelector('[role="status"]') as HTMLElement;
+    expect(announcement.textContent).toContain('still unresolved');
+    expect(announcement.querySelector('button')).toBeNull();
+    expect(recovery.querySelectorAll('button').length).toBe(2);
+    fixture.destroy();
+  });
+
   it('retains the selected AP role for an immediate preview and requires it again for a reopened draft', () => {
     const fixture = open(), c = fixture.componentInstance;
     c.selectSupplier(supplier); c.periodId = period; c.voucher = 'PV-ROLE'; c.supplierReference = 'SUP-ROLE'; c.apRoleId = account;
