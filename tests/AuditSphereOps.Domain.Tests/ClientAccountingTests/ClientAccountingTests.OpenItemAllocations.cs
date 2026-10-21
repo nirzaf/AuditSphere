@@ -377,6 +377,14 @@ public sealed partial class ClientAccountingTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
+    var alternateReviewer = User(scope.FirmId, "allocation-reviewer-other");
+    await using (var grants = new AuditSphereDbContext(pg.Options))
+    {
+      grants.Users.Add(alternateReviewer);
+      grants.RoleGrants.Add(Grant(scope.FirmId, alternateReviewer, "AccountingReviewer", scope.ClientA));
+      await grants.SaveChangesAsync();
+    }
+    var alternateReviewerActor = Actor(alternateReviewer, "AccountingReviewer");
     var seed = await SeedSalesWorkflow(pg, scope);
     var maker = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
@@ -458,6 +466,10 @@ public sealed partial class ClientAccountingTests
       Assert.True(reviewerCommand.Succeeded && reviewerCommand.Value!.Found);
       Assert.Equal(approved.Value.DecisionId, reviewerCommand.Value!.Receipt!.DecisionId);
       Assert.Equal("APPROVE", reviewerCommand.Value.Receipt.Decision);
+      var alternateReviewerCommand = await ClientOpenItemAllocationWorkflow.FindCommandAsync(db, alternateReviewerActor,
+        scope.ClientA, approved.Value.CommandId, "REVIEW");
+      Assert.True(alternateReviewerCommand.Succeeded, alternateReviewerCommand.Message);
+      Assert.False(alternateReviewerCommand.Value!.Found);
       allocationLineId = await db.ClientOpenItemAllocationLines.Where(x => x.SubmissionId == allocationSubmissionId).Select(x => x.Id).SingleAsync();
       var balances = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 2, 1));
       Assert.Equal("105.000000", balances.Value!.Single(x => x.OpenItemId == invoiceItemId).OpenAmount);
