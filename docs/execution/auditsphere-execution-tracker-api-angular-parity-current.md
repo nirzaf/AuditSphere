@@ -4,7 +4,7 @@
 
 This tracker covers the attached bidirectional API/Angular parity specification. Its task identifiers are independent of the R2R task board and AS-AWP-EXEC tasks. Source identity, immutable-SHA checks and test results belong to [status.json](status.json), under `apiAngularParity`.
 
-`IMPLEMENTED_VERIFICATION_PENDING` means the named code exists; it does not assert functional acceptance. `FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_PENDING` records focused local checks and exact-SHA fast CI while applicable browser acceptance remains open. `IN_PROGRESS` means a remaining correction or active implementation is underway. Final acceptance still requires the specified behavior and relevant dynamic evidence.
+`IMPLEMENTED_VERIFICATION_PENDING` means the named code exists; it does not assert functional acceptance. `FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN` records focused local checks and exact-source fast CI while applicable interactive browser acceptance remains open. `IN_PROGRESS` means a remaining correction or active implementation is underway. Final acceptance still requires the specified behavior and relevant dynamic evidence.
 
 | Task | Requirement | Implementation | Current code evidence |
 | --- | --- | --- | --- |
@@ -36,8 +36,8 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | T026 | Surface draft-scope ownership relationships | IMPLEMENTED_VERIFICATION_PENDING | [ownership.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/ownership.ts) |
 | T027 | Add intercompany matching and independent approval | IMPLEMENTED_VERIFICATION_PENDING | [ConsolidationService.Intercompany.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationService.Intercompany.cs) |
 | T028 | Complete external component-pack intake, review and pinning | IMPLEMENTED_VERIFICATION_PENDING | [ConsolidationExternalComponentPackQuery.cs](../../src/AuditSphereOps.Application/Accounting/ConsolidationExternalComponentPackQuery.cs) |
-| T029 | Preserve portal request drafts during a same-context refresh | IMPLEMENTED_VERIFICATION_PENDING | [request.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.ts) |
-| T030 | Let slow package-build status reads finish | IMPLEMENTED_VERIFICATION_PENDING | [financial-package-build.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts) |
+| T029 | Preserve portal request drafts during a same-context refresh | FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN | [request.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.ts); [request.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/portal/request.spec.ts); [status.json](status.json) |
+| T030 | Let slow package-build status reads finish | FOCUSED_LOCAL_PASS; FAST_CI_PASS; BROWSER_NOT_RUN | [financial-package-build.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts); [financial-package-build.spec.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.spec.ts); [status.json](status.json) |
 | T031 | Preserve consolidation pagination and bounded subquery errors | IMPLEMENTED_VERIFICATION_PENDING | [ConsolidationScopeWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Accounting/Consolidation/ConsolidationScopeWorkspaceQuery.cs) |
 | T032 | Provide bounded portal request and package history continuation | IMPLEMENTED_VERIFICATION_PENDING | [ClientPortalWorkspaceQuery.cs](../../src/AuditSphereOps.Application/Documents/ClientPortalWorkspaceQuery.cs) |
 | T033 | Show statutory milestone preview before save | IMPLEMENTED_VERIFICATION_PENDING | [plan.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/plan.ts) |

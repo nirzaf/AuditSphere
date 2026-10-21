@@ -16,11 +16,13 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Current master verification and scope (2026-10-21)
 
-Current master is `ab8f2d84`, a documentation-only successor to application source `ea7f8f85`. The Release solution build and fast CI passed on that application source. The unfiltered release workflow is still running against an older SHA; it does not establish full-suite acceptance for current master. Focused parity checks and exact run/source evidence are in [status.json](status.json).
+Current master is `de142c84`, a documentation-only successor to application source `ea7f8f85`. The Release solution build and fast CI passed on that application source. The current unfiltered release workflow (run `39616864548`) is queued against `de142c84`; it does not yet establish full-suite acceptance. Focused parity checks and exact run/source evidence are in [status.json](status.json).
 
 The current agent accessibility review is limited to purchase-recovery announcement regions: action buttons are outside the status live regions, and the focused Angular specs pass. The local app ports were unavailable, so authenticated browser and screen-reader workflows were not exercised; qualified human assistive-technology review remains open. Earlier shell/navigation source and browser evidence is archived separately.
 
 T017/T018 assignment and sales-credit recovery, plus T019/T024 allocation receipt recovery and controlled unallocation, now have focused Domain and Angular evidence. Exact counts and test sources are in [status.json](status.json). Browser acceptance remains unverified.
+
+T029/T030 portal draft preservation and slow package-build polling passed their two focused Angular specs (49/49) on `de142c84`. The four in-scope source/spec files are unchanged from application source `ea7f8f85`, whose fast CI passed. Browser interaction was not run because the local UI/API ports were closed. The full current-SHA release result is pending; evidence is recorded under `portalPolling20261021` in [status.json](status.json).
 
 Overdue PBC reviewer escalation is already configured. Event notifications need approved semantics; monthly accounting handover is only PROPOSED, not current implementation authority.
 
