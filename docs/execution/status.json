@@ -1201,7 +1201,7 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021",
       "agentReview": "Source review: shell; added polite atomic workflow loading status. Spec 4/4; diff check PASS.",
       "browser": "Built-in local UI unavailable (:4304/:5029 refused).",
-      "ci": "Fast39650239553 pending@a8d0; full39637230699 API/E2E running@db5; human AT open."
+      "ci": "Fast39650509507 PASS@a490; full39637230699 API/E2E running@db5; human AT open."
     },
     "purchaseCommandRecovery20261021": "Archived: status-archive-2026-10.json#keys.targetedVerification.purchaseCommandRecovery20261021",
     "apiAngularParityFocused20261021": {
