@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Statutory schedule preview/save consistency
+## Coherent proposal acceptance projection
 
-Preview and save now derive defaults from the same existing calculator. Tight valid schedules no longer fail because of different preview-only dates. Out-of-range date arithmetic returns a failure instead of an unhandled exception; malformed nonblank optional dates return validation errors rather than silently using defaults. Warning overrides, configure-role authorization, locking and immutable revisions are preserved.
+The proposal workspace now reads proposal status/history, response evidence and dispatch preview within one owned database snapshot, then disposes it before checking current authorization again. A concurrent acceptance can no longer combine the old proposal state with a new response/history. Caller-owned transactions are refused without being consumed; the response contract and commercial approval rules stay intact.
 
-Focused Domain and real HTTP checks pass, including exact independently derived dates and no-write refusals. Evidence is under `milestonePreviewValidation20261021` in [status.json](status.json). No new statutory calendar rule or professional deadline approval is supplied; dependent-task amendment effects, broader scheduling acceptance and current-source full release remain open. Recorded-time paging evidence remains available through its status/archive pointer.
+The controlled acceptance test reproduced the mixed-state defect on the original query, then passed with the fix. Focused exact-offer, firm/role/fee, current-revocation and caller-transaction checks pass. Evidence is under `proposalSnapshotConsistency20261021` in [status.json](status.json). Snapshot consistency does not promise newest business facts or consistency across larger composite workspaces. Broader commercial/professional/live/current-source release acceptance remains open. Scheduling evidence is preserved through its archive pointer.
 
 ## Correction queue to fieldwork handoff
 

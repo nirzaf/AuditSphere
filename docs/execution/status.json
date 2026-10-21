@@ -1187,7 +1187,7 @@
         "sourceCommit": "a83cbebc0c8e88fd7eb27ecc6c6adb33db1f347a",
         "run": "39533076423",
         "status": "IN_PROGRESS",
-        "observed": "Resolve, full Angular, Domain and build/contracts/publication PASS; API/E2E IN_PROGRESS. This pinned source predates the later task-assignment test and fieldwork-link slice. Initial39532980048 failed checkout on abbreviated ref; resubmitted after terminal failure with full SHA."
+        "observed": "Resolve, full Angular, Domain, API and build/contracts/publication PASS; E2E IN_PROGRESS. Pinned a83cbebc predates later assignment/fieldwork/time/scheduling/proposal slices. Initial39532980048 failed checkout on abbreviated ref; resubmitted after terminal failure with full SHA."
       }
     },
     "workflowTemplateAssignment20261021": {
@@ -1216,13 +1216,18 @@
     "milestonePreviewValidation20261021": {
       "status": "PASS_LOCAL_SLICE",
       "sourceCommit": "8d55d09c",
-      "behavior": "Preview and save use the existing calculated schedule defaults; removed divergent hardcoded preview dates. Both safely refuse date arithmetic overflow and invalid cutoff chronology. Both HTTP routes reject malformed nonblank optional dates instead of silently substituting defaults. Warning override, current configure roles, lock order and append-only revisions remain unchanged.",
-      "checks": "Focused StatutoryMilestonePlanningTests PASS10/10,44s; API MilestonePreviewAndSaveShareTightCutoffDatesAndRejectMalformedOrBoundaryDates PASS1/1,21s. API asserts independently derived Jan2/Jan8/Jan11/Mar12 dates for Dec31 period/Jan12 cutoff, missing-override no-write refusal, exact persisted actor/revision/override, six malformed-field/route refusals and min/max cutoff/final failures without extra records. Independent review found no material blocker; git diff --check PASS.",
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.milestonePreviewValidation20261021"
+    },
+    "proposalSnapshotConsistency20261021": {
+      "status": "PASS_LOCAL_SLICE",
+      "sourceCommit": "a12b17fc",
+      "behavior": "ProposalAsync now loads status/history, immutable response evidence, names, dispatch and recipient/quotation/artifact preview in one owned RepeatableRead snapshot. Snapshot is disposed before final fresh authorization. Caller-owned transactions fail closed without being consumed. No DTO, approval, acceptance or dispatch rule changes.",
+      "checks": "New deterministic interleaving fact FAIL1/1 on original query: main status SENT versus version history ACCEPTED after real independent-context acceptance. Fixed source restored by finally. Focused fixed cohort PASS3/3,41s: new interleaving/current-grant revocation/caller transaction test, existing firm+role+fee projection and exact-dispatched-offer acceptance/replay tests. Exact receipt/respondent/channel/time retained on fresh read; denied result contains no projection. Independent design review found no blocker. git diff --check PASS.",
       "artifacts": [
-        "tests/AuditSphereOps.Domain.Tests/TestResults/milestone-preview-boundaries-20261021.trx",
-        "tests/AuditSphereOps.Api.Tests/TestResults/milestone-preview-api-20261021.trx"
+        "tests/AuditSphereOps.Domain.Tests/TestResults/proposal-snapshot-red-20261021.trx",
+        "tests/AuditSphereOps.Domain.Tests/TestResults/proposal-snapshot-green-20261021.trx"
       ],
-      "limits": "No new statutory/Qatar calendar policy, professional cutoff approval, dependent-task amendment behavior or whole-criterion acceptance. No UI changes/browser run, schema/dependency/provider changes or full local suites. Full CI39533076423 still runs on a83cbebc, predating this slice; fast CI39539557227 on3945bce3 still in progress."
+      "limits": "Coherent snapshot may precede a concurrent commit; it is not a freshness guarantee for business facts. Larger quotation/fee/document/onboarding composite workspaces have separate reads and are not covered by this guarantee. No UI/browser, schema/dependency/provider changes or full local suites; legal wording, professional/live and full current-source release remain open."
     }
   },
   "externalGates": [
