@@ -267,7 +267,7 @@ Follow-up browser evidence: repaired the direct SQL fixture’s omitted client s
 
 The queue previously omitted retained binding source identities. The existing grant-scoped projection now carries the source key and exact template revision/step IDs, and list/board/calendar display those references without shortening them. Empty historical source keys are explicitly shown as not recorded. This is read-only lineage disclosure, not a new approval, source reconstruction, or template migration. The broader required-task evidence and next-action acceptance remains partial.
 
-Focused verification: existing scoped PostgreSQL task-lineage test passes; the queue component cohort and Angular/API builds pass. Built-in browser confirms retained manual source identity in list, board and calendar without console warnings/errors. Published-template browser lineage and responsive acceptance remain unverified. Exact results are recorded in the execution ledger.
+Focused verification: existing scoped PostgreSQL task-lineage test passes; the queue component cohort and Angular/API builds pass. Built-in browser confirms retained manual source identity in list, board and calendar without console warnings/errors. A later focused synthetic journey authors and independently publishes a template, creates the engagement plan, and verifies exact Required/Optional source, revision and step identities in all three layouts, with a manual control task. Built-in board/calendar inspection confirms narrow-screen reflow and no console warnings/errors. Broader workflow and human assistive-technology acceptance remain open. Exact results and source scope are under `workflowTemplateLineage20261021` in the execution ledger.
 
 ### WF-02/03 review context across layouts
 

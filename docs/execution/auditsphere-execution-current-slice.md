@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Native template authoring and pinned queue labels
+
+A focused synthetic browser journey now authors a Required and Optional task template through Angular, uses a separate Partner session for independent review and publication, previews and creates an engagement plan, and follows its exact pinned source identities through Team list, board and calendar. Manual tasks remain undesignated; creating the plan completes no task and grants no professional approval. Independent review strengthened the exact manual identity and queue membership assertions.
+
+Built-in narrow-screen inspection confirms retained labels and reflow. Source, focused results, artifacts and exact CI scope are under `workflowTemplateLineage20261021` in [status.json](status.json). The reminder criterion now records the existing reviewed internal-rule catalogue rather than calling it absent. Required-task graph semantics, broader workflow acceptance, human screen-reader review and professional/live gates remain open. Earlier request-snapshot notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
 ## Separate client upload and reply capabilities
 
 Home and detail now use independent server-projected upload and reply eligibility from the existing command rules. Clients can reply during review, respond to a clarification before replacing files, and upload after resubmission. Missing capability fields fail closed; legacy `CanWrite` remains compatibility data. Home rechecks current window, scope and request state/revision before releasing action hints. Changed capabilities clear local drafts while ordinary polling preserves them.
@@ -32,11 +38,6 @@ Client request detail now distinguishes a retained exact-upload acceptance recei
 
 Focused database, API, Angular, real local-command browser and built-in mobile observations are under `portalPbcAcceptance20261021` in [status.json](status.json). Local provider simulation is explicitly not live tenant or qualified professional acceptance. CLIENT-02/04, complete client-public chronology, whole-state/human AT and current-source full release remain open. Earlier signed-scan and document-context handoffs are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
-## PBC request snapshots and terminal delegation management
-
-Request detail and history now read one consistent snapshot, then recheck the current client session, participation, request metadata and capability inputs before returning content. Lost scope is refused; changed requests or capabilities require refresh without a partial payload. A primary owner can still inspect and revoke existing delegations after request acceptance/closure; creation remains forbidden. The separate management flag preserves that authorized recovery path without exposing new candidates.
-
-Conversation paging keeps its existing chronological order and now uses the matching forward label. Conversation and upload-intent times show UTC with retained semantic timestamps; intent creation is not provider completion. Focused cases first reproduced stale success responses, then verified the fences, closed-request revocation and normal client journey. Results and exact source are under `pbcRequestReadSnapshot20261021` in [status.json](status.json). Full public chronology, whole-state/qualified human AT, current-source full release and live-provider/professional acceptance remain open.
 
 ## Recent read-only evidence views
 

@@ -1168,12 +1168,9 @@
       "remaining": "Complete public chronology, qualified human AT, current-source full release and professional/live acceptance remain open."
     },
     "workflowEvidenceDowngradeRecovery20261021": {
-      "sourceCommit": "90a75d976df4a100390cc32316d8f825266a4c2e",
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "failure": "Full release39502778802 on a74b4b8c: API366/367, only WorkflowEvidenceApiTests.EvidenceChangesRequireCookieCsrfManagerScopeAndCurrentRevisionAndRecoverOnlyTheOwnersReceipt failed42703 (current-model read of removed nullable lineage column). Official downloaded API TRX confirms1failure; Domain/E2E/Angular/build/contracts jobsPASS.",
-      "repair": "Test only: exact retained rule identity is read against the intermediate schema after the existing refused downgrade; re-upgrade restores all latest migrations, then original whole-table Assert.Single and exact ID/firm/receipt/task/kind/source/state/reason/null-lineage assertions pass. No production guard or migration changed.",
-      "verification": "Independent focused local API1/1PASS, with Release binaries rebuilt by agent; parent captured another final1/1PASS in tests/AuditSphereOps.Api.Tests/TestResults/workflow-evidence-downgrade-recovery-20261021.trx and /tmp/auditsphere-workflow-evidence-downgrade-recovery-20261021.log. Independent review corrected an initially filtered count to preserve original whole-table invariant; diff check passed.",
-      "limits": "Historical full run remainsFAILED; current-source full regressionNOT_RUN. Fast CI does not run this complete API cohort; full suites remain CI/CD only. No full local suites, provider effects or production database operations."
+      "archive": "status-archive-2026-10.json#/keys/targetedVerification/focusedEvidenceHistory20261021/workflowEvidenceDowngradeRecovery20261021",
+      "limits": "Historical full release failed; repaired focused API case passed. Current full CI recorded separately; professional/external acceptance remains open."
     },
     "portalRequestCapabilities20261021": {
       "sourceCommit": "b576f33d6f925522546995272bfa2818ff45ab1f",
@@ -1185,6 +1182,16 @@
       "repairs": "Read-only paging fixture defaults restored and intended writable fixture madeexplicit; original negative assertions retained. Two colliding API-test locals renamed. E2E checksResubmitted immediatelyafterreply, thenPartialafterstartingreplacement instead ofassumingstateunchanged afterupload. No domain outcomes weakened.",
       "ci": "39516191642 FAST_CI_PASS onbc68717a; new-source CI pending push. Full current-source release remainsNOT_RUN; historical API downgrade failure repaired onlyfocused asrecorded separately.",
       "limits": "CLIENT-02/04 and wholetool remainPARTIAL: complete public chronology, whole-state/browser/humanAT, full current-source release and live/professional acceptance remainopen. No full local suites, schema/config/deployment/provider changes."
+    },
+    "workflowTemplateLineage20261021": {
+      "sourceCommit": "e65fbdc7450dda0acade8449db0e41491bf1a583",
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "behavior": "Native Angular draft authoring, separate Partner review/publication, engagement plan preview/assent/create. Exact Required/Optional revision/step/source identities retained in Team list/board/calendar; manual task remains undesignated with exact source. Three tasks remain incomplete; no materiality approval or procedure review created.",
+      "verification": "PublishedTemplatePinsRequiredAndOptionalTasksAcrossQueueLayouts: final focused E2E1/1PASS,0failed/skipped (22s); Release E2E build0warnings/errors. Initial1/1PASS included built-in handoff; reviewer additions strengthened exact manual source, count and no-completion assertions. No product changes. Independent review found no remaining actionable findings.",
+      "browser": "Owned built-in Team list/board/calendar checked; board/calendar at320px document305px, retained labels and IDs, no console warnings/errors. Read-only inspection, fixture disposed. This is not qualified human screen-reader acceptance.",
+      "evidence": "tests/AuditSphereOps.E2E.Tests/TestResults/workflow-template-lineage-final-20261021.trx; /tmp/auditsphere-template-lineage-final-test.log; /tmp/auditsphere-template-lineage-calendar-320-20261021.png",
+      "ci": "FAST_CI_PASS39517886129 on68f7c7dc. Full39518012940 pinned68f7c7dc stillrunning: Domain,Angular,build/contractsPASS; API/E2Einprogress. New test is later source, not covered by that run.",
+      "limits": "ASPM-WF-01/02 remainPARTIAL: required-task graph policy, wider workflows, humanAT/professional and live-provider gates open. No full local suites or deployment."
     }
   },
   "externalGates": [
