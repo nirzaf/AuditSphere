@@ -1,3 +1,6 @@
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
@@ -51,6 +54,78 @@ public sealed class PbcTests
     Assert.Equal(OperationState.COMPLETED, operation.Status);
     Assert.Equal(OperationMode.LIVE, operation.ExecutionMode);
     Assert.Equal(OperationAuthority.LIVE_PROVIDER, operation.AuthorityMode);
+  }
+
+  [Fact]
+  public async Task StaffUpload_FreezeAfterPreflightRetainsOnlyTheRefusedAccessRecord()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var staff = PbcSeed.Actor(f.Staff, "Staff");
+    Guid requestId;
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      var made = await PbcService.CreateRequestAsync(seed, staff, new(f.EngagementId,
+        "Synthetic frozen upload", "TEST ENTITY", "2026-01-01", "2026-12-31", "Cash", "CSV", "",
+        f.Client.Id, f.Staff.Id, f.Reviewer.Id, "2027-01-31", "Confidential", "Readable."));
+      Assert.True(made.Succeeded, made.Message); requestId = made.Value;
+      Assert.True((await PbcService.SendRequestAsync(seed, staff, requestId, 1, "https://audit.example.test/")).Succeeded);
+    }
+    var freeze = new FreezeAfterUploadPreflight(async ct =>
+    {
+      await using var mutation = new AuditSphereDbContext(pg.Options);
+      await using var tx = await mutation.Database.BeginTransactionAsync(ct);
+      _ = await mutation.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+      _ = await mutation.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {f.ClientId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      var engagement = await mutation.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {f.EngagementId} FOR UPDATE").SingleAsync(ct);
+      var signedAt = DateTimeOffset.UtcNow.AddDays(-61);
+      var reportId = Guid.NewGuid();
+      // Terminal freeze fixture only; this does not assert that a professional report was approved or signed.
+      mutation.AuditDeliverables.Add(new AuditDeliverable {
+        Id = reportId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        Kind = DeliverableKinds.IndependentAuditorsReport, Version = 1, TemplateVersion = "synthetic-freeze-guard",
+        InputDigest = Hashing.Sha256Hex("synthetic freeze inputs"), InputSummaryJson = "{}",
+        FileName = "synthetic-report.txt", ContentType = "text/plain", Content = [1], ContentSha256 = Hashing.Sha256Hex(new byte[] { 1 }),
+        CreatedByUserId = f.Staff.Id, CreatedAt = signedAt
+      });
+      mutation.EngagementFileFreezes.Add(new EngagementFileFreeze {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ReportDeliverableId = reportId, ReportSignedAt = signedAt, DueAt = signedAt.AddDays(60),
+        State = FileFreezeStates.Frozen, FrozenAt = signedAt.AddDays(60), UpdatedAt = signedAt.AddDays(60)
+      });
+      engagement.ProfessionalWorkBlocked = true; engagement.Generation++;
+      await mutation.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(freeze).Options;
+    await using var db = new AuditSphereDbContext(options);
+    var refused = await PbcService.StartUploadAsync(db, staff, new(requestId, "ledger.csv", "text/csv", 10, new string('a', 64)));
+    Assert.True(freeze.Fired);
+    Assert.Equal(ErrorCodes.ProtectedState, refused.ErrorCode);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var attempt = Assert.Single(await verify.FrozenAccessAttempts.AsNoTracking().ToListAsync());
+    Assert.Equal((f.FirmId, f.EngagementId, f.Staff.Id), (attempt.FirmId, attempt.EngagementId, attempt.ActorUserId));
+    Assert.Equal("upload ledger.csv", attempt.Action);
+    var request = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId);
+    Assert.Equal(PbcStates.Sent, request.State); Assert.Equal(2, request.Revision);
+    Assert.Empty(await verify.PbcUploadIntents.ToListAsync());
+    Assert.Empty(await verify.PbcUploadChunks.ToListAsync());
+  }
+
+  private sealed class FreezeAfterUploadPreflight(Func<CancellationToken, Task> freeze) : DbCommandInterceptor
+  {
+    private int fired;
+    public bool Fired => Volatile.Read(ref fired) == 1;
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (eventData.Context?.Database.CurrentTransaction is not null ||
+          !command.CommandText.Contains("engagement_file_freezes", StringComparison.OrdinalIgnoreCase) ||
+          Interlocked.CompareExchange(ref fired, 1, 0) != 0) return result;
+      using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+      bounded.CancelAfter(TimeSpan.FromSeconds(15));
+      await freeze(bounded.Token);
+      return result;
+    }
   }
 
   [Fact]

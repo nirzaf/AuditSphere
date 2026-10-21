@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
 using AuditSphereOps.Application.Documents;
@@ -7,7 +8,9 @@ using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using WorkerHost = AuditSphereOps.Worker.Worker;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -188,6 +191,112 @@ public sealed class PbcTransferTests
     Assert.Equal("provider-receipt-conflict", mismatch.Code);
 
     PbcSeed.DeleteDirectory(transfer.Staged.StagingRoot);
+  }
+
+  [Fact]
+  public async Task CompleteUploadAndExactChunkReplay_UseOneLockOrderAndCompleteWithoutDeadlock()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var staff = PbcSeed.Actor(fixture.Staff, "Staff");
+    var client = PbcSeed.Actor(fixture.Client, "ClientUser");
+    var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture, staff, client);
+    var content = "%PDF-1.7 fully chunked lock-order regression"u8.ToArray();
+    var staged = await PbcSeed.StageUploadAsync(pg, fixture, client, requestId, content);
+    var (store, handler) = PbcSeed.Boundary(
+      new SimulationPbcProviderSink(Path.Combine(staged.StagingRoot, "provider")), pg);
+
+    var completeApplicationName = "pbc-complete-" + Guid.NewGuid().ToString("N");
+    var replayApplicationName = "pbc-replay-" + Guid.NewGuid().ToString("N");
+    var pause = new PauseAfterUploadIntentForUpdate();
+    var completeConnectionString = new NpgsqlConnectionStringBuilder(pg.ConnectionString)
+    {
+      ApplicationName = completeApplicationName
+    }.ConnectionString;
+    var replayConnectionString = new NpgsqlConnectionStringBuilder(pg.ConnectionString)
+    {
+      ApplicationName = replayApplicationName
+    }.ConnectionString;
+    var completeOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .UseNpgsql(completeConnectionString)
+      .AddInterceptors(pause)
+      .Options;
+    var replayOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .UseNpgsql(replayConnectionString)
+      .Options;
+    await using var completeDb = new AuditSphereDbContext(completeOptions);
+    await using var replayDb = new AuditSphereDbContext(replayOptions);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+    Task<CommandResult<PbcUploadReceipt>>? completing = null;
+    Task<CommandResult<PbcUploadReceipt>>? replaying = null;
+    try
+    {
+      completing = PbcService.CompleteUploadAsync(completeDb, staff,
+        new CompletePbcUploadRequest(staged.UploadIntentId, staged.DeclaredSha256Hex), store, handler, timeout.Token);
+      await pause.Reached.Task.WaitAsync(timeout.Token);
+      var completePid = await BackendPidAsync(observer, completeApplicationName, timeout.Token);
+
+      replaying = PbcService.RecordChunkAsync(replayDb, client,
+        new RecordPbcUploadChunkRequest(staged.UploadIntentId, 0, 0, checked((int)staged.ByteCount),
+          staged.DeclaredSha256Hex, staged.Capability,
+          Path.Combine(staged.StagingRoot, staged.UploadIntentId.ToString("N"), "0.part")), timeout.Token);
+      await WaitUntilBlockedByAsync(observer, replayApplicationName, completePid, timeout.Token);
+
+      pause.Release.TrySetResult(true);
+      var results = await Task.WhenAll(completing!, replaying!).WaitAsync(timeout.Token);
+      var completed = results[0];
+      var replay = results[1];
+      Assert.True(completed.Succeeded, completed.ErrorCode);
+      Assert.Equal(PbcUploadStates.Staged, completed.Value!.State);
+      Assert.True(replay.Succeeded, replay.ErrorCode);
+      Assert.Equal(PbcUploadStates.Staged, replay.Value!.State);
+      Assert.Equal(completed.Value.Revision, replay.Value.Revision);
+
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      var intent = await verify.PbcUploadIntents.AsNoTracking()
+        .SingleAsync(x => x.Id == staged.UploadIntentId, timeout.Token);
+      Assert.Equal(PbcUploadStates.Staged, intent.State);
+      Assert.Equal(staged.ByteCount, intent.ReceivedByteCount);
+      Assert.Equal(staged.DeclaredSha256Hex, intent.FinalSha256Hex);
+
+      var chunk = Assert.Single(await verify.PbcUploadChunks.AsNoTracking()
+        .Where(x => x.PbcUploadIntentId == staged.UploadIntentId).ToListAsync(timeout.Token));
+      Assert.Equal(0, chunk.ChunkIndex);
+      Assert.Equal(0L, chunk.Offset);
+      Assert.Equal(staged.ByteCount, chunk.ByteCount);
+      Assert.Equal(staged.DeclaredSha256Hex, chunk.Sha256Hex);
+
+      Assert.Equal(1, await verify.DurableOperations.AsNoTracking()
+        .CountAsync(x => x.OperationKind == PbcDocumentTransferHandler.Kind, timeout.Token));
+      var transferOperation = await verify.DurableOperations.AsNoTracking().SingleAsync(x =>
+        x.OperationKind == PbcDocumentTransferHandler.Kind && x.TargetId == staged.UploadIntentId,
+        timeout.Token);
+      Assert.Equal(intent.TransferOperationId, transferOperation.Id);
+      Assert.Equal(OperationState.PENDING, transferOperation.Status);
+
+      var request = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == requestId, timeout.Token);
+      Assert.Equal(PbcStates.PartiallyReceived, request.State);
+      Assert.Null(request.AcceptedByUserId);
+      Assert.Null(request.AcceptedAt);
+      Assert.Empty(await verify.PbcAcceptanceReceipts.AsNoTracking().ToListAsync(timeout.Token));
+    }
+    finally
+    {
+      pause.Release.TrySetResult(true);
+      try
+      {
+        if (completing is not null && replaying is not null)
+          await Task.WhenAll(completing, replaying).WaitAsync(TimeSpan.FromSeconds(5));
+        else if (completing is not null)
+          await completing.WaitAsync(TimeSpan.FromSeconds(5));
+        else if (replaying is not null)
+          await replaying.WaitAsync(TimeSpan.FromSeconds(5));
+      }
+      catch (Exception) { }
+      PbcSeed.DeleteDirectory(staged.StagingRoot);
+    }
   }
 
   [Fact]
@@ -510,6 +619,64 @@ public sealed class PbcTransferTests
   private sealed record TransferContext(
     PbcSeed.Fixture Fixture, Guid RequestId, PbcSeed.StagedUpload Staged,
     string ProviderRoot, WorkerHost Worker);
+
+  private sealed class PauseAfterUploadIntentForUpdate : DbCommandInterceptor
+  {
+    private int paused;
+
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+      DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("pbc_upload_intents", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref paused, 1, 0) == 0)
+      {
+        Reached.TrySetResult(true);
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
+
+  private static async Task<int> BackendPidAsync(
+    AuditSphereDbContext observer, string applicationName, CancellationToken ct) =>
+    await observer.Database.SqlQuery<int>($"""
+      SELECT pid AS "Value" FROM pg_stat_activity
+      WHERE datname = current_database() AND application_name = {applicationName}
+        AND pid <> pg_backend_pid()
+      """).SingleAsync(ct);
+
+  private static async Task WaitUntilBlockedByAsync(
+    AuditSphereDbContext observer, string waitingApplicationName, int blockingPid, CancellationToken ct)
+  {
+    using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+    bounded.CancelAfter(TimeSpan.FromSeconds(10));
+    try
+    {
+      while (true)
+      {
+        var blockedByComplete = await observer.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity AS waiting
+            WHERE waiting.datname = current_database()
+              AND waiting.application_name = {waitingApplicationName}
+              AND waiting.wait_event_type = 'Lock'
+              AND {blockingPid} = ANY(pg_blocking_pids(waiting.pid))
+          ) AS "Value"
+          """).SingleAsync(bounded.Token);
+        if (blockedByComplete) return;
+        await Task.Delay(TimeSpan.FromMilliseconds(20), bounded.Token);
+      }
+    }
+    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+    {
+      throw new TimeoutException("The exact chunk replay did not become blocked by the paused completion transaction.");
+    }
+  }
 
   private async Task<TransferContext> CreateTransferWorkerAsync(
     PgTestSchema pg, ScriptedSink? scripted, bool wrap = true, byte[]? content = null)

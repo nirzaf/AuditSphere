@@ -1,3 +1,4 @@
+using System.Data.Common;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
@@ -9,6 +10,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -69,6 +71,183 @@ public sealed class ClientPortalOnboardingTests
     var shared = await AuditDeliverableService.ShareWithClientAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), deliverableId);
     Assert.True(shared.Succeeded, shared.Message);
     return shared.Value;
+  }
+
+  [Theory]
+  [InlineData("reply")]
+  [InlineData("start-upload")]
+  [InlineData("resume-upload")]
+  [InlineData("record-chunk")]
+  [InlineData("acknowledge")]
+  public async Task PbcClientCommands_ReauthorizeTheLockedRequestAfterItsOwnerChanges(string operation)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var client = PbcSeed.Actor(f.Client, "ClientUser");
+    var requestId = await SentRequestAsync(pg, f, f.Client.Id);
+    Guid uploadIntentId = Guid.Empty;
+    string? capability = null;
+
+    if (operation is "resume-upload" or "record-chunk")
+    {
+      await using var startDb = new AuditSphereDbContext(pg.Options);
+      var started = await PbcService.StartUploadAsync(startDb, client, Upload(requestId));
+      Assert.True(started.Succeeded, started.ErrorCode);
+      uploadIntentId = started.Value!.UploadIntentId;
+      capability = started.Value.Capability;
+    }
+
+    var replacementOwner = await AddClientUserAsync(pg, f, f.ClientId, f.EngagementId, onboarded: true);
+    var requestChangeRows = 0;
+    PbcOwnerRaceSnapshot? postFixtureBaseline = null;
+    var interceptor = new OwnerChangeAfterPbcRequestRead(async ct =>
+    {
+      await using (var mutation = new AuditSphereDbContext(pg.Options))
+      {
+        requestChangeRows = await mutation.PbcRequests.Where(x =>
+            x.FirmId == f.FirmId && x.ClientId == f.ClientId && x.EngagementId == f.EngagementId && x.Id == requestId)
+          .ExecuteUpdateAsync(update => update
+            .SetProperty(x => x.ClientOwnerUserId, replacementOwner.Id)
+            .SetProperty(x => x.Revision, x => x.Revision + 1)
+            .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), ct);
+      }
+
+      await using var snapshotDb = new AuditSphereDbContext(pg.Options);
+      postFixtureBaseline = await ReadOwnerRaceSnapshotAsync(snapshotDb, f.FirmId, f.ClientId, f.EngagementId,
+        requestId, ct);
+    });
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(interceptor).Options;
+    using var operationTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    await using var db = new AuditSphereDbContext(options);
+    var trackedRequest = await db.PbcRequests.SingleAsync(x => x.FirmId == f.FirmId && x.Id == requestId,
+      operationTimeout.Token);
+    var preRaceRevision = trackedRequest.Revision;
+    Assert.False(await db.PbcRequestDelegations.AsNoTracking().AnyAsync(x =>
+      x.FirmId == f.FirmId && x.PbcRequestId == requestId && x.DelegateUserId == f.Client.Id && x.RevokedAt == null,
+      operationTimeout.Token));
+
+    interceptor.Arm();
+    var errorCode = operation switch
+    {
+      "reply" => (await PbcService.ReplyAsync(db, client, requestId, "Owner-race reply.", operationTimeout.Token)).ErrorCode,
+      "start-upload" => (await PbcService.StartUploadAsync(db, client, Upload(requestId), operationTimeout.Token)).ErrorCode,
+      "resume-upload" => (await PbcService.ResumeUploadAsync(db, client,
+        new ResumePbcUploadRequest(requestId, uploadIntentId, "ledger.csv", 10, new string('a', 64)),
+        operationTimeout.Token)).ErrorCode,
+      "record-chunk" => (await PbcService.RecordChunkAsync(db, client,
+        new RecordPbcUploadChunkRequest(uploadIntentId, 0, 0, 10, Hashing.Sha256Hex(new byte[10]),
+          capability!, "owner-race.part"), operationTimeout.Token)).ErrorCode,
+      "acknowledge" => (await PbcService.ChangeStateAsync(db, client,
+        new PbcStateChangeRequest(requestId, PbcStates.Acknowledged, preRaceRevision), operationTimeout.Token)).ErrorCode,
+      _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unknown PBC owner-race operation.")
+    };
+
+    Assert.True(interceptor.OwnerChangeApplied,
+      "The owner change must commit after the initial non-locking PBC request read.");
+    Assert.True(interceptor.LockedRequestReadObserved,
+      "The command must read the PBC request under its row lock before denying the former owner.");
+    Assert.Equal(1, requestChangeRows);
+    Assert.Equal(ErrorCodes.ScopeDenied, errorCode);
+
+    var expected = Assert.IsType<PbcOwnerRaceSnapshot>(postFixtureBaseline);
+    Assert.Equal(replacementOwner.Id, expected.Request.ClientOwnerUserId);
+    Assert.Equal(preRaceRevision + 1, expected.Request.Revision);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var actual = await ReadOwnerRaceSnapshotAsync(verify, f.FirmId, f.ClientId, f.EngagementId,
+      requestId, operationTimeout.Token);
+    Assert.Equal(expected.Request, actual.Request);
+    Assert.Equal(expected.Communications, actual.Communications);
+    Assert.Equal(expected.UploadIntents, actual.UploadIntents);
+    Assert.Equal(expected.Chunks, actual.Chunks);
+  }
+
+  private static async Task<PbcOwnerRaceSnapshot> ReadOwnerRaceSnapshotAsync(
+    AuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId, Guid requestId, CancellationToken ct)
+  {
+    var request = await db.PbcRequests.AsNoTracking().Where(x =>
+        x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Id == requestId)
+      .Select(x => new PbcOwnerRaceRequestSnapshot(x.ClientOwnerUserId, x.State, x.Revision, x.UpdatedAt,
+        x.ClarificationReason, x.AcceptedByUserId, x.AcceptedAt))
+      .SingleAsync(ct);
+    var communications = await db.PbcCommunications.AsNoTracking().Where(x =>
+        x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.PbcRequestId == requestId)
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)
+      .Select(x => new PbcOwnerRaceCommunicationSnapshot(x.Id, x.AuthorUserId, x.Kind, x.Body, x.RecipientEmail,
+        x.Subject, x.PortalUrl, x.DeliveryState, x.ProviderCorrelationId, x.DeliveredAt, x.CreatedAt))
+      .ToArrayAsync(ct);
+    var uploadIntents = await db.PbcUploadIntents.AsNoTracking().Where(x =>
+        x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.PbcRequestId == requestId)
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id)
+      .Select(x => new PbcOwnerRaceIntentSnapshot(x.Id, x.RequestRevision, x.UploaderUserId, x.FileName,
+        x.ContentType, x.DeclaredByteCount, x.DeclaredSha256Hex, x.CapabilityHash, x.ReceivedByteCount,
+        x.State, x.ExpiresAt, x.CreatedAt, x.CompletedAt, x.FinalSha256Hex, x.FailureReason,
+        x.TransferOperationId, x.ProviderReceiptDigest, x.ProviderRegisteredAt, x.Revision))
+      .ToArrayAsync(ct);
+    var uploadIntentIds = uploadIntents.Select(x => x.Id).ToArray();
+    PbcOwnerRaceChunkSnapshot[] chunks;
+    if (uploadIntentIds.Length == 0)
+      chunks = [];
+    else
+      chunks = await db.PbcUploadChunks.AsNoTracking().Where(x =>
+          x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
+          uploadIntentIds.Contains(x.PbcUploadIntentId))
+        .OrderBy(x => x.PbcUploadIntentId).ThenBy(x => x.ChunkIndex).ThenBy(x => x.Id)
+        .Select(x => new PbcOwnerRaceChunkSnapshot(x.Id, x.PbcUploadIntentId, x.ChunkIndex, x.Offset,
+          x.ByteCount, x.Sha256Hex, x.StagedPath, x.ReceivedAt))
+        .ToArrayAsync(ct);
+    return new PbcOwnerRaceSnapshot(request, communications, uploadIntents, chunks);
+  }
+
+  private sealed record PbcOwnerRaceRequestSnapshot(Guid ClientOwnerUserId, string State, long Revision,
+    DateTimeOffset UpdatedAt, string? ClarificationReason, Guid? AcceptedByUserId, DateTimeOffset? AcceptedAt);
+
+  private sealed record PbcOwnerRaceCommunicationSnapshot(Guid Id, Guid AuthorUserId, string Kind, string Body,
+    string? RecipientEmail, string? Subject, string? PortalUrl, string? DeliveryState,
+    string? ProviderCorrelationId, DateTimeOffset? DeliveredAt, DateTimeOffset CreatedAt);
+
+  private sealed record PbcOwnerRaceIntentSnapshot(Guid Id, long RequestRevision, Guid UploaderUserId,
+    string FileName, string ContentType, long DeclaredByteCount, string DeclaredSha256Hex, string CapabilityHash,
+    long ReceivedByteCount, string State, DateTimeOffset ExpiresAt, DateTimeOffset CreatedAt,
+    DateTimeOffset? CompletedAt, string? FinalSha256Hex, string? FailureReason, Guid? TransferOperationId,
+    string? ProviderReceiptDigest, DateTimeOffset? ProviderRegisteredAt, long Revision);
+
+  private sealed record PbcOwnerRaceChunkSnapshot(Guid Id, Guid PbcUploadIntentId, int ChunkIndex, long Offset,
+    int ByteCount, string Sha256Hex, string? StagedPath, DateTimeOffset ReceivedAt);
+
+  private sealed record PbcOwnerRaceSnapshot(PbcOwnerRaceRequestSnapshot Request,
+    PbcOwnerRaceCommunicationSnapshot[] Communications, PbcOwnerRaceIntentSnapshot[] UploadIntents,
+    PbcOwnerRaceChunkSnapshot[] Chunks);
+
+  private sealed class OwnerChangeAfterPbcRequestRead(Func<CancellationToken, Task> changeOwner)
+    : DbCommandInterceptor
+  {
+    private int armed;
+    private int ownerChangeApplied;
+    private int lockedRequestReadObserved;
+    public bool OwnerChangeApplied => Volatile.Read(ref ownerChangeApplied) == 1;
+    public bool LockedRequestReadObserved => Volatile.Read(ref lockedRequestReadObserved) == 1;
+    public void Arm() => Volatile.Write(ref armed, 1);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+      CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      var sql = command.CommandText;
+      if (Volatile.Read(ref armed) != 1 || !sql.Contains("pbc_requests", StringComparison.OrdinalIgnoreCase))
+        return result;
+      if (sql.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
+      {
+        Interlocked.Exchange(ref lockedRequestReadObserved, 1);
+        return result;
+      }
+      if (!result.HasRows || Interlocked.CompareExchange(ref ownerChangeApplied, 1, 0) != 0)
+        return result;
+
+      using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+      bounded.CancelAfter(TimeSpan.FromSeconds(15));
+      await changeOwner(bounded.Token);
+      return result;
+    }
   }
 
   [Fact]

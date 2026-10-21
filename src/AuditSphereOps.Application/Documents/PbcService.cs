@@ -343,13 +343,16 @@ public static class PbcService
     _ = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
     _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
     _ = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {current.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    auth = await AuthorizeClientAsync(db, actor, current, ct);
-    if (!auth.Succeeded) return auth;
-    var window = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
-    if (!window.Succeeded) return window;
     var request = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {requestId} FOR UPDATE
       """).SingleAsync(ct);
+    await db.PbcRequests.Attach(request).ReloadAsync(ct);
+    if (request.ClientId != current.ClientId || request.EngagementId != current.EngagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizeClientAsync(db, actor, request, ct);
+    if (!auth.Succeeded) return auth;
+    var window = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
+    if (!window.Succeeded) return window;
     if (request.State is PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed)
       return CommandResult.Fail("pbc.message-state", "This request is not open for replies.");
     var now = DateTimeOffset.UtcNow;
@@ -448,20 +451,15 @@ public static class PbcService
       _ = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
       _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
       _ = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {current.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-      auth = await AuthorizeClientAsync(db, actor, current, ct);
-      if (!auth.Succeeded)
-        return auth;
-      var writeWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
-      if (!writeWindow.Succeeded)
-        return writeWindow;
     }
     var request = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (request is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (request.Revision != input.ExpectedRevision)
-      return CommandResult.Fail(ErrorCodes.StaleRevision, "The PBC request changed; reload before changing its state.");
+    await db.PbcRequests.Attach(request).ReloadAsync(ct);
+    if (request.ClientId != current.ClientId || request.EngagementId != current.EngagementId)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     auth = clientAction
       ? await AuthorizeClientAsync(db, actor, request, ct)
       : reviewerAction
@@ -469,6 +467,13 @@ public static class PbcService
         : await AuthorizeStaffAsync(db, actor, request.ClientId, request.EngagementId, ct);
     if (!auth.Succeeded)
       return auth;
+    if (clientAction)
+    {
+      var writeWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
+      if (!writeWindow.Succeeded) return writeWindow;
+    }
+    if (request.Revision != input.ExpectedRevision)
+      return CommandResult.Fail(ErrorCodes.StaleRevision, "The PBC request changed; reload before changing its state.");
     if (!AllowedTransition(request.State, input.State))
       return CommandResult.Fail("pbc.transition", $"Cannot change a {request.State} request to {input.State}.");
 
@@ -622,17 +627,26 @@ public static class PbcService
       return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-state", "The request is not accepting an upload.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    if (actor.Roles.Contains("ClientUser"))
-    {
-      _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {request.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-      auth = await AuthorizeUploadActorAsync(db, actor, request, ct);
-      if (!auth.Succeeded) return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
-    }
+    if (!await LockUploadScopeAsync(db, actor, request.ClientId, request.EngagementId, ct))
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var lockedRequest = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (lockedRequest is null)
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.PbcRequests.Attach(lockedRequest).ReloadAsync(ct);
+    if (lockedRequest.ClientId != request.ClientId || lockedRequest.EngagementId != request.EngagementId)
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizeUploadActorAsync(db, actor, lockedRequest, ct);
+    if (!auth.Succeeded) return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
+    writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, lockedRequest.EngagementId,
+      $"upload {input.FileName.Trim()}", ct);
+    if (!writable.Succeeded)
+    {
+      // Only the refused-access audit record has been saved; no upload mutation has begun.
+      await tx.CommitAsync(ct);
+      return CommandResult<PbcUploadReceipt>.Fail(writable.ErrorCode!, writable.Message!);
+    }
     if (lockedRequest.State is not (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.Resubmitted or PbcStates.PartiallyReceived))
       return CommandResult<PbcUploadReceipt>.Fail("pbc.upload-state", "The request is not accepting an upload.");
     if (await db.PbcUploadIntents.AnyAsync(x => x.FirmId == actor.FirmId &&
@@ -700,21 +714,29 @@ public static class PbcService
       return CommandResult<PbcUploadResumeReceipt>.Fail(writable.ErrorCode!, "Upload unavailable.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
-      .AsNoTracking().SingleAsync(ct);
-    auth = await AuthorizeClientAsync(db, actor, current, ct);
-    if (!auth.Succeeded)
-      return CommandResult<PbcUploadResumeReceipt>.Fail(auth.ErrorCode!, "Upload unavailable.");
-    uploadWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, current.EngagementId, ct);
-    if (!uploadWindow.Succeeded)
-      return CommandResult<PbcUploadResumeReceipt>.Fail(uploadWindow.ErrorCode!, "Upload unavailable.");
+    if (!await LockUploadScopeAsync(db, actor, current.ClientId, current.EngagementId, ct))
+      return CommandResult<PbcUploadResumeReceipt>.Fail(ErrorCodes.ScopeDenied, "Upload unavailable.");
 
     var request = await db.PbcRequests.FromSqlInterpolated($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
+    if (request is not null) await db.PbcRequests.Attach(request).ReloadAsync(ct);
     if (request is null || request.ClientId != current.ClientId || request.EngagementId != current.EngagementId ||
         request.State is not (PbcStates.Sent or PbcStates.Acknowledged or PbcStates.Resubmitted or PbcStates.PartiallyReceived))
       return CommandResult<PbcUploadResumeReceipt>.Fail(ErrorCodes.ScopeDenied, "Upload unavailable.");
+
+    auth = await AuthorizeClientAsync(db, actor, request, ct);
+    if (!auth.Succeeded) return CommandResult<PbcUploadResumeReceipt>.Fail(auth.ErrorCode!, "Upload unavailable.");
+    uploadWindow = await ClientPortalService.RequireUploadWindowAsync(db, actor, request.EngagementId, ct);
+    if (!uploadWindow.Succeeded) return CommandResult<PbcUploadResumeReceipt>.Fail(uploadWindow.ErrorCode!, "Upload unavailable.");
+    writable = await AuditSphereOps.Application.Records.FileFreezeService.RequireWritableAsync(db, actor, request.EngagementId,
+      $"resume upload {input.FileName}", ct);
+    if (!writable.Succeeded)
+    {
+      // Preserve the refusal evidence without creating or changing an upload intent.
+      await tx.CommitAsync(ct);
+      return CommandResult<PbcUploadResumeReceipt>.Fail(writable.ErrorCode!, "Upload unavailable.");
+    }
 
     var intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
@@ -775,18 +797,25 @@ public static class PbcService
       return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    if (actor.Roles.Contains("ClientUser"))
-    {
-      _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {request.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-      auth = await AuthorizeUploadActorAsync(db, actor, request, ct);
-      if (!auth.Succeeded) return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
-    }
+    if (!await LockUploadScopeAsync(db, actor, request.ClientId, request.EngagementId, ct))
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var lockedRequest = await db.PbcRequests.FromSqlInterpolated($"""
+      SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {request.Id} FOR UPDATE
+      """).SingleOrDefaultAsync(ct);
+    if (lockedRequest is null) return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.PbcRequests.Attach(lockedRequest).ReloadAsync(ct);
+    if (lockedRequest.ClientId != request.ClientId || lockedRequest.EngagementId != request.EngagementId)
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizeUploadActorAsync(db, actor, lockedRequest, ct);
+    if (!auth.Succeeded) return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
     intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (intent is null)
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await db.PbcUploadIntents.Attach(intent).ReloadAsync(ct);
+    if (intent.PbcRequestId != lockedRequest.Id || intent.ClientId != lockedRequest.ClientId || intent.EngagementId != lockedRequest.EngagementId)
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     // Recheck after acquiring the row lock so a capability rotated by ResumeUploadAsync cannot
     // authorize a chunk that passed the initial check just before rotation.
     if (!IsCapability(input.Capability) || Hashing.Sha256Hex(input.Capability) != intent.CapabilityHash)
@@ -860,13 +889,20 @@ public static class PbcService
     if (!auth.Succeeded)
       return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
 
+    var current = intent;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    if (!await LockUploadScopeAsync(db, actor, current.ClientId, current.EngagementId, ct))
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (intent is null)
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     await db.PbcUploadIntents.Attach(intent).ReloadAsync(ct);
+    if (intent.ClientId != current.ClientId || intent.EngagementId != current.EngagementId || intent.PbcRequestId != current.PbcRequestId)
+      return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizeStaffAsync(db, actor, intent.ClientId, intent.EngagementId, ct);
+    if (!auth.Succeeded) return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
     if (intent.State is PbcUploadStates.Staged or PbcUploadStates.Received)
     {
       return string.Equals(intent.FinalSha256Hex, input.FinalSha256Hex, StringComparison.OrdinalIgnoreCase)
@@ -1000,6 +1036,19 @@ public static class PbcService
     return await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId,
         ["ClientUser"]), ct);
+  }
+
+  // Share the durable operation fence order before locking a request or intent. In particular,
+  // trusted completion must not hold an intent while waiting for the enqueue client fence.
+  private static async Task<bool> LockUploadScopeAsync(IAuditSphereDbContext db, ActorContext actor,
+    Guid clientId, Guid engagementId, CancellationToken ct)
+  {
+    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
+    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
+    return await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} AND practice_client_id = {clientId} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
   }
 
   private static async Task<CommandResult> AuthorizeUploadActorAsync(
