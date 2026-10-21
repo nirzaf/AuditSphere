@@ -4,7 +4,7 @@
   @if (session.current() && !publicSetup() && !compact()) {
     <button type="button" class="shell-button desktop-navigation-toggle"
       [attr.aria-pressed]="navigationCompact()"
-      [attr.aria-label]="navigationCompact() ? 'Expand sidebar navigation' : 'Compact sidebar navigation'"
+      aria-label="Compact sidebar navigation"
       [attr.title]="navigationCompact() ? 'Expand navigation' : 'Compact navigation'"
       aria-controls="workspace-navigation" (click)="toggleNavigationCompact()">
       <audit-nav-icon [name]="navigationCompact() ? 'panel-left-open' : 'panel-left-close'" />

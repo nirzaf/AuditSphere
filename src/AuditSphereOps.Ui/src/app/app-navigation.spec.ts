@@ -82,12 +82,14 @@ describe('responsive workspace navigation', () => {
     const toggle = s.fixture.nativeElement.querySelector('.desktop-navigation-toggle') as HTMLButtonElement;
     expect(toggle).toBeTruthy();
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(toggle.getAttribute('aria-label')).toBe('Compact sidebar navigation');
     expect(toggle.getAttribute('title')).toBe('Compact navigation');
     expect(toggle.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
     toggle.click();
     await s.fixture.whenStable();
     expect(s.app.navigationCompact()).toBe(true);
-    expect(toggle.getAttribute('aria-label')).toBe('Expand sidebar navigation');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(toggle.getAttribute('aria-label')).toBe('Compact sidebar navigation');
     expect(toggle.getAttribute('title')).toBe('Expand navigation');
     expect(s.fixture.nativeElement.querySelector('.workspace').classList.contains('nav-compact')).toBe(true);
     expect(s.fixture.nativeElement.querySelector('.workspace-navigation.compact-navigation')).toBeTruthy();
