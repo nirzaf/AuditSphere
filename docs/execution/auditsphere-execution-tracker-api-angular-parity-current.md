@@ -10,7 +10,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | --- | --- | --- | --- |
 | T001 | Require the privileged role and firm-wide scope on the same eligible grant | VERIFIED | [AuthorizationDecision.cs](../../src/AuditSphereOps.Application/Security/AuthorizationDecision.cs); [status.json](status.json) |
 | T002 | Correct emitted decimal and nullable error schemas | IMPLEMENTED_VERIFICATION_PENDING | [ApiContract.cs](../../src/AuditSphereOps.Api/Contracts/ApiContract.cs) |
-| T003 | Use actual consolidation lifecycle literals in UI action gates | IMPLEMENTED_VERIFICATION_PENDING | [scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts) |
+| T003 | Use actual consolidation lifecycle literals in UI action gates | VERIFIED | [scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts); [status.json](status.json) |
 | T004 | Preserve consolidation journal precision and ownership units | IMPLEMENTED_VERIFICATION_PENDING | [scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts) |
 | T005 | Reject invalid nonblank audit exception amounts without losing supported precision | IMPLEMENTED_VERIFICATION_PENDING | [fieldwork.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts) |
 | T006 | Bind allocation assent to the exact displayed and submitted manifest | IMPLEMENTED_VERIFICATION_PENDING | [open-item-allocations.ts](../../src/AuditSphereOps.Ui/src/app/features/accounting/open-item-allocations.ts) |
@@ -60,7 +60,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | T050 | Document administration, setup, Microsoft services and durable-operation contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Administration.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Administration.cs) |
 | T051 | Document session, search and browser authentication protocol contracts | IMPLEMENTED_VERIFICATION_PENDING | [ApiHost.AuthenticationEndpoints.cs](../../src/AuditSphereOps.Api/ApiHost.AuthenticationEndpoints.cs) |
 
-T001 is verified by the full Domain CI run: the explicit unscoped Administrator case and both mixed scoped-grant denial cases passed. The authorization source and tests are unchanged from run commit `9b4720d1` through current docs-only `master` commit `b39d9707`; overall parity remains PARTIAL and the other 50 tasks remain unverified. Exact run and artifact evidence are in `status.json` under `apiAngularParity.verifiedTaskT001`.
+T001 is verified by the full Domain CI run: the explicit unscoped Administrator case and both mixed scoped-grant denial cases passed. T003 is verified by the full Angular specs: the decoder rejects a noncanonical `Draft` literal, while the actual `DRAFT` perimeter action renders and dispatches only when the server-projected permission allows it. UI and authorization source/tests are unchanged from run commit `9b4720d1` through current application source `b39d9707`; overall parity remains PARTIAL and the other 49 tasks remain unverified. Exact run and artifact evidence are in `status.json` under `apiAngularParity.verifiedTaskT001` and `verifiedTaskT003`.
 
 ## Retention and acceptance decisions
 

@@ -16,7 +16,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Current master verification and scope (2026-10-21)
 
-On current `master` `b39d9707`, the .NET Release solution build passed with 0 warnings/errors and fast CI passed. Full run `39590664430` on `9b4720d1` passed Angular full specs, the unfiltered Domain suite and build/contracts/publication; API and Playwright E2E were still running at the last check. The three T001 authorization regression cases passed in the Domain TRX. Only execution documentation changed between the run SHA and current `master`. No tests ran locally; exact evidence is in [status.json](status.json).
+Application source `b39d9707` built Release with 0 warnings/errors; fast CI passed on `b39d9707`, and evidence commit `791d2740` is on master. Full run `39590664430` on `9b4720d1` passed Angular full specs, unfiltered Domain, and build/contracts/publication; API/E2E were still running at last check. T001's three Domain cases passed in TRX; T003's lifecycle decoder/action cases passed in Angular full specs. Only docs changed between tested and reviewed source. No tests ran locally; see [status.json](status.json).
 
 Agent code review passed for shell/navigation semantics. Earlier browser/accessibility evidence is archived; a fresh `127.0.0.1:4304` attempt was refused. Authenticated routes and human screen-reader review remain open.
 

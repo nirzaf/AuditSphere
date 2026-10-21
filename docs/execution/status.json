@@ -1608,7 +1608,7 @@
     "taskStatusSummary": {
       "count": 51,
       "implementationStatus": "51 IMPLEMENTED",
-      "acceptanceStatus": "T001 VERIFIED; 50 NOT_VERIFIED"
+      "acceptanceStatus": "T001,T003 VERIFIED; 49 NOT_VERIFIED"
     },
     "verifiedTaskT001": {
       "result": "PASS",
@@ -1616,6 +1616,13 @@
       "run": "39590664430",
       "cases": 3,
       "artifact": "release-verification-trx-domain"
+    },
+    "verifiedTaskT003": {
+      "result": "PASS",
+      "commit": "9b4720d1",
+      "run": "39590664430",
+      "spec": "scope-workspace.spec.ts",
+      "job": "Angular full specs"
     },
     "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
     "workingTreeBase": "150c7671762ac93f87b2b539cb53f688fb90557e",
