@@ -235,8 +235,14 @@ public static class FileFreezeService
       freeze.ReportSignedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture), release.Id.ToString("D"), release.ManifestDigest));
 
   private static async Task<Release?> LatestReleaseAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct) =>
-    await db.Releases.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
-      .OrderByDescending(x => x.ReleasedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+    await (from release in db.Releases.AsNoTracking()
+      join candidate in db.ReleaseCandidates.AsNoTracking()
+        on new { release.FirmId, release.ClientId, release.EngagementId, CandidateId = release.ReleaseCandidateId }
+        equals new { candidate.FirmId, candidate.ClientId, candidate.EngagementId, CandidateId = candidate.Id }
+      where release.FirmId == firmId && release.EngagementId == engagementId &&
+        candidate.TargetKind == ReleaseTargetKinds.FinancialPackage && candidate.Status == ReleaseStates.Issued
+      orderby release.ReleasedAt descending, release.Id descending
+      select release).FirstOrDefaultAsync(ct);
 
   private static async Task<CommandResult<EngagementFileFreeze>> FreezeForAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string[] roles, CancellationToken ct)
   {

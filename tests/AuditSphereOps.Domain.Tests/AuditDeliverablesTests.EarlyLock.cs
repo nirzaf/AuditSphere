@@ -1,4 +1,8 @@
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Reviews;
+using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -38,7 +42,10 @@ public sealed partial class AuditDeliverablesTests
       Assert.Contains("final-release-missing", (await FileFreezeService.GetArchiveReadinessAsync(db, partner, w.EngagementId, now)).Value!.Blockers);
     }
 
-    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    var (_, financialReleaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(
+      pg.Options, new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    var laterWorkpaperRelease = await IssueLaterWorkpaperReleaseAsync(pg, w, now);
+    Assert.True(laterWorkpaperRelease.ReleasedAt > (await GetReleaseAsync(pg, financialReleaseId)).ReleasedAt);
 
     string digest;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -47,6 +54,9 @@ public sealed partial class AuditDeliverablesTests
       Assert.Empty(readiness.Blockers);
       digest = readiness.ArchiveReadinessDigest!;
       Assert.Matches("^[0-9a-f]{64}$", digest);
+      var freeze = await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId);
+      var financialRelease = await db.Releases.AsNoTracking().SingleAsync(x => x.Id == financialReleaseId);
+      Assert.Equal(FileFreezeService.ArchiveReadinessDigest(freeze, financialRelease), digest);
       var request = new FileFreezeService.EarlyComplianceLockRequest(w.EngagementId, revision, true, "Assembled file ready for archive", digest);
       // A stale countdown revision or a digest the Partner did not review is refused.
       Assert.Equal(ErrorCodes.GenerationStale, (await FileFreezeService.RequestEarlyComplianceLockAsync(db, partner, request with { ExpectedRevision = revision + 1 }, now)).ErrorCode);
@@ -71,6 +81,8 @@ public sealed partial class AuditDeliverablesTests
       Assert.True((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == w.EngagementId)).ProfessionalWorkBlocked);
       var evidence = await db.FileFreezeEarlyLocks.AsNoTracking().SingleAsync(x => x.FreezeId == freezeId);
       Assert.Equal((w.U["partner"].Id, digest, revision), (evidence.LockedByUserId, evidence.ArchiveReadinessDigest, evidence.FreezeRevision));
+      Assert.Equal(financialReleaseId, evidence.ReleaseId);
+      Assert.NotEqual(laterWorkpaperRelease.ReleaseId, evidence.ReleaseId);
 
       // Repeating an early lock on an already frozen file reports it frozen without a second lock.
       var repeat = await FileFreezeService.RequestEarlyComplianceLockAsync(db, partner,
@@ -82,5 +94,62 @@ public sealed partial class AuditDeliverablesTests
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"UPDATE file_freeze_early_locks SET rationale = 'rewritten' WHERE id = {evidence.Id}"));
     }
+  }
+
+  private static async Task<(Guid ReleaseId, DateTimeOffset ReleasedAt)> IssueLaterWorkpaperReleaseAsync(
+    PgTestSchema pg, World w, DateTimeOffset now)
+  {
+    var workpaperId = Guid.NewGuid();
+    var partner = w.A("partner", "Partner");
+    var manager = w.A("manager", "Manager");
+    var manifest = System.Text.Encoding.UTF8.GetBytes("Synthetic later workpaper release for archive selection regression.");
+    var digest = Hashing.Sha256Hex(manifest);
+    var releaseKey = "archive-selection-workpaper-" + Guid.NewGuid().ToString("N");
+    var checkpointRoot = Path.Combine(Path.GetTempPath(), "AuditSphereOps-Tests", Guid.NewGuid().ToString("N"));
+
+    try
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      db.Workpapers.Add(new Workpaper
+      {
+        Id = workpaperId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
+        ProcedureId = w.ProcedureId, ActorId = w.U["associate"].Id, Index = "ARCHIVE-WP-01", Title = "Synthetic archive selection workpaper",
+        Objective = "Verify the archive readiness selects the issued financial package.", TemplateVersion = "test-v1",
+        Procedure = "Inspect the issued release identity.", Revision = 1,
+        Status = WorkpaperStatuses.Working, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+
+      var inputGeneration = await db.ClientSafetyStates.AsNoTracking()
+        .Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId).Select(x => x.InputGeneration).SingleAsync();
+      var policyGeneration = await db.FirmSafetyStates.AsNoTracking()
+        .Where(x => x.Id == w.FirmId).Select(x => x.PolicyGeneration).SingleAsync();
+      var approval = await ApprovalService.CreateAsync(db, manager,
+        new(ReleaseTargetKinds.Workpaper, workpaperId, 1, inputGeneration, policyGeneration, digest));
+      Assert.True(approval.Succeeded, approval.Message);
+      var candidate = await ReleaseService.CreateCandidateAsync(db, partner,
+        new(approval.Value, ReleaseTargetKinds.Workpaper, workpaperId, 1, inputGeneration, policyGeneration, digest));
+      Assert.True(candidate.Succeeded, candidate.Message);
+
+      var checkpoint = await ReleaseCheckpointService.RecordCheckpointDirectAsync(db,
+        new LocalAppendOnlyCheckpointStore(checkpointRoot), partner,
+        new(candidate.Value, 1, releaseKey, digest, manifest));
+      Assert.True(checkpoint.Succeeded, checkpoint.Message);
+      var issued = await ReleaseService.IssueAsync(db, partner,
+        new(candidate.Value, 1, digest, releaseKey), new ReleaseSafetyOptions());
+      Assert.True(issued.Succeeded, issued.Message);
+      var release = await db.Releases.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.Id == issued.Value);
+      return (release.Id, release.ReleasedAt);
+    }
+    finally
+    {
+      if (Directory.Exists(checkpointRoot)) Directory.Delete(checkpointRoot, recursive: true);
+    }
+  }
+
+  private static async Task<Release> GetReleaseAsync(PgTestSchema pg, Guid releaseId)
+  {
+    await using var db = new AuditSphereDbContext(pg.Options);
+    return await db.Releases.AsNoTracking().SingleAsync(x => x.Id == releaseId);
   }
 }
