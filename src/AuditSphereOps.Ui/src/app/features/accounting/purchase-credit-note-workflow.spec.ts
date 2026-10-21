@@ -61,6 +61,11 @@ describe('Purchase credit command recovery', () => {
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValueOnce(creditNote).mockReturnValueOnce(command);
 
     c.submitCredit();
+    fixture.detectChanges();
+    const recovery = fixture.nativeElement.querySelector('[aria-label="Unconfirmed supplier credit command"]') as HTMLElement;
+    expect(recovery.getAttribute('aria-live')).toBeNull();
+    expect(recovery.querySelector('[role="status"]')?.textContent).toContain('empty lookup does not prove');
+    expect(recovery.querySelector('[role="status"] button')).toBeNull();
     const submit = http.expectOne(`${base}/purchase-credit-notes`);
     const exactBody = structuredClone(submit.request.body);
     expect(exactBody.commandId).toMatch(/^[0-9a-f-]{36}$/i);

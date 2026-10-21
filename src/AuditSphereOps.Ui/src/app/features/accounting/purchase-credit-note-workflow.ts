@@ -42,9 +42,9 @@ const isPendingCreditCommand = (value: unknown, clientId: string): value is Pend
   <button matButton type="button" [disabled]="busy()" (click)="refresh()">Refresh supplier credit history</button>
   @if (error()) { <p role="alert">{{ error() }}</p> }
   @if (supplierLoaded() && !supplierBusy() && !supplierError() && !supplierBookkeepingActive()) { <p role="status">Bookkeeping service is inactive. Saved supplier-credit history and recovery remain available; new supplier-credit preparation is blocked.</p> }
-  @if (pendingCommand()) { <article aria-live="polite" aria-label="Unconfirmed supplier credit command">
+  @if (pendingCommand()) { <article aria-label="Unconfirmed supplier credit command">
     <h5>Supplier credit outcome needs reconciliation</h5>
-    <p>The original {{ pendingCommand()!.kind === 'SUBMIT' ? 'submission' : 'review or return' }} command is retained under its original command ID. An empty lookup does not prove that it was not accepted. Editing or starting another supplier-credit command remains blocked until a matching retained outcome is acknowledged.</p>
+    <p role="status">The original {{ pendingCommand()!.kind === 'SUBMIT' ? 'submission' : 'review or return' }} command is retained under its original command ID. An empty lookup does not prove that it was not accepted. Editing or starting another supplier-credit command remains blocked until a matching retained outcome is acknowledged.</p>
     @if (pendingMatchesContext()) {
       <button matButton type="button" [disabled]="busy()" (click)="checkPendingOutcome()">Check retained outcome</button>
       <button matButton type="button" [disabled]="busy()" (click)="retryPendingCommand()">Retry the exact same command</button>
