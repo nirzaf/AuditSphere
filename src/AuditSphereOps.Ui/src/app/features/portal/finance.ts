@@ -1,67 +1,114 @@
-import { Component, inject } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  ElementRef,
+  inject,
+  Injector,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
-import { arr, date, guid, instant, nullable, obj, text } from '../../core/decode';
+import { arr, bool, date, DecodeError, guid, instant, nat, nullable, obj, str, text } from '../../core/decode';
+import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
-export const portalFinanceContract = obj({
-  asOfDateUtc: date,
-  agreements: arr(
-    obj({
-      agreementId: guid,
-      engagementId: nullable(guid),
-      agreedFee: text,
-      currency: text,
-      advancePercent: text,
-      outstandingBalance: text,
-      invoices: arr(
-        obj({
-          invoiceId: guid,
-          kind: text,
-          invoiceNumber: text,
-          status: text,
-          amount: text,
-          currency: text,
-          postedAt: nullable(instant),
-          sentAt: nullable(instant),
-          deliveryStatus: text,
-          collectionStatus: text,
-          cashApplied: text,
-          creditApplied: text,
-          outstandingAmount: text,
-          dueDate: nullable(date),
-          paymentTermsStatus: text,
-          agingStatus: text,
-        }),
-        50
-      ),
-      receipts: arr(
-        obj({
-          receiptId: guid,
-          documentId: nullable(guid),
-          kind: text,
-          amount: text,
-          appliedAmount: text,
-          currency: text,
-          reference: text,
-          receivedAt: instant,
-          downloadUrl: nullable(text),
-        }),
-        50
-      ),
-    }),
-    50
-  ),
+const invoice = obj({
+  invoiceId: guid,
+  kind: text,
+  invoiceNumber: text,
+  status: text,
+  amount: text,
+  currency: text,
+  postedAt: nullable(instant),
+  sentAt: nullable(instant),
+  deliveryStatus: text,
+  collectionStatus: text,
+  cashApplied: text,
+  creditApplied: text,
+  outstandingAmount: text,
+  dueDate: nullable(date),
+  paymentTermsStatus: text,
+  agingStatus: text,
 });
+
+const receipt = obj({
+  receiptId: guid,
+  documentId: nullable(guid),
+  kind: text,
+  amount: text,
+  appliedAmount: text,
+  currency: text,
+  reference: text,
+  receivedAt: instant,
+  downloadUrl: nullable(text),
+});
+
+// Per-agreement invoice and receipt summaries remain bounded to 50 on this wire contract.
+// arr rejects overflow; the client never truncates these histories silently.
+const agreement = obj({
+  agreementId: guid,
+  engagementId: nullable(guid),
+  agreedFee: text,
+  currency: text,
+  advancePercent: text,
+  outstandingBalance: text,
+  invoices: arr(invoice, 50),
+  receipts: arr(receipt, 50),
+});
+
+const financePage = obj({
+  asOfDateUtc: date,
+  agreements: arr(agreement, 50),
+  pageSize: nat,
+  hasMore: bool,
+  nextCursor: nullable(str(256)),
+});
+
+export const portalFinanceContract = (value: unknown, path: string) => {
+  const page = financePage(value, path);
+  if (
+    page.pageSize !== 50 ||
+    page.agreements.length > page.pageSize ||
+    new Set(page.agreements.map((row) => row.agreementId.toLowerCase())).size !== page.agreements.length ||
+    page.hasMore !== (page.nextCursor !== null) ||
+    (page.hasMore && page.agreements.length !== page.pageSize) ||
+    (page.nextCursor !== null && !/^[A-Za-z0-9_-]{1,256}$/.test(page.nextCursor))
+  )
+    throw new DecodeError('Unsupported client finance page.');
+  return page;
+};
 
 @Component({
   selector: 'audit-portal-finance',
   imports: [MatButtonModule, ...SHARED],
   template: `
     <section class="panel" aria-labelledby="portal-finance-heading">
-      <h2 id="portal-finance-heading">Billing and payment receipts</h2>
-      <audit-state [loading]="ws.loading()" [error]="ws.error()" label="your financial records" />
-      @if (ws.data(); as data) {
+      <h2 #heading id="portal-finance-heading" tabindex="-1">Billing and payment receipts</h2>
+      <audit-state [loading]="ws.loading()" [error]="ws.error() || pageError()" label="your financial records" />
+      <nav aria-label="Client finance pages">
+        <button matButton type="button" (click)="refreshFromStart()" [attr.aria-disabled]="ws.loading()">
+          Refresh finance from start
+        </button>
+        <button matButton type="button" (click)="previous($event)" [disabled]="cursors().length < 2 || ws.loading()">
+          Newer agreements
+        </button>
+        <span aria-live="polite">
+          @if (page(); as data) {
+            Page {{ cursors().length }} · {{ data.agreements.length }}
+            {{ data.agreements.length === 1 ? 'agreement' : 'agreements' }} shown
+          } @else if (ws.loading()) {
+            Loading page {{ cursors().length }}
+          }
+        </span>
+        <button matButton type="button" (click)="next($event)" [disabled]="!page()?.hasMore || ws.loading()">
+          Older agreements
+        </button>
+      </nav>
+      @if (page(); as data) {
         <p class="aging-as-of">Invoice aging as of {{ data.asOfDateUtc }} UTC. Lifecycle, cash collection and aging are separate states; invoice-specific provider delivery is shown only when recorded.</p>
         @for (agr of data.agreements; track agr.agreementId) {
           <article class="agreement-card">
@@ -215,9 +262,111 @@ export const portalFinanceContract = obj({
       display: block;
       color: var(--mat-sys-on-surface-variant);
     }
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin-block-end: 1rem;
+    }
+    h2:focus {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: 4px;
+    }
   `,
 })
 export class PortalFinance {
   private readonly api = inject(Api);
-  readonly ws = this.api.resource(() => '/api/ui/portal/finance', portalFinanceContract);
+  readonly session = inject(SessionService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private destroyed = false;
+  private boundScope = '';
+  private pendingFocus: { origin: Element | null; generation: number; cursor: string | null } | null = null;
+  readonly cursors = signal<(string | null)[]>([null], {
+    equal: (left, right) => left.length === right.length && left.every((cursor, index) => cursor === right[index]),
+  });
+  readonly ws = this.api.resource(
+    () => {
+      if (this.session.current()?.staff !== false) return null;
+      const cursor = this.cursors().at(-1);
+      return `/api/ui/portal/finance?pageSize=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+    },
+    portalFinanceContract,
+    'Finance records are unavailable in your current scope.',
+  );
+  readonly pageError = computed(() => {
+    const nextCursor = this.ws.data()?.nextCursor;
+    return nextCursor && this.cursors().includes(nextCursor)
+      ? 'The finance continuation repeated an earlier page. Refresh from the start.'
+      : '';
+  });
+  readonly page = computed(() =>
+    this.session.current()?.staff !== false || this.pageError() ? null : this.ws.data(),
+  );
+
+  constructor() {
+    effect(() => {
+      const generation = this.session.invalidation();
+      const session = this.session.current();
+      const scope = session
+        ? JSON.stringify([generation, session.firmId, session.userId, session.generation, session.staff])
+        : '';
+      if (scope === this.boundScope) return;
+      this.boundScope = scope;
+      this.cursors.set([null]);
+      this.pendingFocus = null;
+    });
+    effect(() => {
+      const data = this.page();
+      if (!data) return;
+      const pending = this.pendingFocus;
+      if (!pending || pending.cursor !== this.cursors().at(-1)) return;
+      this.pendingFocus = null;
+      afterNextRender(() => {
+        if (
+          this.destroyed ||
+          pending.generation !== this.session.invalidation() ||
+          pending.cursor !== this.cursors().at(-1)
+        )
+          return;
+        const active = this.host.nativeElement.ownerDocument.activeElement;
+        if (active === pending.origin || active === this.host.nativeElement.ownerDocument.body)
+          this.heading()?.nativeElement.focus();
+      }, { injector: this.injector });
+    });
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+    });
+  }
+
+  next(event: Event): void {
+    const cursor = this.page()?.nextCursor;
+    if (this.ws.loading() || !cursor || this.cursors().includes(cursor)) return;
+    this.prepareNavigation(event, cursor);
+    this.cursors.update((items) => [...items, cursor]);
+  }
+
+  previous(event: Event): void {
+    const target = this.cursors().at(-2);
+    if (this.ws.loading() || target === undefined) return;
+    this.prepareNavigation(event, target);
+    this.cursors.update((items) => items.slice(0, -1));
+  }
+
+  refreshFromStart(): void {
+    if (this.ws.loading()) return;
+    this.pendingFocus = null;
+    if (this.cursors().length > 1) this.cursors.set([null]);
+    else this.ws.reload();
+  }
+
+  private prepareNavigation(event: Event, cursor: string | null): void {
+    this.pendingFocus = {
+      origin: event.currentTarget as Element | null,
+      generation: this.session.invalidation(),
+      cursor,
+    };
+  }
 }

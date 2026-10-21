@@ -371,6 +371,56 @@ public sealed class AngularClientPortalJourneyTests
     await Assertions.Expect(receiptsRegion).ToBeFocusedAsync();
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"),
       "Finance tables must not cause document-level horizontal overflow at 390px.");
+    // Additional projection-only agreements exercise bounded history, not commercial approval or payment policy.
+    Guid oldestAgreementId;
+    await using (var db = host.CreateDbContext())
+    {
+      var sourceAgreement = await db.EngagementFeeAgreements.AsNoTracking().SingleAsync(x => x.Id == agreementId);
+      var sourceProposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == sourceAgreement.ProposalId);
+      var olderAgreements = Enumerable.Range(0, 50).Select(index =>
+      {
+        var proposal = new Proposal
+        {
+          Id = Guid.CreateVersion7(), FirmId = f.FirmId, OpportunityId = sourceProposal.OpportunityId,
+          PracticeClientId = f.ClientId, Revision = index + 2, ServiceProfileId = "ASPM-COM06-PAGING",
+          Scope = "Synthetic finance paging projection", Deliverables = "Projection fixture only",
+          Fee = 70000m + index, Currency = "QAR", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+          PreparedByUserId = f.Staff.Id, CreatedAt = now.AddMinutes(-1).AddSeconds(-index)
+        };
+        var agreement = new EngagementFeeAgreement
+        {
+          Id = Guid.CreateVersion7(), FirmId = f.FirmId, ProposalId = proposal.Id, QuotationVersionId = Guid.CreateVersion7(),
+          PracticeClientId = f.ClientId, EngagementId = f.EngagementId, Currency = "QAR", AgreedFee = proposal.Fee,
+          AdvancePercent = 50m, CreatedByUserId = f.Staff.Id, CreatedAt = proposal.CreatedAt
+        };
+        return (proposal, agreement);
+      }).ToArray();
+      db.Proposals.AddRange(olderAgreements.Select(x => x.proposal));
+      db.EngagementFeeAgreements.AddRange(olderAgreements.Select(x => x.agreement));
+      await db.SaveChangesAsync();
+      oldestAgreementId = olderAgreements[^1].agreement.Id;
+    }
+    await finance.GetByRole(AriaRole.Button, new() { Name = "Refresh finance from start", Exact = true }).ClickAsync();
+    await Assertions.Expect(finance.Locator(".agreement-card")).ToHaveCountAsync(50);
+    await Assertions.Expect(finance.GetByRole(AriaRole.Table, new() { Name = "Fee invoices", Exact = true }))
+      .ToContainTextAsync("INV-ASPM-COM06-ADV");
+    var olderAgreementsButton = finance.GetByRole(AriaRole.Button, new() { Name = "Older agreements", Exact = true });
+    await olderAgreementsButton.FocusAsync();
+    var (olderStatus, olderBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && request.Url.Contains("/api/ui/portal/finance?", StringComparison.Ordinal),
+      () => olderAgreementsButton.PressAsync("Space"));
+    Assert.Equal(200, olderStatus);
+    using (var body = System.Text.Json.JsonDocument.Parse(olderBody))
+      Assert.Equal(oldestAgreementId, Assert.Single(body.RootElement.GetProperty("agreements").EnumerateArray()).GetProperty("agreementId").GetGuid());
+    await Assertions.Expect(finance.Locator(".agreement-card")).ToHaveCountAsync(1);
+    await Assertions.Expect(finance).ToContainTextAsync("70049");
+    await Assertions.Expect(finance.GetByRole(AriaRole.Heading, new() { Name = "Billing and payment receipts", Exact = true })).ToBeFocusedAsync();
+    await Assertions.Expect(finance.GetByRole(AriaRole.Button, new() { Name = "Older agreements", Exact = true })).ToBeDisabledAsync();
+    await finance.GetByRole(AriaRole.Button, new() { Name = "Newer agreements", Exact = true }).PressAsync("Enter");
+    await Assertions.Expect(finance.Locator(".agreement-card")).ToHaveCountAsync(50);
+    await Assertions.Expect(finance.GetByRole(AriaRole.Table, new() { Name = "Fee invoices", Exact = true }))
+      .ToContainTextAsync("INV-ASPM-COM06-ADV");
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     Assert.Empty(errors);
 
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/ui/portal", "client-portal-finance");

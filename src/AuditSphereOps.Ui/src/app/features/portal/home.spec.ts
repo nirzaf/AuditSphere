@@ -6,7 +6,7 @@ import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
 import { PortalDocuments } from './documents';
-import { PortalFinance } from './finance';
+import { PortalFinance, portalFinanceContract } from './finance';
 import { ClientPortalHome } from './home';
 
 const id = (n: number) => `40000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
@@ -23,6 +23,9 @@ const packageDetail = (packageId: string) => ({
   packageId, framework: 'Synthetic framework', periodStart: '2026-01-01', periodEnd: '2026-12-31', currency: 'QAR',
   templateVersion: '1', packageHash: 'a'.repeat(64), hasCashFlow: false, hasDisclosures: false,
   managementDecision: 'PENDING', managementDecidedAt: null, statementTotals: [], composition: null, latestDecisionId: null,
+});
+const emptyFinancePage = () => ({
+  asOfDateUtc: '2026-10-18', agreements: [], pageSize: 50, hasMore: false, nextCursor: null,
 });
 const branding = {
   profileId: null, version: '0', legalName: 'Synthetic audit firm', accentColorHex: '#2B6CB0',
@@ -71,7 +74,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/documents').flush(shared);
     http.expectOne('/api/ui/portal/accounting/journals?page=0').flush({ items: [], page: 0, hasMore: false });
     http.expectOne('/api/ui/portal/activity?pageSize=25').flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null });
-    http.expectOne('/api/ui/portal/finance').flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' });
+    http.expectOne('/api/ui/portal/finance?pageSize=50').flush(emptyFinancePage());
     settle();
     const editor = () => fixture.debugElement.query(By.directive(PortalDocuments))?.componentInstance as PortalDocuments | undefined;
     const original = editor()!;
@@ -151,7 +154,7 @@ describe('Client portal workspace paging', () => {
       http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
       http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
       http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
-      http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
+      http.match('/api/ui/portal/finance?pageSize=50').forEach((req) => req.flush(emptyFinancePage()));
       const reports = http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'));
       reports.forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
       TestBed.tick(); fixture.detectChanges();
@@ -226,7 +229,7 @@ describe('Client portal workspace paging', () => {
     const fixture = TestBed.createComponent(PortalFinance);
     fixture.detectChanges(); TestBed.tick();
     http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
-    http.expectOne('/api/ui/portal/finance').flush({ asOfDateUtc: '2026-10-18', agreements: [{
+    http.expectOne('/api/ui/portal/finance?pageSize=50').flush({ asOfDateUtc: '2026-10-18', agreements: [{
       agreementId: id(601), engagementId: id(602), agreedFee: '25000', currency: 'QAR', advancePercent: '50',
       outstandingBalance: '100', invoices: [{ invoiceId: id(604), kind: 'ADVANCE', invoiceNumber: 'INV-ADV-1',
         status: 'SENT', amount: '12500', currency: 'QAR', postedAt: '2026-10-01T09:00:00Z', sentAt: '2026-10-02T09:00:00Z',
@@ -235,7 +238,7 @@ describe('Client portal workspace paging', () => {
       receipts: [{ receiptId: id(603), documentId: null, kind: 'ADVANCE',
         amount: '5000', appliedAmount: '4900', currency: 'QAR', reference: 'SYNTHETIC-ADVANCE',
         receivedAt: '2026-10-18T08:00:00Z', downloadUrl: null }],
-    }] });
+    }], pageSize: 50, hasMore: false, nextCursor: null });
     await fixture.whenStable(); fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
     const receiptCells = root.querySelectorAll('table[aria-label="Payment receipts"] tbody tr td');
@@ -261,6 +264,109 @@ describe('Client portal workspace paging', () => {
     fixture.destroy();
   });
 
+  it('pages agreement summaries by cursor and keeps invoice and receipt values intact', async () => {
+    const fixture = TestBed.createComponent(PortalFinance);
+    fixture.detectChanges(); TestBed.tick();
+    const root = fixture.nativeElement as HTMLElement;
+    const invoice = { invoiceId: id(904), kind: 'ADVANCE', invoiceNumber: 'INV-ADV-1', status: 'SENT', amount: '12500',
+      currency: 'QAR', postedAt: '2026-10-01T09:00:00Z', sentAt: '2026-10-02T09:00:00Z', deliveryStatus: 'NOT_TRACKED',
+      collectionStatus: 'PARTIALLY_PAID', cashApplied: '4900', creditApplied: '7500', outstandingAmount: '100',
+      dueDate: '2026-10-13', paymentTermsStatus: 'APPROVED', agingStatus: 'OVERDUE_1_30' };
+    const receipt = { receiptId: id(903), documentId: null, kind: 'ADVANCE', amount: '5000', appliedAmount: '4900',
+      currency: 'QAR', reference: 'SYNTHETIC-ADVANCE', receivedAt: '2026-10-18T08:00:00Z', downloadUrl: null };
+    const agreements = Array.from({ length: 50 }, (_, index) => ({
+      agreementId: id(700 + index), engagementId: id(800 + index), agreedFee: '25000', currency: 'QAR', advancePercent: '50',
+      outstandingBalance: '100', invoices: index === 0 ? [invoice] : [], receipts: index === 0 ? [receipt] : [],
+    }));
+    const firstPage = { asOfDateUtc: '2026-10-18', agreements, pageSize: 50, hasMore: true, nextCursor: 'Y3Vyc29yLTE' };
+    const flushFirstPage = (url = '/api/ui/portal/finance?pageSize=50') => {
+      http.expectOne(url).flush(firstPage);
+      fixture.detectChanges(); TestBed.tick(); fixture.detectChanges();
+    };
+
+    flushFirstPage();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[aria-label="Client finance pages"]')?.textContent).toContain('Page 1 · 50 agreements shown');
+    const button = (label: string) => Array.from(root.querySelectorAll('button')).find((item) => item.textContent?.trim() === label)!;
+    const heading = root.querySelector<HTMLElement>('#portal-finance-heading')!;
+
+    const older = button('Older agreements');
+    older.focus(); older.click(); fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/finance?pageSize=50&cursor=Y3Vyc29yLTE').flush({
+      asOfDateUtc: '2026-10-18', agreements: [{ ...agreements[0], agreementId: id(990), engagementId: id(991),
+        agreedFee: '27000', invoices: [], receipts: [] }], pageSize: 50, hasMore: false, nextCursor: null,
+    });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[aria-label="Client finance pages"]')?.textContent).toContain('Page 2 · 1 agreement shown');
+    expect(root.textContent).toContain('27000 QAR');
+    expect(document.activeElement).toBe(heading);
+    expect(root.textContent).not.toContain('SYNTHETIC-ADVANCE');
+
+    const session = TestBed.inject(SessionService);
+    const sameIdentityRefresh = session.refresh();
+    http.expectOne('/api/ui/session').flush({ userId: id(1), firmId: id(2), generation: '1', staff: false });
+    await sameIdentityRefresh;
+    TestBed.tick(); fixture.detectChanges();
+    expect(root.querySelector('[aria-label="Client finance pages"]')?.textContent).toContain('Page 2 · 1 agreement shown');
+    expect(root.textContent).toContain('27000 QAR');
+    http.expectNone('/api/ui/portal/finance?pageSize=50&cursor=Y3Vyc29yLTE');
+
+    const newer = button('Newer agreements');
+    newer.focus(); newer.click(); fixture.detectChanges(); TestBed.tick();
+    flushFirstPage();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[aria-label="Client finance pages"]')?.textContent).toContain('Page 1 · 50 agreements shown');
+    expect(root.textContent).toContain('INV-ADV-1');
+    expect(root.textContent).toContain('SYNTHETIC-ADVANCE');
+    expect(root.textContent).toContain('4900 QAR');
+    expect(document.activeElement).toBe(heading);
+
+    const refresh = button('Refresh finance from start');
+    refresh.focus(); refresh.click(); fixture.detectChanges(); TestBed.tick();
+    flushFirstPage();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(document.activeElement).toBe(refresh);
+
+    older.focus(); older.click(); fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/finance?pageSize=50&cursor=Y3Vyc29yLTE').flush({
+      asOfDateUtc: '2026-10-18', agreements: [{ ...agreements[0], agreementId: id(990), engagementId: id(991),
+        agreedFee: '27000', invoices: [], receipts: [] }], pageSize: 50, hasMore: false, nextCursor: null,
+    });
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.textContent).toContain('27000 QAR');
+
+    session.clear();
+    TestBed.tick(); fixture.detectChanges();
+    expect(root.textContent).not.toContain('27000 QAR');
+    expect(root.textContent).not.toContain('INV-ADV-1');
+    session.current.set({ userId: id(1100), firmId: id(1101), generation: '2', staff: false });
+    TestBed.tick(); fixture.detectChanges();
+    http.expectOne('/api/ui/portal/finance?pageSize=50').flush(emptyFinancePage());
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[aria-label="Client finance pages"]')?.textContent).toContain('Page 1 · 0 agreements shown');
+    expect(root.textContent).not.toContain('27000 QAR');
+    fixture.destroy();
+  });
+
+  it('rejects duplicate agreement IDs and over-limit nested invoice or receipt arrays', () => {
+    const agreement = { agreementId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', engagementId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      agreedFee: '1.00', currency: 'QAR',
+      advancePercent: '0', outstandingBalance: '1.00', invoices: [], receipts: [] };
+    expect(() => portalFinanceContract({ ...emptyFinancePage(), agreements: [agreement, { ...agreement,
+      agreementId: agreement.agreementId.toUpperCase() }] }, '')).toThrow();
+
+    const invoice = (n: number) => ({ invoiceId: id(n), kind: 'ADVANCE', invoiceNumber: `INV-${n}`, status: 'SENT',
+      amount: '12500', currency: 'QAR', postedAt: '2026-10-01T09:00:00Z', sentAt: '2026-10-02T09:00:00Z',
+      deliveryStatus: 'NOT_TRACKED', collectionStatus: 'PARTIALLY_PAID', cashApplied: '4900', creditApplied: '7500',
+      outstandingAmount: '100', dueDate: '2026-10-13', paymentTermsStatus: 'APPROVED', agingStatus: 'OVERDUE_1_30' });
+    const receipt = (n: number) => ({ receiptId: id(n), documentId: null, kind: 'ADVANCE', amount: '5000',
+      appliedAmount: '4900', currency: 'QAR', reference: `RECEIPT-${n}`, receivedAt: '2026-10-18T08:00:00Z', downloadUrl: null });
+    const tooManyInvoices = Array.from({ length: 51 }, (_, index) => invoice(2000 + index));
+    const tooManyReceipts = Array.from({ length: 51 }, (_, index) => receipt(3000 + index));
+    expect(() => portalFinanceContract({ ...emptyFinancePage(), agreements: [{ ...agreement, invoices: tooManyInvoices }] }, '')).toThrow();
+    expect(() => portalFinanceContract({ ...emptyFinancePage(), agreements: [{ ...agreement, receipts: tooManyReceipts }] }, '')).toThrow();
+  });
+
   it('shows only the setup message until a client engagement is active', () => {
     const fixture = TestBed.createComponent(ClientPortalHome);
     fixture.detectChanges();
@@ -283,7 +389,7 @@ describe('Client portal workspace paging', () => {
     expect(root.querySelector('audit-portal-finance')).toBeNull();
     http.expectNone('/api/ui/portal/documents');
     http.expectNone('/api/ui/portal/accounting/journals?page=0');
-    http.expectNone('/api/ui/portal/finance');
+    http.expectNone('/api/ui/portal/finance?pageSize=50');
     fixture.destroy();
   });
 
@@ -313,7 +419,7 @@ describe('Client portal workspace paging', () => {
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
     http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
-    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
+    http.match('/api/ui/portal/finance?pageSize=50').forEach((req) => req.flush(emptyFinancePage()));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
     TestBed.tick(); fixture.detectChanges();
@@ -358,7 +464,7 @@ describe('Client portal workspace paging', () => {
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
     http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
-    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
+    http.match('/api/ui/portal/finance?pageSize=50').forEach((req) => req.flush(emptyFinancePage()));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
     TestBed.tick(); fixture.detectChanges();
@@ -383,7 +489,7 @@ describe('Client portal workspace paging', () => {
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
     http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
-    http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
+    http.match('/api/ui/portal/finance?pageSize=50').forEach((req) => req.flush(emptyFinancePage()));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
     TestBed.tick(); fixture.detectChanges();

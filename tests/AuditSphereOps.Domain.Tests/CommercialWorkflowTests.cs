@@ -2589,12 +2589,15 @@ public sealed class CommercialWorkflowTests
     engagementScopedUser.UserKind = "Client";
     var clientWideUser = User(w.FirmId, "client-wide-client");
     clientWideUser.UserKind = "Client";
+    var financeSnapshotUser = User(w.FirmId, "finance-snapshot-client");
+    financeSnapshotUser.UserKind = "Client";
     var nullClientUser = User(w.FirmId, "null-client-grant");
     nullClientUser.UserKind = "Client";
-    db.Users.AddRange(engagementScopedUser, clientWideUser, nullClientUser);
+    db.Users.AddRange(engagementScopedUser, clientWideUser, financeSnapshotUser, nullClientUser);
     db.RoleGrants.AddRange(
       new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = engagementScopedUser.Id, Role = "ClientUser", ClientId = clientId, EngagementId = engagementA, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
       new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = clientWideUser.Id, Role = "ClientUser", ClientId = clientId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
+      new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = financeSnapshotUser.Id, Role = "ClientUser", ClientId = clientId, EngagementId = engagementA, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
       new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = nullClientUser.Id, Role = "ClientUser", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id });
     await db.SaveChangesAsync();
 
@@ -2661,11 +2664,202 @@ public sealed class CommercialWorkflowTests
     db.EngagementFeeAgreements.AddRange(siblingDecoys.Select(x => x.Agreement));
     await db.SaveChangesAsync();
 
-    var scopedFinanceAfterSiblingOverflow = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor);
-    Assert.True(scopedFinanceAfterSiblingOverflow.Succeeded, scopedFinanceAfterSiblingOverflow.Message);
-    var stillScopedAgreement = Assert.Single(scopedFinanceAfterSiblingOverflow.Value!.Agreements);
-    Assert.Equal(agreementA.Value, stillScopedAgreement.AgreementId);
-    Assert.Equal(engagementA, stillScopedAgreement.EngagementId);
+    // A second same-firm billing account supplies valid-looking foreign links. Persisted receipt/credit
+    // rows may point to the same-firm invoice by FK, but their account must still match that invoice.
+    var clientBillingAccountId = Guid.CreateVersion7();
+    var ownedClient = await db.PracticeClients.SingleAsync(x => x.FirmId == w.FirmId && x.Id == clientId);
+    ownedClient.BillingAccountId = clientBillingAccountId;
+    db.BillingAccounts.Add(new BillingAccount
+    {
+      Id = clientBillingAccountId, FirmId = w.FirmId, PracticeClientId = clientId,
+      Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var foreignClient = new PracticeClient
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, LegalName = "Synthetic sibling billing account owner",
+      Status = CrmStates.ClientProspect, CreatedAt = DateTimeOffset.UtcNow
+    };
+    var foreignBillingAccount = new BillingAccount
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, PracticeClientId = foreignClient.Id,
+      Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.PracticeClients.Add(foreignClient);
+    await db.SaveChangesAsync();
+    db.BillingAccounts.Add(foreignBillingAccount);
+    await db.SaveChangesAsync();
+
+    var financialFixtureTicks = DateTimeOffset.UtcNow.UtcTicks;
+    var financialFixtureAt = new DateTimeOffset(financialFixtureTicks - financialFixtureTicks % 10, TimeSpan.Zero);
+    var ownBalanceInvoice = new Invoice
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, BillingAccountId = clientBillingAccountId,
+      InvoiceNumber = $"SYN-PORTAL-OWN-{Guid.NewGuid():N}", Currency = "QAR", Subtotal = 1000m, Total = 1000m,
+      Status = BillingStates.InvoicePosted, CreatedByUserId = w.PartnerUser.Id,
+      PostedAt = financialFixtureAt.AddDays(-2), CreatedAt = financialFixtureAt.AddDays(-3)
+    };
+    var foreignInvoice = new Invoice
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, BillingAccountId = foreignBillingAccount.Id,
+      InvoiceNumber = $"SYN-PORTAL-FOREIGN-{Guid.NewGuid():N}", Currency = "QAR", Subtotal = 500m, Total = 500m,
+      Status = BillingStates.InvoicePosted, CreatedByUserId = w.PartnerUser.Id,
+      PostedAt = financialFixtureAt.AddDays(-2), CreatedAt = financialFixtureAt.AddDays(-3)
+    };
+    var ownReceipt = new Receipt
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, BillingAccountId = clientBillingAccountId,
+      Amount = 200m, Currency = "QAR", Reference = $"SYN-PORTAL-OWN-{Guid.NewGuid():N}",
+      Status = BillingStates.ReceiptRecorded, RecordedByUserId = w.PartnerUser.Id, ReceivedAt = financialFixtureAt.AddDays(-1)
+    };
+    var foreignReceipt = new Receipt
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, BillingAccountId = foreignBillingAccount.Id,
+      Amount = 70m, Currency = "QAR", Reference = $"SYN-PORTAL-FOREIGN-{Guid.NewGuid():N}",
+      Status = BillingStates.ReceiptRecorded, RecordedByUserId = w.PartnerUser.Id, ReceivedAt = financialFixtureAt.AddDays(-1)
+    };
+    var ownCredit = new CreditNote
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, BillingAccountId = clientBillingAccountId,
+      InvoiceId = ownBalanceInvoice.Id, NoteNumber = $"SYN-PORTAL-OWN-{Guid.NewGuid():N}", Currency = "QAR",
+      Amount = 100m, Reason = "Synthetic same-account credit", Status = BillingStates.CreditIssued,
+      CreatedByUserId = w.PartnerUser.Id, CreatedAt = financialFixtureAt
+    };
+    var foreignCredit = new CreditNote
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, BillingAccountId = foreignBillingAccount.Id,
+      InvoiceId = ownBalanceInvoice.Id, NoteNumber = $"SYN-PORTAL-FOREIGN-{Guid.NewGuid():N}", Currency = "QAR",
+      Amount = 40m, Reason = "Synthetic cross-account credit fixture", Status = BillingStates.CreditIssued,
+      CreatedByUserId = w.PartnerUser.Id, CreatedAt = financialFixtureAt
+    };
+    db.Invoices.AddRange(ownBalanceInvoice, foreignInvoice);
+    db.Receipts.AddRange(ownReceipt, foreignReceipt);
+    db.CreditNotes.AddRange(ownCredit, foreignCredit);
+    await db.SaveChangesAsync();
+    await db.FeeMilestones.Where(x => x.FirmId == w.FirmId && x.Id == mismatchMilestone.Id)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.InvoiceId, ownBalanceInvoice.Id)
+        .SetProperty(x => x.State, FeeMilestoneStates.Invoiced));
+    db.ReceiptAllocations.AddRange(
+      new ReceiptAllocation
+      {
+        Id = Guid.CreateVersion7(), FirmId = w.FirmId, ReceiptId = ownReceipt.Id,
+        InvoiceId = ownBalanceInvoice.Id, Amount = 150m, CreatedAt = financialFixtureAt
+      },
+      new ReceiptAllocation
+      {
+        Id = Guid.CreateVersion7(), FirmId = w.FirmId, ReceiptId = foreignReceipt.Id,
+        InvoiceId = ownBalanceInvoice.Id, Amount = 70m, CreatedAt = financialFixtureAt
+      });
+    await db.SaveChangesAsync();
+
+    // Equal persisted timestamps below one millisecond force the opaque cursor to continue through
+    // the UUID tie-break without rounding or skipping an authorized agreement.
+    var agreementACreatedAt = await db.EngagementFeeAgreements.AsNoTracking()
+      .Where(x => x.FirmId == w.FirmId && x.Id == agreementA.Value).Select(x => x.CreatedAt).SingleAsync();
+    var agreementTicks = agreementACreatedAt.UtcTicks;
+    var priorMillisecondTicks = agreementTicks - agreementTicks % TimeSpan.TicksPerMillisecond - TimeSpan.TicksPerMillisecond;
+    var tiedCreatedAt = new DateTimeOffset(priorMillisecondTicks + 1_230, TimeSpan.Zero);
+    Assert.Equal(0L, tiedCreatedAt.UtcTicks % 10);
+    Assert.Equal(1_230L, tiedCreatedAt.UtcTicks % TimeSpan.TicksPerMillisecond);
+    var authorizedDecoys = Enumerable.Range(1, 51).Select(index =>
+    {
+      var proposalId = Guid.CreateVersion7();
+      return (
+        Proposal: new Proposal
+        {
+          Id = proposalId, FirmId = w.FirmId, OpportunityId = opportunityB.Value, PracticeClientId = clientId,
+          Revision = index + 52, Status = CrmStates.ProposalSuperseded, ServiceProfileId = "SYNTHETIC-AUTHORIZED-PAGE",
+          Scope = "Synthetic authorized paging scope", Exclusions = "No exclusions in synthetic paging fixture.",
+          Deliverables = "Synthetic authorized paging deliverable.", Dependencies = "No dependencies in synthetic paging fixture.",
+          Fee = 30000m, Currency = "QAR", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = tiedCreatedAt
+        },
+        Agreement: new EngagementFeeAgreement
+        {
+          Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProposalId = proposalId,
+          QuotationVersionId = Guid.CreateVersion7(), PracticeClientId = clientId, EngagementId = engagementA,
+          Currency = "QAR", AgreedFee = 30000m, AdvancePercent = 50m,
+          CreatedByUserId = w.PartnerUser.Id, CreatedAt = tiedCreatedAt
+        });
+    }).ToArray();
+    db.Proposals.AddRange(authorizedDecoys.Select(x => x.Proposal));
+    db.EngagementFeeAgreements.AddRange(authorizedDecoys.Select(x => x.Agreement));
+    await db.SaveChangesAsync();
+
+    var sentAt = financialFixtureAt.AddHours(1);
+    var snapshotInterleaver = new SetInvoiceSentAtAfterFinanceAgreementRead(pg, w.FirmId, ownBalanceInvoice.Id, sentAt);
+    var pageOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(snapshotInterleaver).Options;
+    CommandResult<PortalClientFinanceView> firstPage;
+    await using (var pageReader = new AuditSphereDbContext(pageOptions))
+      firstPage = await ClientPortalFinanceQuery.GetAsync(pageReader, engagementScopedActor, 50, null);
+    Assert.True(firstPage.Succeeded, firstPage.Message);
+    Assert.Equal(50, firstPage.Value!.PageSize);
+    Assert.True(firstPage.Value.HasMore);
+    Assert.False(string.IsNullOrWhiteSpace(firstPage.Value.NextCursor));
+    Assert.Equal(1, snapshotInterleaver.Calls);
+    Assert.Equal(agreementA.Value, firstPage.Value.Agreements[0].AgreementId);
+    var agreementAView = Assert.Single(firstPage.Value.Agreements, x => x.AgreementId == agreementA.Value);
+    var balanceInvoiceView = Assert.Single(agreementAView.Invoices, x => x.InvoiceId == ownBalanceInvoice.Id);
+    Assert.Null(balanceInvoiceView.SentAt); // The invoice read remained in the original repeatable-read snapshot.
+    Assert.Equal(150m, decimal.Parse(balanceInvoiceView.CashApplied, CultureInfo.InvariantCulture));
+    Assert.Equal(100m, decimal.Parse(balanceInvoiceView.CreditApplied, CultureInfo.InvariantCulture));
+    Assert.Equal(750m, decimal.Parse(balanceInvoiceView.OutstandingAmount, CultureInfo.InvariantCulture));
+    Assert.Contains(agreementAView.Receipts, x => x.Reference == ownReceipt.Reference &&
+      decimal.Parse(x.AppliedAmount, CultureInfo.InvariantCulture) == 150m);
+    Assert.DoesNotContain(agreementAView.Receipts, x => x.Reference == foreignReceipt.Reference);
+    await using (var verifySnapshot = new AuditSphereDbContext(pg.Options))
+      Assert.Equal(sentAt, await verifySnapshot.Invoices.AsNoTracking().Where(x => x.Id == ownBalanceInvoice.Id)
+        .Select(x => x.SentAt).SingleAsync());
+
+    var secondPage = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor, 50, firstPage.Value.NextCursor);
+    Assert.True(secondPage.Succeeded, secondPage.Message);
+    Assert.Equal(50, secondPage.Value!.PageSize);
+    Assert.False(secondPage.Value.HasMore);
+    Assert.Null(secondPage.Value.NextCursor);
+    Assert.Equal(2, secondPage.Value.Agreements.Count);
+    Assert.Equal(49, firstPage.Value.Agreements.Count(x => authorizedDecoys.Any(d => d.Agreement.Id == x.AgreementId)));
+    Assert.Equal(2, secondPage.Value.Agreements.Count(x => authorizedDecoys.Any(d => d.Agreement.Id == x.AgreementId)));
+    var actualPagedIds = firstPage.Value.Agreements.Concat(secondPage.Value.Agreements).Select(x => x.AgreementId).ToArray();
+    var expectedPagedIds = new[] { (Id: agreementA.Value, CreatedAt: agreementACreatedAt) }
+      .Concat(authorizedDecoys.Select(x => (Id: x.Agreement.Id, CreatedAt: x.Agreement.CreatedAt)))
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).Select(x => x.Id).ToArray();
+    Assert.Equal(expectedPagedIds, actualPagedIds);
+    Assert.Equal(actualPagedIds.Length, actualPagedIds.Distinct().Count());
+    Assert.Empty(actualPagedIds.Intersect(siblingDecoys.Select(x => x.Agreement.Id)));
+
+    // Seed the malformed link separately: an existing milestone's invoice identity is immutable.
+    var malformedAgreement = authorizedDecoys.OrderByDescending(x => x.Agreement.Id).First().Agreement;
+    db.FeeMilestones.Add(new FeeMilestone
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, AgreementId = malformedAgreement.Id,
+      Kind = FeeMilestoneKinds.Advance, Amount = 500m, State = FeeMilestoneStates.Invoiced,
+      InvoiceId = foreignInvoice.Id, CreatedAt = financialFixtureAt
+    });
+    await db.SaveChangesAsync();
+    var foreignInvoiceRead = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor);
+    Assert.False(foreignInvoiceRead.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, foreignInvoiceRead.ErrorCode);
+    Assert.Null(foreignInvoiceRead.Value);
+
+    var financeSnapshotGrant = await db.RoleGrants.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId &&
+      x.UserId == financeSnapshotUser.Id && x.Role == "ClientUser" && x.ClientId == clientId && x.EngagementId == engagementA);
+    var zeroSize = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor, 0, null);
+    Assert.Equal("request.invalid", zeroSize.ErrorCode);
+    Assert.Null(zeroSize.Value);
+    var oversizedPage = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor, 51, null);
+    Assert.Equal("request.invalid", oversizedPage.ErrorCode);
+    Assert.Null(oversizedPage.Value);
+    var malformedCursor = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor, 50, "not-a-cursor");
+    Assert.Equal("request.invalid", malformedCursor.ErrorCode);
+    Assert.Null(malformedCursor.Value);
+    await using (var callerTransaction = await db.Database.BeginTransactionAsync())
+    {
+      var refusedInCallerTransaction = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor);
+      Assert.Equal(ErrorCodes.GateBlocked, refusedInCallerTransaction.ErrorCode);
+      Assert.Null(refusedInCallerTransaction.Value);
+      Assert.Same(callerTransaction, db.Database.CurrentTransaction);
+      Assert.Equal(1, await db.RoleGrants.CountAsync(x => x.FirmId == w.FirmId && x.Id == financeSnapshotGrant.Id));
+      await callerTransaction.CommitAsync();
+    }
 
     // A null-client ClientUser grant is not a firm-wide fallback.
     Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, nullClientActor, receiptA.Id)).ErrorCode);
@@ -2674,6 +2868,19 @@ public sealed class CommercialWorkflowTests
     // These persisted receipt rows exercise both identity fences against the real dual-linked receipt shape.
     await AssertReceiptDeniedAfterIdentityChangeAsync(engagementScopedUser, engagementScopedActor, receiptA.Id, disableUser: false);
     await AssertReceiptDeniedAfterIdentityChangeAsync(clientWideUser, clientWideActor, receiptB.Id, disableUser: true);
+
+    var grantInterleaver = new RevokeFinanceGrantAfterAgreementRead(pg, w.FirmId, financeSnapshotGrant.Id);
+    var grantOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(grantInterleaver).Options;
+    CommandResult<PortalClientFinanceView> revokedDuringRead;
+    await using (var grantReader = new AuditSphereDbContext(grantOptions))
+      revokedDuringRead = await ClientPortalFinanceQuery.GetAsync(grantReader, Actor(financeSnapshotUser, "ClientUser"), 1, null);
+    Assert.Equal(1, grantInterleaver.Calls);
+    Assert.False(revokedDuringRead.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, revokedDuringRead.ErrorCode);
+    Assert.Null(revokedDuringRead.Value);
+    await using (var verifyRevocation = new AuditSphereDbContext(pg.Options))
+      Assert.NotNull(await verifyRevocation.RoleGrants.AsNoTracking().Where(x => x.FirmId == w.FirmId && x.Id == financeSnapshotGrant.Id)
+        .Select(x => x.RevokedAt).SingleAsync());
 
     async Task AssertReceiptDeniedAfterIdentityChangeAsync(AppUser user, ActorContext actor, Guid receiptId, bool disableUser)
     {
@@ -3150,6 +3357,52 @@ public sealed class CommercialWorkflowTests
           .ExecuteUpdateAsync(update => update.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1), cancellationToken);
       if (updated != 1)
         throw new InvalidOperationException("The client receipt interleaving did not update exactly one user.");
+      return result;
+    }
+  }
+
+  private sealed class SetInvoiceSentAtAfterFinanceAgreementRead(
+    ITestPostgresDatabase pg, Guid firmId, Guid invoiceId, DateTimeOffset sentAt) : DbCommandInterceptor
+  {
+    private int calls;
+    public int Calls => Volatile.Read(ref calls);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (!command.CommandText.Contains("engagement_fee_agreements", StringComparison.OrdinalIgnoreCase) ||
+          Interlocked.CompareExchange(ref calls, 1, 0) != 0)
+        return result;
+
+      await using var change = new AuditSphereDbContext(pg.Options);
+      var updated = await change.Invoices.Where(x => x.FirmId == firmId && x.Id == invoiceId && x.SentAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.SentAt, sentAt)
+          .SetProperty(x => x.Status, BillingStates.InvoiceSent)
+          .SetProperty(x => x.Revision, x => x.Revision + 1), cancellationToken);
+      if (updated != 1)
+        throw new InvalidOperationException("The finance snapshot interleaving did not update the expected invoice.");
+      return result;
+    }
+  }
+
+  private sealed class RevokeFinanceGrantAfterAgreementRead(
+    ITestPostgresDatabase pg, Guid firmId, Guid grantId) : DbCommandInterceptor
+  {
+    private int calls;
+    public int Calls => Volatile.Read(ref calls);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (!command.CommandText.Contains("engagement_fee_agreements", StringComparison.OrdinalIgnoreCase) ||
+          Interlocked.CompareExchange(ref calls, 1, 0) != 0)
+        return result;
+
+      await using var change = new AuditSphereDbContext(pg.Options);
+      var updated = await change.RoleGrants.Where(x => x.FirmId == firmId && x.Id == grantId && x.RevokedAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), cancellationToken);
+      if (updated != 1)
+        throw new InvalidOperationException("The finance snapshot interleaving did not revoke the expected client grant.");
       return result;
     }
   }

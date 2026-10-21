@@ -85,9 +85,26 @@ public static partial class UiEndpoints
         Format: "int32", Description: "Fixed page size 25; omit to use 25.", Minimum: 25))
       .WithMetadata(new ManualParameterMetadata("cursor", ParameterLocation.Query, false, JsonSchemaType.String,
         Description: "Exact opaque continuation from this client's activity page; omit to refresh from the newest events."));
-    group.MapUiGet("/portal/finance", (HttpContext http) => ReadAsync(http,
-      (db, actor, ct) => ClientPortalFinanceQuery.GetAsync(db, actor, ct)))
-      .WithUiResponse<PortalClientFinanceView>();
+    group.MapUiGet("/portal/finance", (HttpContext http) =>
+    {
+      var pageSize = 50;
+      if (http.Request.Query.TryGetValue("pageSize", out var pageSizeValues) &&
+          (pageSizeValues.Count != 1 || !int.TryParse(pageSizeValues[0], System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out pageSize) || pageSize is < 1 or > 50))
+        return Task.FromResult(Failure("request.invalid", "The client finance page size must be between 1 and 50."));
+      string? cursor = null;
+      if (http.Request.Query.TryGetValue("cursor", out var cursorValues))
+      {
+        if (cursorValues.Count != 1)
+          return Task.FromResult(Failure("request.invalid", "The client finance continuation is invalid."));
+        cursor = cursorValues[0];
+      }
+      return ReadAsync(http, (db, actor, ct) => ClientPortalFinanceQuery.GetAsync(db, actor, pageSize, cursor, ct));
+    }).WithUiResponse<PortalClientFinanceView>(includeConflict: true)
+      .WithMetadata(new ManualParameterMetadata("pageSize", ParameterLocation.Query, false, JsonSchemaType.Integer,
+        Format: "int32", Description: "Agreements per page from 1 through 50; omitted values default to 50.", Minimum: 1))
+      .WithMetadata(new ManualParameterMetadata("cursor", ParameterLocation.Query, false, JsonSchemaType.String,
+        Description: "Opaque keyset position from the prior finance page; it does not grant access. Omit to begin at the newest agreement."));
     group.MapGet("/portal/accounting/packages/{id:guid}", (Guid id, HttpContext http) => ReadAsync(http,
       (db, actor, ct) => FinancialPackageReviewService.GetClientViewAsync(db, actor, id, ct)))
       .WithUiResponse<ClientFinancialPackageView>();
