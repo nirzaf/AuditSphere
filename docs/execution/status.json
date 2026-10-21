@@ -1608,21 +1608,15 @@
     "taskStatusSummary": {
       "count": 51,
       "implementationStatus": "51 IMPLEMENTED",
-      "acceptanceStatus": "T001,T003 VERIFIED; 49 NOT_VERIFIED"
+      "acceptanceStatus": "T001,T003-T006 VERIFIED; 46 NOT_VERIFIED"
     },
-    "verifiedTaskT001": {
-      "result": "PASS",
-      "commit": "9b4720d1",
-      "run": "39590664430",
-      "cases": 3,
-      "artifact": "release-verification-trx-domain"
-    },
-    "verifiedTaskT003": {
-      "result": "PASS",
-      "commit": "9b4720d1",
-      "run": "39590664430",
-      "spec": "scope-workspace.spec.ts",
-      "job": "Angular full specs"
+    "verifiedTasks": {
+      "run": "39590664430@9b4720d1",
+      "T001": "3 cases; Domain TRX",
+      "T003": "scope-workspace.spec.ts",
+      "T004": "scope-workspace.spec.ts",
+      "T005": "fieldwork.spec.ts",
+      "T006": "open-item-allocations.spec.ts"
     },
     "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
     "workingTreeBase": "150c7671762ac93f87b2b539cb53f688fb90557e",
