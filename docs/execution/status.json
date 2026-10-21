@@ -1183,25 +1183,6 @@
       "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalReceiptPaging20261021",
       "remaining": "Full current-source release, broader state/source integrity, human AT and provider/professional acceptance remain open."
     },
-    "accessibilityReview20261021": {
-      "sourceCommit": "fe075726d98767aa49373dd43193f446dc5fbc46",
-      "recordedAtUtc": "2026-10-21T11:01:52Z",
-      "result": "PARTIAL_AGENT_REVIEW",
-      "proxyTest": {
-        "sourceCommit": "cc69014f593d707d11d699261e3c01d5807f0e19",
-        "case": "AngularAccessibilityDeepAcceptanceTests.ScreenReaderProxySemantics_LiveRegionsAndDialogMatrix_HoldAcrossTheShell",
-        "result": "PASS 1/1",
-        "trx": "tests/AuditSphereOps.E2E.Tests/TestResults/accessibility-proxy-review-20261021.trx",
-        "currentUiUnchanged": "The only fe075726 changes are E2E test locator scoping."
-      },
-      "builtInBrowser": {
-        "route": "http://127.0.0.1:4304/ui/",
-        "result": "PARTIAL",
-        "observed": "The local Angular shell exposed the Skip to main content link and Access unavailable heading. Tab focused the skip link; Enter moved focus to main.",
-        "limitation": "No local API listener was available, so authenticated staff/client routes and their API-backed states could not be reviewed. No business data changed."
-      },
-      "humanAssistiveTechnology": "OPEN: a qualified human reviewer must use a real screen reader and record AT/browser versions and announcement findings. Automated accessibility-tree inspection is not human sign-off."
-    },
     "releaseFailureTriage20261021": {
       "status": "FOCUSED_REPAIR_PASS_CURRENT_FULL_CI_PENDING",
       "failedRun": "39562906358",
@@ -1217,7 +1198,7 @@
     },
     "currentSourceCi20261021": {
       "sourceCommit": "fe075726d98767aa49373dd43193f446dc5fbc46",
-      "observedAtUtc": "2026-10-21T11:02:22Z",
+      "observedAtUtc": "2026-10-21T11:06:54Z",
       "localBuild": "PASS: dotnet build AuditSphereOps.slnx --no-restore -c Release -m:1 -nr:false -p:BuildInParallel=false -p:UseSharedCompilation=false; 0 warnings, 0 errors.",
       "fastCi": {
         "run": "39587925498",
@@ -1228,10 +1209,23 @@
       "fullRelease": {
         "run": "39588148758",
         "status": "IN_PROGRESS",
-        "observed": "Requested exact source SHA; Angular full specs PASS; build/contracts/publication, unfiltered Domain/API and Playwright E2E still running.",
+        "observed": "Requested exact source SHA; Angular full specs and build/contracts/publication PASS; unfiltered Domain/API and Playwright E2E remain in progress.",
         "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39588148758"
       },
-      "localFullSuites": "NOT_RUN per project policy."
+      "localFullSuites": "NOT_RUN per project policy.",
+      "docsCommitCi": {
+        "run": "39588994644",
+        "sourceCommit": "46026560cb607f9f6ec98a42871bcb86f6d0cbb4",
+        "status": "IN_PROGRESS",
+        "observed": "Docs Health and Angular build/specs PASS; .NET Release build still running.",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39588994644"
+      }
+    },
+    "accessibilityReview20261021": {
+      "result": "PARTIAL_AGENT_REVIEW",
+      "sourceCommit": "fe075726d98767aa49373dd43193f446dc5fbc46",
+      "humanAssistiveTechnology": "OPEN",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021"
     }
   },
   "externalGates": [

@@ -19583,6 +19583,32 @@
             }
           },
           "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.releaseFailureTriageBeforeTimeChanges20261021"
+        },
+        "accessibilityReview20261021": {
+          "sourceCommit": "fe075726d98767aa49373dd43193f446dc5fbc46",
+          "recordedAtUtc": "2026-10-21T11:07:12Z",
+          "result": "PARTIAL_AGENT_REVIEW",
+          "proxyTest": {
+            "sourceCommit": "cc69014f593d707d11d699261e3c01d5807f0e19",
+            "case": "AngularAccessibilityDeepAcceptanceTests.ScreenReaderProxySemantics_LiveRegionsAndDialogMatrix_HoldAcrossTheShell",
+            "result": "PASS 1/1",
+            "trx": "tests/AuditSphereOps.E2E.Tests/TestResults/accessibility-proxy-review-20261021.trx",
+            "currentUiUnchanged": "The only fe075726 changes are E2E test locator scoping."
+          },
+          "builtInBrowser": {
+            "route": "http://127.0.0.1:4304/ui/",
+            "result": "PARTIAL",
+            "observed": "The local Angular shell exposed the Skip to main content link and Access unavailable heading. Tab focused the skip link; Enter moved focus to main.",
+            "limitation": "No local API listener was available, so authenticated staff/client routes and their API-backed states could not be reviewed. No business data changed."
+          },
+          "humanAssistiveTechnology": "OPEN: a qualified human reviewer must use a real screen reader and record AT/browser versions and announcement findings. Automated accessibility-tree inspection is not human sign-off.",
+          "focusedCohort": {
+            "class": "AngularAccessibilityDeepAcceptanceTests",
+            "result": "PASS 3/3",
+            "cases": "ScreenReaderProxySemantics_LiveRegionsAndDialogMatrix_HoldAcrossTheShell; LocaleMatrix_RendersWithoutErrors_AndConstrainedNetworkStillLoadsLazyRoutes; SustainedNavigation_AcrossLazyRoutes_StaysWithinPerNavigationCeiling",
+            "trx": "tests/AuditSphereOps.E2E.Tests/TestResults/accessibility-class-review-20261021.trx",
+            "scope": "Focused local accessibility/browser cohort; no full E2E suite run."
+          }
         }
       },
       "asPm8AtomicMatrixBeforePortalActivity20261021": [
