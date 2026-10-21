@@ -211,16 +211,16 @@ public sealed class PortalActionCenterApiTests
       var request = await db.PbcRequests.SingleAsync(x => x.Id == requestId);
       request.ClientOwnerUserId = clientUser.Id;
       var occurred = DateTimeOffset.Parse("2026-10-01T00:00:00Z");
-      db.PbcCommunications.AddRange(Enumerable.Range(0, 31).Select(index => new PbcCommunication
+      db.PbcCommunications.AddRange(Enumerable.Range(0, 2001).Select(index => new PbcCommunication
       {
         Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
         PbcRequestId = requestId, AuthorUserId = f.Staff.Id, Kind = PbcCommunicationKinds.ClientMessage,
-        Body = $"Message {index:D2}", CreatedAt = occurred.AddMinutes(index)
+        Body = $"Message {index:D4}", CreatedAt = occurred.AddMinutes(index)
       }));
-      db.PbcUploadIntents.AddRange(Enumerable.Range(0, 31).Select(index => new PbcUploadIntent
+      db.PbcUploadIntents.AddRange(Enumerable.Range(0, 501).Select(index => new PbcUploadIntent
       {
         Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        PbcRequestId = requestId, UploaderUserId = clientUser.Id, FileName = $"upload-{index:D2}.pdf",
+        PbcRequestId = requestId, UploaderUserId = clientUser.Id, FileName = $"upload-{index:D3}.pdf",
         ContentType = "application/pdf", DeclaredByteCount = 1, DeclaredSha256Hex = new string('a', 64),
         CapabilityHash = new string('b', 64), ReceivedByteCount = 0, State = PbcUploadStates.Started,
         ExpiresAt = occurred.AddMinutes(index).AddDays(1), CreatedAt = occurred.AddMinutes(index), Revision = 1
@@ -249,22 +249,22 @@ public sealed class PortalActionCenterApiTests
     Assert.Equal(2, page.ConversationPage);
     Assert.Equal(10, page.PageSize);
     Assert.Equal(10, page.Uploads.Count);
-    Assert.Equal("upload-20.pdf", page.Uploads[0].FileName);
-    Assert.Equal("upload-11.pdf", page.Uploads[^1].FileName);
+    Assert.Equal("upload-490.pdf", page.Uploads[0].FileName);
+    Assert.Equal("upload-481.pdf", page.Uploads[^1].FileName);
     Assert.Equal(10, page.Conversation.Count);
-    Assert.Equal("Message 20", page.Conversation[0].Body);
-    Assert.Equal("Message 29", page.Conversation[^1].Body);
+    Assert.Equal("Message 0020", page.Conversation[0].Body);
+    Assert.Equal("Message 0029", page.Conversation[^1].Body);
     Assert.True(page.HasMoreUploads);
     Assert.True(page.HasMoreConversation);
 
-    using var lastResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}/history?uploadPage=3&conversationPage=3&pageSize=10");
+    using var lastResponse = await client.GetAsync($"/api/ui/portal/requests/{requestId}/history?uploadPage=50&conversationPage=200&pageSize=10");
     Assert.Equal(HttpStatusCode.OK, lastResponse.StatusCode);
     var last = await lastResponse.Content.ReadFromJsonAsync<PortalRequestHistory>();
     Assert.NotNull(last);
     Assert.Single(last.Uploads);
-    Assert.Equal("upload-00.pdf", last.Uploads[0].FileName);
+    Assert.Equal("upload-000.pdf", last.Uploads[0].FileName);
     // The fixture also retains the original request and client acknowledgement.
-    Assert.Equal(new[] { "Message 30", "Bank statements", "The client acknowledged this request." },
+    Assert.Equal(new[] { "Message 2000", "Bank statements", "The client acknowledged this request." },
       last.Conversation.Select(message => message.Body));
     Assert.False(last.HasMoreUploads);
     Assert.False(last.HasMoreConversation);
