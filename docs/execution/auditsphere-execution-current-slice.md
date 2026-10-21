@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Source-backed procedure submission and rework
+## Annual engagement source-context safety
 
-The fieldwork review screen now summarizes only the retained submission's evidence identities and observations, distinctly labeling physical locations at submission and unverified legacy references. It never reconstructs evidence from current links or asserts source freshness/professional sufficiency. Unsupported formats retain the raw-snapshot inspection path; both views reflow.
+Annual route changes now invalidate previews, assent and late callbacks while retaining unsaved fields and durable receipt recovery. A retained annual draft cannot silently become manual creation; returning to its source requires fresh review. The dynamically populated template selector now displays the retained revision correctly.
 
-The existing owned browser journey now connects synthetic received PBC bytes to exact Angular evidence selection, lost-response recovery, independent return and corrected resubmission. Frozen identities, hash and receipt digest remain linked while the later rework-queue checks are preserved. Results, narrow-screen inspection and limits are under `procedureSourceEvidence20261021` in [status.json](status.json). No qualified human, methodology or live-provider approval is supplied; broader state/freshness and current-source full release acceptance remain open. Earlier native-book/session evidence is preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+The existing annual journey covers foreign-source denial, stale-template refusal, current contact/template refresh, draft save/restore/return and separate current-year task planning. Creation remains blocked with no inherited approvals or access grants. Focused results, intermediate failures and limitations are under `annualSourceSafety20261021` in [status.json](status.json). Full CI found two unrelated E2E failures now under investigation; human screen-reader, professional and live-provider acceptance remain open. Earlier procedure evidence is retained in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
 ## Paged client document history
 

@@ -19101,6 +19101,20 @@
           ],
           "priorFailures": "Harness compile signatures corrected; initial non-waiting header read repaired. Reflow assertion exposed allocation controls and retained unwrapped invoice tables (up to598px); scoped fixes retain the assertion. Intermediate logs/TRX remain local.",
           "limits": "No full local suites. Synthetic accepted service profile is not a client mandate or professional acceptance. Settlements, reversals, cross-period carry-forward, human AT, full current-source release and live acceptance remain open. Fast CI39525956612 on70338de8 PASS; full39518012940 on68f7c7dc still API/E2E IN_PROGRESS."
+        },
+        "procedureSourceEvidence20261021": {
+          "status": "PASS_LOCAL_SLICE",
+          "sourceCommit": "8e30e5256c78bf90ae9f62fb1808f33facf5b319",
+          "baseline": "4d70e84ec26c8ff7221fdc2c4dc7671bb93e82fc",
+          "behavior": "Read-only V1 retained procedure evidence summary distinguishes stored file IDs/hash, physical location at submission, manual observations and unverified legacy references. Unknown/malformed/over-bound snapshots refuse partial summary; raw snapshot stays available and wraps. No command, authorization, provider or completion-policy change.",
+          "checks": "Angular component2/2 PASS (distinct IDs, clearing, invalid formats/bounds); build/lint PASS with existing warnings. Existing CashAndBankProcedureRecoversExactSubmissionAndIndependentReviewerCanReturnIt PASS1/1 (132s). Staged bytes -> staff trusted completion -> owned simulation worker Received -> Angular link/selection -> lost-response receipt recovery -> independent return -> corrected UI revision2. Frozen source IDs/SHA-256 and receipt digest retained; existing later queue assertions and zero REVIEWED decisions preserved.",
+          "browser": "Built-in owned fixture confirmed revision2 file/hash/upload/request/link IDs and revised manual observation;320x844 document305px, summary223px, expanded raw snapshot fits; console0 warnings/errors. Tabs closed and fixture released.",
+          "artifacts": [
+            "tests/AuditSphereOps.E2E.Tests/TestResults/procedure-source-evidence-20261021.trx",
+            "/tmp/auditsphere-procedure-source-browser-20261021.log",
+            "/tmp/auditsphere-procedure-source-evidence-320-20261021.png"
+          ],
+          "limits": "No full local suites or live changes. Synthetic provider receipt is not Microsoft acceptance; no evidence-sufficiency, human AT or D1 approval supplied. Wider freshness/N/A/review hierarchy and current-source full release remain open. Fast CI39527658299 on4d70e84e PASS; full39518012940 on68f7c7dc API/E2E still IN_PROGRESS. xUnit analyzer errors corrected; assertions retained."
         }
       }
     },
