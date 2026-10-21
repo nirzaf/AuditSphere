@@ -14,6 +14,14 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Current PBC authority and upload lock order
+
+Core PBC request commands now refresh the locked row before authorizing the current participant and refusing scope drift. Upload and trusted-completion paths take a consistent scope fence before request/intent locks. A coordinated PostgreSQL regression reproduced the old completion/replay deadlock before the fix. Exact receipt replay and the staff-only trusted completion boundary are preserved.
+
+The locked start/resume writability checks retain a saved refusal audit without creating or modifying uploads. This does not define a comprehensive client-denial audit policy or introduce request-owner reassignment. Direct owner-change test interleavings are defensive evidence, not a claim of a reachable reassignment exploit.
+
+Source, red/green evidence, public API/browser checks, built-in inspection and CI limits are under `pbcCurrentAuthority20261021` in [status.json](status.json). Broader portal, current-source full release, professional/human and live-provider acceptance remain open. The earlier migration-probe and pre-fix latent-owner notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
 ## Paged client document history
 
 The portal now combines retained document sharing/acknowledgement, associated signed-scan upload, bundle assembly and current-account bundle receipt events into a read-only paged history. It preserves exact fractional-time ordering and links to the existing source cards. Internal work and identities stay private; delivery, signature verification and professional approval are not inferred. Unorderable timestamps remain visibly unresolved.
@@ -32,12 +40,6 @@ Exact source, focused API/Angular/real-command browser results, fixture repairs,
 Home and detail now use independent server-projected upload and reply eligibility from the existing command rules. Clients can reply during review, respond to a clarification before replacing files, and upload after resubmission. Missing capability fields fail closed; legacy `CanWrite` remains compatibility data. Home rechecks current window, scope and request state/revision before releasing action hints. Changed capabilities clear local drafts while ordinary polling preserves them.
 
 The real synthetic browser journey proves the clarification/reply/replacement sequence without turning staging into acceptance. Built-in narrow-screen inspection caught and repaired long-message URL overflow. Exact source, focused results, test repairs, screenshots and CI limits are under `portalRequestCapabilities20261021` in [status.json](status.json). Earlier template-picker evidence is in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md). Whole-tool, human AT, full release and professional/live-provider acceptance remain open.
-
-## Workflow evidence downgrade-test recovery
-
-The historical full release failed in one API migration probe after later compatible down-migrations removed a nullable lineage column and an older retained-evidence guard correctly refused further rollback. The test now reads the retained identity in that intermediate schema, restores the latest migrations, then checks the original whole-table single-record invariant and retained fields. Production migrations, refusal guards and authorization assertions are unchanged. Exact source, focused results and historical release outcome are in `workflowEvidenceDowngradeRecovery20261021` in [status.json](status.json); this is not a current full regression pass.
-
-A further defensive audit found that several client command paths reauthorize the pre-lock request owner rather than the locked row. No supported owner-reassignment command currently exists, so this is latent hardening work, not a demonstrated reachable portal exploit. Any correction must retain scope checks and lock order and prove current participation without adding a reassignment workflow.
 
 
 ## Recent read-only evidence views
