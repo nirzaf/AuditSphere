@@ -22862,6 +22862,20 @@
       "ci": "AuditSphereOps CI run 39669142742 passed on this exact SHA: Angular build/specs, docs health and .NET Release build.",
       "browserBoundary": "Automated headless Playwright journeys ran. The built-in interactive browser was not exercised.",
       "accessibilityBoundary": "Keyboard operability and rendered behavior received technical review. No screen reader or assistive-technology session was performed; qualified human screen-reader review remains open."
+    },
+    "apiAngularParityScopeCreationT01020261022": {
+      "result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING",
+      "tests": "API scope options 1/1; Domain finite-membership/workspace 2/2; Angular 9/9.",
+      "behavior": "Inclusive overlap; future membership denied; readiness deduplicated.",
+      "build": "Solution Release build 0W/0E."
+    },
+    "apiAngularParityExternalPacksT02820261022": {
+      "sourceCommit": "502293f160a5f07b3ee34ef0618e092b79a986a3",
+      "result": "FOCUSED_API_PASS; ANGULAR_SPEC_PASS; FAST_CI_PASS; BROWSER_NOT_RUN",
+      "api": "ExternalComponentPacks_PageEveryLineAndSerializeConcurrentReviewWithRetainedLineage passed 1/1; covers bounded 205-line source, retained versions, reconciliation, review/pin, concurrent-review serialization, wrong-group denial and authority revocation.",
+      "angular": "external-packs.spec.ts passed 5/5; covers exact source hashes/typed amounts, stale scope refusal, bounded decoders, and reconcile/return/approve/pin request payloads.",
+      "fastCi": "AuditSphereOps CI run 39669142742 passed at 5d52d434; no Application/API/Angular/test files changed through 502293f1.",
+      "browser": "Built-in browser not run; its existing local tab at 127.0.0.1:5029 was unreachable. Interactive acceptance remains open."
     }
   }
 }
