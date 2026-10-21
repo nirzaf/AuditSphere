@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Client-visible activity across retained sources
+## Fresh locked workflow amendments and quotation privacy
 
-The portal now pages retained document, PBC, invoice and payment-receipt facts together. Current exact grants and request participation constrain every source before bounds; a scope-bound UTC cutoff controls continuation. The owned snapshot is followed by fresh authorization/context checks. The feed omits message bodies, amounts, staff IDs and provider metadata; receipt and sent timestamps never imply delivery. Source links preserve the portal route and keyboard destination.
+Evidence-rule and dependency amendments now refresh locked EF-tracked task/binding rows before validating identity, replay, revision and closed state. Both stale-context baselines attempted writes rejected by existing database guards; the fixed commands refuse cleanly without new rules, edges or activity. Four focused cases pass, including existing positive/replay paths. No UI, contract or migration change was needed.
 
-Focused query/Angular and the real completion-to-client journey pass after repairing an EF projection-ordering failure. Built-in inspection observed nine retained events with UTC/source links and no captured warnings/errors. Evidence and limits are under `portalActivity20261021` in [status.json](status.json). This is live history, not a frozen archive; whole-source/state, human AT, professional/provider and full current-source release acceptance remain open. Prior time-revision and finance-bound evidence is preserved in the historical archive and status pointers.
+The existing branded-quotation theory also passes both standing-authority variants with synthetic private cost values/IDs excluded from the document body and required commercial fields retained. This is body-content evidence, not a broader approved allowlist or legal/layout acceptance. Exact sources, artifacts and limitations: `workflowAmendmentFreshLocks20261021` and `quotationCostPrivacy20261021` in [status.json](status.json). No full local suite was run; current-source full release and professional/live/human acceptance remain open. Earlier client-activity evidence is preserved through its status pointer and historical handoff.
 
 ## Consolidation workspace read consistency
 

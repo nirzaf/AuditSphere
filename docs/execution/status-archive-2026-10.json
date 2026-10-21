@@ -19343,6 +19343,22 @@
           "failures": "New fixture initially lacked real scope reporting period, so normal perimeter guard correctly refused external pack. Test-specific2026period and scope fixed; command guards/assertions retained.",
           "trx": "consolidation-snapshot-20261021.trx and consolidation-snapshot-fixed-20261021.trx under Domain.Tests/TestResults",
           "limits": "Server-only read change; no UI/API shape/migration/provider changes. No new full/local suite, professional acceptance or complete consolidation state proof."
+        },
+        "workflowAmendmentFreshLocks20261021": {
+          "status": "PASS_FOCUSED",
+          "sourceCommit": "31c1df4e0d81ff6e887a3e2ca5c14c2cedbf8597",
+          "behavior": "Evidence-rule and dependency amendments reload every locked task/binding before scope, replay, revision and closed-state guards. Exact replay order remains unchanged.",
+          "baseline": "Both new reused-context/cancellation regressions fail on unchanged commands during SaveChanges: database guards reject stale binding revision and cancelled predecessor. Guards prevent invalid persistence; defect is attempted stale write instead of controlled refusal.",
+          "fixed": "Four focused cases PASS: both new regressions plus existing scoped append-only/replay/completion-route cohorts. No new rule/edge/activity or revision write after refusal. Independent review found no material issue.",
+          "trx": "workflow-evidence-stale-baseline-20261021.trx; workflow-dependency-stale-baseline-20261021.trx; workflow-amendment-fresh-locks-20261021.trx in Domain.Tests/TestResults",
+          "limits": "Server-only command-state fix, no contract/UI/migration changes. No full local suites or new browser run. Full current-source CI, professional policy and complete workflow acceptance remain open."
+        },
+        "quotationCostPrivacy20261021": {
+          "status": "PASS_FOCUSED_TEST_ONLY",
+          "sourceCommit": "803c719970bc4c28a6d6a6d697223e1c9f6c4ed6",
+          "verification": "Existing OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation theory PASS2/2, both standing-authority variants. Seeded same-firm StaffCostRate raw/formatted amount and ID absent from generated quotation body; scope, period, fee and timeline remain. No production change.",
+          "trx": "quotation-cost-privacy-20261021.trx in Domain.Tests/TestResults",
+          "limits": "Body-content privacy evidence, not an approved exhaustive field allowlist, metadata/archive-wide audit, exact page-layout proof or new mail/provider acceptance. Charge-out rates remain allowed; legal wording and policy gates remain open."
         }
       },
       "asPm8AtomicMatrixBeforePortalActivity20261021": [

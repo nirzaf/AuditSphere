@@ -1202,12 +1202,28 @@
       "source": "2d5895391e8c4d2131a60d48f73457bb4cc7412e",
       "verification": "Three unique focused Domain cases pass across aggregate/scope and receipt-account cohorts; Angular10/10; real browser1/1 and built-in inspection; builds/lint/OpenAPI PASS. No full current-source release.",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalActivity20261021",
-      "limits": "Cutoff is live continuation, not durable historical snapshot. Fixed25events/page and bounded authority discovery fail closed. Human AT, complete role/state/source coverage, full current-source release and live/professional acceptance remain open. No migrations/deployment/provider effects."
+      "limits": "Cutoff is live continuation, not durable historical snapshot. Fixed25events/page and bounded authority discovery fail closed. Human AT, complete role/state/source coverage, full current-source release and live/professional acceptance remain open. No migrations/deployment/provider effects.",
+      "fastCi": {
+        "status": "FAST_CI_PASS",
+        "run": "39551498061",
+        "sourceCommit": "0b69235dd7d77ed28dbdfc1c8350572909295737",
+        "limits": "Fast gate only; not full .NET release verification."
+      }
     },
     "consolidationWorkspaceSnapshot20261021": {
       "status": "PASS_FOCUSED",
       "sourceCommit": "a87717ee",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.consolidationWorkspaceSnapshot20261021"
+    },
+    "workflowAmendmentFreshLocks20261021": {
+      "status": "PASS_FOCUSED",
+      "sourceCommit": "31c1df4e0d81ff6e887a3e2ca5c14c2cedbf8597",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.workflowAmendmentFreshLocks20261021"
+    },
+    "quotationCostPrivacy20261021": {
+      "status": "PASS_FOCUSED_TEST_ONLY",
+      "sourceCommit": "803c719970bc4c28a6d6a6d697223e1c9f6c4ed6",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.quotationCostPrivacy20261021"
     }
   },
   "externalGates": [
