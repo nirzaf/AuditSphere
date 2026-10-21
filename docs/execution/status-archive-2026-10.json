@@ -19238,6 +19238,17 @@
             "tests/AuditSphereOps.Api.Tests/TestResults/milestone-preview-api-20261021.trx"
           ],
           "limits": "No new statutory/Qatar calendar policy, professional cutoff approval, dependent-task amendment behavior or whole-criterion acceptance. No UI changes/browser run, schema/dependency/provider changes or full local suites. Full CI39533076423 still runs on a83cbebc, predating this slice; fast CI39539557227 on3945bce3 still in progress."
+        },
+        "proposalSnapshotConsistency20261021": {
+          "status": "PASS_LOCAL_SLICE",
+          "sourceCommit": "a12b17fc",
+          "behavior": "ProposalAsync now loads status/history, immutable response evidence, names, dispatch and recipient/quotation/artifact preview in one owned RepeatableRead snapshot. Snapshot is disposed before final fresh authorization. Caller-owned transactions fail closed without being consumed. No DTO, approval, acceptance or dispatch rule changes.",
+          "checks": "New deterministic interleaving fact FAIL1/1 on original query: main status SENT versus version history ACCEPTED after real independent-context acceptance. Fixed source restored by finally. Focused fixed cohort PASS3/3,41s: new interleaving/current-grant revocation/caller transaction test, existing firm+role+fee projection and exact-dispatched-offer acceptance/replay tests. Exact receipt/respondent/channel/time retained on fresh read; denied result contains no projection. Independent design review found no blocker. git diff --check PASS.",
+          "artifacts": [
+            "tests/AuditSphereOps.Domain.Tests/TestResults/proposal-snapshot-red-20261021.trx",
+            "tests/AuditSphereOps.Domain.Tests/TestResults/proposal-snapshot-green-20261021.trx"
+          ],
+          "limits": "Coherent snapshot may precede a concurrent commit; it is not a freshness guarantee for business facts. Larger quotation/fee/document/onboarding composite workspaces have separate reads and are not covered by this guarantee. No UI/browser, schema/dependency/provider changes or full local suites; legal wording, professional/live and full current-source release remain open."
         }
       }
     },

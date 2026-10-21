@@ -1221,13 +1221,18 @@
     "proposalSnapshotConsistency20261021": {
       "status": "PASS_LOCAL_SLICE",
       "sourceCommit": "a12b17fc",
-      "behavior": "ProposalAsync now loads status/history, immutable response evidence, names, dispatch and recipient/quotation/artifact preview in one owned RepeatableRead snapshot. Snapshot is disposed before final fresh authorization. Caller-owned transactions fail closed without being consumed. No DTO, approval, acceptance or dispatch rule changes.",
-      "checks": "New deterministic interleaving fact FAIL1/1 on original query: main status SENT versus version history ACCEPTED after real independent-context acceptance. Fixed source restored by finally. Focused fixed cohort PASS3/3,41s: new interleaving/current-grant revocation/caller transaction test, existing firm+role+fee projection and exact-dispatched-offer acceptance/replay tests. Exact receipt/respondent/channel/time retained on fresh read; denied result contains no projection. Independent design review found no blocker. git diff --check PASS.",
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.proposalSnapshotConsistency20261021"
+    },
+    "onboardingSnapshotComposition20261021": {
+      "status": "PASS_LOCAL_SLICE",
+      "sourceCommit": "1021599e",
+      "behavior": "Onboarding, fee and proposal reads compose one owned RepeatableRead snapshot through authorized internal snapshot-only readers. Public queries reject caller transactions, dispose snapshots before fresh authorization and refuse lost true Partner/signature/activation or Finance capabilities. Report/dispatch as-of time is captured at snapshot start; business predicates and DTOs unchanged.",
+      "checks": "Controlled real approval-revocation baseline FAIL1/1 at report-as-of assertion (old timestamp followed mutation); finally restored all query sources. Fixed focused cohort PASS6/6,45s: new composed-read/current+distinct-role revocation/caller transaction fact; existing independent dual keys, fee scope+concurrent links, proposal interleaving and both branded-document/paid-advance variants. New fact checks five coherent cards, fresh stale acceptance, as-of bound, retained RM with Partner/Finance revocation, null denied projections and usable rejected caller transactions. Independent review and diff check PASS.",
       "artifacts": [
-        "tests/AuditSphereOps.Domain.Tests/TestResults/proposal-snapshot-red-20261021.trx",
-        "tests/AuditSphereOps.Domain.Tests/TestResults/proposal-snapshot-green-20261021.trx"
+        "tests/AuditSphereOps.Domain.Tests/TestResults/onboarding-snapshot-red-20261021.trx",
+        "tests/AuditSphereOps.Domain.Tests/TestResults/onboarding-snapshot-green-20261021.trx"
       ],
-      "limits": "Coherent snapshot may precede a concurrent commit; it is not a freshness guarantee for business facts. Larger quotation/fee/document/onboarding composite workspaces have separate reads and are not covered by this guarantee. No UI/browser, schema/dependency/provider changes or full local suites; legal wording, professional/live and full current-source release remain open."
+      "limits": "Snapshot is point-in-time, not newest-at-delivery authority. Protected commands still recheck. No UI/browser, schema/dependency/provider changes or full local suites. Full CI39533076423 on earlier a83cbebc: all except E2E PASS, E2E IN_PROGRESS; preceding a099db66 fast CI39541014854 PASS. Broader professional/live/current-source release acceptance open."
     }
   },
   "externalGates": [
