@@ -7722,3 +7722,7 @@ The existing template journey now assigns one generated task through the engagem
 Annual route changes now invalidate previews, assent and late callbacks while retaining unsaved fields and durable receipt recovery. A retained annual draft cannot silently become manual creation; returning to its source requires fresh review. The dynamically populated template selector now displays the retained revision correctly.
 
 The existing annual journey covers foreign-source denial, stale-template refusal, current contact/template refresh, draft save/restore/return and separate current-year task planning. Creation remains blocked with no inherited approvals or access grants. Focused results, intermediate failures and limitations are under `annualSourceSafety20261021` in [status.json](status.json). Full CI found two unrelated E2E failures now under investigation; human screen-reader, professional and live-provider acceptance remain open. Earlier procedure evidence is retained in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
+## Unbilled standard-value criterion audit
+
+FIN-05 is complete for its specified non-WIP labeling behavior: source and focused query/rendered-notice checks prove the allowed standard-value fallback. Recognized WIP policy and all wider accounting/release acceptance remain separate. Exact evidence is in `nonWipLabelCriterion20261021` in [status.json](status.json).

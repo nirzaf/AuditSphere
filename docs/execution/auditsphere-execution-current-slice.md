@@ -14,9 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Unbilled standard-value criterion audit
+## Independent time approval paging
 
-FIN-05 is complete for its specified non-WIP labeling behavior: source and focused query/rendered-notice checks prove the allowed standard-value fallback. Recognized WIP policy and all wider accounting/release acceptance remain separate. Exact evidence is in `nonWipLabelCriterion20261021` in [status.json](status.json).
+The approval workspace no longer silently stops at its first retained batch. Bounded work-date/ID continuation keeps current reviewer scope, self exclusion and task/entry context filtering before the page limit. The UI labels live pages as shown, preserves recording drafts and open-return intent, restores keyboard focus and refreshes from the start after review actions. Missing legacy metadata is visibly incomplete.
+
+Focused API, Angular, built-in and scoped browser evidence is under `timeApprovalPaging20261021` in [status.json](status.json). The browser proves the default page boundary and no mutation during paging; it does not supply human/professional/live acceptance. Own-entry/task collection bounds and broader state/role/full-release gates remain separate.
 
 ## Correction queue to fieldwork handoff
 
