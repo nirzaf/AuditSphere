@@ -14,17 +14,18 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Paged client document history
+
+The portal now combines retained document sharing/acknowledgement, associated signed-scan upload, bundle assembly and current-account bundle receipt events into a read-only paged history. It preserves exact fractional-time ordering and links to the existing source cards. Internal work and identities stay private; delivery, signature verification and professional approval are not inferred. Unorderable timestamps remain visibly unresolved.
+
+The real browser journey caught and repaired focus loss; built-in inspection also caught base-URL fragment resolution. Source links now retain the portal route and keyboard destination, with stale navigation guards and long-text reflow. Focused evidence, intermediate failures and repairs, final artifacts and CI scope are under `portalDocumentHistory20261021` in [status.json](status.json). Complete commercial/PBC chronology, human screen-reader review, current-source full release and professional/live acceptance remain open. Earlier template notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
 ## Retained shared-document milestone times
 
 Client document cards now show the retained sharing time and document acknowledgement as separate semantic UTC times. Legacy missing share metadata is explicitly unrecorded. Acknowledgement belongs to the shared review record and is not attributed to the current account; internal actor identities stay private. Existing snapshot, final authorization/context fences, review controls and signature/provider boundaries are unchanged.
 
 Exact source, focused API/Angular/real-command browser results, fixture repairs, built-in narrow-screen observations and artifacts are under `portalDocumentMilestones20261021` in [status.json](status.json). This advances client-visible history but does not complete a unified chronology, qualified human accessibility review, current-source full release or professional/live acceptance. Earlier PBC acceptance notes remain in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
-## Native template authoring and pinned queue labels
-
-A focused synthetic browser journey now authors a Required and Optional task template through Angular, uses a separate Partner session for independent review and publication, previews and creates an engagement plan, and follows its exact pinned source identities through Team list, board and calendar. Manual tasks remain undesignated; creating the plan completes no task and grants no professional approval. Independent review strengthened the exact manual identity and queue membership assertions.
-
-Built-in narrow-screen inspection confirms retained labels and reflow. Source, focused results, artifacts and exact CI scope are under `workflowTemplateLineage20261021` in [status.json](status.json). The reminder criterion now records the existing reviewed internal-rule catalogue rather than calling it absent. Required-task graph semantics, broader workflow acceptance, human screen-reader review and professional/live gates remain open. Earlier request-snapshot notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
 ## Separate client upload and reply capabilities
 
