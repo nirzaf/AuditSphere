@@ -29,6 +29,7 @@ public sealed class EngagementWorkflowTaskTests
     var manager = User(firmId, "Manager");
     var staffA = User(firmId, "StaffA");
     var staffB = User(firmId, "StaffB");
+    var expiredStaff = User(firmId, "ExpiredStaff");
     var managerActor = Actor(manager, "Manager");
     var staffAActor = Actor(staffA, "Staff");
 
@@ -44,12 +45,16 @@ public sealed class EngagementWorkflowTaskTests
       seed.Engagements.AddRange(
         Engagement(engagementA, firmId, clientA),
         Engagement(engagementB, firmId, clientB));
-      seed.Users.AddRange(manager, staffA, staffB);
+      seed.Users.AddRange(manager, staffA, staffB, expiredStaff);
       await seed.SaveChangesAsync();
+      var expiredGrant = Grant(firmId, expiredStaff, "Staff", clientA, engagementA);
+      expiredGrant.GrantedAt = DateTimeOffset.UtcNow.AddDays(-2);
+      expiredGrant.ExpiresAt = DateTimeOffset.UtcNow.AddDays(-1);
       seed.RoleGrants.AddRange(
         Grant(firmId, manager, "Manager"),
         Grant(firmId, staffA, "Staff", clientA, engagementA),
-        Grant(firmId, staffB, "Staff", clientB, engagementB));
+        Grant(firmId, staffB, "Staff", clientB, engagementB),
+        expiredGrant);
       await seed.SaveChangesAsync();
     }
 
@@ -102,6 +107,12 @@ public sealed class EngagementWorkflowTaskTests
       Assert.True(eligible.Succeeded, eligible.Message);
       Assert.Contains(eligible.Value!, x => x.UserId == staffA.Id);
       Assert.DoesNotContain(eligible.Value!, x => x.UserId == staffB.Id);
+      Assert.DoesNotContain(eligible.Value!, x => x.UserId == expiredStaff.Id);
+      var expiredAssignment = await EngagementWorkflowTaskService.AssignAsync(db, managerActor,
+        taskASecond, expiredStaff.Id, 1);
+      Assert.False(expiredAssignment.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, expiredAssignment.ErrorCode);
+      Assert.Equal(1, (await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == taskASecond)).Revision);
       var ineligible = await EngagementWorkflowTaskService.AssignAsync(db, managerActor, taskASecond, staffB.Id, 1);
       Assert.False(ineligible.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, ineligible.ErrorCode);

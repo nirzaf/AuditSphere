@@ -968,11 +968,12 @@ public static partial class PracticeTimeService
     CancellationToken ct)
   {
     if (!userId.HasValue) return null;
+    var now = DateTimeOffset.UtcNow;
     var active = await db.Users.AsNoTracking().AnyAsync(x => x.Id == userId && x.FirmId == firmId &&
       !x.Disabled && x.UserKind == "Staff", ct);
     if (!active) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The assignee is not an active staff user in this firm.");
     var assigned = await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == firmId &&
-      x.UserId == userId && x.RevokedAt == null &&
+      x.UserId == userId && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now) &&
       ((engagementId.HasValue && (x.EngagementId == engagementId ||
         (x.EngagementId == null && (x.ClientId == null || x.ClientId == clientId)))) ||
        (!engagementId.HasValue && clientId.HasValue && (x.ClientId == null || x.ClientId == clientId)) ||
