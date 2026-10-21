@@ -311,7 +311,7 @@ export class PurchaseInvoiceWorkflow {
     else this.pendingReview.set(null);
     return true;
   }
-  reset(): void { this.periodId = ''; this.supplierId = ''; this.selectedSupplier.set(null); this.voucher = ''; this.supplierReference = ''; this.apRoleId = ''; this.evidence = ''; this.sourceReceiptId = null; this.documentDate = ''; this.accountingDate = ''; this.supplyDate = ''; this.dueDate = ''; this.precision = '2'; this.midpoint = 'AWAY_FROM_ZERO'; this.statedNet = ''; this.statedTax = '0'; this.statedGross = ''; this.lines = [{ accountCode: '', description: '', quantity: '1', unitPrice: '', discount: '0' }]; this.draftAssent.set(false); this.submitAssent.set(false); this.formDirty.set(false); }
+  reset(): void { this.setError(''); this.periodId = ''; this.supplierId = ''; this.selectedSupplier.set(null); this.voucher = ''; this.supplierReference = ''; this.apRoleId = ''; this.evidence = ''; this.sourceReceiptId = null; this.documentDate = ''; this.accountingDate = ''; this.supplyDate = ''; this.dueDate = ''; this.precision = '2'; this.midpoint = 'AWAY_FROM_ZERO'; this.statedNet = ''; this.statedTax = '0'; this.statedGross = ''; this.lines = [{ accountCode: '', description: '', quantity: '1', unitPrice: '', discount: '0' }]; this.draftAssent.set(false); this.submitAssent.set(false); this.formDirty.set(false); }
   draftChanged(): void { this.formDirty.set(true); this.draftAssent.set(false); this.preview.set(null); this.previewRequest = null; this.submitAssent.set(false); this.revisionConflict.set(false); }
   addLine(): void { if (this.lines.length < 99) { this.lines.push({ accountCode: '', description: '', quantity: '1', unitPrice: '', discount: '0' }); this.draftChanged(); } }
   supplierOptions(): { id: string; displayName: string }[] {

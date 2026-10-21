@@ -293,8 +293,9 @@ describe('Client purchase draft lifecycle', () => {
     const fixture = open(26, [supplierRecord(supplier)]), c = fixture.componentInstance;
     c.selectSupplier(supplier); c.submitAssent.set(true);
     c.preview.set({ invoiceId: invoice, revision: '1', currency: 'QAR', net: '10.000000', tax: '0.000000', gross: '10.000000', digest: 'a'.repeat(64), lateArrival: false, duplicateWarnings: [], manifest: { lines: [] } });
+    c.recoveryNotice.set('Previous client recovery outcome');
     fixture.componentRef.setInput('clientId', otherClient); fixture.detectChanges();
-    expect(c.supplierId).toBe(''); expect(c.selectedSupplier()).toBeNull(); expect(c.preview()).toBeNull(); expect(c.submitAssent()).toBe(false);
+    expect(c.supplierId).toBe(''); expect(c.selectedSupplier()).toBeNull(); expect(c.preview()).toBeNull(); expect(c.submitAssent()).toBe(false); expect(c.recoveryNotice()).toBe('');
     http.expectOne(`/api/ui/accounting/clients/${otherClient}/counterparties?role=SUPPLIER&page=0&pageSize=25`).flush(supplierList(otherClient, 0, 0, []));
     http.expectOne(`/api/ui/accounting/clients/${otherClient}/purchase-invoice-drafts?page=0&pageSize=25`).flush({ clientId: otherClient, page: 0, pageSize: 25, hasMore: false, rows: [] });
     http.expectOne(`/api/ui/accounting/clients/${otherClient}/purchase-invoices`).flush([]);
