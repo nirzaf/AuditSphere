@@ -77,7 +77,8 @@ public static class ClientPortalFinanceQuery
   private sealed record FinanceIdentity(long SessionEpoch, FinanceGrant[] Grants);
   private sealed record FinanceCursor(DateTimeOffset CreatedAt, Guid AgreementId);
   private sealed record ReceiptCursor(Guid AgreementId, DateTimeOffset ReceivedAt, Guid ReceiptId, string Kind);
-  private sealed record MilestoneReceiptSource(Guid MilestoneId, string Kind, Guid InvoiceId, Guid? BillingAccountId);
+  private sealed record MilestoneReceiptSource(
+    Guid MilestoneId, string Kind, Guid InvoiceId, Guid BillingAccountId, string BillingAccountCurrency);
   private sealed record ReceiptPageData(IReadOnlyList<PortalClientReceipt> Receipts, bool HasMore, string? NextCursor);
 
   private static string Exact(decimal value) => value.ToString(CultureInfo.InvariantCulture);
@@ -151,73 +152,73 @@ public static class ClientPortalFinanceQuery
           var invoiceId = milestone.InvoiceId.Value;
           var invoice = await db.Invoices.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == invoiceId && x.FirmId == actor.FirmId, ct);
-          if (invoice is not null && !await db.BillingAccounts.AsNoTracking().AnyAsync(x =>
-                x.FirmId == actor.FirmId && x.Id == invoice.BillingAccountId &&
-                x.PracticeClientId == agreement.PracticeClientId, ct))
+          if (invoice is null)
             return CommandResult<PortalClientFinanceView>.Fail(ErrorCodes.ScopeDenied, "Finance documents unavailable.");
 
-          receiptSources.Add(new(milestone.Id, milestone.Kind, invoiceId, invoice?.BillingAccountId));
-          var cashApplied = await SumCashAppliedAsync(db, actor, invoiceId, invoice?.BillingAccountId, ct);
+          var currencyContext = await ValidateInvoiceCurrencySourcesAsync(db, actor, agreement, invoice, ct);
+          if (!currencyContext.Succeeded)
+            return CommandResult<PortalClientFinanceView>.Fail(currencyContext.ErrorCode!, currencyContext.Message!);
+          var account = currencyContext.Value!;
+
+          receiptSources.Add(new(milestone.Id, milestone.Kind, invoiceId, account.Id, account.Currency));
+          var cashApplied = await SumCashAppliedAsync(db, actor, invoiceId, account.Id, ct);
           totalPaid += cashApplied;
 
-          if (invoice is not null)
-          {
-            var creditApplied = MoneyPolicy.Normalize(await db.CreditNotes.AsNoTracking()
-              .Where(x => x.FirmId == actor.FirmId && x.BillingAccountId == invoice.BillingAccountId &&
-                x.InvoiceId == invoiceId && x.Status == BillingStates.CreditIssued)
-              .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m);
-            var termRevisions = await db.InvoicePaymentTermsRevisions.AsNoTracking()
-              .Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId)
-              .OrderBy(x => x.Revision)
-              .ToListAsync(ct);
-            var approvedTerms = termRevisions
-              .Where(x => x.Status == InvoicePaymentTermsStates.Approved && x.ReviewedAt is { } reviewedAt && reviewedAt <= now)
-              .OrderByDescending(x => x.Revision)
-              .FirstOrDefault();
-            var latestTerms = termRevisions.LastOrDefault();
-            var paymentTermsStatus = latestTerms is null
-              ? "NOT_CONFIGURED"
-              : latestTerms.ReviewedAt is null || latestTerms.ReviewedAt > now
-                ? InvoicePaymentTermsStates.PendingReview
-                : latestTerms.Status;
-            var isPostedReceivable = invoice.PostedAt is not null &&
-              invoice.Status is (BillingStates.InvoicePosted or BillingStates.InvoiceSent);
-            var isCancelled = invoice.Status == BillingStates.InvoiceCancelled;
-            var dueDate = approvedTerms?.DueDate;
-            var invoiceOutstanding = isPostedReceivable
-              ? Math.Max(0m, invoice.Total - cashApplied - creditApplied)
-              : 0m;
-            var collectionStatus = isCancelled
-              ? BillingStates.InvoiceCancelled
-              : !isPostedReceivable
-                ? "NOT_POSTED"
-                : invoiceOutstanding > 0m
-                  ? cashApplied > 0m ? "PARTIALLY_PAID" : creditApplied > 0m ? "PARTIALLY_CREDITED" : "UNPAID"
-                  : cashApplied >= invoice.Total && invoice.Total > 0m
-                    ? "PAID"
-                    : creditApplied > 0m ? "SETTLED_WITH_CREDIT" : "SETTLED";
-            var agingStatus = isPostedReceivable
-              ? FirmReceivablesAgingPolicy.Bucket(dueDate, asOfDateUtc, invoiceOutstanding)
-              : "NOT_APPLICABLE";
+          var creditApplied = MoneyPolicy.Normalize(await db.CreditNotes.AsNoTracking()
+            .Where(x => x.FirmId == actor.FirmId && x.BillingAccountId == account.Id &&
+              x.InvoiceId == invoiceId && x.Status == BillingStates.CreditIssued)
+            .SumAsync(x => (decimal?)x.Amount, ct) ?? 0m);
+          var termRevisions = await db.InvoicePaymentTermsRevisions.AsNoTracking()
+            .Where(x => x.FirmId == actor.FirmId && x.InvoiceId == invoiceId)
+            .OrderBy(x => x.Revision)
+            .ToListAsync(ct);
+          var approvedTerms = termRevisions
+            .Where(x => x.Status == InvoicePaymentTermsStates.Approved && x.ReviewedAt is { } reviewedAt && reviewedAt <= now)
+            .OrderByDescending(x => x.Revision)
+            .FirstOrDefault();
+          var latestTerms = termRevisions.LastOrDefault();
+          var paymentTermsStatus = latestTerms is null
+            ? "NOT_CONFIGURED"
+            : latestTerms.ReviewedAt is null || latestTerms.ReviewedAt > now
+              ? InvoicePaymentTermsStates.PendingReview
+              : latestTerms.Status;
+          var isPostedReceivable = invoice.PostedAt is not null &&
+            invoice.Status is (BillingStates.InvoicePosted or BillingStates.InvoiceSent);
+          var isCancelled = invoice.Status == BillingStates.InvoiceCancelled;
+          var dueDate = approvedTerms?.DueDate;
+          var invoiceOutstanding = isPostedReceivable
+            ? Math.Max(0m, invoice.Total - cashApplied - creditApplied)
+            : 0m;
+          var collectionStatus = isCancelled
+            ? BillingStates.InvoiceCancelled
+            : !isPostedReceivable
+              ? "NOT_POSTED"
+              : invoiceOutstanding > 0m
+                ? cashApplied > 0m ? "PARTIALLY_PAID" : creditApplied > 0m ? "PARTIALLY_CREDITED" : "UNPAID"
+                : cashApplied >= invoice.Total && invoice.Total > 0m
+                  ? "PAID"
+                  : creditApplied > 0m ? "SETTLED_WITH_CREDIT" : "SETTLED";
+          var agingStatus = isPostedReceivable
+            ? FirmReceivablesAgingPolicy.Bucket(dueDate, asOfDateUtc, invoiceOutstanding)
+            : "NOT_APPLICABLE";
 
-            invoiceList.Add(new(
-              invoice.Id,
-              milestone.Kind,
-              invoice.InvoiceNumber,
-              invoice.Status,
-              Exact(invoice.Total),
-              invoice.Currency ?? agreement.Currency,
-              invoice.PostedAt,
-              invoice.SentAt,
-              "NOT_TRACKED",
-              collectionStatus,
-              Exact(cashApplied),
-              Exact(creditApplied),
-              Exact(invoiceOutstanding),
-              dueDate,
-              paymentTermsStatus,
-              agingStatus));
-          }
+          invoiceList.Add(new(
+            invoice.Id,
+            milestone.Kind,
+            invoice.InvoiceNumber,
+            invoice.Status,
+            Exact(invoice.Total),
+            account.Currency,
+            invoice.PostedAt,
+            invoice.SentAt,
+            "NOT_TRACKED",
+            collectionStatus,
+            Exact(cashApplied),
+            Exact(creditApplied),
+            Exact(invoiceOutstanding),
+            dueDate,
+            paymentTermsStatus,
+            agingStatus));
 
         }
 
@@ -304,11 +305,17 @@ public static class ClientPortalFinanceQuery
         var invoiceId = milestone.InvoiceId.Value;
         var invoice = await db.Invoices.AsNoTracking()
           .SingleOrDefaultAsync(x => x.Id == invoiceId && x.FirmId == actor.FirmId, ct);
-        if (invoice is not null && !await db.BillingAccounts.AsNoTracking().AnyAsync(x =>
-              x.FirmId == actor.FirmId && x.Id == invoice.BillingAccountId &&
-              x.PracticeClientId == agreement.PracticeClientId, ct))
+        if (invoice is null)
           return ReceiptPageScopeDenied();
-        receiptSources.Add(new(milestone.Id, milestone.Kind, invoiceId, invoice?.BillingAccountId));
+
+        var currencyContext = await ValidateInvoiceCurrencySourcesAsync(db, actor, agreement, invoice, ct);
+        if (!currencyContext.Succeeded)
+        {
+          if (currencyContext.ErrorCode == ErrorCodes.ScopeDenied) return ReceiptPageScopeDenied();
+          return CommandResult<PortalClientFinanceReceiptPage>.Fail(currencyContext.ErrorCode!, currencyContext.Message!);
+        }
+        var account = currencyContext.Value!;
+        receiptSources.Add(new(milestone.Id, milestone.Kind, invoiceId, account.Id, account.Currency));
       }
 
       var receiptPage = await LoadReceiptPageAsync(db, actor, agreement, receiptSources, pageSize, position, ct);
@@ -326,7 +333,7 @@ public static class ClientPortalFinanceQuery
   }
 
   private static async Task<decimal> SumCashAppliedAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, Guid? billingAccountId, CancellationToken ct)
+    IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, Guid billingAccountId, CancellationToken ct)
   {
     var allocationQuery =
       from allocation in db.ReceiptAllocations.AsNoTracking()
@@ -344,8 +351,7 @@ public static class ClientPortalFinanceQuery
             reversal.Status == ReceiptAllocationReversalStates.Approved)
           .Sum(reversal => (decimal?)reversal.Amount) ?? 0m
       };
-    if (billingAccountId is { } accountId)
-      allocationQuery = allocationQuery.Where(x => x.BillingAccountId == accountId);
+    allocationQuery = allocationQuery.Where(x => x.BillingAccountId == billingAccountId);
 
     // The unique (FirmId, ReceiptId, InvoiceId) allocation index gives one source row per receipt here;
     // at the stored six-decimal scale this is the existing per-receipt normalized sum, reduced in SQL.
@@ -353,6 +359,41 @@ public static class ClientPortalFinanceQuery
     var totalApplied = await appliedAmounts.SumAsync(x => (decimal?)x, ct) ?? 0m;
     return MoneyPolicy.Normalize(totalApplied);
   }
+
+  private static async Task<CommandResult<BillingAccount>> ValidateInvoiceCurrencySourcesAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    EngagementFeeAgreement agreement,
+    Invoice invoice,
+    CancellationToken ct)
+  {
+    var account = await db.BillingAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == invoice.BillingAccountId, ct);
+    if (account is null || account.PracticeClientId != agreement.PracticeClientId)
+      return CommandResult<BillingAccount>.Fail(ErrorCodes.ScopeDenied, "Finance documents unavailable.");
+
+    if (!string.Equals(account.Currency, agreement.Currency, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(invoice.Currency ?? account.Currency, account.Currency, StringComparison.OrdinalIgnoreCase))
+      return CurrencySourceMismatch();
+
+    var mismatchedReceiptCurrency = await (
+      from allocation in db.ReceiptAllocations.AsNoTracking()
+      join receipt in db.Receipts.AsNoTracking()
+        on new { allocation.FirmId, allocation.ReceiptId } equals new { receipt.FirmId, ReceiptId = receipt.Id }
+      where allocation.FirmId == actor.FirmId && allocation.InvoiceId == invoice.Id &&
+        receipt.BillingAccountId == account.Id && receipt.Status == BillingStates.ReceiptRecorded &&
+        receipt.Currency != null && receipt.Currency.ToUpper() != account.Currency.ToUpper()
+      select allocation.Id).AnyAsync(ct);
+    if (mismatchedReceiptCurrency) return CurrencySourceMismatch();
+
+    var mismatchedCreditCurrency = await db.CreditNotes.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.BillingAccountId == account.Id && x.InvoiceId == invoice.Id &&
+      x.Status == BillingStates.CreditIssued && x.Currency.ToUpper() != account.Currency.ToUpper(), ct);
+    return mismatchedCreditCurrency ? CurrencySourceMismatch() : CommandResult<BillingAccount>.Ok(account);
+  }
+
+  private static CommandResult<BillingAccount> CurrencySourceMismatch() =>
+    CommandResult<BillingAccount>.Fail(ErrorCodes.GateBlocked, "Finance documents contain inconsistent currency sources.");
 
   private static async Task<ReceiptPageData> LoadReceiptPageAsync(
     IAuditSphereDbContext db,
@@ -402,8 +443,7 @@ public static class ClientPortalFinanceQuery
               reversal.Status == ReceiptAllocationReversalStates.Approved)
             .Sum(reversal => (decimal?)reversal.Amount) ?? 0m
         };
-      if (source.BillingAccountId is { } billingAccountId)
-        allocationQuery = allocationQuery.Where(x => x.BillingAccountId == billingAccountId);
+      allocationQuery = allocationQuery.Where(x => x.BillingAccountId == source.BillingAccountId);
       if (position is { } after)
       {
         var kindFollowsCursor = StringComparer.Ordinal.Compare(source.Kind, after.Kind) > 0;
@@ -438,7 +478,7 @@ public static class ClientPortalFinanceQuery
           source.Kind,
           Exact(row.Amount),
           Exact(MoneyPolicy.Normalize(row.Amount - row.ApprovedReversedAmount)),
-          row.Currency ?? agreement.Currency,
+          source.BillingAccountCurrency,
           row.Reference,
           row.ReceivedAt,
           documentId is { } id ? $"/api/commercial/documents/{id}/download" : null));

@@ -123,6 +123,84 @@ public sealed class BillingTests
   }
 
   [Fact]
+  public async Task AllocateReceipt_RejectsWrongCurrencyAndPreservesLegacyNullCurrencyCompatibility()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid accountId;
+    Guid invoiceId;
+    Guid wrongCurrencyReceiptId = Guid.CreateVersion7();
+    Guid legacyReceiptId = Guid.CreateVersion7();
+    long invoiceRevision;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      accountId = (await BillingService.CreateBillingAccountAsync(db, fixture.ManagerActor,
+        new CreateBillingAccountRequest(fixture.ClientId, "QAR"))).Value;
+      invoiceId = (await BillingService.CreateInvoiceDraftAsync(db, fixture.ManagerActor,
+        new CreateInvoiceDraftRequest(accountId, "SYN-RECEIPT-CURRENCY-001", [new InvoiceLineRequest("Synthetic fee", 1m, 100m)]))).Value;
+      Assert.True((await BillingService.SubmitInvoiceAsync(db, fixture.ManagerActor, invoiceId)).Succeeded);
+      Assert.True((await BillingService.ApproveInvoiceAsync(db, fixture.ReviewerActor, invoiceId)).Succeeded);
+      db.FirmFinanceProfiles.Add(new FirmFinanceProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, FunctionalCurrency = "QAR",
+        ProfileKind = BillingStates.TestProfile, Approved = true,
+        ApprovedByUserId = fixture.Reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      Assert.True((await BillingService.PostInvoiceAsync(db, fixture.ManagerActor, invoiceId)).Succeeded);
+
+      var now = DateTimeOffset.UtcNow;
+      db.Receipts.AddRange(
+        new Receipt
+        {
+          Id = wrongCurrencyReceiptId, FirmId = fixture.FirmId, BillingAccountId = accountId,
+          Amount = 10m, Currency = "USD", Reference = "SYN-WRONG-CURRENCY-RECEIPT",
+          Status = BillingStates.ReceiptRecorded, RecordedByUserId = fixture.Manager.Id, ReceivedAt = now
+        },
+        new Receipt
+        {
+          Id = legacyReceiptId, FirmId = fixture.FirmId, BillingAccountId = accountId,
+          Amount = 10m, Currency = null, Reference = "SYN-LEGACY-NULL-CURRENCY-RECEIPT",
+          Status = BillingStates.ReceiptRecorded, RecordedByUserId = fixture.Manager.Id, ReceivedAt = now
+        });
+      await db.SaveChangesAsync();
+      invoiceRevision = await db.Invoices.Where(x => x.FirmId == fixture.FirmId && x.Id == invoiceId)
+        .Select(x => x.Revision).SingleAsync();
+    }
+
+    var wrongRequestId = Guid.CreateVersion7();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var refused = await BillingService.AllocateReceiptCommandAsync(db, fixture.ManagerActor,
+        new AllocateReceiptRequest(wrongCurrencyReceiptId, invoiceId, 10m, wrongRequestId));
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+      Assert.Null(refused.Value);
+    }
+
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Empty(await verify.ReceiptAllocations.Where(x => x.FirmId == fixture.FirmId && x.ReceiptId == wrongCurrencyReceiptId).ToListAsync());
+      Assert.False(await verify.BillingCommandReceipts.AnyAsync(x => x.FirmId == fixture.FirmId && x.RequestId == wrongRequestId));
+      Assert.Equal(invoiceRevision, await verify.Invoices.Where(x => x.FirmId == fixture.FirmId && x.Id == invoiceId)
+        .Select(x => x.Revision).SingleAsync());
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var legacy = await BillingService.AllocateReceiptCommandAsync(db, fixture.ManagerActor,
+        new AllocateReceiptRequest(legacyReceiptId, invoiceId, 10m, Guid.CreateVersion7()));
+      Assert.True(legacy.Succeeded, legacy.Message);
+    }
+
+    await using var final = new AuditSphereDbContext(pg.Options);
+    var retained = Assert.Single(await final.ReceiptAllocations.Where(x => x.FirmId == fixture.FirmId).ToListAsync());
+    Assert.Equal(legacyReceiptId, retained.ReceiptId);
+  }
+
+  [Fact]
   public async Task ConcurrentSourceAllocations_AllowOnlyOneInvoice()
   {
     await using var pg = await PgTestSchema.CreateAsync();

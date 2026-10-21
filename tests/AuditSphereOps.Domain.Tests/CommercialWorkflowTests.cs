@@ -2494,6 +2494,206 @@ public sealed class CommercialWorkflowTests
     Assert.Empty(await db.EngagementFeeAgreements.AsNoTracking().Where(x => x.ProposalId == proposalId).ToListAsync());
   }
 
+  [Theory]
+  [InlineData("legacy-null-account-mismatch")]
+  [InlineData("invoice-account")]
+  [InlineData("receipt-account")]
+  [InlineData("credit-account")]
+  [InlineData("missing-invoice")]
+  public async Task ClientPortalFinanceRejectsPersistedCurrencyMismatchesAndMissingLinkedInvoices(string scenario)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var rows = await SeedPortalFinanceProjectionAsync(pg, fixture, scenario);
+    var expectedError = scenario == "missing-invoice" ? ErrorCodes.ScopeDenied : ErrorCodes.GateBlocked;
+    var actor = PbcSeed.Actor(fixture.Client, "ClientUser");
+
+    await using (var mainDb = new AuditSphereDbContext(pg.Options))
+    {
+      var finance = await ClientPortalFinanceQuery.GetAsync(mainDb, actor);
+      Assert.False(finance.Succeeded);
+      Assert.Equal(expectedError, finance.ErrorCode);
+      Assert.Null(finance.Value);
+    }
+
+    await using (var receiptDb = new AuditSphereDbContext(pg.Options))
+    {
+      var receipts = await ClientPortalFinanceQuery.GetReceiptsAsync(receiptDb, actor, rows.AgreementId);
+      Assert.False(receipts.Succeeded);
+      Assert.Equal(expectedError, receipts.ErrorCode);
+      Assert.Null(receipts.Value);
+    }
+  }
+
+  [Fact]
+  public async Task ClientPortalFinanceUsesAccountCurrencyForLegacyNullRowsAndAcceptsMatchingQarSources()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var rows = await SeedPortalFinanceProjectionAsync(pg, fixture, "legacy-null");
+    var actor = PbcSeed.Actor(fixture.Client, "ClientUser");
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var finance = await ClientPortalFinanceQuery.GetAsync(db, actor);
+      Assert.True(finance.Succeeded, finance.Message);
+      var agreement = Assert.Single(finance.Value!.Agreements);
+      Assert.Equal("QAR", agreement.Currency);
+      Assert.Equal("150.000000", agreement.OutstandingBalance);
+      var advance = Assert.Single(agreement.Invoices, x => x.Kind == FeeMilestoneKinds.Advance);
+      Assert.Equal("QAR", advance.Currency);
+      Assert.Equal("20.000000", advance.CashApplied);
+      Assert.Equal("80.000000", advance.OutstandingAmount);
+      var balance = Assert.Single(agreement.Invoices, x => x.Kind == FeeMilestoneKinds.Balance);
+      Assert.Equal("QAR", balance.Currency);
+      Assert.Equal("30.000000", balance.CashApplied);
+      Assert.Equal("5.000000", balance.CreditApplied);
+      Assert.Equal("65.000000", balance.OutstandingAmount);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var receipts = await ClientPortalFinanceQuery.GetReceiptsAsync(db, actor, rows.AgreementId);
+      Assert.True(receipts.Succeeded, receipts.Message);
+      Assert.Equal(2, receipts.Value!.Receipts.Count);
+      Assert.Equal(rows.ReceiptIds.OrderBy(x => x), receipts.Value.Receipts.Select(x => x.ReceiptId).OrderBy(x => x));
+      Assert.All(receipts.Value.Receipts, receipt => Assert.Equal("QAR", receipt.Currency));
+    }
+  }
+
+  private sealed record PortalFinanceProjectionRows(Guid AgreementId, Guid[] ReceiptIds);
+
+  private static async Task<PortalFinanceProjectionRows> SeedPortalFinanceProjectionAsync(
+    PgTestSchema pg, PbcSeed.Fixture fixture, string scenario)
+  {
+    // Synthetic persisted rows exercise the read projection only; this fixture asserts no commercial approval path.
+    var now = DateTimeOffset.UtcNow;
+    const string agreementCurrency = "QAR";
+    var accountCurrency = scenario == "legacy-null-account-mismatch" ? "USD" : "QAR";
+    var agreementId = Guid.CreateVersion7();
+    var accountId = Guid.CreateVersion7();
+    var leadId = Guid.CreateVersion7();
+    var opportunityId = Guid.CreateVersion7();
+    var proposalId = Guid.CreateVersion7();
+    var invoiceIds = scenario == "legacy-null"
+      ? new[] { Guid.CreateVersion7(), Guid.CreateVersion7() }
+      : new[] { Guid.CreateVersion7() };
+    var invoiceCurrencies = scenario switch
+    {
+      "invoice-account" => new string?[] { "USD" },
+      "legacy-null-account-mismatch" => new string?[] { null },
+      "legacy-null" => new string?[] { null, "QAR" },
+      _ => new string?[] { "QAR" }
+    };
+    var receiptIds = new List<Guid>();
+    var invoices = new List<Invoice>();
+    var milestones = new List<FeeMilestone>();
+    var receipts = new List<Receipt>();
+    var allocations = new List<ReceiptAllocation>();
+
+    for (var index = 0; index < invoiceIds.Length; index++)
+    {
+      var invoiceId = invoiceIds[index];
+      if (scenario != "missing-invoice")
+      {
+        invoices.Add(new Invoice
+        {
+          Id = invoiceId, FirmId = fixture.FirmId, BillingAccountId = accountId,
+          InvoiceNumber = $"SYN-PORTAL-CURRENCY-{scenario}-{index}", Currency = invoiceCurrencies[index],
+          Subtotal = 100m, Total = 100m, Status = BillingStates.InvoicePosted,
+          CreatedByUserId = fixture.Admin.Id, PostedAt = now, CreatedAt = now
+        });
+      }
+
+      milestones.Add(new FeeMilestone
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, AgreementId = agreementId,
+        Kind = index == 0 ? FeeMilestoneKinds.Advance : FeeMilestoneKinds.Balance,
+        Amount = 100m, State = FeeMilestoneStates.Invoiced, InvoiceId = invoiceId, CreatedAt = now
+      });
+    }
+
+    var receiptCurrencies = scenario switch
+    {
+      "receipt-account" => new string?[] { "USD" },
+      "legacy-null-account-mismatch" => new string?[] { null },
+      "legacy-null" => new string?[] { null, "QAR" },
+      _ => Array.Empty<string?>()
+    };
+    var receiptAmounts = scenario == "legacy-null" ? new[] { 20m, 30m } : new[] { 20m };
+    for (var index = 0; index < receiptCurrencies.Length; index++)
+    {
+      var receiptId = Guid.CreateVersion7();
+      receiptIds.Add(receiptId);
+      receipts.Add(new Receipt
+      {
+        Id = receiptId, FirmId = fixture.FirmId, BillingAccountId = accountId,
+        Amount = receiptAmounts[index], Currency = receiptCurrencies[index],
+        Reference = $"SYN-PORTAL-CURRENCY-RECEIPT-{scenario}-{index}",
+        Status = BillingStates.ReceiptRecorded, RecordedByUserId = fixture.Admin.Id, ReceivedAt = now
+      });
+      allocations.Add(new ReceiptAllocation
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, ReceiptId = receiptId,
+        InvoiceId = invoiceIds[index], Amount = receiptAmounts[index], CreatedAt = now
+      });
+    }
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.BillingAccounts.Add(new BillingAccount
+    {
+      Id = accountId, FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId,
+      Currency = accountCurrency, CreatedAt = now
+    });
+    db.Leads.Add(new Lead
+    {
+      Id = leadId, FirmId = fixture.FirmId, Name = "Synthetic portal currency lead",
+      Source = "TEST", Status = CrmStates.LeadQualified, CreatedAt = now
+    });
+    db.Opportunities.Add(new Opportunity
+    {
+      Id = opportunityId, FirmId = fixture.FirmId, LeadId = leadId, PracticeClientId = fixture.ClientId,
+      ServiceRoute = "FinancialStatementAudit", EntityScope = "Synthetic test scope",
+      PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", ExpectedFee = 200m,
+      Currency = agreementCurrency, Stage = CrmStates.OpportunityProposal, CreatedAt = now
+    });
+    db.Proposals.Add(new Proposal
+    {
+      Id = proposalId, FirmId = fixture.FirmId, OpportunityId = opportunityId, PracticeClientId = fixture.ClientId,
+      Status = CrmStates.ProposalDraft, ServiceProfileId = "SYNTHETIC", Scope = "Projection fixture",
+      Exclusions = "None", Deliverables = "Projection fixture", Dependencies = "None",
+      Fee = 200m, Currency = agreementCurrency, PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
+      CreatedAt = now
+    });
+    db.EngagementFeeAgreements.Add(new EngagementFeeAgreement
+    {
+      Id = agreementId, FirmId = fixture.FirmId, ProposalId = proposalId,
+      QuotationVersionId = Guid.CreateVersion7(), PracticeClientId = fixture.ClientId,
+      EngagementId = fixture.EngagementId, Currency = agreementCurrency, AgreedFee = 200m,
+      AdvancePercent = 50m, CreatedByUserId = fixture.Admin.Id, CreatedAt = now
+    });
+    db.Invoices.AddRange(invoices);
+    db.FeeMilestones.AddRange(milestones);
+    db.Receipts.AddRange(receipts);
+    db.ReceiptAllocations.AddRange(allocations);
+    if (scenario is "credit-account" or "legacy-null")
+    {
+      var creditInvoiceIndex = scenario == "legacy-null" ? 1 : 0;
+      db.CreditNotes.Add(new CreditNote
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, BillingAccountId = accountId,
+        InvoiceId = invoiceIds[creditInvoiceIndex], NoteNumber = $"SYN-PORTAL-CURRENCY-CREDIT-{scenario}",
+        Currency = scenario == "legacy-null" ? "QAR" : "USD",
+        Amount = scenario == "legacy-null" ? 5m : 10m,
+        Reason = scenario == "legacy-null" ? "Synthetic matching-currency credit" : "Synthetic wrong-currency persisted credit",
+        Status = BillingStates.CreditIssued,
+        CreatedByUserId = fixture.Admin.Id, CreatedAt = now
+      });
+    }
+    await db.SaveChangesAsync();
+    return new(agreementId, receiptIds.ToArray());
+  }
+
   [Fact]
   public async Task PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope()
   {

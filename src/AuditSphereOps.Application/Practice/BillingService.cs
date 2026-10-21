@@ -329,6 +329,8 @@ public static class BillingService
         CommandResult<ReceiptAllocationCommandOutcome>.Fail(replay.ErrorCode, replay.Message!);
     if (lockedReceipt.Status != BillingStates.ReceiptRecorded ||
         lockedInvoice.Status is not (BillingStates.InvoicePosted or BillingStates.InvoiceSent) ||
+        (lockedReceipt.Currency is not null &&
+          !string.Equals(lockedReceipt.Currency, lockedAccount.Currency, StringComparison.OrdinalIgnoreCase)) ||
         !string.Equals(lockedInvoice.Currency, lockedAccount.Currency, StringComparison.OrdinalIgnoreCase))
       return CommandResult<ReceiptAllocationCommandOutcome>.Fail(ErrorCodes.GateBlocked, "Receipt allocation requires a posted invoice in the billing currency.");
 
