@@ -14,19 +14,15 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Portal finance scope before bounds
+## Client-visible activity across retained sources
 
-Exact active grants now filter agreements before the result limit, so newer sibling records cannot hide an authorized agreement. The extended existing regression fails on the old query and passes on the fix. Evidence and remaining window/snapshot limits: `portalFinanceScopeBeforeBound20261021` in [status.json](status.json).
+The portal now pages retained document, PBC, invoice and payment-receipt facts together. Current exact grants and request participation constrain every source before bounds; a scope-bound UTC cutoff controls continuation. The owned snapshot is followed by fresh authorization/context checks. The feed omits message bodies, amounts, staff IDs and provider metadata; receipt and sent timestamps never imply delivery. Source links preserve the portal route and keyboard destination.
 
-## Attributable time edits and approved corrections
+Focused query/Angular and the real completion-to-client journey pass after repairing an EF projection-ordering failure. Built-in inspection observed nine retained events with UTC/source links and no captured warnings/errors. Evidence and limits are under `portalActivity20261021` in [status.json](status.json). This is live history, not a frozen archive; whole-source/state, human AT, professional/provider and full current-source release acceptance remain open. Prior time-revision and finance-bound evidence is preserved in the historical archive and status pointers.
 
-Draft and returned entries can now be revised from Angular after exact review, without submitting or approving them. Approved corrections supersede the original and create a separate draft. Immutable actor-owned receipts preserve before/after values, reasons and revisions; uncertain outcomes use authorized receipt lookup and explicit replay of the same request. Existing rate, mapping, invoice-reservation, scope and independent-review controls remain enforced. Legacy records are not assigned invented historical actors.
+## Consolidation workspace read consistency
 
-Focused Domain/API/Angular and real browser evidence passes, including a deliberately lost committed response. Built-in inspection confirmed retained history and keyboard focus with no captured browser warnings/errors. Exact checks and limitations are under `timeEntryChanges20261021` in [status.json](status.json). Migration was exercised only in disposable test databases; no deployment, full current-commit release or human screen-reader approval is claimed.
-
-## Release E2E failure triage
-
-The accounting revocation journey now handles the expected removal of refresh actions during session revocation, then still requires the denial screen and removal of protected content. Its focused browser regression passes. The finding lost-committed test now proves the forwarded server command succeeded before receipt recovery; its previously failing case passes. The old CI log cannot prove the exact race, and product conflict/authorization guards remain intact. The subsequent full release run failed three different browser observations: two account labels are row headers, and a paged evidence response body was read after navigation. Semantic row-header locators and the existing response-capture helper preserve the assertions; all three focused cases now pass. A fresh full run on the committed fixes is still required. Exact evidence and scope are under `releaseFailureTriage20261021` in [status.json](status.json). No full local suites or external changes were performed.
+The multi-panel workspace now owns one read snapshot and refuses caller-owned transactions. After disposal it rechecks group/context and current source approval readiness; capabilities can only be retained or demoted. The real reviewed-package regression proves source access withdrawal while group access remains, and concurrent approval no longer mixes component/readiness states. Three unique focused cases pass across the initial run and corrected-fixture rerun. Evidence/limits: `consolidationWorkspaceSnapshot20261021` in [status.json](status.json). Existing command guards, source books and professional approvals are unchanged.
 
 ## Paged client document history
 

@@ -18,6 +18,13 @@ capability; public APIs are stable across parts. Verified project state lives on
 - **Presentation:** `src/AuditSphereOps.Ui/src/app/` owns the Angular staff and client-portal routes and workspaces. Angular calls the same-origin API; it does not own authorization or business-state authority.
 - **Historical screen references:** old Blazor screen names below are retained only to trace the pre-removal implementation at `c3905e07`. They are not current files, route owners, rollback hosts, or proof that a current Angular workspace has matching behavior. Where current API/Angular files are listed, those paths identify current implementation locations without asserting feature parity.
 
+## Client-visible activity and consolidation read snapshots
+
+- `Application/Documents/ClientPortalActivityQuery.cs`, `Api/Ui/UiEndpoints.Portal.cs`: read-only `/api/ui/portal/activity` merges retained client-visible facts using bounded source queries, a scope-bound cutoff cursor and current authorization/context rechecks. Receipt allocation links must match the authorized invoice's billing account.
+- Angular `features/portal/activity.ts`, hosted by `home.ts`: independent activity paging, explicit recovery, source-panel navigation and session clearing. Existing document, request and finance panels remain the authoritative source views.
+- `Application/Accounting/Consolidation/ConsolidationScopeWorkspaceQuery.cs`: owns the multi-panel read snapshot, refuses caller-owned transactions, rechecks current group/context and source approval readiness after disposal, and only demotes existing capabilities.
+- Focused evidence is in `ClientPortalActivityQueryTests`, `ConsolidationQueryTests`, portal activity/home specs and `CompletionDeliverablesJourneyTests`; observed checks and remaining acceptance gates belong in `docs/execution/status.json`.
+
 ## Time revision and correction evidence
 
 - `Application/Practice/PracticeTimeService.TimeChanges.cs`: locked, authorized draft/returned edits and approved correction into a new draft; actor-owned exact-request replay. Existing submit/review and billing guards remain authoritative.

@@ -7762,3 +7762,17 @@ The controlled baseline failed its report-time assertion; all focused fixed-sour
 Returned/resubmitted task rows now offer Open fieldwork in list, board and calendar. The link uses the task's server-projected engagement; it grants no authority and does not infer a procedure from a source key. Fieldwork still rechecks current scope/gates and requires explicit procedure selection.
 
 The existing source-backed procedure journey now routes its original preparer through the assigned correction queue before corrected resubmission. Exact task/owner/comment, keyboard routing and retained evidence lineage are checked. Built-in inspection confirmed the destination's existing blockers. Evidence/limits are under `procedureReworkHandoff20261021` in [status.json](status.json); broader integrated denials, human/professional/live acceptance and full current-source release remain open. Earlier assignment evidence remains in the historical archive.
+
+## Portal finance scope before bounds
+
+Exact active grants now filter agreements before the result limit, so newer sibling records cannot hide an authorized agreement. The extended existing regression fails on the old query and passes on the fix. Evidence and remaining window/snapshot limits: `portalFinanceScopeBeforeBound20261021` in [status.json](status.json).
+
+## Attributable time edits and approved corrections
+
+Draft and returned entries can now be revised from Angular after exact review, without submitting or approving them. Approved corrections supersede the original and create a separate draft. Immutable actor-owned receipts preserve before/after values, reasons and revisions; uncertain outcomes use authorized receipt lookup and explicit replay of the same request. Existing rate, mapping, invoice-reservation, scope and independent-review controls remain enforced. Legacy records are not assigned invented historical actors.
+
+Focused Domain/API/Angular and real browser evidence passes, including a deliberately lost committed response. Built-in inspection confirmed retained history and keyboard focus with no captured browser warnings/errors. Exact checks and limitations are under `timeEntryChanges20261021` in [status.json](status.json). Migration was exercised only in disposable test databases; no deployment, full current-commit release or human screen-reader approval is claimed.
+
+## Release E2E failure triage
+
+The accounting revocation journey now handles the expected removal of refresh actions during session revocation, then still requires the denial screen and removal of protected content. Its focused browser regression passes. The finding lost-committed test now proves the forwarded server command succeeded before receipt recovery; its previously failing case passes. The old CI log cannot prove the exact race, and product conflict/authorization guards remain intact. The subsequent full release run failed three different browser observations: two account labels are row headers, and a paged evidence response body was read after navigation. Semantic row-header locators and the existing response-capture helper preserve the assertions; all three focused cases now pass. A fresh full run on the committed fixes is still required. Exact evidence and scope are under `releaseFailureTriage20261021` in [status.json](status.json). No full local suites or external changes were performed.

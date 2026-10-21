@@ -396,56 +396,9 @@
     "asPm8Atomic": {
       "sourceCommit": "6e4d8682fa4886223422990f010f6d40e8729fe6",
       "result": "PARTIAL",
-      "matrix": [
-        [
-          "01",
-          "01\u201303",
-          "PASS",
-          "DueTodaySummaryCountsTheCompleteAuthorizedPopulationRatherThanTheLoadedPage;DateViewsUseTheUtcCalendarDateAndSummaryStaysScopedDeniedAndReadOnly"
-        ],
-        [
-          "02",
-          "04\u201306",
-          "PASS",
-          "PracticeTimeTests.TimeWorkflow_RequiresReview_UsesIntegerMinutes_AndRejectsOverlap;PracticeTimeStartMinuteApiTests.RefusalsSessionCsrfAndIndependentApprovalKeepTheirExistingBehavior;AngularPracticeProductivityJourneyTests.DashboardAndForegroundTimerAreReadOnlyUntilEachDraftIsExplicitlySaved"
-        ],
-        [
-          "03",
-          "07\u201308",
-          "PASS",
-          "PortalWorkspaceReturnsParticipantScopedClarificationAndCurrentEligibility;PortalActionEligibilityFailsClosedForReviewStatesAndUploadRouteStillRequiresFirstSignIn"
-        ],
-        [
-          "04",
-          "09\u201311",
-          "PASS",
-          "SevenSourcesUseStableRankAndIdPagingSnapshotAndReadOnlyProjection;InvalidRequestsAndNonManagerScopesFailClosedWithStableMessages"
-        ],
-        [
-          "05",
-          "12\u201314",
-          "PASS",
-          "TaskDatesIncludeOnlyYesterdayTodayAndSevenDaysForActiveTasks;FrozenSuppressesRemindersButPastScheduledFreezeDoesNotAndReadsCreateNoWrites"
-        ],
-        [
-          "06",
-          "15\u201316",
-          "PASS",
-          "AnnualMilestonesUseCurrentSourceRevisionAndStayRestrictedWithoutBlockingReviewedCreation;ChangedOrForeignAnnualReferenceFailsWithoutPublishingANewShell"
-        ],
-        [
-          "07",
-          "17\u201319",
-          "PASS",
-          "StandardValuesNormalizeEachEntryAndKeepCurrencyAndFeeBasisSubtotalsSeparate;CrossClientBillingParentFailsTheWholeReportAndClientScopedFinanceIsDenied"
-        ],
-        [
-          "08",
-          "20\u201325",
-          "PASS",
-          "PortalLogoChangesAreAppendOnlyVersionedAndKeepExactBytesAcrossProfileEdits;PortalLogoValidationAndNonFirmWideRolesFailWithoutWritingProfiles"
-        ]
-      ],
+      "matrix": {
+        "archive": "status-archive-2026-10.json#keys.targetedVerification.asPm8AtomicMatrixBeforePortalActivity20261021"
+      },
       "matrixCommit": "sourceCommit",
       "currentFollowUp": {
         "historicalEvidence": "Moved verbatim to docs/execution/status-archive-2026-10.json under keys.targetedVerification.asPm8AtomicCurrentFollowUp20261017. Current result remains PARTIAL; see latestReleaseVerification."
@@ -1231,20 +1184,30 @@
       "source": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
       "fullCi": {
         "run": "39547674202",
-        "status": "QUEUED",
+        "status": "IN_PROGRESS",
         "sourceCommit": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39547674202"
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39547674202",
+        "observed": "Angular, Domain and build/contracts/publication PASS; API and E2E still running at observation. Pinned6b72b18d, not current activity/consolidation source."
       },
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.timeEntryChanges20261021",
       "limits": "No full local suites, deployment or persistent database migration. Human screen-reader/professional/provider acceptance and full current-commit CI remain pending."
     },
     "portalFinanceScopeBeforeBound20261021": {
       "status": "PASS_FOCUSED",
-      "source": "Working source based on c6461d38; implementation commit follows.",
-      "behavior": "Exact active client-wide or matching engagement grant is applied in SQL before the50agreement bound; CreatedAt/ID ordering is deterministic. No broader access or APIshape change.",
-      "evidence": "Existing CommercialWorkflowTests.PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope extended with51newer sibling agreements. Valid unchanged-query baseline FAIL: authorized agreement absent. Fixed source PASS1/1; existing wide/narrow/internal-artifact/identity-denial checks retained. Initial fixture invalid empty deliverable corrected before meaningful baseline.",
-      "trx": "tests/AuditSphereOps.Domain.Tests/TestResults/portal-finance-scope-fixed-20261021.trx",
-      "limits": "No full local suites or browser rerun for this server-only query fix. Existing50authorizedagreement window and broader finance snapshot/paging acceptance are unchanged and remain open."
+      "source": "d2851e0e16841978f60282349531346bf06bc094",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalFinanceScopeBeforeBound20261021"
+    },
+    "portalActivity20261021": {
+      "status": "PASS_FOCUSED_NOT_FULL_RELEASE",
+      "source": "2d5895391e8c4d2131a60d48f73457bb4cc7412e",
+      "verification": "Three unique focused Domain cases pass across aggregate/scope and receipt-account cohorts; Angular10/10; real browser1/1 and built-in inspection; builds/lint/OpenAPI PASS. No full current-source release.",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalActivity20261021",
+      "limits": "Cutoff is live continuation, not durable historical snapshot. Fixed25events/page and bounded authority discovery fail closed. Human AT, complete role/state/source coverage, full current-source release and live/professional acceptance remain open. No migrations/deployment/provider effects."
+    },
+    "consolidationWorkspaceSnapshot20261021": {
+      "status": "PASS_FOCUSED",
+      "sourceCommit": "a87717ee",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.consolidationWorkspaceSnapshot20261021"
     }
   },
   "externalGates": [
