@@ -2619,6 +2619,38 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(ErrorCodes.ScopeDenied, mismatched.ErrorCode);
     Assert.Null(mismatched.Value);
 
+    // Newer sibling agreements must not consume the bounded result window before the exact engagement grant is applied.
+    var siblingDecoys = Enumerable.Range(1, 51).Select(index =>
+    {
+      var proposalId = Guid.CreateVersion7();
+      var createdAt = DateTimeOffset.UtcNow.AddMinutes(10).AddSeconds(index);
+      return (
+        Proposal: new Proposal
+        {
+          Id = proposalId, FirmId = w.FirmId, OpportunityId = opportunityB.Value, PracticeClientId = clientId,
+          Revision = index + 1, Status = CrmStates.ProposalSuperseded, ServiceProfileId = "SYNTHETIC-OVERFLOW",
+          Scope = "Synthetic scope", Exclusions = "None for this synthetic overflow fixture.",
+          Deliverables = "Synthetic overflow fixture deliverable.", Dependencies = "None for this synthetic overflow fixture.", Fee = 30000m,
+          Currency = "QAR", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = createdAt
+        },
+        Agreement: new EngagementFeeAgreement
+        {
+          Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProposalId = proposalId,
+          QuotationVersionId = Guid.CreateVersion7(), PracticeClientId = clientId, EngagementId = engagementB,
+          Currency = "QAR", AgreedFee = 30000m, AdvancePercent = 50m,
+          CreatedByUserId = w.PartnerUser.Id, CreatedAt = createdAt
+        });
+    }).ToArray();
+    db.Proposals.AddRange(siblingDecoys.Select(x => x.Proposal));
+    db.EngagementFeeAgreements.AddRange(siblingDecoys.Select(x => x.Agreement));
+    await db.SaveChangesAsync();
+
+    var scopedFinanceAfterSiblingOverflow = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor);
+    Assert.True(scopedFinanceAfterSiblingOverflow.Succeeded, scopedFinanceAfterSiblingOverflow.Message);
+    var stillScopedAgreement = Assert.Single(scopedFinanceAfterSiblingOverflow.Value!.Agreements);
+    Assert.Equal(agreementA.Value, stillScopedAgreement.AgreementId);
+    Assert.Equal(engagementA, stillScopedAgreement.EngagementId);
+
     // A null-client ClientUser grant is not a firm-wide fallback.
     Assert.Equal(ErrorCodes.ScopeDenied, (await CommercialDocumentService.GetAsync(db, nullClientActor, receiptA.Id)).ErrorCode);
     Assert.Empty((await ClientPortalFinanceQuery.GetAsync(db, nullClientActor)).Value!.Agreements);

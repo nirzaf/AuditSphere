@@ -19293,6 +19293,27 @@
               "scope": "Focused three failed cases only, current working source; full release rerun deferred until committed."
             }
           }
+        },
+        "timeEntryChanges20261021": {
+          "status": "PASS_FOCUSED_NOT_FULL_RELEASE",
+          "source": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
+          "behavior": "Draft/returned edits preserve review state; approved corrections create a new draft. Immutable actor-owned receipts support exact-request replay, authorized recovery and bounded history. Rates, FSLI and billing guards remain enforced.",
+          "verification": {
+            "solutionReleaseBuild": "PASS 0 warnings/errors; no tests executed by build",
+            "domain": "Four unique focused cases pass across initial 3/4 and failed-case rerun 1/1; downgrade SQLSTATE fixed to55000, assertion retained.",
+            "api": "PASS1/1 PracticeTimeStartMinuteApiTests.ReturnedEditsAndApprovedCorrectionsRetainActorOwnedRecoverableHistory",
+            "angular": "PASS17/17 time-tracker-ui.spec.ts; asynchronous read settling and real HTTP403 fixture corrected without removing assertions.",
+            "browser": "PASS1/1 SeparateAdministratorApprovesSteRateAndMappedTaskPinsItToBillableTime; real committed POST response aborted then recovered by actor-owned receipt without another POST.",
+            "builtInBrowser": "Owned synthetic fixture: two before/after receipts, actor/reason/UTC, superseded45m and separate draft35m, keyboard Close control; no captured warning/error logs. Screenshot /tmp/auditsphere-time-change-history-20261021.png. Fixture released.",
+            "other": "Angular build PASS with unrelated existing diagnostics/budget warning; implementation lint, EF model drift and OpenAPI PASS."
+          },
+          "limits": "No full local suites, deployment or persistent database migration. Human screen-reader/professional/provider acceptance and full current-commit CI remain pending.",
+          "fullCi": {
+            "run": "39547674202",
+            "status": "QUEUED",
+            "sourceCommit": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39547674202"
+          }
         }
       }
     },

@@ -76,17 +76,17 @@ public static class ClientPortalFinanceQuery
       return CommandResult<PortalClientFinanceView>.Ok(new(asOfDateUtc, []));
 
     var clientIds = grants.Select(x => x.ClientId).Distinct().ToList();
-    var clientWide = grants.Where(x => x.EngagementId == null).Select(x => x.ClientId).ToHashSet();
-    var engagementScoped = grants.Where(x => x.EngagementId != null)
-      .Select(x => (x.ClientId, EngagementId: x.EngagementId!.Value)).ToHashSet();
-
+    // Apply exact authorization before the result bound: newer sibling agreements must not
+    // consume this user's window or hide an older agreement in their authorized engagement.
     var agreements = await db.EngagementFeeAgreements.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.PracticeClientId))
-      .OrderByDescending(x => x.CreatedAt)
+      .Where(x => x.FirmId == actor.FirmId && clientIds.Contains(x.PracticeClientId) &&
+        db.RoleGrants.Any(grant => grant.FirmId == actor.FirmId && grant.UserId == actor.UserId &&
+          grant.Role == "ClientUser" && grant.ClientId == x.PracticeClientId && grant.RevokedAt == null &&
+          (grant.ExpiresAt == null || grant.ExpiresAt > now) &&
+          (grant.EngagementId == null || grant.EngagementId == x.EngagementId)))
+      .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
       .Take(50)
       .ToListAsync(ct);
-    agreements = agreements.Where(x => clientWide.Contains(x.PracticeClientId) ||
-      (x.EngagementId.HasValue && engagementScoped.Contains((x.PracticeClientId, x.EngagementId.Value)))).ToList();
 
     var agreementViews = new List<PortalClientFinanceAgreement>();
 

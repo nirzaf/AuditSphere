@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Portal finance scope before bounds
+
+Exact active grants now filter agreements before the result limit, so newer sibling records cannot hide an authorized agreement. The extended existing regression fails on the old query and passes on the fix. Evidence and remaining window/snapshot limits: `portalFinanceScopeBeforeBound20261021` in [status.json](status.json).
+
 ## Attributable time edits and approved corrections
 
 Draft and returned entries can now be revised from Angular after exact review, without submitting or approving them. Approved corrections supersede the original and create a separate draft. Immutable actor-owned receipts preserve before/after values, reasons and revisions; uncertain outcomes use authorized receipt lookup and explicit replay of the same request. Existing rate, mapping, invoice-reservation, scope and independent-review controls remain enforced. Legacy records are not assigned invented historical actors.
