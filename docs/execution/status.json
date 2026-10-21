@@ -1185,12 +1185,10 @@
       "result": "PARTIAL_AGENT_REVIEW",
       "sourceCommit": "7696948247b7b94f2300bf00b55998781289f8b7",
       "humanAssistiveTechnology": "OPEN: human screen-reader review of authenticated staff/client routes; record AT/browser and findings.",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021",
-      "agentReview": "PARTIAL PASS, bounded code review of the application shell and workspace navigation: skip link/main focus, desktop compact toggle state/name, compact link names, mobile dialog title/close control, route focus and visible focus treatment; no actionable shell finding. This is not a full route-by-route accessibility audit or a screen-reader acceptance.",
-      "localLint": "npm --prefix src/AuditSphereOps.Ui run lint — PASS, all files pass.",
-      "solutionBuild": "dotnet build AuditSphereOps.slnx --no-restore -c Release -m:1 -nr:false -p:BuildInParallel=false -p:UseSharedCompilation=false — PASS, 0 warnings/0 errors on sourceCommit.",
-      "browser": "NOT VERIFIED: no app listener at :4304/:5029; built-in browser reported connection refused. No authenticated staff/client UI interaction was exercised.",
-      "ci": "Release verification run 39656428878 on sourceCommit: Angular/full specs PASS; contracts/publication PASS; unfiltered Domain PASS; API and Playwright E2E still IN_PROGRESS at last check."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReviewCurrentSource20261021",
+      "agentReview": "PASS, bounded shell/navigation review: skip/main focus, nav names/state, dialog, route focus, visible focus; no shell finding. Route-wide and human AT acceptance remain open.",
+      "browser": "NOT VERIFIED: local app ports :4304/:5029 refused; no authenticated route exercised.",
+      "ci": "Run 39656428878 @769: Angular, contracts/publication, Domain PASS; API/E2E IN_PROGRESS at last check."
     },
     "purchaseCommandRecovery20261021": "Archived: status-archive-2026-10.json#keys.targetedVerification.purchaseCommandRecovery20261021",
     "apiAngularParityFocused20261021": {
