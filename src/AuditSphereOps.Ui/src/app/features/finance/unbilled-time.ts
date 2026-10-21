@@ -1,8 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api } from '../../core/api';
+import { SessionService } from '../../core/session';
 import { arr, bool, date, dec, guid, instant, int, nullable, obj, oneOf, str, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 
@@ -201,6 +202,8 @@ function validOptionalGuid(value: string): boolean {
 })
 export class FirmUnbilledTime {
   private readonly api = inject(Api);
+  private readonly session = inject(SessionService);
+  private destroyed = false;
   private requestGeneration = 0;
   private readonly dates = defaultDates();
   readonly from = signal(this.dates.from);
@@ -220,6 +223,23 @@ export class FirmUnbilledTime {
     { bucket: 'REVIEW_REQUIRED', label: 'Review required' },
   ] as const;
   readonly unavailableValueMessage = unavailableValueMessage;
+
+  constructor() {
+    let generation = this.session.invalidation();
+    let identity = this.session.current();
+    effect(() => {
+      const nextGeneration = this.session.invalidation();
+      const nextIdentity = this.session.current();
+      if (generation === nextGeneration && identity === nextIdentity) return;
+      generation = nextGeneration;
+      identity = nextIdentity;
+      untracked(() => this.filtersChanged());
+    });
+    inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
+      this.filtersChanged();
+    });
+  }
 
   changeFrom(value: string): void { this.from.set(value); this.filtersChanged(); }
   changeTo(value: string): void { this.to.set(value); this.filtersChanged(); }
@@ -269,6 +289,9 @@ export class FirmUnbilledTime {
   }
 
   private async load(targetPage: number): Promise<void> {
+    if (this.destroyed) return;
+    const sessionGeneration = this.session.invalidation();
+    const identity = this.session.current();
     const from = this.from();
     const to = this.to();
     const clientId = this.clientId();
@@ -277,6 +300,8 @@ export class FirmUnbilledTime {
     const validPageSize = this.pageSizes.some(size => size === pageSize);
     this.requestGeneration++;
     const generation = this.requestGeneration;
+    const isCurrent = () => !this.destroyed && generation === this.requestGeneration &&
+      sessionGeneration === this.session.invalidation() && identity === this.session.current();
     this.report.set(null);
     this.error.set('');
     if (!validRange(from, to) || !validOptionalGuid(clientId) || !validOptionalGuid(engagementId) ||
@@ -292,16 +317,16 @@ export class FirmUnbilledTime {
     this.loading.set(true);
     try {
       const result = await this.api.get(`/api/ui/finance/unbilled-time?${query.toString()}`, decodeFirmUnbilledTime);
-      if (generation !== this.requestGeneration) return;
+      if (!isCurrent()) return;
       if (result.from !== from || result.to !== to || result.page !== targetPage || result.pageSize !== pageSize)
         throw new Error('Unsupported response.');
       this.page.set(targetPage);
       this.report.set(result);
     } catch (error) {
-      if (generation !== this.requestGeneration) return;
+      if (!isCurrent()) return;
       this.error.set(error instanceof Error && error.message ? error.message : 'Temporarily unavailable. Retry shortly.');
     } finally {
-      if (generation === this.requestGeneration) this.loading.set(false);
+      if (isCurrent()) this.loading.set(false);
     }
   }
 }

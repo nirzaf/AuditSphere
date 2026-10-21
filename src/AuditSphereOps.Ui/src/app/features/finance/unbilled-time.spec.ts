@@ -170,6 +170,43 @@ describe('Firm unbilled time workbench', () => {
     fixture.destroy();
   });
 
+  it('clears retained finance amounts when the session is invalidated and ignores pending completions after destruction', async () => {
+    const fixture = TestBed.createComponent(FirmUnbilledTime);
+    const http = TestBed.inject(HttpTestingController);
+    const session = TestBed.inject(SessionService);
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    component.changeFrom('2026-04-15'); component.changeTo('2026-04-15');
+    const first = component.apply();
+    http.expectOne(candidate => candidate.url.startsWith(unbilledTimePath)).flush(payload());
+    await first; await fixture.whenStable();
+    expect(component.report()?.rows[0].standardValue).toBe('3.333333');
+    session.current.set({ userId: invoiceId, firmId: id, generation: '1', staff: true });
+    await fixture.whenStable();
+    expect(component.report()).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Synthetic client');
+    expect(component.loading()).toBe(false);
+    http.expectNone(candidate => candidate.url.startsWith(unbilledTimePath));
+
+    session.current.set({ userId: id, firmId: id, generation: '1', staff: true });
+    await fixture.whenStable();
+    const oldSession = component.apply();
+    const oldRequest = http.expectOne(candidate => candidate.url.startsWith(unbilledTimePath));
+    session.clear(); await fixture.whenStable();
+    oldRequest.flush(payload()); await oldSession;
+    expect(component.report()).toBeNull();
+    expect(component.error()).toBe('');
+    session.current.set({ userId: invoiceId, firmId: id, generation: '2', staff: true });
+    await fixture.whenStable();
+    const pending = component.apply();
+    const request = http.expectOne(candidate => candidate.url.startsWith(unbilledTimePath));
+    fixture.destroy();
+    request.flush(payload()); await pending;
+    expect(component.report()).toBeNull();
+    expect(component.loading()).toBe(false);
+    expect(component.error()).toBe('');
+  });
+
   it('rejects invalid filters and mismatched echoed queries without retaining amounts or accepting late responses', async () => {
     const fixture = TestBed.createComponent(FirmUnbilledTime);
     const http = TestBed.inject(HttpTestingController);
