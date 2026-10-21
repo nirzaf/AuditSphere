@@ -637,15 +637,26 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     Assert.DoesNotContain("100.123456", await journalPage.Locator("body").InnerTextAsync());
     Assert.DoesNotContain("Exact journal context", await journalPage.Locator("body").InnerTextAsync());
 
-    await queuePage.GetByRole(AriaRole.Button, new() { Name = "Refresh queue", Exact = true }).ClickAsync();
-    await queuePage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
-      .WaitForAsync(new() { Timeout = 15000 });
+    await RefreshOrObserveRevocationAsync(queuePage);
     Assert.DoesNotContain("AJ-SYN", await queuePage.Locator("body").InnerTextAsync());
 
-    await reviewQueuePage.GetByRole(AriaRole.Button, new() { Name = "Refresh queue", Exact = true }).ClickAsync();
-    await reviewQueuePage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })
-      .WaitForAsync(new() { Timeout = 15000 });
+    await RefreshOrObserveRevocationAsync(reviewQueuePage);
     Assert.DoesNotContain(packageId.ToString("D"), await reviewQueuePage.Locator("body").InnerTextAsync());
+
+    static async Task RefreshOrObserveRevocationAsync(IPage target)
+    {
+      var unavailable = target.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true });
+      var refresh = target.GetByRole(AriaRole.Button, new() { Name = "Refresh queue", Exact = true });
+      if (!await unavailable.IsVisibleAsync() && await refresh.IsVisibleAsync())
+      {
+        try { await refresh.ClickAsync(new() { Timeout = 5000 }); }
+        catch (PlaywrightException)
+        {
+          // Session revocation may remove the action during dispatch. Denial must still appear below.
+        }
+      }
+      await unavailable.WaitForAsync(new() { Timeout = 15000 });
+    }
     Assert.Empty(diagnostics);
   }
 
