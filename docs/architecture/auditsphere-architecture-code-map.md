@@ -18,6 +18,14 @@ capability; public APIs are stable across parts. Verified project state lives on
 - **Presentation:** `src/AuditSphereOps.Ui/src/app/` owns the Angular staff and client-portal routes and workspaces. Angular calls the same-origin API; it does not own authorization or business-state authority.
 - **Historical screen references:** old Blazor screen names below are retained only to trace the pre-removal implementation at `c3905e07`. They are not current files, route owners, rollback hosts, or proof that a current Angular workspace has matching behavior. Where current API/Angular files are listed, those paths identify current implementation locations without asserting feature parity.
 
+## Time revision and correction evidence
+
+- `Application/Practice/PracticeTimeService.TimeChanges.cs`: locked, authorized draft/returned edits and approved correction into a new draft; actor-owned exact-request replay. Existing submit/review and billing guards remain authoritative.
+- `Application/Practice/PracticeTimeChangeQuery.cs`: bounded retained history and actor-owned receipt recovery, snapshot reads with current-scope rechecks; public values exclude private cost/rate data.
+- `Domain/Practice/TimeEntryChangeReceipt.cs` and `Infrastructure/Persistence/AuditSphereDbContext.TimeEntryChanges.cs`: immutable before/after snapshots, request/revision identity and same-firm constraints. Migration `TimeEntryChangeReceipts` adds publication/append-only guards without historical actor backfill.
+- `Api/Ui/UiEndpoints.TimeChanges.cs`; Angular `features/practice/time-entry-change.ts`, integrated by `time.ts`: exact review, explicit unknown-outcome lookup/retry, retained history and keyboard focus.
+- Focused tests live in existing `PracticeTimeTests`, `BillingTests`, `PracticeTimeStartMinuteApiTests`, `time-tracker-ui.spec.ts` and `AngularPracticeTimeScopeParityJourneyTests`. Observed verification and separate release gates remain in `docs/execution/status.json`.
+
 ## Reviewed accounting period maintenance
 
 - `Application/Accounting/PeriodMaintenanceWorkspace.cs` and its contracts: scoped context/state, exact preview and actor-owned receipt lookup.
