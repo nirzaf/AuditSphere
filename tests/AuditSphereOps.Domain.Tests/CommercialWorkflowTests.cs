@@ -89,6 +89,130 @@ public sealed class CommercialWorkflowTests
     return (lead.Value, opportunity.Value, proposal.Value);
   }
 
+  private sealed class PauseFirstProposalRead : DbCommandInterceptor
+  {
+    private int paused;
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("proposals", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref paused, 1, 0) == 0)
+      {
+        Reached.TrySetResult(true);
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
+
+  [Fact]
+  public async Task ProposalWorkspaceKeepsResponseReadInOneSnapshotAndRechecksCurrentAuthority()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var draft = await DraftProposalAsync(pg, w);
+    string offerSha;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.True((await PracticeCrmService.ApproveProposalAsync(setup, w.Partner, draft.ProposalId)).Succeeded);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(setup, w.Prep, draft.ProposalId);
+      Assert.True((await PracticeCrmService.SendProposalAsync(setup, w.Prep, draft.ProposalId)).Succeeded);
+      offerSha = (await setup.Proposals.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.Id == draft.ProposalId)).SentOfferSha256!;
+      Assert.False(string.IsNullOrWhiteSpace(offerSha));
+    }
+
+    var pause = new PauseFirstProposalRead();
+    await using var delayed = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options);
+    await using var acceptance = new AuditSphereDbContext(pg.Options);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+    try
+    {
+      var pendingRead = CommercialWorkspaceQuery.ProposalAsync(delayed, w.Prep, draft.ProposalId, timeout.Token);
+      await pause.Reached.Task.WaitAsync(timeout.Token);
+
+      // Record a real immutable acceptance on an independent context between the proposal and response-record reads.
+      var accepted = await PracticeCrmService.RecordProposalResponseAsync(acceptance, w.Prep, draft.ProposalId,
+        new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter",
+          Channel: ProposalResponseChannels.Email), timeout.Token);
+      Assert.True(accepted.Succeeded, accepted.Message);
+      var receipt = await acceptance.ProposalResponseRecords.AsNoTracking()
+        .SingleAsync(x => x.FirmId == w.FirmId && x.ProposalId == draft.ProposalId, timeout.Token);
+      Assert.Equal(offerSha, receipt.OfferSha256);
+      var writerResponseAt = await acceptance.Proposals.AsNoTracking()
+        .Where(x => x.FirmId == w.FirmId && x.Id == draft.ProposalId)
+        .Select(x => x.ResponseAt).SingleAsync(timeout.Token);
+      Assert.Equal(receipt.RecordedAt, writerResponseAt);
+
+      pause.Release.TrySetResult(true);
+      var oldSnapshot = await pendingRead;
+      Assert.True(oldSnapshot.Succeeded, oldSnapshot.Message);
+      Assert.Equal(CrmStates.ProposalSent, oldSnapshot.Value!.Status);
+      Assert.Equal(offerSha, oldSnapshot.Value.SentOfferSha256);
+      Assert.Equal(CrmStates.ProposalSent, Assert.Single(oldSnapshot.Value.Versions).Status);
+      Assert.Null(oldSnapshot.Value.ResponseAt);
+      Assert.Null(oldSnapshot.Value.ResponseOfferSha256);
+      Assert.Null(oldSnapshot.Value.RespondentName);
+      Assert.Null(oldSnapshot.Value.RespondentEmail);
+      Assert.Null(oldSnapshot.Value.ResponseEvidenceReference);
+      Assert.Null(oldSnapshot.Value.ResponseChannel);
+      Assert.Null(oldSnapshot.Value.ResponseRecordedByName);
+
+      await using var fresh = new AuditSphereDbContext(pg.Options);
+      var current = await CommercialWorkspaceQuery.ProposalAsync(fresh, w.Prep, draft.ProposalId, timeout.Token);
+      Assert.True(current.Succeeded, current.Message);
+      Assert.Equal(CrmStates.ProposalAccepted, current.Value!.Status);
+      Assert.Equal(offerSha, current.Value.ResponseOfferSha256);
+      Assert.Equal(receipt.RecordedAt, current.Value.ResponseAt);
+      Assert.Equal("A. Owner", current.Value.RespondentName);
+      Assert.Equal("owner@gulf.example.test", current.Value.RespondentEmail);
+      Assert.Equal("Signed acceptance letter", current.Value.ResponseEvidenceReference);
+      Assert.Equal(ProposalResponseChannels.Email, current.Value.ResponseChannel);
+
+      await using var callerTransactionDb = new AuditSphereDbContext(pg.Options);
+      await using var callerTransaction = await callerTransactionDb.Database.BeginTransactionAsync(timeout.Token);
+      var rejectedTransactionRead = await CommercialWorkspaceQuery.ProposalAsync(
+        callerTransactionDb, w.Prep, draft.ProposalId, timeout.Token);
+      Assert.False(rejectedTransactionRead.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, rejectedTransactionRead.ErrorCode);
+      Assert.NotNull(callerTransactionDb.Database.CurrentTransaction);
+      Assert.Equal(1, await callerTransactionDb.Database.SqlQueryRaw<int>("SELECT 1 AS \"Value\"")
+        .SingleAsync(timeout.Token));
+      await callerTransaction.CommitAsync(timeout.Token);
+    }
+    finally
+    {
+      pause.Release.TrySetResult(true);
+    }
+
+    // A grant revoked after the first row read must be visible to the final authorization check.
+    var authorityPause = new PauseFirstProposalRead();
+    await using var authorityReader = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(authorityPause).Options);
+    await using var grantWriter = new AuditSphereDbContext(pg.Options);
+    try
+    {
+      var pendingRead = CommercialWorkspaceQuery.ProposalAsync(authorityReader, w.Prep, draft.ProposalId, timeout.Token);
+      await authorityPause.Reached.Task.WaitAsync(timeout.Token);
+      var revoked = await grantWriter.RoleGrants.Where(x => x.FirmId == w.FirmId && x.UserId == w.Prep.UserId &&
+          x.Role == "RelationshipManager" && x.RevokedAt == null)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+      Assert.Equal(1, revoked);
+      authorityPause.Release.TrySetResult(true);
+      var refused = await pendingRead;
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, refused.ErrorCode);
+      Assert.Null(refused.Value);
+    }
+    finally
+    {
+      authorityPause.Release.TrySetResult(true);
+    }
+  }
+
   [Fact]
   public async Task AngularCommercialSettingsRespectEditAuthorityAndReviewedRevisions()
   {
