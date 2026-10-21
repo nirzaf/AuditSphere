@@ -1012,6 +1012,16 @@ public sealed class CommercialWorkflowTests
     var (_, _, proposalId) = await DraftProposalAsync(pg, w);
     await using var db = new AuditSphereDbContext(pg.Options);
 
+    var privateStaffCostRateId = Guid.CreateVersion7();
+    const decimal privateStaffCost = 1234.56m;
+    db.StaffCostRates.Add(new StaffCostRate
+    {
+      Id = privateStaffCostRateId, FirmId = w.FirmId, UserId = w.Partner.UserId,
+      HourlyCost = privateStaffCost, Currency = "QAR", EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow),
+      RecordedByUserId = w.Manager.UserId, RecordedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+
     var quote = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId, complexity: 1.2m, risk: 10m));
     var blocked = await CommercialDocumentService.GenerateBriefQuotationAsync(db, w.Prep, proposalId);
     Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode); // not approved yet
@@ -1089,6 +1099,12 @@ public sealed class CommercialWorkflowTests
     Assert.Contains("Complexity factor × 1.2", quoteText);
     Assert.Contains("16,500.00", quoteText);              // 50% advance stated in the payment terms
     Assert.Contains("Gulf Trading LLC (attention A. Owner)", quoteText);
+    Assert.Contains("Statutory audit of the 2026 financial statements", quoteText);
+    Assert.Contains("Period: 2026-01-01 to 2026-12-31", quoteText);
+    Assert.DoesNotContain(privateStaffCost.ToString(CultureInfo.InvariantCulture), quoteText);
+    Assert.DoesNotContain(privateStaffCost.ToString("N2", CultureInfo.InvariantCulture), quoteText);
+    Assert.DoesNotContain(privateStaffCostRateId.ToString(), quoteText);
+    Assert.DoesNotContain(privateStaffCostRateId.ToString("N"), quoteText);
     var letterText = DocxText(letter.Bytes);
     // The offered timeline is rendered into both artifacts, so it is inside the identity the client accepts.
     Assert.Contains("Fieldwork in March 2027; report by 30 April 2027", quoteText);
