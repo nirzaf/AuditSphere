@@ -1195,15 +1195,15 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.releaseFailureTriageEarlierThreeE2eFailures20261021"
     },
     "currentSourceCi20261021": {
-      "sourceCommit": "079a4acc7138b2b212344d2661a6f5a9c04e1dad",
-      "observedAtUtc": "2026-10-21T14:52:46Z",
+      "sourceCommit": "cbb9993dfe2709bb25a082a2a62671b67953bda0",
+      "observedAtUtc": "2026-10-21T14:56:18Z",
       "localBuild": "NOT_RUN: no .NET source changed in this slice.",
       "fastCi": {
-        "run": "39619960630",
-        "status": "IN_PROGRESS",
-        "sourceCommit": "079a4acc7138b2b212344d2661a6f5a9c04e1dad",
-        "observed": "Docs and Angular PASS; .NET Release build in progress.",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39619960630"
+        "run": "39621196241",
+        "status": "PENDING",
+        "sourceCommit": "cbb9993dfe2709bb25a082a2a62671b67953bda0",
+        "observed": "Queued after the focused Angular regression passed 10/10 locally.",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39621196241"
       },
       "fullRelease": {
         "run": "39616864548",
@@ -1222,10 +1222,10 @@
     },
     "accessibilityReview20261021": {
       "result": "PARTIAL_AGENT_REVIEW",
-      "sourceCommit": "15f82382fddee8470fc961ea88516f145e9f3ccc",
+      "sourceCommit": "cbb9993dfe2709bb25a082a2a62671b67953bda0",
       "humanAssistiveTechnology": "OPEN",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021",
-      "agentReview": "Invoice recovery confirmations use role=status; failures use role=alert; focused Angular spec 10/10.",
+      "agentReview": "Recovery confirmations use role=status; failures use role=alert; scope reset clears stale messages; invoice spec 10/10.",
       "browser": "PARTIAL: production staff shell; 0 scoped clients. Tab focused skip link; Enter focused main. Recovery and screen reader not exercised."
     },
     "purchaseCommandRecovery20261021": "Archived: status-archive-2026-10.json#keys.targetedVerification.purchaseCommandRecovery20261021",
