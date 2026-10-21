@@ -14,13 +14,13 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Current master build, release verification and scope audit (2026-10-21)
+## Current master verification and scope (2026-10-21)
 
-At `9b4720d1868893b2305a32b296d28738209baa85`, the serialized .NET Release solution build passed with 0 warnings/errors and fast CI run 39589593208 passed on the exact SHA. Full release verification run 39590664430 is running on that SHA; Angular full specs and build/contracts/publication passed, while unfiltered Domain, API and Playwright/PostgreSQL jobs were still running at the last observation. No full test suite ran locally. Exact volatile evidence is in `currentSourceCi20261021` in [status.json](status.json).
+On `9b4720d1`, the .NET Release build and fast CI passed. Full run `39590664430` has Angular and build/contracts/publication green; Domain/API/E2E remain in progress. No full tests ran locally; exact evidence is in [status.json](status.json).
 
-The agent review approves the inspected shell and navigation semantics only. Earlier built-in-browser shell evidence and the focused accessibility cohort are recorded under `accessibilityReview20261021`; a fresh attempt at the available `127.0.0.1:4304` page returned `ERR_CONNECTION_REFUSED`, so no current rendered workflow was observed. Authenticated staff/client routes and real screen-reader announcements remain unverified. The human assistive-technology gate stays open.
+Agent code review passed for shell/navigation semantics. Earlier browser/accessibility evidence is archived; a fresh `127.0.0.1:4304` attempt was refused. Authenticated routes and human screen-reader review remain open.
 
-Two read-only audits corrected the candidate next slice: reviewed `PBC_DUE` rules already support overdue reviewer escalation as internal tasks. Event-triggered notifications need an approved event, recipient and channel definition. Recurring monthly accounting handover is defined only in proposed practice-management material, not the current STE v2.2 requirements. Do not build those behaviors from the proposal alone; choose the next slice from current requirements and preserve professional/external gates.
+Overdue PBC reviewer escalation is already configured. Event notifications need approved semantics; monthly accounting handover is only PROPOSED, not current implementation authority.
 
 ## Client finance receipt continuation
 
