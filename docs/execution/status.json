@@ -1199,19 +1199,19 @@
     "currentSourceCi20261021": {
       "sourceCommit": "ea7f8f856d93446b3dce828582dfa76cabdfedbd",
       "observedAtUtc": "2026-10-21T14:15:35Z",
-      "localBuild": "PASS: Release solution build; 0 warnings/errors (10.02s).",
+      "localBuild": "PASS: Release 0 warnings/errors (10.02s).",
       "fastCi": {
         "run": "39614032897",
         "status": "PASS",
-        "observed": "Angular build/specs; docs; .NET Release, guards, EF/OpenAPI drift and publication passed on exact SHA.",
+        "observed": "Angular/docs/.NET Release, guards, EF/OpenAPI and publication PASS on exact SHA.",
         "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39614032897"
       },
       "fullRelease": {
-        "run": "39602288744",
+        "run": "39609920710",
         "status": "IN_PROGRESS",
-        "sourceCommit": "752d845576448157ef6e74243bf9dbff09bf118b",
-        "observed": "Older SHA: Domain, Angular and build/contracts/publication PASS; unfiltered API and Playwright E2E remain in progress.",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39602288744"
+        "sourceCommit": "b3f7783256d4e31798516129b95291586dea630c",
+        "observed": "Older SHA: Domain PASS; unfiltered API and Playwright E2E running.",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39609920710"
       },
       "focusTests": {
         "T012": "API route binding 1/1; Angular client relationships 8/8 (API test commit 29b249e6).",
@@ -1236,7 +1236,9 @@
       "T020": "invoice 10/10+1/1",
       "T021": "credit 7/7+1/1",
       "T022": "allocations 7/7+1/1",
-      "T023": "supplier page 26 in T020/T021 specs"
+      "T023": "supplier page 26 in T020/T021 specs",
+      "T017-T018": "Domain2/2; Angular48/48 @ab8f2d84",
+      "T024": "T019+T024 Domain1/1; Angular7/7 @ab8f2d84"
     }
   },
   "externalGates": [

@@ -16,9 +16,11 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Current master verification and scope (2026-10-21)
 
-Current source is `e4dfef25`. The Release solution build and exact-source fast CI passed. The full release workflow is still running against an older SHA; it does not establish full-suite acceptance for current master. Focused parity checks and exact run/source evidence are in [status.json](status.json).
+Current master is `ab8f2d84`, a documentation-only successor to application source `ea7f8f85`. The Release solution build and fast CI passed on that application source. The unfiltered release workflow is still running against an older SHA; it does not establish full-suite acceptance for current master. Focused parity checks and exact run/source evidence are in [status.json](status.json).
 
-The agent source review of the shared shell/navigation found no actionable accessibility issue: skip link, main-region focus, compact-navigation name, mobile dialog focus handling, live alerts, forced colors and reduced motion are implemented. Earlier browser evidence is archived; current local browser ports were unavailable. Authenticated current-source routes and qualified human screen-reader review remain open.
+The current agent accessibility review is limited to purchase-recovery announcement regions: action buttons are outside the status live regions, and the focused Angular specs pass. The local app ports were unavailable, so authenticated browser and screen-reader workflows were not exercised; qualified human assistive-technology review remains open. Earlier shell/navigation source and browser evidence is archived separately.
+
+T017/T018 assignment and sales-credit recovery, plus T019/T024 allocation receipt recovery and controlled unallocation, now have focused Domain and Angular evidence. Exact counts and test sources are in [status.json](status.json). Browser acceptance remains unverified.
 
 Overdue PBC reviewer escalation is already configured. Event notifications need approved semantics; monthly accounting handover is only PROPOSED, not current implementation authority.
 
