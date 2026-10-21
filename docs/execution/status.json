@@ -1226,7 +1226,7 @@
       "sourceCommit": "99b296b8a64a5aa0fe9c4d7f7d8bba0536c0154d",
       "humanAssistiveTechnology": "OPEN",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021",
-      "agentReview": "PARTIAL: shell source/spec review; local ng serve compiled (4 unrelated NG8107 warnings); CI for focus fix pending.",
+      "agentReview": "PARTIAL: shell source/spec review; local ng serve compiled (4 unrelated NG8107 warnings); fast CI 071460aa PASS.",
       "browser": "PARTIAL PASS: 4304; Tab→skip, Enter→main with visible ring, next Tab→Sign in; auth and SR not reviewed."
     }
   },
