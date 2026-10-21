@@ -554,24 +554,8 @@
       "followUp": "The accepted-GL discovery/picker and period-scoped source query remain in place; current CP-11 retry fencing is recorded under cashFlowSourceReviewExpectedPredecessor."
     },
     "cashFlowSourcePersistenceIntegrity": {
-      "recordedAtUtc": "2026-10-17T06:47:41Z",
-      "codeCommit": "fccd7672b0103f8bd79d67f25f8a29d7628f21dd",
       "status": "FOCUSED_REGRESSION_PASS",
-      "domainTests": {
-        "passed": 1,
-        "failed": 0,
-        "name": "CashFlowAllocations_RejectCrossPackageMovementsAndUnrelatedLedgerLinesAtDatabaseBoundary"
-      },
-      "efModelDrift": "PASS: no pending model changes",
-      "documentation": "Markdown, filename and narrative-metrics validators passed before this status update; diff check passed.",
-      "migration": "20261017063003_CashFlowSourceScopeConstraints and 20261017063957_CashFlowAllocationMembershipSeal generated; not applied to a persistent database.",
-      "scope": "Composite database constraints bind cash allocations and reviews to scoped source rows; append-only package-membership seals prevent late allocation inserts. Legacy creator FK is NOT VALID so immutable unattributed rows are not fabricated.",
-      "notRun": [
-        "Full suites are deferred to CI/CD.",
-        "No persistent database migration or live-provider check."
-      ],
-      "uiRecoveryCodeCommit": "61d6630895235789ff4c6622eb09c250f5791aa2",
-      "uiRecoverySpec": "package.spec.ts: 13 passed, including no dispatch without session storage and stale-refusal recovery failure blocks repeat; Angular production build PASS with existing commercial/settings.scss budget warning."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cashFlowSourcePersistenceIntegrity"
     },
     "cp10OpeningBridgeCloseGate": {
       "recordedAtUtc": "2026-10-17T07:23:32Z",
@@ -1225,16 +1209,24 @@
         "sourceCommit": "a83cbebc0c8e88fd7eb27ecc6c6adb33db1f347a",
         "run": "39533076423",
         "status": "IN_PROGRESS",
-        "observed": "Resolve, full Angular and build/contracts/publication PASS; Domain/API/E2E IN_PROGRESS. Initial39532980048 failed checkout because abbreviated ref was treated as branch/tag; no application checks ran. Resubmitted only after terminal failure, using full SHA."
+        "observed": "Resolve, full Angular, Domain and build/contracts/publication PASS; API/E2E IN_PROGRESS. This pinned source predates the later task-assignment test and fieldwork-link slice. Initial39532980048 failed checkout on abbreviated ref; resubmitted after terminal failure with full SHA."
       }
     },
     "workflowTemplateAssignment20261021": {
       "status": "PASS_LOCAL_SLICE",
-      "sourceCommit": "ef39fc9bbe3ab815380bfb4869ca070f94d5e6b4",
-      "checks": "Existing PublishedTemplatePinsRequiredAndOptionalTasksAcrossQueueLayouts PASS1/1,28s. Generated unassigned task assigned via reviewed engagement UI; refreshed task and authenticated staff MyTasks carry exact task/owner GUID. Existing template lineage, required/optional/manual distinctions, three queue layouts and320px assertions retained. Independent static review: no findings.",
-      "browser": "Built-in owned fixture confirmed accessible combobox name New owner. Exact label-text locator matched0 due nested option text; role/name matched1. Two intermediate locator failures retained; corrected semantic role locator. No product changes. Fixture released/tab closed.",
-      "artifact": "tests/AuditSphereOps.E2E.Tests/TestResults/workflow-template-assignment-final-20261021.trx",
-      "limits": "ASPM-UAT-05 partial: review/return/rework and broader denials remain. No full local suite, human AT approval or live effects."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.workflowTemplateAssignment20261021"
+    },
+    "procedureReworkHandoff20261021": {
+      "status": "PASS_LOCAL_SLICE",
+      "sourceCommit": "32697985cec2f7b3a81873631f0c5de855f27a7a",
+      "behavior": "Known CHANGES_REQUIRED/UNDER_REVIEW task rows expose Open fieldwork to their server-projected engagement in list/shared cards. No procedure inferred from sourceKey; explicit selection and existing fieldwork authorization/holds remain. No API/schema/dependency change.",
+      "checks": "Affected queue spec32/32, Angular build/lint PASS (existing warnings). Existing source-backed procedure browser journey PASS1/1,125s: independent return creates task assigned to original preparer; exact task/owner/comment in correction queue; keyboard link opens exact engagement; explicit procedure selection and corrected UI resubmission retain frozen source/receipt lineage. Existing repeated-correction assertions retained. Independent review: no material findings.",
+      "browser": "Built-in owned fixture verified card source/comment/link, Enter navigation and current review blockers at destination; console0 warnings/errors. Tab closed/fixture released.",
+      "artifacts": [
+        "tests/AuditSphereOps.E2E.Tests/TestResults/procedure-rework-handoff-20261021.trx",
+        "/tmp/auditsphere-rework-fieldwork-handoff-20261021.png"
+      ],
+      "limits": "Synthetic receipt/provider flow is not live Microsoft acceptance. No full local suites, professional approval or human AT acceptance. Template/assignment and correction paths are distinct journeys; broader denials/full current-source release remain open."
     }
   },
   "externalGates": [

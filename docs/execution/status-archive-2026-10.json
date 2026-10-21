@@ -19128,6 +19128,34 @@
             "/tmp/auditsphere-annual-context-green-final-20261021.log"
           ],
           "limits": "Earlier browser return cohort FAIL1/2 exposed empty dropdown despite retained v2; fixed option selection, final2/2 PASS. Built-in320px inspection proved retained fields/quarantine and disabled review; return completion established by Playwright. No full local suite/live effects. Human AT/professional/current-source full acceptance open. Full release39518012940 on68f7c7dc failed two E2E cases; Domain/API/Angular/contracts PASS. Fast39529105234 onf0cab7b7 PASS; newer source CI pending."
+        },
+        "workflowTemplateAssignment20261021": {
+          "status": "PASS_LOCAL_SLICE",
+          "sourceCommit": "ef39fc9bbe3ab815380bfb4869ca070f94d5e6b4",
+          "checks": "Existing PublishedTemplatePinsRequiredAndOptionalTasksAcrossQueueLayouts PASS1/1,28s. Generated unassigned task assigned via reviewed engagement UI; refreshed task and authenticated staff MyTasks carry exact task/owner GUID. Existing template lineage, required/optional/manual distinctions, three queue layouts and320px assertions retained. Independent static review: no findings.",
+          "browser": "Built-in owned fixture confirmed accessible combobox name New owner. Exact label-text locator matched0 due nested option text; role/name matched1. Two intermediate locator failures retained; corrected semantic role locator. No product changes. Fixture released/tab closed.",
+          "artifact": "tests/AuditSphereOps.E2E.Tests/TestResults/workflow-template-assignment-final-20261021.trx",
+          "limits": "ASPM-UAT-05 partial: review/return/rework and broader denials remain. No full local suite, human AT approval or live effects."
+        },
+        "cashFlowSourcePersistenceIntegrity": {
+          "recordedAtUtc": "2026-10-17T06:47:41Z",
+          "codeCommit": "fccd7672b0103f8bd79d67f25f8a29d7628f21dd",
+          "status": "FOCUSED_REGRESSION_PASS",
+          "domainTests": {
+            "passed": 1,
+            "failed": 0,
+            "name": "CashFlowAllocations_RejectCrossPackageMovementsAndUnrelatedLedgerLinesAtDatabaseBoundary"
+          },
+          "efModelDrift": "PASS: no pending model changes",
+          "documentation": "Markdown, filename and narrative-metrics validators passed before this status update; diff check passed.",
+          "migration": "20261017063003_CashFlowSourceScopeConstraints and 20261017063957_CashFlowAllocationMembershipSeal generated; not applied to a persistent database.",
+          "scope": "Composite database constraints bind cash allocations and reviews to scoped source rows; append-only package-membership seals prevent late allocation inserts. Legacy creator FK is NOT VALID so immutable unattributed rows are not fabricated.",
+          "notRun": [
+            "Full suites are deferred to CI/CD.",
+            "No persistent database migration or live-provider check."
+          ],
+          "uiRecoveryCodeCommit": "61d6630895235789ff4c6622eb09c250f5791aa2",
+          "uiRecoverySpec": "package.spec.ts: 13 passed, including no dispatch without session storage and stale-refusal recovery failure blocks repeat; Angular production build PASS with existing commercial/settings.scss budget warning."
         }
       }
     },

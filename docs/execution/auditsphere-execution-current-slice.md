@@ -14,9 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Generated task assignment integration
+## Correction queue to fieldwork handoff
 
-The existing template journey now assigns one generated task through the engagement UI, verifies its exact owner in the refreshed workspace, and checks that task in the staff owner's My Tasks. Built-in inspection distinguished an exact label-text locator failure from the correct native accessible name; the test uses the combobox role/name. No product behavior or permission change was needed. Evidence and limits are under `workflowTemplateAssignment20261021` in [status.json](status.json). ASPM-UAT-05 remains partial for review, return, rework and wider denials.
+Returned/resubmitted task rows now offer Open fieldwork in list, board and calendar. The link uses the task's server-projected engagement; it grants no authority and does not infer a procedure from a source key. Fieldwork still rechecks current scope/gates and requires explicit procedure selection.
+
+The existing source-backed procedure journey now routes its original preparer through the assigned correction queue before corrected resubmission. Exact task/owner/comment, keyboard routing and retained evidence lineage are checked. Built-in inspection confirmed the destination's existing blockers. Evidence/limits are under `procedureReworkHandoff20261021` in [status.json](status.json); broader integrated denials, human/professional/live acceptance and full current-source release remain open. Earlier assignment evidence remains in the historical archive.
 
 ## Release E2E failure triage
 
