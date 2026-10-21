@@ -118,6 +118,8 @@ describe('Firm unbilled time workbench', () => {
     await pending;
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('3.333333 QAR');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(notice);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Current observations, not a historical accounting WIP balance.');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Fixed-fee reference — not an additional fee to bill');
     expect((fixture.nativeElement as HTMLElement).querySelector(`a[href="/app/practice/invoices/${invoiceId}"]`)).not.toBeNull();
     http.expectNone(candidate => candidate.method !== 'GET');
