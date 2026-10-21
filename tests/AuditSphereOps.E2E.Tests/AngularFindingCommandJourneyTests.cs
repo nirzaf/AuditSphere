@@ -57,16 +57,34 @@ public sealed class AngularFindingCommandJourneyTests
       await OwnedBrowserFixtureHandoff.WaitAsync(origin, $"/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/findings/{findingId:D}")}", "finding-command");
     await PrepareAsync(); Assert.Empty(identities);
     var pattern = "**" + actionsUrl;
+    var forwardedOutcome = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
     if (mode != "success") await page.RouteAsync(pattern, async route =>
     {
-      if (mode == "lost-committed") await route.FetchAsync();
-      await route.AbortAsync();
+      try
+      {
+        if (mode == "lost-committed")
+        {
+          var response = await route.FetchAsync();
+          forwardedOutcome.TrySetResult(response.Status);
+        }
+        await route.AbortAsync();
+      }
+      catch (Exception exception)
+      {
+        forwardedOutcome.TrySetException(exception);
+        throw;
+      }
     });
     await ConfirmAsync();
     if (mode != "success")
     {
       var recovery = page.GetByRole(AriaRole.Region, new() { Name = "Exact finding request recovery", Exact = true });
-      await Assertions.Expect(recovery).ToBeVisibleAsync(); await page.UnrouteAsync(pattern); await page.ReloadAsync();
+      await Assertions.Expect(recovery).ToBeVisibleAsync();
+      // A browser timeout may expose recovery while the intercepted server request is still running.
+      // This scenario promises a committed outcome; prove it before unroute/reload and receipt reads.
+      if (mode == "lost-committed")
+        Assert.Equal(200, await forwardedOutcome.Task.WaitAsync(TimeSpan.FromSeconds(60)));
+      await page.UnrouteAsync(pattern); await page.ReloadAsync();
       await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Id); await Assertions.Expect(recovery).ToContainTextAsync(identities[0].Hash);
       await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Exact finding preview", Exact = true })).ToHaveCountAsync(0);
       recoveryStateStatuses.Clear();
