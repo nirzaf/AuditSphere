@@ -49,6 +49,9 @@ public sealed class CompletionDeliverablesJourneyTests
     var now = DateTimeOffset.UtcNow;
     await using (var db = host.CreateDbContext())
     {
+      // A valid long legal name exercises history reflow without relying on whitespace wrapping.
+      if (canonicalAngular) await db.PracticeClients.Where(x => x.FirmId == f.FirmId && x.Id == f.ClientId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.LegalName, "SYNTHETIC " + new string('C', 160)));
       db.Users.AddRange(partner, manager, accountingReviewer, financeReviewer);
       db.RoleGrants.AddRange(PbcSeed.Grant(f.FirmId, partner, "Partner"), PbcSeed.Grant(f.FirmId, manager, "Manager"));
       await db.Engagements.Where(x => x.Id == f.EngagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodStart, "2026-01-01").SetProperty(x => x.PeriodEnd, "2026-12-31"));
@@ -207,6 +210,7 @@ public sealed class CompletionDeliverablesJourneyTests
     await letter.GetByRole(AriaRole.Button, new() { Name = canonicalAngular ? "Acknowledge this version" : "Acknowledge Management Representation Letter", Exact = true }).ClickAsync();
     await Assertions.Expect(clientPage.GetByText(canonicalAngular ? "Acknowledged. The exact version reviewed is recorded." : "Acknowledged. The exact version you reviewed is recorded.", new() { Exact = true })).ToBeVisibleAsync();
     if (canonicalAngular) await letter.GetByRole(AriaRole.Button, new() { Name = "Upload signed letter", Exact = true }).ClickAsync();
+    Guid expectedReviewId;
     Guid expectedRepresentationLetterId;
     int expectedRepresentationLetterVersion;
     string expectedRepresentationLetterHash;
@@ -218,6 +222,7 @@ public sealed class CompletionDeliverablesJourneyTests
       var doc = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == ack.DeliverableId && x.FirmId == f.FirmId &&
         x.ClientId == f.ClientId && x.EngagementId == f.EngagementId);
       Assert.Equal(DeliverableKinds.RepresentationLetter, doc.Kind);
+      expectedReviewId = ack.Id;
       expectedRepresentationLetterId = doc.Id;
       expectedRepresentationLetterVersion = doc.Version;
       expectedRepresentationLetterHash = doc.ContentSha256;
@@ -302,6 +307,7 @@ public sealed class CompletionDeliverablesJourneyTests
     Assert.EndsWith(".zip", bundleDownload.SuggestedFilename);
     await clientPage.ReloadAsync();
     await clientPage.GetByRole(AriaRole.Link, new() { Name = "Download five-part final bundle" }).WaitForAsync(new() { Timeout = 20000 });
+    Guid expectedBundleId;
     DateTimeOffset expectedAssembly;
     string expectedBundleHash;
     string expectedClientName;
@@ -313,6 +319,7 @@ public sealed class CompletionDeliverablesJourneyTests
     await using (var verify = host.CreateDbContext())
     {
       var retainedBundle = await verify.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
+      expectedBundleId = retainedBundle.Id;
       expectedAssembly = retainedBundle.AssembledAt;
       expectedBundleHash = retainedBundle.ContentSha256;
       expectedClientName = await verify.PracticeClients.Where(x => x.Id == f.ClientId).Select(x => x.LegalName).SingleAsync();
@@ -356,7 +363,27 @@ public sealed class CompletionDeliverablesJourneyTests
     var portalWidths = await clientPage.EvaluateAsync<int[]>("() => [innerWidth, document.documentElement.scrollWidth]");
     Assert.True(portalWidths[1] <= portalWidths[0] + 1,
       $"Portal content width {portalWidths[1]} exceeds viewport {portalWidths[0]}.");
-    await OwnedBrowserFixtureHandoff.WaitAsync(clientOrigin, "/portal", "portal-document-milestones");
+    var history = clientPage.GetByRole(AriaRole.Region, new() { Name = "Client document history", Exact = true });
+    await Assertions.Expect(history).ToBeVisibleAsync();
+    var events = history.Locator("li");
+    await Assertions.Expect(events).ToHaveCountAsync(4);
+    var eventTimes = await events.Locator("time").EvaluateAllAsync<string[]>("nodes => nodes.map(node => node.getAttribute('datetime'))");
+    Assert.Equal(new[] { expectedAssembly, expectedScan.UploadedAt, expectedReviewAcknowledgedAt, expectedReviewSharedAt },
+      eventTimes.Select(value => DateTimeOffset.Parse(value, System.Globalization.CultureInfo.InvariantCulture)).ToArray());
+    await Assertions.Expect(history).ToContainTextAsync("Document shared");
+    await Assertions.Expect(history).ToContainTextAsync("Document acknowledgment recorded");
+    await Assertions.Expect(history).ToContainTextAsync("Signed PDF uploaded");
+    await Assertions.Expect(history).ToContainTextAsync("Final bundle assembled");
+    await Assertions.Expect(history).Not.ToContainTextAsync("Final bundle receipt acknowledged by your account");
+    var documentEvents = history.Locator($"a[href$='#doc-review-{expectedReviewId:D}']");
+    await Assertions.Expect(documentEvents).ToHaveCountAsync(2);
+    await Assertions.Expect(documentEvents.First).ToHaveAttributeAsync("href", $"/portal#doc-review-{expectedReviewId:D}");
+    await Assertions.Expect(history.Locator($"a[href$='#scan-{expectedScan.Id:D}']")).ToHaveCountAsync(1);
+    await Assertions.Expect(history.Locator($"a[href$='#bundle-{expectedBundleId:D}']")).ToHaveCountAsync(1);
+    await documentEvents.First.PressAsync("Enter");
+    Assert.EndsWith($"#doc-review-{expectedReviewId:D}", clientPage.Url);
+    await Assertions.Expect(letter).ToBeFocusedAsync();
+    await OwnedBrowserFixtureHandoff.WaitAsync(clientOrigin, "/portal", "portal-document-history");
     // Rollback/reference presentation must pass the same host policy, even when a prior image-only bundle exists.
     var requiredOrigin = await StartIdentityAsync(partner, required: true);
     var completionPath = $"/app/engagements/{f.EngagementId:D}/completion";

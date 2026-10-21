@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { decode } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { PortalDocuments, sharedDocuments } from './documents';
@@ -426,6 +426,242 @@ describe('client final bundle receipt acknowledgement', () => {
     expect(root.textContent).toContain('Receipt acknowledged by your client account');
     expect(root.textContent).toContain('Saved portal state was reloaded');
     expect(Array.from(root.querySelectorAll('button')).some(x => x.textContent?.includes('Record receipt acknowledgment'))).toBe(false);
+    fixture.destroy();
+  });
+});
+
+describe('client document history', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [PortalDocuments],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(SessionService).current.set({ userId, firmId, generation: '1', staff: false });
+  });
+
+  afterEach(() => {
+    try { TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true }); }
+    finally { TestBed.resetTestingModule(); }
+  });
+
+  const historyRows = (root: HTMLElement) => {
+    const history = root.querySelector<HTMLElement>("section[aria-label='Client document history']");
+    expect(history).not.toBeNull();
+    return { history: history!, rows: Array.from(history!.querySelectorAll<HTMLElement>('ol > li')) };
+  };
+
+  const renderedEvent = (root: HTMLElement, row: HTMLElement) => {
+    const time = row.querySelector<HTMLTimeElement>('time');
+    const link = row.querySelector<HTMLAnchorElement>('a[href*="#"]');
+    expect(time).not.toBeNull();
+    expect(link).not.toBeNull();
+    const href = new URL(link!.getAttribute('href')!, 'http://localhost').hash;
+    const target = root.querySelector<HTMLElement>(href);
+    expect(target).not.toBeNull();
+    expect(target!.matches('article.document, section.signed-scan')).toBe(true);
+    return { at: time!.getAttribute('datetime')!, utc: time!.textContent?.trim() ?? '', href,
+      linkLabel: link!.textContent?.trim() ?? '', rowText: row.textContent ?? '', target: target! };
+  };
+
+  it('orders retained events by exact offset instant and microseconds, excludes unlinked scans, and flags unorderable history', () => {
+    const http = TestBed.inject(HttpTestingController);
+    const laterMicrosecond = { ...sharedDocument, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-900000000000',
+      deliverableId: 'bbbbbbbb-bbbb-4bbb-8bbb-900000000000', title: 'Later microsecond report',
+      sharedAt: '2026-10-16T10:00:00.123456Z' };
+    const earlierMicrosecond = { ...sharedDocument, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-100000000000',
+      deliverableId: 'bbbbbbbb-bbbb-4bbb-8bbb-100000000000', title: 'Earlier microsecond report',
+      sharedAt: '2026-10-16T13:00:00.123455+03:00' };
+    const offsetPeer = { ...sharedDocument, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-300000000000',
+      deliverableId: 'bbbbbbbb-bbbb-4bbb-8bbb-300000000000', title: 'Offset peer report',
+      sharedAt: '2026-10-16T10:00:00Z' };
+    const offsetReport = { ...sharedDocument, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-200000000000',
+      deliverableId: 'bbbbbbbb-bbbb-4bbb-8bbb-200000000000', title: 'Offset chronology report',
+      sharedAt: '2026-10-16T11:00:00+01:00' };
+    const letterContext = portalContext({ clientLegalName: 'Evidence Letter Client Ltd', serviceRoute: 'ADVISORY',
+      periodStart: '2024-04-01', periodEnd: '2025-03-31' });
+    const letter = { ...sharedDocument, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-400000000000',
+      deliverableId: 'bbbbbbbb-bbbb-4bbb-8bbb-400000000000', kind: 'REPRESENTATION_LETTER',
+      title: 'Management representation letter', sharedAt: '2026-10-16T12:01:00+02:00',
+      acknowledgedAt: '2026-10-16T12:03:00+02:00', context: letterContext };
+    const legacy = { ...sharedDocument, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-500000000000',
+      deliverableId: 'bbbbbbbb-bbbb-4bbb-8bbb-500000000000', title: 'Legacy report without retained share time' };
+    const invalidDate = { ...sharedDocument, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-600000000000',
+      deliverableId: 'bbbbbbbb-bbbb-4bbb-8bbb-600000000000', title: 'Unorderable report',
+      sharedAt: '2026-99-15T13:00:00Z' };
+    const attachedScan = { id: 'cccccccc-cccc-4ccc-8ccc-400000000001', deliverableId: letter.deliverableId,
+      version: 3, managementSignatory: 'Client Director', contentSha256: 'c'.repeat(64),
+      uploadedAt: '2026-10-16T13:04:00+03:00', verified: false, current: true };
+    const orphanScan = { ...attachedScan, id: 'cccccccc-cccc-4ccc-8ccc-500000000001',
+      deliverableId: 'bbbbbbbb-bbbb-4bbb-8bbb-700000000000', managementSignatory: 'Orphan Signatory',
+      uploadedAt: '2026-10-17T00:00:00Z' };
+    const wrongKindScan = { ...attachedScan, id: 'cccccccc-cccc-4ccc-8ccc-200000000001',
+      deliverableId: offsetReport.deliverableId, managementSignatory: 'Wrong Kind Signatory' };
+    const wrongVersionScan = { ...attachedScan, id: 'cccccccc-cccc-4ccc-8ccc-400000000002',
+      version: 4, managementSignatory: 'Wrong Version Signatory' };
+    const historyBundle = { ...bundle('2026-10-16T10:05:00Z', '2026-10-16T13:02:00+03:00'),
+      id: 'dddddddd-dddd-4ddd-8ddd-000000000001',
+      context: portalContext({ clientLegalName: 'Evidence Bundle Client Ltd', serviceRoute: 'TAX_ADVISORY',
+        periodStart: '2025-04-01', periodEnd: '2026-03-31' }) };
+    const allDocuments = [laterMicrosecond, earlierMicrosecond, offsetPeer, offsetReport, letter, legacy, invalidDate];
+    const payload = {
+      ...documents(), documents: allDocuments,
+      signedLetters: [attachedScan, orphanScan, wrongKindScan, wrongVersionScan], bundles: [historyBundle],
+    };
+    const fixture = TestBed.createComponent(PortalDocuments);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/documents').flush(payload);
+    TestBed.tick(); fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const { history, rows } = historyRows(root);
+    expect(rows).toHaveLength(9);
+    const events = rows.map(row => renderedEvent(root, row));
+    expect(events.map(event => event.at)).toEqual([
+      historyBundle.acknowledgedAt, attachedScan.uploadedAt, letter.acknowledgedAt,
+      historyBundle.assembledAt, letter.sharedAt, laterMicrosecond.sharedAt,
+      earlierMicrosecond.sharedAt, offsetReport.sharedAt, offsetPeer.sharedAt,
+    ]);
+    expect(Date.parse(laterMicrosecond.sharedAt!)).toBe(Date.parse(earlierMicrosecond.sharedAt!));
+    expect(events[5].href).toBe(`#doc-review-${laterMicrosecond.reviewId}`);
+    expect(events[6].href).toBe(`#doc-review-${earlierMicrosecond.reviewId}`);
+    expect(events[7].at).not.toBe(events[8].at);
+    expect(Date.parse(events[7].at)).toBe(Date.parse(events[8].at));
+    expect(events.every(event => event.utc.endsWith('UTC'))).toBe(true);
+
+    const letterSharedEvent = events.find(event => event.at === letter.sharedAt)!;
+    expect(letterSharedEvent.href).toBe(`#doc-review-${letter.reviewId}`);
+    expect(displayedContext(letterSharedEvent.target.querySelector('dl.context')!)).toEqual({
+      'Client legal name': 'Evidence Letter Client Ltd', Service: 'ADVISORY',
+      'Period start': '2024-04-01', 'Period end': '2025-03-31',
+    });
+    expect(letterSharedEvent.rowText).toContain('Evidence Letter Client Ltd');
+    expect(letterSharedEvent.rowText).toContain('2024-04-01 to 2025-03-31');
+
+    const scanEvent = events.find(event => event.href === `#scan-${attachedScan.id}`)!;
+    expect(scanEvent.at).toBe(attachedScan.uploadedAt);
+    expect(scanEvent.target.closest('article.document')?.id).toBe(`doc-review-${letter.reviewId}`);
+    const bundleEvent = events.find(event => event.href === `#bundle-${historyBundle.id}`)!;
+    expect(bundleEvent.linkLabel).toBe('Final bundle details');
+    expect(displayedContext(bundleEvent.target)).toEqual({
+      'Client legal name': 'Evidence Bundle Client Ltd', Service: 'TAX_ADVISORY',
+      'Period start': '2025-04-01', 'Period end': '2026-03-31',
+    });
+    expect(bundleEvent.rowText).toContain('Evidence Bundle Client Ltd');
+    expect(bundleEvent.target.querySelector(`a[href='/api/deliverable-bundles/${historyBundle.id}/download']`)).not.toBeNull();
+    expect(events.some(event => event.href.includes(orphanScan.id))).toBe(false);
+    expect(events.some(event => event.href.includes(wrongKindScan.id))).toBe(false);
+    expect(events.some(event => event.href.includes(wrongVersionScan.id))).toBe(false);
+    expect(events.some(event => event.rowText.includes(legacy.title))).toBe(false);
+    expect(events.some(event => event.rowText.includes(invalidDate.title))).toBe(false);
+    expect(events.some(event => event.at === invalidDate.sharedAt)).toBe(false);
+    expect(Number.isNaN(Date.parse(invalidDate.sharedAt!))).toBe(true);
+    const warning = Array.from(history.querySelectorAll<HTMLElement>('*'))
+      .find(element => !element.closest('li') && element.children.length === 0 &&
+        /(?:omitted|not displayed|not included|could not be ordered|cannot be ordered|invalid timestamp)/i.test(element.textContent ?? ''));
+    expect(warning).toBeDefined();
+    expect(warning?.hidden).toBe(false);
+    expect(warning?.getAttribute('aria-hidden')).not.toBe('true');
+
+    fixture.destroy();
+    const reversedFixture = TestBed.createComponent(PortalDocuments);
+    reversedFixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/documents').flush({
+      ...payload, documents: [...allDocuments].reverse(),
+      signedLetters: [...payload.signedLetters].reverse(), bundles: [historyBundle],
+    });
+    TestBed.tick(); reversedFixture.detectChanges();
+    const reversedRoot = reversedFixture.nativeElement as HTMLElement;
+    const reversedEvents = historyRows(reversedRoot).rows.map(row => renderedEvent(reversedRoot, row));
+    expect(reversedEvents.map(event => `${event.at}|${event.href}|${event.rowText}`))
+      .toEqual(events.map(event => `${event.at}|${event.href}|${event.rowText}`));
+    reversedFixture.destroy();
+  });
+
+  it('does not move focus after a cancelled or superseded document fragment navigation', async () => {
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    const currentUrl = vi.spyOn(router, 'url', 'get').mockReturnValue('/portal');
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(false);
+    const fixture = TestBed.createComponent(PortalDocuments);
+    fixture.detectChanges(); TestBed.tick();
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [{ ...sharedDocument, sharedAt: documentSharedAt }]));
+    TestBed.tick(); fixture.detectChanges();
+    const event = fixture.componentInstance.historyEvents().find(item => item.targetId === `doc-review-${documentReviewId}`)!;
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(`.history a[href$='#${event.targetId}']`)!;
+    expect(link.getAttribute('href')).toBe(`/portal#${event.targetId}`);
+    const modified = new MouseEvent('click', { button: 0, ctrlKey: true, cancelable: true });
+    await fixture.componentInstance.openHistoryEvent(modified, event);
+    expect(modified.defaultPrevented).toBe(false);
+    expect(navigate).not.toHaveBeenCalled();
+    const target = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(`#${event.targetId}`)!;
+    const focus = vi.spyOn(target, 'focus');
+    const scroll = vi.fn();
+    Object.defineProperty(target, 'scrollIntoView', { configurable: true, value: scroll });
+    try {
+      const cancelled = new MouseEvent('click', { button: 0, cancelable: true });
+      await fixture.componentInstance.openHistoryEvent(cancelled, event);
+      expect(cancelled.defaultPrevented).toBe(true);
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(focus).not.toHaveBeenCalled();
+      expect(scroll).not.toHaveBeenCalled();
+      navigate.mockImplementation(async () => { currentUrl.mockReturnValue('/portal#another-document'); return true; });
+      await fixture.componentInstance.openHistoryEvent(new MouseEvent('click', { button: 0, cancelable: true }), event);
+      expect(navigate).toHaveBeenCalledTimes(2);
+      expect(focus).not.toHaveBeenCalled();
+      expect(scroll).not.toHaveBeenCalled();
+    } finally {
+      focus.mockRestore(); navigate.mockRestore(); currentUrl.mockRestore(); fixture.destroy();
+    }
+  });
+
+  it('pages 21 retained events without gaps or duplicates and returns to the same first page', () => {
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(PortalDocuments);
+    fixture.detectChanges(); TestBed.tick();
+    const items = Array.from({ length: 11 }, (_, index) => {
+      const id = String(index + 1).padStart(12, '0');
+      const minute = String(index).padStart(2, '0');
+      return { ...sharedDocument, reviewId: `aaaaaaaa-aaaa-4aaa-8aaa-${id}`,
+        deliverableId: `bbbbbbbb-bbbb-4bbb-8bbb-${id}`, title: `History report ${index + 1}`,
+        sharedAt: `2026-10-17T10:${minute}:00Z`,
+        acknowledgedAt: index < 10 ? `2026-10-17T10:${minute}:30Z` : null };
+    });
+    http.expectOne('/api/ui/portal/documents').flush({ ...documents(null, items), bundles: [] });
+    TestBed.tick(); fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const visible = () => historyRows(root).rows.map(row => {
+      const event = renderedEvent(root, row);
+      return `${event.at}|${event.href}|${event.rowText}`;
+    });
+    const pageOne = visible();
+    expect(pageOne).toHaveLength(20);
+    const buttons = () => Array.from(root.querySelectorAll<HTMLButtonElement>(
+      "section[aria-label='Client document history'] button"));
+    const previous = () => buttons().find(button => button.textContent?.trim() === 'Previous document events')!;
+    const next = () => buttons().find(button => button.textContent?.trim() === 'Next document events')!;
+    expect(previous().disabled).toBe(true);
+    expect(next().disabled).toBe(false);
+
+    next().click(); TestBed.tick(); fixture.detectChanges();
+    const pageTwo = visible();
+    expect(pageTwo).toHaveLength(1);
+    expect(previous().disabled).toBe(false);
+    expect(next().disabled).toBe(true);
+    expect(new Set([...pageOne, ...pageTwo]).size).toBe(21);
+
+    previous().click(); TestBed.tick(); fixture.detectChanges();
+    expect(visible()).toEqual(pageOne);
+    expect(previous().disabled).toBe(true);
+    expect(next().disabled).toBe(false);
+    next().click(); TestBed.tick(); fixture.detectChanges();
+    fixture.componentInstance.ws.reload(); TestBed.tick();
+    http.expectOne('/api/ui/portal/documents').flush({ ...documents(null,
+      items.map((item, index) => index === 10 ? { ...item, acknowledgedAt: '2026-10-17T12:00:00Z' } : item)), bundles: [] });
+    TestBed.tick(); fixture.detectChanges();
+    expect(previous().disabled).toBe(true);
+    expect(visible()).toHaveLength(20);
+    expect(visible()[0]).toContain('2026-10-17T12:00:00Z');
     fixture.destroy();
   });
 });
