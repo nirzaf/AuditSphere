@@ -22711,6 +22711,32 @@
         },
         "businessRecordsChanged": false
       }
+    },
+    "currentSourceCiBeforeGroupCreationReview20261021": {
+      "sourceCommit": "99003957cc389ea74ac2d4f08cbc499184fdb729",
+      "observedAtUtc": "2026-10-21T15:02:12Z",
+      "localBuild": "NOT_RUN: no .NET source changed in this slice.",
+      "fastCi": {
+        "run": "39621316101",
+        "status": "IN_PROGRESS",
+        "sourceCommit": "99003957cc389ea74ac2d4f08cbc499184fdb729",
+        "observed": "Docs and Angular pass; .NET Release build is in progress.",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39621316101"
+      },
+      "fullRelease": {
+        "run": "39616864548",
+        "status": "IN_PROGRESS",
+        "sourceCommit": "de142c8418e890c6c3a91060ccbfb71cce425066",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39616864548"
+      },
+      "focusTests": {
+        "T012": "API route binding 1/1; Angular client relationships 8/8 (API test commit 29b249e6).",
+        "T013": "Angular completion 18/18; approval template warnings removed.",
+        "T014": "Angular fieldwork 27/27.",
+        "T015": "Angular audit plan 18/18.",
+        "T016": "Angular manual task creation 3/3."
+      },
+      "localFullSuites": "NOT_RUN per project policy."
     }
   }
 }
