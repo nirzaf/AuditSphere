@@ -134,32 +134,41 @@ public sealed partial class ClientAccountingTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var preparer = Actor(scope.Preparer, "AccountingPreparer");
+      Assert.True((await ClientAccountingService.CreateProfileAsync(db, preparer,
+        new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 1, 1, "OWNERSHIP-LEDGER", "A-1"))).Succeeded);
+      var periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, "2026", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "STATUTORY", "QAR"))).Value;
       var groupId = (await ConsolidationService.CreateGroupAsync(db, reviewer,
         new ClientGroupRequest("OWNERSHIP-1", "Ownership test group"))).Value;
       Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
-        new GroupMembershipRequest(groupId, scope.ClientA, new DateOnly(2026, 1, 1), null,
+        new GroupMembershipRequest(groupId, scope.ClientA, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
           "CONTROLLED", 100m, 100m, "ownership-a"))).Succeeded);
       Assert.True((await ConsolidationService.AddMembershipAsync(db, reviewer,
-        new GroupMembershipRequest(groupId, scope.ClientB, new DateOnly(2026, 1, 1), null,
+        new GroupMembershipRequest(groupId, scope.ClientB, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31),
           "CONTROLLED", 100m, 100m, "ownership-b"))).Succeeded);
-      scopeVersionId = (await ConsolidationService.CreateScopeAsync(db, reviewer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.RestrictedMethod,
-          "OPENING-OWNERSHIP-2026"))).Value;
+      var groupRevision = await db.ClientGroups.Where(x => x.FirmId == scope.FirmId && x.Id == groupId)
+        .Select(x => x.Revision).SingleAsync();
+      var createdScope = await ConsolidationService.CreateScopeAsync(db, reviewer,
+        new ConsolidationScopeRequest(groupId, periodId, "QAR", ConsolidationCalculator.RestrictedMethod,
+          "OPENING-OWNERSHIP-2026", ExpectedGroupRevision: groupRevision));
+      Assert.True(createdScope.Succeeded, createdScope.Message);
+      scopeVersionId = createdScope.Value;
 
       var first = await ConsolidationService.AddOwnershipInterestAsync(db, reviewer,
         new OwnershipInterestRequest(scopeVersionId, scope.ClientA, scope.ClientB,
-          new DateOnly(2026, 1, 1), null, 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-a-b"));
+          new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-a-b"));
       Assert.True(first.Succeeded, first.Message);
 
       var duplicate = await ConsolidationService.AddOwnershipInterestAsync(db, reviewer,
         new OwnershipInterestRequest(scopeVersionId, scope.ClientA, scope.ClientB,
-          new DateOnly(2026, 1, 1), null, 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-duplicate"));
+          new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-duplicate"));
       Assert.False(duplicate.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, duplicate.ErrorCode);
 
       var cycle = await ConsolidationService.AddOwnershipInterestAsync(db, reviewer,
         new OwnershipInterestRequest(scopeVersionId, scope.ClientB, scope.ClientA,
-          new DateOnly(2026, 1, 1), null, 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-b-a"));
+          new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), 100m, 100m, "CONTROLLED", "DIRECT", "ownership-edge-b-a"));
       Assert.False(cycle.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.MappingInvalid, cycle.ErrorCode);
       Assert.Equal(1, await db.OwnershipInterestVersions.CountAsync(x => x.ScopeVersionId == scopeVersionId));

@@ -22775,6 +22775,24 @@
       "warnings": 0,
       "errors": 0,
       "testsExecuted": false
-    }
+    },
+    "apiAngularParityVerifiedTasks20261021": {
+      "run": "39590664430@9b4720d1",
+      "T001": "3 cases; Domain TRX",
+      "T002": "3 OpenAPI tests PASS; CI 071 exact source",
+      "T003": "scope-workspace.spec.ts",
+      "T004": "scope-workspace.spec.ts",
+      "T005": "fieldwork.spec.ts",
+      "T006": "open-item-allocations.spec.ts",
+      "T007": "purchase-invoice-workflow.spec.ts"
+    },
+    "apiAngularParityPendingBrowserAcceptance20261021": [
+      "501-member browser fixture",
+      "Full independent approval browser journey",
+      "Live provider acceptance",
+      "Full product browser journey",
+      "Responsive acceptance",
+      "Live Microsoft/provider acceptance"
+    ]
   }
 }

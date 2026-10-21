@@ -293,8 +293,8 @@ public static class ConsolidationScopeWorkspaceQuery
     {
       var packagesQuery = db.FinancialPackages.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && x.Status == AccountingPackageStates.PackageValidated &&
-          db.ClientGroupMemberships.Any(m => m.FirmId == actor.FirmId && m.GroupId == scope.GroupId &&
-            m.ClientId == x.ClientId && m.Status == AccountingWorkflowStates.Approved && m.EffectiveTo == null));
+          ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
+            db, actor.FirmId, scope.GroupId, scope.PeriodId).Any(m => m.ClientId == x.ClientId));
       var totalCount = await packagesQuery.CountAsync(ct);
       var packages = await packagesQuery
         .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)

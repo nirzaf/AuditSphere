@@ -72,12 +72,12 @@ public static class ConsolidationOwnershipWorkspaceQuery
         x.ChildClientId, x.ChildLegalName, x.EffectiveFrom, x.EffectiveTo,
         x.OwnershipPercent, x.EconomicInterestPercent, x.ControlAssessment,
         x.Method, x.EvidenceReference, x.Status)).ToListAsync(ct);
-    var members = await (from membership in db.ClientGroupMemberships.AsNoTracking()
+    var members = await (from membership in ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
+                           db, actor.FirmId, scope.GroupId, scope.PeriodId)
                          join client in db.PracticeClients.AsNoTracking()
                            on new { membership.FirmId, membership.ClientId }
                            equals new { client.FirmId, ClientId = client.Id }
-                         where membership.FirmId == actor.FirmId && membership.GroupId == scope.GroupId &&
-                           membership.Status == AccountingWorkflowStates.Approved && membership.EffectiveTo == null
+                         where membership.FirmId == actor.FirmId
                          orderby client.LegalName, client.Id
                          select new ConsolidationOwnershipMember(client.Id, client.LegalName, membership.EffectiveFrom))
       .Take(MaximumMemberOptions + 1).ToListAsync(ct);

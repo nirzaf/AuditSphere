@@ -49,13 +49,14 @@ public static class ConsolidationScopeCreationQuery
       return CommandResult<ConsolidationScopeCreationOptions>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     var create = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, groupId, CreateRoles, ct);
-    var memberIds = await db.ClientGroupMemberships.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
-      x.GroupId == groupId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null)
-      .Select(x => x.ClientId).Distinct().ToArrayAsync(ct);
-    List<ConsolidationScopePeriodOption> periods = memberIds.Length == 0 ? [] : await (from period in db.ClientReportingPeriods.AsNoTracking()
+    List<ConsolidationScopePeriodOption> periods = await (from period in db.ClientReportingPeriods.AsNoTracking()
       join client in db.PracticeClients.AsNoTracking() on new { period.FirmId, ClientId = period.ClientId }
         equals new { client.FirmId, ClientId = client.Id }
-      where period.FirmId == actor.FirmId && memberIds.Contains(period.ClientId)
+      where period.FirmId == actor.FirmId && period.StartDate != DateOnly.MinValue &&
+        period.EndDate != DateOnly.MinValue && period.StartDate <= period.EndDate &&
+        db.ClientGroupMemberships.Any(m => m.FirmId == actor.FirmId && m.GroupId == groupId &&
+          m.ClientId == period.ClientId && m.Status == AccountingWorkflowStates.Approved &&
+          m.EffectiveFrom <= period.EndDate && (m.EffectiveTo == null || m.EffectiveTo >= period.StartDate))
       orderby period.EndDate descending, client.LegalName, period.PeriodCode
       select new ConsolidationScopePeriodOption(period.Id, client.LegalName, period.PeriodCode,
         period.StartDate, period.EndDate, period.Basis, period.Currency, period.Status))
@@ -98,8 +99,8 @@ public static class ConsolidationScopeCreationQuery
     return CommandResult<ConsolidationScopeCreationOptions>.Ok(new ConsolidationScopeCreationOptions(
       group.Id, group.Code, group.Name, group.Revision, create.Succeeded, periods, currencies, methods,
       approvedRateSets, approvedPolicies, approvedPriorScopes, scopes,
-      memberIds.Length == 0
-        ? "An approved, effective group membership is required before a scope can be created."
+      periods.Count == 0
+        ? "A valid client reporting period overlapping an approved group membership is required before a scope can be created."
         : "Options are limited to this explicitly granted group. Advanced methods remain unavailable until their separate owner-acceptance and execution gates are satisfied."));
   }
 }

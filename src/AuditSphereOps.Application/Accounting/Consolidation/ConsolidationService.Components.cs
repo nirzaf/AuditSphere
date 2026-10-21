@@ -26,8 +26,8 @@ public static partial class ConsolidationService
     if ((!advancedMethod && request.OwnershipPercent != 100m) || request.OwnershipPercent is < 0m or > 100m ||
         !request.ControlMethod.Equals("CONTROLLED", StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile requires a fully-owned controlled component.");
-    var membership = await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-      x.ClientId == request.ClientId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct);
+    var membership = await ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
+      db, actor.FirmId, scope.GroupId, scope.PeriodId).AnyAsync(x => x.ClientId == request.ClientId, ct);
     if (!membership)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The component legal entity is not in the approved perimeter.");
     var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PackageId &&
@@ -104,8 +104,8 @@ public static partial class ConsolidationService
         !request.ControlMethod.Equals("CONTROLLED", StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The restricted profile requires a fully-owned controlled component.");
 
-    var membership = await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-      x.ClientId == request.ClientId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct);
+    var membership = await ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
+      db, actor.FirmId, scope.GroupId, scope.PeriodId).AnyAsync(x => x.ClientId == request.ClientId, ct);
     if (!membership)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The component legal entity is not in the approved perimeter.");
 

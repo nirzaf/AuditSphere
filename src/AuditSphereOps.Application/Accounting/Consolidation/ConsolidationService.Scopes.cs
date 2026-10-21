@@ -46,25 +46,28 @@ public static partial class ConsolidationService
     if (request.ExpectedGroupRevision > 0 && group.Revision != request.ExpectedGroupRevision)
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale,
         "The accounting group perimeter changed after these options were loaded. Refresh and review the current group basis before creating a scope.");
-    var members = await db.ClientGroupMemberships.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == request.GroupId &&
-      x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).ToListAsync(ct);
-    if (members.Count == 0)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved group membership is required before a perimeter can be created.");
     if (request.ExpectedGroupRevision > 0)
     {
       // Option-bound API requests must select a period from the current authorized
-      // group options. Revision zero remains the compatibility path for older callers
-      // that historically supplied opaque period identifiers.
-      var memberIds = members.Select(x => x.ClientId).Distinct().ToArray();
+      // group options. Membership eligibility is evaluated against the complete
+      // reporting-period interval, not whether the membership remains open today.
       var eligiblePeriod = await (from period in db.ClientReportingPeriods.AsNoTracking()
         join client in db.PracticeClients.AsNoTracking()
           on new { period.FirmId, ClientId = period.ClientId } equals new { client.FirmId, ClientId = client.Id }
-        where period.FirmId == actor.FirmId && period.Id == request.PeriodId && memberIds.Contains(period.ClientId)
+        where period.FirmId == actor.FirmId && period.Id == request.PeriodId &&
+          period.StartDate != DateOnly.MinValue && period.EndDate != DateOnly.MinValue && period.StartDate <= period.EndDate &&
+          db.ClientGroupMemberships.Any(m => m.FirmId == actor.FirmId && m.GroupId == request.GroupId &&
+            m.ClientId == period.ClientId && m.Status == AccountingWorkflowStates.Approved &&
+            m.EffectiveFrom <= period.EndDate && (m.EffectiveTo == null || m.EffectiveTo >= period.StartDate))
         select period.Id).AnyAsync(ct);
       if (!eligiblePeriod)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "The selected reporting period is not eligible for the current group perimeter.");
     }
+    else if (!await db.ClientGroupMemberships.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+      x.GroupId == request.GroupId && x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "An approved group membership is required before a legacy perimeter request can be created.");
     if (method is ConsolidationCalculator.ForeignOperationMethod or AdvancedConsolidationMethods.ForeignCurrencyReserve)
     {
       if (request.ExchangeRateSetVersionId is null || request.TranslationPolicyVersionId is null || request.TranslationRateDate is null ||
@@ -204,8 +207,8 @@ public static partial class ConsolidationService
       return CommandResult.Fail(ErrorCodes.GateBlocked,
         "An independently accepted group capability profile is required before perimeter approval.");
 
-    var memberships = await db.ClientGroupMemberships.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-      x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null).Select(x => x.ClientId).ToListAsync(ct);
+    var memberships = await ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
+      db, actor.FirmId, scope.GroupId, scope.PeriodId).Select(x => x.ClientId).ToListAsync(ct);
     var components = await db.ConsolidationComponents.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id).ToListAsync(ct);
     if (memberships.Count == 0 || components.Count != memberships.Distinct().Count() ||

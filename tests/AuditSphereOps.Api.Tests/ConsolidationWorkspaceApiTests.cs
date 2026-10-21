@@ -482,17 +482,36 @@ public sealed class ConsolidationWorkspaceApiTests
     var periodId = Guid.CreateVersion7();
     var outsideClientId = Guid.CreateVersion7();
     var outsidePeriodId = Guid.CreateVersion7();
+    var futureMemberClientId = Guid.CreateVersion7();
+    var futureMemberPeriodId = Guid.CreateVersion7();
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.PracticeClients.Add(new PracticeClient
+      db.PracticeClients.AddRange(new PracticeClient
       {
         Id = outsideClientId, FirmId = seed.FirmId, LegalName = "Outside scope options client", CreatedAt = DateTimeOffset.UtcNow
+      }, new PracticeClient
+      {
+        Id = futureMemberClientId, FirmId = seed.FirmId, LegalName = "Future group member", CreatedAt = DateTimeOffset.UtcNow
       });
-      db.ClientGroupMemberships.Add(new ClientGroupMembership
+      db.ClientGroupMemberships.AddRange(new ClientGroupMembership
       {
         Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, ClientId = seed.ClientId,
-        EffectiveFrom = new DateOnly(2026, 1, 1), ControlMethod = "CONTROLLED", OwnershipPercent = 100m,
-        EconomicInterestPercent = 100m, EvidenceReference = "scope-options-test",
+        EffectiveFrom = new DateOnly(2026, 1, 1), EffectiveTo = new DateOnly(2026, 6, 30),
+        ControlMethod = "CONTROLLED", OwnershipPercent = 100m, EconomicInterestPercent = 100m,
+        EvidenceReference = "scope-options-test", Status = AccountingWorkflowStates.Approved,
+        CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      }, new ClientGroupMembership
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, ClientId = seed.ClientId,
+        EffectiveFrom = new DateOnly(2026, 7, 1), EffectiveTo = new DateOnly(2026, 12, 31),
+        ControlMethod = "CONTROLLED", OwnershipPercent = 100m, EconomicInterestPercent = 100m,
+        EvidenceReference = "scope-options-test-renewed", Status = AccountingWorkflowStates.Approved,
+        CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      }, new ClientGroupMembership
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, ClientId = futureMemberClientId,
+        EffectiveFrom = new DateOnly(2099, 1, 1), ControlMethod = "CONTROLLED", OwnershipPercent = 100m,
+        EconomicInterestPercent = 100m, EvidenceReference = "future-scope-options-test",
         Status = AccountingWorkflowStates.Approved, CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
       });
       db.ClientReportingPeriods.Add(new ClientReportingPeriod
@@ -505,6 +524,13 @@ public sealed class ConsolidationWorkspaceApiTests
       db.ClientReportingPeriods.Add(new ClientReportingPeriod
       {
         Id = outsidePeriodId, FirmId = seed.FirmId, ClientId = outsideClientId, PeriodCode = "FY2026-OUTSIDE",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "ANNUAL",
+        Currency = "QAR", Status = AccountingWorkflowStates.Closed, CreatedByUserId = seed.Staff.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = futureMemberPeriodId, FirmId = seed.FirmId, ClientId = futureMemberClientId, PeriodCode = "FY2026-FUTURE-MEMBER",
         StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "ANNUAL",
         Currency = "QAR", Status = AccountingWorkflowStates.Closed, CreatedByUserId = seed.Staff.Id,
         CreatedAt = DateTimeOffset.UtcNow
@@ -523,6 +549,8 @@ public sealed class ConsolidationWorkspaceApiTests
 
     Assert.DoesNotContain(options.GetProperty("periods").EnumerateArray(),
       x => x.GetProperty("id").GetGuid() == outsidePeriodId);
+    Assert.DoesNotContain(options.GetProperty("periods").EnumerateArray(),
+      x => x.GetProperty("id").GetGuid() == futureMemberPeriodId);
 
     object ScopeRequest(Guid selectedPeriodId, long expectedGroupRevision) => new
     {
@@ -536,6 +564,8 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(HttpStatusCode.BadRequest, unpinned.StatusCode);
     using var outOfGroupPeriod = await Post(client, csrf, "/api/ui/consolidation/scopes", ScopeRequest(outsidePeriodId, groupRevision));
     Assert.Equal(HttpStatusCode.BadRequest, outOfGroupPeriod.StatusCode);
+    using var beforeMembership = await Post(client, csrf, "/api/ui/consolidation/scopes", ScopeRequest(futureMemberPeriodId, groupRevision));
+    Assert.Equal(HttpStatusCode.BadRequest, beforeMembership.StatusCode);
 
     using var scopeResponse = await Post(client, csrf, "/api/ui/consolidation/scopes", ScopeRequest(periodId, groupRevision));
     Assert.Equal(HttpStatusCode.OK, scopeResponse.StatusCode);

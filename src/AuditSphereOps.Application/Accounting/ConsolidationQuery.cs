@@ -298,12 +298,10 @@ public static class ConsolidationQuery
       .Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId).Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
     if (groupRevision is null)
       return CommandResult<ConsolidationPage<ComponentReadinessRow>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var membersQuery = db.ClientGroupMemberships.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null);
+    var membersQuery = ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
+      db, actor.FirmId, scope.GroupId, scope.PeriodId).Select(x => x.ClientId).Distinct();
     var total = await membersQuery.CountAsync(ct);
-    var memberIds = await membersQuery.OrderBy(x => x.ClientId).Skip((int)offset).Take(pageSize)
-      .Select(x => x.ClientId).ToArrayAsync(ct);
+    var memberIds = await membersQuery.OrderBy(x => x).Skip((int)offset).Take(pageSize).ToArrayAsync(ct);
     var components = await db.ConsolidationComponents.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
         memberIds.Contains(x.ClientId)).ToListAsync(ct);
@@ -342,24 +340,22 @@ public static class ConsolidationQuery
     if (!auth.Succeeded)
       return CommandResult<ComponentReadinessReport>.Fail(auth.ErrorCode!, auth.Message!);
 
-    var members = await db.ClientGroupMemberships.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.GroupId == scope.GroupId &&
-        x.Status == AccountingWorkflowStates.Approved && x.EffectiveTo == null)
-      .OrderBy(x => x.ClientId)
-      .ToListAsync(ct);
+    var memberIds = await ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
+        db, actor.FirmId, scope.GroupId, scope.PeriodId)
+      .Select(x => x.ClientId).Distinct().OrderBy(x => x).ToArrayAsync(ct);
     var components = await db.ConsolidationComponents.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id)
       .ToListAsync(ct);
     var memberNames = await db.PracticeClients.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && members.Select(m => m.ClientId).Contains(x.Id))
+      .Where(x => x.FirmId == actor.FirmId && memberIds.Contains(x.Id))
       .ToDictionaryAsync(x => x.Id, x => x.LegalName, ct);
 
-    var memberRows = new List<ComponentReadinessRow>(members.Count);
-    foreach (var member in members)
+    var memberRows = new List<ComponentReadinessRow>(memberIds.Length);
+    foreach (var memberId in memberIds)
     {
-      memberRows.Add(ReadinessRow(scope, member.ClientId,
-        memberNames.GetValueOrDefault(member.ClientId, "Scoped member"),
-        components.FirstOrDefault(x => x.ClientId == member.ClientId)));
+      memberRows.Add(ReadinessRow(scope, memberId,
+        memberNames.GetValueOrDefault(memberId, "Scoped member"),
+        components.FirstOrDefault(x => x.ClientId == memberId)));
     }
 
     return CommandResult<ComponentReadinessReport>.Ok(new ComponentReadinessReport(

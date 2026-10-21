@@ -482,6 +482,10 @@ public sealed class ConsolidationQueryTests
           UserId = fixture.Manager.Id, Role = "AccountingPreparer", GrantedAt = now,
           GrantedByUserId = fixture.Manager.Id
         });
+      await setup.ClientGroupMemberships.Where(x => x.FirmId == fixture.FirmId && x.GroupId == fixture.GroupId)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.EffectiveTo, new DateOnly(2026, 12, 31)));
+      var groupRevision = await setup.ClientGroups.Where(x => x.FirmId == fixture.FirmId && x.Id == fixture.GroupId)
+        .Select(x => x.Revision).SingleAsync();
       var reportingPeriodId = Guid.CreateVersion7();
       setup.ClientReportingPeriods.Add(new ClientReportingPeriod
       {
@@ -493,7 +497,7 @@ public sealed class ConsolidationQueryTests
       await setup.SaveChangesAsync();
       var testScope = await ConsolidationService.CreateScopeAsync(setup, manager,
         new ConsolidationScopeRequest(fixture.GroupId, reportingPeriodId, "QAR",
-          ConsolidationCalculator.RestrictedMethod, "OPENING-2026"));
+          ConsolidationCalculator.RestrictedMethod, "OPENING-2026", ExpectedGroupRevision: groupRevision));
       Assert.True(testScope.Succeeded, testScope.Message);
       scopeId = testScope.Value;
     }

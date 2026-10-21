@@ -88,4 +88,12 @@ internal static class ConsolidationScopeGuards
   public static Task<bool> IsCurrentAsync(
     IClientAccountingDbContext db, Guid firmId, Guid groupId, long pinnedRevision, CancellationToken ct) =>
     db.ClientGroups.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.Id == groupId && x.Revision == pinnedRevision, ct);
+
+  public static IQueryable<ClientGroupMembership> ApprovedMembershipsOverlappingPeriod(
+    IClientAccountingDbContext db, Guid firmId, Guid groupId, Guid periodId) =>
+    db.ClientGroupMemberships.AsNoTracking().Where(m => m.FirmId == firmId && m.GroupId == groupId &&
+      m.Status == AccountingWorkflowStates.Approved && db.ClientReportingPeriods.Any(p =>
+        p.FirmId == firmId && p.Id == periodId && p.StartDate != DateOnly.MinValue &&
+        p.EndDate != DateOnly.MinValue && p.StartDate <= p.EndDate &&
+        m.EffectiveFrom <= p.EndDate && (m.EffectiveTo == null || m.EffectiveTo >= p.StartDate)));
 }

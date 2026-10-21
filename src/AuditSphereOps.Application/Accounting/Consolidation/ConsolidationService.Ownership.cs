@@ -53,7 +53,9 @@ public static partial class ConsolidationService
 
     var memberIds = await db.ClientGroupMemberships.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.GroupId == scope.GroupId && x.Status == AccountingWorkflowStates.Approved &&
-      x.EffectiveTo == null && x.EffectiveFrom <= request.EffectiveFrom).Select(x => x.ClientId).ToHashSetAsync(ct);
+      x.EffectiveFrom <= request.EffectiveFrom &&
+      (x.EffectiveTo == null || request.EffectiveTo != null && x.EffectiveTo >= request.EffectiveTo))
+      .Select(x => x.ClientId).ToHashSetAsync(ct);
     if (!memberIds.Contains(request.ParentClientId) || !memberIds.Contains(request.ChildClientId))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Both ownership entities must be approved members of the group perimeter.");
 

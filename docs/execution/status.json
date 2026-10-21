@@ -1199,8 +1199,8 @@
       "sourceCommit": "cbb9993dfe2709bb25a082a2a62671b67953bda0",
       "humanAssistiveTechnology": "OPEN: human screen-reader review required",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021",
-      "agentReview": "Invoice recovery: success role=status, errors role=alert; scope reset clears stale notices; spec 10/10.",
-      "browser": "Production /app/work AX: skip link, main, headings, labelled nav, filters/table. Tab→skip; Enter→main; next Tab→workflow link, visible focus. 0 clients; purchase flow and screen reader not exercised."
+      "agentReview": "Source audit: labelled controls, named review groups, status/alert messages. No screen reader or client route; review stays open.",
+      "browser": "Production /app/work AX: skip link, main, headings, labelled nav, filters/table. Tab\u2192skip; Enter\u2192main; next Tab\u2192workflow link, visible focus. 0 clients; purchase flow and screen reader not exercised."
     },
     "purchaseCommandRecovery20261021": "Archived: status-archive-2026-10.json#keys.targetedVerification.purchaseCommandRecovery20261021",
     "apiAngularParityFocused20261021": {
@@ -1600,28 +1600,16 @@
     "taskStatusSummary": {
       "count": 51,
       "implementationStatus": "51 IMPLEMENTED",
-      "acceptanceStatus": "T001-T007 VERIFIED; T008,T009 FOCUSED/BROWSER_PENDING; T010-T051 PARTIAL"
-    },
-    "verifiedTasks": {
-      "run": "39590664430@9b4720d1",
-      "T001": "3 cases; Domain TRX",
-      "T002": "3 OpenAPI tests PASS; CI 071 exact source",
-      "T003": "scope-workspace.spec.ts",
-      "T004": "scope-workspace.spec.ts",
-      "T005": "fieldwork.spec.ts",
-      "T006": "open-item-allocations.spec.ts",
-      "T007": "purchase-invoice-workflow.spec.ts"
+      "acceptanceStatus": "T001-T007 VERIFIED; T008-T011 FOCUSED/BROWSER_PENDING; T012-T051 PARTIAL"
     },
     "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
     "workingTreeBase": "150c7671762ac93f87b2b539cb53f688fb90557e",
-    "currentCommitReleaseVerification": "Full release 39616864548 is in progress on de142c84; Angular/build-contract jobs passed and Domain/API/E2E remain running. Latest master is a docs/test-only successor; application code is unchanged.",
+    "currentCommitReleaseVerification": "T011 fast CI 39628511049 passed (5588c1c2); full release 39616864548 still runs API/E2E on de142c84; T010 CI pending push.",
     "pendingBrowserAcceptance": [
-      "501-member browser fixture",
-      "Full independent approval browser journey",
-      "Live provider acceptance",
-      "Full product browser journey",
-      "Responsive acceptance",
-      "Live Microsoft/provider acceptance"
+      "501-member fixture",
+      "Independent approval journey",
+      "Full responsive/product journeys",
+      "Live provider acceptance"
     ],
     "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.apiAngularParityStatus20261018",
     "groupCreationT008": {
@@ -1632,6 +1620,19 @@
       "tests": "Angular 3/3; Domain 1/1; API 1/1.",
       "browser": "No group access; no mutation.",
       "details": "status-archive-2026-10.json#keys.apiAngularParityGroupMembershipT00920261021"
+    },
+    "verifiedTasksArchive": "status-archive-2026-10.json#keys.apiAngularParityVerifiedTasks20261021",
+    "scopeCreationT010": {
+      "result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING",
+      "tests": "API scope options 1/1; Domain finite-membership/workspace 2/2; Angular 9/9.",
+      "behavior": "Inclusive overlap; future membership denied; readiness deduplicated.",
+      "build": "Solution Release build 0W/0E."
+    },
+    "contactRoutingT011": {
+      "result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING",
+      "tests": "API assign/revoke 1/1 each; Domain 1/1; Angular 8/8.",
+      "mutation": "Same-client guard mutation killed; restored.",
+      "browser": "Unavailable; no group/client access."
     }
   },
   "completePracticeManagement": {
