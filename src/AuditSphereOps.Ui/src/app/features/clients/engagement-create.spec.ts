@@ -15,7 +15,8 @@ import {
 } from './engagement-create-contracts';
 
 const id = '11111111-1111-4111-8111-111111111111',
-  other = '22222222-2222-4222-8222-222222222222';
+  other = '22222222-2222-4222-8222-222222222222',
+  third = '33333333-3333-4333-8333-333333333333';
 const basis = 'a'.repeat(64),
   hash = 'b'.repeat(64),
   url = '/api/ui/clients/' + id + '/engagement-creation';
@@ -133,6 +134,21 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
     requests[0].flush(value);
     TestBed.tick();
   }
+  function annualPreparation(sourceId: string) {
+    return {
+      clientId: id,
+      sourceEngagementId: sourceId,
+      sourcePeriodStart: '2026-01-01',
+      sourcePeriodEnd: '2026-12-31',
+      fields: { ...fields, periodStart: '2027-01-01', periodEnd: '2027-12-31', annualSourceEngagementId: sourceId },
+      copiedReferences: [],
+      requiresFreshWork: [],
+      contactSuggestions: [],
+      historicalMappingState: 'AVAILABLE',
+      historicalMappings: [],
+      taskTemplateSuggestions: [],
+    };
+  }
   async function preview(c: EngagementCreate, existingEngagementId: string | null = null) {
     c.model.set({ ...fields });
     TestBed.tick();
@@ -153,7 +169,7 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
     TestBed.tick();
     return body;
   }
-  function receipt(requestId: string) {
+  function receipt(requestId: string, receiptFields = fields) {
     return {
       id: other,
       clientId: id,
@@ -164,7 +180,7 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
       reviewBasis: basis,
       clientGeneration: '9007199254740993',
       engagementGeneration: '1',
-      fields,
+      fields: receiptFields,
       createdAt: '2026-10-03T12:30:00Z',
     };
   }
@@ -196,6 +212,140 @@ describe('Native engagement creation review, tab recovery and ownership', () => 
       requestHash: hash, fields: proposed, existingEngagementId: null } });
     await pending; TestBed.tick(); expect(c.preview()?.fields.annualSourceEngagementId).toBe(other);
     expect(c.reviewed()).toBe(false);
+  });
+  it('fences a late annual preview and unflushed confirmation across source changes without discarding fields', async () => {
+    queries.next(convertToParamMap({ annualSourceEngagementId: other }));
+    const f = open(); read(); const c = f.componentInstance;
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + other)
+      .flush(annualPreparation(other));
+    TestBed.tick();
+    const firstFields = annualPreparation(other).fields;
+    c.useAnnualSuggestion(); TestBed.tick();
+
+    const latePreview = c.prepare();
+    const firstPreviewRequest = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
+    queries.next(convertToParamMap({ annualSourceEngagementId: third }));
+    firstPreviewRequest.flush({ value: { clientId: id, requestId: firstPreviewRequest.request.body.requestId,
+      reviewBasis: basis, requestHash: hash, fields: firstFields, existingEngagementId: null } });
+    await latePreview;
+    expect(c.preview()).toBeNull();
+    expect(c.model()).toEqual(firstFields);
+
+    TestBed.tick();
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + third)
+      .flush(annualPreparation(third));
+    TestBed.tick();
+    expect(c.model()).toEqual(firstFields);
+    expect(c.valid()).toBe(false);
+    expect(c.discardDraft()).toBe(true);
+    c.useAnnualSuggestion(); TestBed.tick();
+    const currentFields = annualPreparation(third).fields;
+    const currentPreview = c.prepare();
+    const currentPreviewRequest = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
+    currentPreviewRequest.flush({ value: { clientId: id, requestId: currentPreviewRequest.request.body.requestId,
+      reviewBasis: basis, requestHash: hash, fields: currentFields, existingEngagementId: null } });
+    await currentPreview; TestBed.tick();
+    c.reviewed.set(true);
+
+    // The computed route context changes synchronously; do not wait for effects before enforcing it.
+    queries.next(convertToParamMap({ contactPage: '2' }));
+    expect(c.valid()).toBe(false);
+    const staleConfirmation = c.execute();
+    const posted = TestBed.inject(HttpTestingController).match((request) => request.method === 'POST' && request.url === url);
+    if (posted.length) posted[0].flush({ code: 'generation.stale' }, { status: 409, statusText: 'Conflict' });
+    await staleConfirmation;
+    expect(posted).toHaveLength(0);
+    TestBed.tick();
+    expect(c.preview()).toBeNull();
+    expect(c.reviewed()).toBe(false);
+    expect(c.model()).toEqual(currentFields);
+    f.detectChanges();
+    const returnToAnnual = Array.from(
+      (f.nativeElement as HTMLElement).querySelectorAll('a') as NodeListOf<HTMLAnchorElement>,
+    ).find((link) => link.textContent?.trim() === 'Return to the retained annual source to review again');
+    expect(returnToAnnual?.getAttribute('href'))
+      .toBe('/app/clients/' + id + '/engagements/new?annualSourceEngagementId=' + third);
+  });
+  it('invalidates annual preview and confirmation when the source changes away and back before effects flush', async () => {
+    queries.next(convertToParamMap({ annualSourceEngagementId: other }));
+    const f = open(); read(); const c = f.componentInstance;
+    const proposed = annualPreparation(other).fields;
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + other)
+      .flush(annualPreparation(other));
+    TestBed.tick();
+    c.useAnnualSuggestion(); TestBed.tick();
+
+    const acceptedPreview = c.prepare();
+    const acceptedRequest = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
+    acceptedRequest.flush({ value: { clientId: id, requestId: acceptedRequest.request.body.requestId,
+      reviewBasis: basis, requestHash: hash, fields: proposed, existingEngagementId: null } });
+    await acceptedPreview; TestBed.tick();
+    c.reviewed.set(true);
+
+    queries.next(convertToParamMap({ annualSourceEngagementId: third }));
+    queries.next(convertToParamMap({ annualSourceEngagementId: other }));
+    expect(c.canConfirmCreation()).toBe(false);
+    const unflushedConfirmation = c.execute();
+    const posted = TestBed.inject(HttpTestingController)
+      .match((request) => request.method === 'POST' && request.url === url);
+    expect(posted).toHaveLength(0);
+    await unflushedConfirmation;
+    TestBed.tick();
+    expect(c.preview()).toBeNull();
+    expect(c.reviewed()).toBe(false);
+    expect(c.model()).toEqual(proposed);
+
+    const latePreview = c.prepare();
+    const lateRequest = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
+    queries.next(convertToParamMap({ annualSourceEngagementId: third }));
+    queries.next(convertToParamMap({ annualSourceEngagementId: other }));
+    lateRequest.flush({ value: { clientId: id, requestId: lateRequest.request.body.requestId,
+      reviewBasis: basis, requestHash: hash, fields: proposed, existingEngagementId: null } });
+    await latePreview; TestBed.tick();
+    expect(c.preview()).toBeNull();
+    expect(c.reviewed()).toBe(false);
+    expect(c.model()).toEqual(proposed);
+  });
+  it('keeps an in-flight annual creation recoverable after query-context change', async () => {
+    queries.next(convertToParamMap({ annualSourceEngagementId: other }));
+    const f = open(); read(); const c = f.componentInstance;
+    const proposed = annualPreparation(other).fields;
+    TestBed.inject(HttpTestingController).expectOne('/api/ui/clients/' + id + '/annual-engagement/' + other)
+      .flush(annualPreparation(other));
+    TestBed.tick();
+    c.useAnnualSuggestion(); TestBed.tick();
+    const pendingPreview = c.prepare();
+    const previewRequest = TestBed.inject(HttpTestingController).expectOne(url + '/preview');
+    previewRequest.flush({ value: { clientId: id, requestId: previewRequest.request.body.requestId,
+      reviewBasis: basis, requestHash: hash, fields: proposed, existingEngagementId: null } });
+    await pendingPreview; TestBed.tick();
+    c.reviewed.set(true);
+
+    const inFlightCreation = c.execute();
+    const createRequest = TestBed.inject(HttpTestingController).expectOne(url);
+    const requestId = createRequest.request.body.requestId as string;
+    queries.next(convertToParamMap({ contactPage: '2' }));
+    TestBed.tick();
+    expect(c.model()).toEqual(proposed);
+    expect(c.pending()?.requestId).toBe(requestId);
+    expect(c.uncertain()).toBe(true);
+    const storedValues = Array.from({ length: sessionStorage.length }, (_, index) =>
+      sessionStorage.getItem(sessionStorage.key(index) ?? ''),
+    ).join('\n');
+    expect(storedValues).toContain(requestId);
+
+    createRequest.flush({ value: receipt(requestId, proposed) });
+    await inFlightCreation; TestBed.tick();
+    expect(c.receipt()).toBeNull();
+    expect(c.pending()?.requestId).toBe(requestId);
+    expect(c.uncertain()).toBe(true);
+
+    const recovery = c.reconcile();
+    TestBed.inject(HttpTestingController).expectOne(url + '/receipts/' + requestId + '?requestHash=' + hash)
+      .flush({ found: true, receipt: receipt(requestId, proposed) });
+    await recovery; TestBed.tick();
+    expect(c.receipt()?.fields).toEqual(proposed);
+    expect(c.pending()?.requestId).toBe(requestId);
   });
   it('renders read-only renewal milestones and links only to the created engagement', async () => {
     queries.next(convertToParamMap({ annualSourceEngagementId: other }));

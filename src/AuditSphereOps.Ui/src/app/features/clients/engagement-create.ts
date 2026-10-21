@@ -13,7 +13,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { disabled, form, FormField, maxLength, readonly, required } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, map, of } from 'rxjs';
 import { Api, routeGuid, UNKNOWN_OUTCOME } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { PendingRequestReference, pendingRequestReference, TabDrafts } from '../../core/tab-drafts';
@@ -55,8 +55,27 @@ export class EngagementCreate implements NavigationProtected {
   readonly utcTime = clientUtcTime;
   readonly portfolioNavigation = inject(PortfolioNavigation);
   private readonly route = inject(ActivatedRoute);
-  private readonly query = toSignal(this.route.queryParamMap ?? of(this.route.snapshot.queryParamMap),
-    { initialValue: this.route.snapshot.queryParamMap });
+  private readonly annualRouteEpoch = signal(0);
+  private lastAnnualQueryEmission = JSON.stringify([
+    this.route.snapshot.queryParamMap.has('annualSourceEngagementId'),
+    this.route.snapshot.queryParamMap.get('annualSourceEngagementId'),
+  ]);
+  private readonly query = toSignal(
+    (this.route.queryParamMap ?? of(this.route.snapshot.queryParamMap)).pipe(
+      map((params) => {
+        const emission = JSON.stringify([
+          params.has('annualSourceEngagementId'),
+          params.get('annualSourceEngagementId'),
+        ]);
+        if (emission !== this.lastAnnualQueryEmission) {
+          this.lastAnnualQueryEmission = emission;
+          this.annualRouteEpoch.update((epoch) => epoch + 1);
+        }
+        return params;
+      }),
+    ),
+    { initialValue: this.route.snapshot.queryParamMap },
+  );
   readonly annualSourceId = computed(() => {
     const id = this.query().get('annualSourceEngagementId');
     return id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) &&
@@ -105,13 +124,20 @@ export class EngagementCreate implements NavigationProtected {
   readonly message = signal('');
   readonly draftAvailable = signal(false);
   readonly valid = computed(() => this.fields().valid() && validEngagement(this.model()) &&
-    (!this.annualRequested() || (!!this.annualSourceId() && this.model().annualSourceEngagementId === this.annualSourceId())));
+    this.annualFieldsMatchCurrentContext(this.model()));
+  readonly retainedAnnualFieldsMismatch = computed(() => {
+    const fields = this.model();
+    return !!(fields.annualSourceEngagementId || fields.annualTemplateRevisionId) &&
+      !this.annualFieldsMatchCurrentContext(fields);
+  });
   readonly locked = computed(() => this.busy() || (this.uncertain() && !this.absent()));
   private readonly baseline = signal(JSON.stringify(emptyEngagement()));
   readonly dirty = computed(() => JSON.stringify(this.model()) !== this.baseline());
   private generation = 0;
   private request: Request | null = null;
+  private requestAnnualContext: string | null = null;
   private retryRequested = false;
+  private observedAnnualContext = this.annualContextKey();
   constructor() {
     effect(() => {
       this.id();
@@ -181,9 +207,42 @@ export class EngagementCreate implements NavigationProtected {
         this.request = null;
       });
     });
+    effect(() => {
+      const context = this.annualContextKey();
+      untracked(() => this.observeAnnualContext(context));
+    });
     inject(DestroyRef).onDestroy(() => {
       this.generation++;
     });
+  }
+  private annualContextKey() {
+    return JSON.stringify([this.annualRequested(), this.annualSourceId(), this.annualRouteEpoch()]);
+  }
+  private annualFieldsMatchCurrentContext(fields: EngagementFields) {
+    const sourceId = this.annualSourceId();
+    return this.annualRequested()
+      ? !!sourceId && fields.annualSourceEngagementId === sourceId
+      : !fields.annualSourceEngagementId && !fields.annualTemplateRevisionId;
+  }
+  private annualRequestContextIsCurrent(context: string, fields: EngagementFields) {
+    return context === this.annualContextKey() && this.annualFieldsMatchCurrentContext(fields);
+  }
+  private observeAnnualContext(context: string) {
+    if (context === this.observedAnnualContext) return;
+    this.observedAnnualContext = context;
+    this.generation++;
+    this.preview.set(null);
+    this.reviewed.set(false);
+    this.request = null;
+    this.requestAnnualContext = null;
+    this.busy.set(false);
+    if (this.pending()) {
+      this.uncertain.set(true);
+      this.absent.set(false);
+      this.message.set(UNKNOWN_OUTCOME);
+    } else {
+      this.message.set('The annual query changed. Review the current suggestion or discard the retained fields before continuing.');
+    }
   }
   private base() {
     return this.id() ? '/api/ui/clients/' + this.id() + '/engagement-creation' : null;
@@ -206,6 +265,13 @@ export class EngagementCreate implements NavigationProtected {
       r.requestHash === p.requestHash
     );
   }
+  canConfirmCreation() {
+    const s = this.state.data(), p = this.preview(), r = this.request;
+    return !!s && !!p && !!r && p.existingEngagementId === null && this.reviewed() && !this.locked() &&
+      this.requestAnnualContext === this.annualContextKey() && s.reviewBasis === r.reviewBasis &&
+      this.valid() && this.annualFieldsMatchCurrentContext(r.fields) &&
+      JSON.stringify(this.model()) === JSON.stringify(r.fields);
+  }
   useAnnualSuggestion() {
     const suggestion = this.annual.data();
     if (!suggestion || this.locked() || this.dirty() || this.pending()) return;
@@ -223,6 +289,7 @@ export class EngagementCreate implements NavigationProtected {
   async prepare() {
     const s = this.state.data(),
       g = this.generation,
+      annualContext = this.annualContextKey(),
       pending = this.pending();
     if (!s || !this.valid() || this.locked()) return;
     const r: Request = {
@@ -237,6 +304,10 @@ export class EngagementCreate implements NavigationProtected {
     try {
       const result = await this.api.command(this.base() + '/preview', r);
       if (g !== this.generation) return;
+      if (!this.annualRequestContextIsCurrent(annualContext, r.fields)) {
+        this.observeAnnualContext(this.annualContextKey());
+        return;
+      }
       if (!result.ok) {
         this.message.set(result.message);
         if (result.status === 401 || result.status === 403) this.revalidateProtectedContext();
@@ -263,6 +334,7 @@ export class EngagementCreate implements NavigationProtected {
           'The exact engagement intent changed. Restore its original fields or verify the retained receipt.',
         );
       this.request = r;
+      this.requestAnnualContext = annualContext;
       this.preview.set(p);
       this.message.set(
         p.existingEngagementId
@@ -279,21 +351,9 @@ export class EngagementCreate implements NavigationProtected {
     }
   }
   async execute() {
-    const s = this.state.data(),
-      p = this.preview(),
-      r = this.request,
-      g = this.generation;
-    if (
-      !s ||
-      !p ||
-      !r ||
-      p.existingEngagementId !== null ||
-      !this.reviewed() ||
-      this.busy() ||
-      s.reviewBasis !== r.reviewBasis ||
-      JSON.stringify(this.model()) !== JSON.stringify(r.fields)
-    )
-      return;
+    if (!this.canConfirmCreation()) return;
+    const s = this.state.data()!, p = this.preview()!, r = this.request!, g = this.generation,
+      annualContext = this.annualContextKey();
     const ref = { requestId: r.requestId, requestHash: p.requestHash };
     if (
       !this.drafts.save(this.scope(), this.model(), engagementFields, true) ||
@@ -312,6 +372,10 @@ export class EngagementCreate implements NavigationProtected {
       expectedRequestHash: p.requestHash,
     });
     if (g !== this.generation) return;
+    if (!this.annualRequestContextIsCurrent(annualContext, r.fields)) {
+      this.observeAnnualContext(this.annualContextKey());
+      return;
+    }
     this.busy.set(false);
     this.preview.set(null);
     this.request = null;

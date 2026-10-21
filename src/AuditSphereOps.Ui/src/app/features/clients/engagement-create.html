@@ -39,12 +39,12 @@
         <h3>Copied references only</h3>
         <ul>@for (item of suggestion.copiedReferences; track item) { <li>{{ item }}</li> }</ul>
         <label for="annual-template-choice">Published task template reference</label>
-        <select id="annual-template-choice" [value]="model().annualTemplateRevisionId ?? ''"
+        <select id="annual-template-choice"
           [disabled]="locked() || !!pending() || model().annualSourceEngagementId !== suggestion.sourceEngagementId"
           (change)="chooseAnnualTemplate($any($event.target).value)">
-          <option value="">Choose during current-year task planning</option>
+          <option value="" [selected]="!model().annualTemplateRevisionId">Choose during current-year task planning</option>
           @for (template of suggestion.taskTemplateSuggestions; track template.revisionId) {
-            <option [value]="template.revisionId">{{ template.name }} · v{{ template.version }}</option>
+            <option [value]="template.revisionId" [selected]="model().annualTemplateRevisionId === template.revisionId">{{ template.name }} · v{{ template.version }}</option>
           }
         </select>
         <p>A single current published revision from a prior plan is suggested when you use the annual reference. Creation records this choice only; current staffing, schedule and task creation need a separate reviewed plan.</p>
@@ -120,6 +120,16 @@
   }
   <section aria-label="Engagement details">
     <h2>Service and period</h2>
+    @if (retainedAnnualFieldsMismatch()) {
+      <p role="status">
+        The annual reference in these retained fields does not match the current route. Your fields were kept.
+        @if (model().annualSourceEngagementId; as sourceId) {
+          <a [routerLink]="['/app/clients', id(), 'engagements', 'new']"
+            [queryParams]="{ annualSourceEngagementId: sourceId }">Return to the retained annual source to review again</a> or
+        }
+        discard them before continuing in this context.
+      </p>
+    }
     <form (submit)="$event.preventDefault(); prepare()">
       <label>Service route<input [formField]="fields.serviceRoute" autocomplete="off" /></label>
       <label>Service profile<input [formField]="fields.serviceProfile" autocomplete="off" /></label>
@@ -199,7 +209,7 @@
             (change)="reviewed.set($any($event.target).checked)"
           />I reviewed this exact client, service, profile and period.</label
         >
-        <button matButton="filled" [disabled]="busy() || !reviewed()" (click)="execute()">
+        <button matButton="filled" [disabled]="!canConfirmCreation()" (click)="execute()">
           Confirm blocked creation
         </button>
       </section>
