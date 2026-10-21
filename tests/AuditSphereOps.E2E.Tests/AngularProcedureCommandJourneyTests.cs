@@ -1,6 +1,8 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Documents;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -30,6 +32,37 @@ public sealed class AngularProcedureCommandJourneyTests
   }
 
   private static ILocator QueueTaskCards(IPage page) => page.Locator("article.task-card");
+
+  private static Guid StoredLinkSelectionId(JsonElement commandBody)
+  {
+    var selections = commandBody.GetProperty("evidenceSelections").EnumerateArray().ToArray();
+    var storedLink = Assert.Single(selections, selection =>
+      selection.GetProperty("kind").GetString() == ProcedureEvidenceSelectionKinds.StoredLink);
+    return storedLink.GetProperty("linkId").GetGuid();
+  }
+
+  private static string AssertStoredEvidenceSnapshot(AuditProcedureResult result, Guid linkId, Guid uploadIntentId,
+    Guid pbcRequestId, string fileName, string contentSha256, string manualReference, string observation)
+  {
+    using var submitted = JsonDocument.Parse(result.StructuredResultJson);
+    var snapshot = submitted.RootElement.GetProperty(AuditProgramService.EvidenceSnapshotProperty);
+    Assert.Equal(1, snapshot.GetProperty("version").GetInt32());
+    var selections = snapshot.GetProperty("selections").EnumerateArray().ToArray();
+    var storedLink = Assert.Single(selections, selection =>
+      selection.GetProperty("kind").GetString() == ProcedureEvidenceSelectionKinds.StoredLink);
+    Assert.Equal(linkId, storedLink.GetProperty("linkId").GetGuid());
+    Assert.Equal(uploadIntentId, storedLink.GetProperty("uploadIntentId").GetGuid());
+    Assert.Equal(pbcRequestId, storedLink.GetProperty("pbcRequestId").GetGuid());
+    Assert.Equal(fileName, storedLink.GetProperty("fileName").GetString());
+    Assert.Equal(contentSha256, storedLink.GetProperty("contentSha256").GetString());
+
+    var manual = Assert.Single(selections, selection =>
+      selection.GetProperty("kind").GetString() == ProcedureEvidenceSelectionKinds.ManualReference);
+    Assert.Equal(manualReference, manual.GetProperty("manualReference").GetString());
+    Assert.Equal(observation, manual.GetProperty("observation").GetString());
+    Assert.Empty(snapshot.GetProperty("legacyReferences").EnumerateArray().ToArray());
+    return Hashing.Sha256Hex(snapshot.GetRawText());
+  }
 
   private static async Task OpenQueueViewAsync(IPage page, string origin, string view)
   {
@@ -62,13 +95,19 @@ public sealed class AngularProcedureCommandJourneyTests
       await PlanningBasisSeed.EstablishAsync(db, f.FirmId, f.ClientId, f.EngagementId, preparer, reviewer);
     }
 
+    const string sourceFileName = "cash-bank-source-evidence.txt";
+    var sourceBytes = "Synthetic received PBC evidence for cash and bank procedure AWP-02-01."u8.ToArray();
+    var stagedUpload = await PbcSeed.StageUploadAsync(host.Database, f,
+      PbcSeed.Actor(f.Client, "ClientUser"), host.RequestId, sourceBytes, sourceFileName, "text/plain");
+
     var angular = new Dictionary<string, string>
     {
       ["AngularUi__Enabled"] = "true",
       ["AngularUi__CanonicalRoutes"] = "true",
       ["WorkflowExperience__Enabled"] = "true"
     };
-    var origin = await host.StartApiForIdentityAsync(f.Staff, angular);
+    var origin = await host.StartApiForIdentityAsync(f.Staff,
+      new Dictionary<string, string>(angular) { ["Storage__PbcStagingRoot"] = stagedUpload.StagingRoot });
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var preparerContext = await browser.NewContextAsync();
@@ -76,6 +115,34 @@ public sealed class AngularProcedureCommandJourneyTests
     var pageErrors = new List<string>();
     preparerPage.PageError += (_, error) => pageErrors.Add(error);
     var path = $"/app/engagements/{f.EngagementId:D}/audit-fieldwork";
+
+    var pbcPath = $"/app/engagements/{f.EngagementId:D}/pbc";
+    try
+    {
+      await preparerPage.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(pbcPath));
+      await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
+        new() { Name = "Prepared-by-client requests", Exact = true })).ToBeVisibleAsync();
+      var stagedRequest = preparerPage.Locator("section.panel").Filter(new() { HasText = "Bank statements" });
+      await stagedRequest.GetByRole(AriaRole.Button,
+        new() { Name = "Complete staged transfer", Exact = true }).ClickAsync();
+      await Assertions.Expect(preparerPage.GetByText(
+        "Staged bytes verified; a durable provider transfer is queued. The request is not received until that transfer completes.",
+        new() { Exact = true })).ToBeVisibleAsync();
+      await host.StartGeneralWorkerAsync();
+      await host.WaitForReceivedAsync(stagedUpload.UploadIntentId);
+      await using var receivedDb = host.CreateDbContext();
+      var receivedUpload = await receivedDb.PbcUploadIntents.AsNoTracking()
+        .SingleAsync(upload => upload.Id == stagedUpload.UploadIntentId);
+      Assert.Equal(PbcUploadStates.Received, receivedUpload.State);
+      Assert.Equal((f.ClientId, f.EngagementId, host.RequestId, (long)sourceBytes.Length, stagedUpload.DeclaredSha256Hex),
+        (receivedUpload.ClientId, receivedUpload.EngagementId, receivedUpload.PbcRequestId,
+          receivedUpload.ReceivedByteCount, receivedUpload.FinalSha256Hex));
+    }
+    finally
+    {
+      PbcSeed.DeleteDirectory(stagedUpload.StagingRoot);
+    }
+
     await preparerPage.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Button,
       new() { Name = "Adopt exact published version 2026.1", Exact = true })).ToBeVisibleAsync();
@@ -93,8 +160,42 @@ public sealed class AngularProcedureCommandJourneyTests
     await Assertions.Expect(procedureRow).ToContainTextAsync(AuditApplicabilityStatuses.Applicable);
     await procedureRow.GetByRole(AriaRole.Button, new() { Name = "Open procedure", Exact = true }).ClickAsync();
 
+    Guid procedureId;
+    await using (var db = host.CreateDbContext())
+    {
+      procedureId = await db.AuditProcedures.AsNoTracking().Where(x => x.EngagementId == f.EngagementId &&
+          x.SourceProcedureId == "AWP-02-01").Select(x => x.Id).SingleAsync();
+    }
+
+    await preparerPage.GetByRole(AriaRole.Tab, new() { Name = "Client evidence", Exact = true }).ClickAsync();
+    var clientEvidencePanel = preparerPage.GetByRole(AriaRole.Tabpanel,
+      new() { Name = "Client evidence", Exact = true });
+    await clientEvidencePanel.Locator("select[name='ep']").SelectOptionAsync(procedureId.ToString("D"));
+    await clientEvidencePanel.Locator("select[name='eu']").SelectOptionAsync(stagedUpload.UploadIntentId.ToString("D"));
+    await clientEvidencePanel.Locator("input[name='en']")
+      .FillAsync("Synthetic received PBC source selected for the AWP-02-01 submission.");
+    await clientEvidencePanel.GetByRole(AriaRole.Button, new() { Name = "Link evidence", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByText("Evidence linked.", new() { Exact = true })).ToBeVisibleAsync();
+
+    Guid evidenceLinkId;
+    await using (var db = host.CreateDbContext())
+    {
+      var link = await db.ProcedureEvidenceLinks.AsNoTracking().SingleAsync(x =>
+        x.EngagementId == f.EngagementId && x.ProcedureId == procedureId &&
+        x.PbcUploadIntentId == stagedUpload.UploadIntentId);
+      Assert.Equal((f.ClientId, f.EngagementId, procedureId, host.RequestId, sourceFileName, stagedUpload.DeclaredSha256Hex),
+        (link.ClientId, link.EngagementId, link.ProcedureId, link.PbcRequestId, link.FileName, link.ContentSha256));
+      evidenceLinkId = link.Id;
+    }
+
     var execution = preparerPage.GetByRole(AriaRole.Region, new() { Name = "Procedure execution and review", Exact = true });
     await Assertions.Expect(execution).ToContainTextAsync("AWP-02-01");
+    var sourceSelection = execution.GetByRole(AriaRole.Checkbox,
+      new() { Name = $"{sourceFileName} · {stagedUpload.DeclaredSha256Hex}", Exact = true });
+    await Assertions.Expect(sourceSelection).ToBeVisibleAsync();
+    await Assertions.Expect(sourceSelection).Not.ToBeCheckedAsync();
+    await sourceSelection.CheckAsync();
+    await Assertions.Expect(sourceSelection).ToBeCheckedAsync();
     await execution.GetByRole(AriaRole.Textbox, new() { Name = "Work performed", Exact = true })
       .FillAsync("Agreed the synthetic year-end bank reconciliation to the listed bank accounts.");
     await execution.GetByRole(AriaRole.Textbox, new() { Name = "Conclusion", Exact = true })
@@ -119,6 +220,7 @@ public sealed class AngularProcedureCommandJourneyTests
 
     Guid requestId = Guid.Empty;
     string? requestHash = null;
+    Guid firstSubmissionStoredLinkId = Guid.Empty;
     var actionUrl = $"**/api/ui/procedures/*/commands/actions";
     await preparerPage.RouteAsync(actionUrl, async route =>
     {
@@ -126,6 +228,7 @@ public sealed class AngularProcedureCommandJourneyTests
       using var body = JsonDocument.Parse(route.Request.PostData!);
       requestId = body.RootElement.GetProperty("requestId").GetGuid();
       requestHash = body.RootElement.GetProperty("expectedRequestHash").GetString();
+      firstSubmissionStoredLinkId = StoredLinkSelectionId(body.RootElement);
       var committed = await route.FetchAsync();
       Assert.Equal(200, committed.Status);
       await route.AbortAsync("failed");
@@ -144,16 +247,25 @@ public sealed class AngularProcedureCommandJourneyTests
       .ToContainTextAsync("do not resend a new identity.");
     Assert.NotEqual(Guid.Empty, requestId);
     Assert.Matches("^[0-9a-f]{64}$", requestHash!);
+    Assert.Equal(evidenceLinkId, firstSubmissionStoredLinkId);
     await recover.ClickAsync();
     await Assertions.Expect(execution.Locator("p[role='status']").Filter(new() { HasText = "Recorded SUBMIT_RESULT" }))
       .ToBeVisibleAsync();
     await preparerPage.UnrouteAsync(actionUrl);
 
-    Guid procedureId;
+    string firstSubmissionEvidenceDigest;
     await using (var db = host.CreateDbContext())
     {
-      procedureId = await db.AuditProcedures.AsNoTracking().Where(x => x.EngagementId == f.EngagementId &&
-          x.SourceProcedureId == "AWP-02-01").Select(x => x.Id).SingleAsync();
+      var result = await db.AuditProcedureResults.AsNoTracking().SingleAsync(x => x.AuditProcedureId == procedureId);
+      Assert.Equal(1, result.Revision);
+      Assert.Equal(AuditProcedureResultStatuses.Submitted, result.Status);
+      var snapshotDigest = AssertStoredEvidenceSnapshot(result, evidenceLinkId, stagedUpload.UploadIntentId, host.RequestId,
+        sourceFileName, stagedUpload.DeclaredSha256Hex, "BANK-REC-SYNTHETIC-01",
+        "The closing balance and reconciling items agree to the synthetic schedule.");
+      var receipt = await db.AuditProcedureCommandReceipts.AsNoTracking().SingleAsync(x =>
+        x.ResultId == result.Id && x.Action == ProcedureCommandActions.SubmitResult);
+      Assert.Equal(snapshotDigest, receipt.EvidenceDigest);
+      firstSubmissionEvidenceDigest = receipt.EvidenceDigest!;
     }
 
     var reviewerOrigin = await host.StartApiForIdentityAsync(f.Reviewer, angular);
@@ -201,6 +313,21 @@ public sealed class AngularProcedureCommandJourneyTests
     await Assertions.Expect(review.GetByText(
       "Agreed the synthetic year-end bank reconciliation to the listed bank accounts."))
       .ToBeVisibleAsync();
+    var retainedAtReview = review.GetByRole(AriaRole.Region,
+      new() { Name = "Evidence retained at submission", Exact = true });
+    await Assertions.Expect(retainedAtReview).ToContainTextAsync(sourceFileName);
+    await Assertions.Expect(retainedAtReview).ToContainTextAsync(stagedUpload.DeclaredSha256Hex);
+    await Assertions.Expect(retainedAtReview).ToContainTextAsync(stagedUpload.UploadIntentId.ToString("D"));
+    await Assertions.Expect(retainedAtReview).ToContainTextAsync(host.RequestId.ToString("D"));
+    await Assertions.Expect(retainedAtReview).ToContainTextAsync(evidenceLinkId.ToString("D"));
+    await Assertions.Expect(review.GetByText(firstSubmissionEvidenceDigest, new() { Exact = true })).ToBeVisibleAsync();
+    var rawEvidenceDisclosure = review.Locator("details")
+      .Filter(new() { HasText = "Evidence snapshot considered at submission" });
+    await rawEvidenceDisclosure.GetByText("Evidence snapshot considered at submission", new() { Exact = true })
+      .ClickAsync();
+    var rawEvidence = rawEvidenceDisclosure.Locator("pre");
+    await Assertions.Expect(rawEvidence).ToContainTextAsync(sourceFileName);
+    await Assertions.Expect(rawEvidence).ToContainTextAsync(stagedUpload.DeclaredSha256Hex);
     foreach (var width in new[] { 320, 390 })
     {
       await reviewerPage.SetViewportSizeAsync(width, 900);
@@ -211,6 +338,10 @@ public sealed class AngularProcedureCommandJourneyTests
       await Assertions.Expect(review.GetByText(
         "Agreed the synthetic year-end bank reconciliation to the listed bank accounts."))
         .ToBeVisibleAsync();
+      await Assertions.Expect(rawEvidence).ToBeVisibleAsync();
+      await Assertions.Expect(rawEvidence).ToContainTextAsync(stagedUpload.UploadIntentId.ToString("D"));
+      await Assertions.Expect(rawEvidence).ToContainTextAsync(host.RequestId.ToString("D"));
+      await Assertions.Expect(rawEvidence).ToContainTextAsync(evidenceLinkId.ToString("D"));
     }
 
     var decisionControl = review.GetByRole(AriaRole.Combobox, new() { Name = "Decision", Exact = true });
@@ -280,6 +411,12 @@ public sealed class AngularProcedureCommandJourneyTests
     await returned.GetByLabel("Manual reference", new() { Exact = true }).FillAsync("BANK-REC-SYNTHETIC-02");
     await returned.GetByLabel("What was observed", new() { Exact = true })
       .FillAsync("The revised schedule and closing statement balance agree.");
+    var correctedSourceSelection = returned.GetByRole(AriaRole.Checkbox,
+      new() { Name = $"{sourceFileName} · {stagedUpload.DeclaredSha256Hex}", Exact = true });
+    await Assertions.Expect(correctedSourceSelection).ToBeVisibleAsync();
+    await Assertions.Expect(correctedSourceSelection).Not.ToBeCheckedAsync();
+    await correctedSourceSelection.CheckAsync();
+    await Assertions.Expect(correctedSourceSelection).ToBeCheckedAsync();
     await returned.GetByRole(AriaRole.Button, new() { Name = "Preview exact submission", Exact = true }).ClickAsync();
     var resubmission = returned.GetByRole(AriaRole.Region, new() { Name = "Exact command preview", Exact = true });
     await Assertions.Expect(resubmission.GetByRole(AriaRole.Alert)).ToHaveCountAsync(0);
@@ -296,12 +433,13 @@ public sealed class AngularProcedureCommandJourneyTests
       Assert.Equal(AuditProcedureResultStatuses.ChangesRequired, result.Status);
       firstReturnedResultId = result.Id;
       Assert.Equal(f.Staff.Id, result.PreparedByUserId);
-      using var submitted = JsonDocument.Parse(result.StructuredResultJson);
-      var evidence = submitted.RootElement.GetProperty(AuditProgramService.EvidenceSnapshotProperty)
-        .GetProperty("selections").EnumerateArray().Single();
-      Assert.Equal("BANK-REC-SYNTHETIC-01", evidence.GetProperty("manualReference").GetString());
-      Assert.Equal("The closing balance and reconciling items agree to the synthetic schedule.",
-        evidence.GetProperty("observation").GetString());
+      var returnedSnapshotDigest = AssertStoredEvidenceSnapshot(result, evidenceLinkId, stagedUpload.UploadIntentId, host.RequestId,
+        sourceFileName, stagedUpload.DeclaredSha256Hex, "BANK-REC-SYNTHETIC-01",
+        "The closing balance and reconciling items agree to the synthetic schedule.");
+      Assert.Equal(firstSubmissionEvidenceDigest, returnedSnapshotDigest);
+      var submissionReceipt = await proof.AuditProcedureCommandReceipts.AsNoTracking().SingleAsync(x =>
+        x.ResultId == result.Id && x.Action == ProcedureCommandActions.SubmitResult);
+      Assert.Equal(firstSubmissionEvidenceDigest, submissionReceipt.EvidenceDigest);
       var reviewRecord = await proof.AuditProcedureReviews.AsNoTracking().SingleAsync(x => x.AuditProcedureResultId == result.Id);
       Assert.Equal(AuditProcedureReviewDecisions.ChangesRequired, reviewRecord.Decision);
       Assert.Equal(f.Reviewer.Id, reviewRecord.ReviewerUserId);
@@ -318,6 +456,15 @@ public sealed class AngularProcedureCommandJourneyTests
     }
 
     // Finish the first correction through the same keyboard-accessible command preview.
+    Guid correctedSubmissionStoredLinkId = Guid.Empty;
+    await preparerPage.RouteAsync(actionUrl, async route =>
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      using var body = JsonDocument.Parse(route.Request.PostData!);
+      Assert.Equal(ProcedureCommandActions.SubmitResult, body.RootElement.GetProperty("action").GetString());
+      correctedSubmissionStoredLinkId = StoredLinkSelectionId(body.RootElement);
+      await route.ContinueAsync();
+    });
     var correctionAssent = resubmission.GetByRole(AriaRole.Checkbox,
       new() { Name = ProcedureAssentLabel, Exact = true });
     var recordCorrection = resubmission.GetByRole(AriaRole.Button,
@@ -330,8 +477,11 @@ public sealed class AngularProcedureCommandJourneyTests
     await preparerPage.Keyboard.PressAsync("Enter");
     await Assertions.Expect(returned.Locator("p[role='status']")
       .Filter(new() { HasText = "Recorded SUBMIT_RESULT" })).ToBeVisibleAsync();
+    await preparerPage.UnrouteAsync(actionUrl);
+    Assert.Equal(evidenceLinkId, correctedSubmissionStoredLinkId);
 
     Guid firstResubmissionId;
+    string correctedSubmissionEvidenceDigest;
     await using (var db = host.CreateDbContext())
     {
       var result = await db.AuditProcedureResults.AsNoTracking().Where(x => x.AuditProcedureId == procedureId)
@@ -339,7 +489,32 @@ public sealed class AngularProcedureCommandJourneyTests
       Assert.Equal(2, result.Revision);
       Assert.Equal(AuditProcedureResultStatuses.Submitted, result.Status);
       firstResubmissionId = result.Id;
+      var snapshotDigest = AssertStoredEvidenceSnapshot(result, evidenceLinkId, stagedUpload.UploadIntentId, host.RequestId,
+        sourceFileName, stagedUpload.DeclaredSha256Hex, "BANK-REC-SYNTHETIC-02",
+        "The revised schedule and closing statement balance agree.");
+      var receipt = await db.AuditProcedureCommandReceipts.AsNoTracking().SingleAsync(x =>
+        x.ResultId == result.Id && x.Action == ProcedureCommandActions.SubmitResult);
+      Assert.Equal(snapshotDigest, receipt.EvidenceDigest);
+      correctedSubmissionEvidenceDigest = receipt.EvidenceDigest!;
     }
+
+    await preparerPage.ReloadAsync();
+    var sectionAfterCorrection = preparerPage.Locator("select[name='section']");
+    var cashBankAfterCorrection = sectionAfterCorrection.Locator("option").Filter(new() { HasText = "Cash & Bank" });
+    await Assertions.Expect(cashBankAfterCorrection).ToHaveCountAsync(1);
+    await sectionAfterCorrection.SelectOptionAsync(new SelectOptionValue { Label = await cashBankAfterCorrection.InnerTextAsync() });
+    var rowAfterCorrection = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "AWP-02-01" });
+    await rowAfterCorrection.GetByRole(AriaRole.Button, new() { Name = "Open procedure", Exact = true }).ClickAsync();
+    var retainedAtResubmission = preparerPage.GetByRole(AriaRole.Region,
+      new() { Name = "Evidence retained at submission", Exact = true });
+    await Assertions.Expect(retainedAtResubmission).ToContainTextAsync(sourceFileName);
+    await Assertions.Expect(retainedAtResubmission).ToContainTextAsync(stagedUpload.DeclaredSha256Hex);
+    await Assertions.Expect(retainedAtResubmission).ToContainTextAsync(stagedUpload.UploadIntentId.ToString("D"));
+    await Assertions.Expect(retainedAtResubmission).ToContainTextAsync(host.RequestId.ToString("D"));
+    await Assertions.Expect(retainedAtResubmission).ToContainTextAsync(evidenceLinkId.ToString("D"));
+    await Assertions.Expect(preparerPage.GetByText(correctedSubmissionEvidenceDigest,
+      new() { Exact = true })).ToBeVisibleAsync();
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, path, "procedure-source-evidence");
 
     var firstTaskSource = $"REVIEW-REWORK:{procedureId:N}:{firstReturnedResultId:N}";
     Assert.NotEqual(Guid.Empty, firstReworkTaskId);

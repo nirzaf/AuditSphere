@@ -483,7 +483,7 @@
                     <p><strong>Work performed:</strong> {{ result.workPerformed }}</p>
                     <p><strong>Conclusion:</strong> {{ result.conclusion }}</p>
                     <p><strong>Evidence digest:</strong> <code>{{ result.evidenceDigest ?? 'legacy/unverified' }}</code></p>
-                    @if (result.submittedEvidenceJson) { <details><summary>Evidence snapshot considered at submission</summary><pre>{{ result.submittedEvidenceJson }}</pre></details> }
+                    @if (result.submittedEvidenceJson) { <audit-procedure-submitted-evidence [snapshot]="result.submittedEvidenceJson" /><details><summary>Evidence snapshot considered at submission</summary><pre class="submitted-evidence-json">{{ result.submittedEvidenceJson }}</pre></details> }
                     @if (r.evidence.length || r.physicalEvidence.length) {
                       <details><summary>Current linked evidence (not the submitted snapshot)</summary>
                         @for (e of r.evidence; track e.linkId) { <p>{{ e.fileName }} · {{ e.contentSha256 }}</p> }

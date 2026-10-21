@@ -12,13 +12,15 @@ import { PlanningCommandReview } from './planning-command-review';
 import { SHARED } from '../../core/ui';
 import { TabDrafts } from '../../core/tab-drafts';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
+import { ProcedureSubmittedEvidence } from './procedure-submitted-evidence';
 import { FieldworkSamplingState } from './fieldwork-sampling-state';
 import type { FieldworkCommandAcquire, FieldworkCommandRecovery } from './fieldwork-command-context';
 
 @Component({
   selector: 'audit-fieldwork',
-  imports: [DatePipe, FormsModule, RouterLink, MatButtonModule, MatTabsModule, PlanningCommandReview, ...SHARED],
+  imports: [DatePipe, FormsModule, RouterLink, MatButtonModule, MatTabsModule, PlanningCommandReview, ProcedureSubmittedEvidence, ...SHARED],
   templateUrl: './fieldwork.html',
+  styles: '.submitted-evidence-json { white-space:pre-wrap; overflow-wrap:anywhere; max-inline-size:100%; }',
 })
 export class AuditFieldwork {
   private readonly api = inject(Api);
