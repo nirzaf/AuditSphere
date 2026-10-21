@@ -468,7 +468,7 @@ public sealed class UiPortalContractTests
     Assert.Equal(HttpStatusCode.OK, responseA.StatusCode);
     Assert.Equal("no-store", responseA.Headers.CacheControl?.ToString());
     var bodyA = await responseA.Content.ReadFromJsonAsync<JsonElement>();
-    AssertClientDocument(bodyA, fixture.ClientA, fixture.ClientB, fixture.Seed.Staff.Id);
+    AssertClientDocument(bodyA, fixture.ClientA, fixture.ClientB, fixture.Seed.Staff.Id, fixture.Seed.Client.Id);
 
     using var clientBFactory = Factory(pg.ConnectionString, fixture.ClientBSubject, fixture.ClientBTenant);
     using var clientB = clientBFactory.CreateClient(new() { AllowAutoRedirect = false });
@@ -477,7 +477,7 @@ public sealed class UiPortalContractTests
     Assert.Equal(HttpStatusCode.OK, responseB.StatusCode);
     Assert.Equal("no-store", responseB.Headers.CacheControl?.ToString());
     var bodyB = await responseB.Content.ReadFromJsonAsync<JsonElement>();
-    AssertClientDocument(bodyB, fixture.ClientB, fixture.ClientA, fixture.Seed.Staff.Id);
+    AssertClientDocument(bodyB, fixture.ClientB, fixture.ClientA, fixture.Seed.Staff.Id, fixture.Seed.Client.Id);
   }
 
   [Theory]
@@ -528,9 +528,11 @@ public sealed class UiPortalContractTests
     var secondClientId = Guid.NewGuid();
     var secondEngagementId = Guid.NewGuid();
     var clientA = new PortalTestContext(seed.ClientId, seed.EngagementId, "Synthetic Portal Context Client A",
-      "FinancialStatementAudit", "2026-01-01", "2026-12-31", Guid.NewGuid(), string.Empty);
+      "FinancialStatementAudit", "2026-01-01", "2026-12-31", Guid.NewGuid(), string.Empty,
+      DateTimeOffset.Parse("2026-10-15T13:00:00+03:00").ToUniversalTime(), DateTimeOffset.Parse("2026-10-16T13:05:00+03:00").ToUniversalTime());
     var clientB = new PortalTestContext(secondClientId, secondEngagementId, "Synthetic Portal Context Client B",
-      "AccountingOnly", "2025-04-01", "2026-03-31", Guid.NewGuid(), string.Empty);
+      "AccountingOnly", "2025-04-01", "2026-03-31", Guid.NewGuid(), string.Empty,
+      DateTimeOffset.Parse("2026-09-01T09:00:00+03:00").ToUniversalTime(), null);
     var contentA = Encoding.UTF8.GetBytes("synthetic shared management letter for client A");
     var contentB = Encoding.UTF8.GetBytes("synthetic shared management letter for client B");
     clientA = clientA with { Sha256 = Sha256(contentA) };
@@ -579,16 +581,25 @@ public sealed class UiPortalContractTests
   private static ClientDeliverableReview SharedReview(PbcSeed.Fixture seed, PortalTestContext context) => new()
   {
     Id = Guid.NewGuid(), FirmId = seed.FirmId, ClientId = context.ClientId, EngagementId = context.EngagementId,
-    DeliverableId = context.DeliverableId, SharedByUserId = seed.Staff.Id, SharedAt = DateTimeOffset.UtcNow
+    DeliverableId = context.DeliverableId, SharedByUserId = seed.Staff.Id, SharedAt = context.SharedAt,
+    AcknowledgedAt = context.AcknowledgedAt,
+    AcknowledgedSha256 = context.AcknowledgedAt is null ? null : context.Sha256,
+    AcknowledgedByUserId = context.AcknowledgedAt is null ? null : seed.Client.Id
   };
 
-  private static void AssertClientDocument(JsonElement body, PortalTestContext visible, PortalTestContext hidden, Guid issuerUserId)
+  private static void AssertClientDocument(JsonElement body, PortalTestContext visible, PortalTestContext hidden, Guid issuerUserId, Guid acknowledgerUserId)
   {
     var documents = body.GetProperty("documents").EnumerateArray().ToArray();
     var document = Assert.Single(documents);
     Assert.Equal(visible.DeliverableId, document.GetProperty("deliverableId").GetGuid());
     Assert.Equal(visible.Sha256, document.GetProperty("sha256").GetString());
     AssertPortalContext(document.GetProperty("context"), visible);
+    Assert.Equal(visible.SharedAt, document.GetProperty("sharedAt").GetDateTimeOffset());
+    var acknowledged = document.GetProperty("acknowledgedAt");
+    if (visible.AcknowledgedAt is { } expectedAcknowledged)
+      Assert.Equal(expectedAcknowledged, acknowledged.GetDateTimeOffset());
+    else Assert.Equal(JsonValueKind.Null, acknowledged.ValueKind);
+    Assert.NotEqual(hidden.SharedAt, document.GetProperty("sharedAt").GetDateTimeOffset());
     Assert.Empty(body.GetProperty("signedLetters").EnumerateArray());
     Assert.Empty(body.GetProperty("bundles").EnumerateArray());
 
@@ -600,6 +611,8 @@ public sealed class UiPortalContractTests
     Assert.DoesNotContain(hidden.DeliverableId.ToString("D"), json, StringComparison.OrdinalIgnoreCase);
     Assert.DoesNotContain(hidden.Sha256, json, StringComparison.OrdinalIgnoreCase);
     Assert.DoesNotContain(issuerUserId.ToString("D"), json, StringComparison.OrdinalIgnoreCase);
+    Assert.DoesNotContain(acknowledgerUserId.ToString("D"), json, StringComparison.OrdinalIgnoreCase);
+    Assert.DoesNotContain("acknowledgedByUserId", json, StringComparison.OrdinalIgnoreCase);
     Assert.DoesNotContain("sharedByUserId", json, StringComparison.OrdinalIgnoreCase);
     Assert.DoesNotContain("createdByUserId", json, StringComparison.OrdinalIgnoreCase);
     Assert.DoesNotContain("clientId", json, StringComparison.OrdinalIgnoreCase);
@@ -650,7 +663,7 @@ public sealed class UiPortalContractTests
     });
 
   private sealed record PortalTestContext(Guid ClientId, Guid EngagementId, string ClientLegalName, string ServiceRoute,
-    string PeriodStart, string PeriodEnd, Guid DeliverableId, string Sha256);
+    string PeriodStart, string PeriodEnd, Guid DeliverableId, string Sha256, DateTimeOffset SharedAt, DateTimeOffset? AcknowledgedAt);
 
   private sealed record PortalFixture(PbcSeed.Fixture Seed, string ClientBSubject, string ClientBTenant,
     PortalTestContext ClientA, PortalTestContext ClientB);

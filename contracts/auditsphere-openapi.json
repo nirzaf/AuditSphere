@@ -127670,6 +127670,13 @@
           },
           "context": {
             "$ref": "#/components/schemas/PortalDocumentContext"
+          },
+          "sharedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

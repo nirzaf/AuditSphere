@@ -10,7 +10,7 @@ namespace AuditSphereOps.Application.Documents;
 public sealed record PortalDocumentComment(string Body, bool FromClient, string? Resolution);
 public sealed record PortalDocumentContext(string ClientLegalName, string ServiceRoute, string PeriodStart, string PeriodEnd);
 public sealed record PortalSharedDocument(Guid ReviewId, Guid DeliverableId, string Kind, string Title, string Version, string Sha256,
-  DateTimeOffset? AcknowledgedAt, IReadOnlyList<PortalDocumentComment> Comments, PortalDocumentContext Context);
+  DateTimeOffset? AcknowledgedAt, IReadOnlyList<PortalDocumentComment> Comments, PortalDocumentContext Context, DateTimeOffset? SharedAt = null);
 public sealed record PortalFinalBundleView(Guid Id, string Sha256, DateTimeOffset AssembledAt, string ManifestSha256,
   DateTimeOffset? AcknowledgedAt, PortalDocumentContext Context);
 public sealed record PortalReviewDocuments(IReadOnlyList<PortalSharedDocument> Documents, IReadOnlyList<SignedLetterView> SignedLetters,
@@ -63,7 +63,7 @@ public static class ClientPortalReviewQuery
       var shared = await AuditDeliverableService.SharedAsync(db, actor, engagementId, ct);
       documents.AddRange(shared.Select(x => new PortalSharedDocument(x.ReviewId, x.DeliverableId, x.Kind, x.Title,
         x.Version.ToString(System.Globalization.CultureInfo.InvariantCulture), x.ContentSha256, x.AcknowledgedAt,
-        x.Comments.Select(c => new PortalDocumentComment(c.Body, c.FromClient, c.Resolution)).ToArray(), context)));
+        x.Comments.Select(c => new PortalDocumentComment(c.Body, c.FromClient, c.Resolution)).ToArray(), context, x.SharedAt)));
       var scanLimit = AuditDeliverableService.MaxClientPortalSignedLetters - scans.Count + 1;
       scans.AddRange(await AuditDeliverableService.SignedRepresentationsAsync(db, actor, scanLimit, engagementId, ct));
       var bundleLimit = AuditDeliverableService.MaxClientPortalBundles - bundles.Count + 1;

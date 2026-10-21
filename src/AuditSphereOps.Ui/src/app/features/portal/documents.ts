@@ -8,8 +8,10 @@ import { SHARED } from '../../core/ui';
 import { revision } from './contracts';
 import { clientUtcTime } from '../clients/client-contracts';
 const portalDocumentContext = obj({ clientLegalName: text, serviceRoute: text, periodStart: text, periodEnd: text });
+const optionalNullable = <T>(decoder: (value: unknown, path: string) => T) =>
+  (value: unknown, path: string): T | null => value === undefined ? null : nullable(decoder)(value, path);
 export const sharedDocuments = obj({ documents: arr(obj({ reviewId: guid, deliverableId: guid, kind: text, title: text, version: revision,
-  sha256, acknowledgedAt: nullable(instant), comments: arr(obj({ body: text, fromClient: bool, resolution: nullable(text) }), 1000), context: portalDocumentContext }), 200),
+  sha256, sharedAt: optionalNullable(instant), acknowledgedAt: nullable(instant), comments: arr(obj({ body: text, fromClient: bool, resolution: nullable(text) }), 1000), context: portalDocumentContext }), 200),
   signedLetters: arr(obj({ id: guid, deliverableId: guid, version: nat, managementSignatory: text, contentSha256: sha256, uploadedAt: instant, verified: bool, current: bool }), 100),
   bundles: arr(obj({ id: guid, sha256, manifestSha256: sha256, assembledAt: instant, acknowledgedAt: nullable(instant), context: portalDocumentContext }), 100) });
 type SignedScan = ReturnType<typeof sharedDocuments>['signedLetters'][number];
@@ -26,7 +28,9 @@ type PortalDocumentContext = ReturnType<typeof sharedDocuments>['documents'][num
             <dt>Period start</dt><dd>{{ d.context.periodStart || 'Not recorded' }}</dd>
             <dt>Period end</dt><dd>{{ d.context.periodEnd || 'Not recorded' }}</dd></dl>
           @for (c of d.comments; track $index) { <p>{{ c.fromClient ? 'Client' : 'Auditor' }}: {{ c.body }} @if(c.resolution) { — resolved: {{ c.resolution }} }</p> }
-          @if (d.acknowledgedAt) { <p>Acknowledged {{ d.acknowledgedAt }}</p> }
+          @if (d.sharedAt) { <p>Shared with your client scope at <time [attr.datetime]="d.sharedAt">{{ utcTime(d.sharedAt) }}</time>.</p> }
+          @else { <p>Share time not recorded.</p> }
+          @if (d.acknowledgedAt) { <p>Client acknowledgment of this document version recorded at <time [attr.datetime]="d.acknowledgedAt">{{ utcTime(d.acknowledgedAt) }}</time>. This client acknowledgment does not prove provider delivery or signature verification.</p> }
           @else {
             <button matButton (click)="select(d.reviewId)" [disabled]="busy()">Review this version</button>
             @if (selected() === d.reviewId) { <form [formGroup]="review" (ngSubmit)="comment(d.reviewId)">

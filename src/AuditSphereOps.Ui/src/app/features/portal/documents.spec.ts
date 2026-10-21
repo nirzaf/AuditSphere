@@ -17,17 +17,23 @@ const bundleAssembledAt = '2026-10-15T13:00:00+03:00';
 const bundleAcknowledgedAt = '2026-10-15T13:05:00+03:00';
 const documentReviewId = '55555555-5555-4555-8555-555555555555';
 const deliverableId = '66666666-6666-4666-8666-666666666666';
+const documentSharedAt = '2026-10-15T13:30:00+03:00';
+const documentAcknowledgedAt = '2026-10-15T14:10:00+03:00';
 type SharedComment = { body: string; fromClient: boolean; resolution: string | null };
 type PortalContext = { clientLegalName: string; serviceRoute: string; periodStart: string; periodEnd: string };
+type SharedDocument = {
+  reviewId: string; deliverableId: string; kind: string; title: string; version: string; sha256: string;
+  sharedAt?: string | null; acknowledgedAt: string | null; comments: SharedComment[]; context: PortalContext;
+};
 const portalContext = (changes: Partial<PortalContext> = {}): PortalContext => ({
   clientLegalName: 'Evidence Client Ltd', serviceRoute: 'STATUTORY_AUDIT', periodStart: '2025-01-01', periodEnd: '2025-12-31', ...changes,
 });
 const bundle = (acknowledgedAt: string | null = null, assembledAt = '2026-10-15T10:00:00Z', context = portalContext()) => ({
   id: bundleId, sha256: contentSha256, manifestSha256, assembledAt, acknowledgedAt, context,
 });
-const sharedDocument = { reviewId: documentReviewId, deliverableId, kind: 'AUDIT_REPORT', title: 'Audited financial statements',
+const sharedDocument: SharedDocument = { reviewId: documentReviewId, deliverableId, kind: 'AUDIT_REPORT', title: 'Audited financial statements',
   version: '3', sha256: contentSha256, acknowledgedAt: null, comments: [] as SharedComment[], context: portalContext() };
-const documents = (acknowledgedAt: string | null = null, items: Array<typeof sharedDocument> = [], assembledAt?: string) => ({
+const documents = (acknowledgedAt: string | null = null, items: SharedDocument[] = [], assembledAt?: string) => ({
   documents: items, signedLetters: [], bundles: [bundle(acknowledgedAt, assembledAt)],
 });
 const displayedContext = (card: Element) => Object.fromEntries(
@@ -48,6 +54,17 @@ describe('client portal document context contract', () => {
       ...valid, bundles: [{ ...bundle(), context: { ...portalContext(), periodEnd: 2025 } }],
     })).toThrow();
   });
+
+  it('decodes retained share time while accepting legacy absence and explicit null, and rejects malformed values', () => {
+    const legacy = decode(sharedDocuments, documents(null, [sharedDocument]));
+    const explicitlyUnrecorded = decode(sharedDocuments, documents(null, [{ ...sharedDocument, sharedAt: null }]));
+    const retained = decode(sharedDocuments, documents(null, [{ ...sharedDocument, sharedAt: documentSharedAt }]));
+
+    expect(legacy.documents[0].sharedAt).toBeNull();
+    expect(explicitlyUnrecorded.documents[0].sharedAt).toBeNull();
+    expect(retained.documents[0].sharedAt).toBe(documentSharedAt);
+    expect(() => decode(sharedDocuments, documents(null, [{ ...sharedDocument, sharedAt: 'not-an-instant' }]))).toThrow();
+  });
 });
 
 describe('client document comments', () => {
@@ -62,6 +79,58 @@ describe('client document comments', () => {
   afterEach(() => {
     try { TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true }); }
     finally { TestBed.resetTestingModule(); }
+  });
+
+  it('renders retained share and document acknowledgment times as UTC on the exact document context', async () => {
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(PortalDocuments);
+    await fixture.whenStable();
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [{ ...sharedDocument,
+      sharedAt: documentSharedAt, acknowledgedAt: documentAcknowledgedAt }]));
+    await fixture.whenStable();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const card = Array.from(root.querySelectorAll<HTMLElement>('article.document'))
+      .find(candidate => candidate.querySelector('h3 a')?.getAttribute('href') === `/api/deliverables/${deliverableId}/download`)!;
+    expect(card.querySelector('h3')?.textContent?.trim()).toBe('Audited financial statements v3');
+    expect(card.textContent).toContain(contentSha256);
+    expect(card.textContent).toContain(`Shared with your client scope at 2026-10-15 10:30 UTC.`);
+    expect(card.textContent).toContain(`Client acknowledgment of this document version recorded at 2026-10-15 11:10 UTC.`);
+    expect(card.textContent).toContain('does not prove provider delivery or signature verification');
+    expect(displayedContext(card)).toEqual({
+      'Client legal name': 'Evidence Client Ltd', Service: 'STATUTORY_AUDIT',
+      'Period start': '2025-01-01', 'Period end': '2025-12-31',
+    });
+    const times = Array.from(card.querySelectorAll('time'));
+    const sharedTime = times.find(time => time.textContent?.includes('10:30'));
+    const acknowledgmentTime = times.find(time => time.textContent?.includes('11:10'));
+    expect(sharedTime?.getAttribute('datetime')).toBe(documentSharedAt);
+    expect(sharedTime?.textContent).toBe('2026-10-15 10:30 UTC');
+    expect(acknowledgmentTime?.getAttribute('datetime')).toBe(documentAcknowledgedAt);
+    expect(acknowledgmentTime?.textContent).toBe('2026-10-15 11:10 UTC');
+    expect(card.textContent).not.toContain('Review this version');
+    fixture.destroy();
+  });
+
+  it('labels absent and null legacy share times without inventing timestamps', async () => {
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(PortalDocuments);
+    await fixture.whenStable();
+    const legacy = { ...sharedDocument, reviewId: '77777777-7777-4777-8777-777777777777',
+      deliverableId: '88888888-8888-4888-8888-888888888888', title: 'Legacy shared report' };
+    const explicitlyUnrecorded = { ...sharedDocument, reviewId: '99999999-9999-4999-8999-999999999999',
+      deliverableId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', title: 'Unrecorded share report', sharedAt: null };
+    http.expectOne('/api/ui/portal/documents').flush(documents(null, [legacy, explicitlyUnrecorded]));
+    await fixture.whenStable();
+
+    const root = fixture.nativeElement as HTMLElement;
+    for (const id of [legacy.deliverableId, explicitlyUnrecorded.deliverableId]) {
+      const card = Array.from(root.querySelectorAll<HTMLElement>('article.document'))
+        .find(candidate => candidate.querySelector('h3 a')?.getAttribute('href') === `/api/deliverables/${id}/download`)!;
+      expect(card.textContent).toContain('Share time not recorded.');
+      expect(card.querySelector('time')).toBeNull();
+    }
+    fixture.destroy();
   });
 
   it('clears only a successfully sent draft and preserves a refused draft', async () => {

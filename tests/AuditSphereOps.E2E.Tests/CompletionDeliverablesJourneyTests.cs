@@ -197,7 +197,7 @@ public sealed class CompletionDeliverablesJourneyTests
     await clientPage.GetByRole(AriaRole.Heading, new() { Name = "Documents for your review" }).WaitForAsync(new() { Timeout = 20000 });
     await clientPage.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
     await clientPage.WaitForTimeoutAsync(500);
-    var letter = clientPage.Locator(canonicalAngular ? "article.document" : ".client-review-item").Filter(new() { HasText = "Management Representation Letter v1" });
+    var letter = clientPage.Locator(canonicalAngular ? "article.document" : ".client-review-item").Filter(new() { HasText = "Management Representation Letter" });
     await Assertions.Expect(letter).ToBeVisibleAsync();
     if (canonicalAngular)
     {
@@ -207,11 +207,49 @@ public sealed class CompletionDeliverablesJourneyTests
     await letter.GetByRole(AriaRole.Button, new() { Name = canonicalAngular ? "Acknowledge this version" : "Acknowledge Management Representation Letter", Exact = true }).ClickAsync();
     await Assertions.Expect(clientPage.GetByText(canonicalAngular ? "Acknowledged. The exact version reviewed is recorded." : "Acknowledged. The exact version you reviewed is recorded.", new() { Exact = true })).ToBeVisibleAsync();
     if (canonicalAngular) await letter.GetByRole(AriaRole.Button, new() { Name = "Upload signed letter", Exact = true }).ClickAsync();
+    Guid expectedRepresentationLetterId;
+    int expectedRepresentationLetterVersion;
+    string expectedRepresentationLetterHash;
+    DateTimeOffset expectedReviewSharedAt;
+    DateTimeOffset expectedReviewAcknowledgedAt;
     await using (var db = host.CreateDbContext())
     {
-      var ack = await db.ClientDeliverableReviews.AsNoTracking().SingleAsync(x => x.EngagementId == f.EngagementId);
-      var doc = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == ack.DeliverableId);
+      var ack = await db.ClientDeliverableReviews.AsNoTracking().SingleAsync(x => x.FirmId == f.FirmId && x.ClientId == f.ClientId && x.EngagementId == f.EngagementId);
+      var doc = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == ack.DeliverableId && x.FirmId == f.FirmId &&
+        x.ClientId == f.ClientId && x.EngagementId == f.EngagementId);
+      Assert.Equal(DeliverableKinds.RepresentationLetter, doc.Kind);
+      expectedRepresentationLetterId = doc.Id;
+      expectedRepresentationLetterVersion = doc.Version;
+      expectedRepresentationLetterHash = doc.ContentSha256;
+      expectedReviewSharedAt = ack.SharedAt;
+      Assert.NotNull(ack.AcknowledgedAt);
+      expectedReviewAcknowledgedAt = ack.AcknowledgedAt.Value;
       Assert.Equal((doc.ContentSha256, f.Client.Id), (ack.AcknowledgedSha256, ack.AcknowledgedByUserId!.Value));
+    }
+    if (canonicalAngular)
+    {
+      var exactLetterLink = letter.GetByRole(AriaRole.Link,
+        new() { Name = $"Management Representation Letter v{expectedRepresentationLetterVersion}", Exact = true });
+      await Assertions.Expect(exactLetterLink).ToHaveAttributeAsync("href", $"/api/deliverables/{expectedRepresentationLetterId:D}/download");
+      await Assertions.Expect(letter).ToContainTextAsync($"SHA-256 {expectedRepresentationLetterHash}");
+
+      var sharedEvent = letter.Locator("p").Filter(new() { HasText = "Shared with your client scope at" });
+      var sharedUtcText = expectedReviewSharedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture);
+      await Assertions.Expect(sharedEvent).ToHaveTextAsync($"Shared with your client scope at {sharedUtcText}.");
+      var sharedTime = sharedEvent.Locator("time");
+      await Assertions.Expect(sharedTime).ToHaveTextAsync(sharedUtcText);
+      Assert.True(DateTimeOffset.TryParse(await sharedTime.GetAttributeAsync("datetime"), System.Globalization.CultureInfo.InvariantCulture,
+        System.Globalization.DateTimeStyles.RoundtripKind, out var actualSharedAt));
+      Assert.Equal(expectedReviewSharedAt, actualSharedAt);
+
+      var acknowledgedEvent = letter.Locator("p").Filter(new() { HasText = "Client acknowledgment of this document version recorded at" });
+      var acknowledgedUtcText = expectedReviewAcknowledgedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture);
+      await Assertions.Expect(acknowledgedEvent).ToHaveTextAsync($"Client acknowledgment of this document version recorded at {acknowledgedUtcText}. This client acknowledgment does not prove provider delivery or signature verification.");
+      var acknowledgedTime = acknowledgedEvent.Locator("time");
+      await Assertions.Expect(acknowledgedTime).ToHaveTextAsync(acknowledgedUtcText);
+      Assert.True(DateTimeOffset.TryParse(await acknowledgedTime.GetAttributeAsync("datetime"), System.Globalization.CultureInfo.InvariantCulture,
+        System.Globalization.DateTimeStyles.RoundtripKind, out var actualAcknowledgedAt));
+      Assert.Equal(expectedReviewAcknowledgedAt, actualAcknowledgedAt);
     }
 
     await clientPage.GetByLabel("Management signatory", new() { Exact = true }).FillAsync("Authorized Executive Management");
@@ -318,7 +356,7 @@ public sealed class CompletionDeliverablesJourneyTests
     var portalWidths = await clientPage.EvaluateAsync<int[]>("() => [innerWidth, document.documentElement.scrollWidth]");
     Assert.True(portalWidths[1] <= portalWidths[0] + 1,
       $"Portal content width {portalWidths[1]} exceeds viewport {portalWidths[0]}.");
-    await OwnedBrowserFixtureHandoff.WaitAsync(clientOrigin, "/portal", "portal-bundle-history");
+    await OwnedBrowserFixtureHandoff.WaitAsync(clientOrigin, "/portal", "portal-document-milestones");
     // Rollback/reference presentation must pass the same host policy, even when a prior image-only bundle exists.
     var requiredOrigin = await StartIdentityAsync(partner, required: true);
     var completionPath = $"/app/engagements/{f.EngagementId:D}/completion";
