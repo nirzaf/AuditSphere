@@ -261,7 +261,7 @@ public static partial class UiEndpoints
       (Guid scopeId, HttpContext http, int page = 0, int pageSize = 25, Guid? parentClientId = null, Guid? childClientId = null) =>
         ReadAsync(http, (db, actor, ct) => ConsolidationOwnershipWorkspaceQuery.GetAsync(
           db, actor, scopeId, page, pageSize, parentClientId, childClientId, ct)))
-      .WithDescription("Returns a bounded ownership-interest history page and eligible current member options. Ownership and economic-interest percentages are emitted as exact invariant decimal strings; page defaults to 0 and pageSize to 25 (maximum 100).")
+      .WithDescription("Returns a bounded ownership-interest history page and eligible members with their approved effective-date windows. Ownership and economic-interest percentages are emitted as exact invariant decimal strings; page defaults to 0 and pageSize to 25 (maximum 100).")
       .Produces<ConsolidationOwnershipWorkspace>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")

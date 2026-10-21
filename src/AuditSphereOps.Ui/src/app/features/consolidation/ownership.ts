@@ -11,17 +11,22 @@ const ownershipRow = obj({
   effectiveFrom: date, effectiveTo: nullable(date), ownershipPercent: dec, economicInterestPercent: dec,
   controlAssessment: text, method: text, evidenceReference: text, status: text,
 });
+const membershipWindow = obj({ effectiveFrom: date, effectiveTo: nullable(date) });
 const ownershipShape = obj({
   scopeId: guid, groupId: guid, groupName: text, scopeVersion: int, groupRevision: int, currentGroupRevision: int,
   scopeStatus: text, scopeMethod: text, canAddOwnership: bool,
   page: nat, pageSize: nat, total: nat, interests: arr(ownershipRow, 100),
-  eligibleMembers: arr(obj({ clientId: guid, legalName: text, membershipEffectiveFrom: date }), 1000),
+  eligibleMembers: arr(obj({ clientId: guid, legalName: text, membershipWindows: arr(membershipWindow, 1000) }), 1000),
 });
 export function decodeOwnershipWorkspace(value: unknown, path = '') {
   const w = ownershipShape(value, path);
   if (w.scopeVersion < 1 || w.groupRevision < 1 || w.currentGroupRevision < 1 || w.pageSize < 1 || w.pageSize > 100 ||
       w.canAddOwnership && (w.scopeStatus !== 'DRAFT' || w.groupRevision !== w.currentGroupRevision) ||
+      w.canAddOwnership && w.eligibleMembers.length < 2 ||
+      w.eligibleMembers.reduce((total, member) => total + member.membershipWindows.length, 0) > 1000 ||
       new Set(w.eligibleMembers.map(x => x.clientId)).size !== w.eligibleMembers.length ||
+      w.eligibleMembers.some(member => member.membershipWindows.length === 0 || member.membershipWindows.some(window =>
+        window.effectiveTo !== null && window.effectiveTo < window.effectiveFrom)) ||
       new Set(w.interests.map(x => x.id)).size !== w.interests.length ||
       w.interests.some(x => x.parentClientId === x.childClientId || percentagePoints(x.ownershipPercent) === null ||
         percentagePoints(x.economicInterestPercent) === null || x.effectiveTo !== null && x.effectiveTo < x.effectiveFrom))
@@ -34,6 +39,10 @@ type OwnershipIntent = {
   ownershipPercent: string; economicInterestPercent: string; controlAssessment: string; method: string;
   evidenceReference: string; expectedGroupRevision: number; reviewed: boolean;
 };
+function membershipCovers(member: OwnershipWorkspace['eligibleMembers'][number], from: string, to: string | null): boolean {
+  return member.membershipWindows.some(window => window.effectiveFrom <= from &&
+    (window.effectiveTo === null || to !== null && window.effectiveTo >= to));
+}
 function canonicalAmount(value: string): string {
   const [whole, fraction = ''] = value.split('.');
   const digits = whole.replace(/^0+(?=\d)/, '');
@@ -91,15 +100,15 @@ function matches(row: OwnershipWorkspace['interests'][number], intent: Ownership
               <legend>Exact ownership evidence</legend>
               <label>Parent approved member * <select name="parent" [(ngModel)]="parentClientId" (ngModelChange)="reviewed = false" required>
                 <option value="">Choose parent entity</option>
-                @for (member of w.eligibleMembers; track member.clientId) { <option [value]="member.clientId">{{ member.legalName }} · {{ member.clientId }} · approved from {{ member.membershipEffectiveFrom }}</option> }
+                @for (member of w.eligibleMembers; track member.clientId) { <option [value]="member.clientId">{{ member.legalName }} · {{ member.clientId }} · approved membership: {{ membershipSummary(member) }}</option> }
               </select></label>
               <label>Child approved member * <select name="child" [(ngModel)]="childClientId" (ngModelChange)="reviewed = false" required>
                 <option value="">Choose child entity</option>
-                @for (member of w.eligibleMembers; track member.clientId) { <option [value]="member.clientId">{{ member.legalName }} · {{ member.clientId }} · approved from {{ member.membershipEffectiveFrom }}</option> }
+                @for (member of w.eligibleMembers; track member.clientId) { <option [value]="member.clientId">{{ member.legalName }} · {{ member.clientId }} · approved membership: {{ membershipSummary(member) }}</option> }
               </select></label>
               <label>Effective from * <input name="from" type="date" [(ngModel)]="effectiveFrom" (ngModelChange)="reviewed = false" required /></label>
               <label>Effective to <input name="to" type="date" [(ngModel)]="effectiveTo" (ngModelChange)="reviewed = false" /></label>
-              <p><small>The start date must be on or after both approved open-ended membership start dates. Percentages are percentage points from 0 to 100 with at most six decimal places; 75.5 means 75.5%.</small></p>
+              <p><small>The full relationship period must fit within one approved membership window for each entity. An open-ended relationship requires an open-ended membership. Percentages are percentage points from 0 to 100 with at most six decimal places; 75.5 means 75.5%.</small></p>
               <label>Ownership percentage points * <input name="ownership" inputmode="decimal" [(ngModel)]="ownershipPercent" (ngModelChange)="reviewed = false" maxlength="10" required /></label>
               <label>Economic-interest percentage points * <input name="economic" inputmode="decimal" [(ngModel)]="economicInterestPercent" (ngModelChange)="reviewed = false" maxlength="10" required /></label>
               <label>Control assessment * <input name="assessment" [(ngModel)]="controlAssessment" (ngModelChange)="reviewed = false" maxlength="100" required /></label>
@@ -110,7 +119,7 @@ function matches(row: OwnershipWorkspace['interests'][number], intent: Ownership
             </fieldset>
           </form>
         } @else {
-          <p>Adding relationships requires a current draft scope, two approved open-ended members and an explicit Manager, Partner or Administrator grant on this group.</p>
+          <p>Adding relationships requires a current draft scope, two approved members, and an explicit Manager, Partner or Administrator grant on this group.</p>
         }
       }
       @if (validation()) { <p role="alert">{{ validation() }}</p> }
@@ -152,6 +161,11 @@ export class ConsolidationOwnership {
   evidenceReference = '';
   reviewed = false;
 
+  membershipSummary(member: OwnershipWorkspace['eligibleMembers'][number]): string {
+    return member.membershipWindows.map(window =>
+      `${window.effectiveFrom} through ${window.effectiveTo ?? 'open-ended'}`).join('; ');
+  }
+
   constructor() {
     effect(() => {
       this.scopeId();
@@ -180,10 +194,10 @@ export class ConsolidationOwnership {
     const ownership = percentagePoints(this.ownershipPercent), economic = percentagePoints(this.economicInterestPercent);
     const from = this.effectiveFrom.trim(), to = this.effectiveTo.trim() || null;
     if (!parent || !child || parent.clientId === child.clientId || !validDate(from) || to !== null && (!validDate(to) || to < from) ||
-        from < parent.membershipEffectiveFrom || from < child.membershipEffectiveFrom || ownership === null || economic === null ||
+        !membershipCovers(parent, from, to) || !membershipCovers(child, from, to) || ownership === null || economic === null ||
         !this.controlAssessment.trim() || !this.method.trim() || !this.evidenceReference.trim() ||
         this.controlAssessment.trim().length > 100 || this.method.trim().length > 100 || this.evidenceReference.trim().length > 2000) {
-      this.validation.set('Choose distinct approved members, valid membership dates, exact percentages from 0 to 100, and bounded assessment, method and evidence references.');
+      this.validation.set('Choose distinct approved members whose approved membership windows cover the full relationship period, exact percentages from 0 to 100, and bounded assessment, method and evidence references.');
       return;
     }
     const intent: OwnershipIntent = { parentClientId: parent.clientId, childClientId: child.clientId,

@@ -13,8 +13,10 @@ const edgeId = '55555555-5555-4555-8555-555555555555';
 function payload() {
   return { scopeId, groupId, groupName: 'Synthetic group', scopeVersion: 1, groupRevision: 7, currentGroupRevision: 7,
     scopeStatus: 'DRAFT', scopeMethod: 'RESTRICTED', canAddOwnership: true, page: 0, pageSize: 25, total: 0, interests: [],
-    eligibleMembers: [{ clientId: parentId, legalName: 'Synthetic parent', membershipEffectiveFrom: '2026-01-01' },
-      { clientId: childId, legalName: 'Synthetic child', membershipEffectiveFrom: '2026-01-01' }] };
+    eligibleMembers: [{ clientId: parentId, legalName: 'Synthetic parent', membershipWindows: [
+      { effectiveFrom: '2026-01-01', effectiveTo: null }] },
+      { clientId: childId, legalName: 'Synthetic child', membershipWindows: [
+        { effectiveFrom: '2026-01-01', effectiveTo: null }] }] };
 }
 describe('consolidation ownership evidence', () => {
   afterEach(() => TestBed.resetTestingModule());
@@ -62,5 +64,31 @@ describe('consolidation ownership evidence', () => {
       parentClientId: parentId, parentLegalName: 'Parent', childClientId: childId, childLegalName: 'Child',
       effectiveFrom: '2026-01-01', effectiveTo: null, ownershipPercent: 73.123456, economicInterestPercent: '66.5',
       controlAssessment: 'CONTROLLED', method: 'METHOD', evidenceReference: 'REF', status: 'APPROVED' }] })).toThrow();
+  });
+  it('requires a finite relationship to fit inside one approved finite membership window', async () => {
+    const finitePayload = { ...payload(), eligibleMembers: payload().eligibleMembers.map(member => ({
+      ...member, membershipWindows: [{ effectiveFrom: '2026-01-01', effectiveTo: '2026-06-30' }],
+    })) };
+    const data = signal(decodeOwnershipWorkspace(finitePayload));
+    const resource = { data, loading: signal(false), error: signal(''), reload: vi.fn() };
+    const api = { resource: vi.fn(() => resource),
+      command: vi.fn().mockResolvedValue({ ok: true, value: edgeId }), get: vi.fn() };
+    TestBed.configureTestingModule({ imports: [ConsolidationOwnership], providers: [
+      { provide: Api, useValue: api }, { provide: SessionService, useValue: { invalidation: signal(0) } },
+    ] });
+    const fixture = TestBed.createComponent(ConsolidationOwnership);
+    fixture.componentRef.setInput('scopeId', scopeId);
+    fixture.detectChanges();
+    const c = fixture.componentInstance;
+    c.parentClientId = parentId; c.childClientId = childId; c.effectiveFrom = '2026-01-01';
+    c.ownershipPercent = '75'; c.economicInterestPercent = '75';
+    c.controlAssessment = 'CONTROLLED'; c.method = 'METHOD'; c.evidenceReference = 'REF'; c.reviewed = true;
+    await c.addOwnership();
+    expect(api.command).not.toHaveBeenCalled();
+    expect(c.validation()).toContain('membership windows cover the full relationship period');
+    c.effectiveTo = '2026-06-30'; c.reviewed = true;
+    await c.addOwnership();
+    expect(api.command).toHaveBeenCalledWith(`/api/ui/consolidation/scopes/${scopeId}/ownership-interests`,
+      expect.objectContaining({ effectiveFrom: '2026-01-01', effectiveTo: '2026-06-30' }), 'POST');
   });
 });

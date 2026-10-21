@@ -218,6 +218,24 @@ public sealed class ConsolidationWorkspaceApiTests
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-OWNERSHIP");
     var fixture = await SeedOwnershipAsync(pg);
+    var boundedClientId = Guid.CreateVersion7();
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.PracticeClients.Add(new PracticeClient
+      {
+        Id = boundedClientId, FirmId = fixture.Seed.FirmId, LegalName = "Synthetic bounded member",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      seed.ClientGroupMemberships.Add(new ClientGroupMembership
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId,
+        ClientId = boundedClientId, EffectiveFrom = new DateOnly(2026, 7, 1), EffectiveTo = new DateOnly(2026, 12, 31),
+        Status = AccountingWorkflowStates.Approved, OwnershipPercent = 100m, EconomicInterestPercent = 100m,
+        ControlMethod = "CONTROLLED", EvidenceReference = "BOUNDED-MEMBER-EVIDENCE",
+        CreatedByUserId = fixture.Seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
     using var factory = Factory(pg, fixture.Seed.Staff);
     using var client = factory.CreateClient();
     var csrf = await SignIn(client);
@@ -228,12 +246,16 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(3, initial.GetProperty("eligibleMembers").GetArrayLength());
     Assert.DoesNotContain(initial.GetProperty("eligibleMembers").EnumerateArray(),
       x => x.GetProperty("clientId").GetGuid() == fixture.OutsideClientId);
-    Assert.Contains(initial.GetProperty("eligibleMembers").EnumerateArray(),
-      x => x.GetProperty("clientId").GetGuid() == fixture.FutureClientId &&
-        x.GetProperty("membershipEffectiveFrom").GetString() == "2099-01-01");
-    object Intent(Guid parent, Guid child, long revision = 1) => new
+    Assert.DoesNotContain(initial.GetProperty("eligibleMembers").EnumerateArray(),
+      x => x.GetProperty("clientId").GetGuid() == fixture.FutureClientId);
+    var boundedMember = Assert.Single(initial.GetProperty("eligibleMembers").EnumerateArray(),
+      x => x.GetProperty("clientId").GetGuid() == boundedClientId);
+    var boundedWindow = Assert.Single(boundedMember.GetProperty("membershipWindows").EnumerateArray());
+    Assert.Equal("2026-07-01", boundedWindow.GetProperty("effectiveFrom").GetString());
+    Assert.Equal("2026-12-31", boundedWindow.GetProperty("effectiveTo").GetString());
+    object Intent(Guid parent, Guid child, long revision = 1, string effectiveFrom = "2026-01-01", string? effectiveTo = null) => new
     {
-      parentClientId = parent, childClientId = child, effectiveFrom = "2026-01-01", effectiveTo = (string?)null,
+      parentClientId = parent, childClientId = child, effectiveFrom, effectiveTo,
       ownershipPercent = "73.123456", economicInterestPercent = "66.500000", controlAssessment = "CONTROLLED",
       method = "EVIDENCED-METHOD", evidenceReference = "OWNERSHIP-01", expectedGroupRevision = revision, reviewed = true
     };
@@ -261,6 +283,12 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(HttpStatusCode.BadRequest, outside.StatusCode);
     using var beforeMembership = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.FutureClientId));
     Assert.Equal(HttpStatusCode.BadRequest, beforeMembership.StatusCode);
+    using var unboundedOutsideMembership = await Post(client, csrf, url,
+      Intent(fixture.Seed.ClientId, boundedClientId, effectiveFrom: "2026-07-01"));
+    Assert.Equal(HttpStatusCode.BadRequest, unboundedOutsideMembership.StatusCode);
+    using var boundedRelationship = await Post(client, csrf, url,
+      Intent(fixture.Seed.ClientId, boundedClientId, effectiveFrom: "2026-07-01", effectiveTo: "2026-12-31"));
+    Assert.Equal(HttpStatusCode.OK, boundedRelationship.StatusCode);
 
     using var readerFactory = Factory(pg, fixture.Seed.Reviewer);
     using var reader = readerFactory.CreateClient();
@@ -275,7 +303,7 @@ public sealed class ConsolidationWorkspaceApiTests
     using var deniedRead = await ungranted.GetAsync(url);
     Assert.Equal(HttpStatusCode.Forbidden, deniedRead.StatusCode);
     await using var proof = new AuditSphereDbContext(pg.Options);
-    Assert.Equal(1, await proof.OwnershipInterestVersions.CountAsync(x => x.ScopeVersionId == fixture.ScopeId));
+    Assert.Equal(2, await proof.OwnershipInterestVersions.CountAsync(x => x.ScopeVersionId == fixture.ScopeId));
   }
 
   [Fact]

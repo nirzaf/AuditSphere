@@ -7,8 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Accounting;
 
+public sealed record ConsolidationOwnershipMembershipWindow(DateOnly EffectiveFrom, DateOnly? EffectiveTo);
+
 public sealed record ConsolidationOwnershipMember(
-  Guid ClientId, string LegalName, DateOnly MembershipEffectiveFrom);
+  Guid ClientId, string LegalName, IReadOnlyList<ConsolidationOwnershipMembershipWindow> MembershipWindows);
 
 public sealed record ConsolidationOwnershipRow(
   Guid Id, Guid ParentClientId, string ParentLegalName, Guid ChildClientId, string ChildLegalName,
@@ -26,7 +28,7 @@ public static class ConsolidationOwnershipWorkspaceQuery
 {
   private static readonly string[] ReadRoles = ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"];
   private static readonly string[] ManageRoles = ["Manager", "Partner", "Administrator"];
-  private const int MaximumMemberOptions = 1000;
+  private const int MaximumMembershipWindows = 1000;
 
   public static async Task<CommandResult<ConsolidationOwnershipWorkspace>> GetAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid scopeId, int page = 0, int pageSize = 25,
@@ -72,18 +74,25 @@ public static class ConsolidationOwnershipWorkspaceQuery
         x.ChildClientId, x.ChildLegalName, x.EffectiveFrom, x.EffectiveTo,
         x.OwnershipPercent, x.EconomicInterestPercent, x.ControlAssessment,
         x.Method, x.EvidenceReference, x.Status)).ToListAsync(ct);
-    var members = await (from membership in ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
+    var membershipWindows = await (from membership in ConsolidationScopeGuards.ApprovedMembershipsOverlappingPeriod(
                            db, actor.FirmId, scope.GroupId, scope.PeriodId)
                          join client in db.PracticeClients.AsNoTracking()
                            on new { membership.FirmId, membership.ClientId }
                            equals new { client.FirmId, ClientId = client.Id }
                          where membership.FirmId == actor.FirmId
-                         orderby client.LegalName, client.Id
-                         select new ConsolidationOwnershipMember(client.Id, client.LegalName, membership.EffectiveFrom))
-      .Take(MaximumMemberOptions + 1).ToListAsync(ct);
-    if (members.Count > MaximumMemberOptions)
+                         orderby client.LegalName, client.Id, membership.EffectiveFrom
+                         select new
+                         {
+                           client.Id, client.LegalName, membership.EffectiveFrom, membership.EffectiveTo
+                         })
+      .Take(MaximumMembershipWindows + 1).ToListAsync(ct);
+    if (membershipWindows.Count > MaximumMembershipWindows)
       return CommandResult<ConsolidationOwnershipWorkspace>.Fail(ErrorCodes.GateBlocked,
-        "The group has more member options than this bounded ownership workspace supports; no partial option list is returned.");
+        "The group has more approved membership windows than this bounded ownership workspace supports; no partial option list is returned.");
+    var choices = membershipWindows.GroupBy(x => new { x.Id, x.LegalName })
+      .Select(group => new ConsolidationOwnershipMember(group.Key.Id, group.Key.LegalName,
+        group.Select(x => new ConsolidationOwnershipMembershipWindow(x.EffectiveFrom, x.EffectiveTo)).ToArray()))
+      .ToArray();
 
     var manage = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ManageRoles, ct);
     access = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
@@ -98,7 +107,6 @@ public static class ConsolidationOwnershipWorkspaceQuery
         current.GroupRevision != scope.GroupRevision || current.Status != scope.Status || currentRevision != group.Revision)
       return CommandResult<ConsolidationOwnershipWorkspace>.Fail(ErrorCodes.GenerationStale,
         "The group or scope changed while ownership was loaded. Refresh the current scope.");
-    var choices = members.DistinctBy(x => x.ClientId).ToArray();
     return CommandResult<ConsolidationOwnershipWorkspace>.Ok(new(
       scope.Id, scope.GroupId, group.Name, scope.Version, scope.GroupRevision, group.Revision,
       scope.Status, scope.Method,
