@@ -37,8 +37,13 @@ public static partial class PracticeTimeService
     var predecessorTask = await LoadTaskForUpdateAsync(db, actor.FirmId, request.PredecessorTaskId, ct);
     var successor = await LockWorkflowBindingAsync(db, actor.FirmId, taskId, ct);
     var predecessor = await LockWorkflowBindingAsync(db, actor.FirmId, request.PredecessorTaskId, ct);
-    if (task is null || predecessorTask is null || successor is null || predecessor is null ||
-        successor.EngagementId != engagementId || predecessor.EngagementId != engagementId ||
+    if (task is null || predecessorTask is null || successor is null || predecessor is null)
+      return CommandResult<WorkflowDependencyReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.WorkTasks.Attach(task).ReloadAsync(ct);
+    await db.WorkTasks.Attach(predecessorTask).ReloadAsync(ct);
+    await db.WorkflowTaskBindings.Attach(successor).ReloadAsync(ct);
+    await db.WorkflowTaskBindings.Attach(predecessor).ReloadAsync(ct);
+    if (successor.EngagementId != engagementId || predecessor.EngagementId != engagementId ||
         successor.ClientId != engagement.PracticeClientId || predecessor.ClientId != engagement.PracticeClientId ||
         task.EngagementId != engagementId || predecessorTask.EngagementId != engagementId)
       return CommandResult<WorkflowDependencyReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

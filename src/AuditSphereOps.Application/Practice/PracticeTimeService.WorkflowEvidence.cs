@@ -40,7 +40,11 @@ public static partial class PracticeTimeService
     if (!auth.Succeeded) return CommandResult<WorkflowEvidenceChangeReceipt>.Fail(auth.ErrorCode!, auth.Message!);
     var task = await LoadTaskForUpdateAsync(db, actor.FirmId, taskId, ct);
     var binding = await LockWorkflowBindingAsync(db, actor.FirmId, taskId, ct);
-    if (task is null || binding is null || binding.EngagementId != engagementId ||
+    if (task is null || binding is null)
+      return CommandResult<WorkflowEvidenceChangeReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    await db.WorkTasks.Attach(task).ReloadAsync(ct);
+    await db.WorkflowTaskBindings.Attach(binding).ReloadAsync(ct);
+    if (binding.EngagementId != engagementId ||
         binding.ClientId != engagement.PracticeClientId || task.EngagementId != engagementId || task.ClientId != binding.ClientId)
       return CommandResult<WorkflowEvidenceChangeReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var digest = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new {

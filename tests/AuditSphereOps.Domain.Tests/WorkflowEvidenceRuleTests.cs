@@ -116,6 +116,58 @@ public sealed class WorkflowEvidenceRuleTests
   }
 
   [Fact]
+  public async Task EvidenceChangeRejectsPreloadedTaskAndBindingAfterConcurrentCancellation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var admin = PbcSeed.Actor(f.Admin, "Administrator");
+    Guid taskId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await EngagementWorkflowTaskService.CreateAsync(setup, admin, f.EngagementId,
+        new("Concurrent cancellation before evidence edit", WorkflowTaskPhases.AuditPlanning, 1,
+          IdempotencyKey: Guid.NewGuid()));
+      Assert.True(created.Succeeded, created.Message);
+      taskId = created.Value;
+    }
+
+    await using var staleContext = new AuditSphereDbContext(pg.Options);
+    var preloadedTask = await staleContext.WorkTasks.SingleAsync(x => x.Id == taskId);
+    var preloadedBinding = await staleContext.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == taskId);
+    Assert.Equal(PracticeTimeStates.TaskOpen, preloadedTask.Status);
+    Assert.Equal(1, preloadedBinding.Revision);
+
+    int activitiesAfterCancellation;
+    await using (var currentContext = new AuditSphereDbContext(pg.Options))
+    {
+      var cancelled = await EngagementWorkflowTaskService.CancelAsync(currentContext, admin, taskId,
+        "The task was cancelled before its evidence rule could be changed.", expectedRevision: 1);
+      Assert.True(cancelled.Succeeded, cancelled.Message);
+      activitiesAfterCancellation = await currentContext.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == taskId);
+    }
+
+    var change = new WorkflowEvidenceChangeRequest(WorkflowEvidenceKinds.CurrentMateriality, null, true,
+      "Require current materiality evidence.", ExpectedRevision: 1, IdempotencyKey: Guid.NewGuid());
+    var rejected = await PracticeTimeService.ChangeWorkflowEvidenceAsync(staleContext, admin,
+      f.EngagementId, taskId, change);
+    Assert.False(rejected.Succeeded);
+    Assert.Equal(ErrorCodes.StaleRevision, rejected.ErrorCode);
+
+    await using var final = new AuditSphereDbContext(pg.Options);
+    var finalTask = await final.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == taskId);
+    var finalBinding = await final.WorkflowTaskBindings.AsNoTracking().SingleAsync(x => x.WorkTaskId == taskId);
+    Assert.Equal(PracticeTimeStates.TaskCancelled, finalTask.Status);
+    Assert.Equal(2, finalBinding.Revision);
+    Assert.Empty(await final.WorkflowTaskEvidenceRules.Where(x => x.WorkflowTaskBindingId == finalBinding.Id).ToListAsync());
+    Assert.Equal(activitiesAfterCancellation,
+      await final.WorkflowTaskActivities.CountAsync(x => x.WorkTaskId == taskId));
+    Assert.Single(await final.WorkflowTaskActivities.Where(x =>
+      x.WorkTaskId == taskId && x.Kind == WorkflowTaskActivityKinds.Cancelled).ToListAsync());
+    Assert.Empty(await final.WorkflowTaskActivities.Where(x =>
+      x.WorkTaskId == taskId && x.Kind == WorkflowTaskActivityKinds.EvidenceChanged).ToListAsync());
+  }
+
+  [Fact]
   public async Task ExactPbcAcceptanceChangesReadinessWithoutAStoredSatisfiedFlagAndForeignReferencesAreDenied()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg); var other = await PbcSeed.SeedAsync(pg);

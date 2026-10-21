@@ -51,6 +51,62 @@ public sealed class WorkflowDependencyAmendmentTests
   }
 
   [Fact]
+  public async Task TrackedCancelledPredecessorIsReloadedBeforeDependencyRevisionAndStatusGuards()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var f = await PbcSeed.SeedAsync(pg);
+    var actor = PbcSeed.Actor(f.Admin, "Administrator");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var predecessorTaskId = await Make(db, f, "Cancelled predecessor");
+    var successorTaskId = await Make(db, f, "Dependency successor");
+
+    // Keep both task rows and binding rows tracked while another context changes the predecessor.
+    var trackedPredecessorTask = await db.WorkTasks.SingleAsync(x => x.Id == predecessorTaskId);
+    var trackedSuccessorTask = await db.WorkTasks.SingleAsync(x => x.Id == successorTaskId);
+    var trackedPredecessor = await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == predecessorTaskId);
+    var trackedSuccessor = await db.WorkflowTaskBindings.SingleAsync(x => x.WorkTaskId == successorTaskId);
+    Assert.Equal(PracticeTimeStates.TaskOpen, trackedPredecessorTask.Status);
+    Assert.Equal(PracticeTimeStates.TaskOpen, trackedSuccessorTask.Status);
+    Assert.Equal(1L, trackedPredecessor.Revision);
+    Assert.Equal(1L, trackedSuccessor.Revision);
+
+    await using (var cancellationDb = new AuditSphereDbContext(pg.Options))
+    {
+      var cancelled = await EngagementWorkflowTaskService.CancelAsync(cancellationDb, actor,
+        predecessorTaskId, "Cancel the prerequisite before dependency review.", expectedRevision: 1);
+      Assert.True(cancelled.Succeeded, cancelled.Message);
+    }
+
+    var cancellationActivityCount = await db.WorkflowTaskActivities.AsNoTracking().CountAsync();
+    Assert.Equal(PracticeTimeStates.TaskCancelled,
+      (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == predecessorTaskId)).Status);
+    Assert.Equal(2L, await db.WorkflowTaskBindings.AsNoTracking()
+      .Where(x => x.WorkTaskId == predecessorTaskId).Select(x => x.Revision).SingleAsync());
+
+    var stale = await PracticeTimeService.ChangeWorkflowDependencyAsync(db, actor, f.EngagementId,
+      successorTaskId, new(predecessorTaskId, true, ExpectedRevision: 1, ExpectedPredecessorRevision: 1,
+        Reason: "Use the stale predecessor revision.", IdempotencyKey: Guid.NewGuid()));
+    Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+
+    var refreshedRevision = await PracticeTimeService.ChangeWorkflowDependencyAsync(db, actor, f.EngagementId,
+      successorTaskId, new(predecessorTaskId, true, ExpectedRevision: 1, ExpectedPredecessorRevision: 2,
+        Reason: "A cancelled task cannot be a required predecessor.", IdempotencyKey: Guid.NewGuid()));
+    Assert.Equal(ErrorCodes.ProtectedState, refreshedRevision.ErrorCode);
+
+    var dependencyProjection = await WorkflowTaskDependencyQuery.GetAsync(db, actor, f.EngagementId, successorTaskId);
+    Assert.True(dependencyProjection.Succeeded, dependencyProjection.Message);
+    Assert.Empty(dependencyProjection.Value!.References);
+    Assert.Empty(await db.WorkflowTaskDependencyRevisions.AsNoTracking().ToListAsync());
+    Assert.Equal(1L, await db.WorkflowTaskBindings.AsNoTracking()
+      .Where(x => x.WorkTaskId == successorTaskId).Select(x => x.Revision).SingleAsync());
+    Assert.Equal(2L, await db.WorkflowTaskBindings.AsNoTracking()
+      .Where(x => x.WorkTaskId == predecessorTaskId).Select(x => x.Revision).SingleAsync());
+    Assert.Equal(cancellationActivityCount, await db.WorkflowTaskActivities.AsNoTracking().CountAsync());
+    Assert.Empty(await db.WorkflowTaskActivities.AsNoTracking()
+      .Where(x => x.Kind == WorkflowTaskActivityKinds.DependencyChanged).ToListAsync());
+  }
+
+  [Fact]
   public async Task CyclesAndOppositeEdgeRacesAreRejectedAndWithdrawalsPreserveHistory()
   {
     await using var pg = await PgTestSchema.CreateAsync(); var f = await PbcSeed.SeedAsync(pg); var actor = PbcSeed.Actor(f.Admin, "Administrator");
