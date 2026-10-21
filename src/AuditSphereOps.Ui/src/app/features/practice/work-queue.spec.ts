@@ -265,6 +265,7 @@ describe('workflow queue assignment filters', () => {
       http.expectOne(tasksUrl('view=MY_TASKS&pageSize=50&includeSummary=true'))
         .flush({ view: 'MY_TASKS', tasks: [
           { ...cancelableTask, requiredTask: true, unmetTaskDependencies: 1, templateRevisionId: task.taskId, templateStepId: task.clientId, mappingVersionId: task.engagementId, fsliCode: 'CASH', pbcRequestId: task.taskId, pbcState: 'SENT', reviewState: 'CHANGES_REQUIRED', reviewComment: 'Reconcile the retained cash evidence' },
+          { ...task, taskId: '77777777-7777-4777-8777-777777777777', title: 'Resubmitted procedure work', reviewState: 'UNDER_REVIEW', reviewComment: 'Resubmitted for independent review' },
           { ...task, taskId: '55555555-5555-4555-8555-555555555555', title: 'Optional evidence check', requiredTask: false },
           { ...task, taskId: '66666666-6666-4666-8666-666666666666', title: 'Manual follow-up', requiredTask: null },
         ], hasMore: false, nextCursor: null, summary: summary() });
@@ -300,6 +301,21 @@ describe('workflow queue assignment filters', () => {
         expect(host.querySelectorAll('[data-cancel-task]')).toHaveLength(1);
         expect(host.querySelector('[data-cancel-task]')?.getAttribute('data-cancel-task')).toBe(task.taskId);
         expect(host.textContent).toContain(task.title);
+
+        const renderedTasks = Array.from(host.querySelectorAll<HTMLElement>(
+          display === 'LIST' ? 'tbody tr' : 'article.task-card'));
+        const renderedTask = (title: string) => renderedTasks.find(item => item.textContent?.includes(title));
+        const expectedFieldworkHref = `/app/engagements/${task.engagementId}/audit-fieldwork`;
+        for (const title of [task.title, 'Resubmitted procedure work']) {
+          const reviewTask = renderedTask(title);
+          expect(reviewTask).toBeDefined();
+          expect(reviewTask?.querySelector<HTMLAnchorElement>('a[href$="/audit-fieldwork"]')?.getAttribute('href'))
+            .toBe(expectedFieldworkHref);
+          expect(reviewTask?.querySelector('a[href$="/audit-fieldwork"]')?.textContent?.trim()).toBe('Open fieldwork');
+        }
+        const ordinaryTask = renderedTask('Optional evidence check');
+        expect(ordinaryTask).toBeDefined();
+        expect(ordinaryTask?.querySelector('a[href$="/audit-fieldwork"]')).toBeNull();
       }
       http.verify({ ignoreCancelled: true });
     } finally { fixture.destroy(); TestBed.resetTestingModule(); }

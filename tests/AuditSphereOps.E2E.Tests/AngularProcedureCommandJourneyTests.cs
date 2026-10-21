@@ -395,7 +395,38 @@ public sealed class AngularProcedureCommandJourneyTests
     await Assertions.Expect(review.Locator("p[role='status']").Filter(new() { HasText = "Recorded REVIEW_RESULT" }))
       .ToBeVisibleAsync();
 
-    await preparerPage.GotoAsync(origin + path);
+    Guid assignedCorrectionTaskId;
+    await using (var correctionDb = host.CreateDbContext())
+    {
+      var correction = await correctionDb.AuditProcedureResults.AsNoTracking()
+        .SingleAsync(x => x.AuditProcedureId == procedureId);
+      var assigned = await correctionDb.WorkflowTaskBindings.AsNoTracking().SingleAsync(x =>
+        x.FirmId == f.FirmId && x.EngagementId == f.EngagementId && x.ReviewProcedureResultId == correction.Id);
+      assignedCorrectionTaskId = assigned.WorkTaskId;
+      Assert.Equal(f.Staff.Id, assigned.AssigneeUserIdSnapshot);
+    }
+    var (correctionQueueStatus, correctionQueueBody) = await PlaywrightResponseCapture.RunAsync(preparerPage,
+      request => request.Method == "GET" && request.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
+        request.Url.Contains("view=CHANGES_REQUIRED", StringComparison.Ordinal),
+      () => OpenQueueViewAsync(preparerPage, origin, "Changes required"));
+    Assert.Equal(200, correctionQueueStatus);
+    using (var correctionQueue = JsonDocument.Parse(correctionQueueBody))
+    {
+      var assigned = Assert.Single(correctionQueue.RootElement.GetProperty("tasks").EnumerateArray(),
+        task => task.GetProperty("taskId").GetGuid() == assignedCorrectionTaskId);
+      Assert.Equal(f.Staff.Id, assigned.GetProperty("assigneeUserId").GetGuid());
+      Assert.Equal("CHANGES_REQUIRED", assigned.GetProperty("reviewState").GetString());
+      Assert.Equal(recordedReviewCommentText, assigned.GetProperty("reviewComment").GetString());
+    }
+    var preparerCorrection = QueueTaskCards(preparerPage).Filter(new() { HasText = "Address review changes for AWP-02-01" });
+    await Assertions.Expect(preparerCorrection).ToHaveCountAsync(1);
+    await Assertions.Expect(preparerCorrection).ToContainTextAsync(recordedReviewCommentText);
+    var correctionFieldwork = preparerCorrection.GetByRole(AriaRole.Link, new() { Name = "Open fieldwork", Exact = true });
+    await Assertions.Expect(correctionFieldwork).ToHaveAttributeAsync("href", path);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/work", "procedure-rework-handoff");
+    await TabToAsync(preparerPage, correctionFieldwork);
+    await preparerPage.Keyboard.PressAsync("Enter");
+    await Assertions.Expect(preparerPage).ToHaveURLAsync(origin + path);
     var preparerSectionAfterReturn = preparerPage.Locator("select[name='section']");
     var cashBankAfterReturn = preparerSectionAfterReturn.Locator("option").Filter(new() { HasText = "Cash & Bank" });
     await Assertions.Expect(cashBankAfterReturn).ToHaveCountAsync(1);
@@ -453,6 +484,7 @@ public sealed class AngularProcedureCommandJourneyTests
       var binding = await proof.WorkflowTaskBindings.AsNoTracking().SingleAsync(x =>
         x.FirmId == f.FirmId && x.EngagementId == f.EngagementId && x.ReviewProcedureResultId == result.Id);
       firstReworkTaskId = binding.WorkTaskId;
+      Assert.Equal(assignedCorrectionTaskId, firstReworkTaskId);
     }
 
     // Finish the first correction through the same keyboard-accessible command preview.

@@ -324,6 +324,9 @@ const queueViews: { key: QueueView; label: string }[] = [
         @if (task.reviewState) {
           <small>{{ task.reviewState === 'UNDER_REVIEW' ? 'resubmitted work awaits independent review' : 'current audit result needs resubmission' }}</small>
           @if (task.reviewComment) { <small>Reviewer: {{ task.reviewComment }}</small> }
+          @if (task.reviewState === 'CHANGES_REQUIRED' || task.reviewState === 'UNDER_REVIEW') {
+            <small><a [routerLink]="['/app/engagements', task.engagementId, 'audit-fieldwork']">Open fieldwork</a></small>
+          }
         }
         <small><audit-status [value]="task.taskStatus" />@if (task.reviewState) { · <audit-status [value]="task.reviewState" /> }@if (task.pbcState) { · PBC {{ task.pbcState }} }</small>
         @if (blockedPrerequisites(task)) { <small class="prerequisite-status">Prerequisites: <audit-status value="BLOCKED" /></small> }
@@ -418,6 +421,9 @@ const queueViews: { key: QueueView; label: string }[] = [
                 @if (task.reviewState) {
                   <small><audit-status [value]="task.reviewState" /> · {{ task.reviewState === 'UNDER_REVIEW' ? 'resubmitted work awaits independent review' : 'current audit result needs resubmission' }}</small>
                   @if (task.reviewComment) { <small>Reviewer: {{ task.reviewComment }}</small> }
+                  @if (task.reviewState === 'CHANGES_REQUIRED' || task.reviewState === 'UNDER_REVIEW') {
+                    <small><a [routerLink]="['/app/engagements', task.engagementId, 'audit-fieldwork']">Open fieldwork</a></small>
+                  }
                 }
               </td>
               <td>{{ task.assigneeDisplayName ?? 'Unassigned' }}</td>
