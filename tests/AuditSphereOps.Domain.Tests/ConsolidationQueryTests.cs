@@ -1,3 +1,5 @@
+using System.Data.Common;
+using System.Globalization;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Domain.Accounting;
@@ -8,6 +10,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -18,6 +21,26 @@ public sealed class ConsolidationQueryTests
   private sealed record Fixture(
     Guid FirmId, Guid ClientA, Guid ClientB, Guid EngagementA, Guid EngagementB,
     AppUser Manager, AppUser GroupReviewer, AppUser Outsider, Guid GroupId, Guid ScopeId);
+
+  private sealed class PauseAfterComponentPageRead : DbCommandInterceptor
+  {
+    private int paused;
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("consolidation_components", StringComparison.OrdinalIgnoreCase) &&
+          command.CommandText.Contains("submitted_at", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref paused, 1, 0) == 0)
+      {
+        Reached.TrySetResult(true);
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
 
   [Fact]
   [Trait("Profile", "Database")]
@@ -420,6 +443,195 @@ public sealed class ConsolidationQueryTests
       Assert.DoesNotContain(searched.Value.Members, x => x.ClientId == fixture.ClientA || x.ClientId == fixture.ClientB);
       Assert.Equal(fixture.ClientA, searched.Value.ResolvedSeller!.ClientId);
       Assert.Equal(fixture.ClientB, searched.Value.ResolvedBuyer!.ClientId);
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ScopeWorkspaceUsesOwnedSnapshotAndRechecksClientSourceGrantWithGroupAccessRetained()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    var manager = Actor(fixture.Manager, "Partner");
+    var reviewer = Actor(fixture.GroupReviewer, "AccountingReviewer");
+    var submitter = Actor(fixture.Outsider, "Partner");
+    Guid externalComponentId;
+    Guid packageComponentId;
+    Guid packageId;
+    Guid scopeId;
+    var now = DateTimeOffset.UtcNow;
+
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.GroupAccessGrants.AddRange(
+        new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId,
+          UserId = fixture.GroupReviewer.Id, Role = "AccountingReviewer", GrantedAt = now,
+          GrantedByUserId = fixture.Manager.Id
+        },
+        new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId,
+          UserId = fixture.Outsider.Id, Role = "Partner", GrantedAt = now,
+          GrantedByUserId = fixture.Manager.Id
+        },
+        new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = fixture.GroupId,
+          UserId = fixture.Manager.Id, Role = "AccountingPreparer", GrantedAt = now,
+          GrantedByUserId = fixture.Manager.Id
+        });
+      var reportingPeriodId = Guid.CreateVersion7();
+      setup.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = reportingPeriodId, FirmId = fixture.FirmId, ClientId = fixture.ClientA,
+        PeriodCode = "SNAPSHOT-2026", StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "STATUTORY", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = fixture.Manager.Id, CreatedAt = now
+      });
+      await setup.SaveChangesAsync();
+      var testScope = await ConsolidationService.CreateScopeAsync(setup, manager,
+        new ConsolidationScopeRequest(fixture.GroupId, reportingPeriodId, "QAR",
+          ConsolidationCalculator.RestrictedMethod, "OPENING-2026"));
+      Assert.True(testScope.Succeeded, testScope.Message);
+      scopeId = testScope.Value;
+    }
+
+    (packageId, _) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
+      new CompletionBundleScope(fixture.FirmId, fixture.ClientB, fixture.EngagementB, new()
+      {
+        ["associate"] = fixture.Outsider,
+        ["senior"] = fixture.GroupReviewer,
+        ["partner"] = fixture.Manager
+      }));
+
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var package = await setup.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == packageId);
+
+      var lines = new[]
+      {
+        new ExternalComponentPackLineRequest("CASH", 100m, "QAR", "workspace-snapshot-line-1"),
+        new ExternalComponentPackLineRequest("REVENUE", -100m, "QAR", "workspace-snapshot-line-2")
+      };
+      var normalizedDigest = Hashing.Sha256Hex(string.Join('\n', lines
+        .OrderBy(line => line.SourceLineReference, StringComparer.Ordinal)
+        .ThenBy(line => line.TaxonomyCode, StringComparer.Ordinal)
+        .Select(line => string.Join('|', line.TaxonomyCode.Trim(),
+          MoneyPolicy.Normalize(line.Amount).ToString("0.000000", CultureInfo.InvariantCulture),
+          line.Currency.Trim().ToUpperInvariant(), line.SourceLineReference.Trim()))));
+      var submittedPack = await ConsolidationService.SubmitExternalComponentPackAsync(setup, submitter,
+        new ExternalComponentPackRequest(scopeId, fixture.ClientA, fixture.EngagementA,
+          "2026-01-01", "2026-12-31", "IFRS", "QAR", "STATUTORY", "snapshot-tax-v1", "snapshot-map-v1",
+          "snapshot-component-source", Hashing.Sha256Hex("snapshot-component-raw"), normalizedDigest, 0m, lines));
+      Assert.True(submittedPack.Succeeded, submittedPack.Message);
+      Assert.True((await ConsolidationService.ReconcileExternalComponentPackAsync(setup, reviewer,
+        new ExternalComponentReconciliationRequest(submittedPack.Value, "snapshot-component-reconciliation"))).Succeeded);
+      Assert.True((await ConsolidationService.ApproveExternalComponentPackAsync(setup, reviewer, submittedPack.Value)).Succeeded);
+      var submittedComponent = await ConsolidationService.SubmitExternalComponentAsync(setup, submitter,
+        new ExternalComponentRequest(scopeId, submittedPack.Value));
+      Assert.True(submittedComponent.Succeeded, submittedComponent.Message);
+      externalComponentId = submittedComponent.Value;
+
+      var packageComponent = await ConsolidationService.SubmitComponentAsync(setup, submitter,
+        new ConsolidationComponentRequest(scopeId, fixture.ClientB, fixture.EngagementB, packageId,
+          100m, "CONTROLLED", "STATUTORY", package.TaxonomyVersion, package.MappingVersionId.ToString("D")));
+      Assert.True(packageComponent.Succeeded, packageComponent.Message);
+      packageComponentId = packageComponent.Value;
+
+      var revokedFirmWidePartner = await setup.RoleGrants
+        .Where(x => x.FirmId == fixture.FirmId && x.UserId == fixture.Manager.Id && x.Role == "Partner" &&
+          x.ClientId == null && x.EngagementId == null && x.RevokedAt == null)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.RevokedAt, now), CancellationToken.None);
+      Assert.Equal(1, revokedFirmWidePartner);
+      Assert.True(await setup.GroupAccessGrants.AnyAsync(x => x.FirmId == fixture.FirmId && x.GroupId == fixture.GroupId &&
+        x.UserId == fixture.Manager.Id && x.Role == "Partner" && x.RevokedAt == null));
+    }
+
+    await using (var beforeRevocationDb = new AuditSphereDbContext(pg.Options))
+    {
+      var beforeRevocation = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(
+        beforeRevocationDb, manager, scopeId, CancellationToken.None);
+      Assert.True(beforeRevocation.Succeeded, beforeRevocation.Message);
+      var packageComponent = Assert.Single(beforeRevocation.Value!.Components, x => x.Id == packageComponentId);
+      Assert.True(packageComponent.CanApprove);
+      Assert.Null(packageComponent.ApprovalBlocker);
+    }
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+    await using (var callerTransactionDb = new AuditSphereDbContext(pg.Options))
+    await using (var callerTransaction = await callerTransactionDb.Database.BeginTransactionAsync(timeout.Token))
+    {
+      var refused = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(
+        callerTransactionDb, manager, scopeId, timeout.Token);
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+      Assert.NotNull(callerTransactionDb.Database.CurrentTransaction);
+      Assert.Equal(1, await callerTransactionDb.Database.SqlQueryRaw<int>("SELECT 1 AS \"Value\"")
+        .SingleAsync(timeout.Token));
+      await callerTransaction.CommitAsync(timeout.Token);
+    }
+
+    var pause = new PauseAfterComponentPageRead();
+    var delayedOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options;
+    await using var delayedRead = new AuditSphereDbContext(delayedOptions);
+    try
+    {
+      var pendingRead = ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(
+        delayedRead, manager, scopeId, timeout.Token);
+      await pause.Reached.Task.WaitAsync(timeout.Token);
+
+      await using (var approval = new AuditSphereDbContext(pg.Options))
+      {
+        var approved = await ConsolidationService.ApproveComponentAsync(approval, reviewer, externalComponentId, timeout.Token);
+        Assert.True(approved.Succeeded, approved.Message);
+      }
+      await using (var grantWriter = new AuditSphereDbContext(pg.Options))
+      {
+        var revoked = await grantWriter.RoleGrants
+          .Where(x => x.FirmId == fixture.FirmId && x.UserId == fixture.Manager.Id && x.Role == "Partner" &&
+            x.ClientId == fixture.ClientB && x.EngagementId == fixture.EngagementB && x.RevokedAt == null)
+          .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+        Assert.Equal(1, revoked);
+        Assert.True(await grantWriter.GroupAccessGrants.AnyAsync(x => x.FirmId == fixture.FirmId && x.GroupId == fixture.GroupId &&
+          x.UserId == fixture.Manager.Id && x.Role == "Partner" && x.RevokedAt == null, timeout.Token));
+      }
+
+      pause.Release.TrySetResult(true);
+      var snapshot = await pendingRead;
+      Assert.True(snapshot.Succeeded, snapshot.Message);
+      Assert.True(snapshot.Value!.CanReview);
+      var externalComponent = Assert.Single(snapshot.Value.Components, x => x.Id == externalComponentId);
+      Assert.Equal(AccountingWorkflowStates.Submitted, externalComponent.Status);
+      Assert.False(externalComponent.CanApprove);
+      var packageComponent = Assert.Single(snapshot.Value.Components, x => x.Id == packageComponentId);
+      Assert.Equal(AccountingWorkflowStates.Submitted, packageComponent.Status);
+      Assert.False(packageComponent.CanApprove);
+      Assert.Equal("Current source authorization does not permit component approval.", packageComponent.ApprovalBlocker);
+      Assert.Contains(snapshot.Value.EligiblePackages.Items, x => x.PackageId == packageId && x.ClientId == fixture.ClientB);
+      Assert.False(snapshot.Value.CanApproveScope);
+      Assert.All(snapshot.Value.ComponentReadiness.Value!.Where(x => x.ClientId == fixture.ClientA || x.ClientId == fixture.ClientB),
+        x => Assert.Equal(AccountingWorkflowStates.Submitted, x.ComponentState));
+
+      await using var fresh = new AuditSphereDbContext(pg.Options);
+      var current = await ConsolidationScopeWorkspaceQuery.GetScopeWorkspaceAsync(fresh, manager, scopeId, timeout.Token);
+      Assert.True(current.Succeeded, current.Message);
+      Assert.True(current.Value!.CanReview);
+      Assert.Contains(current.Value.EligiblePackages.Items, x => x.PackageId == packageId && x.ClientId == fixture.ClientB);
+      var approvedComponent = Assert.Single(current.Value.Components, x => x.Id == externalComponentId);
+      Assert.Equal(AccountingWorkflowStates.Approved, approvedComponent.Status);
+      Assert.False(approvedComponent.CanApprove);
+      var sourceProtectedComponent = Assert.Single(current.Value.Components, x => x.Id == packageComponentId);
+      Assert.Equal(AccountingWorkflowStates.Submitted, sourceProtectedComponent.Status);
+      Assert.False(sourceProtectedComponent.CanApprove);
+      Assert.Equal("Current source authorization does not permit component approval.", sourceProtectedComponent.ApprovalBlocker);
+      Assert.Equal(AccountingWorkflowStates.Approved,
+        current.Value.ComponentReadiness.Value!.Single(x => x.ClientId == fixture.ClientA).ComponentState);
+    }
+    finally
+    {
+      pause.Release.TrySetResult(true);
     }
   }
 

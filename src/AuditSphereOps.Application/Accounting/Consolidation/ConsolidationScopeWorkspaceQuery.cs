@@ -1,9 +1,11 @@
+using System.Data;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AuditSphereOps.Application.Accounting;
 
@@ -138,6 +140,119 @@ public static class ConsolidationScopeWorkspaceQuery
         !IsValidPage(componentsPage) || !IsValidPage(readinessPage))
       return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "Valid positive history page numbers are required.");
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.GateBlocked,
+        "The consolidation workspace requires an independent read snapshot.");
+
+    CommandResult<ConsolidationScopeWorkspaceDto> result;
+    ConsolidationScopeVersion snapshotScope;
+    ClientGroup snapshotGroup;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      result = await ReadWithinSnapshotAsync(db, actor, scopeId, eligiblePackagesPage, journalsPage, runsPage,
+        componentsPage, readinessPage, selectedComponentId, ct);
+      if (!result.Succeeded)
+        return result;
+
+      snapshotScope = await db.ConsolidationScopeVersions.AsNoTracking()
+        .SingleAsync(x => x.FirmId == actor.FirmId && x.Id == scopeId, ct);
+      snapshotGroup = await db.ClientGroups.AsNoTracking()
+        .SingleAsync(x => x.FirmId == actor.FirmId && x.Id == snapshotScope.GroupId, ct);
+      await snapshot.CommitAsync(ct);
+    }
+
+    var currentReviewAuth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, snapshotScope.GroupId, ReviewRoles, ct);
+    var currentScope = await db.ConsolidationScopeVersions.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scopeId, ct);
+    var currentGroup = await db.ClientGroups.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == snapshotScope.GroupId, ct);
+    if (currentScope is null || currentGroup is null ||
+        !SameScopeContext(snapshotScope, currentScope) || !SameGroupContext(snapshotGroup, currentGroup))
+      return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.GenerationStale,
+        "The scope or group changed while this workspace was read. Reload the current pages.");
+
+    var currentReadAuth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, snapshotScope.GroupId, ReadRoles, ct);
+    if (!currentReadAuth.Succeeded)
+      return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(currentReadAuth.ErrorCode!, currentReadAuth.Message!);
+
+    var workspace = result.Value!;
+    var canPrepareAtReturn = workspace.CanPrepare && currentReadAuth.Succeeded;
+    var canReviewAtReturn = workspace.CanReview && currentReviewAuth.Succeeded;
+    const string reviewerRequired = "Current consolidation reviewer authorization is required.";
+    var componentIds = workspace.Components.Select(x => x.Id)
+      .Concat(workspace.ResolvedComponent is null ? [] : [workspace.ResolvedComponent.Id])
+      .Distinct().ToArray();
+    IReadOnlyDictionary<Guid, CommandResult> currentComponentReadiness = new Dictionary<Guid, CommandResult>();
+    if (canReviewAtReturn && componentIds.Length > 0)
+    {
+      var currentComponents = await db.ConsolidationComponents.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.GroupId == snapshotScope.GroupId &&
+          x.ScopeVersionId == scopeId && componentIds.Contains(x.Id))
+        .ToListAsync(ct);
+      currentComponentReadiness = await ConsolidationService.GetComponentApprovalReadinessAsync(
+        db, actor, currentScope, currentComponents, ct);
+    }
+
+    ConsolidationComponentDto ComponentAtReturn(ConsolidationComponentDto component)
+    {
+      if (!canReviewAtReturn)
+        return component with { CanApprove = false, ApprovalBlocker = reviewerRequired };
+
+      if (!currentComponentReadiness.TryGetValue(component.Id, out var readiness))
+        return component.CanApprove
+          ? component with { CanApprove = false, ApprovalBlocker = "Current component approval readiness could not be established; reload the current scope." }
+          : component;
+
+      if (!readiness.Succeeded)
+      {
+        var blocker = readiness.ErrorCode == ErrorCodes.ScopeDenied
+          ? "Current source authorization does not permit component approval."
+          : readiness.Message ?? "Current component approval readiness could not be established; reload the current scope.";
+        return component with { CanApprove = false, ApprovalBlocker = blocker };
+      }
+
+      // Current readiness may only retain a capability already established by the snapshot.
+      return component.CanApprove ? component with { CanApprove = true, ApprovalBlocker = null } : component;
+    }
+
+    var componentsAtReturn = workspace.Components.Select(ComponentAtReturn).ToArray();
+    var resolvedComponentAtReturn = workspace.ResolvedComponent is null
+      ? null
+      : ComponentAtReturn(workspace.ResolvedComponent);
+
+    var canApproveScopeAtReturn = false;
+    var scopeApprovalBlocker = workspace.ScopeApprovalBlocker;
+    if (!canReviewAtReturn)
+      scopeApprovalBlocker = reviewerRequired;
+    else if (workspace.CanApproveScope)
+    {
+      var scopeReadiness = await ConsolidationService.GetScopeApprovalReadinessAsync(
+        db, actor, currentGroup, currentScope, ct);
+      canApproveScopeAtReturn = scopeReadiness.Succeeded;
+      scopeApprovalBlocker = scopeReadiness.Succeeded ? null
+        : scopeReadiness.ErrorCode == ErrorCodes.ScopeDenied ? reviewerRequired
+        : scopeReadiness.Message ?? "Current scope approval readiness could not be established; reload the current scope.";
+    }
+
+    return CommandResult<ConsolidationScopeWorkspaceDto>.Ok(workspace with
+    {
+      CanPrepare = canPrepareAtReturn,
+      CanReview = canReviewAtReturn,
+      Components = componentsAtReturn,
+      ResolvedComponent = resolvedComponentAtReturn,
+      CanApproveScope = workspace.CanApproveScope && canApproveScopeAtReturn,
+      ScopeApprovalBlocker = scopeApprovalBlocker
+    });
+  }
+
+  private static async Task<CommandResult<ConsolidationScopeWorkspaceDto>> ReadWithinSnapshotAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid scopeId,
+    int eligiblePackagesPage, int journalsPage, int runsPage, int componentsPage, int readinessPage,
+    Guid? selectedComponentId, CancellationToken ct)
+  {
+    if (db.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.RepeatableRead)
+      return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.GateBlocked,
+        "The consolidation projection requires its owned RepeatableRead snapshot.");
 
     var scope = await db.ConsolidationScopeVersions.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scopeId, ct);
@@ -304,34 +419,20 @@ public static class ConsolidationScopeWorkspaceQuery
       scope.OpeningBasis,
       isAdvanced);
 
-    auth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReadRoles, ct);
-    if (!auth.Succeeded)
-      return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(auth.ErrorCode!, auth.Message!);
-    var finalReviewAuth = await AuthorizationDecision.AuthorizeGroupAsync(db, actor, scope.GroupId, ReviewRoles, ct);
-    var canReviewAtReturn = canReview && finalReviewAuth.Succeeded;
-    var canApproveScope = canReviewAtReturn && scopeApprovalReadiness?.Succeeded == true;
+    var canApproveScope = canReview && scopeApprovalReadiness?.Succeeded == true;
     var scopeApprovalBlocker = canApproveScope ? null
-      : !canReviewAtReturn ? "Current consolidation reviewer authorization is required."
+      : !canReview ? "Current consolidation reviewer authorization is required."
       : scopeApprovalReadiness?.ErrorCode == ErrorCodes.ScopeDenied ? "Current consolidation reviewer authorization is required."
       : scopeApprovalReadiness?.Message ?? "Scope approval readiness could not be established; reload the current scope.";
-    var finalScope = await db.ConsolidationScopeVersions.AsNoTracking()
-      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scope.Id, ct);
-    var finalGroupRevision = await db.ClientGroups.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.Id == scope.GroupId).Select(x => (long?)x.Revision).SingleOrDefaultAsync(ct);
-    if (finalScope is null || finalScope.GroupId != scope.GroupId || finalScope.GroupRevision != scope.GroupRevision ||
-        finalScope.Status != scope.Status || finalScope.PeriodId != scope.PeriodId ||
-        finalScope.ReportingCurrency != scope.ReportingCurrency || finalScope.Method != scope.Method || finalGroupRevision != group.Revision)
-      return CommandResult<ConsolidationScopeWorkspaceDto>.Fail(ErrorCodes.GenerationStale,
-        "The scope or group changed while this workspace was read. Reload the current pages.");
 
     ConsolidationComponentDto ComponentDto(ConsolidationComponent c)
     {
       CommandResult? readiness = null;
-      if (canReviewAtReturn && componentApprovalReadiness.TryGetValue(c.Id, out var currentReadiness))
+      if (canReview && componentApprovalReadiness.TryGetValue(c.Id, out var currentReadiness))
         readiness = currentReadiness;
       var canApprove = readiness?.Succeeded == true;
       var blocker = canApprove ? null
-        : !canReviewAtReturn ? "Current consolidation reviewer authorization is required."
+        : !canReview ? "Current consolidation reviewer authorization is required."
         : readiness is null ? "Component approval readiness could not be established; reload the current scope."
         : readiness.ErrorCode == ErrorCodes.ScopeDenied ? "Current source authorization does not permit component approval."
         : readiness.Message ?? "Component approval readiness could not be established; reload the current scope.";
@@ -363,7 +464,7 @@ public static class ConsolidationScopeWorkspaceQuery
     return CommandResult<ConsolidationScopeWorkspaceDto>.Ok(new ConsolidationScopeWorkspaceDto(
       summary,
       canPrepare,
-      canReviewAtReturn,
+      canReview,
       actor.UserId,
       componentDtos,
       eligiblePackages,
@@ -380,6 +481,24 @@ public static class ConsolidationScopeWorkspaceQuery
   }
 
   private static bool IsValidPage(int page) => page > 0 && (long)(page - 1) * HistoryPageSize <= int.MaxValue;
+
+  private static bool SameScopeContext(ConsolidationScopeVersion left, ConsolidationScopeVersion right) =>
+    left.Id == right.Id && left.FirmId == right.FirmId && left.GroupId == right.GroupId &&
+    left.GroupRevision == right.GroupRevision && left.PeriodId == right.PeriodId &&
+    left.PriorScopeVersionId == right.PriorScopeVersionId && left.OpeningRunHash == right.OpeningRunHash &&
+    left.OpeningTranslationManifestHash == right.OpeningTranslationManifestHash &&
+    left.OpeningTranslationReserve == right.OpeningTranslationReserve &&
+    left.RecurringEliminationManifest == right.RecurringEliminationManifest && left.Version == right.Version &&
+    left.ReportingCurrency == right.ReportingCurrency && left.Method == right.Method && left.Status == right.Status &&
+    left.OpeningBasis == right.OpeningBasis && left.ExchangeRateSetVersionId == right.ExchangeRateSetVersionId &&
+    left.TranslationPolicyVersionId == right.TranslationPolicyVersionId && left.TranslationRateDate == right.TranslationRateDate &&
+    left.TranslationRateType == right.TranslationRateType && left.CreatedByUserId == right.CreatedByUserId &&
+    left.ApprovedByUserId == right.ApprovedByUserId && left.ApprovedAt == right.ApprovedAt && left.CreatedAt == right.CreatedAt;
+
+  private static bool SameGroupContext(ClientGroup left, ClientGroup right) =>
+    left.Id == right.Id && left.FirmId == right.FirmId && left.Code == right.Code && left.Name == right.Name &&
+    left.Status == right.Status && left.Revision == right.Revision && left.CreatedByUserId == right.CreatedByUserId &&
+    left.CreatedAt == right.CreatedAt;
 
   private static int PageOffset(int page) => checked((page - 1) * HistoryPageSize);
 
