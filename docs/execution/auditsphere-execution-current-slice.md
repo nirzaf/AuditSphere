@@ -14,13 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Current PBC authority and upload lock order
+## Unbilled-time report session boundary
 
-Core PBC request commands now refresh the locked row before authorizing the current participant and refusing scope drift. Upload and trusted-completion paths take a consistent scope fence before request/intent locks. A coordinated PostgreSQL regression reproduced the old completion/replay deadlock before the fix. Exact receipt replay and the staff-only trusted completion boundary are preserved.
+The manually loaded firm-finance report now clears retained amounts on session invalidation or identity change, invalidates pending work on destruction, and suppresses stale completions/errors. It does not automatically query the new identity or change server authorization, valuation, WIP policy, contracts or records. Focused red/green evidence is recorded under `unbilledTimeSession20261021` in [status.json](status.json). Human accessibility review and current-source full release remain open.
 
-The locked start/resume writability checks retain a saved refusal audit without creating or modifying uploads. This does not define a comprehensive client-denial audit policy or introduce request-owner reassignment. Direct owner-change test interleavings are defensive evidence, not a claim of a reachable reassignment exploit.
-
-Source, red/green evidence, public API/browser checks, built-in inspection and CI limits are under `pbcCurrentAuthority20261021` in [status.json](status.json). Broader portal, current-source full release, professional/human and live-provider acceptance remain open. The earlier migration-probe and pre-fix latent-owner notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+The previous PBC authority and lock-order slice remains locally verified; complete evidence and prior handoff are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md), with its status pointer retained.
 
 ## Paged client document history
 

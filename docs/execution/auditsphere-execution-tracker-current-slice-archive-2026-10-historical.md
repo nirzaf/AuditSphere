@@ -7680,3 +7680,11 @@ Built-in narrow-screen inspection confirms retained labels and reflow. Source, f
 The historical full release failed in one API migration probe after later compatible down-migrations removed a nullable lineage column and an older retained-evidence guard correctly refused further rollback. The test now reads the retained identity in that intermediate schema, restores the latest migrations, then checks the original whole-table single-record invariant and retained fields. Production migrations, refusal guards and authorization assertions are unchanged. Exact source, focused results and historical release outcome are in `workflowEvidenceDowngradeRecovery20261021` in [status.json](status.json); this is not a current full regression pass.
 
 A further defensive audit found that several client command paths reauthorize the pre-lock request owner rather than the locked row. No supported owner-reassignment command currently exists, so this is latent hardening work, not a demonstrated reachable portal exploit. Any correction must retain scope checks and lock order and prove current participation without adding a reassignment workflow.
+
+## Current PBC authority and upload lock order
+
+Core PBC request commands now refresh the locked row before authorizing the current participant and refusing scope drift. Upload and trusted-completion paths take a consistent scope fence before request/intent locks. A coordinated PostgreSQL regression reproduced the old completion/replay deadlock before the fix. Exact receipt replay and the staff-only trusted completion boundary are preserved.
+
+The locked start/resume writability checks retain a saved refusal audit without creating or modifying uploads. This does not define a comprehensive client-denial audit policy or introduce request-owner reassignment. Direct owner-change test interleavings are defensive evidence, not a claim of a reachable reassignment exploit.
+
+Source, red/green evidence, public API/browser checks, built-in inspection and CI limits are under `pbcCurrentAuthority20261021` in [status.json](status.json). Broader portal, current-source full release, professional/human and live-provider acceptance remain open. The earlier migration-probe and pre-fix latent-owner notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).

@@ -1193,16 +1193,20 @@
       "limits": "Paged document history and keyboard source links have focused evidence; complete commercial/PBC chronology, human/live and full-release acceptance remain open."
     },
     "pbcCurrentAuthority20261021": {
-      "sourceCommit": "1295598c071291db36aef67022d45877a54896c5",
-      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "behavior": "Reply/state/start/resume/chunk commands refresh locked request rows, refuse changed scope and reauthorize current participation. All upload callers fence firmSHARE-clientUPDATE-engagementSHARE before request/intent locks; trusted completion fences before intent/enqueue and reauthorizes its current scope. Existing exact replay behavior retained. Start/resume keep existing writability checks inside the fence and preserve only a saved refusal audit when denied.",
-      "red": "On unchangedb78727a5: owner-race theory5/5FAIL; completion-versus-exact-chunk replay1/1FAIL with realPostgreSQL40P01 deadlock. Intermediatepatch froze correctly but newstaffpreflight-freeze audit test1/1FAIL because its refusal record rolled back. Tests derive denial/no-write/idempotency outcomes from existing authority and archive invariants.",
-      "green": "Domain10/10PASS (5owner cases, deadlock case, delegation ordering, thread/worker/download, immutablechunks and onboarding/staffupload); finalrefusal-audit1/1PASS. APIresume/capability/CSRF/read-redaction1/1PASS; nativeclientfirst-sign-in/delegation/reply/upload/revocation E2E1/1PASS. TargetedReleaseE2Ebuild0warnings/errors. No UI/API-shape/model/schema changes; full local suites not run.",
-      "browser": "Ownedbuilt-in320px: retained closed-request conversation/receipts readable, file chooser disabled and reply editor absent, document305px, no consolewarnings/errors. Read-only paging; fixturedisposed. Terminal state here is a read-projection fixture, not evidence of professional acceptance.",
-      "evidence": "tests/AuditSphereOps.Domain.Tests/TestResults/pbc-current-authority-green-20261021.trx; tests/AuditSphereOps.Domain.Tests/TestResults/pbc-frozen-refusal-audit-green-20261021.trx; tests/AuditSphereOps.Api.Tests/TestResults/pbc-current-authority-api-20261021.trx; tests/AuditSphereOps.E2E.Tests/TestResults/pbc-current-authority-browser-20261021.trx; /tmp/auditsphere-pbc-current-authority-320-20261021.png",
-      "review": "Independent lock-order review and final refusal-commit review. Checked cast repaired concurrencyfixture chunkByteCount typing withoutchangingassertions. No supportedowner-reassignment API added; directownerchanges are defensive fixture interleavings, not a claimed reachable UI exploit.",
-      "ci": "FAST_CI_PASS39522333408 onb78727a5. Full39518012940 pinned68f7c7dc stillrunning: Domain,Angular,build/contractsPASS; API/E2Einprogress. Newsourcefullregression remainsunverified.",
-      "limits": "CLIENT-02/06 remainPARTIAL: everyportalwrite-route/current-sourcefullCI, comprehensiveclientrefusal-audit policy, humanAT/professional/live-provider and non-auditfreeze acceptance remainopen. No deployment/provider/permission effects."
+      "status": "PASS_LOCAL_SLICE",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.pbcCurrentAuthority20261021",
+      "limits": "Current-source full release, human/professional and live acceptance remain open."
+    },
+    "unbilledTimeSession20261021": {
+      "status": "PASS_LOCAL_SLICE",
+      "sourceCommit": "90f26210c3df4505b5a9fbe1b934c3e7c5739e14",
+      "baseline": "3d9316d69f826813d78caaeeb3173a3129b77d7f",
+      "behavior": "Manual unbilled-time amounts clear on invalidation/current identity change; pending results and errors cannot update after session change or component destruction. No automatic read for replacement identity; no WIP/policy/API/schema change.",
+      "red": "Focused Angular file: 5 PASS / 1 FAIL before fix; retained 3.333333 QAR report remained after SessionService.clear().",
+      "green": "Focused unbilled-time.spec.ts: 6/6 PASS; added one regression covers retained staff-to-staff identity change, in-flight invalidation and destroyed-component completion. Existing decoder, paging, refusal and exact-decimal checks preserved. Production-file ESLint PASS; git diff --check PASS.",
+      "review": "Independent agents confirmed mounted staff-to-staff retention path and found no implementation blocker; final regression additionally tests identity-only retained-report clearing.",
+      "limits": "No new built-in browser journey or full local suite. No template change. Human screen-reader acceptance and current-source full CI remain open.",
+      "ciObserved": "Full release 39518012940 on 68f7c7dc still IN_PROGRESS (API/E2E); Angular, Domain and build/contracts PASS. Fast runs 39525114774/39525114684 on 3d9316d6 SUCCESS. Dependabot 39525343940 FAILED: pinned @angular/build22.2.1 requires vite8.3.0; patched version reported8.3.3; no unapproved dependency override added."
     }
   },
   "externalGates": [
