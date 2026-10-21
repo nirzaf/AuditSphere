@@ -7688,3 +7688,9 @@ Core PBC request commands now refresh the locked row before authorizing the curr
 The locked start/resume writability checks retain a saved refusal audit without creating or modifying uploads. This does not define a comprehensive client-denial audit policy or introduce request-owner reassignment. Direct owner-change test interleavings are defensive evidence, not a claim of a reachable reassignment exploit.
 
 Source, red/green evidence, public API/browser checks, built-in inspection and CI limits are under `pbcCurrentAuthority20261021` in [status.json](status.json). Broader portal, current-source full release, professional/human and live-provider acceptance remain open. The earlier migration-probe and pre-fix latent-owner notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
+## Unbilled-time report session boundary
+
+The manually loaded firm-finance report now clears retained amounts on session invalidation or identity change, invalidates pending work on destruction, and suppresses stale completions/errors. It does not automatically query the new identity or change server authorization, valuation, WIP policy, contracts or records. Focused red/green evidence is recorded under `unbilledTimeSession20261021` in [status.json](status.json). Human accessibility review and current-source full release remain open.
+
+The previous PBC authority and lock-order slice remains locally verified; complete evidence and prior handoff are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md), with its status pointer retained.

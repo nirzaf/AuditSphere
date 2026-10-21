@@ -19075,6 +19075,17 @@
           "review": "Independent lock-order review and final refusal-commit review. Checked cast repaired concurrencyfixture chunkByteCount typing withoutchangingassertions. No supportedowner-reassignment API added; directownerchanges are defensive fixture interleavings, not a claimed reachable UI exploit.",
           "ci": "FAST_CI_PASS39522333408 onb78727a5. Full39518012940 pinned68f7c7dc stillrunning: Domain,Angular,build/contractsPASS; API/E2Einprogress. Newsourcefullregression remainsunverified.",
           "limits": "CLIENT-02/06 remainPARTIAL: everyportalwrite-route/current-sourcefullCI, comprehensiveclientrefusal-audit policy, humanAT/professional/live-provider and non-auditfreeze acceptance remainopen. No deployment/provider/permission effects."
+        },
+        "unbilledTimeSession20261021": {
+          "status": "PASS_LOCAL_SLICE",
+          "sourceCommit": "90f26210c3df4505b5a9fbe1b934c3e7c5739e14",
+          "baseline": "3d9316d69f826813d78caaeeb3173a3129b77d7f",
+          "behavior": "Manual unbilled-time amounts clear on invalidation/current identity change; pending results and errors cannot update after session change or component destruction. No automatic read for replacement identity; no WIP/policy/API/schema change.",
+          "red": "Focused Angular file: 5 PASS / 1 FAIL before fix; retained 3.333333 QAR report remained after SessionService.clear().",
+          "green": "Focused unbilled-time.spec.ts: 6/6 PASS; added one regression covers retained staff-to-staff identity change, in-flight invalidation and destroyed-component completion. Existing decoder, paging, refusal and exact-decimal checks preserved. Production-file ESLint PASS; git diff --check PASS.",
+          "review": "Independent agents confirmed mounted staff-to-staff retention path and found no implementation blocker; final regression additionally tests identity-only retained-report clearing.",
+          "limits": "No new built-in browser journey or full local suite. No template change. Human screen-reader acceptance and current-source full CI remain open.",
+          "ciObserved": "Full release 39518012940 on 68f7c7dc still IN_PROGRESS (API/E2E); Angular, Domain and build/contracts PASS. Fast runs 39525114774/39525114684 on 3d9316d6 SUCCESS. Dependabot 39525343940 FAILED: pinned @angular/build22.2.1 requires vite8.3.0; patched version reported8.3.3; no unapproved dependency override added."
         }
       }
     },
