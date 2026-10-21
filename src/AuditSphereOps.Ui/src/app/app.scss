@@ -122,6 +122,12 @@ main {
   // Keeps focus targets and in-page anchors clear of the sticky header.
   scroll-margin-top: 5rem;
 }
+// Route changes and the skip link focus this programmatically. Browsers do not consistently
+// match that focus to :focus-visible, so keep the current content destination visible as well.
+main:focus {
+  outline: 3px solid var(--as-focus, #075a9c);
+  outline-offset: -3px;
+}
 .skip-link {
   position: absolute;
   left: 1rem;
