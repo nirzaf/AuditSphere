@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Recorded-time history continuation
+## Statutory schedule preview/save consistency
 
-Own recorded time now continues through bounded work-date/creation/ID pages instead of silently stopping at a retained batch. The backend filters current owner, grants and matching task context before limiting; cursors retain stored timestamp precision. Own history and approval positions remain independent. The UI preserves recording/return drafts, guards focus, exposes failed-page recovery and permits read-only unknown-save reconciliation without discarding an open return reason.
+Preview and save now derive defaults from the same existing calculator. Tight valid schedules no longer fail because of different preview-only dates. Out-of-range date arithmetic returns a failure instead of an unhandled exception; malformed nonblank optional dates return validation errors rather than silently using defaults. Warning overrides, configure-role authorization, locking and immutable revisions are preserved.
 
-Focused API/Angular and the existing real browser rate/task/time journey pass; Release solution build and OpenAPI drift pass. Exact evidence, the repaired duplicate-ID test fixture and verification limits are under `ownTimeHistoryPaging20261021` in [status.json](status.json). This is not human screen-reader approval, full current-source release acceptance or live-provider acceptance. Broader collection bounds and role/state acceptance remain open. Previous approval-paging evidence is preserved in the archive.
+Focused Domain and real HTTP checks pass, including exact independently derived dates and no-write refusals. Evidence is under `milestonePreviewValidation20261021` in [status.json](status.json). No new statutory calendar rule or professional deadline approval is supplied; dependent-task amendment effects, broader scheduling acceptance and current-source full release remain open. Recorded-time paging evidence remains available through its status/archive pointer.
 
 ## Correction queue to fieldwork handoff
 

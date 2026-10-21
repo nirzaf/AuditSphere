@@ -7732,3 +7732,9 @@ FIN-05 is complete for its specified non-WIP labeling behavior: source and focus
 The approval workspace no longer silently stops at its first retained batch. Bounded work-date/ID continuation keeps current reviewer scope, self exclusion and task/entry context filtering before the page limit. The UI labels live pages as shown, preserves recording drafts and open-return intent, restores keyboard focus and refreshes from the start after review actions. Missing legacy metadata is visibly incomplete.
 
 Focused API, Angular, built-in and scoped browser evidence is under `timeApprovalPaging20261021` in [status.json](status.json). The browser proves the default page boundary and no mutation during paging; it does not supply human/professional/live acceptance. Own-entry/task collection bounds and broader state/role/full-release gates remain separate.
+
+## Recorded-time history continuation
+
+Own recorded time now continues through bounded work-date/creation/ID pages instead of silently stopping at a retained batch. The backend filters current owner, grants and matching task context before limiting; cursors retain stored timestamp precision. Own history and approval positions remain independent. The UI preserves recording/return drafts, guards focus, exposes failed-page recovery and permits read-only unknown-save reconciliation without discarding an open return reason.
+
+Focused API/Angular and the existing real browser rate/task/time journey pass; Release solution build and OpenAPI drift pass. Exact evidence, the repaired duplicate-ID test fixture and verification limits are under `ownTimeHistoryPaging20261021` in [status.json](status.json). This is not human screen-reader approval, full current-source release acceptance or live-provider acceptance. Broader collection bounds and role/state acceptance remain open. Previous approval-paging evidence is preserved in the archive.
