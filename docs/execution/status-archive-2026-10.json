@@ -19359,6 +19359,93 @@
           "verification": "Existing OneClickDocuments_AreBrandedImmutableAndBoundToTheApprovedQuotation theory PASS2/2, both standing-authority variants. Seeded same-firm StaffCostRate raw/formatted amount and ID absent from generated quotation body; scope, period, fee and timeline remain. No production change.",
           "trx": "quotation-cost-privacy-20261021.trx in Domain.Tests/TestResults",
           "limits": "Body-content privacy evidence, not an approved exhaustive field allowlist, metadata/archive-wide audit, exact page-layout proof or new mail/provider acceptance. Charge-out rates remain allowed; legal wording and policy gates remain open."
+        },
+        "portalFinancePaging20261021": {
+          "sourceBaseCommit": "1098129d27fcd2a85e165f240495ecf40ca8f479",
+          "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "changes": [
+            "Exact authorized agreement keyset pages (default/max 50), canonical microsecond cursor and explicit older/newer/refresh controls.",
+            "Owned repeatable-read financial projection, caller-transaction refusal and final current identity/exact grant fence.",
+            "Invoice billing account must belong to the agreement client; applied receipts and issued credits must match that invoice account. Invalid invoice linkage refuses the whole response.",
+            "Angular preserves exact money/status strings and same-identity page state; real identity changes clear data/cursors; explicit page navigation restores heading focus."
+          ],
+          "checks": {
+            "domain": {
+              "result": "PASS",
+              "passed": 1,
+              "failed": 0,
+              "skipped": 0,
+              "case": "CommercialWorkflowTests.PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope",
+              "log": "/tmp/auditsphere-finance-paging-domain-verified.log",
+              "trx": "tests/AuditSphereOps.Domain.Tests/TestResults/portal-finance-paging-verified-20261021.trx",
+              "coverage": "52 authorized agreements, 51 newer sibling decoys, tied microsecond timestamps, full ordered traversal, own/foreign receipt and credit links, foreign invoice refusal, snapshot interleaving, revoked grant, invalid input and caller-owned transaction refusal."
+            },
+            "angular": {
+              "result": "PASS",
+              "passed": 9,
+              "file": "src/app/features/portal/home.spec.ts",
+              "log": "/tmp/auditsphere-finance-paging-ui-spec-final.log",
+              "coverage": "Exact lifecycle/money cells, continuation and return, explicit focus, refresh focus preservation, same-identity refresh, real identity clearing, duplicate IDs and valid over-limit nested arrays."
+            },
+            "angularBuild": {
+              "result": "PASS",
+              "log": "/tmp/auditsphere-finance-paging-ui-build-final.log",
+              "warnings": "Existing optional-chain and commercial settings stylesheet budget warnings."
+            },
+            "lint": {
+              "result": "PASS",
+              "scope": "finance.ts only; specs intentionally ignored by configured ESLint",
+              "log": "/tmp/auditsphere-finance-paging-lint.log"
+            },
+            "openApi": {
+              "result": "PASS",
+              "log": "/tmp/auditsphere-finance-paging-contract-check.log"
+            },
+            "browser": {
+              "result": "PASS",
+              "passed": 1,
+              "failed": 0,
+              "skipped": 0,
+              "case": "AngularClientPortalJourneyTests.ClientPortal_FinanceTablesAreScopedAndKeyboardScrollableOnMobile",
+              "log": "/tmp/auditsphere-finance-paging-browser-final.log",
+              "trx": "tests/AuditSphereOps.E2E.Tests/TestResults/portal-finance-paging-browser-final-20261021.trx",
+              "coverage": "Real authenticated client/API, exact monetary cells and sibling exclusion, 390px reflow, native Tab/Arrow scrolling, 50+1 agreement pages, precise continuation response ID and pagination heading focus.",
+              "builtInBrowser": "Final rebuilt UI observed with Space continuation, one older agreement, retained page count, finance heading focus and no console warnings/errors. Prior build also checked Enter return and restored invoice. Owned fixture released and owned tabs closed.",
+              "screenshot": "/tmp/auditsphere-finance-paging-20261021.png"
+            },
+            "documentation": {
+              "result": "PASS",
+              "markdownFiles": 226,
+              "canonicalDocuments": 19,
+              "relativeLinks": 3240,
+              "logs": [
+                "/tmp/auditsphere-finance-paging-docs.log",
+                "/tmp/auditsphere-finance-paging-filenames.log"
+              ]
+            }
+          },
+          "intermediateFindings": [
+            "Release solution build exposed ambiguous target-typed cursor constructor; explicit FinanceCursor type fixed it, then solution built with zero warnings/errors.",
+            "Focused setup initially assumed conversion creates a billing account; explicit synthetic account added.",
+            "Database constraints correctly rejected linking a PLANNED milestone to an invoice, mutating posted invoice time without its SENT transition, and replacing a retained milestone invoice ID. Fixtures now use valid transitions and a separately seeded malformed link; no guard or expected result was weakened.",
+            "Initial lint invocation included a spec ignored by configuration and failed on that warning; the scoped production-component lint passed.",
+            "The initial browser pass used a build from seconds before the final singular-label/decoder edit. Rebuilt final Angular artifact and repeated only the finance journey; final run and built-in screenshot now match current UI source."
+          ],
+          "review": "Independent backend, UI and test review performed; subsequent runtime fixture repairs preserve immutable publication rules.",
+          "limits": [
+            "Agreement pages are live reads, not a durable cross-page snapshot.",
+            "Nested invoice/receipt arrays remain bounded at 50 in the decoder; larger nested histories are rejected, not silently truncated, and still require separate completion work.",
+            "No full local suites, persistent migration, deployment, provider action or human screen-reader sign-off.",
+            "Full current-source release verification and comprehensive supported-state acceptance remain open."
+          ],
+          "sourceCommit": "2fb3a01fcb9eb49838025600251f86b502691512",
+          "fullCi": {
+            "result": "NOT_RUN_FOR_THIS_SOURCE",
+            "precedingRun": 39547674202,
+            "precedingSourceCommit": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
+            "observed": "2026-10-21T06:27:00Z",
+            "state": "IN_PROGRESS: full Domain, Angular and build/contracts passed; API and E2E still running. This run predates this slice."
+          }
         }
       },
       "asPm8AtomicMatrixBeforePortalActivity20261021": [

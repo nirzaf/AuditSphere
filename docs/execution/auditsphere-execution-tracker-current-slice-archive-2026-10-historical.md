@@ -7782,3 +7782,14 @@ The accounting revocation journey now handles the expected removal of refresh ac
 The portal now pages retained document, PBC, invoice and payment-receipt facts together. Current exact grants and request participation constrain every source before bounds; a scope-bound UTC cutoff controls continuation. The owned snapshot is followed by fresh authorization/context checks. The feed omits message bodies, amounts, staff IDs and provider metadata; receipt and sent timestamps never imply delivery. Source links preserve the portal route and keyboard destination.
 
 Focused query/Angular and the real completion-to-client journey pass after repairing an EF projection-ordering failure. Built-in inspection observed nine retained events with UTC/source links and no captured warnings/errors. Evidence and limits are under `portalActivity20261021` in [status.json](status.json). This is live history, not a frozen archive; whole-source/state, human AT, professional/provider and full current-source release acceptance remain open. Prior time-revision and finance-bound evidence is preserved in the historical archive and status pointers.
+
+
+## Fresh locked workflow amendments and quotation privacy
+
+Evidence-rule and dependency amendments now refresh locked EF-tracked task/binding rows before validating identity, replay, revision and closed state. Both stale-context baselines attempted writes rejected by existing database guards; the fixed commands refuse cleanly without new rules, edges or activity. Four focused cases pass, including existing positive/replay paths. No UI, contract or migration change was needed.
+
+The existing branded-quotation theory also passes both standing-authority variants with synthetic private cost values/IDs excluded from the document body and required commercial fields retained. This is body-content evidence, not a broader approved allowlist or legal/layout acceptance. Exact sources, artifacts and limitations: `workflowAmendmentFreshLocks20261021` and `quotationCostPrivacy20261021` in [status.json](status.json). No full local suite was run; current-source full release and professional/live/human acceptance remain open. Earlier client-activity evidence is preserved through its status pointer and historical handoff.
+
+## Consolidation workspace read consistency
+
+The multi-panel workspace now owns one read snapshot and refuses caller-owned transactions. After disposal it rechecks group/context and current source approval readiness; capabilities can only be retained or demoted. The real reviewed-package regression proves source access withdrawal while group access remains, and concurrent approval no longer mixes component/readiness states. Three unique focused cases pass across the initial run and corrected-fixture rerun. Evidence/limits: `consolidationWorkspaceSnapshot20261021` in [status.json](status.json). Existing command guards, source books and professional approvals are unchanged.

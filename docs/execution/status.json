@@ -1224,6 +1224,13 @@
       "status": "PASS_FOCUSED_TEST_ONLY",
       "sourceCommit": "803c719970bc4c28a6d6a6d697223e1c9f6c4ed6",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.quotationCostPrivacy20261021"
+    },
+    "portalFinancePaging20261021": {
+      "sourceBaseCommit": "1098129d27fcd2a85e165f240495ecf40ca8f479",
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalFinancePaging20261021",
+      "remaining": "Nested-history completion, human AT and full current-source release acceptance remain open.",
+      "sourceCommit": "2fb3a01fcb9eb49838025600251f86b502691512"
     }
   },
   "externalGates": [

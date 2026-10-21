@@ -14,15 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Fresh locked workflow amendments and quotation privacy
+## Client finance agreement history and account isolation
 
-Evidence-rule and dependency amendments now refresh locked EF-tracked task/binding rows before validating identity, replay, revision and closed state. Both stale-context baselines attempted writes rejected by existing database guards; the fixed commands refuse cleanly without new rules, edges or activity. Four focused cases pass, including existing positive/replay paths. No UI, contract or migration change was needed.
+Client finance now pages exact authorized agreements instead of silently stopping at the newest collection bound. Stable retained creation-time/ID cursors, explicit older/newer/refresh controls and a consistent page snapshot preserve financial facts. Each response rechecks current identity and exact grants after snapshot disposal. Linked invoices must belong to the agreement client's billing account; receipt and credit totals exclude foreign accounts.
 
-The existing branded-quotation theory also passes both standing-authority variants with synthetic private cost values/IDs excluded from the document body and required commercial fields retained. This is body-content evidence, not a broader approved allowlist or legal/layout acceptance. Exact sources, artifacts and limitations: `workflowAmendmentFreshLocks20261021` and `quotationCostPrivacy20261021` in [status.json](status.json). No full local suite was run; current-source full release and professional/live/human acceptance remain open. Earlier client-activity evidence is preserved through its status pointer and historical handoff.
-
-## Consolidation workspace read consistency
-
-The multi-panel workspace now owns one read snapshot and refuses caller-owned transactions. After disposal it rechecks group/context and current source approval readiness; capabilities can only be retained or demoted. The real reviewed-package regression proves source access withdrawal while group access remains, and concurrent approval no longer mixes component/readiness states. Three unique focused cases pass across the initial run and corrected-fixture rerun. Evidence/limits: `consolidationWorkspaceSnapshot20261021` in [status.json](status.json). Existing command guards, source books and professional approvals are unchanged.
+The focused PostgreSQL regression, Angular checks and final-artifact authenticated browser journey pass. Built-in keyboard continuation confirms the one-row older page and heading focus with no console errors. Runtime fixture failures were corrected to obey existing invoice/milestone immutability without weakening guards or assertions. Evidence and limitations: `portalFinancePaging20261021` in [status.json](status.json). Nested invoice/receipt history beyond the decoder bound, full current-source release verification, human screen-reader review and provider/professional acceptance remain open. Earlier workflow-amendment, quotation-privacy and consolidation evidence is preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
 ## Paged client document history
 
