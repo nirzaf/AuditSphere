@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Practice;
@@ -86,6 +87,7 @@ public sealed class AngularWorkflowEvidenceJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Plan receipt confirmed", Exact = true })).ToBeVisibleAsync();
     Dictionary<string, Guid> stepIds;
+    Guid requiredTaskId;
     await using (var db = host.CreateDbContext())
     {
       var steps = await db.WorkflowTemplateSteps.Where(x => x.TemplateRevisionId == revisionId).ToListAsync();
@@ -97,6 +99,9 @@ public sealed class AngularWorkflowEvidenceJourneyTests
         var binding = Assert.Single(bindings, x => x.TemplateStepId == step.Id);
         Assert.Equal($"TEMPLATE:{revisionId:N}:{step.StableKey}", binding.SourceKey);
       }
+      var requiredBinding = Assert.Single(bindings, x => x.TemplateStepId == stepIds["required"]);
+      requiredTaskId = requiredBinding.WorkTaskId;
+      Assert.Null(requiredBinding.AssigneeUserIdSnapshot);
       var tasks = await db.WorkTasks.Where(x => x.EngagementId == f.EngagementId).ToListAsync();
       Assert.Equal(3, tasks.Count);
       Assert.All(tasks, task => { Assert.NotEqual(PracticeTimeStates.TaskCompleted, task.Status); Assert.Null(task.CompletedAt); });
@@ -104,6 +109,58 @@ public sealed class AngularWorkflowEvidenceJourneyTests
       Assert.Empty(await db.MaterialityApprovals.ToListAsync());
       Assert.Empty(await db.AuditProcedureReviews.ToListAsync());
     }
+
+    // Assign one generated, initially unassigned task through its existing engagement control.
+    await page.GotoAsync(origin + $"/app/engagements/{f.EngagementId}");
+    var requiredRow = page.Locator("ul.checklist > li").Filter(new() { HasText = requiredTitle });
+    await Assertions.Expect(requiredRow).ToHaveCountAsync(1);
+    var requiredPhase = requiredRow.Locator("xpath=ancestor::details[1]");
+    if (await requiredPhase.GetAttributeAsync("open") is null)
+      await requiredPhase.Locator("summary").ClickAsync();
+    await requiredRow.GetByRole(AriaRole.Button, new() { Name = "Assign task", Exact = true }).ClickAsync();
+    var assignment = page.GetByRole(AriaRole.Region, new() { Name = "Assign workflow task", Exact = true });
+    await Assertions.Expect(assignment).ToBeVisibleAsync();
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, $"/app/engagements/{f.EngagementId}", "workflow-task-assignment");
+    await assignment.GetByRole(AriaRole.Combobox, new() { Name = "New owner", Exact = true }).SelectOptionAsync(f.Staff.Id.ToString("D"));
+    await assignment.GetByLabel(
+      "I reviewed this exact task, engagement, current owner, and new owner.", new() { Exact = true }).CheckAsync();
+    var assignmentResponses = await PlaywrightResponseCapture.RunMultipleAsync(page,
+      [
+        request => request.Method == "POST" && request.Url.Contains(
+          $"/api/ui/engagements/{f.EngagementId:D}/workflow/tasks/{requiredTaskId:D}/assign", StringComparison.Ordinal),
+        request => request.Method == "GET" && Uri.TryCreate(request.Url, UriKind.Absolute, out var uri) &&
+          uri.AbsolutePath == $"/api/ui/engagements/{f.EngagementId:D}/workflow/tasks"
+      ],
+      () => assignment.GetByRole(AriaRole.Button, new() { Name = "Confirm assignment", Exact = true }).ClickAsync());
+    Assert.InRange(assignmentResponses[0].Status, 200, 299);
+    Assert.InRange(assignmentResponses[1].Status, 200, 299);
+    using (var assignedWorkspace = JsonDocument.Parse(assignmentResponses[1].Body))
+    {
+      Assert.Equal(f.EngagementId, assignedWorkspace.RootElement.GetProperty("engagementId").GetGuid());
+      var assignedTask = Assert.Single(assignedWorkspace.RootElement.GetProperty("tasks").EnumerateArray(),
+        row => row.GetProperty("id").GetGuid() == requiredTaskId);
+      Assert.Equal(f.Staff.Id, assignedTask.GetProperty("assigneeUserId").GetGuid());
+    }
+    await Assertions.Expect(requiredRow).ToContainTextAsync("Owner: Staff");
+
+    // A separate authenticated browser context verifies the exact task appears in its owner's My Tasks queue.
+    var staffOrigin = await host.StartApiForIdentityAsync(f.Staff, settings);
+    var staffPage = await browser.NewPageAsync();
+    staffPage.PageError += (_, error) => errors.Add(error);
+    var (staffQueueStatus, staffQueueBody) = await PlaywrightResponseCapture.RunAsync(staffPage,
+      request => request.Method == "GET" && request.Url.Contains("/api/ui/work/tasks?", StringComparison.Ordinal) &&
+        request.Url.Contains("view=MY_TASKS", StringComparison.Ordinal),
+      () => staffPage.GotoAsync(staffOrigin + "/auth/sign-in?returnUrl=%2Fapp%2Fwork"));
+    Assert.InRange(staffQueueStatus, 200, 299);
+    await Assertions.Expect(staffPage.GetByRole(AriaRole.Heading, new() { Name = "My work", Exact = true })).ToBeVisibleAsync();
+    using (var staffQueue = JsonDocument.Parse(staffQueueBody))
+    {
+      var staffTask = Assert.Single(staffQueue.RootElement.GetProperty("tasks").EnumerateArray(),
+        row => row.GetProperty("taskId").GetGuid() == requiredTaskId);
+      Assert.Equal(f.Staff.Id, staffTask.GetProperty("assigneeUserId").GetGuid());
+    }
+    await Assertions.Expect(staffPage.Locator("tbody tr").Filter(new() { HasText = requiredTitle })).ToHaveCountAsync(1);
+
     await page.GotoAsync(origin + "/app/work");
     await page.GetByRole(AriaRole.Navigation, new() { Name = "Work queue views", Exact = true })
       .GetByRole(AriaRole.Button, new() { Name = "Team", Exact = true }).ClickAsync();
