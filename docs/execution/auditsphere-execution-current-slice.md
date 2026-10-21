@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Generated task assignment integration
+
+The existing template journey now assigns one generated task through the engagement UI, verifies its exact owner in the refreshed workspace, and checks that task in the staff owner's My Tasks. Built-in inspection distinguished an exact label-text locator failure from the correct native accessible name; the test uses the combobox role/name. No product behavior or permission change was needed. Evidence and limits are under `workflowTemplateAssignment20261021` in [status.json](status.json). ASPM-UAT-05 remains partial for review, return, rework and wider denials.
+
 ## Release E2E failure triage
 
 The accounting revocation journey now handles the expected removal of refresh actions during session revocation, then still requires the denial screen and removal of protected content. Its focused browser regression passes. The finding lost-committed test now proves the forwarded server command succeeded before receipt recovery; its previously failing case passes. The old CI log cannot prove the exact race, and product conflict/authorization guards remain intact. A fresh full CI run is still required. Exact evidence and scope are under `releaseFailureTriage20261021` in [status.json](status.json). No full local suites or external changes were performed.
