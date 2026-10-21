@@ -43,7 +43,7 @@ Authenticated synthetic PBC checks cover mobile reflow, named controls, skip-lin
 
 The preceding release exposed a test race: recovery renders before the intercepted command completes. The workpaper journey now awaits dispatch before database proof or a superseding save, unwraps the API `value` envelope and propagates callback failures. Earlier focused passes did not prove asynchronous assertions finished. Exact receipt, content, revision and duplicate-write protections remain enforced.
 
-The corrected focused cohort passed; full corrected-source release verification remains pending in CI. Prior release results and the successful local Release solution build are recorded in [`currentHeadFollowUp`](status.json). No full suites ran locally.
+The two repaired portal journeys passed focused E2E 2/2 on `fe075726`. The serialized .NET Release solution build passed with 0 warnings/errors. Fast CI run `39587925498` passed on that SHA; full current-source Release Verification run `39588148758` is still running; no full suites ran locally. Current browser/accessibility observations and the screen-reader sign-off boundary are recorded in [`accessibilityReview20261021`](status.json) and [`currentSourceCi20261021`](status.json).
 
 > **Reading note:** Any older section that says the Web host remains present or that
 > retirement is `NOT_READY` describes the state when it was written. The owner retired

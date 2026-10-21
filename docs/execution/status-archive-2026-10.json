@@ -19534,6 +19534,55 @@
             "No persistence model/migration, deployment, provider action or full local suite.",
             "Broader role/state and retained-financial-data integrity matrices, qualified human AT, full current-source release and professional/live-provider acceptance remain open."
           ]
+        },
+        "fullReleaseVerificationSource9941BeforeCurrentSource20261021": {
+          "run": "39410131489",
+          "requestedRef": "master",
+          "sourceCommit": "9941a9352531299940ca9fb84ff9b91ef3acd399",
+          "status": "IN_PROGRESS",
+          "passedJobs": [
+            "Resolve requested ref",
+            "Build Angular and full specs",
+            ".NET Domain unfiltered",
+            "Build, contracts and publication"
+          ],
+          "pendingJobs": [
+            ".NET API unfiltered",
+            ".NET Playwright E2E unfiltered"
+          ],
+          "supersededRun": {
+            "run": "39409915117",
+            "result": "FAILED_BEFORE_VERIFICATION",
+            "reason": "The requested-ref checkout received a malformed SHA; no verification suites ran. Superseded by this master-ref run."
+          }
+        },
+        "timeEntryFullCiBeforeCurrentSource20261021": {
+          "run": "39547674202",
+          "status": "IN_PROGRESS",
+          "sourceCommit": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
+          "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39547674202",
+          "observed": "Angular, Domain and build/contracts/publication PASS; API and E2E still running at observation. Pinned6b72b18d, not current activity/consolidation source."
+        },
+        "releaseFailureTriageEarlierThreeE2eFailures20261021": {
+          "fullCiFollowup": {
+            "sourceCommit": "a83cbebc0c8e88fd7eb27ecc6c6adb33db1f347a",
+            "run": "39533076423",
+            "status": "FAIL_E2E",
+            "observed": "Terminal failure verified through GitHub: full Angular, Domain, API and build/contracts/publication passed; E2E failed three browser cases. Source predates current uncommitted time-change slice. Focused repairs and reruns are in progress; no full-current-source pass is claimed.",
+            "failedCases": [
+              "AngularFinancialArtifactParityJourneyTests.ReopenedPeriodShowsNewRevisionWithoutReplacingValidatedPackage",
+              "AngularClientOperationalOpeningBalanceJourneyTests.ClientOpeningManifestRequiresMakerReviewerAndFlowsIntoTrialBalance",
+              "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular"
+            ],
+            "focusedRepairVerification": {
+              "status": "PASS",
+              "cases": 3,
+              "trx": "tests/AuditSphereOps.E2E.Tests/TestResults/ci-browser-fixes-20261021.trx",
+              "changes": "Retain account-name assertions with semantic Rowheader locators; capture paged evidence response before navigation invalidates its body. No product checks removed.",
+              "scope": "Focused three failed cases only, current working source; full release rerun deferred until committed."
+            }
+          },
+          "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.releaseFailureTriageBeforeTimeChanges20261021"
         }
       },
       "asPm8AtomicMatrixBeforePortalActivity20261021": [
