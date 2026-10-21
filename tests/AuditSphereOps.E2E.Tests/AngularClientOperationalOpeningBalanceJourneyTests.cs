@@ -126,8 +126,8 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     var journals = reviewerPage.Locator("audit-client-operational-journals");
     await journals.GetByLabel("Ledger reporting period", new() { Exact = true }).SelectOptionAsync(periodId.ToString());
     await journals.GetByRole(AriaRole.Button, new() { Name = "Refresh posted ledger", Exact = true }).ClickAsync();
-    await Assertions.Expect(journals.GetByRole(AriaRole.Cell, new() { Name = "1000 · Opening cash", Exact = true })).ToBeVisibleAsync();
     var trialBalance = journals.GetByRole(AriaRole.Table, new() { Name = "Official native Trial Balance · 2026-01-01 to 2026-12-31", Exact = true });
+    await Assertions.Expect(trialBalance.GetByRole(AriaRole.Rowheader, new() { Name = "1000 · Opening cash", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(0)).ToHaveTextAsync("250");
     await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(1)).ToHaveTextAsync("250");
     await Assertions.Expect(trialBalance.Locator("tfoot td").Nth(2)).ToHaveTextAsync("0");

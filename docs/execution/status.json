@@ -1186,8 +1186,20 @@
       "fullCiFollowup": {
         "sourceCommit": "a83cbebc0c8e88fd7eb27ecc6c6adb33db1f347a",
         "run": "39533076423",
-        "status": "IN_PROGRESS",
-        "observed": "Resolve, full Angular, Domain, API and build/contracts/publication PASS; E2E IN_PROGRESS. Pinned a83cbebc predates later assignment/fieldwork/time/scheduling/proposal slices. Initial39532980048 failed checkout on abbreviated ref; resubmitted after terminal failure with full SHA."
+        "status": "FAIL_E2E",
+        "observed": "Terminal failure verified through GitHub: full Angular, Domain, API and build/contracts/publication passed; E2E failed three browser cases. Source predates current uncommitted time-change slice. Focused repairs and reruns are in progress; no full-current-source pass is claimed.",
+        "failedCases": [
+          "AngularFinancialArtifactParityJourneyTests.ReopenedPeriodShowsNewRevisionWithoutReplacingValidatedPackage",
+          "AngularClientOperationalOpeningBalanceJourneyTests.ClientOpeningManifestRequiresMakerReviewerAndFlowsIntoTrialBalance",
+          "AngularClientOperationalJournalJourneyTests.NativeClientJournalRequiresIndependentReviewAndPostsThroughAngular"
+        ],
+        "focusedRepairVerification": {
+          "status": "PASS",
+          "cases": 3,
+          "trx": "tests/AuditSphereOps.E2E.Tests/TestResults/ci-browser-fixes-20261021.trx",
+          "changes": "Retain account-name assertions with semantic Rowheader locators; capture paged evidence response before navigation invalidates its body. No product checks removed.",
+          "scope": "Focused three failed cases only, current working source; full release rerun deferred until committed."
+        }
       }
     },
     "workflowTemplateAssignment20261021": {
@@ -1224,15 +1236,8 @@
       "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.proposalSnapshotConsistency20261021"
     },
     "onboardingSnapshotComposition20261021": {
-      "status": "PASS_LOCAL_SLICE",
-      "sourceCommit": "1021599e",
-      "behavior": "Onboarding, fee and proposal reads compose one owned RepeatableRead snapshot through authorized internal snapshot-only readers. Public queries reject caller transactions, dispose snapshots before fresh authorization and refuse lost true Partner/signature/activation or Finance capabilities. Report/dispatch as-of time is captured at snapshot start; business predicates and DTOs unchanged.",
-      "checks": "Controlled real approval-revocation baseline FAIL1/1 at report-as-of assertion (old timestamp followed mutation); finally restored all query sources. Fixed focused cohort PASS6/6,45s: new composed-read/current+distinct-role revocation/caller transaction fact; existing independent dual keys, fee scope+concurrent links, proposal interleaving and both branded-document/paid-advance variants. New fact checks five coherent cards, fresh stale acceptance, as-of bound, retained RM with Partner/Finance revocation, null denied projections and usable rejected caller transactions. Independent review and diff check PASS.",
-      "artifacts": [
-        "tests/AuditSphereOps.Domain.Tests/TestResults/onboarding-snapshot-red-20261021.trx",
-        "tests/AuditSphereOps.Domain.Tests/TestResults/onboarding-snapshot-green-20261021.trx"
-      ],
-      "limits": "Snapshot is point-in-time, not newest-at-delivery authority. Protected commands still recheck. No UI/browser, schema/dependency/provider changes or full local suites. Full CI39533076423 on earlier a83cbebc: all except E2E PASS, E2E IN_PROGRESS; preceding a099db66 fast CI39541014854 PASS. Broader professional/live/current-source release acceptance open."
+      "status": "PASS_FOCUSED",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.onboardingSnapshotComposition20261021"
     }
   },
   "externalGates": [

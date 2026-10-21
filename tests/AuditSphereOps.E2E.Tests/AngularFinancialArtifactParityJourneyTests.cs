@@ -842,11 +842,11 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     var nextEvidencePage = evidence.GetByRole(AriaRole.Button, new() { Name = "Next evidence page", Exact = true });
     await nextEvidencePage.FocusAsync();
     await Assertions.Expect(nextEvidencePage).ToBeFocusedAsync();
-    var pageTwo = await page.RunAndWaitForResponseAsync(
-      () => nextEvidencePage.PressAsync("Enter"),
-      result => result.Request.Method == "GET" && result.Url.EndsWith($"/api/ui/accounting/periods/{periodId:D}/evidence/books?page=2", StringComparison.Ordinal));
-    Assert.Equal(200, pageTwo.Status);
-    using (var pageTwoBody = System.Text.Json.JsonDocument.Parse(await pageTwo.TextAsync()))
+    var (pageTwoStatus, pageTwoText) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && request.Url.EndsWith($"/api/ui/accounting/periods/{periodId:D}/evidence/books?page=2", StringComparison.Ordinal),
+      () => nextEvidencePage.PressAsync("Enter"));
+    Assert.Equal(200, pageTwoStatus);
+    using (var pageTwoBody = System.Text.Json.JsonDocument.Parse(pageTwoText))
     {
       Assert.Equal(27, pageTwoBody.RootElement.GetProperty("totalCount").GetInt32());
       Assert.Equal(2, pageTwoBody.RootElement.GetProperty("items").GetArrayLength());

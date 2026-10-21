@@ -229,7 +229,7 @@ public sealed class AngularClientOperationalJournalJourneyTests
     await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Preserved submitted journal lines", Exact = true }).First
       .GetByRole(AriaRole.Cell, new() { Name = "125.250000", Exact = true })).ToHaveCountAsync(2);
     var ledgerAccounts = journals.GetByRole(AriaRole.Table, new() { Name = "Account debit, credit and net movement", Exact = true });
-    await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "6000 · Office expense", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Rowheader, new() { Name = "6000 · Office expense", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(ledgerAccounts.GetByRole(AriaRole.Cell, new() { Name = "-150.250000", Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(journals.GetByRole(AriaRole.Table, new() { Name = "Posted journal line detail", Exact = true }).GetByRole(AriaRole.Row)).ToHaveCountAsync(3);
     var tb = journals.GetByRole(AriaRole.Table, new() { Name = "Official native Trial Balance", Exact = false });
