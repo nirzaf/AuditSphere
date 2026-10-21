@@ -1173,15 +1173,9 @@
       "limits": "Historical full release failed; repaired focused API case passed. Current full CI recorded separately; professional/external acceptance remains open."
     },
     "portalRequestCapabilities20261021": {
-      "sourceCommit": "b576f33d6f925522546995272bfa2818ff45ab1f",
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "behavior": "Separate server CanUpload/CanReply flags follow existing command state/window rules. New UI never derives authority from legacy CanWrite; missing flags defaultfalse, malformed flags reject, capability loss clears drafts. Clarification offers reply before replacement upload; Resubmitted offers upload. Home rechecks current window for reply-only requests and refuses late state/revision changes; existing scope/session fences retained. Commands/state transitions unchanged.",
-      "checks": "API6/6: nine-state home/detail matrix, actual clarification reply, three upload-state denials with no rows written, first-sign-in denial, and deterministic late state/revision/grant/window cases. Angular22/22 across request8,contracts7,home7. Original first-sign-in/delegation/reply/upload/history/closed-revoke/session journey1/1 before wrap-only change. Final new E2E1/1 at320px: real local transfer/review, reply during review, staff clarification, client reply opensResubmitted, home uploadCTA, replacement bytes/hash, PartiallyReceived andnoacceptance. Release solution andchangedE2E project builds0warnings/errors; Angular build/lint, OpenAPI drift anddocs passed. Angular retains4 completion optional-chain and1 commercial style-budget warnings.",
-      "browser": "Owned built-in320px fixture: clarification disablesfile but allowsreply; typing synthetic unsentdraft enablesSend. LongmessageURL initially overflowed374px; inheritedconversation wrapping repaired documentto305px. No console warnings/errors; draftcleared withoutsending; fixturedisposed.",
-      "screenshot": "/tmp/auditsphere-pbc-clarification-capabilities-final-320-20261021.png",
-      "repairs": "Read-only paging fixture defaults restored and intended writable fixture madeexplicit; original negative assertions retained. Two colliding API-test locals renamed. E2E checksResubmitted immediatelyafterreply, thenPartialafterstartingreplacement instead ofassumingstateunchanged afterupload. No domain outcomes weakened.",
-      "ci": "39516191642 FAST_CI_PASS onbc68717a; new-source CI pending push. Full current-source release remainsNOT_RUN; historical API downgrade failure repaired onlyfocused asrecorded separately.",
-      "limits": "CLIENT-02/04 and wholetool remainPARTIAL: complete public chronology, whole-state/browser/humanAT, full current-source release and live/professional acceptance remainopen. No full local suites, schema/config/deployment/provider changes."
+      "archive": "status-archive-2026-10.json#/keys/targetedVerification/focusedEvidenceHistory20261021/portalRequestCapabilities20261021",
+      "limits": "Independent upload/reply capability slice verified locally; full current-source, whole-state/humanAT and live/professional acceptance remain open."
     },
     "workflowTemplateLineage20261021": {
       "sourceCommit": "e65fbdc7450dda0acade8449db0e41491bf1a583",
@@ -1192,6 +1186,16 @@
       "evidence": "tests/AuditSphereOps.E2E.Tests/TestResults/workflow-template-lineage-final-20261021.trx; /tmp/auditsphere-template-lineage-final-test.log; /tmp/auditsphere-template-lineage-calendar-320-20261021.png",
       "ci": "FAST_CI_PASS39517886129 on68f7c7dc. Full39518012940 pinned68f7c7dc stillrunning: Domain,Angular,build/contractsPASS; API/E2Einprogress. New test is later source, not covered by that run.",
       "limits": "ASPM-WF-01/02 remainPARTIAL: required-task graph policy, wider workflows, humanAT/professional and live-provider gates open. No full local suites or deployment."
+    },
+    "portalDocumentMilestones20261021": {
+      "sourceCommit": "494bd8aca86be1f6af73889588ac87f533096259",
+      "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "behavior": "Carry retained review SharedAt through the existing scoped repeatable-read projection/final fences. Document cards render semantic UTC sharing and acknowledgment times; absent/null legacy share metadata is unrecorded, malformed supplied timestamps reject. Review-wide acknowledgment is not attributed to current account. No internal actor IDs or inferred delivery/signature status.",
+      "verification": "Focused PortalDocuments API3/3PASS (two-client exact timestamps/isolation and lategrant/context refusal); after independent review, positivecase1/1PASS with acknowledger ID/property exclusion added. Angular documents.spec.ts12/12PASS. Existing real-command release/signing-refusal E2E1/1PASS binds shared/acknowledged times to exact retained representation version/hash. E2E/API/emitter Release builds0warnings/errors; UIbuildPASS with existing4completion/1style warnings; component lint andOpenAPI driftPASS.",
+      "browser": "Owned built-in320px: document305px, sharing and acknowledgment distinct from scan upload and bundle assembly; exact semanticdatetime andUTCtext inspected; no consolewarnings/errors. Read-only inspection; no download/acknowledgment action; fixturedisposed.",
+      "evidence": "tests/AuditSphereOps.E2E.Tests/TestResults/portal-document-milestones-20261021.trx; tests/AuditSphereOps.Api.Tests/TestResults/portal-document-milestones-privacy-20261021.trx; /tmp/auditsphere-portal-document-milestones-320-20261021.png",
+      "repairs": "Initial APIfixture offset rejected byNpgsql; normalizedfixedtimes toUTC and supplied matching retained acknowledgment hash/account. Initial lintincludedignoredspec; finalcomponentlintPASS withoutchanginglintpolicy. Angular12PASS disprovedreviewconcern aboutnewfixtureinitialization.",
+      "limits": "CLIENT-04 stillPARTIAL: not a unifiedclientchronology, no current-sourcefullCI/humanAT/liveprofessional acceptance. Full39518012940 pinned68f7c7dc stillrunninglastobserved; no full local suites, migrations, provider or deployment effects."
     }
   },
   "externalGates": [

@@ -14,6 +14,12 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Retained shared-document milestone times
+
+Client document cards now show the retained sharing time and document acknowledgement as separate semantic UTC times. Legacy missing share metadata is explicitly unrecorded. Acknowledgement belongs to the shared review record and is not attributed to the current account; internal actor identities stay private. Existing snapshot, final authorization/context fences, review controls and signature/provider boundaries are unchanged.
+
+Exact source, focused API/Angular/real-command browser results, fixture repairs, built-in narrow-screen observations and artifacts are under `portalDocumentMilestones20261021` in [status.json](status.json). This advances client-visible history but does not complete a unified chronology, qualified human accessibility review, current-source full release or professional/live acceptance. Earlier PBC acceptance notes remain in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
 ## Native template authoring and pinned queue labels
 
 A focused synthetic browser journey now authors a Required and Optional task template through Angular, uses a separate Partner session for independent review and publication, previews and creates an engagement plan, and follows its exact pinned source identities through Team list, board and calendar. Manual tasks remain undesignated; creating the plan completes no task and grants no professional approval. Independent review strengthened the exact manual identity and queue membership assertions.
@@ -31,12 +37,6 @@ The real synthetic browser journey proves the clarification/reply/replacement se
 The historical full release failed in one API migration probe after later compatible down-migrations removed a nullable lineage column and an older retained-evidence guard correctly refused further rollback. The test now reads the retained identity in that intermediate schema, restores the latest migrations, then checks the original whole-table single-record invariant and retained fields. Production migrations, refusal guards and authorization assertions are unchanged. Exact source, focused results and historical release outcome are in `workflowEvidenceDowngradeRecovery20261021` in [status.json](status.json); this is not a current full regression pass.
 
 A further defensive audit found that several client command paths reauthorize the pre-lock request owner rather than the locked row. No supported owner-reassignment command currently exists, so this is latent hardening work, not a demonstrated reachable portal exploit. Any correction must retain scope checks and lock order and prove current participation without adding a reassignment workflow.
-
-## Retained PBC reviewer acceptance in the client portal
-
-Client request detail now distinguishes a retained exact-upload acceptance receipt from the current request status. The receipt’s file identity, revisions, hash, byte count and UTC decision time survive closure; reviewer IDs and provider internals remain private. Legacy terminal statuses without that receipt do not create an acceptance event or time. The existing snapshot, participation and current-session fences still govern the read. Angular keeps retained integer strings exact and refuses malformed supplied receipt content.
-
-Focused database, API, Angular, real local-command browser and built-in mobile observations are under `portalPbcAcceptance20261021` in [status.json](status.json). Local provider simulation is explicitly not live tenant or qualified professional acceptance. CLIENT-02/04, complete client-public chronology, whole-state/human AT and current-source full release remain open. Earlier signed-scan and document-context handoffs are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
 
 ## Recent read-only evidence views
