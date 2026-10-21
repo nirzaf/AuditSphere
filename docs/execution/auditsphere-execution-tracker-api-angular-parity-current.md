@@ -9,7 +9,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | Task | Requirement | Implementation | Current code evidence |
 | --- | --- | --- | --- |
 | T001 | Require the privileged role and firm-wide scope on the same eligible grant | VERIFIED | [AuthorizationDecision.cs](../../src/AuditSphereOps.Application/Security/AuthorizationDecision.cs); [status.json](status.json) |
-| T002 | Correct emitted decimal and nullable error schemas | IMPLEMENTED_VERIFICATION_PENDING | [ApiContract.cs](../../src/AuditSphereOps.Api/Contracts/ApiContract.cs) |
+| T002 | Correct emitted decimal and nullable error schemas | VERIFIED | [ApiContract.cs](../../src/AuditSphereOps.Api/Contracts/ApiContract.cs); [OpenApiContractTests.cs](../../tests/AuditSphereOps.Api.Tests/OpenApiContractTests.cs); [status.json](status.json) |
 | T003 | Use actual consolidation lifecycle literals in UI action gates | VERIFIED | [scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts); [status.json](status.json) |
 | T004 | Preserve consolidation journal precision and ownership units | VERIFIED | [scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts); [status.json](status.json) |
 | T005 | Reject invalid nonblank audit exception amounts without losing supported precision | VERIFIED | [fieldwork.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts); [status.json](status.json) |

@@ -1608,11 +1608,12 @@
     "taskStatusSummary": {
       "count": 51,
       "implementationStatus": "51 IMPLEMENTED",
-      "acceptanceStatus": "T001,T003-T007 VERIFIED; 45 NOT_VERIFIED"
+      "acceptanceStatus": "T001-T007 VERIFIED; 44 NOT_VERIFIED"
     },
     "verifiedTasks": {
       "run": "39590664430@9b4720d1",
       "T001": "3 cases; Domain TRX",
+      "T002": "3 OpenAPI tests PASS; CI 071 exact source",
       "T003": "scope-workspace.spec.ts",
       "T004": "scope-workspace.spec.ts",
       "T005": "fieldwork.spec.ts",
