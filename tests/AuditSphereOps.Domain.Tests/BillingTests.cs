@@ -231,6 +231,14 @@ public sealed class BillingTests
         ]));
       Assert.True(first.Succeeded, first.Message);
 
+      var reviewedCorrection = await PracticeTimeService.ReviseTimeEntryAsync(db, correctionActor,
+        new ReviseTimeEntryRequest(sourceId, Guid.NewGuid(), 1, "CORRECT_APPROVED",
+          new DateOnly(2026, 3, 2), 540, 120, "Billing source", "Attempt to alter invoiced time",
+          "Correct after invoice reservation"));
+      Assert.False(reviewedCorrection.Succeeded);
+      Assert.Equal(ErrorCodes.ProtectedState, reviewedCorrection.ErrorCode);
+      Assert.Equal(0, await db.Set<TimeEntryChangeReceipt>().CountAsync());
+
       var correction = await PracticeTimeService.CorrectTimeAsync(db, correctionActor,
         new CorrectTimeRequest(sourceId, new DateOnly(2026, 3, 2), 540, 120,
           "Billing source", "Attempt to alter invoiced time", Reason: "Correct after invoice reservation"));

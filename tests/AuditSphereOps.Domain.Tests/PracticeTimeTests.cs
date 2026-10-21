@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using System.Text.Json;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -153,6 +154,8 @@ public sealed class PracticeTimeTests
     Guid taskId;
     Guid originalId;
     Guid correctedId;
+    Guid originalRateCardVersionId;
+    ReviseTimeEntryRequest correctionRequest;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       mappingId = await SeedApprovedTimeMappingAsync(db, fixture);
@@ -171,7 +174,7 @@ public sealed class PracticeTimeTests
       Assert.Equal(mappingId, task.MappingVersionId);
       Assert.Equal("Cash", task.FsliCode);
 
-      await CreateApprovedRateAsync(db, fixture, "FSLI journey");
+      originalRateCardVersionId = await CreateApprovedRateAsync(db, fixture, "FSLI journey");
       var draft = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
         new SaveTimeDraftRequest(taskId, new DateOnly(2026, 1, 12), 540, 60,
           "Staff", "FSLI journey", Currency: "QAR"));
@@ -182,11 +185,28 @@ public sealed class PracticeTimeTests
       Assert.Equal("Cash", entry.FsliCode);
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.PreparerActor, originalId)).Succeeded);
       Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, originalId)).Succeeded);
-      var correction = await PracticeTimeService.CorrectTimeAsync(db, fixture.PreparerActor,
-        new CorrectTimeRequest(originalId, new DateOnly(2026, 1, 12), 540, 75,
-          "FSLI journey", "Corrected duration", Reason: "Corrected recorded duration"));
+
+      var revisedRate = await PracticeTimeService.ReviseRateCardAsync(db, fixture.RateCardManagerActor,
+        new RateCardDraftRequest("Staff", "FSLI journey", "QAR", 120m, ExpectedVersion: 1));
+      Assert.True(revisedRate.Succeeded, revisedRate.Message);
+      Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, fixture.PartnerActor, revisedRate.Value)).Succeeded);
+
+      correctionRequest = new ReviseTimeEntryRequest(originalId, Guid.NewGuid(), 1, "CORRECT_APPROVED",
+        new DateOnly(2026, 1, 12), 540, 75, "FSLI journey", "Corrected duration", "Corrected recorded duration");
+      var correction = await PracticeTimeService.ReviseTimeEntryAsync(db, fixture.PreparerActor, correctionRequest);
       Assert.True(correction.Succeeded, correction.Message);
       correctedId = correction.Value;
+
+      var replay = await PracticeTimeService.ReviseTimeEntryAsync(db, fixture.PreparerActor, correctionRequest);
+      Assert.True(replay.Succeeded, replay.Message);
+      Assert.Equal(correctedId, replay.Value);
+
+      var changedIntent = await PracticeTimeService.ReviseTimeEntryAsync(db, fixture.PreparerActor,
+        correctionRequest with { DurationMinutes = 80 });
+      Assert.False(changedIntent.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
+      Assert.Equal(2, await db.TimeEntries.CountAsync());
+      Assert.Equal(1, await db.Set<TimeEntryChangeReceipt>().CountAsync());
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -194,9 +214,33 @@ public sealed class PracticeTimeTests
       var original = await db.TimeEntries.SingleAsync(x => x.Id == originalId);
       var correction = await db.TimeEntries.SingleAsync(x => x.Id == correctedId);
       Assert.Equal(PracticeTimeStates.TimeSuperseded, original.Status);
+      Assert.Equal(1, original.Revision);
       Assert.Equal(mappingId, correction.MappingVersionId);
       Assert.Equal("Cash", correction.FsliCode);
       Assert.Equal(originalId, correction.SupersedesId);
+      Assert.Equal(2, correction.Revision);
+      Assert.Equal(originalRateCardVersionId, original.RateCardVersionId);
+      Assert.Equal(originalRateCardVersionId, correction.RateCardVersionId);
+      Assert.Equal(100m, correction.RatePerHour);
+      Assert.Equal(2, await db.TimeEntries.CountAsync());
+      var receipt = await db.Set<TimeEntryChangeReceipt>().SingleAsync(x => x.RequestId == correctionRequest.RequestId);
+      Assert.Equal("CORRECT_APPROVED", receipt.Kind);
+      Assert.Equal(originalId, receipt.TimeEntryId);
+      Assert.Equal(correctedId, receipt.ResultTimeEntryId);
+      Assert.Equal(1, receipt.SourceRevision);
+      Assert.Equal(2, receipt.ResultRevision);
+      var before = JsonSerializer.Deserialize<TimeEntry>(receipt.BeforeJson)!;
+      var sourceAfter = JsonSerializer.Deserialize<TimeEntry>(receipt.SourceAfterJson)!;
+      var result = JsonSerializer.Deserialize<TimeEntry>(receipt.ResultJson)!;
+      Assert.Equal(PracticeTimeStates.TimeApproved, before.Status);
+      Assert.Equal(mappingId, before.MappingVersionId);
+      Assert.Equal(originalRateCardVersionId, before.RateCardVersionId);
+      Assert.Equal(PracticeTimeStates.TimeSuperseded, sourceAfter.Status);
+      Assert.Equal(PracticeTimeStates.TimeDraft, result.Status);
+      Assert.Equal(correctedId, result.Id);
+      Assert.Equal(mappingId, result.MappingVersionId);
+      Assert.Equal(originalRateCardVersionId, result.RateCardVersionId);
+      Assert.Equal(100m, result.RatePerHour);
     }
   }
 
@@ -309,6 +353,42 @@ public sealed class PracticeTimeTests
       Assert.Equal("Explain the source of the recorded hours.", record.LastReturnReason);
       Assert.Equal(100m, record.RatePerHour);
       Assert.Equal(1, record.SubmissionRound);
+
+      var returnedSnapshot = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == timeEntryId);
+      var editRequest = new ReviseTimeEntryRequest(timeEntryId, Guid.NewGuid(), returnedSnapshot.Revision,
+        "EDIT_UNAPPROVED", workDate, 9 * 60, 75, "Schedules", "Clarified schedule preparation",
+        "Corrected the recorded duration.");
+      var edit = await PracticeTimeService.ReviseTimeEntryAsync(db, fixture.ManagerActor, editRequest);
+      Assert.True(edit.Succeeded, edit.Message);
+      Assert.Equal(timeEntryId, edit.Value);
+      var edited = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == timeEntryId);
+      Assert.Equal(2, edited.Revision);
+      Assert.Equal(PracticeTimeStates.TimeReturned, edited.Status);
+      Assert.Equal(1, edited.SubmissionRound);
+      Assert.Equal("Explain the source of the recorded hours.", edited.LastReturnReason);
+      Assert.Equal(75, edited.DurationMinutes);
+      Assert.Equal("Clarified schedule preparation", edited.Narrative);
+
+      var editReceipt = await db.Set<TimeEntryChangeReceipt>().SingleAsync(x => x.RequestId == editRequest.RequestId);
+      Assert.Equal("EDIT_UNAPPROVED", editReceipt.Kind);
+      Assert.Equal(timeEntryId, editReceipt.TimeEntryId);
+      Assert.Equal(timeEntryId, editReceipt.ResultTimeEntryId);
+      Assert.Equal(returnedSnapshot.Revision, editReceipt.SourceRevision);
+      Assert.Equal(edited.Revision, editReceipt.ResultRevision);
+      var before = JsonSerializer.Deserialize<TimeEntry>(editReceipt.BeforeJson)!;
+      var sourceAfter = JsonSerializer.Deserialize<TimeEntry>(editReceipt.SourceAfterJson)!;
+      var result = JsonSerializer.Deserialize<TimeEntry>(editReceipt.ResultJson)!;
+      Assert.Equal(returnedSnapshot.Id, before.Id);
+      Assert.Equal(returnedSnapshot.Status, before.Status);
+      Assert.Equal(returnedSnapshot.DurationMinutes, before.DurationMinutes);
+      Assert.Equal(returnedSnapshot.LastReturnReason, before.LastReturnReason);
+      Assert.Equal(edited.Id, sourceAfter.Id);
+      Assert.Equal(edited.Revision, sourceAfter.Revision);
+      Assert.Equal(edited.LastReturnReason, sourceAfter.LastReturnReason);
+      Assert.Equal(edited.Id, result.Id);
+      Assert.Equal(edited.DurationMinutes, result.DurationMinutes);
+      Assert.Equal(edited.Narrative, result.Narrative);
+      Assert.Equal(edited.LastReturnReason, result.LastReturnReason);
       var notYetBillable = await FirmUnbilledTimeQuery.GetAsync(db, financeActor,
         new FirmUnbilledTimeRequest(workDate, workDate));
       Assert.True(notYetBillable.Succeeded, notYetBillable.Message);
@@ -325,6 +405,8 @@ public sealed class PracticeTimeTests
       var retainedAfterRateRevision = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == timeEntryId);
       Assert.Equal(originalRateCardVersionId, retainedAfterRateRevision.RateCardVersionId);
       Assert.Equal(100m, retainedAfterRateRevision.RatePerHour);
+      Assert.Equal(2, retainedAfterRateRevision.Revision);
+      Assert.Equal("Explain the source of the recorded hours.", retainedAfterRateRevision.LastReturnReason);
 
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.ManagerActor, timeEntryId)).Succeeded);
       Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, timeEntryId)).Succeeded);
@@ -379,6 +461,98 @@ public sealed class PracticeTimeTests
       var downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
         db.GetService<IMigrator>().MigrateAsync(migrations[returnWorkflow - 1]));
       Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
+    }
+  }
+
+  [Fact]
+  public async Task TimeEntryRevisionRejectsStaleOverlapAndRevokedGrantWithoutWrites()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid timeEntryId;
+    Guid overlappingEntryId;
+    var workDate = new DateOnly(2026, 2, 10);
+    const string returnReason = "Explain the source of the recorded hours.";
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var task = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Revise returned time", fixture.ClientId, fixture.EngagementId));
+      Assert.True(task.Succeeded, task.Message);
+      await CreateApprovedRateAsync(db, fixture);
+      var first = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
+        new SaveTimeDraftRequest(task.Value, workDate, 9 * 60, 60, "Staff", "Schedules", Currency: "QAR"));
+      Assert.True(first.Succeeded, first.Message);
+      timeEntryId = first.Value;
+      var other = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
+        new SaveTimeDraftRequest(task.Value, workDate, 10 * 60, 60, "Staff", "Schedules", Currency: "QAR"));
+      Assert.True(other.Succeeded, other.Message);
+      overlappingEntryId = other.Value;
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.PreparerActor, timeEntryId)).Succeeded);
+      Assert.True((await PracticeTimeService.ReturnTimeAsync(db, fixture.PartnerActor, timeEntryId, returnReason)).Succeeded);
+
+      var acceptedRequest = new ReviseTimeEntryRequest(timeEntryId, Guid.NewGuid(), 1, "EDIT_UNAPPROVED",
+        workDate, 8 * 60, 60, "Schedules", "Revised returned entry", "Corrected the start time.");
+      var accepted = await PracticeTimeService.ReviseTimeEntryAsync(db, fixture.PreparerActor, acceptedRequest);
+      Assert.True(accepted.Succeeded, accepted.Message);
+      Assert.Equal(timeEntryId, accepted.Value);
+
+      var stale = await PracticeTimeService.ReviseTimeEntryAsync(db, fixture.PreparerActor,
+        acceptedRequest with { RequestId = Guid.NewGuid(), ExpectedRevision = 1, StartMinute = 7 * 60 });
+      Assert.False(stale.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, stale.ErrorCode);
+
+      var overlap = await PracticeTimeService.ReviseTimeEntryAsync(db, fixture.PreparerActor,
+        acceptedRequest with { RequestId = Guid.NewGuid(), ExpectedRevision = 2, StartMinute = 9 * 60 + 30 });
+      Assert.False(overlap.Succeeded);
+      Assert.Equal("time.overlap", overlap.ErrorCode);
+      Assert.Equal(2, await db.TimeEntries.CountAsync());
+      Assert.Equal(1, await db.Set<TimeEntryChangeReceipt>().CountAsync());
+      var current = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == timeEntryId);
+      Assert.Equal(8 * 60, current.StartMinute);
+      Assert.Equal(60, current.DurationMinutes);
+      Assert.Equal(2, current.Revision);
+      Assert.Equal(PracticeTimeStates.TimeReturned, current.Status);
+      Assert.Equal(returnReason, current.LastReturnReason);
+
+      var receiptId = await db.Set<TimeEntryChangeReceipt>().Where(x => x.RequestId == acceptedRequest.RequestId)
+        .Select(x => x.Id).SingleAsync();
+      var receiptMutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE time_entry_change_receipts SET reason = 'tampered' WHERE id = {receiptId}"));
+      Assert.Equal("23514", Assert.IsType<PostgresException>(receiptMutation.GetBaseException()).SqlState);
+      var receiptDeletion = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM time_entry_change_receipts WHERE id = {receiptId}"));
+      Assert.Equal("23514", Assert.IsType<PostgresException>(receiptDeletion.GetBaseException()).SqlState);
+      Assert.Equal(1, await db.Set<TimeEntryChangeReceipt>().CountAsync());
+      var overlappingEntry = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == overlappingEntryId);
+      Assert.Equal(10 * 60, overlappingEntry.StartMinute);
+      Assert.Equal(60, overlappingEntry.DurationMinutes);
+      Assert.Equal(PracticeTimeStates.TimeDraft, overlappingEntry.Status);
+    }
+
+    await using (var revoke = new AuditSphereDbContext(pg.Options))
+    {
+      var grants = await revoke.RoleGrants.Where(x => x.FirmId == fixture.FirmId &&
+          x.UserId == fixture.Preparer.Id && x.Role == "Staff" && x.ClientId == fixture.ClientId &&
+          x.EngagementId == fixture.EngagementId && x.RevokedAt == null)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+      Assert.Equal(1, grants);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var denied = await PracticeTimeService.ReviseTimeEntryAsync(db, fixture.PreparerActor,
+        new ReviseTimeEntryRequest(timeEntryId, Guid.NewGuid(), 2, "EDIT_UNAPPROVED",
+          workDate, 8 * 60, 45, "Schedules", "Revise after grant revocation", "Correction attempt."));
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+      Assert.Equal(2, await db.TimeEntries.CountAsync());
+      Assert.Equal(1, await db.Set<TimeEntryChangeReceipt>().CountAsync());
+      var retained = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == timeEntryId);
+      Assert.Equal(8 * 60, retained.StartMinute);
+      Assert.Equal(60, retained.DurationMinutes);
+      Assert.Equal(2, retained.Revision);
+      Assert.Equal(PracticeTimeStates.TimeReturned, retained.Status);
+      Assert.Equal(returnReason, retained.LastReturnReason);
     }
   }
 

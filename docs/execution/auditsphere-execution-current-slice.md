@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Correction queue to fieldwork handoff
+## Attributable time edits and approved corrections
 
-Returned/resubmitted task rows now offer Open fieldwork in list, board and calendar. The link uses the task's server-projected engagement; it grants no authority and does not infer a procedure from a source key. Fieldwork still rechecks current scope/gates and requires explicit procedure selection.
+Draft and returned entries can now be revised from Angular after exact review, without submitting or approving them. Approved corrections supersede the original and create a separate draft. Immutable actor-owned receipts preserve before/after values, reasons and revisions; uncertain outcomes use authorized receipt lookup and explicit replay of the same request. Existing rate, mapping, invoice-reservation, scope and independent-review controls remain enforced. Legacy records are not assigned invented historical actors.
 
-The existing source-backed procedure journey now routes its original preparer through the assigned correction queue before corrected resubmission. Exact task/owner/comment, keyboard routing and retained evidence lineage are checked. Built-in inspection confirmed the destination's existing blockers. Evidence/limits are under `procedureReworkHandoff20261021` in [status.json](status.json); broader integrated denials, human/professional/live acceptance and full current-source release remain open. Earlier assignment evidence remains in the historical archive.
+Focused Domain/API/Angular and real browser evidence passes, including a deliberately lost committed response. Built-in inspection confirmed retained history and keyboard focus with no captured browser warnings/errors. Exact checks and limitations are under `timeEntryChanges20261021` in [status.json](status.json). Migration was exercised only in disposable test databases; no deployment, full current-commit release or human screen-reader approval is claimed.
 
 ## Release E2E failure triage
 

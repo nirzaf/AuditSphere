@@ -204,6 +204,109 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
       Assert.Equal(PracticeTimeStates.TimeDraft, retainedDraft.Status);
     }
     Assert.Empty(pagingWrites);
+
+    // Continue the same real captured-rate/FSLI entry through review, revision and an approved correction.
+    var ownTable = managerPage.GetByRole(AriaRole.Table, new() { Name = "My recorded time entries", Exact = true });
+    var sourceRow = ownTable.GetByRole(AriaRole.Row).Filter(new() { HasText = "2026-10-09" });
+    var (submitStatus, _) = await PlaywrightResponseCapture.RunAsync(managerPage,
+      request => request.Method == "POST" && request.Url.EndsWith($"/api/ui/practice/time/entries/{recordedEntryId}/submit", StringComparison.Ordinal),
+      () => sourceRow.GetByRole(AriaRole.Button, new() { Name = "Submit", Exact = true }).ClickAsync());
+    Assert.Equal(200, submitStatus);
+    await adminPage.GotoAsync(adminOrigin + "/app/practice/time");
+    var approvalTable = adminPage.GetByRole(AriaRole.Table, new() { Name = "Time entries awaiting my approval", Exact = true });
+    var submittedRow = approvalTable.GetByRole(AriaRole.Row).Filter(new() { HasText = taskTitle });
+    await submittedRow.GetByRole(AriaRole.Button, new() { Name = "Return with reason", Exact = true }).ClickAsync();
+    const string returnedReason = "Explain the source of the captured fieldwork minutes.";
+    await submittedRow.GetByLabel("Return reason *", new() { Exact = true }).FillAsync(returnedReason);
+    var (returnStatus, _) = await PlaywrightResponseCapture.RunAsync(adminPage,
+      request => request.Method == "POST" && request.Url.EndsWith($"/api/ui/practice/time/entries/{recordedEntryId}/return", StringComparison.Ordinal),
+      () => submittedRow.GetByRole(AriaRole.Button, new() { Name = "Return time", Exact = true }).ClickAsync());
+    Assert.Equal(200, returnStatus);
+    await managerPage.ReloadAsync();
+    await Assertions.Expect(sourceRow).ToContainTextAsync(returnedReason);
+    var editButton = sourceRow.GetByRole(AriaRole.Button, new() { Name = "Edit time", Exact = true });
+    await editButton.FocusAsync(); await editButton.PressAsync("Enter");
+    var editor = managerPage.Locator("audit-time-entry-change");
+    await Assertions.Expect(editor.GetByRole(AriaRole.Heading, new() { Name = "Time entry change · 2026-10-09", Exact = true })).ToBeFocusedAsync();
+    await editor.GetByLabel("Duration (minutes)", new() { Exact = true }).FillAsync("45");
+    await editor.GetByLabel("Narrative (optional)", new() { Exact = true }).FillAsync("SYN-REVISED-SOURCE-EXPLANATION");
+    await editor.GetByLabel("Reason for this change *", new() { Exact = true }).FillAsync("Reconciled the source workpaper effort.");
+    await editor.GetByRole(AriaRole.Button, new() { Name = "Review exact change", Exact = true }).ClickAsync();
+    await Assertions.Expect(editor.GetByRole(AriaRole.Heading, new() { Name = "Review before saving", Exact = true })).ToBeFocusedAsync();
+    var (editStatus, _) = await PlaywrightResponseCapture.RunAsync(managerPage,
+      request => request.Method == "POST" && request.Url.EndsWith($"/api/ui/practice/time/entries/{recordedEntryId}/changes", StringComparison.Ordinal),
+      () => editor.GetByRole(AriaRole.Button, new() { Name = "Save time change", Exact = true }).ClickAsync());
+    Assert.Equal(200, editStatus);
+    await Assertions.Expect(sourceRow).ToContainTextAsync("45m");
+    await Assertions.Expect(sourceRow.GetByRole(AriaRole.Button, new() { Name = "Resubmit", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(sourceRow).ToContainTextAsync(returnedReason);
+    var (resubmitStatus, _) = await PlaywrightResponseCapture.RunAsync(managerPage,
+      request => request.Method == "POST" && request.Url.EndsWith($"/api/ui/practice/time/entries/{recordedEntryId}/submit", StringComparison.Ordinal),
+      () => sourceRow.GetByRole(AriaRole.Button, new() { Name = "Resubmit", Exact = true }).ClickAsync());
+    Assert.Equal(200, resubmitStatus);
+    await adminPage.ReloadAsync();
+    var (approvedStatus, _) = await PlaywrightResponseCapture.RunAsync(adminPage,
+      request => request.Method == "POST" && request.Url.EndsWith($"/api/ui/practice/time/entries/{recordedEntryId}/approve", StringComparison.Ordinal),
+      () => submittedRow.GetByRole(AriaRole.Button, new() { Name = "Approve", Exact = true }).ClickAsync());
+    Assert.Equal(200, approvedStatus);
+    await managerPage.ReloadAsync();
+    await sourceRow.GetByRole(AriaRole.Button, new() { Name = "Correct approved time", Exact = true }).ClickAsync();
+    await editor.GetByLabel("Duration (minutes)", new() { Exact = true }).FillAsync("35");
+    await editor.GetByLabel("Narrative (optional)", new() { Exact = true }).FillAsync("SYN-APPROVED-TIME-CORRECTION");
+    const string correctionReason = "Remove duplicated review effort while retaining the original rate.";
+    await editor.GetByLabel("Reason for this change *", new() { Exact = true }).FillAsync(correctionReason);
+    await editor.GetByRole(AriaRole.Button, new() { Name = "Review exact change", Exact = true }).ClickAsync();
+    var committedChange = new TaskCompletionSource<Guid>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var correctionPosts = 0;
+    const string changeRoute = "**/api/ui/practice/time/entries/*/changes";
+    async Task LoseCommittedChange(IRoute route)
+    {
+      if (route.Request.Method != "POST") { await route.ContinueAsync(); return; }
+      try
+      {
+        correctionPosts++;
+        var response = await route.FetchAsync();
+        Assert.Equal(200, response.Status);
+        using var result = JsonDocument.Parse(await response.TextAsync());
+        committedChange.TrySetResult(result.RootElement.GetProperty("value").GetGuid());
+        await route.AbortAsync();
+      }
+      catch (Exception error) { committedChange.TrySetException(error); await route.AbortAsync(); }
+    }
+    await managerPage.RouteAsync(changeRoute, LoseCommittedChange);
+    await editor.GetByRole(AriaRole.Button, new() { Name = "Create corrected draft", Exact = true }).ClickAsync();
+    var correctedId = await committedChange.Task.WaitAsync(TimeSpan.FromSeconds(30));
+    await managerPage.UnrouteAsync(changeRoute, LoseCommittedChange);
+    await Assertions.Expect(editor.GetByRole(AriaRole.Heading, new() { Name = "Change outcome needs review", Exact = true })).ToBeVisibleAsync();
+    await editor.GetByRole(AriaRole.Button, new() { Name = "Check saved change receipt", Exact = true }).ClickAsync();
+    var correctedRow = ownTable.GetByRole(AriaRole.Row).Filter(new() { HasText = "35m" });
+    await Assertions.Expect(correctedRow.GetByRole(AriaRole.Button, new() { Name = "Submit", Exact = true })).ToBeVisibleAsync();
+    Assert.Equal(1, correctionPosts);
+    await Assertions.Expect(correctedRow).ToContainTextAsync(mappingId.ToString());
+    await Assertions.Expect(correctedRow).ToContainTextAsync("CASH");
+    var retainedRow = ownTable.GetByRole(AriaRole.Row).Filter(new() { HasText = "45m" });
+    await retainedRow.GetByRole(AriaRole.Button, new() { Name = "Change history", Exact = true }).ClickAsync();
+    await Assertions.Expect(editor.GetByRole(AriaRole.Heading, new() { Name = "Approved time corrected", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(editor.GetByRole(AriaRole.Heading, new() { Name = "Unapproved time revised", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(editor).ToContainTextAsync(correctionReason);
+    await Assertions.Expect(editor).ToContainTextAsync(correctedId.ToString());
+    await Assertions.Expect(editor.Locator("time[datetime]")).ToHaveCountAsync(2);
+    await using (var proof = host.CreateDbContext())
+    {
+      var source = await proof.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == recordedEntryId);
+      var corrected = await proof.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == correctedId);
+      Assert.Equal(PracticeTimeStates.TimeSuperseded, source.Status);
+      Assert.Equal(2, source.SubmissionRound); Assert.Equal(2L, source.Revision);
+      Assert.Equal(PracticeTimeStates.TimeDraft, corrected.Status);
+      Assert.Equal(3L, corrected.Revision); Assert.Equal(recordedEntryId, corrected.SupersedesId);
+      Assert.Equal(source.RateCardVersionId, corrected.RateCardVersionId);
+      Assert.Equal(750m, corrected.RatePerHour); Assert.Equal(mappingId, corrected.MappingVersionId);
+      Assert.Equal("CASH", corrected.FsliCode); Assert.Equal(PracticeTimeStates.Billable, corrected.BillableClassification);
+      var changes = await proof.TimeEntryChangeReceipts.AsNoTracking().Where(x => x.FirmId == f.FirmId && x.TimeEntryId == recordedEntryId).ToListAsync();
+      Assert.Equal(2, changes.Count); Assert.All(changes, x => Assert.Equal(manager.Id, x.ActorId));
+      Assert.Equal(1, await proof.TimeEntries.CountAsync(x => x.SupersedesId == recordedEntryId));
+    }
+    await OwnedBrowserFixtureHandoff.WaitAsync(managerOrigin, "/app/practice/time", "time-change-recovery");
     Assert.Empty(errors);
   }
 

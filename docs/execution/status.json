@@ -1170,19 +1170,6 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.annualSourceSafety20261021"
     },
     "releaseFailureTriage20261021": {
-      "status": "PARTIAL",
-      "sourceCommit": "c3545b58a5788c6b9f3a33e80af53789a47f18d0",
-      "releaseRun": "39518012940",
-      "releaseSource": "68f7c7dcbe7181540589427f419ecd8d352a9256",
-      "finding": "Domain/API/Angular/contracts PASS; E2E failed2. Accounting queue refresh click races expected session-revocation outlet replacement. Conditional short click then mandatory Access unavailable/data-clearing assertions preserves security proof. Focused AccountingQueuesAndDetailsClearAfterRouteChangesAndGrantRevocation PASS1/1,61s.",
-      "artifact": "tests/AuditSphereOps.E2E.Tests/TestResults/accounting-revocation-race-20261021.trx",
-      "remaining": "Both failing cases now pass focused local checks; current-source full CI must establish release resolution. No full local suites or external changes; human/live acceptance pending.",
-      "findingRecovery": {
-        "sourceCommit": "3ad5802f3ad3840e47c12b49d0048e227fb7125f",
-        "result": "PASS1/1,55s: exact previously failing UNDESIGNATE_MANAGEMENT_LETTER lost-committed browser case. Test now waits for forwarded server response and asserts HTTP200 before reload/recovery; all request/hash/actor/revision/single-amendment assertions retained.",
-        "artifact": "tests/AuditSphereOps.E2E.Tests/TestResults/finding-committed-recovery-20261021.trx",
-        "diagnosis": "Api.command may timeout30s before route.Fetch completes; former test did not prove committed precondition. CI409 body/snapshots absent, so exact historical cause remains unproven. Independent review found no blocker. Product state/auth guards unchanged."
-      },
       "fullCiFollowup": {
         "sourceCommit": "a83cbebc0c8e88fd7eb27ecc6c6adb33db1f347a",
         "run": "39533076423",
@@ -1200,16 +1187,16 @@
           "changes": "Retain account-name assertions with semantic Rowheader locators; capture paged evidence response before navigation invalidates its body. No product checks removed.",
           "scope": "Focused three failed cases only, current working source; full release rerun deferred until committed."
         }
-      }
+      },
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.releaseFailureTriageBeforeTimeChanges20261021"
     },
     "workflowTemplateAssignment20261021": {
       "status": "PASS_LOCAL_SLICE",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.workflowTemplateAssignment20261021"
     },
     "procedureReworkHandoff20261021": {
-      "status": "PASS_LOCAL_SLICE",
-      "sourceCommit": "32697985cec2f7b3a81873631f0c5de855f27a7a",
-      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.procedureReworkHandoff20261021"
+      "status": "PASS_FOCUSED",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.procedureReworkHandoff20261021"
     },
     "nonWipLabelCriterion20261021": {
       "status": "COMPLETE_CRITERION_ONLY",
@@ -1238,6 +1225,21 @@
     "onboardingSnapshotComposition20261021": {
       "status": "PASS_FOCUSED",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.onboardingSnapshotComposition20261021"
+    },
+    "timeEntryChanges20261021": {
+      "status": "PASS_FOCUSED_NOT_FULL_RELEASE",
+      "source": "Working tree based on a960449a; implementation commit follows this evidence record.",
+      "behavior": "Draft/returned edits preserve review state; approved corrections create a new draft. Immutable actor-owned receipts support exact-request replay, authorized recovery and bounded history. Rates, FSLI and billing guards remain enforced.",
+      "verification": {
+        "solutionReleaseBuild": "PASS 0 warnings/errors; no tests executed by build",
+        "domain": "Four unique focused cases pass across initial 3/4 and failed-case rerun 1/1; downgrade SQLSTATE fixed to55000, assertion retained.",
+        "api": "PASS1/1 PracticeTimeStartMinuteApiTests.ReturnedEditsAndApprovedCorrectionsRetainActorOwnedRecoverableHistory",
+        "angular": "PASS17/17 time-tracker-ui.spec.ts; asynchronous read settling and real HTTP403 fixture corrected without removing assertions.",
+        "browser": "PASS1/1 SeparateAdministratorApprovesSteRateAndMappedTaskPinsItToBillableTime; real committed POST response aborted then recovered by actor-owned receipt without another POST.",
+        "builtInBrowser": "Owned synthetic fixture: two before/after receipts, actor/reason/UTC, superseded45m and separate draft35m, keyboard Close control; no captured warning/error logs. Screenshot /tmp/auditsphere-time-change-history-20261021.png. Fixture released.",
+        "other": "Angular build PASS with unrelated existing diagnostics/budget warning; implementation lint, EF model drift and OpenAPI PASS."
+      },
+      "limits": "No full local suites, deployment or persistent database migration. Human screen-reader/professional/provider acceptance and full current-commit CI remain pending."
     }
   },
   "externalGates": [

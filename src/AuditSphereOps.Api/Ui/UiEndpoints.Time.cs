@@ -22,6 +22,7 @@ public static partial class UiEndpoints
 
   private static void MapTimeEndpoints(RouteGroupBuilder group)
   {
+    MapTimeChangeEndpoints(group);
     group.MapUiGet("/practice/time", http =>
     {
       var query = http.Request.Query;

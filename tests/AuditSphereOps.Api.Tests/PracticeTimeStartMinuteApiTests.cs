@@ -638,6 +638,118 @@ public sealed class PracticeTimeStartMinuteApiTests
     }
   }
 
+  [Fact]
+  public async Task ReturnedEditsAndApprovedCorrectionsRetainActorOwnedRecoverableHistory()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TIME-REVIEW-CHANGES");
+    var f = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    using var adminFactory = Factory(pg, f.Admin);
+    using var staffFactory = Factory(pg, f.Staff);
+    using var foreignFactory = Factory(pg, foreign.Admin);
+    using var admin = adminFactory.CreateClient(new() { AllowAutoRedirect = false });
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    using var stranger = foreignFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var adminCsrf = await SignIn(admin);
+    var staffCsrf = await SignIn(staff);
+    await SignIn(stranger);
+    var task = await CreatedTaskAsync(admin, adminCsrf, new { title = "Synthetic reviewed time", engagementId = f.EngagementId });
+    var entry = await CreatedAsync(staff, staffCsrf, Draft(task, 600, 30));
+    await AssertOkAsync(staff, staffCsrf, $"{EntriesPath}/{entry}/submit");
+    using (var returned = await Post(admin, adminCsrf, $"{EntriesPath}/{entry}/return", new { reason = "Explain the retained workpaper effort." }))
+      Assert.Equal(HttpStatusCode.OK, returned.StatusCode);
+
+    var edit = new Dictionary<string, object?>
+    {
+      ["requestId"] = Guid.NewGuid(), ["expectedRevision"] = "1", ["kind"] = "EDIT_UNAPPROVED",
+      ["workDate"] = WorkDate, ["startMinute"] = 600, ["durationMinutes"] = 45,
+      ["activity"] = "Synthetic fieldwork", ["narrative"] = "Corrected workpaper effort", ["reason"] = "Reconciled the recorded minutes to the workpaper."
+    };
+    var path = $"{EntriesPath}/{entry}/changes";
+    using (var noCsrf = await Post(staff, "invalid", path, edit)) Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+    async Task<Guid> SaveChange(Dictionary<string, object?> body)
+    {
+      using var response = await Post(staff, staffCsrf, path, body);
+      var text = await response.Content.ReadAsStringAsync();
+      Assert.True(response.StatusCode == HttpStatusCode.OK, text);
+      using var document = JsonDocument.Parse(text);
+      return document.RootElement.GetProperty("value").GetGuid();
+    }
+    Assert.Equal(entry, await SaveChange(edit));
+    Assert.Equal(entry, await SaveChange(edit));
+    using (var conflict = await Post(staff, staffCsrf, path, new Dictionary<string, object?>(edit) { ["durationMinutes"] = 46 }))
+      Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+    var own = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    var revised = Assert.Single(own.MyEntries);
+    Assert.Equal(PracticeTimeStates.TimeReturned, revised.Status);
+    Assert.Equal("2", revised.Revision);
+    Assert.Equal(45, revised.DurationMinutes);
+    Assert.Equal("Explain the retained workpaper effort.", revised.LastReturnReason);
+    Assert.True(revised.CanEdit);
+    Assert.False(revised.CanCorrect);
+
+    using (var recovery = await staff.GetAsync(path + "/requests/" + edit["requestId"]))
+    {
+      Assert.Equal(HttpStatusCode.OK, recovery.StatusCode);
+      using var receipt = JsonDocument.Parse(await recovery.Content.ReadAsStringAsync());
+      Assert.True(receipt.RootElement.GetProperty("found").GetBoolean());
+      var value = receipt.RootElement.GetProperty("receipt");
+      Assert.Equal(f.Staff.Id, value.GetProperty("actorId").GetGuid());
+      Assert.Equal("1", value.GetProperty("sourceRevision").GetString());
+      Assert.Equal("2", value.GetProperty("resultRevision").GetString());
+      Assert.Equal(30, value.GetProperty("before").GetProperty("durationMinutes").GetInt32());
+      Assert.Equal(45, value.GetProperty("after").GetProperty("durationMinutes").GetInt32());
+    }
+    using (var otherActorRecovery = await admin.GetAsync(path + "/requests/" + edit["requestId"]))
+    {
+      Assert.Equal(HttpStatusCode.OK, otherActorRecovery.StatusCode);
+      using var lookup = JsonDocument.Parse(await otherActorRecovery.Content.ReadAsStringAsync());
+      Assert.False(lookup.RootElement.GetProperty("found").GetBoolean());
+      Assert.Equal(JsonValueKind.Null, lookup.RootElement.GetProperty("receipt").ValueKind);
+    }
+    using (var denied = await stranger.GetAsync(path))
+    {
+      Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+      Assert.DoesNotContain("Corrected workpaper effort", await denied.Content.ReadAsStringAsync());
+    }
+
+    await AssertOkAsync(staff, staffCsrf, $"{EntriesPath}/{entry}/submit");
+    await AssertOkAsync(admin, adminCsrf, $"{EntriesPath}/{entry}/approve");
+    var approved = Assert.Single((await staff.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!.MyEntries);
+    Assert.True(approved.CanCorrect);
+    var correction = new Dictionary<string, object?>(edit)
+    {
+      ["requestId"] = Guid.NewGuid(), ["expectedRevision"] = "2", ["kind"] = "CORRECT_APPROVED",
+      ["durationMinutes"] = 35, ["narrative"] = "Reviewed approved-time correction", ["reason"] = "Remove duplicated review effort."
+    };
+    var correctedId = await SaveChange(correction);
+    Assert.NotEqual(entry, correctedId);
+    Assert.Equal(correctedId, await SaveChange(correction));
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(2, await db.TimeEntries.CountAsync(x => x.FirmId == f.FirmId));
+      Assert.Equal(2, await db.TimeEntryChangeReceipts.CountAsync(x => x.FirmId == f.FirmId));
+      var original = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == entry);
+      var draft = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == correctedId);
+      Assert.Equal(PracticeTimeStates.TimeSuperseded, original.Status);
+      Assert.Equal(2L, original.Revision);
+      Assert.Equal(PracticeTimeStates.TimeDraft, draft.Status);
+      Assert.Equal(3L, draft.Revision);
+      Assert.Equal(entry, draft.SupersedesId);
+      Assert.Equal(original.RateCardVersionId, draft.RateCardVersionId);
+      Assert.Equal(original.RatePerHour, draft.RatePerHour);
+      Assert.Equal(original.BillableClassification, draft.BillableClassification);
+      Assert.Equal(4, await db.TimeEntryReviewEvents.CountAsync(x => x.TimeEntryId == entry));
+    }
+    using var historyResponse = await staff.GetAsync(path);
+    Assert.Equal(HttpStatusCode.OK, historyResponse.StatusCode);
+    using var history = JsonDocument.Parse(await historyResponse.Content.ReadAsStringAsync());
+    Assert.Equal(2, history.RootElement.GetProperty("items").GetArrayLength());
+    Assert.False(history.RootElement.GetProperty("hasMore").GetBoolean());
+    using var malformedCursor = await staff.GetAsync(path + "?beforeReceiptId=not-a-guid");
+    Assert.Equal(HttpStatusCode.BadRequest, malformedCursor.StatusCode);
+  }
+
   private static object Draft(Guid taskId, int? startMinute, int durationMinutes, string workDate = WorkDate, bool billable = false) =>
     startMinute is { } start
       ? new { taskId, workDate, durationMinutes, role = "Staff", activity = "Synthetic fieldwork", billable, narrative = "Synthetic timer segment", startMinute = start }

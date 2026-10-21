@@ -1,5 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -7,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { decode } from '../../core/decode';
 import { SessionService } from '../../core/session';
+import { int64String, TimeEntryChangePanel } from './time-entry-change';
 import { decodeTime, PracticeTime, supportedBudgetPhases } from './time';
 
 const userId = '11111111-1111-4111-8111-111111111111';
@@ -33,7 +35,367 @@ function open(initialWorkspace: object = workspace) {
   return { fixture, component: fixture.componentInstance, http, session };
 }
 
+async function settleFlushedRead(fixture: { whenStable(): Promise<unknown>; detectChanges(): void }): Promise<void> {
+  // HttpTestingController.flush is synchronous; readScoped and its caller each resume in a promise continuation.
+  await Promise.resolve();
+  await Promise.resolve();
+  await fixture.whenStable();
+  fixture.detectChanges();
+}
+
 describe('foreground practice time tracker integration', () => {
+  it('defaults legacy time-change flags closed and accepts only exact Int64 revision strings', () => {
+    const savedEntry = {
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 30, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE', narrative: '',
+      status: 'DRAFT', mappingVersionId: null, fsliCode: null, lastReturnReason: null,
+    };
+    const legacy = decode(decodeTime, { ...workspace, myEntries: [savedEntry] }).myEntries[0];
+    expect(legacy.revision).toBe('1');
+    expect(legacy.canEdit).toBe(false);
+    expect(legacy.canCorrect).toBe(false);
+    expect(legacy.hasChanges).toBe(false);
+    expect(legacy.supersedesId).toBeNull();
+    expect(legacy.correctionReason).toBeNull();
+
+    expect(int64String('9007199254740993', 'revision')).toBe('9007199254740993');
+    for (const invalid of [9007199254740993, '01', '-1', '9223372036854775808'])
+      expect(() => int64String(invalid, 'revision')).toThrow();
+    expect(() => decode(decodeTime, { ...workspace, myEntries: [{ ...savedEntry, revision: 9007199254740993 }] })).toThrow();
+  });
+
+  it('shows a retained legacy correction reason without inventing a historical corrector or snapshots', async () => {
+    const sourceId = '66666666-6666-4666-8666-666666666666';
+    const legacyCorrection = {
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 30, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE', narrative: '',
+      status: 'APPROVED', mappingVersionId: null, fsliCode: null, lastReturnReason: null, supersedesId: sourceId,
+      correctionReason: 'Reconstructed from the retained legacy correction note.',
+    };
+    const { fixture } = open({ ...workspace, myEntries: [legacyCorrection] });
+    try {
+      fixture.detectChanges();
+      const row = fixture.nativeElement.querySelector('[aria-labelledby="my-time-heading"] tbody tr') as HTMLTableRowElement;
+      expect(row.textContent).toContain('Reconstructed from the retained legacy correction note.');
+      expect(row.textContent).toContain('No historical change receipt is recorded');
+      expect(row.textContent).toContain('the corrector and before/after snapshots were not retained');
+      expect(row.textContent).not.toContain('Recorded by');
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
+  it('renders retained change history and retries an unknown returned-entry edit with the exact saved request', async () => {
+    const returned = {
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 60, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE', narrative: 'Source note',
+      status: 'RETURNED', mappingVersionId: null, fsliCode: null, lastReturnReason: 'Please clarify the time period.',
+      phase: 'FIELDWORK', revision: '9007199254740993', canEdit: true, canCorrect: false, hasChanges: true, supersedesId: null,
+    };
+    const legacyLongNarrative = 'Retained legacy narrative '.repeat(120);
+    const historicalReceipt = {
+      id: '44444444-4444-4444-8444-444444444444', actorId: userId, actorName: 'Time preparer', actorEpoch: '1',
+      requestId: '55555555-5555-4555-8555-555555555555', requestHash: 'a'.repeat(64), kind: 'EDIT_UNAPPROVED',
+      timeEntryId: entryId, resultTimeEntryId: entryId, sourceRevision: '7', resultRevision: '8',
+      reason: 'Aligned with the retained work note.', createdAt: '2026-10-20T12:30:00.123Z',
+      before: { workDate: '2026-10-15', startMinute: 540, durationMinutes: 60, activity: 'Fieldwork', narrative: legacyLongNarrative },
+      after: { workDate: '2026-10-15', startMinute: 542, durationMinutes: 58, activity: 'Fieldwork', narrative: 'Revised note' },
+      sourceStatusBefore: 'RETURNED', sourceStatusAfter: 'RETURNED', resultStatus: 'RETURNED',
+    };
+    const initial = { ...workspace, myEntries: [returned] };
+    const { fixture, component, http } = open(initial);
+    try {
+      component.task.title = 'Keep this task draft';
+      component.draft.narrative = 'Keep this time draft';
+      component.openTimeChange(component.view.data()!.myEntries[0], 'EDIT_UNAPPROVED');
+      fixture.detectChanges(); TestBed.tick();
+      const panel = fixture.debugElement.query(By.directive(TimeEntryChangePanel)).componentInstance as TimeEntryChangePanel;
+      expect(fixture.nativeElement.ownerDocument.activeElement?.id).toBe('time-change-heading');
+      http.expectOne(`/api/ui/practice/time/entries/${entryId}/changes`).flush({
+        items: [historicalReceipt], pageSize: 20, hasMore: false, nextCursor: null,
+      });
+      await settleFlushedRead(fixture);
+      const historyText = fixture.nativeElement.textContent as string;
+      expect(historyText).toContain('Time preparer');
+      expect(historyText).toContain('Aligned with the retained work note.');
+      expect(historyText).toContain(legacyLongNarrative);
+      expect(historyText).toContain('Revised note');
+      expect(panel.source()?.revision).toBe('9007199254740993');
+
+      panel.form = {
+        workDate: '2026-10-16', startTime: '09:05', durationMinutes: 55,
+        activity: 'Reconciled fieldwork', narrative: 'Updated retained note', reason: 'Matched to the source work record.',
+      };
+      panel.reviewChange();
+      await fixture.whenStable();
+      expect(fixture.nativeElement.ownerDocument.activeElement?.id).toBe('time-change-review-heading');
+      expect(fixture.nativeElement.textContent).toContain('9007199254740993');
+      const saving = panel.saveReviewedChange();
+      const postPath = `/api/ui/practice/time/entries/${entryId}/changes`;
+      const firstPost = http.expectOne(postPath);
+      const frozenBody = JSON.parse(JSON.stringify(firstPost.request.body)) as Record<string, unknown>;
+      expect(frozenBody).toMatchObject({
+        expectedRevision: '9007199254740993', kind: 'EDIT_UNAPPROVED', workDate: '2026-10-16',
+        startMinute: 545, durationMinutes: 55, activity: 'Reconciled fieldwork',
+        narrative: 'Updated retained note', reason: 'Matched to the source work record.',
+      });
+      expect(Object.keys(frozenBody).sort()).toEqual([
+        'activity', 'durationMinutes', 'expectedRevision', 'kind', 'narrative', 'reason', 'requestId', 'startMinute', 'workDate',
+      ]);
+      firstPost.error(new ProgressEvent('network error'));
+      await saving;
+      await fixture.whenStable();
+      expect(panel.hasUncertainOutcome()).toBe(true);
+      expect(fixture.nativeElement.ownerDocument.activeElement?.id).toBe('time-change-recovery-heading');
+      expect(panel.hasPendingRequest()).toBe(true);
+      expect(component.task.title).toBe('Keep this task draft');
+      expect(component.draft.narrative).toBe('Keep this time draft');
+      component.refreshEntriesQueue();
+      http.expectNone(request => request.method === 'POST' && request.url === postPath);
+      http.expectNone('/api/ui/practice/time');
+      const dialog = fixture.debugElement.injector.get(MatDialog);
+      const stay = vi.spyOn(dialog, 'open').mockImplementation(() => ({ afterClosed: () => of('stay') }) as never);
+      expect(await component.confirmNavigation()).toBe(false);
+      expect(stay).toHaveBeenCalledTimes(1);
+
+      const checking = panel.checkSavedChange();
+      http.expectOne(`${postPath}/requests/${frozenBody['requestId']}`).flush({ found: false, receipt: null });
+      await checking;
+      expect(panel.receiptState()).toBe('NOT_FOUND');
+      const retrying = panel.retryExactChange();
+      const retry = http.expectOne(postPath);
+      expect(retry.request.body).toEqual(frozenBody);
+      retry.flush({ value: entryId });
+      await retrying;
+      http.expectOne('/api/ui/practice/time').flush({ ...workspace, myEntries: [{ ...returned, revision: '9007199254740994', activity: 'Reconciled fieldwork' }] });
+      TestBed.tick(); fixture.detectChanges();
+      expect(component.timeChangeNotice()).toContain('remains RETURNED until submitted separately');
+      stay.mockRestore();
+    } finally {
+      for (let index = sessionStorage.length - 1; index >= 0; index--) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith('auditsphere-time-entry-change:v1:')) sessionStorage.removeItem(key);
+      }
+      fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); vi.restoreAllMocks();
+    }
+  });
+
+  it('returns focus through review and close without leaving the source row trigger', async () => {
+    const returned = {
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 60, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE', narrative: 'Source note',
+      status: 'RETURNED', mappingVersionId: null, fsliCode: null, lastReturnReason: null,
+      revision: '1', canEdit: true, canCorrect: false, hasChanges: false, supersedesId: null,
+    };
+    const { fixture, component, http } = open({ ...workspace, myEntries: [returned] });
+    try {
+      const trigger = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === 'Edit time') as HTMLButtonElement;
+      trigger.focus();
+      component.openTimeChange(component.view.data()!.myEntries[0], 'EDIT_UNAPPROVED');
+      fixture.detectChanges(); TestBed.tick();
+      expect(fixture.nativeElement.ownerDocument.activeElement?.id).toBe('time-change-heading');
+      http.expectOne(`/api/ui/practice/time/entries/${entryId}/changes`).flush({ items: [], pageSize: 20, hasMore: false, nextCursor: null });
+      await fixture.whenStable();
+      expect(fixture.nativeElement.ownerDocument.activeElement?.id).toBe('time-change-heading');
+
+      const panel = fixture.debugElement.query(By.directive(TimeEntryChangePanel)).componentInstance as TimeEntryChangePanel;
+      panel.form = { workDate: '2026-10-16', startTime: '09:00', durationMinutes: 30,
+        activity: 'Reconciled fieldwork', narrative: '', reason: 'Matched to the source work record.' };
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const review = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === 'Review exact change') as HTMLButtonElement;
+      expect(panel.formIsValid()).toBe(true);
+      expect(review.disabled).toBe(false);
+      review.focus();
+      expect(fixture.nativeElement.ownerDocument.activeElement).toBe(review);
+      review.click();
+      await fixture.whenStable();
+      expect(panel.reviewing()).toBe(true);
+      expect(fixture.nativeElement.ownerDocument.activeElement?.id).toBe('time-change-review-heading');
+      expect(Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button')).some(button => button.textContent?.trim() === 'Save time change')).toBe(true);
+
+      const back = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === 'Back to edit') as HTMLButtonElement;
+      back.focus(); back.click();
+      await fixture.whenStable();
+      expect(fixture.nativeElement.ownerDocument.activeElement?.getAttribute('name')).toBe('changeWorkDate');
+
+      const dialog = fixture.debugElement.injector.get(MatDialog);
+      vi.spyOn(dialog, 'open').mockImplementation(() => ({ afterClosed: () => of('discard') }) as never);
+      const close = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === 'Close time change') as HTMLButtonElement;
+      close.focus(); close.click();
+      await fixture.whenStable(); TestBed.tick();
+      expect(fixture.nativeElement.ownerDocument.activeElement).toBe(trigger);
+    } finally {
+      fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); vi.restoreAllMocks();
+    }
+  });
+
+  it('keeps a newer change busy when a prior entry request completes after context reuse', async () => {
+    const otherEntryId = '77777777-7777-4777-8777-777777777777';
+    const returned = (id: string) => ({
+      id, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 60, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE', narrative: 'Source note',
+      status: 'RETURNED', mappingVersionId: null, fsliCode: null, lastReturnReason: null,
+      revision: '1', canEdit: true, canCorrect: false, hasChanges: false, supersedesId: null,
+    });
+    const { fixture, component, http } = open({ ...workspace, myEntries: [returned(entryId), returned(otherEntryId)] });
+    try {
+      component.openTimeChange(component.view.data()!.myEntries[0], 'EDIT_UNAPPROVED');
+      fixture.detectChanges(); TestBed.tick();
+      const panel = fixture.debugElement.query(By.directive(TimeEntryChangePanel)).componentInstance as TimeEntryChangePanel;
+      const firstHistory = http.expectOne(`/api/ui/practice/time/entries/${entryId}/changes`);
+      panel.form = { workDate: '2026-10-16', startTime: '09:00', durationMinutes: 30,
+        activity: 'Reconciled fieldwork', narrative: '', reason: 'Matched to the source work record.' };
+      panel.reviewChange();
+      const firstSaving = panel.saveReviewedChange();
+      const firstPost = http.expectOne(`/api/ui/practice/time/entries/${entryId}/changes`);
+
+      component.activeTimeChange.set({ entryId: otherEntryId, action: 'EDIT_UNAPPROVED', focusOnOpen: false, focusOrigin: null });
+      fixture.detectChanges(); TestBed.tick();
+      const secondHistory = http.expectOne(`/api/ui/practice/time/entries/${otherEntryId}/changes`);
+      expect(panel.source()?.id).toBe(otherEntryId);
+      panel.form = { workDate: '2026-10-17', startTime: '10:00', durationMinutes: 45,
+        activity: 'Reconciled follow-up', narrative: '', reason: 'Matched to the source work record.' };
+      panel.reviewChange();
+      const secondSaving = panel.saveReviewedChange();
+      const secondPost = http.expectOne(`/api/ui/practice/time/entries/${otherEntryId}/changes`);
+
+      firstHistory.flush({ items: [], pageSize: 20, hasMore: false, nextCursor: null });
+      await settleFlushedRead(fixture);
+      expect(panel.historyLoading()).toBe(true);
+      secondHistory.flush({ items: [], pageSize: 20, hasMore: false, nextCursor: null });
+      await settleFlushedRead(fixture);
+      expect(panel.historyLoading()).toBe(false);
+
+      firstPost.flush({ value: entryId });
+      await firstSaving;
+      expect(panel.busy()).toBe(true);
+
+      secondPost.error(new ProgressEvent('network error'));
+      await secondSaving;
+      expect(panel.busy()).toBe(false);
+      expect(panel.hasUncertainOutcome()).toBe(true);
+    } finally {
+      for (let index = sessionStorage.length - 1; index >= 0; index--) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith('auditsphere-time-entry-change:v1:')) sessionStorage.removeItem(key);
+      }
+      fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); vi.restoreAllMocks();
+    }
+  });
+
+  it('does not move focus to recovery after the user leaves during an unresolved save', async () => {
+    const returned = {
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 60, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE', narrative: 'Source note',
+      status: 'RETURNED', mappingVersionId: null, fsliCode: null, lastReturnReason: null,
+      revision: '2', canEdit: true, canCorrect: false, hasChanges: false, supersedesId: null,
+    };
+    const { fixture, component, http } = open({ ...workspace, myEntries: [returned] });
+    try {
+      component.openTimeChange(component.view.data()!.myEntries[0], 'EDIT_UNAPPROVED');
+      fixture.detectChanges(); TestBed.tick();
+      const panel = fixture.debugElement.query(By.directive(TimeEntryChangePanel)).componentInstance as TimeEntryChangePanel;
+      http.expectOne(`/api/ui/practice/time/entries/${entryId}/changes`).flush({ items: [], pageSize: 20, hasMore: false, nextCursor: null });
+      TestBed.tick(); fixture.detectChanges();
+      panel.form = { workDate: '2026-10-16', startTime: '09:00', durationMinutes: 30,
+        activity: 'Reconciled fieldwork', narrative: '', reason: 'Matched to the source work record.' };
+      panel.reviewChange(); fixture.detectChanges(); TestBed.tick();
+      const save = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.trim() === 'Save time change') as HTMLButtonElement;
+      save.focus();
+      const saving = panel.saveReviewedChange();
+      const post = http.expectOne(`/api/ui/practice/time/entries/${entryId}/changes`);
+      const elsewhere = fixture.nativeElement.querySelector('#my-time-heading') as HTMLElement;
+      elsewhere.focus();
+      elsewhere.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+      post.error(new ProgressEvent('network error'));
+      await saving;
+      fixture.detectChanges(); TestBed.tick();
+      expect(panel.hasUncertainOutcome()).toBe(true);
+      expect(fixture.nativeElement.ownerDocument.activeElement).toBe(elsewhere);
+    } finally {
+      for (let index = sessionStorage.length - 1; index >= 0; index--) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith('auditsphere-time-entry-change:v1:')) sessionStorage.removeItem(key);
+      }
+      fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule();
+    }
+  });
+
+  it('recovers an off-page unknown change only after receipt authorization and clears it on scope denial', async () => {
+    const returned = {
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,
+      durationMinutes: 60, startMinute: 540, activity: 'Private source activity', billableClassification: 'BILLABLE', narrative: 'Private source note',
+      status: 'RETURNED', mappingVersionId: null, fsliCode: null, lastReturnReason: null,
+      revision: '4', canEdit: true, canCorrect: false, hasChanges: false, supersedesId: null,
+    };
+    const first = open({ ...workspace, myEntries: [returned] });
+    const postPath = `/api/ui/practice/time/entries/${entryId}/changes`;
+    let savedKey: string | null = null;
+    let savedJson: string | null = null;
+    try {
+      first.component.openTimeChange(first.component.view.data()!.myEntries[0], 'EDIT_UNAPPROVED');
+      first.fixture.detectChanges(); TestBed.tick();
+      const panel = first.fixture.debugElement.query(By.directive(TimeEntryChangePanel)).componentInstance as TimeEntryChangePanel;
+      first.http.expectOne(`/api/ui/practice/time/entries/${entryId}/changes`).flush({ items: [], pageSize: 20, hasMore: false, nextCursor: null });
+      TestBed.tick(); first.fixture.detectChanges();
+      panel.form = { workDate: '2026-11-02', startTime: '09:15', durationMinutes: 45,
+        activity: 'Private requested activity', narrative: 'Private requested note', reason: 'Private saved correction reason' };
+      panel.reviewChange();
+      const saving = panel.saveReviewedChange();
+      first.http.expectOne(postPath).error(new ProgressEvent('network error'));
+      await saving;
+      expect(panel.hasUncertainOutcome()).toBe(true);
+    } finally {
+      savedKey = Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.key(index))
+        .find(key => key?.startsWith('auditsphere-time-entry-change:v1:')) ?? null;
+      savedJson = savedKey ? sessionStorage.getItem(savedKey) : null;
+      first.fixture.destroy();
+      for (let index = sessionStorage.length - 1; index >= 0; index--) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith('auditsphere-time-entry-change:v1:')) sessionStorage.removeItem(key);
+      }
+      first.http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule();
+    }
+
+    if (!savedKey || !savedJson) throw new Error('Expected the unknown change request to remain in session storage.');
+    sessionStorage.setItem(savedKey, savedJson);
+    const { fixture, http } = open(workspace);
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      const pendingKey = savedKey;
+      const saved = JSON.parse(savedJson) as { request: { requestId: string } };
+      const receiptPath = `${postPath}/requests/${saved.request.requestId}`;
+      const receiptCheck = http.expectOne(receiptPath);
+      const beforeAuthorization = fixture.nativeElement.textContent as string;
+      expect(beforeAuthorization).not.toContain(entryId);
+      expect(beforeAuthorization).not.toContain('Private source activity');
+      expect(beforeAuthorization).not.toContain('Private source note');
+      expect(beforeAuthorization).not.toContain('Private requested activity');
+      expect(beforeAuthorization).not.toContain('Private requested note');
+      expect(beforeAuthorization).not.toContain('Private saved correction reason');
+
+      receiptCheck.flush({ found: false, receipt: null });
+      await settleFlushedRead(fixture);
+      expect(fixture.nativeElement.textContent).toContain('Private saved correction reason');
+      const history = http.expectOne(request => request.method === 'GET' && request.url === postPath);
+      history.flush({}, { status: 403, statusText: 'Forbidden' });
+      await settleFlushedRead(fixture);
+      const afterDenial = fixture.nativeElement.textContent as string;
+      expect(afterDenial).not.toContain(entryId);
+      expect(afterDenial).not.toContain('Private source activity');
+      expect(afterDenial).not.toContain('Private source note');
+      expect(afterDenial).not.toContain('Private requested activity');
+      expect(afterDenial).not.toContain('Private requested note');
+      expect(afterDenial).not.toContain('Private saved correction reason');
+      expect(sessionStorage.getItem(pendingKey)).toBeNull();
+    } finally {
+      for (let index = sessionStorage.length - 1; index >= 0; index--) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith('auditsphere-time-entry-change:v1:')) sessionStorage.removeItem(key);
+      }
+      fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); vi.restoreAllMocks();
+    }
+  });
+
   it('offers only assignable budget phases and forwards optional selections without requiring FSLI mapping', async () => {
     const { fixture, component, http } = open();
     try {

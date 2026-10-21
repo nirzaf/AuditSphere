@@ -1,3 +1,4 @@
+using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -14,7 +15,9 @@ public sealed record TimeTaskOption(Guid Id, string Title, string Status, Guid? 
   string Phase = BudgetPhases.Unassigned);
 public sealed record TimeEntryRow(Guid Id, DateOnly WorkDate, Guid TaskId, string TaskTitle, Guid UserId, int DurationMinutes, string Activity,
   string BillableClassification, string Narrative, string Status, Guid? MappingVersionId, string? FsliCode, int StartMinute = 540,
-  string? LastReturnReason = null, string Phase = BudgetPhases.Unassigned, DateTimeOffset? CreatedAt = null);
+  string? LastReturnReason = null, string Phase = BudgetPhases.Unassigned, DateTimeOffset? CreatedAt = null,
+  string Revision = "1", bool CanEdit = false, bool CanCorrect = false, bool HasChanges = false, Guid? SupersedesId = null,
+  string? CorrectionReason = null);
 public sealed record PracticeTimeWorkspaceRequest(DateOnly? ApprovalAfterWorkDate = null, Guid? ApprovalAfterEntryId = null, int ApprovalPageSize = 50,
   DateOnly? EntriesBeforeWorkDate = null, DateTimeOffset? EntriesBeforeCreatedAt = null, Guid? EntriesBeforeEntryId = null, int EntriesPageSize = 50);
 public sealed record TimeApprovalCursor(DateOnly WorkDate, Guid EntryId);
@@ -126,9 +129,10 @@ public static class PracticeTimeWorkspaceQuery
     var openTasks = visibleTasks.Where(x => x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted)
       .Select(x => new TimeTaskOption(x.Id, x.Title, x.Status, x.MappingVersionId, x.FsliCode, x.Phase)).ToList();
 
-    TimeEntryRow Row(TimeEntry x) => new(x.Id, x.WorkDate, x.TaskId, taskById[x.TaskId].Title, x.UserId, x.DurationMinutes, x.Activity,
+    TimeEntryRow Row(TimeEntry x, bool canEdit = false, bool canCorrect = false, bool hasChanges = false) => new(x.Id, x.WorkDate, x.TaskId, taskById[x.TaskId].Title, x.UserId, x.DurationMinutes, x.Activity,
       x.BillableClassification, x.Narrative, x.Status, x.MappingVersionId, x.FsliCode, x.StartMinute, x.LastReturnReason, x.Phase,
-      x.CreatedAt.ToUniversalTime());
+      x.CreatedAt.ToUniversalTime(), x.Revision.ToString(CultureInfo.InvariantCulture), canEdit, canCorrect, hasChanges,
+      x.SupersedesId, x.CorrectionReason);
     var visibleTaskIds = visibleTasks.Select(x => x.Id).ToArray();
     var ownRows = db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
         (firmWide || (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value)) ||
@@ -151,7 +155,25 @@ public static class PracticeTimeWorkspaceQuery
       .ThenByDescending(x => x.Entry.Id).Take(request.EntriesPageSize + 1).ToListAsync(ct);
     var entriesHasMore = selectedOwnRows.Count > request.EntriesPageSize;
     var visibleOwnRows = selectedOwnRows.Take(request.EntriesPageSize).ToArray();
-    var myEntries = visibleOwnRows.Select(x => Row(x.Entry)).ToList();
+    var ownEntryIds = visibleOwnRows.Select(x => x.Entry.Id).ToArray();
+    var reservedRevisions = ownEntryIds.Length == 0 ? [] : await db.BillingSourceAllocations.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.SourceKind == "TIME" && ownEntryIds.Contains(x.SourceId))
+      .Select(x => new { x.SourceId, x.SourceRevision }).Distinct().ToListAsync(ct);
+    var reservedRevisionKeys = reservedRevisions.Select(x => (x.SourceId, x.SourceRevision)).ToHashSet();
+    var changedLinks = ownEntryIds.Length == 0 ? [] : await db.TimeEntryChangeReceipts.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId &&
+        (ownEntryIds.Contains(x.TimeEntryId) || ownEntryIds.Contains(x.ResultTimeEntryId)))
+      .Select(x => new { x.TimeEntryId, x.ResultTimeEntryId }).Distinct().ToListAsync(ct);
+    var changedEntryIds = changedLinks.SelectMany(x => new[] { x.TimeEntryId, x.ResultTimeEntryId }).ToHashSet();
+    var myEntries = visibleOwnRows.Select(x =>
+    {
+      var entry = x.Entry;
+      var canEdit = entry.Revision < long.MaxValue &&
+        entry.Status is PracticeTimeStates.TimeDraft or PracticeTimeStates.TimeReturned;
+      var canCorrect = entry.Revision < long.MaxValue && entry.Status == PracticeTimeStates.TimeApproved &&
+        !reservedRevisionKeys.Contains((entry.Id, entry.Revision));
+      return Row(entry, canEdit, canCorrect, changedEntryIds.Contains(entry.Id));
+    }).ToList();
     var entriesCursor = entriesHasMore && visibleOwnRows.Length > 0
       ? new TimeEntryHistoryCursor(visibleOwnRows[^1].Entry.WorkDate, visibleOwnRows[^1].Entry.CreatedAt.ToUniversalTime(), visibleOwnRows[^1].Entry.Id)
       : null;

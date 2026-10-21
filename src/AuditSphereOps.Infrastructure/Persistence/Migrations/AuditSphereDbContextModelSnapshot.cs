@@ -27292,6 +27292,104 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.TimeEntryChangeReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<string>("ActorName")
+                        .HasColumnType("text")
+                        .HasColumnName("actor_name");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("before_json");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result_json");
+
+                    b.Property<long>("ResultRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("result_revision");
+
+                    b.Property<Guid>("ResultTimeEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_time_entry_id");
+
+                    b.Property<string>("SourceAfterJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source_after_json");
+
+                    b.Property<long>("SourceRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("source_revision");
+
+                    b.Property<Guid>("TimeEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("time_entry_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "ResultTimeEntryId", "ResultRevision")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "TimeEntryId", "SourceRevision")
+                        .IsUnique();
+
+                    b.HasIndex("FirmId", "TimeEntryId", "CreatedAt", "Id");
+
+                    b.ToTable("time_entry_change_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_time_entry_change_receipt", "actor_epoch >= 1 AND source_revision >= 1 AND result_revision > source_revision AND result_revision - source_revision = 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND kind IN ('EDIT_UNAPPROVED','CORRECT_APPROVED') AND octet_length(before_json) BETWEEN 1 AND 64000 AND octet_length(source_after_json) BETWEEN 1 AND 64000 AND octet_length(result_json) BETWEEN 1 AND 64000 AND ((kind = 'EDIT_UNAPPROVED' AND result_time_entry_id = time_entry_id) OR (kind = 'CORRECT_APPROVED' AND result_time_entry_id <> time_entry_id))");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.TimeEntryReviewEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -36425,6 +36523,30 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "MappingVersionId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Practice.TimeEntryChangeReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.TimeEntry", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ResultTimeEntryId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.TimeEntry", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "TimeEntryId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.TimeEntryReviewEvent", b =>

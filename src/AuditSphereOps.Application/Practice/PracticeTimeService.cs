@@ -647,53 +647,7 @@ public static partial class PracticeTimeService
   {
     var validation = ValidateCorrection(request);
     if (validation is not null) return CommandResult<Guid>.Fail("time.invalid", validation);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var snapshot = await db.TimeEntries.AsNoTracking().SingleOrDefaultAsync(
-      x => x.Id == request.TimeEntryId && x.FirmId == actor.FirmId, ct);
-    if (snapshot is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var firm = await LockFirmAsync(db, actor.FirmId, ct);
-    if (firm is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    var guard = await LockClientAsync(db, actor.FirmId, snapshot.ClientId, ct);
-    if (!guard.Succeeded) return CommandResult<Guid>.Fail(guard.ErrorCode!, guard.Message!);
-    var task = await LoadTaskForUpdateAsync(db, actor.FirmId, snapshot.TaskId, ct);
-    if (task is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizeTaskAsync(db, actor, task, WorkRoles, ct);
-    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    if (snapshot.UserId != actor.UserId &&
-        !await IsElevatedAsync(db, actor, task.ClientId, task.EngagementId, ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Only the entry owner or an authorized manager can correct time.");
-    var entry = await LoadTimeForUpdateAsync(db, actor.FirmId, request.TimeEntryId, ct);
-    if (entry is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (entry.Status != PracticeTimeStates.TimeApproved)
-      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Only approved time can be corrected.");
-    if (await db.BillingSourceAllocations.AnyAsync(x => x.FirmId == actor.FirmId &&
-        x.SourceKind == "TIME" && x.SourceId == entry.Id && x.SourceRevision == entry.Revision, ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState,
-        "This approved time revision is reserved to an invoice and cannot be corrected.");
-    var draft = new SaveTimeDraftRequest(entry.TaskId, request.WorkDate, request.StartMinute,
-      request.DurationMinutes, entry.Role, request.Activity, entry.BillableClassification,
-      request.Narrative, request.NarrativeVisibility, entry.Currency ?? "QAR");
-    if (await HasOverlapAsync(db, actor.FirmId, entry.UserId, draft, entry.Id, ct))
-      return CommandResult<Guid>.Fail("time.overlap", "The corrected entry overlaps another active entry.");
-    entry.Status = PracticeTimeStates.TimeSuperseded;
-    var correction = new TimeEntry
-    {
-      Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = entry.ClientId,
-      EngagementId = entry.EngagementId, TaskId = entry.TaskId, UserId = entry.UserId,
-      WorkDate = request.WorkDate, StartMinute = request.StartMinute, DurationMinutes = request.DurationMinutes,
-      Role = entry.Role, Activity = request.Activity.Trim(), Phase = entry.Phase, RiskArea = entry.RiskArea,
-      MappingVersionId = entry.MappingVersionId, FsliCode = entry.FsliCode,
-      BillableClassification = entry.BillableClassification,
-      Narrative = request.Narrative.Trim(), NarrativeVisibility = request.NarrativeVisibility.Trim().ToUpperInvariant(),
-      Currency = entry.Currency,
-      Revision = entry.Revision + 1, SupersedesId = entry.Id,
-      RateCardVersionId = entry.RateCardVersionId, RatePerHour = entry.RatePerHour,
-      CorrectionReason = TrimOrNull(request.Reason), CreatedAt = DateTimeOffset.UtcNow
-    };
-    db.TimeEntries.Add(correction);
-    await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
-    return CommandResult<Guid>.Ok(correction.Id);
+    return await ReviseLegacyApprovedTimeAsync(db, actor, request, ct);
   }
 
   public static async Task<CommandResult<Guid>> ReviseRateCardAsync(
@@ -1086,6 +1040,9 @@ public static partial class PracticeTimeService
         request.StartMinute + request.DurationMinutes > 1440)
       return "Time must fit within one bounded 24-hour work date.";
     if (string.IsNullOrWhiteSpace(request.Activity)) return "Time activity is required.";
+    // The legacy reason remains optional; supplied text must fit the immutable time-change receipt column.
+    if (request.Reason is { } reason && reason.Trim().Length > 2000)
+      return "A correction reason is limited to 2,000 characters for retained time-change evidence.";
     return NarrativeVisibilities.Contains(request.NarrativeVisibility.Trim().ToUpperInvariant())
       ? null : "Narrative visibility is invalid.";
   }

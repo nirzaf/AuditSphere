@@ -7756,3 +7756,9 @@ The controlled acceptance test reproduced the mixed-state defect on the original
 Onboarding now reads its approval, risk, letter, advance, hold and activation facts in one owned snapshot. Internal authorized fee/proposal readers compose that snapshot without nested transactions. Public reads recheck current authorization after disposal and refuse lost authority behind true action flags, including Partner or Finance loss while commercial access remains. As-of time is captured at snapshot start; protected commands retain their independent checks.
 
 The controlled baseline failed its report-time assertion; all focused fixed-source checks, including existing paid-advance readiness, pass. Evidence and precise limits are under `onboardingSnapshotComposition20261021` in [status.json](status.json). No professional/live/full-current-source acceptance is inferred, and no UI/provider changes were made. Previous proposal evidence remains through its archive pointer.
+
+## Correction queue to fieldwork handoff
+
+Returned/resubmitted task rows now offer Open fieldwork in list, board and calendar. The link uses the task's server-projected engagement; it grants no authority and does not infer a procedure from a source key. Fieldwork still rechecks current scope/gates and requires explicit procedure selection.
+
+The existing source-backed procedure journey now routes its original preparer through the assigned correction queue before corrected resubmission. Exact task/owner/comment, keyboard routing and retained evidence lineage are checked. Built-in inspection confirmed the destination's existing blockers. Evidence/limits are under `procedureReworkHandoff20261021` in [status.json](status.json); broader integrated denials, human/professional/live acceptance and full current-source release remain open. Earlier assignment evidence remains in the historical archive.
