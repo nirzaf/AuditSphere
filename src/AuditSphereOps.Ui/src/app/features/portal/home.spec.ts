@@ -231,7 +231,8 @@ describe('Client portal workspace paging', () => {
     http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
     http.expectOne('/api/ui/portal/finance?pageSize=50').flush({ asOfDateUtc: '2026-10-18', agreements: [{
       agreementId: id(601), engagementId: id(602), agreedFee: '25000', currency: 'QAR', advancePercent: '50',
-      outstandingBalance: '100', invoices: [{ invoiceId: id(604), kind: 'ADVANCE', invoiceNumber: 'INV-ADV-1',
+      outstandingBalance: '100', hasMoreReceipts: false, nextReceiptCursor: null,
+      invoices: [{ invoiceId: id(604), kind: 'ADVANCE', invoiceNumber: 'INV-ADV-1',
         status: 'SENT', amount: '12500', currency: 'QAR', postedAt: '2026-10-01T09:00:00Z', sentAt: '2026-10-02T09:00:00Z',
         deliveryStatus: 'NOT_TRACKED', collectionStatus: 'PARTIALLY_PAID', cashApplied: '4900', creditApplied: '7500',
         outstandingAmount: '100', dueDate: '2026-10-13', paymentTermsStatus: 'APPROVED', agingStatus: 'OVERDUE_1_30' }],
@@ -277,6 +278,7 @@ describe('Client portal workspace paging', () => {
     const agreements = Array.from({ length: 50 }, (_, index) => ({
       agreementId: id(700 + index), engagementId: id(800 + index), agreedFee: '25000', currency: 'QAR', advancePercent: '50',
       outstandingBalance: '100', invoices: index === 0 ? [invoice] : [], receipts: index === 0 ? [receipt] : [],
+      hasMoreReceipts: false, nextReceiptCursor: null,
     }));
     const firstPage = { asOfDateUtc: '2026-10-18', agreements, pageSize: 50, hasMore: true, nextCursor: 'Y3Vyc29yLTE' };
     const flushFirstPage = (url = '/api/ui/portal/finance?pageSize=50') => {
@@ -348,10 +350,10 @@ describe('Client portal workspace paging', () => {
     fixture.destroy();
   });
 
-  it('rejects duplicate agreement IDs and over-limit nested invoice or receipt arrays', () => {
+  it('preserves distinct milestone receipts and rejects duplicate row identities and over-limit histories', () => {
     const agreement = { agreementId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', engagementId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      agreedFee: '1.00', currency: 'QAR',
-      advancePercent: '0', outstandingBalance: '1.00', invoices: [], receipts: [] };
+      agreedFee: '1.00', currency: 'QAR', advancePercent: '0', outstandingBalance: '1.00',
+      invoices: [], receipts: [], hasMoreReceipts: false, nextReceiptCursor: null };
     expect(() => portalFinanceContract({ ...emptyFinancePage(), agreements: [agreement, { ...agreement,
       agreementId: agreement.agreementId.toUpperCase() }] }, '')).toThrow();
 
@@ -361,6 +363,17 @@ describe('Client portal workspace paging', () => {
       outstandingAmount: '100', dueDate: '2026-10-13', paymentTermsStatus: 'APPROVED', agingStatus: 'OVERDUE_1_30' });
     const receipt = (n: number) => ({ receiptId: id(n), documentId: null, kind: 'ADVANCE', amount: '5000',
       appliedAmount: '4900', currency: 'QAR', reference: `RECEIPT-${n}`, receivedAt: '2026-10-18T08:00:00Z', downloadUrl: null });
+    const sharedReceiptId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const samePaymentAtBothMilestones = [
+      { ...receipt(3001), receiptId: sharedReceiptId, kind: 'ADVANCE' },
+      { ...receipt(3001), receiptId: sharedReceiptId, kind: 'BALANCE' },
+    ];
+    expect(portalFinanceContract({ ...emptyFinancePage(), agreements: [{ ...agreement, receipts: samePaymentAtBothMilestones }] }, '')
+      .agreements[0].receipts).toHaveLength(2);
+    expect(() => portalFinanceContract({ ...emptyFinancePage(), agreements: [{ ...agreement, receipts: [
+      { ...receipt(3001), receiptId: sharedReceiptId, kind: 'ADVANCE' },
+      { ...receipt(3001), receiptId: sharedReceiptId.toUpperCase(), kind: 'ADVANCE' },
+    ] }] }, '')).toThrow();
     const tooManyInvoices = Array.from({ length: 51 }, (_, index) => invoice(2000 + index));
     const tooManyReceipts = Array.from({ length: 51 }, (_, index) => receipt(3000 + index));
     expect(() => portalFinanceContract({ ...emptyFinancePage(), agreements: [{ ...agreement, invoices: tooManyInvoices }] }, '')).toThrow();

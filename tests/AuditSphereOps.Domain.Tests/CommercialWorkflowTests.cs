@@ -2591,19 +2591,23 @@ public sealed class CommercialWorkflowTests
     clientWideUser.UserKind = "Client";
     var financeSnapshotUser = User(w.FirmId, "finance-snapshot-client");
     financeSnapshotUser.UserKind = "Client";
+    var receiptSnapshotUser = User(w.FirmId, "receipt-snapshot-client");
+    receiptSnapshotUser.UserKind = "Client";
     var nullClientUser = User(w.FirmId, "null-client-grant");
     nullClientUser.UserKind = "Client";
-    db.Users.AddRange(engagementScopedUser, clientWideUser, financeSnapshotUser, nullClientUser);
+    db.Users.AddRange(engagementScopedUser, clientWideUser, financeSnapshotUser, receiptSnapshotUser, nullClientUser);
     db.RoleGrants.AddRange(
       new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = engagementScopedUser.Id, Role = "ClientUser", ClientId = clientId, EngagementId = engagementA, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
       new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = clientWideUser.Id, Role = "ClientUser", ClientId = clientId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
       new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = financeSnapshotUser.Id, Role = "ClientUser", ClientId = clientId, EngagementId = engagementA, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
+      new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = receiptSnapshotUser.Id, Role = "ClientUser", ClientId = clientId, EngagementId = engagementA, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id },
       new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = nullClientUser.Id, Role = "ClientUser", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.PartnerUser.Id });
     await db.SaveChangesAsync();
 
     var engagementScopedActor = Actor(engagementScopedUser, "ClientUser");
     var clientWideActor = Actor(clientWideUser, "ClientUser");
     var nullClientActor = Actor(nullClientUser, "ClientUser");
+    var receiptSnapshotActor = Actor(receiptSnapshotUser, "ClientUser");
 
     // The engagement-scoped grant sees exactly its engagement's agreement — never the sibling.
     var scopedFinance = await ClientPortalFinanceQuery.GetAsync(db, engagementScopedActor);
@@ -2752,6 +2756,26 @@ public sealed class CommercialWorkflowTests
       });
     await db.SaveChangesAsync();
 
+    // Fifty additional one-unit receipts and the existing 150-unit allocation make a 51-row
+    // agreement receipt history. Equal persisted receipt times exercise the full UUID tie-break.
+    var additionalReceipts = Enumerable.Range(1, 50).Select(index => new Receipt
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, BillingAccountId = clientBillingAccountId,
+      Amount = 1m, Currency = "QAR", Reference = $"SYN-PORTAL-PAGE-{index:D2}-{Guid.NewGuid():N}",
+      Status = BillingStates.ReceiptRecorded, RecordedByUserId = w.PartnerUser.Id, ReceivedAt = ownReceipt.ReceivedAt
+    }).ToArray();
+    db.Receipts.AddRange(additionalReceipts);
+    await db.SaveChangesAsync();
+    db.ReceiptAllocations.AddRange(additionalReceipts.Select(receipt => new ReceiptAllocation
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, ReceiptId = receipt.Id,
+      InvoiceId = ownBalanceInvoice.Id, Amount = 1m, CreatedAt = financialFixtureAt
+    }));
+    await db.SaveChangesAsync();
+
+    var retainedReceiptBytes = receiptA.Bytes.ToArray();
+    var retainedReceiptSha256 = receiptA.Sha256Hex;
+
     // Equal persisted timestamps below one millisecond force the opaque cursor to continue through
     // the UUID tie-break without rounding or skipping an authorized agreement.
     var agreementACreatedAt = await db.EngagementFeeAgreements.AsNoTracking()
@@ -2798,13 +2822,14 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(1, snapshotInterleaver.Calls);
     Assert.Equal(agreementA.Value, firstPage.Value.Agreements[0].AgreementId);
     var agreementAView = Assert.Single(firstPage.Value.Agreements, x => x.AgreementId == agreementA.Value);
+    Assert.Equal(50, agreementAView.Receipts.Count);
+    Assert.True(agreementAView.HasMoreReceipts);
+    Assert.False(string.IsNullOrWhiteSpace(agreementAView.NextReceiptCursor));
     var balanceInvoiceView = Assert.Single(agreementAView.Invoices, x => x.InvoiceId == ownBalanceInvoice.Id);
     Assert.Null(balanceInvoiceView.SentAt); // The invoice read remained in the original repeatable-read snapshot.
-    Assert.Equal(150m, decimal.Parse(balanceInvoiceView.CashApplied, CultureInfo.InvariantCulture));
+    Assert.Equal(200m, decimal.Parse(balanceInvoiceView.CashApplied, CultureInfo.InvariantCulture));
     Assert.Equal(100m, decimal.Parse(balanceInvoiceView.CreditApplied, CultureInfo.InvariantCulture));
-    Assert.Equal(750m, decimal.Parse(balanceInvoiceView.OutstandingAmount, CultureInfo.InvariantCulture));
-    Assert.Contains(agreementAView.Receipts, x => x.Reference == ownReceipt.Reference &&
-      decimal.Parse(x.AppliedAmount, CultureInfo.InvariantCulture) == 150m);
+    Assert.Equal(700m, decimal.Parse(balanceInvoiceView.OutstandingAmount, CultureInfo.InvariantCulture));
     Assert.DoesNotContain(agreementAView.Receipts, x => x.Reference == foreignReceipt.Reference);
     await using (var verifySnapshot = new AuditSphereDbContext(pg.Options))
       Assert.Equal(sentAt, await verifySnapshot.Invoices.AsNoTracking().Where(x => x.Id == ownBalanceInvoice.Id)
@@ -2825,6 +2850,115 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(expectedPagedIds, actualPagedIds);
     Assert.Equal(actualPagedIds.Length, actualPagedIds.Distinct().Count());
     Assert.Empty(actualPagedIds.Intersect(siblingDecoys.Select(x => x.Agreement.Id)));
+
+    var receiptFirstPage = await ClientPortalFinanceQuery.GetReceiptsAsync(db, engagementScopedActor, agreementA.Value);
+    Assert.True(receiptFirstPage.Succeeded, receiptFirstPage.Message);
+    var firstReceiptPageValue = receiptFirstPage.Value!;
+    Assert.Equal(agreementA.Value, firstReceiptPageValue.AgreementId);
+    Assert.Equal(50, firstReceiptPageValue.PageSize);
+    Assert.Equal(50, firstReceiptPageValue.Receipts.Count);
+    Assert.True(firstReceiptPageValue.HasMore);
+    Assert.False(string.IsNullOrWhiteSpace(firstReceiptPageValue.NextCursor));
+    var receiptSecondPage = await ClientPortalFinanceQuery.GetReceiptsAsync(db, engagementScopedActor, agreementA.Value,
+      50, firstReceiptPageValue.NextCursor);
+    Assert.True(receiptSecondPage.Succeeded, receiptSecondPage.Message);
+    var secondReceiptPageValue = receiptSecondPage.Value!;
+    Assert.Equal(agreementA.Value, secondReceiptPageValue.AgreementId);
+    Assert.Equal(50, secondReceiptPageValue.PageSize);
+    Assert.Single(secondReceiptPageValue.Receipts);
+    Assert.False(secondReceiptPageValue.HasMore);
+    Assert.Null(secondReceiptPageValue.NextCursor);
+    var actualReceiptRows = firstReceiptPageValue.Receipts.Concat(secondReceiptPageValue.Receipts)
+      .Select(x => (x.ReceiptId, x.Kind, x.ReceivedAt)).ToArray();
+    var expectedReceiptRows = new[] { ownReceipt }.Concat(additionalReceipts)
+      .Select(x => (ReceiptId: x.Id, Kind: FeeMilestoneKinds.Balance, x.ReceivedAt))
+      .OrderByDescending(x => x.ReceivedAt).ThenByDescending(x => x.ReceiptId)
+      .ThenBy(x => x.Kind, StringComparer.Ordinal).ToArray();
+    Assert.Equal(expectedReceiptRows, actualReceiptRows);
+    Assert.Equal(actualReceiptRows.Length, actualReceiptRows.Select(x => x.ReceiptId).Distinct().Count());
+    Assert.DoesNotContain(actualReceiptRows, x => x.ReceiptId == foreignReceipt.Id);
+    Assert.Equal(expectedReceiptRows.Take(50).Select(x => x.ReceiptId), agreementAView.Receipts.Select(x => x.ReceiptId));
+    Assert.Contains(firstReceiptPageValue.Receipts.Concat(secondReceiptPageValue.Receipts), x =>
+      x.Reference == ownReceipt.Reference && decimal.Parse(x.AppliedAmount, CultureInfo.InvariantCulture) == 150m);
+
+    var advanceInvoice = new Invoice
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, BillingAccountId = clientBillingAccountId,
+      InvoiceNumber = $"SYN-PORTAL-ADVANCE-{Guid.NewGuid():N}", Currency = "QAR", Subtotal = 1000m, Total = 1000m,
+      Status = BillingStates.InvoicePosted, CreatedByUserId = w.PartnerUser.Id,
+      PostedAt = financialFixtureAt.AddDays(-2), CreatedAt = financialFixtureAt.AddDays(-3)
+    };
+    db.Invoices.Add(advanceInvoice);
+    await db.SaveChangesAsync();
+    await db.FeeMilestones.Where(x => x.FirmId == w.FirmId && x.Id == milestoneA.Id)
+      .ExecuteUpdateAsync(update => update.SetProperty(x => x.InvoiceId, advanceInvoice.Id)
+        .SetProperty(x => x.State, FeeMilestoneStates.Invoiced));
+    db.ReceiptAllocations.Add(new ReceiptAllocation
+    {
+      Id = Guid.CreateVersion7(), FirmId = w.FirmId, ReceiptId = ownReceipt.Id,
+      InvoiceId = advanceInvoice.Id, Amount = 50m, CreatedAt = financialFixtureAt
+    });
+    await db.SaveChangesAsync();
+    var receiptAcrossMilestonesPage = await ClientPortalFinanceQuery.GetReceiptsAsync(db, engagementScopedActor, agreementA.Value);
+    Assert.True(receiptAcrossMilestonesPage.Succeeded, receiptAcrossMilestonesPage.Message);
+    var receiptAcrossMilestonesPageValue = receiptAcrossMilestonesPage.Value!;
+    Assert.Equal(50, receiptAcrossMilestonesPageValue.Receipts.Count);
+    Assert.True(receiptAcrossMilestonesPageValue.HasMore);
+    var receiptAcrossMilestonesContinuation = await ClientPortalFinanceQuery.GetReceiptsAsync(db, engagementScopedActor,
+      agreementA.Value, 50, receiptAcrossMilestonesPageValue.NextCursor);
+    Assert.True(receiptAcrossMilestonesContinuation.Succeeded, receiptAcrossMilestonesContinuation.Message);
+    var receiptAcrossMilestonesContinuationValue = receiptAcrossMilestonesContinuation.Value!;
+    Assert.Equal(2, receiptAcrossMilestonesContinuationValue.Receipts.Count);
+    Assert.False(receiptAcrossMilestonesContinuationValue.HasMore);
+    var sameReceiptRows = receiptAcrossMilestonesContinuationValue.Receipts;
+    Assert.All(sameReceiptRows, x => Assert.Equal(ownReceipt.Id, x.ReceiptId));
+    Assert.Equal(new[] { FeeMilestoneKinds.Advance, FeeMilestoneKinds.Balance }, sameReceiptRows.Select(x => x.Kind));
+    Assert.Equal(2, sameReceiptRows.Select(x => (x.Kind, x.ReceiptId)).Distinct().Count());
+    Assert.Equal(50m, decimal.Parse(sameReceiptRows.Single(x => x.Kind == FeeMilestoneKinds.Advance).AppliedAmount, CultureInfo.InvariantCulture));
+    Assert.Equal(150m, decimal.Parse(sameReceiptRows.Single(x => x.Kind == FeeMilestoneKinds.Balance).AppliedAmount, CultureInfo.InvariantCulture));
+
+    var mismatchedReceiptCursor = await ClientPortalFinanceQuery.GetReceiptsAsync(db, clientWideActor, agreementB.Id,
+      50, firstReceiptPageValue.NextCursor);
+    Assert.Equal("request.invalid", mismatchedReceiptCursor.ErrorCode);
+    Assert.Null(mismatchedReceiptCursor.Value);
+    var deniedSiblingReceipts = await ClientPortalFinanceQuery.GetReceiptsAsync(db, engagementScopedActor, agreementB.Id);
+    Assert.Equal(ErrorCodes.ScopeDenied, deniedSiblingReceipts.ErrorCode);
+    Assert.Null(deniedSiblingReceipts.Value);
+
+    await using (var receiptCallerTransaction = await db.Database.BeginTransactionAsync())
+    {
+      var refusedInCallerTransaction = await ClientPortalFinanceQuery.GetReceiptsAsync(db, engagementScopedActor, agreementA.Value);
+      Assert.Equal(ErrorCodes.GateBlocked, refusedInCallerTransaction.ErrorCode);
+      Assert.Null(refusedInCallerTransaction.Value);
+      Assert.Same(receiptCallerTransaction, db.Database.CurrentTransaction);
+      Assert.Equal(1, await db.RoleGrants.CountAsync(x => x.FirmId == w.FirmId && x.UserId == engagementScopedUser.Id && x.RevokedAt == null));
+      await receiptCallerTransaction.CommitAsync();
+    }
+
+    var receiptGrant = await db.RoleGrants.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId &&
+      x.UserId == receiptSnapshotUser.Id && x.Role == "ClientUser" && x.ClientId == clientId && x.EngagementId == engagementA);
+    var receiptSnapshotPositive = await ClientPortalFinanceQuery.GetReceiptsAsync(db, receiptSnapshotActor, agreementA.Value);
+    Assert.True(receiptSnapshotPositive.Succeeded, receiptSnapshotPositive.Message);
+    Assert.Equal(50, receiptSnapshotPositive.Value!.Receipts.Count);
+    var receiptGrantInterleaver = new RevokeFinanceGrantAfterReceiptPageRead(pg, w.FirmId, receiptGrant.Id);
+    var receiptGrantOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(receiptGrantInterleaver).Options;
+    CommandResult<PortalClientFinanceReceiptPage> revokedDuringReceiptRead;
+    await using (var receiptGrantReader = new AuditSphereDbContext(receiptGrantOptions))
+      revokedDuringReceiptRead = await ClientPortalFinanceQuery.GetReceiptsAsync(receiptGrantReader, receiptSnapshotActor, agreementA.Value);
+    Assert.Equal(1, receiptGrantInterleaver.Calls);
+    Assert.False(revokedDuringReceiptRead.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, revokedDuringReceiptRead.ErrorCode);
+    Assert.Null(revokedDuringReceiptRead.Value);
+    await using (var verifyReceiptGrantRevocation = new AuditSphereDbContext(pg.Options))
+      Assert.NotNull(await verifyReceiptGrantRevocation.RoleGrants.AsNoTracking().Where(x => x.FirmId == w.FirmId && x.Id == receiptGrant.Id)
+        .Select(x => x.RevokedAt).SingleAsync());
+
+    await using (var retainedDocRead = new AuditSphereDbContext(pg.Options))
+    {
+      var retainedDoc = await retainedDocRead.CommercialDocuments.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.Id == receiptA.Id);
+      Assert.Equal(retainedReceiptBytes, retainedDoc.Bytes);
+      Assert.Equal(retainedReceiptSha256, retainedDoc.Sha256Hex);
+    }
 
     // Seed the malformed link separately: an existing milestone's invoice identity is immutable.
     var malformedAgreement = authorizedDecoys.OrderByDescending(x => x.Agreement.Id).First().Agreement;
@@ -3403,6 +3537,28 @@ public sealed class CommercialWorkflowTests
         .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), cancellationToken);
       if (updated != 1)
         throw new InvalidOperationException("The finance snapshot interleaving did not revoke the expected client grant.");
+      return result;
+    }
+  }
+
+  private sealed class RevokeFinanceGrantAfterReceiptPageRead(
+    ITestPostgresDatabase pg, Guid firmId, Guid grantId) : DbCommandInterceptor
+  {
+    private int calls;
+    public int Calls => Volatile.Read(ref calls);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (!command.CommandText.Contains("ClientPortalFinance.ReceiptPage", StringComparison.Ordinal) ||
+          Interlocked.CompareExchange(ref calls, 1, 0) != 0)
+        return result;
+
+      await using var change = new AuditSphereDbContext(pg.Options);
+      var updated = await change.RoleGrants.Where(x => x.FirmId == firmId && x.Id == grantId && x.RevokedAt == null)
+        .ExecuteUpdateAsync(update => update.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), cancellationToken);
+      if (updated != 1)
+        throw new InvalidOperationException("The receipt page interleaving did not revoke the expected client grant.");
       return result;
     }
   }

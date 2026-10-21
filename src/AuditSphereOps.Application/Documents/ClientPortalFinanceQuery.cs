@@ -46,7 +46,16 @@ public sealed record PortalClientFinanceAgreement(
   string AdvancePercent,
   string OutstandingBalance,
   IReadOnlyList<PortalClientMilestoneInvoice> Invoices,
-  IReadOnlyList<PortalClientReceipt> Receipts);
+  IReadOnlyList<PortalClientReceipt> Receipts,
+  bool HasMoreReceipts = false,
+  string? NextReceiptCursor = null);
+
+public sealed record PortalClientFinanceReceiptPage(
+  Guid AgreementId,
+  IReadOnlyList<PortalClientReceipt> Receipts,
+  int PageSize,
+  bool HasMore,
+  string? NextCursor);
 
 public sealed record PortalClientFinanceView(
   DateOnly AsOfDateUtc,
@@ -60,11 +69,16 @@ public static class ClientPortalFinanceQuery
   private const int DefaultPageSize = 50;
   private const int MaximumPageSize = 50;
   private const int MaximumCursorLength = 256;
+  private const string AgreementReceiptsQueryTag = "ClientPortalFinance.AgreementReceipts";
+  private const string ReceiptPageQueryTag = "ClientPortalFinance.ReceiptPage";
 
   private sealed record FinanceGrant(Guid Id, Guid ClientId, Guid? EngagementId,
     DateTimeOffset GrantedAt, DateTimeOffset? ExpiresAt);
   private sealed record FinanceIdentity(long SessionEpoch, FinanceGrant[] Grants);
   private sealed record FinanceCursor(DateTimeOffset CreatedAt, Guid AgreementId);
+  private sealed record ReceiptCursor(Guid AgreementId, DateTimeOffset ReceivedAt, Guid ReceiptId, string Kind);
+  private sealed record MilestoneReceiptSource(Guid MilestoneId, string Kind, Guid InvoiceId, Guid? BillingAccountId);
+  private sealed record ReceiptPageData(IReadOnlyList<PortalClientReceipt> Receipts, bool HasMore, string? NextCursor);
 
   private static string Exact(decimal value) => value.ToString(CultureInfo.InvariantCulture);
 
@@ -127,7 +141,7 @@ public static class ClientPortalFinanceQuery
           .ToListAsync(ct);
 
         var invoiceList = new List<PortalClientMilestoneInvoice>();
-        var receiptList = new List<PortalClientReceipt>();
+        var receiptSources = new List<MilestoneReceiptSource>();
         decimal totalPaid = 0m;
 
         foreach (var milestone in milestones)
@@ -142,37 +156,8 @@ public static class ClientPortalFinanceQuery
                 x.PracticeClientId == agreement.PracticeClientId, ct))
             return CommandResult<PortalClientFinanceView>.Fail(ErrorCodes.ScopeDenied, "Finance documents unavailable.");
 
-          var allocationQuery =
-            from allocation in db.ReceiptAllocations.AsNoTracking()
-            join receipt in db.Receipts.AsNoTracking()
-              on new { allocation.FirmId, allocation.ReceiptId } equals new { receipt.FirmId, ReceiptId = receipt.Id }
-            where allocation.FirmId == actor.FirmId && allocation.InvoiceId == invoiceId &&
-              receipt.Status == BillingStates.ReceiptRecorded
-            select new
-            {
-              Allocation = allocation,
-              Receipt = receipt
-            };
-          if (invoice is not null)
-            allocationQuery = allocationQuery.Where(x => x.Receipt.BillingAccountId == invoice.BillingAccountId);
-          var allocations = await allocationQuery.Select(x => new
-          {
-            x.Allocation.ReceiptId,
-            x.Allocation.Amount,
-            ApprovedReversedAmount = db.ReceiptAllocationReversals.AsNoTracking()
-              .Where(reversal => reversal.FirmId == actor.FirmId && reversal.ReceiptAllocationId == x.Allocation.Id &&
-                reversal.Status == ReceiptAllocationReversalStates.Approved)
-              .Sum(reversal => (decimal?)reversal.Amount) ?? 0m
-          }).ToListAsync(ct);
-          var allocationAmountsByReceipt = allocations.GroupBy(x => x.ReceiptId).ToDictionary(group => group.Key, group =>
-            (Original: group.Sum(x => x.Amount),
-              Applied: MoneyPolicy.Normalize(group.Sum(x => x.Amount - x.ApprovedReversedAmount))));
-          var receiptIds = allocationAmountsByReceipt.Keys.ToList();
-          List<Receipt> receipts = receiptIds.Count == 0 ? [] : await db.Receipts.AsNoTracking()
-            .Where(x => x.FirmId == actor.FirmId && x.Status == BillingStates.ReceiptRecorded && receiptIds.Contains(x.Id))
-            .OrderBy(x => x.ReceivedAt)
-            .ToListAsync(ct);
-          var cashApplied = MoneyPolicy.Normalize(allocationAmountsByReceipt.Values.Sum(x => x.Applied));
+          receiptSources.Add(new(milestone.Id, milestone.Kind, invoiceId, invoice?.BillingAccountId));
+          var cashApplied = await SumCashAppliedAsync(db, actor, invoiceId, invoice?.BillingAccountId, ct);
           totalPaid += cashApplied;
 
           if (invoice is not null)
@@ -234,27 +219,9 @@ public static class ClientPortalFinanceQuery
               agingStatus));
           }
 
-          var doc = await db.CommercialDocuments.AsNoTracking()
-            .Where(x => x.FirmId == actor.FirmId && x.FeeMilestoneId == milestone.Id && x.Kind == CommercialDocumentKinds.PaymentReceipt)
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefaultAsync(ct);
-
-          foreach (var receipt in receipts)
-          {
-            var amounts = allocationAmountsByReceipt[receipt.Id];
-            receiptList.Add(new(
-              receipt.Id,
-              doc?.Id,
-              milestone.Kind,
-              Exact(amounts.Original),
-              Exact(amounts.Applied),
-              receipt.Currency ?? agreement.Currency,
-              receipt.Reference,
-              receipt.ReceivedAt,
-              doc is not null ? $"/api/commercial/documents/{doc.Id}/download" : null));
-          }
         }
 
+        var receiptPage = await LoadReceiptPageAsync(db, actor, agreement, receiptSources, DefaultPageSize, null, ct);
         var outstanding = Math.Max(0m, agreement.AgreedFee - totalPaid);
 
         agreementViews.Add(new(
@@ -265,7 +232,9 @@ public static class ClientPortalFinanceQuery
           Exact(agreement.AdvancePercent),
           Exact(outstanding),
           invoiceList,
-          receiptList));
+          receiptPage.Receipts,
+          receiptPage.HasMore,
+          receiptPage.NextCursor));
       }
 
       var nextCursor = hasMore && agreements.Length > 0 ? EncodeCursor(agreements[^1]) : null;
@@ -281,6 +250,212 @@ public static class ClientPortalFinanceQuery
       return CommandResult<PortalClientFinanceView>.Fail(ErrorCodes.ScopeDenied, "Finance documents unavailable.");
 
     return CommandResult<PortalClientFinanceView>.Ok(view);
+  }
+
+  public static async Task<CommandResult<PortalClientFinanceReceiptPage>> GetReceiptsAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    Guid agreementId,
+    int pageSize = DefaultPageSize,
+    string? cursor = null,
+    CancellationToken ct = default)
+  {
+    if (agreementId == Guid.Empty || pageSize is < 1 or > MaximumPageSize ||
+        cursor is { Length: > MaximumCursorLength }) return InvalidReceiptPage();
+    ReceiptCursor? position = null;
+    if (cursor is not null && (!TryDecodeReceiptCursor(cursor, out position) || position!.AgreementId != agreementId))
+      return InvalidReceiptPage();
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<PortalClientFinanceReceiptPage>.Fail(ErrorCodes.GateBlocked,
+        "Client finance receipts require an independent read snapshot.");
+
+    FinanceIdentity initialIdentity;
+    PortalClientFinanceReceiptPage page;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      var now = DateTimeOffset.UtcNow;
+      var loadedIdentity = await LoadIdentityAsync(db, actor, now, ct);
+      if (loadedIdentity is null || loadedIdentity.SessionEpoch != actor.SessionEpoch)
+        return ReceiptPageScopeDenied();
+      initialIdentity = loadedIdentity;
+
+      var clientIds = initialIdentity.Grants.Select(x => x.ClientId).Distinct().ToArray();
+      if (clientIds.Length == 0) return ReceiptPageScopeDenied();
+
+      // Match the finance agreement scope exactly before reading any receipt or document rows.
+      var agreement = await db.EngagementFeeAgreements.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.Id == agreementId && clientIds.Contains(x.PracticeClientId) &&
+          db.RoleGrants.Any(grant => grant.FirmId == actor.FirmId && grant.UserId == actor.UserId &&
+            grant.Role == "ClientUser" && grant.ClientId == x.PracticeClientId && grant.RevokedAt == null &&
+            (grant.ExpiresAt == null || grant.ExpiresAt > now) &&
+            (grant.EngagementId == null || grant.EngagementId == x.EngagementId)))
+        .TagWith(AgreementReceiptsQueryTag)
+        .SingleOrDefaultAsync(ct);
+      if (agreement is null) return ReceiptPageScopeDenied();
+
+      var milestones = await db.FeeMilestones.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.AgreementId == agreement.Id)
+        .OrderBy(x => x.Kind == FeeMilestoneKinds.Advance ? 0 : 1)
+        .ToListAsync(ct);
+      var receiptSources = new List<MilestoneReceiptSource>(milestones.Count);
+      foreach (var milestone in milestones)
+      {
+        if (!milestone.InvoiceId.HasValue) continue;
+        var invoiceId = milestone.InvoiceId.Value;
+        var invoice = await db.Invoices.AsNoTracking()
+          .SingleOrDefaultAsync(x => x.Id == invoiceId && x.FirmId == actor.FirmId, ct);
+        if (invoice is not null && !await db.BillingAccounts.AsNoTracking().AnyAsync(x =>
+              x.FirmId == actor.FirmId && x.Id == invoice.BillingAccountId &&
+              x.PracticeClientId == agreement.PracticeClientId, ct))
+          return ReceiptPageScopeDenied();
+        receiptSources.Add(new(milestone.Id, milestone.Kind, invoiceId, invoice?.BillingAccountId));
+      }
+
+      var receiptPage = await LoadReceiptPageAsync(db, actor, agreement, receiptSources, pageSize, position, ct);
+      page = new(agreement.Id, receiptPage.Receipts, pageSize, receiptPage.HasMore, receiptPage.NextCursor);
+      await snapshot.CommitAsync(ct);
+    }
+
+    // Do not return snapshot data if the participant's session or any exact grant changed during the read.
+    var currentIdentity = await LoadIdentityAsync(db, actor, DateTimeOffset.UtcNow, ct);
+    if (currentIdentity is null || currentIdentity.SessionEpoch != actor.SessionEpoch ||
+        !SameIdentity(initialIdentity, currentIdentity))
+      return ReceiptPageScopeDenied();
+
+    return CommandResult<PortalClientFinanceReceiptPage>.Ok(page);
+  }
+
+  private static async Task<decimal> SumCashAppliedAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid invoiceId, Guid? billingAccountId, CancellationToken ct)
+  {
+    var allocationQuery =
+      from allocation in db.ReceiptAllocations.AsNoTracking()
+      join receipt in db.Receipts.AsNoTracking()
+        on new { allocation.FirmId, allocation.ReceiptId } equals new { receipt.FirmId, ReceiptId = receipt.Id }
+      where allocation.FirmId == actor.FirmId && allocation.InvoiceId == invoiceId &&
+        receipt.Status == BillingStates.ReceiptRecorded
+      select new
+      {
+        allocation.ReceiptId,
+        allocation.Amount,
+        receipt.BillingAccountId,
+        ApprovedReversedAmount = db.ReceiptAllocationReversals.AsNoTracking()
+          .Where(reversal => reversal.FirmId == actor.FirmId && reversal.ReceiptAllocationId == allocation.Id &&
+            reversal.Status == ReceiptAllocationReversalStates.Approved)
+          .Sum(reversal => (decimal?)reversal.Amount) ?? 0m
+      };
+    if (billingAccountId is { } accountId)
+      allocationQuery = allocationQuery.Where(x => x.BillingAccountId == accountId);
+
+    // The unique (FirmId, ReceiptId, InvoiceId) allocation index gives one source row per receipt here;
+    // at the stored six-decimal scale this is the existing per-receipt normalized sum, reduced in SQL.
+    var appliedAmounts = allocationQuery.Select(x => x.Amount - x.ApprovedReversedAmount);
+    var totalApplied = await appliedAmounts.SumAsync(x => (decimal?)x, ct) ?? 0m;
+    return MoneyPolicy.Normalize(totalApplied);
+  }
+
+  private static async Task<ReceiptPageData> LoadReceiptPageAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    EngagementFeeAgreement agreement,
+    IReadOnlyList<MilestoneReceiptSource> sources,
+    int pageSize,
+    ReceiptCursor? position,
+    CancellationToken ct)
+  {
+    if (sources.Count == 0) return new([], false, null);
+
+    var milestoneIds = sources.Select(x => x.MilestoneId).Distinct().ToArray();
+    var receiptDocuments = await db.CommercialDocuments.AsNoTracking()
+      .Where(document => document.FirmId == actor.FirmId && document.FeeMilestoneId != null &&
+        milestoneIds.Contains(document.FeeMilestoneId.Value) && document.Kind == CommercialDocumentKinds.PaymentReceipt &&
+        ((document.ProposalId == null && document.QuotationVersionId == null) ||
+          (document.ProposalId == agreement.ProposalId && document.QuotationVersionId == agreement.QuotationVersionId)) &&
+        db.Proposals.Any(proposal => proposal.FirmId == actor.FirmId && proposal.Id == agreement.ProposalId &&
+          proposal.PracticeClientId == agreement.PracticeClientId) &&
+        (agreement.EngagementId == null || db.Engagements.Any(engagement =>
+          engagement.FirmId == actor.FirmId && engagement.Id == agreement.EngagementId &&
+          engagement.PracticeClientId == agreement.PracticeClientId)))
+      .Select(document => new { FeeMilestoneId = document.FeeMilestoneId!.Value, document.Id })
+      .ToListAsync(ct);
+    var receiptDocumentIds = receiptDocuments.ToDictionary(x => x.FeeMilestoneId, x => x.Id);
+
+    var candidates = new List<PortalClientReceipt>(sources.Count * (pageSize + 1));
+    foreach (var source in sources)
+    {
+      var allocationQuery =
+        from allocation in db.ReceiptAllocations.AsNoTracking()
+        join receipt in db.Receipts.AsNoTracking()
+          on new { allocation.FirmId, allocation.ReceiptId } equals new { receipt.FirmId, ReceiptId = receipt.Id }
+        where allocation.FirmId == actor.FirmId && allocation.InvoiceId == source.InvoiceId &&
+          receipt.Status == BillingStates.ReceiptRecorded
+        select new
+        {
+          allocation.ReceiptId,
+          allocation.Amount,
+          receipt.BillingAccountId,
+          receipt.Currency,
+          receipt.Reference,
+          receipt.ReceivedAt,
+          ApprovedReversedAmount = db.ReceiptAllocationReversals.AsNoTracking()
+            .Where(reversal => reversal.FirmId == actor.FirmId && reversal.ReceiptAllocationId == allocation.Id &&
+              reversal.Status == ReceiptAllocationReversalStates.Approved)
+            .Sum(reversal => (decimal?)reversal.Amount) ?? 0m
+        };
+      if (source.BillingAccountId is { } billingAccountId)
+        allocationQuery = allocationQuery.Where(x => x.BillingAccountId == billingAccountId);
+      if (position is { } after)
+      {
+        var kindFollowsCursor = StringComparer.Ordinal.Compare(source.Kind, after.Kind) > 0;
+        allocationQuery = allocationQuery.Where(x => x.ReceivedAt < after.ReceivedAt ||
+          (x.ReceivedAt == after.ReceivedAt &&
+            (x.ReceiptId.CompareTo(after.ReceiptId) < 0 ||
+              (x.ReceiptId == after.ReceiptId && kindFollowsCursor))));
+      }
+
+      var rows = await allocationQuery.TagWith(ReceiptPageQueryTag)
+        .OrderByDescending(x => x.ReceivedAt)
+        .ThenByDescending(x => x.ReceiptId)
+        .Take(pageSize + 1)
+        .Select(x => new
+        {
+          x.ReceiptId,
+          x.Amount,
+          x.ApprovedReversedAmount,
+          x.Currency,
+          x.Reference,
+          x.ReceivedAt
+        })
+        .ToListAsync(ct);
+      Guid? documentId = receiptDocumentIds.TryGetValue(source.MilestoneId, out var foundDocumentId)
+        ? foundDocumentId
+        : null;
+      foreach (var row in rows)
+      {
+        candidates.Add(new(
+          row.ReceiptId,
+          documentId,
+          source.Kind,
+          Exact(row.Amount),
+          Exact(MoneyPolicy.Normalize(row.Amount - row.ApprovedReversedAmount)),
+          row.Currency ?? agreement.Currency,
+          row.Reference,
+          row.ReceivedAt,
+          documentId is { } id ? $"/api/commercial/documents/{id}/download" : null));
+      }
+    }
+
+    var ordered = candidates.OrderByDescending(x => x.ReceivedAt)
+      .ThenByDescending(x => x.ReceiptId)
+      .ThenBy(x => x.Kind, StringComparer.Ordinal)
+      .Take(pageSize + 1)
+      .ToArray();
+    var hasMore = ordered.Length > pageSize;
+    var receipts = ordered.Take(pageSize).ToArray();
+    var nextCursor = hasMore && receipts.Length > 0
+      ? EncodeReceiptCursor(new(agreement.Id, receipts[^1].ReceivedAt, receipts[^1].ReceiptId, receipts[^1].Kind))
+      : null;
+    return new(receipts, hasMore, nextCursor);
   }
 
   private static async Task<FinanceIdentity?> LoadIdentityAsync(
@@ -340,6 +515,47 @@ public static class ClientPortalFinanceQuery
     return Convert.ToBase64String(Encoding.UTF8.GetBytes(payload)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
   }
 
+  private static bool TryDecodeReceiptCursor(string value, out ReceiptCursor? cursor)
+  {
+    cursor = null;
+    if (value.Length is 0 or > MaximumCursorLength ||
+        value.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))) return false;
+    var base64 = value.Replace('-', '+').Replace('_', '/');
+    var remainder = base64.Length % 4;
+    if (remainder == 1) return false;
+    if (remainder == 2) base64 += "==";
+    else if (remainder == 3) base64 += "=";
+    try
+    {
+      var payload = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+      var fields = payload.Split('\n');
+      if (fields.Length != 5 || fields[0] != "v1" ||
+          !Guid.TryParseExact(fields[1], "D", out var agreementId) || agreementId == Guid.Empty ||
+          !DateTimeOffset.TryParseExact(fields[2], "O", CultureInfo.InvariantCulture, DateTimeStyles.None, out var receivedAt) ||
+          receivedAt.Offset != TimeSpan.Zero || receivedAt.Ticks % 10 != 0 ||
+          !Guid.TryParseExact(fields[3], "D", out var receiptId) || receiptId == Guid.Empty ||
+          fields[4] is not (FeeMilestoneKinds.Advance or FeeMilestoneKinds.Balance))
+        return false;
+      var decoded = new ReceiptCursor(agreementId, receivedAt, receiptId, fields[4]);
+      if (!string.Equals(EncodeReceiptCursor(decoded), value, StringComparison.Ordinal)) return false;
+      cursor = decoded;
+      return true;
+    }
+    catch (FormatException) { return false; }
+  }
+
+  private static string EncodeReceiptCursor(ReceiptCursor cursor)
+  {
+    var payload = $"v1\n{cursor.AgreementId:D}\n{cursor.ReceivedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)}\n{cursor.ReceiptId:D}\n{cursor.Kind}";
+    return Convert.ToBase64String(Encoding.UTF8.GetBytes(payload)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+  }
+
   private static CommandResult<PortalClientFinanceView> Invalid() =>
     CommandResult<PortalClientFinanceView>.Fail("request.invalid", "The client finance page or continuation is invalid.");
+
+  private static CommandResult<PortalClientFinanceReceiptPage> InvalidReceiptPage() =>
+    CommandResult<PortalClientFinanceReceiptPage>.Fail("request.invalid", "The client receipt page or continuation is invalid.");
+
+  private static CommandResult<PortalClientFinanceReceiptPage> ReceiptPageScopeDenied() =>
+    CommandResult<PortalClientFinanceReceiptPage>.Fail(ErrorCodes.ScopeDenied, "Finance documents unavailable.");
 }

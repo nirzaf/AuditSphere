@@ -371,6 +371,52 @@ public sealed class AngularClientPortalJourneyTests
     await Assertions.Expect(receiptsRegion).ToBeFocusedAsync();
     Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"),
       "Finance tables must not cause document-level horizontal overflow at 390px.");
+    // Additional immutable payment rows exercise receipt history without changing the original QAR 4,000 case.
+    var oldestPaymentId = Guid.Parse("c0000000-0000-4000-8000-000000000001");
+    await using (var db = host.CreateDbContext())
+    {
+      var accountId = await db.Invoices.AsNoTracking().Where(x => x.FirmId == f.FirmId && x.Id == invoiceId)
+        .Select(x => x.BillingAccountId).SingleAsync();
+      var receiptTime = now.AddDays(-2);
+      receiptTime = new DateTimeOffset(receiptTime.UtcTicks - receiptTime.UtcTicks % 10, TimeSpan.Zero);
+      var olderPayments = Enumerable.Range(1, 50).Select(index => new Receipt
+      {
+        Id = Guid.Parse($"c0000000-0000-4000-8000-{index:D12}"), FirmId = f.FirmId,
+        BillingAccountId = accountId, Amount = 1m, Currency = "QAR", Reference = $"TT-ASPM-COM06-PAGE-{index:D3}",
+        Status = BillingStates.ReceiptRecorded, RecordedByUserId = f.Staff.Id, ReceivedAt = receiptTime
+      }).ToArray();
+      db.Receipts.AddRange(olderPayments);
+      db.ReceiptAllocations.AddRange(olderPayments.Select(payment => new ReceiptAllocation
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ReceiptId = payment.Id, InvoiceId = invoiceId,
+        Amount = 1m, CreatedAt = receiptTime
+      }));
+      await db.SaveChangesAsync();
+    }
+    await finance.GetByRole(AriaRole.Button, new() { Name = "Refresh finance from start", Exact = true }).ClickAsync();
+    var receiptTable = finance.GetByRole(AriaRole.Table, new() { Name = "Payment receipts", Exact = true });
+    await Assertions.Expect(receiptTable.Locator("tbody tr")).ToHaveCountAsync(50);
+    await Assertions.Expect(invoiceRow.Locator("td").Nth(6))
+      .ToHaveTextAsync(new System.Text.RegularExpressions.Regex(@"^4050(?:\.0+)? QAR$"));
+    await Assertions.Expect(invoiceRow.Locator("td").Nth(8))
+      .ToHaveTextAsync(new System.Text.RegularExpressions.Regex(@"^5950(?:\.0+)? QAR$"));
+    var receiptPages = finance.GetByRole(AriaRole.Navigation, new() { Name = "Payment receipt pages", Exact = true });
+    var olderReceipts = receiptPages.GetByRole(AriaRole.Button, new() { Name = "Older receipts", Exact = true });
+    await olderReceipts.FocusAsync();
+    var (receiptPageStatus, receiptPageBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && request.Url.Contains($"/api/ui/portal/finance/agreements/{agreementId}/receipts", StringComparison.Ordinal),
+      () => olderReceipts.PressAsync("Space"));
+    Assert.Equal(200, receiptPageStatus);
+    using (var body = System.Text.Json.JsonDocument.Parse(receiptPageBody))
+      Assert.Equal(oldestPaymentId, Assert.Single(body.RootElement.GetProperty("receipts").EnumerateArray()).GetProperty("receiptId").GetGuid());
+    await Assertions.Expect(receiptTable.Locator("tbody tr")).ToHaveCountAsync(1);
+    await Assertions.Expect(receiptTable).ToContainTextAsync("TT-ASPM-COM06-PAGE-001");
+    await Assertions.Expect(finance.GetByRole(AriaRole.Heading, new() { Name = "Payment receipts", Exact = true })).ToBeFocusedAsync();
+    await Assertions.Expect(finance.Locator(".agreement-card")).ToHaveCountAsync(1);
+    await receiptPages.GetByRole(AriaRole.Button, new() { Name = "Newer receipts", Exact = true }).PressAsync("Enter");
+    await Assertions.Expect(receiptTable.Locator("tbody tr")).ToHaveCountAsync(50);
+    await Assertions.Expect(receiptTable).ToContainTextAsync("TT-ASPM-COM06-001");
+    Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
     // Additional projection-only agreements exercise bounded history, not commercial approval or payment policy.
     Guid oldestAgreementId;
     await using (var db = host.CreateDbContext())

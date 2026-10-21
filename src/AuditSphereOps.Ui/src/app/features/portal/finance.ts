@@ -15,6 +15,7 @@ import { Api } from '../../core/api';
 import { arr, bool, date, DecodeError, guid, instant, nat, nullable, obj, str, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
+import { PortalFinanceReceipts, portalFinanceReceipt, portalFinanceReceiptKey } from './finance-receipts';
 
 const invoice = obj({
   invoiceId: guid,
@@ -35,18 +36,6 @@ const invoice = obj({
   agingStatus: text,
 });
 
-const receipt = obj({
-  receiptId: guid,
-  documentId: nullable(guid),
-  kind: text,
-  amount: text,
-  appliedAmount: text,
-  currency: text,
-  reference: text,
-  receivedAt: instant,
-  downloadUrl: nullable(text),
-});
-
 // Per-agreement invoice and receipt summaries remain bounded to 50 on this wire contract.
 // arr rejects overflow; the client never truncates these histories silently.
 const agreement = obj({
@@ -57,7 +46,9 @@ const agreement = obj({
   advancePercent: text,
   outstandingBalance: text,
   invoices: arr(invoice, 50),
-  receipts: arr(receipt, 50),
+  receipts: arr(portalFinanceReceipt, 50),
+  hasMoreReceipts: bool,
+  nextReceiptCursor: nullable(str(256)),
 });
 
 const financePage = obj({
@@ -70,10 +61,17 @@ const financePage = obj({
 
 export const portalFinanceContract = (value: unknown, path: string) => {
   const page = financePage(value, path);
+  const invalidReceiptPage = page.agreements.some((row) =>
+    new Set(row.receipts.map(portalFinanceReceiptKey)).size !== row.receipts.length ||
+    row.hasMoreReceipts !== (row.nextReceiptCursor !== null) ||
+    (row.hasMoreReceipts && row.receipts.length !== 50) ||
+    (row.nextReceiptCursor !== null && !/^[A-Za-z0-9_-]{1,256}$/.test(row.nextReceiptCursor)),
+  );
   if (
     page.pageSize !== 50 ||
     page.agreements.length > page.pageSize ||
     new Set(page.agreements.map((row) => row.agreementId.toLowerCase())).size !== page.agreements.length ||
+    invalidReceiptPage ||
     page.hasMore !== (page.nextCursor !== null) ||
     (page.hasMore && page.agreements.length !== page.pageSize) ||
     (page.nextCursor !== null && !/^[A-Za-z0-9_-]{1,256}$/.test(page.nextCursor))
@@ -84,7 +82,7 @@ export const portalFinanceContract = (value: unknown, path: string) => {
 
 @Component({
   selector: 'audit-portal-finance',
-  imports: [MatButtonModule, ...SHARED],
+  imports: [MatButtonModule, PortalFinanceReceipts, ...SHARED],
   template: `
     <section class="panel" aria-labelledby="portal-finance-heading">
       <h2 #heading id="portal-finance-heading" tabindex="-1">Billing and payment receipts</h2>
@@ -170,43 +168,13 @@ export const portalFinanceContract = (value: unknown, path: string) => {
                 </div>
               }
 
-              @if (agr.receipts.length > 0) {
-                <div class="table-section" tabindex="0" role="region" aria-label="Scrollable payment receipts">
-                  <h4>Payment receipts</h4>
-                  <p>Currently applied amounts reflect independently approved allocation reversals. Pending or rejected reversals do not change applied cash; the original receipt voucher remains unchanged.</p>
-                  <table class="finance-table" aria-label="Payment receipts">
-                    <thead>
-                      <tr>
-                        <th>Type</th>
-                        <th>Reference</th>
-                        <th>Original allocation</th>
-                        <th>Currently applied</th>
-                        <th>Date</th>
-                        <th>Receipt document</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (r of agr.receipts; track r.receiptId) {
-                        <tr>
-                          <td>{{ r.kind === 'ADVANCE' ? 'Advance payment' : 'Final settlement' }}</td>
-                          <td><code>{{ r.reference }}</code></td>
-                          <td>{{ r.amount }} {{ r.currency }}</td>
-                          <td>{{ r.appliedAmount }} {{ r.currency }}</td>
-                          <td>{{ r.receivedAt }}</td>
-                          <td>
-                            @if (r.downloadUrl) {
-                              <a matButton [href]="r.downloadUrl" target="_blank" rel="noopener">
-                                Download receipt
-                              </a>
-                            } @else {
-                              <span>Retained</span>
-                            }
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
+              @if (agr.receipts.length > 0 || agr.hasMoreReceipts) {
+                <audit-portal-finance-receipts
+                  [agreementId]="agr.agreementId"
+                  [initialReceipts]="agr.receipts"
+                  [initialHasMore]="agr.hasMoreReceipts"
+                  [initialNextCursor]="agr.nextReceiptCursor"
+                />
               }
             </div>
           </article>
