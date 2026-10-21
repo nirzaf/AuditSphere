@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Release E2E failure triage
+
+The accounting revocation journey now handles the expected removal of refresh actions during session revocation, then still requires the denial screen and removal of protected content. Its focused browser regression passes. The separate finding-receipt recovery conflict remains unresolved: state returned a conflict before receipt lookup; the safety guard remains intact. Exact evidence and scope are under `releaseFailureTriage20261021` in [status.json](status.json). No full local suites or external changes were performed.
+
 ## Annual engagement source-context safety
 
 Annual route changes now invalidate previews, assent and late callbacks while retaining unsaved fields and durable receipt recovery. A retained annual draft cannot silently become manual creation; returning to its source requires fresh review. The dynamically populated template selector now displays the retained revision correctly.

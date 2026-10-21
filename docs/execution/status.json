@@ -1184,13 +1184,11 @@
     },
     "portalDocumentMilestones20261021": {
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "archive": "status-archive-2026-10.json#/keys/targetedVerification/focusedEvidenceHistory20261021/portalDocumentMilestones20261021",
-      "limits": "Retained document sharing/acknowledgment times have focused API/UI evidence; unified client history, human/live and full release acceptance remain open."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalDocumentMilestones20261021"
     },
     "portalDocumentHistory20261021": {
       "status": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "archive": "status-archive-2026-10.json#/keys/targetedVerification/focusedEvidenceHistory20261021/portalDocumentHistory20261021",
-      "limits": "Paged document history and keyboard source links have focused evidence; complete commercial/PBC chronology, human/live and full-release acceptance remain open."
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalDocumentHistory20261021"
     },
     "pbcCurrentAuthority20261021": {
       "status": "PASS_LOCAL_SLICE",
@@ -1223,6 +1221,15 @@
         "/tmp/auditsphere-annual-context-green-final-20261021.log"
       ],
       "limits": "Earlier browser return cohort FAIL1/2 exposed empty dropdown despite retained v2; fixed option selection, final2/2 PASS. Built-in320px inspection proved retained fields/quarantine and disabled review; return completion established by Playwright. No full local suite/live effects. Human AT/professional/current-source full acceptance open. Full release39518012940 on68f7c7dc failed two E2E cases; Domain/API/Angular/contracts PASS. Fast39529105234 onf0cab7b7 PASS; newer source CI pending."
+    },
+    "releaseFailureTriage20261021": {
+      "status": "PARTIAL",
+      "sourceCommit": "c3545b58a5788c6b9f3a33e80af53789a47f18d0",
+      "releaseRun": "39518012940",
+      "releaseSource": "68f7c7dcbe7181540589427f419ecd8d352a9256",
+      "finding": "Domain/API/Angular/contracts PASS; E2E failed2. Accounting queue refresh click races expected session-revocation outlet replacement. Conditional short click then mandatory Access unavailable/data-clearing assertions preserves security proof. Focused AccountingQueuesAndDetailsClearAfterRouteChangesAndGrantRevocation PASS1/1,61s.",
+      "artifact": "tests/AuditSphereOps.E2E.Tests/TestResults/accounting-revocation-race-20261021.trx",
+      "remaining": "Finding lost-committed recovery state GET409 prevented receipt GET. Conflict guard retained; log lacks body/snapshots, cause not yet established. No full local suites; current-source full release and human/live acceptance pending."
     }
   },
   "externalGates": [
