@@ -4,9 +4,11 @@
     <button matButton (click)="load()" [disabled]="loading()">Refresh workflow</button>
   </div>
 
-  @if (loading()) {
-    <p>Evaluating engagement progression...</p>
-  }
+  <div class="workflow-loading-status" role="status" aria-live="polite" aria-atomic="true">
+    @if (loading()) {
+      <p>Evaluating engagement progression...</p>
+    }
+  </div>
   @if (error()) {
     <p role="alert">{{ error() }}</p>
   }

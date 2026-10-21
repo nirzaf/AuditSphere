@@ -154,4 +154,32 @@ describe('Engagement workflow saved milestone display', () => {
     expect(text).toContain('The saved milestone schedule is unavailable to your role');
     expect(text).not.toContain('No saved milestone schedule is recorded.');
   });
+
+  it('announces workflow loading through a persistent status region and clears it after the response', () => {
+    const fixture = TestBed.createComponent(EngagementWorkflow);
+    fixture.componentRef.setInput('engagementId', engagementId);
+    fixture.detectChanges();
+    TestBed.tick();
+
+    const http = TestBed.inject(HttpTestingController);
+    const workflowRequest = http.expectOne(`/api/ui/engagements/${engagementId}/workflow`);
+    const status = fixture.nativeElement.querySelector('[role="status"].workflow-loading-status') as HTMLElement;
+    expect(status).toBeTruthy();
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.getAttribute('aria-atomic')).toBe('true');
+    expect(status.textContent).toContain('Evaluating engagement progression...');
+
+    workflowRequest.flush(workflow());
+    fixture.detectChanges();
+    expect(status.textContent?.trim()).toBe('');
+
+    http.expectOne(`/api/ui/engagements/${engagementId}/workflow/tasks`).flush({
+      engagementId, tasks: [], truncated: false,
+    });
+    http.expectOne(`/api/ui/engagements/${engagementId}/milestones`).flush(null);
+    http.expectOne(`/api/ui/engagements/${engagementId}/workflow/tasks/assignees`).flush([]);
+    TestBed.tick();
+    fixture.detectChanges();
+    fixture.destroy();
+  });
 });
