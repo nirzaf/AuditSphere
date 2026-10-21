@@ -19086,6 +19086,21 @@
           "review": "Independent agents confirmed mounted staff-to-staff retention path and found no implementation blocker; final regression additionally tests identity-only retained-report clearing.",
           "limits": "No new built-in browser journey or full local suite. No template change. Human screen-reader acceptance and current-source full CI remain open.",
           "ciObserved": "Full release 39518012940 on 68f7c7dc still IN_PROGRESS (API/E2E); Angular, Domain and build/contracts PASS. Fast runs 39525114774/39525114684 on 3d9316d6 SUCCESS. Dependabot 39525343940 FAILED: pinned @angular/build22.2.1 requires vite8.3.0; patched version reported8.3.3; no unapproved dependency override added."
+        },
+        "nativeInvoiceSourceReport20261021": {
+          "status": "PASS_LOCAL_SLICE",
+          "sourceCommit": "9620c40fa7dd4a7b660c368b775e91a6186d7144",
+          "baseline": "70338de87cab3521894173da76ad8b463dc8cbc8",
+          "behavior": "Named keyboard scroll regions/column headers for native GL/TB, retained sales preparation/posting and credit tables; bounded allocation form reflow. Existing real-command invoice/credit/allocation journey now reconciles source journal IDs across January/February without firm-ledger or cash mutation.",
+          "verification": "Focused SalesInvoiceFlowsFromUntaxedPreparationToIndependentClientLedgerPosting PASS 1/1 (61s including manual handoff). January opening0/movement225/closing225 each side; February opening225/movement65/closing160. AR100/AP60/revenue100/expense60; credit25 with20allocated leaves5, invoice125 leaves105. Four exact posted source journals/eight lines; no manual settlements/firm journals. Angular build PASS with existing completion optional-chain and commercial-style budget warnings; four changed production files ESLint PASS.",
+          "browser": "Built-in owned synthetic fixture: February totals confirmed; at320x844 document305px, TB region271px/scroll857px, ArrowRight40px with visible solid focus; console warnings/errors0. Closed tabs and released fixture; no live tenant actions.",
+          "artifacts": [
+            "tests/AuditSphereOps.E2E.Tests/TestResults/native-invoice-source-report-final-20261021.trx",
+            "/tmp/auditsphere-native-source-report-browser-final-20261021.log",
+            "/tmp/auditsphere-native-source-report-final-320-20261021.png"
+          ],
+          "priorFailures": "Harness compile signatures corrected; initial non-waiting header read repaired. Reflow assertion exposed allocation controls and retained unwrapped invoice tables (up to598px); scoped fixes retain the assertion. Intermediate logs/TRX remain local.",
+          "limits": "No full local suites. Synthetic accepted service profile is not a client mandate or professional acceptance. Settlements, reversals, cross-period carry-forward, human AT, full current-source release and live acceptance remain open. Fast CI39525956612 on70338de8 PASS; full39518012940 on68f7c7dc still API/E2E IN_PROGRESS."
         }
       }
     },

@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Native invoice sources through monthly client books
+## Source-backed procedure submission and rework
 
-The existing native invoice/credit/allocation browser journey now reconciles exact posted source journals to two months of GL and Trial Balance activity. Partial allocation remains distinct from credit posting; client sources do not mutate firm books or imply cash settlement. Named keyboard-scroll regions and table headers cover the retained preparation/posting and report tables; allocation controls reflow within the workspace.
+The fieldwork review screen now summarizes only the retained submission's evidence identities and observations, distinctly labeling physical locations at submission and unverified legacy references. It never reconstructs evidence from current links or asserts source freshness/professional sufficiency. Unsupported formats retain the raw-snapshot inspection path; both views reflow.
 
-The populated browser check exposed and repaired page overflow while preserving intentional table scrolling. Exact arithmetic, focused results, intermediate failures, built-in inspection and CI limits are recorded under `nativeInvoiceSourceReport20261021` in [status.json](status.json). Synthetic service setup does not supply a real client mandate or professional acceptance. Settlements/reversals, full current-source release, human AT and live gates remain open. Prior session-bound finance/PBC notes are preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+The existing owned browser journey now connects synthetic received PBC bytes to exact Angular evidence selection, lost-response recovery, independent return and corrected resubmission. Frozen identities, hash and receipt digest remain linked while the later rework-queue checks are preserved. Results, narrow-screen inspection and limits are under `procedureSourceEvidence20261021` in [status.json](status.json). No qualified human, methodology or live-provider approval is supplied; broader state/freshness and current-source full release acceptance remain open. Earlier native-book/session evidence is preserved in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
 ## Paged client document history
 
