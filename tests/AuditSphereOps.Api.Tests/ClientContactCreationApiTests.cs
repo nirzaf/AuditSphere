@@ -135,6 +135,112 @@ public sealed class ClientContactCreationApiTests
     }
   }
 
+  [Fact]
+  public async Task ContactRoutingAssignmentRequiresCsrfAndPersistsOnlySameClientContact()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("CLIENT-ROUTING-ASSIGNMENT-API");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var otherClientId = Guid.CreateVersion7();
+    var clientContactId = Guid.CreateVersion7();
+    var otherClientContactId = Guid.CreateVersion7();
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(fixture.FirmId, fixture.Admin, "Partner"));
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = otherClientId,
+        FirmId = fixture.FirmId,
+        LegalName = "Other Synthetic Client",
+        Status = "Active",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientContacts.AddRange(
+        new ClientContact
+        {
+          Id = clientContactId,
+          FirmId = fixture.FirmId,
+          PracticeClientId = fixture.ClientId,
+          FullName = "Finance Contact",
+          Email = "finance@client.example.test",
+          Role = "Finance",
+          IsActive = true
+        },
+        new ClientContact
+        {
+          Id = otherClientContactId,
+          FirmId = fixture.FirmId,
+          PracticeClientId = otherClientId,
+          FullName = "Other Client Contact",
+          Email = "finance@other-client.example.test",
+          Role = "Finance",
+          IsActive = true
+        });
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true",
+      ["DevelopmentIdentity:Subject"] = fixture.Admin.Subject,
+      ["DevelopmentIdentity:TenantId"] = fixture.Admin.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true",
+      ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await client.GetAsync("/auth/sign-in");
+    using var session = await client.GetAsync("/api/ui/session");
+    var csrf = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(value => value.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal))
+      .Split(';')[0]["XSRF-TOKEN=".Length..]);
+    var url = $"/api/ui/clients/{fixture.ClientId}/routings";
+
+    using var forgedCsrf = await Post(client, "forged", url, new
+    {
+      clientContactId,
+      purpose = "finance",
+      effectiveFrom = "2026-01-01",
+      effectiveTo = "2026-12-31",
+      isPrimaryForPurpose = true
+    });
+    Assert.Equal(HttpStatusCode.Forbidden, forgedCsrf.StatusCode);
+
+    using var crossClientContact = await Post(client, csrf, url, new
+    {
+      clientContactId = otherClientContactId,
+      purpose = "finance",
+      effectiveFrom = "2026-01-01",
+      effectiveTo = "2026-12-31",
+      isPrimaryForPurpose = true
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, crossClientContact.StatusCode);
+    using (var error = JsonDocument.Parse(await crossClientContact.Content.ReadAsStringAsync()))
+      Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, error.RootElement.GetProperty("code").GetString());
+
+    using var assigned = await Post(client, csrf, url, new
+    {
+      clientContactId,
+      purpose = "finance",
+      effectiveFrom = "2026-01-01",
+      effectiveTo = "2026-12-31",
+      isPrimaryForPurpose = true
+    });
+    Assert.Equal(HttpStatusCode.OK, assigned.StatusCode);
+    var routingId = JsonDocument.Parse(await assigned.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetGuid();
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    var routing = await proof.ClientContactRoutings.AsNoTracking().SingleAsync(x => x.Id == routingId);
+    Assert.Equal(fixture.FirmId, routing.FirmId);
+    Assert.Equal(fixture.ClientId, routing.PracticeClientId);
+    Assert.Equal(clientContactId, routing.ClientContactId);
+    Assert.Equal(AuditSphereOps.Domain.Practice.CorrespondencePurposes.Finance, routing.Purpose);
+    Assert.Equal(new DateOnly(2026, 1, 1), routing.EffectiveFrom);
+    Assert.Equal(new DateOnly(2026, 12, 31), routing.EffectiveTo);
+    Assert.True(routing.IsPrimaryForPurpose);
+    Assert.Equal(fixture.Admin.Id, routing.CreatedByUserId);
+  }
+
   private static Task<HttpResponseMessage> Post(HttpClient c,string csrf,string url,object input){var r=new HttpRequestMessage(HttpMethod.Post,url){Content=JsonContent.Create(input)};r.Headers.Add("X-XSRF-TOKEN",csrf);return c.SendAsync(r);}
   private static Task<HttpResponseMessage> Delete(HttpClient c, string csrf, string url, object input)
   {
