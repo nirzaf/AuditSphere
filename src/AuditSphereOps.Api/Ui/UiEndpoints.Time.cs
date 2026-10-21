@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using AuditSphereOps.Api.Contracts;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
@@ -9,6 +10,10 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  private static readonly Regex PracticeTimeCursorInstantPattern = new(
+    @"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|[+-]\d{2}:\d{2})\z",
+    RegexOptions.CultureInvariant);
+
   public sealed record WorkTaskInput(string Title, Guid? ReportingPeriodId, string? DueDate,
     Guid? EngagementId = null, Guid? MappingVersionId = null, string? FsliCode = null, string? Phase = null);
   public sealed record TimeDraftInput(Guid TaskId, string WorkDate, int DurationMinutes, string Role, string Activity, bool Billable, string? Narrative,
@@ -24,6 +29,11 @@ public static partial class UiEndpoints
           !TryGetSinglePracticeTimeQueryValue(query, "approvalAfterEntryId", out var rawAfterEntryId) ||
           !TryGetSinglePracticeTimeQueryValue(query, "approvalPageSize", out var rawPageSize))
         return Task.FromResult(Invalid("Use one valid value for each approval paging parameter."));
+      if (!TryGetSinglePracticeTimeQueryValue(query, "entriesBeforeWorkDate", out var rawEntriesBeforeWorkDate) ||
+          !TryGetSinglePracticeTimeQueryValue(query, "entriesBeforeCreatedAt", out var rawEntriesBeforeCreatedAt) ||
+          !TryGetSinglePracticeTimeQueryValue(query, "entriesBeforeEntryId", out var rawEntriesBeforeEntryId) ||
+          !TryGetSinglePracticeTimeQueryValue(query, "entriesPageSize", out var rawEntriesPageSize))
+        return Task.FromResult(Invalid("Use one valid value for each personal history paging parameter."));
 
       DateOnly? afterWorkDate = null;
       if (rawAfterWorkDate is not null)
@@ -47,7 +57,38 @@ public static partial class UiEndpoints
           (!int.TryParse(rawPageSize, NumberStyles.None, CultureInfo.InvariantCulture, out pageSize) || pageSize is < 1 or > 100))
         return Task.FromResult(Invalid("Approval page size must be a whole number from 1 to 100."));
 
-      var request = new PracticeTimeWorkspaceRequest(afterWorkDate, afterEntryId, pageSize);
+      DateOnly? entriesBeforeWorkDate = null;
+      if (rawEntriesBeforeWorkDate is not null)
+      {
+        if (!TryDate(rawEntriesBeforeWorkDate, out var parsedDate))
+          return Task.FromResult(Invalid("Use an ISO work date and complete history cursor, with a page size from 1 to 100."));
+        entriesBeforeWorkDate = parsedDate;
+      }
+      DateTimeOffset? entriesBeforeCreatedAt = null;
+      if (rawEntriesBeforeCreatedAt is not null)
+      {
+        if (!TryParsePracticeTimeCursorInstant(rawEntriesBeforeCreatedAt, out var parsedInstant))
+          return Task.FromResult(Invalid("Use an ISO timestamp with an explicit Z or UTC offset for the history cursor."));
+        entriesBeforeCreatedAt = parsedInstant;
+      }
+      Guid? entriesBeforeEntryId = null;
+      if (rawEntriesBeforeEntryId is not null)
+      {
+        if (!Guid.TryParse(rawEntriesBeforeEntryId, out var parsedEntryId) || parsedEntryId == Guid.Empty)
+          return Task.FromResult(Invalid("Use a nonempty entry id in the history cursor."));
+        entriesBeforeEntryId = parsedEntryId;
+      }
+      if ((entriesBeforeWorkDate is null) != (entriesBeforeCreatedAt is null) ||
+          (entriesBeforeWorkDate is null) != (entriesBeforeEntryId is null))
+        return Task.FromResult(Invalid("Provide all three history cursor values or omit them together."));
+
+      var entriesPageSize = 50;
+      if (rawEntriesPageSize is not null &&
+          (!int.TryParse(rawEntriesPageSize, NumberStyles.None, CultureInfo.InvariantCulture, out entriesPageSize) || entriesPageSize is < 1 or > 100))
+        return Task.FromResult(Invalid("History page size must be a whole number from 1 to 100."));
+
+      var request = new PracticeTimeWorkspaceRequest(afterWorkDate, afterEntryId, pageSize,
+        entriesBeforeWorkDate, entriesBeforeCreatedAt, entriesBeforeEntryId, entriesPageSize);
       return ReadAsync(http, (db, actor, ct) => PracticeTimeWorkspaceQuery.GetAsync(db, actor, request, ct));
     })
       .WithT046Response<PracticeTimeWorkspace>()
@@ -57,7 +98,15 @@ public static partial class UiEndpoints
         new ManualParameterMetadata("approvalAfterEntryId", ParameterLocation.Query, false, JsonSchemaType.String,
           Format: "uuid", Description: "Entry-id cursor component. Supply together with approvalAfterWorkDate; omit both to start at the first page."),
         new ManualParameterMetadata("approvalPageSize", ParameterLocation.Query, false, JsonSchemaType.Integer,
-          Format: "int32", Description: "Approval queue page size from 1 through 100; omitted values default to 50.", Minimum: 1));
+          Format: "int32", Description: "Approval queue page size from 1 through 100; omitted values default to 50.", Minimum: 1),
+        new ManualParameterMetadata("entriesBeforeWorkDate", ParameterLocation.Query, false, JsonSchemaType.String,
+          Format: "date", Description: "Work-date component of the exclusive personal-entry history cursor. Supply with entriesBeforeCreatedAt and entriesBeforeEntryId; omit all three to start at the newest page."),
+        new ManualParameterMetadata("entriesBeforeCreatedAt", ParameterLocation.Query, false, JsonSchemaType.String,
+          Format: "date-time", Description: "Creation-instant component of the exclusive personal-entry history cursor. Supply with entriesBeforeWorkDate and entriesBeforeEntryId; requires an explicit Z or UTC offset, is normalized to UTC, and must match PostgreSQL's stored microsecond precision."),
+        new ManualParameterMetadata("entriesBeforeEntryId", ParameterLocation.Query, false, JsonSchemaType.String,
+          Format: "uuid", Description: "Entry-id component of the exclusive personal-entry history cursor. Supply with entriesBeforeWorkDate and entriesBeforeCreatedAt."),
+        new ManualParameterMetadata("entriesPageSize", ParameterLocation.Query, false, JsonSchemaType.Integer,
+          Format: "int32", Description: "Personal-entry history page size from 1 through 100; omitted values default to 50.", Minimum: 1));
     group.MapPost("/practice/time/tasks", (WorkTaskInput input, HttpContext http) =>
     {
       DateOnly? due = TryDate(input.DueDate, out var d) ? d : null;
@@ -115,6 +164,16 @@ public static partial class UiEndpoints
     if (!query.TryGetValue(key, out var values)) return true;
     if (values.Count != 1 || string.IsNullOrEmpty(values[0])) return false;
     value = values[0];
+    return true;
+  }
+
+  private static bool TryParsePracticeTimeCursorInstant(string value, out DateTimeOffset utcInstant)
+  {
+    utcInstant = default;
+    if (!PracticeTimeCursorInstantPattern.IsMatch(value) ||
+        !DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+      return false;
+    utcInstant = parsed.ToUniversalTime();
     return true;
   }
 }

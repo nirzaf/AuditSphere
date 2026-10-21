@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Data.Common;
+using System.Globalization;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Practice;
@@ -211,6 +212,173 @@ public sealed class PracticeTimeStartMinuteApiTests
         new PracticeTimeWorkspaceRequest(ApprovalPageSize: 101));
       Assert.False(invalidPageSize.Succeeded);
       Assert.Equal("time.invalid", invalidPageSize.ErrorCode);
+    }
+  }
+
+  [Fact]
+  public async Task PersonalEntryHistoryUsesBoundedDateCreationAndIdKeysetWithinCurrentScope()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TIME-ENTRY-HISTORY-PAGING");
+    var f = await PbcSeed.SeedAsync(pg);
+    var siblingClientId = Guid.NewGuid();
+    var siblingEngagementId = Guid.NewGuid();
+    await SeedSiblingScopeAsync(pg, f.FirmId, siblingClientId, siblingEngagementId);
+
+    Guid targetTaskId;
+    Guid siblingTaskId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      targetTaskId = await CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId, f.EngagementId,
+        "Synthetic scoped personal history task");
+      siblingTaskId = await CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), siblingClientId, siblingEngagementId,
+        "Synthetic sibling personal history task");
+    }
+
+    static Guid EntryId(long suffix) => Guid.Parse("00000000-0000-0000-0000-" + suffix.ToString("D12", CultureInfo.InvariantCulture));
+    var tiedCreatedAt = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero).AddTicks(1_234_560);
+    var olderCreatedAt = tiedCreatedAt.AddMinutes(-1);
+    var newerCreatedAt = tiedCreatedAt.AddMinutes(1);
+    // More than the old 500-row cap: the same CreatedAt instant also exercises the id tie-break.
+    var tiedIds = Enumerable.Range(1, 505).Select(index => EntryId(index)).ToArray();
+    var olderTimestampId = EntryId(1001);
+    var olderWorkDateId = EntryId(1002);
+    var otherUserId = EntryId(1010);
+    var siblingScopeId = EntryId(1011);
+    var mismatchedTaskScopeId = EntryId(1012);
+    var firmWideMismatchedTaskIds = Enumerable.Range(1020, 3).Select(index => EntryId(index)).ToArray();
+    var newerWorkDate = new DateOnly(2026, 10, 16);
+    var workDate = new DateOnly(2026, 10, 15);
+
+    TimeEntry HistoryEntry(Guid id, Guid userId, Guid taskId, Guid clientId, Guid engagementId,
+      DateOnly date, DateTimeOffset createdAt, int startMinute = 0) => new()
+    {
+      Id = id, FirmId = f.FirmId, ClientId = clientId, EngagementId = engagementId, TaskId = taskId, UserId = userId,
+      WorkDate = date, StartMinute = startMinute, DurationMinutes = 1, Role = "Staff", Activity = "Synthetic history row",
+      BillableClassification = PracticeTimeStates.NonBillable, Narrative = "Synthetic personal history paging fixture",
+      NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Status = PracticeTimeStates.TimeDraft,
+      Revision = 1, CreatedAt = createdAt
+    };
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.TimeEntries.AddRange(
+        tiedIds.Select((id, index) => HistoryEntry(id, f.Staff.Id, targetTaskId, f.ClientId, f.EngagementId, workDate, tiedCreatedAt, 600 + index))
+          .Append(HistoryEntry(olderTimestampId, f.Staff.Id, targetTaskId, f.ClientId, f.EngagementId, workDate, olderCreatedAt))
+          // Despite its later creation instant, the earlier work date sorts after all October 15 rows.
+          .Append(HistoryEntry(olderWorkDateId, f.Staff.Id, targetTaskId, f.ClientId, f.EngagementId,
+            new DateOnly(2026, 10, 14), newerCreatedAt))
+          .Append(HistoryEntry(otherUserId, f.Admin.Id, targetTaskId, f.ClientId, f.EngagementId,
+            new DateOnly(2026, 10, 18), newerCreatedAt))
+          .Append(HistoryEntry(siblingScopeId, f.Staff.Id, siblingTaskId, siblingClientId, siblingEngagementId,
+            new DateOnly(2026, 10, 17), newerCreatedAt))
+          // Entry scope matches the staff grant, but its task belongs to a sibling client.
+          .Append(HistoryEntry(mismatchedTaskScopeId, f.Staff.Id, siblingTaskId, f.ClientId, f.EngagementId,
+            newerWorkDate, newerCreatedAt))
+          // A firm-wide reviewer can see both tasks, so these rows exercise the task/scope identity filter itself.
+          .Concat(firmWideMismatchedTaskIds.Select(id => HistoryEntry(id, f.Admin.Id, siblingTaskId, f.ClientId,
+            f.EngagementId, new DateOnly(2026, 10, 19), newerCreatedAt))));
+      await db.SaveChangesAsync();
+    }
+
+    using var staffFactory = Factory(pg, f.Staff);
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignIn(staff);
+
+    var complete = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    Assert.Equal(tiedIds.Reverse().Take(50), complete.MyEntries.Select(x => x.Id));
+    Assert.DoesNotContain(otherUserId, complete.MyEntries.Select(x => x.Id));
+    Assert.DoesNotContain(siblingScopeId, complete.MyEntries.Select(x => x.Id));
+    Assert.DoesNotContain(mismatchedTaskScopeId, complete.MyEntries.Select(x => x.Id));
+    Assert.Equal(new TimeEntryHistoryPageInfo(50, true,
+      new TimeEntryHistoryCursor(workDate, tiedCreatedAt, tiedIds[^50])), complete.EntriesPage);
+    Assert.All(complete.MyEntries, row => Assert.NotNull(row.CreatedAt));
+    Assert.All(complete.MyEntries, row => Assert.Equal(TimeSpan.Zero, row.CreatedAt!.Value.Offset));
+
+    var firstPage = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>($"{WorkspacePath}?entriesPageSize=2"))!;
+    Assert.Equal(tiedIds.Reverse().Take(2), firstPage.MyEntries.Select(x => x.Id));
+    Assert.Equal(2, firstPage.EntriesPage.PageSize);
+    Assert.True(firstPage.EntriesPage.HasMore);
+    var firstCursor = firstPage.EntriesPage.NextCursor!;
+    Assert.Equal(new TimeEntryHistoryCursor(workDate, tiedCreatedAt, tiedIds[^2]), firstCursor);
+
+    // An explicit non-UTC cursor offset is accepted and normalized to the same UTC instant.
+    var offsetInstant = Uri.EscapeDataString(firstCursor.CreatedAt.ToOffset(TimeSpan.FromHours(3)).ToString("O"));
+    var secondPage = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(
+      $"{WorkspacePath}?entriesBeforeWorkDate={firstCursor.WorkDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&entriesBeforeCreatedAt={offsetInstant}&entriesBeforeEntryId={firstCursor.EntryId:D}&entriesPageSize=2"))!;
+    Assert.Equal(tiedIds.Reverse().Skip(2).Take(2), secondPage.MyEntries.Select(x => x.Id));
+    Assert.True(secondPage.EntriesPage.HasMore);
+    var secondCursor = secondPage.EntriesPage.NextCursor!;
+    Assert.Equal(new TimeEntryHistoryCursor(workDate, tiedCreatedAt, tiedIds[^4]), secondCursor);
+
+    // The 501st and 502nd descending rows remain addressable after the former Take(500) boundary.
+    var beyondLegacyCapInstant = Uri.EscapeDataString(tiedCreatedAt.ToString("O"));
+    var beyondLegacyCap = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(
+      $"{WorkspacePath}?entriesBeforeWorkDate={workDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&entriesBeforeCreatedAt={beyondLegacyCapInstant}&entriesBeforeEntryId={EntryId(6):D}&entriesPageSize=2"))!;
+    Assert.Equal([EntryId(5), EntryId(4)], beyondLegacyCap.MyEntries.Select(x => x.Id));
+    Assert.True(beyondLegacyCap.EntriesPage.HasMore);
+
+    var finalInstant = Uri.EscapeDataString(tiedCreatedAt.ToString("O"));
+    var finalPage = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(
+      $"{WorkspacePath}?entriesBeforeWorkDate={workDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&entriesBeforeCreatedAt={finalInstant}&entriesBeforeEntryId={EntryId(1):D}&entriesPageSize=2"))!;
+    Assert.Equal([olderTimestampId, olderWorkDateId], finalPage.MyEntries.Select(x => x.Id));
+    Assert.False(finalPage.EntriesPage.HasMore);
+    Assert.Null(finalPage.EntriesPage.NextCursor);
+
+    // The firm-wide user's task list contains the sibling task, but task/client/engagement mismatches
+    // are still removed before Take so they cannot occupy the page or its look-ahead row.
+    using var adminFactory = Factory(pg, f.Admin);
+    using var admin = adminFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignIn(admin);
+    var adminPage = (await admin.GetFromJsonAsync<PracticeTimeWorkspace>($"{WorkspacePath}?entriesPageSize=2"))!;
+    Assert.Equal([otherUserId], adminPage.MyEntries.Select(x => x.Id));
+    Assert.False(adminPage.EntriesPage.HasMore);
+    Assert.Null(adminPage.EntriesPage.NextCursor);
+    Assert.DoesNotContain(adminPage.MyEntries, row => firmWideMismatchedTaskIds.Contains(row.Id));
+
+    var invalidQueries = new[]
+    {
+      "?entriesBeforeWorkDate=2026-10-15",
+      $"?entriesBeforeCreatedAt={Uri.EscapeDataString(tiedCreatedAt.ToString("O"))}",
+      $"?entriesBeforeEntryId={Guid.NewGuid():D}",
+      $"?entriesBeforeWorkDate=2026-10-15&entriesBeforeCreatedAt={Uri.EscapeDataString(tiedCreatedAt.ToString("O"))}",
+      $"?entriesBeforeWorkDate=not-a-date&entriesBeforeCreatedAt={Uri.EscapeDataString(tiedCreatedAt.ToString("O"))}&entriesBeforeEntryId={Guid.NewGuid():D}",
+      $"?entriesBeforeWorkDate=2026-10-15&entriesBeforeCreatedAt={Uri.EscapeDataString("2026-10-15T12:00:00.123456")}&entriesBeforeEntryId={Guid.NewGuid():D}",
+      $"?entriesBeforeWorkDate=2026-10-15&entriesBeforeCreatedAt={Uri.EscapeDataString("2026-13-15T12:00:00Z")}&entriesBeforeEntryId={Guid.NewGuid():D}",
+      $"?entriesBeforeWorkDate=2026-10-15&entriesBeforeCreatedAt={Uri.EscapeDataString("2026-10-15T12:00:00.0000001Z")}&entriesBeforeEntryId={Guid.NewGuid():D}",
+      $"?entriesBeforeWorkDate=2026-10-15&entriesBeforeCreatedAt={Uri.EscapeDataString(tiedCreatedAt.ToString("O"))}&entriesBeforeEntryId={Guid.Empty:D}",
+      $"?entriesBeforeWorkDate=2026-10-15&entriesBeforeCreatedAt={Uri.EscapeDataString(tiedCreatedAt.ToString("O"))}&entriesBeforeEntryId=not-a-guid",
+      "?entriesBeforeCreatedAt=",
+      "?entriesBeforeEntryId=",
+      $"?entriesBeforeWorkDate=2026-10-15&entriesBeforeWorkDate=2026-10-15&entriesBeforeCreatedAt={Uri.EscapeDataString(tiedCreatedAt.ToString("O"))}&entriesBeforeEntryId={Guid.NewGuid():D}",
+      "?entriesPageSize=not-a-number",
+      "?entriesPageSize=0",
+      "?entriesPageSize=101",
+      "?entriesPageSize=2&entriesPageSize=3",
+      "?entriesPageSize="
+    };
+    foreach (var suffix in invalidQueries)
+    {
+      using var response = await staff.GetAsync(WorkspacePath + suffix);
+      Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var invalidCursor = await PracticeTimeWorkspaceQuery.GetAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+        new PracticeTimeWorkspaceRequest(EntriesBeforeWorkDate: workDate));
+      Assert.False(invalidCursor.Succeeded);
+      Assert.Equal("time.invalid", invalidCursor.ErrorCode);
+      await db.RoleGrants.Where(x => x.FirmId == f.FirmId && x.UserId == f.Staff.Id && x.Role == "Staff" &&
+          x.ClientId == f.ClientId && x.EngagementId == f.EngagementId && x.RevokedAt == null)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var revokedScope = await PracticeTimeWorkspaceQuery.GetAsync(db, PbcSeed.Actor(f.Staff, "Staff"),
+        new PracticeTimeWorkspaceRequest(EntriesPageSize: 2));
+      Assert.False(revokedScope.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, revokedScope.ErrorCode);
+      Assert.Null(revokedScope.Value);
     }
   }
 

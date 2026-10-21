@@ -122,9 +122,12 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
     await managerPage.GetByRole(AriaRole.Button, new() { Name = "Save time draft", Exact = true }).ClickAsync();
     await Assertions.Expect(managerPage.GetByRole(AriaRole.Table,
       new() { Name = "My recorded time entries", Exact = true })).ToContainTextAsync("CASH");
+    Guid recordedEntryId;
+    var olderEntryIds = new List<Guid>();
     await using (var db = host.CreateDbContext())
     {
       var entry = await db.TimeEntries.AsNoTracking().SingleAsync(x => x.TaskId == taskId);
+      recordedEntryId = entry.Id;
       Assert.Equal(new DateOnly(2026, 10, 9), entry.WorkDate);
       Assert.Equal(540, entry.StartMinute);
       Assert.Equal(mappingId, entry.MappingVersionId);
@@ -134,7 +137,73 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
       Assert.NotNull(entry.RateCardVersionId);
       Assert.Equal(f.Admin.Id, await db.RateCardVersions.Where(x => x.Id == entry.RateCardVersionId)
         .Select(x => x.ApprovedByUserId).SingleAsync());
+      var retainedAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+      for (var index = 0; index < 50; index++)
+      {
+        var olderId = Guid.NewGuid(); olderEntryIds.Add(olderId);
+        db.TimeEntries.Add(new TimeEntry
+        {
+          Id = olderId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+          TaskId = taskId, UserId = manager.Id, WorkDate = new DateOnly(2026, 9, 11),
+          StartMinute = 600 + index * 2, DurationMinutes = 1, Role = "Staff", Activity = "Retained synthetic history",
+          Narrative = $"SYN-OWN-HISTORY-{index}", MappingVersionId = mappingId, FsliCode = "CASH",
+          BillableClassification = PracticeTimeStates.NonBillable, Status = PracticeTimeStates.TimeDraft,
+          NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Currency = "QAR", CreatedAt = retainedAt
+        });
+      }
+      db.TimeEntries.Add(new TimeEntry
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        TaskId = taskId, UserId = f.Staff.Id, WorkDate = new DateOnly(2026, 10, 10),
+        StartMinute = 540, DurationMinutes = 1, Role = "Staff", Activity = "Other staff retained work",
+        Narrative = "SYN-OTHER-USER-HISTORY-MUST-NOT-APPEAR", MappingVersionId = mappingId, FsliCode = "CASH",
+        BillableClassification = PracticeTimeStates.NonBillable, Status = PracticeTimeStates.TimeDraft,
+        NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Currency = "QAR", CreatedAt = retainedAt
+      });
+      await db.SaveChangesAsync();
     }
+    var pagingWrites = new List<string>();
+    managerPage.Request += (_, request) =>
+    {
+      if (request.Method != "GET" && request.Url.Contains("/api/ui/", StringComparison.Ordinal)) pagingWrites.Add(request.Method + " " + request.Url);
+    };
+    var (historyStatus, historyBody) = await PlaywrightResponseCapture.RunAsync(managerPage,
+      request => request.Method == "GET" && request.Url.EndsWith("/api/ui/practice/time", StringComparison.Ordinal),
+      () => managerPage.ReloadAsync());
+    Assert.Equal(200, historyStatus);
+    using var firstHistory = JsonDocument.Parse(historyBody);
+    var historyIds = firstHistory.RootElement.GetProperty("myEntries").EnumerateArray().Select(row => row.GetProperty("id").GetGuid()).ToArray();
+    Assert.Equal(50, historyIds.Length); Assert.Equal(recordedEntryId, historyIds[0]);
+    var historyPages = managerPage.GetByRole(AriaRole.Navigation, new() { Name = "Recorded time pages", Exact = true });
+    await Assertions.Expect(historyPages).ToContainTextAsync("Page 1 · 50 shown");
+    var (olderStatus, olderBody) = await PlaywrightResponseCapture.RunAsync(managerPage,
+      request => request.Method == "GET" && request.Url.Contains("entriesBeforeCreatedAt=", StringComparison.Ordinal),
+      () => historyPages.GetByRole(AriaRole.Button, new() { Name = "Older time entries", Exact = true }).PressAsync("Enter"));
+    Assert.Equal(200, olderStatus);
+    using var olderHistory = JsonDocument.Parse(olderBody);
+    var retained = Assert.Single(olderHistory.RootElement.GetProperty("myEntries").EnumerateArray());
+    Assert.Contains(retained.GetProperty("id").GetGuid(), olderEntryIds);
+    Assert.DoesNotContain(retained.GetProperty("id").GetGuid(), historyIds);
+    Assert.Equal(manager.Id, retained.GetProperty("userId").GetGuid());
+    await Assertions.Expect(historyPages).ToContainTextAsync("Page 2 · 1 shown");
+    await Assertions.Expect(historyPages.GetByRole(AriaRole.Button, new() { Name = "Older time entries", Exact = true })).ToBeDisabledAsync();
+    await Assertions.Expect(managerPage.GetByRole(AriaRole.Heading, new() { Name = "My recorded time", Exact = true })).ToBeFocusedAsync();
+    Assert.DoesNotContain("SYN-OTHER-USER-HISTORY-MUST-NOT-APPEAR", await managerPage.Locator("main").InnerTextAsync());
+    await OwnedBrowserFixtureHandoff.WaitAsync(managerOrigin, "/app/practice/time", "own-time-history-paging");
+    var (newerStatus, newerBody) = await PlaywrightResponseCapture.RunAsync(managerPage,
+      request => request.Method == "GET" && request.Url.EndsWith("/api/ui/practice/time", StringComparison.Ordinal),
+      () => historyPages.GetByRole(AriaRole.Button, new() { Name = "Newer time entries", Exact = true }).PressAsync("Space"));
+    Assert.Equal(200, newerStatus);
+    using var newerHistory = JsonDocument.Parse(newerBody);
+    Assert.Equal(historyIds, newerHistory.RootElement.GetProperty("myEntries").EnumerateArray().Select(row => row.GetProperty("id").GetGuid()).ToArray());
+    Assert.DoesNotContain("SYN-OTHER-USER-HISTORY-MUST-NOT-APPEAR", await managerPage.Locator("main").InnerTextAsync());
+    await using (var proof = host.CreateDbContext())
+    {
+      var retainedDraft = await proof.TimeEntries.AsNoTracking().SingleAsync(x => x.Id == recordedEntryId);
+      Assert.Equal(750m, retainedDraft.RatePerHour); Assert.Equal(mappingId, retainedDraft.MappingVersionId);
+      Assert.Equal(PracticeTimeStates.TimeDraft, retainedDraft.Status);
+    }
+    Assert.Empty(pagingWrites);
     Assert.Empty(errors);
   }
 

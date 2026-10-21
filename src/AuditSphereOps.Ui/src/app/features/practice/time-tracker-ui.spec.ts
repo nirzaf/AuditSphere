@@ -200,6 +200,65 @@ describe('foreground practice time tracker integration', () => {
     } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
   });
 
+  it('pages own recorded history at full timestamp precision independently of approvals and recovers read failures', () => {
+    const savedEntry = (sequence: number) => ({
+      id: `33333333-3333-4333-8333-${sequence.toString(16).padStart(12, '0')}`,
+      workDate: '2026-10-15', createdAt: `2026-10-15T09:00:00.${((101 - sequence) * 10).toString().padStart(7, '0')}Z`,
+      taskId, taskTitle: 'Retained own work', userId, durationMinutes: 1, startMinute: 540 + sequence * 2,
+      activity: 'Fieldwork', billableClassification: 'NON_BILLABLE', narrative: '', status: 'APPROVED',
+      mappingVersionId: null, fsliCode: null, lastReturnReason: null, phase: 'FIELDWORK',
+    });
+    const rows = Array.from({ length: 50 }, (_, index) => savedEntry(index + 1));
+    const last = rows.at(-1)!;
+    const approvalRows = rows.map(row => ({ ...row, id: row.id.replace('33333333-3333-4333-8333', '44444444-4444-4444-8444'),
+      userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', status: 'SUBMITTED' }));
+    const lastApproval = approvalRows.at(-1)!;
+    const firstPage = { ...workspace, isApprover: true, myEntries: rows, awaitingApproval: approvalRows,
+      approvalPage: { pageSize: 50, hasMore: true, nextCursor: { workDate: lastApproval.workDate, entryId: lastApproval.id } },
+      entriesPage: { pageSize: 50, hasMore: true, nextCursor: { workDate: last.workDate, createdAt: last.createdAt, entryId: last.id } } };
+    const reviewLater = { ...firstPage, awaitingApproval: [], approvalPage: { pageSize: 50, hasMore: false, nextCursor: null } };
+    const olderPage = { ...reviewLater, myEntries: [savedEntry(51)], entriesPage: { pageSize: 50, hasMore: false, nextCursor: null } };
+    // Adjacent source times differ below JS Date precision; their retained order must survive.
+    expect(Date.parse(rows[0].createdAt)).toBe(Date.parse(rows[1].createdAt));
+    expect(decode(decodeTime, firstPage).myEntries[0].createdAt).toBe(rows[0].createdAt);
+    expect(() => decode(decodeTime, { ...firstPage, myEntries: [...rows].reverse() })).toThrow();
+    expect(() => decode(decodeTime, { ...firstPage, myEntries: [{ ...rows[0], createdAt: null }] })).toThrow();
+    expect(() => decode(decodeTime, { ...firstPage, myEntries: [{ ...rows[0], createdAt: '2026-10-15T09:00:00.0001001Z' }] })).toThrow();
+    const { fixture, component, http } = open(firstPage);
+    try {
+      component.task.title = 'Unsaved task remains';
+      component.draft.narrative = 'Unsaved recording remains';
+      component.nextApprovalPage(); TestBed.tick();
+      http.expectOne(request => request.url.startsWith('/api/ui/practice/time?approvalAfterWorkDate='))
+        .flush(reviewLater); TestBed.tick();
+      component.nextEntriesPage(); TestBed.tick();
+      const next = http.expectOne(request => request.url.includes('entriesBeforeCreatedAt='));
+      const query = new URL(next.request.urlWithParams, 'http://localhost').searchParams;
+      expect(query.get('entriesBeforeCreatedAt')).toBe(last.createdAt);
+      expect(query.get('entriesBeforeEntryId')).toBe(last.id);
+      expect(query.get('approvalAfterEntryId')).toBe(lastApproval.id);
+      next.flush(olderPage); TestBed.tick();
+      expect(component.entriesPositions()).toHaveLength(2);
+      expect(component.approvalPositions()).toHaveLength(2);
+      expect(fixture.nativeElement.querySelector('#my-time-heading')).toBe(document.activeElement);
+      expect(component.task.title).toBe('Unsaved task remains');
+      expect(component.draft.narrative).toBe('Unsaved recording remains');
+      component.previousEntriesPage(); TestBed.tick();
+      http.expectOne(request => request.url.includes('approvalAfterEntryId=') && !request.url.includes('entriesBefore'))
+        .flush(reviewLater); TestBed.tick();
+      component.nextEntriesPage(); TestBed.tick();
+      http.expectOne(request => request.url.includes('entriesBeforeCreatedAt='))
+        .flush({ code: 'time.invalid' }, { status: 400, statusText: 'Bad Request' }); TestBed.tick();
+      expect(component.view.data()).toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('Reload time workspace from start');
+      component.reloadTimeWorkspace(); TestBed.tick();
+      http.expectOne('/api/ui/practice/time').flush(firstPage); TestBed.tick();
+      expect(component.entriesPositions()).toHaveLength(1);
+      expect(component.approvalPositions()).toHaveLength(1);
+      expect(component.draft.narrative).toBe('Unsaved recording remains');
+    } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
+  });
+
   it('requires explicit task selection, pauses active time, and saves reviewed segments one at a time', async () => {
     const now = new Date('2026-10-15T09:00:00Z').getTime();
     const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
@@ -242,7 +301,13 @@ describe('foreground practice time tracker integration', () => {
   });
 
   it('keeps a definite overlap refusal reviewable and freezes additional saves after an unknown result', async () => {
-    const { fixture, component, http } = open();
+    const reviewWorkspace = { ...workspace, isApprover: true, awaitingApproval: [{
+      id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Independent time review',
+      userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', durationMinutes: 1, startMinute: 540,
+      activity: 'Fieldwork', billableClassification: 'NON_BILLABLE', narrative: '', status: 'SUBMITTED',
+      mappingVersionId: null, fsliCode: null, lastReturnReason: null,
+    }] };
+    const { fixture, component, http } = open(reviewWorkspace);
     try {
       const now = new Date('2026-10-15T09:00:00Z').getTime();
       vi.spyOn(Date, 'now').mockReturnValue(now);
@@ -259,7 +324,7 @@ describe('foreground practice time tracker integration', () => {
       await first;
       expect(component.savedSegments().has(1)).toBe(false);
       expect(component.draft.minutes).toBe(10);
-      http.expectOne('/api/ui/practice/time').flush(workspace);
+      http.expectOne('/api/ui/practice/time').flush(reviewWorkspace);
 
       const second = component.saveDraft();
       http.expectOne('/api/ui/practice/time/entries').flush(
@@ -268,9 +333,15 @@ describe('foreground practice time tracker integration', () => {
       await second;
       expect(component.cmd.uncertain()).toBe(true);
       expect(component.unconfirmedSegment()).toBe(1);
-      http.expectOne('/api/ui/practice/time').flush(workspace);
+      http.expectOne('/api/ui/practice/time').flush(reviewWorkspace);
+      component.beginReturn(entryId);
+      component.timeReturnReason.set('Retain this unsaved return reason');
       component.refreshRecordedTime();
-      http.expectOne('/api/ui/practice/time').flush(workspace);
+      http.expectOne('/api/ui/practice/time').flush(reviewWorkspace);
+      expect(component.returningTimeId()).toBe(entryId);
+      expect(component.timeReturnReason()).toBe('Retain this unsaved return reason');
+      expect(component.cmd.uncertain()).toBe(true);
+      expect(component.unconfirmedSegment()).toBe(1);
       const blockedRetry = component.saveDraft();
       await blockedRetry;
       http.expectNone(request => request.method === 'POST');

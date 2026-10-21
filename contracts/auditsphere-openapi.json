@@ -28967,6 +28967,43 @@
               "type": "integer",
               "format": "int32"
             }
+          },
+          {
+            "name": "entriesBeforeWorkDate",
+            "in": "query",
+            "description": "Work-date component of the exclusive personal-entry history cursor. Supply with entriesBeforeCreatedAt and entriesBeforeEntryId; omit all three to start at the newest page.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "entriesBeforeCreatedAt",
+            "in": "query",
+            "description": "Creation-instant component of the exclusive personal-entry history cursor. Supply with entriesBeforeWorkDate and entriesBeforeEntryId; requires an explicit Z or UTC offset, is normalized to UTC, and must match PostgreSQL's stored microsecond precision.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "entriesBeforeEntryId",
+            "in": "query",
+            "description": "Entry-id component of the exclusive personal-entry history cursor. Supply with entriesBeforeWorkDate and entriesBeforeCreatedAt.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "entriesPageSize",
+            "in": "query",
+            "description": "Personal-entry history page size from 1 through 100; omitted values default to 50.",
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
           }
         ],
         "responses": {
@@ -128407,7 +128444,8 @@
           "openTasks",
           "myEntries",
           "awaitingApproval",
-          "approvalPage"
+          "approvalPage",
+          "entriesPage"
         ],
         "type": "object",
         "properties": {
@@ -128449,6 +128487,9 @@
           },
           "approvalPage": {
             "$ref": "#/components/schemas/TimeApprovalPageInfo"
+          },
+          "entriesPage": {
+            "$ref": "#/components/schemas/TimeEntryHistoryPageInfo"
           }
         }
       },
@@ -139742,6 +139783,59 @@
           }
         }
       },
+      "TimeEntryHistoryCursor": {
+        "required": [
+          "workDate",
+          "createdAt",
+          "entryId"
+        ],
+        "type": "object",
+        "properties": {
+          "workDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TimeEntryHistoryPageInfo": {
+        "required": [
+          "pageSize",
+          "hasMore",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TimeEntryHistoryCursor"
+              }
+            ]
+          }
+        }
+      },
       "TimeEntryRow": {
         "required": [
           "id",
@@ -139829,6 +139923,13 @@
           "phase": {
             "type": "string",
             "default": "UNASSIGNED"
+          },
+          "createdAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         }
       },

@@ -6,7 +6,7 @@ import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dial
 import { firstValueFrom } from 'rxjs';
 import { Api, CommandState } from '../../core/api';
 import { Drafts } from '../../core/drafts';
-import { arr, bool, date, DecodeError, Decoder, guid, nat, nullable, obj, str, text } from '../../core/decode';
+import { arr, bool, date, DecodeError, Decoder, guid, instant, nat, nullable, obj, str, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { NavigationProtected } from '../../core/unsaved-changes';
 import { SHARED } from '../../core/ui';
@@ -25,12 +25,12 @@ const isSupportedBudgetPhase = (value: unknown): value is SupportedBudgetPhase =
 
 const entryShape = obj({ id: guid, workDate: date, taskId: guid, taskTitle: text, userId: guid, durationMinutes: nat, startMinute: nat, activity: text,
   billableClassification: text, narrative: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), phase: str(100),
-  lastReturnReason: nullable(str(2000)) });
+  lastReturnReason: nullable(str(2000)), createdAt: nullable(instant) });
 const entry: Decoder<ReturnType<typeof entryShape>> = (value, path) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new DecodeError(`${path || 'response'}: expected object`);
   const source = value as Record<string, unknown>;
   return entryShape({ ...source, phase: source['phase'] ?? unassignedBudgetPhase,
-    startMinute: source['startMinute'] ?? 540, lastReturnReason: source['lastReturnReason'] ?? null }, path);
+    startMinute: source['startMinute'] ?? 540, lastReturnReason: source['lastReturnReason'] ?? null, createdAt: source['createdAt'] ?? null }, path);
 };
 const taskOptionShape = obj({ id: guid, title: text, status: text, mappingVersionId: nullable(guid), fsliCode: nullable(str(100)), phase: str(100) });
 const taskOption: Decoder<ReturnType<typeof taskOptionShape>> = (value, path) => {
@@ -38,13 +38,23 @@ const taskOption: Decoder<ReturnType<typeof taskOptionShape>> = (value, path) =>
   const source = value as Record<string, unknown>;
   return taskOptionShape({ ...source, phase: source['phase'] ?? unassignedBudgetPhase }, path);
 };
+const historyCursor = obj({ workDate: date, createdAt: instant, entryId: guid });
+type HistoryCursor = ReturnType<typeof historyCursor>;
+const historyPageShape = obj({ pageSize: nat, hasMore: bool, nextCursor: nullable(historyCursor) });
+const optionalHistoryPage = (value: unknown, path: string) => value == null ? null : historyPageShape(value, path);
+// PostgreSQL timestamps can retain sub-millisecond precision. Never order a history cursor through a JS Date number.
+const historyPosition = (row: { workDate: string; createdAt: string | null; entryId: string }): string => {
+  const match = row.createdAt && /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?(?:Z|\+00:00)$/.exec(row.createdAt);
+  if (!match || (match[2] ?? '').padEnd(7, '0')[6] !== '0' || !Number.isFinite(Date.parse(row.createdAt!))) throw new DecodeError('Invalid retained UTC entry creation time');
+  return `${row.workDate}/${match[1]}.${(match[2] ?? '').padEnd(7, '0')}Z/${row.entryId.toLowerCase()}`;
+};
 const approvalCursor = obj({ workDate: date, entryId: guid });
 type ApprovalCursor = ReturnType<typeof approvalCursor>;
 const approvalPageShape = obj({ pageSize: nat, hasMore: bool, nextCursor: nullable(approvalCursor) });
 const optionalApprovalPage = (value: unknown, path: string) => value == null ? null : approvalPageShape(value, path);
 const timeWorkspaceShape = obj({ firmWide: bool, isApprover: bool, periods: arr(obj({ id: guid, clientId: guid, label: text }), 5000),
   engagements: arr(obj({ id: guid, clientId: guid, label: text, mappingVersionId: nullable(guid), fsliCodes: arr(str(100), 2000) }), 5000),
-  openTasks: arr(taskOption, 5000), myEntries: arr(entry, 500), awaitingApproval: arr(entry, 500), approvalPage: optionalApprovalPage });
+  openTasks: arr(taskOption, 5000), myEntries: arr(entry, 500), awaitingApproval: arr(entry, 500), approvalPage: optionalApprovalPage, entriesPage: optionalHistoryPage });
 const approvalPosition = (row: { workDate: string; id: string }) => row.workDate + '/' + row.id.toLowerCase();
 export const decodeTime = (value: unknown, path: string) => {
   const workspace = timeWorkspaceShape(value, path), page = workspace.approvalPage;
@@ -56,6 +66,17 @@ export const decodeTime = (value: unknown, path: string) => {
       throw new DecodeError(`${path}: invalid approval continuation`);
     }
   }
+  const history = workspace.entriesPage;
+  if (history) {
+    const rows = workspace.myEntries, last = rows.at(-1), cursor = history.nextCursor;
+    if (history.pageSize < 1 || history.pageSize > 100 || rows.length > history.pageSize || history.hasMore !== !!cursor ||
+        (history.hasMore && (rows.length !== history.pageSize || !last ||
+          historyPosition(cursor!) !== historyPosition({ ...last, entryId: last.id }))) ||
+        rows.some((row, index) => {
+          const position = historyPosition({ ...row, entryId: row.id });
+          return index > 0 && historyPosition({ ...rows[index - 1], entryId: rows[index - 1].id }) <= position;
+        })) throw new DecodeError(`${path}: invalid recorded-time continuation`);
+  }
   return workspace;
 };
 
@@ -66,6 +87,7 @@ export const decodeTime = (value: unknown, path: string) => {
     <audit-page-header title="Practice time & task records" eyebrow="Work & collaboration"
       description="Time entries are recorded against assigned firm tasks with exact integer minutes, immutable rate snapshots, and independent approval segregation." />
     <audit-state [loading]="view.loading()" [error]="view.error()" label="time records" />
+    @if (view.error()) { <button matButton type="button" (click)="reloadTimeWorkspace()" [disabled]="view.loading() || cmd.busy()">Reload time workspace from start</button> }
     @if (view.data(); as v) {
       <p role="status">{{ v.openTasks.length }} open tasks in scope · {{ v.myEntries.length }} of my time entries shown{{ v.isApprover ? ' · ' + v.awaitingApproval.length + ' awaiting my review shown' : '' }}</p>
       <section class="panel" aria-labelledby="task-heading">
@@ -145,7 +167,7 @@ export const decodeTime = (value: unknown, path: string) => {
             </table></div>
             @if (unconfirmedSegment() !== null) {
               <p role="alert">The save outcome is unconfirmed. Review recorded time before making another entry.</p>
-              <button matButton type="button" (click)="refreshRecordedTime()" [disabled]="view.loading()">Refresh recorded time</button>
+              <button matButton type="button" (click)="refreshRecordedTime()" [disabled]="view.loading() || cmd.busy()">Refresh recorded time</button>
             }
           } @else {
             <p>No complete minute is available. Enter a manual draft if required.</p>
@@ -154,7 +176,15 @@ export const decodeTime = (value: unknown, path: string) => {
         }
       </section>
       <section class="panel" aria-labelledby="my-time-heading">
-        <h2 id="my-time-heading">My recorded time</h2>
+        <h2 id="my-time-heading" #entriesHeading tabindex="-1">My recorded time</h2>
+        <p>Newest work dates first, then creation time. This is live history; refresh from the start to include newly recorded or corrected work.</p>
+        <nav aria-label="Recorded time pages">
+          <button matButton type="button" (click)="previousEntriesPage()" [disabled]="approvalNavigationBlocked() || entriesPositions().length === 1">Newer time entries</button>
+          <span aria-live="polite">Page {{ entriesPositions().length }} · {{ v.myEntries.length }} shown</span>
+          <button matButton type="button" (click)="nextEntriesPage()" [disabled]="approvalNavigationBlocked() || !v.entriesPage?.hasMore">Older time entries</button>
+          <button matButton type="button" (click)="refreshEntriesQueue()" [disabled]="approvalNavigationBlocked()">Refresh recorded entries from start</button>
+        </nav>
+        @if (!v.entriesPage) { <p role="status">History continuation is unavailable from this server. This list may be incomplete.</p> }
         <div class="table-scroll"><table>
           <caption>My recorded time entries</caption>
           <thead><tr><th scope="col">Date</th><th scope="col">Task</th><th scope="col">Phase</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Classification</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -162,7 +192,7 @@ export const decodeTime = (value: unknown, path: string) => {
             <tr><td>{{ e.workDate }}</td><td>{{ e.taskTitle }}</td><td>{{ phaseLabel(e.phase) }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m ({{ (e.durationMinutes / 60).toFixed(1) }}h)</td><td>{{ e.billableClassification }}</td>
               <td><audit-status [value]="e.status" />@if (e.lastReturnReason) { <small class="return-feedback">Latest return feedback: {{ e.lastReturnReason }}</small> }</td>
               <td>@if (e.status === 'DRAFT' || e.status === 'RETURNED') { <button matButton (click)="act(e.id, 'submit', e.status === 'RETURNED' ? 'Returned time was resubmitted for approval.' : 'Time entry was submitted for approval.')" [disabled]="cmd.busy()">{{ e.status === 'RETURNED' ? 'Resubmit' : 'Submit' }}</button> }</td></tr>
-          } @empty { <tr><td colspan="8">You have not recorded any time entries in the current firm scope.</td></tr> }</tbody>
+          } @empty { <tr><td colspan="8">No recorded time entries on this page in your current firm scope.</td></tr> }</tbody>
         </table></div>
       </section>
       <section class="panel" aria-labelledby="rates-heading">
@@ -198,7 +228,7 @@ export const decodeTime = (value: unknown, path: string) => {
                     <button matButton type="button" (click)="cancelReturn()" [disabled]="cmd.busy()">Cancel</button>
                   } @else { <button matButton type="button" (click)="beginReturn(e.id)" [disabled]="cmd.busy()">Return with reason</button> }
                 </td></tr>
-            } @empty { <tr><td colspan="9">No pending submitted time entries awaiting approval.</td></tr> }</tbody>
+            } @empty { <tr><td colspan="9">No submitted time entries on this approval page. Refresh from the start for new or changed work.</td></tr> }</tbody>
           </table></div>
         </section>
       }
@@ -212,20 +242,34 @@ export class PracticeTime implements NavigationProtected {
   private readonly drafts = inject(Drafts);
   private readonly session = inject(SessionService);
   private readonly dialog = inject(MatDialog);
+  readonly entriesPositions = signal<readonly (HistoryCursor | null)[]>([null]);
+  private readonly entriesCursor = computed(() => this.entriesPositions().at(-1) ?? null);
+  private readonly entriesHeading = viewChild<ElementRef<HTMLElement>>('entriesHeading');
   readonly approvalPositions = signal<readonly (ApprovalCursor | null)[]>([null]);
   private readonly approvalCursor = computed(() => this.approvalPositions().at(-1) ?? null);
   private readonly approvalHeading = viewChild<ElementRef<HTMLElement>>('approvalHeading');
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly renderInjector = inject(Injector);
-  private approvalFocus: { owner: string; position: string; active: Element | null } | null = null;
+  private approvalFocus: { target: 'approval' | 'entries'; owner: string; position: string; active: Element | null } | null = null;
   readonly view = this.api.resource(() => {
-    const cursor = this.approvalCursor();
-    return '/api/ui/practice/time' + (cursor ? '?' + new URLSearchParams({ approvalAfterWorkDate: cursor.workDate,
-      approvalAfterEntryId: cursor.entryId, approvalPageSize: '50' }).toString() : '');
+    const cursor = this.approvalCursor(), history = this.entriesCursor(), query = new URLSearchParams();
+    if (cursor) {
+      query.set('approvalAfterWorkDate', cursor.workDate); query.set('approvalAfterEntryId', cursor.entryId); query.set('approvalPageSize', '50');
+    }
+    if (history) {
+      query.set('entriesBeforeWorkDate', history.workDate); query.set('entriesBeforeCreatedAt', history.createdAt);
+      query.set('entriesBeforeEntryId', history.entryId); query.set('entriesPageSize', '50');
+    }
+    return '/api/ui/practice/time' + (query.size ? '?' + query.toString() : '');
   }, (raw, path) => {
     const workspace = decodeTime(raw, path), cursor = this.approvalCursor();
     if (cursor && (!workspace.approvalPage || workspace.awaitingApproval.some(row =>
       approvalPosition(row) <= cursor.workDate + '/' + cursor.entryId.toLowerCase()))) throw new DecodeError(`${path}: wrong approval page`);
+    const history = this.entriesCursor();
+    if (workspace.entriesPage && workspace.myEntries.some(row => row.userId !== this.session.current()?.userId))
+      throw new DecodeError(`${path}: wrong recorded-time owner`);
+    if (history && (!workspace.entriesPage || workspace.myEntries.some(row =>
+      historyPosition({ ...row, entryId: row.id }) >= historyPosition(history)))) throw new DecodeError(`${path}: wrong recorded-time page`);
     return workspace;
   }, 'Sign in with an authorized internal staff identity to view and record time.');
   readonly cmd = new CommandState(this.api);
@@ -278,6 +322,7 @@ export class PracticeTime implements NavigationProtected {
       if (invalidation !== this.lastSessionInvalidation || identity !== this.lastSessionIdentity) {
         this.resetTracker();
         this.approvalPositions.set([null]);
+        this.entriesPositions.set([null]);
         this.approvalFocus = null;
         this.cancelReturn();
         this.lastSessionInvalidation = invalidation;
@@ -291,9 +336,9 @@ export class PracticeTime implements NavigationProtected {
       this.approvalFocus = null;
       afterNextRender(() => {
         const document = this.host.nativeElement.ownerDocument;
-        if (ticket.owner !== this.approvalOwner() || ticket.position !== JSON.stringify(this.approvalCursor()) ||
+        if (ticket.owner !== this.approvalOwner() || ticket.position !== this.timePagePosition() ||
           (document.activeElement !== document.body && document.activeElement !== ticket.active)) return;
-        this.approvalHeading()?.nativeElement.focus();
+        (ticket.target === 'entries' ? this.entriesHeading() : this.approvalHeading())?.nativeElement.focus();
       }, { injector: this.renderInjector });
     });
     const visibilityChanged = () => { if (document.visibilityState === 'hidden') this.pauseForExternalTrigger(); };
@@ -325,11 +370,10 @@ export class PracticeTime implements NavigationProtected {
   readonly approvalNavigationBlocked = computed(() => this.view.loading() || this.cmd.busy() || !!this.returningTimeId());
   private approvalOwner(): string { return `${this.session.invalidation()}:${this.sessionIdentity()}`; }
   private setApprovalPosition(positions: readonly (ApprovalCursor | null)[], focus: boolean): void {
-    const changed = JSON.stringify(this.approvalCursor()) !== JSON.stringify(positions.at(-1) ?? null);
-    this.approvalFocus = focus ? { owner: this.approvalOwner(), position: JSON.stringify(positions.at(-1) ?? null),
-      active: this.host.nativeElement.ownerDocument.activeElement } : null;
+    const prior = this.timePagePosition();
     this.approvalPositions.set(positions);
-    if (!changed) this.view.reload();
+    this.requestTimePageFocus(focus ? 'approval' : null);
+    if (prior === this.timePagePosition()) this.view.reload();
   }
   nextApprovalPage(): void {
     const page = this.view.data()?.approvalPage;
@@ -344,9 +388,41 @@ export class PracticeTime implements NavigationProtected {
     if (this.approvalNavigationBlocked()) return;
     this.setApprovalPosition([null], true);
   }
+  private timePagePosition(): string { return JSON.stringify([this.approvalCursor(), this.entriesCursor()]); }
+  private requestTimePageFocus(target: 'approval' | 'entries' | null): void {
+    this.approvalFocus = target ? { target, owner: this.approvalOwner(), position: this.timePagePosition(),
+      active: this.host.nativeElement.ownerDocument.activeElement } : null;
+  }
+  private setEntriesPosition(positions: readonly (HistoryCursor | null)[]): void {
+    const prior = this.timePagePosition();
+    this.entriesPositions.set(positions); this.requestTimePageFocus('entries');
+    if (prior === this.timePagePosition()) this.view.reload();
+  }
+  nextEntriesPage(): void {
+    const page = this.view.data()?.entriesPage;
+    if (this.approvalNavigationBlocked() || !page?.hasMore || !page.nextCursor) return;
+    this.setEntriesPosition([...this.entriesPositions(), page.nextCursor]);
+  }
+  previousEntriesPage(): void {
+    if (this.approvalNavigationBlocked() || this.entriesPositions().length < 2) return;
+    this.setEntriesPosition(this.entriesPositions().slice(0, -1));
+  }
+  refreshEntriesQueue(): void {
+    if (this.approvalNavigationBlocked()) return;
+    this.setEntriesPosition([null]);
+  }
+  reloadTimeWorkspace(): void {
+    if (this.view.loading() || this.cmd.busy()) return;
+    this.resetTimePages();
+  }
+  private resetTimePages(): void {
+    const prior = this.timePagePosition();
+    this.entriesPositions.set([null]); this.approvalPositions.set([null]); this.approvalFocus = null;
+    if (prior === this.timePagePosition()) this.view.reload();
+  }
   private reload = () => {
     if (this.returningTimeId()) this.view.reload();
-    else this.setApprovalPosition([null], false);
+    else this.resetTimePages();
   };
   createTask(): Promise<boolean> {
     const engagement = this.selectedEngagement();
@@ -424,7 +500,11 @@ export class PracticeTime implements NavigationProtected {
     this.draft = { ...this.draft, task: taskId, date: segment.workDate, startTime: this.formatStartTime(segment.startMinute), minutes: segment.durationMinutes };
     this.selectedSegment.set(segment.segment); this.touchDraft();
   }
-  refreshRecordedTime(): void { this.view.reload(); }
+  refreshRecordedTime(): void {
+    if (this.view.loading() || this.cmd.busy()) return;
+    // Read-only save reconciliation keeps the approval page and any unsaved return reason.
+    this.setEntriesPosition([null]);
+  }
   async confirmNavigation(): Promise<boolean> {
     if (this.tracker().phase === 'RUNNING') this.pauseForExternalTrigger();
     if (!this.tracker().intervals.length && this.unconfirmedSegment() === null) return true;

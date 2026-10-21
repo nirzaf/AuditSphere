@@ -14,13 +14,17 @@ public sealed record TimeTaskOption(Guid Id, string Title, string Status, Guid? 
   string Phase = BudgetPhases.Unassigned);
 public sealed record TimeEntryRow(Guid Id, DateOnly WorkDate, Guid TaskId, string TaskTitle, Guid UserId, int DurationMinutes, string Activity,
   string BillableClassification, string Narrative, string Status, Guid? MappingVersionId, string? FsliCode, int StartMinute = 540,
-  string? LastReturnReason = null, string Phase = BudgetPhases.Unassigned);
-public sealed record PracticeTimeWorkspaceRequest(DateOnly? ApprovalAfterWorkDate = null, Guid? ApprovalAfterEntryId = null, int ApprovalPageSize = 50);
+  string? LastReturnReason = null, string Phase = BudgetPhases.Unassigned, DateTimeOffset? CreatedAt = null);
+public sealed record PracticeTimeWorkspaceRequest(DateOnly? ApprovalAfterWorkDate = null, Guid? ApprovalAfterEntryId = null, int ApprovalPageSize = 50,
+  DateOnly? EntriesBeforeWorkDate = null, DateTimeOffset? EntriesBeforeCreatedAt = null, Guid? EntriesBeforeEntryId = null, int EntriesPageSize = 50);
 public sealed record TimeApprovalCursor(DateOnly WorkDate, Guid EntryId);
 public sealed record TimeApprovalPageInfo(int PageSize, bool HasMore, TimeApprovalCursor? NextCursor);
+public sealed record TimeEntryHistoryCursor(DateOnly WorkDate, DateTimeOffset CreatedAt, Guid EntryId);
+public sealed record TimeEntryHistoryPageInfo(int PageSize, bool HasMore, TimeEntryHistoryCursor? NextCursor);
 public sealed record PracticeTimeWorkspace(bool FirmWide, bool IsApprover, IReadOnlyList<TimePeriodOption> Periods,
   IReadOnlyList<TimeEngagementOption> Engagements, IReadOnlyList<TimeTaskOption> OpenTasks,
-  IReadOnlyList<TimeEntryRow> MyEntries, IReadOnlyList<TimeEntryRow> AwaitingApproval, TimeApprovalPageInfo ApprovalPage);
+  IReadOnlyList<TimeEntryRow> MyEntries, IReadOnlyList<TimeEntryRow> AwaitingApproval, TimeApprovalPageInfo ApprovalPage,
+  TimeEntryHistoryPageInfo EntriesPage);
 
 /// <summary>
 /// Grant-scoped time workspace: open tasks, the actor's own entries and (for approvers) others' submitted entries.
@@ -41,6 +45,12 @@ public static class PracticeTimeWorkspaceQuery
     if ((request.ApprovalAfterWorkDate is null) != (request.ApprovalAfterEntryId is null) ||
         request.ApprovalAfterEntryId == Guid.Empty || request.ApprovalPageSize is < 1 or > 100)
       return CommandResult<PracticeTimeWorkspace>.Fail("time.invalid", "Provide both approval cursor values and a page size from 1 to 100.");
+    if ((request.EntriesBeforeWorkDate is null) != (request.EntriesBeforeCreatedAt is null) ||
+        (request.EntriesBeforeWorkDate is null) != (request.EntriesBeforeEntryId is null) ||
+        request.EntriesBeforeEntryId == Guid.Empty || request.EntriesPageSize is < 1 or > 100)
+      return CommandResult<PracticeTimeWorkspace>.Fail("time.invalid", "Provide all history cursor values together and a page size from 1 to 100.");
+    if (request.EntriesBeforeCreatedAt is { } historyCreatedAt && historyCreatedAt.ToUniversalTime().Ticks % 10 != 0)
+      return CommandResult<PracticeTimeWorkspace>.Fail("time.invalid", "The history cursor creation time must match PostgreSQL microsecond precision.");
 
     var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
     if (!authorization.Succeeded) return CommandResult<PracticeTimeWorkspace>.Fail(authorization.ErrorCode!, authorization.Message!);
@@ -117,12 +127,35 @@ public static class PracticeTimeWorkspaceQuery
       .Select(x => new TimeTaskOption(x.Id, x.Title, x.Status, x.MappingVersionId, x.FsliCode, x.Phase)).ToList();
 
     TimeEntryRow Row(TimeEntry x) => new(x.Id, x.WorkDate, x.TaskId, taskById[x.TaskId].Title, x.UserId, x.DurationMinutes, x.Activity,
-      x.BillableClassification, x.Narrative, x.Status, x.MappingVersionId, x.FsliCode, x.StartMinute, x.LastReturnReason, x.Phase);
-    var myEntries = (await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
+      x.BillableClassification, x.Narrative, x.Status, x.MappingVersionId, x.FsliCode, x.StartMinute, x.LastReturnReason, x.Phase,
+      x.CreatedAt.ToUniversalTime());
+    var visibleTaskIds = visibleTasks.Select(x => x.Id).ToArray();
+    var ownRows = db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
         (firmWide || (x.EngagementId.HasValue && scopedEngagementIds.Contains(x.EngagementId.Value)) ||
           (!x.EngagementId.HasValue && x.ClientId.HasValue && directClientIds.Contains(x.ClientId.Value))))
-      .OrderByDescending(x => x.WorkDate).ThenByDescending(x => x.CreatedAt).Take(500).ToListAsync(ct))
-      .Where(x => taskById.TryGetValue(x.TaskId, out var task) && task.ClientId == x.ClientId && task.EngagementId == x.EngagementId).Select(Row).ToList();
+      .Join(db.WorkTasks.AsNoTracking().Where(x => x.FirmId == actor.FirmId && visibleTaskIds.Contains(x.Id)),
+        entry => new { entry.FirmId, entry.TaskId },
+        task => new { task.FirmId, TaskId = task.Id },
+        (entry, task) => new { Entry = entry, Task = task })
+      .Where(x => x.Entry.ClientId == x.Task.ClientId && x.Entry.EngagementId == x.Task.EngagementId);
+    if (request.EntriesBeforeWorkDate is { } beforeWorkDate &&
+        request.EntriesBeforeCreatedAt is { } beforeCreatedAt && request.EntriesBeforeEntryId is { } beforeEntryId)
+    {
+      var beforeCreatedAtUtc = beforeCreatedAt.ToUniversalTime();
+      ownRows = ownRows.Where(x => x.Entry.WorkDate < beforeWorkDate ||
+        (x.Entry.WorkDate == beforeWorkDate &&
+          (x.Entry.CreatedAt < beforeCreatedAtUtc ||
+            (x.Entry.CreatedAt == beforeCreatedAtUtc && x.Entry.Id.CompareTo(beforeEntryId) < 0))));
+    }
+    var selectedOwnRows = await ownRows.OrderByDescending(x => x.Entry.WorkDate).ThenByDescending(x => x.Entry.CreatedAt)
+      .ThenByDescending(x => x.Entry.Id).Take(request.EntriesPageSize + 1).ToListAsync(ct);
+    var entriesHasMore = selectedOwnRows.Count > request.EntriesPageSize;
+    var visibleOwnRows = selectedOwnRows.Take(request.EntriesPageSize).ToArray();
+    var myEntries = visibleOwnRows.Select(x => Row(x.Entry)).ToList();
+    var entriesCursor = entriesHasMore && visibleOwnRows.Length > 0
+      ? new TimeEntryHistoryCursor(visibleOwnRows[^1].Entry.WorkDate, visibleOwnRows[^1].Entry.CreatedAt.ToUniversalTime(), visibleOwnRows[^1].Entry.Id)
+      : null;
+    var entriesPage = new TimeEntryHistoryPageInfo(request.EntriesPageSize, entriesHasMore, entriesCursor);
 
     var awaiting = new List<TimeEntryRow>();
     var approvalPage = new TimeApprovalPageInfo(request.ApprovalPageSize, false, null);
@@ -130,7 +163,6 @@ public static class PracticeTimeWorkspaceQuery
     {
       var reviewScopedEngagementIds = reviewFirmWide ? [] : await db.Engagements.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && (reviewClientIds.Contains(x.PracticeClientId) || reviewEngagementIds.Contains(x.Id))).Select(x => x.Id).ToArrayAsync(ct);
-      var visibleTaskIds = visibleTasks.Select(x => x.Id).ToArray();
       var approvalRows = db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
           (reviewFirmWide || (x.EngagementId.HasValue && reviewScopedEngagementIds.Contains(x.EngagementId.Value)) ||
             (!x.EngagementId.HasValue && x.ClientId.HasValue && reviewClientIds.Contains(x.ClientId.Value))) &&
@@ -166,6 +198,7 @@ public static class PracticeTimeWorkspaceQuery
     if (workGrants.Any(x => !finalScopes.Contains((x.Role, x.ClientId, x.EngagementId))))
       return CommandResult<PracticeTimeWorkspace>.Fail(ErrorCodes.ScopeDenied,
         "Time recording access changed; reload the workspace.");
-    return CommandResult<PracticeTimeWorkspace>.Ok(new(firmWide, isApprover, periodOptions, engagementOptions, openTasks, myEntries, awaiting, approvalPage));
+    return CommandResult<PracticeTimeWorkspace>.Ok(new(firmWide, isApprover, periodOptions, engagementOptions, openTasks, myEntries,
+      awaiting, approvalPage, entriesPage));
   }
 }
