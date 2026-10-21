@@ -1228,7 +1228,7 @@
     },
     "timeEntryChanges20261021": {
       "status": "PASS_FOCUSED_NOT_FULL_RELEASE",
-      "source": "Working tree based on a960449a; implementation commit follows this evidence record.",
+      "source": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
       "behavior": "Draft/returned edits preserve review state; approved corrections create a new draft. Immutable actor-owned receipts support exact-request replay, authorized recovery and bounded history. Rates, FSLI and billing guards remain enforced.",
       "verification": {
         "solutionReleaseBuild": "PASS 0 warnings/errors; no tests executed by build",
@@ -1239,7 +1239,13 @@
         "builtInBrowser": "Owned synthetic fixture: two before/after receipts, actor/reason/UTC, superseded45m and separate draft35m, keyboard Close control; no captured warning/error logs. Screenshot /tmp/auditsphere-time-change-history-20261021.png. Fixture released.",
         "other": "Angular build PASS with unrelated existing diagnostics/budget warning; implementation lint, EF model drift and OpenAPI PASS."
       },
-      "limits": "No full local suites, deployment or persistent database migration. Human screen-reader/professional/provider acceptance and full current-commit CI remain pending."
+      "limits": "No full local suites, deployment or persistent database migration. Human screen-reader/professional/provider acceptance and full current-commit CI remain pending.",
+      "fullCi": {
+        "run": "39547674202",
+        "status": "QUEUED",
+        "sourceCommit": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39547674202"
+      }
     }
   },
   "externalGates": [
