@@ -315,14 +315,15 @@ public sealed partial class ClientAccountingTests
       Assert.False(duplicatePolicy.Succeeded);
       Assert.Equal(ErrorCodes.IdempotencyConflict, duplicatePolicy.ErrorCode);
       Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, methodOwner, policyId)).Succeeded);
+      var reportingPeriodId = AddConsolidationReportingPeriod(db, scope, 2026);
       var unsupportedPolicyRateScope = await ConsolidationService.CreateScopeAsync(db, reviewer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",
+        new ConsolidationScopeRequest(groupId, reportingPeriodId, "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",
           rateSetId, policyId, rateDate, "SPOT"));
       Assert.False(unsupportedPolicyRateScope.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, unsupportedPolicyRateScope.ErrorCode);
 
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",
+        new ConsolidationScopeRequest(groupId, reportingPeriodId, "QAR", ConsolidationCalculator.ForeignOperationMethod, "OPENING-FX-2026",
           rateSetId, policyId, rateDate, "CLOSING"))).Value;
       packageUsd = await BuildCurrencyPackageAsync(db, scope, scope.ClientA, scope.EngagementA,
         [("CASH", "ASSETS", 100m), ("CAPITAL", "EQUITY", -100m), ("REVENUE", "INCOME", 0m), ("EXPENSE", "EXPENSE", 0m)], "foreign-usd", "USD");
@@ -425,8 +426,9 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(100m, await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd && x.DestinationCode == "CASH").Select(x => x.Amount).SingleAsync());
       Assert.Equal("USD", await db.FinancialPackageLines.Where(x => x.FinancialPackageId == packageUsd && x.DestinationCode == "CASH").Select(x => x.Currency).SingleAsync());
 
+      var nextPeriodId = AddConsolidationReportingPeriod(db, scope, 2027);
       var nextScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
+        new ConsolidationScopeRequest(groupId, nextPeriodId, "QAR", ConsolidationCalculator.ForeignOperationMethod,
           "OPENING-FX-2027", rateSetId, policyId, rateDate.AddYears(1), "CLOSING", consolidationScopeId))).Value;
       var nextScope = await db.ConsolidationScopeVersions.AsNoTracking().SingleAsync(x => x.Id == nextScopeId);
       var priorRunHash = await db.ConsolidationRuns.Where(x => x.Id == runId).Select(x => x.RunHash).SingleAsync();
@@ -518,8 +520,9 @@ public sealed partial class ClientAccountingTests
         new TranslationPolicyRequest("FX-POL-GOLD7", "USD", "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
       Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, rateApprover, policyId)).Succeeded);
 
+      var reportingPeriodId = AddConsolidationReportingPeriod(db, scope, 2026);
       consolidationScopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-        new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
+        new ConsolidationScopeRequest(groupId, reportingPeriodId, "QAR", ConsolidationCalculator.ForeignOperationMethod,
           "OPENING-GOLD7", rateSetId, policyId, rateDate, "CLOSING"))).Value;
 
       // GOLD-R2R-07 lines: Cash 100 (ASSETS), Capital -80 (EQUITY), Revenue -40 (INCOME), Expense 20 (EXPENSE)
@@ -620,6 +623,19 @@ public sealed partial class ClientAccountingTests
   private sealed record ForeignOperationFixture(
     Guid GroupId, Guid RateSetId, Guid PolicyId, Guid ScopeId, Guid PackageId, Guid ComponentId);
 
+  private static Guid AddConsolidationReportingPeriod(AuditSphereDbContext db, Scope scope, int year)
+  {
+    var periodId = Guid.CreateVersion7();
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+    {
+      Id = periodId, FirmId = scope.FirmId, ClientId = scope.ClientA, PeriodCode = year.ToString(),
+      StartDate = new DateOnly(year, 1, 1), EndDate = new DateOnly(year, 12, 31), Basis = "STATUTORY",
+      Currency = "QAR", Status = AccountingWorkflowStates.Approved, CreatedByUserId = scope.Preparer.Id,
+      CreatedAt = DateTimeOffset.UtcNow
+    });
+    return periodId;
+  }
+
   /// <summary>
   /// Builds the reviewed foreign-operation fixture up to an approved component: group with one
   /// controlled member, approved rate set and translation policy, draft scope, and one package
@@ -675,8 +691,9 @@ public sealed partial class ClientAccountingTests
       new TranslationPolicyRequest($"FX-POL-{suffix}", functionalCurrency, "QAR", "CLOSING", "AVERAGE", "HISTORICAL"))).Value;
     Assert.True((await CurrencyTranslationService.ApprovePolicyAsync(db, rateApprover, policyId)).Succeeded);
 
+    var reportingPeriodId = AddConsolidationReportingPeriod(db, scope, 2026);
     var scopeId = (await ConsolidationService.CreateScopeAsync(db, preparer,
-      new ConsolidationScopeRequest(groupId, Guid.NewGuid(), "QAR", ConsolidationCalculator.ForeignOperationMethod,
+      new ConsolidationScopeRequest(groupId, reportingPeriodId, "QAR", ConsolidationCalculator.ForeignOperationMethod,
         $"OPENING-{suffix}", rateSetId, policyId, rateDate, "CLOSING"))).Value;
 
     var packageId = reviewComponent

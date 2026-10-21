@@ -287,6 +287,16 @@ public sealed class ConsolidationQueryTests
     Guid submittedComponentId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var scopePeriodId = await db.ConsolidationScopeVersions.AsNoTracking()
+        .Where(x => x.FirmId == fixture.FirmId && x.Id == fixture.ScopeId)
+        .Select(x => x.PeriodId).SingleAsync();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = scopePeriodId, FirmId = fixture.FirmId, ClientId = fixture.ClientA, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY",
+        Currency = "QAR", Status = AccountingWorkflowStates.Approved, CreatedByUserId = fixture.Manager.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
       var packageId = AddValidatedPackage(db, fixture, fixture.ClientA, fixture.EngagementA, "QAR", "readiness");
       submittedComponentId = Guid.CreateVersion7();
       db.ConsolidationComponents.Add(new ConsolidationComponent
@@ -414,16 +424,6 @@ public sealed class ConsolidationQueryTests
       Assert.Equal(501, absentSelection.Value.ComponentPaging.TotalCount);
       Assert.Equal(501, absentSelection.Value.ReadinessPaging!.TotalCount);
 
-      var reportingPeriodId = await db.ConsolidationScopeVersions.AsNoTracking()
-        .Where(x => x.Id == fixture.ScopeId).Select(x => x.PeriodId).SingleAsync();
-      db.ClientReportingPeriods.Add(new ClientReportingPeriod
-      {
-        Id = reportingPeriodId, FirmId = fixture.FirmId, ClientId = fixture.ClientA, PeriodCode = "FY2026",
-        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), Basis = "STATUTORY",
-        Currency = "QAR", Status = AccountingWorkflowStates.Approved,
-        CreatedByUserId = fixture.Manager.Id, CreatedAt = DateTimeOffset.UtcNow
-      });
-      await db.SaveChangesAsync();
       var memberPage = await ConsolidationQuery.GetIntercompanyMatchOptionsAsync(
         db, manager, fixture.ScopeId, 6, 100, null, fixture.ClientA, fixture.ClientB);
       Assert.True(memberPage.Succeeded, memberPage.Message);

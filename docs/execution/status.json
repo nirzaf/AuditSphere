@@ -1201,7 +1201,7 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021",
       "agentReview": "Shell source review; app-navigation/workspace-navigation specs 23/23 and targeted ESLint passed. Details in current-slice.",
       "browser": "Local 5029/4304 refused; production AX at cbb9993 is historical. No client route or screen reader.",
-      "ci": "39630754799@288de1ee: docs/Angular pass, .NET running; 39630076898@06b0e02a: Angular/build pass, Domain/API/E2E running."
+      "ci": "Current fast CI39632748329 running; prior release39630076898@06b0e02a Domain failed."
     },
     "purchaseCommandRecovery20261021": "Archived: status-archive-2026-10.json#keys.targetedVerification.purchaseCommandRecovery20261021",
     "apiAngularParityFocused20261021": {
@@ -1605,7 +1605,7 @@
     },
     "tracker": "docs/execution/auditsphere-execution-tracker-api-angular-parity-current.md",
     "workingTreeBase": "150c7671762ac93f87b2b539cb53f688fb90557e",
-    "currentCommitReleaseVerification": "T011 CI 39628511049 PASS; T010 CI 39630011625 Docs/Angular PASS, .NET running; full 39630076898 running on 06b0e02a.",
+    "currentCommitReleaseVerification": "T025@36410b58: D1/1, UI23/23, ESLint; Release build 0W/0E. CI39632748329 running; prior release39630076898@06b0e02a Domain failed.",
     "pendingBrowserAcceptance": [
       "501-member fixture",
       "Independent approval journey",
