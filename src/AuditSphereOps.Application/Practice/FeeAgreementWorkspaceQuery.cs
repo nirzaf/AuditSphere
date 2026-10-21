@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
@@ -6,6 +7,7 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -37,13 +39,60 @@ public sealed record FeeAgreementWorkspace(Guid ProposalId, Guid? AgreementId, G
 
 public static class FeeAgreementWorkspaceQuery
 {
+  private static readonly string[] CommercialRoles = ["Administrator", "Partner", "Manager", "RelationshipManager"];
+  private static readonly string[] FinanceRoles = ["FinanceManager", "FinanceReviewer"];
+
   private static string Exact(decimal value) => value.ToString(CultureInfo.InvariantCulture);
 
   /// <param name="automaticDraftingEnabled">The API host's view of <c>AutomaticFeeInvoices:Enabled</c>; the worker enforces it.</param>
   public static async Task<CommandResult<FeeAgreementWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor,
     Guid proposalId, CancellationToken ct = default, bool automaticDraftingEnabled = false)
   {
-    var proposal = await CommercialWorkspaceQuery.ProposalAsync(db, actor, proposalId, ct);
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.GateBlocked,
+        "Fee agreement workspace requires an independent read snapshot.");
+
+    CommandResult<FeeAgreementWorkspace> result;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      var snapshotStartedAtUtc = DateTimeOffset.UtcNow;
+      result = await ReadWithinSnapshotAsync(db, actor, proposalId, snapshotStartedAtUtc, automaticDraftingEnabled, ct);
+      if (!result.Succeeded) return result;
+      await snapshot.CommitAsync(ct);
+    }
+
+    var commercialAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, RequiredRoles: CommercialRoles, InternalOnly: true, RequireFirmWide: true), ct);
+    if (!commercialAuth.Succeeded)
+      return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.ScopeDenied, "Fee agreement unavailable.");
+
+    var workspace = result.Value!;
+    if (workspace.CanFinance)
+    {
+      if (workspace.ClientId is not { } clientId)
+        return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.ScopeDenied, "Fee agreement unavailable.");
+      var financeAuth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: FinanceRoles, InternalOnly: true), ct);
+      if (!financeAuth.Succeeded)
+        return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.ScopeDenied, "Fee agreement unavailable.");
+    }
+
+    return result;
+  }
+
+  /// <summary>
+  /// Reads a fee workspace as part of an explicitly owned RepeatableRead composition. The caller must recheck authorization
+  /// after disposing that outer snapshot before returning any action flags.
+  /// </summary>
+  internal static async Task<CommandResult<FeeAgreementWorkspace>> ReadWithinSnapshotAsync(IAuditSphereDbContext db,
+    ActorContext actor, Guid proposalId, DateTimeOffset snapshotStartedAtUtc, bool automaticDraftingEnabled,
+    CancellationToken ct = default)
+  {
+    if (db.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.RepeatableRead)
+      return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.GateBlocked,
+        "Fee agreement projection requires the caller's RepeatableRead snapshot.");
+
+    var proposal = await CommercialWorkspaceQuery.ReadWithinSnapshotAsync(db, actor, proposalId, snapshotStartedAtUtc, ct);
     if (!proposal.Succeeded) return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.ScopeDenied, "Fee agreement unavailable.");
     var view = await FeeAgreementService.GetForProposalAsync(db, actor, proposalId, ct);
     if (!view.Succeeded) return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.ScopeDenied, "Fee agreement unavailable.");
@@ -73,7 +122,7 @@ public static class FeeAgreementWorkspaceQuery
     var advance = MoneyPolicy.Normalize(fee * FeeAgreementService.DefaultAdvancePercent / 100m, QuotationCalculator.CurrencyScale);
     if (advance <= 0 || fee - advance <= 0) blockers.Add("The accepted fee must support positive advance and balance milestones.");
     var finance = p.ClientId.HasValue && (await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new(actor.FirmId, p.ClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct)).Succeeded;
+      new(actor.FirmId, p.ClientId, RequiredRoles: FinanceRoles, InternalOnly: true), ct)).Succeeded;
     var engagements = p.ClientId.HasValue && v?.Agreement.EngagementId is null
       ? await db.Engagements.AsNoTracking().Where(e => e.FirmId == actor.FirmId && e.PracticeClientId == p.ClientId)
         .OrderByDescending(e => e.CreatedAt).ThenBy(e => e.Id).Take(100)
@@ -82,8 +131,6 @@ public static class FeeAgreementWorkspaceQuery
       r.FirmId == actor.FirmId && r.ClientId == v.Agreement.PracticeClientId && r.EngagementId == engagementId, ct);
     if (v is not null && (v.Milestones.Count != 2 || !new[] { "ADVANCE", "BALANCE" }.All(kind => v.Milestones.Count(m => m.Milestone.Kind == kind) == 1)))
       return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.GateBlocked, "Fee milestones require reconciliation.");
-    if (!(await CommercialWorkspaceQuery.ProposalAsync(db, actor, proposalId, ct)).Succeeded)
-      return CommandResult<FeeAgreementWorkspace>.Fail(ErrorCodes.ScopeDenied, "Fee agreement unavailable.");
     var preparation = await AdvancePreparationAsync(db, actor.FirmId, v, automaticDraftingEnabled, ct);
     return CommandResult<FeeAgreementWorkspace>.Ok(new(proposalId, v?.Agreement.Id, p.ClientId, v?.Agreement.EngagementId,
       v is null ? p.Fee : Exact(v.Agreement.AgreedFee), v?.Agreement.Currency ?? p.Currency,

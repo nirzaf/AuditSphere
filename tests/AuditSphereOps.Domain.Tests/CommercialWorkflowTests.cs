@@ -2784,6 +2784,260 @@ public sealed class CommercialWorkflowTests
     Assert.Null(denied.Value);
   }
 
+  private sealed class PauseAfterOnboardingQuotationRead : DbCommandInterceptor
+  {
+    private int paused;
+    public TaskCompletionSource<bool> Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("quotation_versions", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref paused, 1, 0) == 0)
+      {
+        Reached.TrySetResult(true);
+        await Release.Task.WaitAsync(cancellationToken);
+      }
+      return result;
+    }
+  }
+
+  [Fact]
+  public async Task OnboardingReadinessKeepsCommercialCardsInOneSnapshotAndRechecksCurrentAuthority()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    var revokerUser = User(w.FirmId, "partner-revoker");
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.Users.Add(revokerUser);
+      foreach (var role in new[] { "RelationshipManager", "FinanceManager" })
+        seed.RoleGrants.Add(new RoleGrant
+        {
+          Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = w.Partner.UserId, Role = role,
+          GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.Partner.UserId
+        });
+      seed.RoleGrants.Add(new RoleGrant
+      {
+        Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = revokerUser.Id, Role = "Partner",
+        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = revokerUser.Id
+      });
+      await seed.SaveChangesAsync();
+    }
+    var revoker = Actor(revokerUser, "Partner");
+
+    Guid engagementId;
+    Guid clientId;
+    Guid quoteId;
+    Guid approvalId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var quote = await QuotationService.SaveAsync(setup, w.Prep, Quote(proposalId, discount: 15m));
+      Assert.True(quote.Succeeded, quote.Message);
+      quoteId = quote.Value;
+      Assert.True((await QuotationService.SubmitAsync(setup, w.Prep, quoteId)).Succeeded);
+      var quotations = await QuotationService.ListAsync(setup, w.Prep, proposalId);
+      Assert.True(quotations.Succeeded, quotations.Message);
+      var required = Assert.Single(quotations.Value!.Single().RequiredApprovals);
+      Assert.Equal("Partner", required.Role);
+      Assert.True((await QuotationService.ApproveAsync(setup, w.Partner, quoteId, required.RuleKey,
+        "Approved the exact submitted quotation revision")).Succeeded);
+      approvalId = await setup.QuotationApprovals.AsNoTracking()
+        .Where(x => x.FirmId == w.FirmId && x.QuotationVersionId == quoteId && x.RuleKey == required.RuleKey)
+        .Select(x => x.Id).SingleAsync();
+
+      Assert.True((await PracticeCrmService.ApproveProposalAsync(setup, w.Partner, proposalId)).Succeeded);
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(setup, w.Prep, proposalId);
+      Assert.True((await PracticeCrmService.SendProposalAsync(setup, w.Prep, proposalId)).Succeeded);
+      var offerSha = await setup.Proposals.AsNoTracking().Where(x => x.FirmId == w.FirmId && x.Id == proposalId)
+        .Select(x => x.SentOfferSha256).SingleAsync();
+      Assert.False(string.IsNullOrWhiteSpace(offerSha));
+      Assert.True((await PracticeCrmService.RecordProposalResponseAsync(setup, w.Prep, proposalId,
+        new(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test",
+          "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
+      var client = await PracticeCrmService.ConvertToClientDraftAsync(setup, w.Prep, new(proposalId, "Snapshot readiness client"));
+      Assert.True(client.Succeeded, client.Message);
+      clientId = client.Value;
+      engagementId = Guid.NewGuid();
+      setup.Engagements.Add(new Engagement
+      {
+        Id = engagementId, FirmId = w.FirmId, PracticeClientId = clientId, ServiceRoute = "FinancialStatementAudit",
+        PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = DateTimeOffset.UtcNow
+      });
+      await setup.SaveChangesAsync();
+    }
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+    await using (var beforeDb = new AuditSphereDbContext(pg.Options))
+    {
+      var before = await ClientOnboardingReadinessQuery.GetAsync(beforeDb, w.Prep, engagementId, timeout.Token);
+      Assert.True(before.Succeeded, before.Message);
+      var beforeReport = before.Value!;
+      Assert.Equal(OnboardingReadinessStatuses.Current, beforeReport.ClientApproval.Status);
+      Assert.Equal(OnboardingReadinessStatuses.Blocked, beforeReport.Activation.Status);
+
+      var pause = new PauseAfterOnboardingQuotationRead();
+      await using var delayed = new AuditSphereDbContext(
+        new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pause).Options);
+      await using var approvalRevoker = new AuditSphereDbContext(pg.Options);
+      try
+      {
+        var pendingRead = ClientOnboardingReadinessQuery.GetAsync(delayed, w.Prep, engagementId, timeout.Token);
+        await pause.Reached.Task.WaitAsync(timeout.Token);
+
+        // The quotation row has been read, but the client-acceptance predicate still has to check its approval revocation.
+        Assert.True((await QuotationService.RevokeApprovalAsync(approvalRevoker, revoker, approvalId,
+          "Withdrawn pending a fresh commercial review", timeout.Token)).Succeeded);
+        var retainedRevocation = await approvalRevoker.QuotationApprovalRevocations.AsNoTracking()
+          .SingleAsync(x => x.FirmId == w.FirmId && x.QuotationApprovalId == approvalId, timeout.Token);
+        Assert.Equal(revoker.UserId, retainedRevocation.RevokedByUserId);
+        Assert.Equal(QuotationStates.Approved, await approvalRevoker.QuotationVersions.AsNoTracking()
+          .Where(x => x.FirmId == w.FirmId && x.Id == quoteId).Select(x => x.Status).SingleAsync(timeout.Token));
+
+        pause.Release.TrySetResult(true);
+        var interleaved = await pendingRead;
+        Assert.True(interleaved.Succeeded, interleaved.Message);
+        var interleavedReport = interleaved.Value!;
+        Assert.True(interleavedReport.EvaluatedAtUtc <= retainedRevocation.RevokedAt,
+          "The readiness evaluation time must belong to the snapshot captured before this revocation.");
+        Assert.Equal(beforeReport.ClientApproval, interleavedReport.ClientApproval);
+        Assert.Equal(beforeReport.PartnerRisk, interleavedReport.PartnerRisk);
+        Assert.Equal(beforeReport.EngagementLetter, interleavedReport.EngagementLetter);
+        Assert.Equal(beforeReport.AdvancePayment, interleavedReport.AdvancePayment);
+        Assert.Equal(beforeReport.Activation, interleavedReport.Activation);
+      }
+      finally
+      {
+        pause.Release.TrySetResult(true);
+      }
+    }
+
+    await using (var fresh = new AuditSphereDbContext(pg.Options))
+    {
+      var current = await ClientOnboardingReadinessQuery.GetAsync(fresh, w.Prep, engagementId, timeout.Token);
+      Assert.True(current.Succeeded, current.Message);
+      var currentReport = current.Value!;
+      Assert.Equal(OnboardingReadinessStatuses.Stale, currentReport.ClientApproval.Status);
+      Assert.Equal(OnboardingDisplayStatus.Stale, currentReport.ClientApproval.DisplayStatus);
+      Assert.Contains(currentReport.Blockers, b => b.Code == "CLIENT_ACCEPTANCE_STALE");
+      Assert.Equal(OnboardingReadinessStatuses.Blocked, currentReport.Activation.Status);
+    }
+
+    await using (var callerTransactionDb = new AuditSphereDbContext(pg.Options))
+    {
+      await using var callerTransaction = await callerTransactionDb.Database.BeginTransactionAsync(timeout.Token);
+      var refused = await ClientOnboardingReadinessQuery.GetAsync(callerTransactionDb, w.Prep, engagementId, timeout.Token);
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+      Assert.Null(refused.Value);
+      var refusedFee = await FeeAgreementWorkspaceQuery.GetAsync(callerTransactionDb, w.Partner, proposalId, timeout.Token);
+      Assert.False(refusedFee.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, refusedFee.ErrorCode);
+      Assert.Null(refusedFee.Value);
+      Assert.NotNull(callerTransactionDb.Database.CurrentTransaction);
+      Assert.Equal(1, await callerTransactionDb.Database.SqlQueryRaw<int>("SELECT 1 AS \"Value\"")
+        .SingleAsync(timeout.Token));
+      await callerTransaction.CommitAsync(timeout.Token);
+    }
+
+    await using (var partnerRead = new AuditSphereDbContext(pg.Options))
+    {
+      var report = await ClientOnboardingReadinessQuery.GetAsync(partnerRead, w.Partner, engagementId, timeout.Token);
+      Assert.True(report.Succeeded, report.Message);
+      Assert.True(report.Value!.CanActivate);
+      Assert.Equal(OnboardingReadinessStatuses.Blocked, report.Value.Activation.Status);
+    }
+
+    var partnerActionPause = new PauseAfterOnboardingQuotationRead();
+    await using (var partnerReader = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(partnerActionPause).Options))
+    {
+      await using var partnerGrantWriter = new AuditSphereDbContext(pg.Options);
+      try
+      {
+        var pendingActionRead = ClientOnboardingReadinessQuery.GetAsync(partnerReader, w.Partner, engagementId, timeout.Token);
+        await partnerActionPause.Reached.Task.WaitAsync(timeout.Token);
+        var revokedPartner = await partnerGrantWriter.RoleGrants.Where(x => x.FirmId == w.FirmId &&
+            x.UserId == w.Partner.UserId && x.Role == "Partner" && x.ClientId == null &&
+            x.EngagementId == null && x.RevokedAt == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+        Assert.Equal(1, revokedPartner);
+        Assert.Equal(1, await partnerGrantWriter.RoleGrants.CountAsync(x => x.FirmId == w.FirmId &&
+          x.UserId == w.Partner.UserId && x.Role == "RelationshipManager" && x.RevokedAt == null, timeout.Token));
+        partnerActionPause.Release.TrySetResult(true);
+        var refusedAction = await pendingActionRead;
+        Assert.False(refusedAction.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, refusedAction.ErrorCode);
+        Assert.Null(refusedAction.Value);
+      }
+      finally
+      {
+        partnerActionPause.Release.TrySetResult(true);
+      }
+    }
+
+    await using (var feeRead = new AuditSphereDbContext(pg.Options))
+    {
+      var fee = await FeeAgreementWorkspaceQuery.GetAsync(feeRead, w.Partner, proposalId, timeout.Token);
+      Assert.True(fee.Succeeded, fee.Message);
+      Assert.True(fee.Value!.CanFinance);
+      Assert.Null(fee.Value.AgreementId);
+    }
+
+    var financePause = new PauseAfterOnboardingQuotationRead();
+    await using (var feeReader = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(financePause).Options))
+    {
+      await using var financeGrantWriter = new AuditSphereDbContext(pg.Options);
+      try
+      {
+        var pendingFeeRead = FeeAgreementWorkspaceQuery.GetAsync(feeReader, w.Partner, proposalId, timeout.Token);
+        await financePause.Reached.Task.WaitAsync(timeout.Token);
+        var revokedFinance = await financeGrantWriter.RoleGrants.Where(x => x.FirmId == w.FirmId &&
+            x.UserId == w.Partner.UserId && x.Role == "FinanceManager" && x.ClientId == null &&
+            x.EngagementId == null && x.RevokedAt == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+        Assert.Equal(1, revokedFinance);
+        Assert.Equal(1, await financeGrantWriter.RoleGrants.CountAsync(x => x.FirmId == w.FirmId &&
+          x.UserId == w.Partner.UserId && x.Role == "RelationshipManager" && x.RevokedAt == null, timeout.Token));
+        financePause.Release.TrySetResult(true);
+        var refusedFee = await pendingFeeRead;
+        Assert.False(refusedFee.Succeeded);
+        Assert.Equal(ErrorCodes.ScopeDenied, refusedFee.ErrorCode);
+        Assert.Null(refusedFee.Value);
+      }
+      finally
+      {
+        financePause.Release.TrySetResult(true);
+      }
+    }
+
+    var authorityPause = new PauseAfterOnboardingQuotationRead();
+    await using var authorityReader = new AuditSphereDbContext(
+      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(authorityPause).Options);
+    await using var grantWriter = new AuditSphereDbContext(pg.Options);
+    try
+    {
+      var pendingRead = ClientOnboardingReadinessQuery.GetAsync(authorityReader, w.Prep, engagementId, timeout.Token);
+      await authorityPause.Reached.Task.WaitAsync(timeout.Token);
+      var revoked = await grantWriter.RoleGrants.Where(x => x.FirmId == w.FirmId && x.UserId == w.Prep.UserId &&
+          x.Role == "RelationshipManager" && x.ClientId == null && x.EngagementId == null && x.RevokedAt == null)
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow), timeout.Token);
+      Assert.Equal(1, revoked);
+      authorityPause.Release.TrySetResult(true);
+      var refused = await pendingRead;
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, refused.ErrorCode);
+      Assert.Null(refused.Value);
+    }
+    finally
+    {
+      authorityPause.Release.TrySetResult(true);
+    }
+  }
+
   private sealed class ObserveFirmLockAttempt : DbCommandInterceptor
   {
     public bool Fired { get; private set; }

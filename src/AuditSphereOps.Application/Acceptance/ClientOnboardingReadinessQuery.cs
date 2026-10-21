@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
@@ -6,6 +7,7 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AuditSphereOps.Application.Acceptance;
 
@@ -130,6 +132,50 @@ public static class ClientOnboardingReadinessQuery
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default,
     bool automaticDraftingEnabled = false)
   {
+    if (db.Database.CurrentTransaction is not null)
+      return CommandResult<OnboardingReadinessReport>.Fail(ErrorCodes.GateBlocked,
+        "Onboarding readiness requires an independent read snapshot.");
+
+    CommandResult<OnboardingReadinessReport> result;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      // Capture the report's as-of time immediately before its first database read.
+      var evaluatedAtUtc = DateTimeOffset.UtcNow;
+      result = await ReadWithinSnapshotAsync(db, actor, engagementId, evaluatedAtUtc, ct, automaticDraftingEnabled);
+      if (!result.Succeeded) return result;
+      await snapshot.CommitAsync(ct);
+    }
+
+    var report = result.Value!;
+    var currentCommercial = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: CommercialRoles,
+        InternalOnly: true, RequireFirmWide: true), ct);
+    if (!currentCommercial.Succeeded)
+      return CommandResult<OnboardingReadinessReport>.Fail(currentCommercial.ErrorCode!, currentCommercial.Message!);
+
+    // These flags authorize different actions from the broad commercial read. Do not return a snapshot-era true flag
+    // if its exact role or signature authority has since been revoked; do not recompute any business card outside the snapshot.
+    if (report.CanGenerateLetter && !await CanGenerateLetterAsync(db, actor, ct))
+      return CommandResult<OnboardingReadinessReport>.Fail(ErrorCodes.ScopeDenied, "Engagement unavailable.");
+    if (report.CanActivate)
+    {
+      var currentActivation = await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, report.ClientId, engagementId, RequiredRoles: ["Partner"], InternalOnly: true), ct);
+      if (!currentActivation.Succeeded)
+        return CommandResult<OnboardingReadinessReport>.Fail(ErrorCodes.ScopeDenied, "Engagement unavailable.");
+    }
+
+    return result;
+  }
+
+  private static async Task<CommandResult<OnboardingReadinessReport>> ReadWithinSnapshotAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, DateTimeOffset evaluatedAtUtc,
+    CancellationToken ct, bool automaticDraftingEnabled)
+  {
+    if (db.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.RepeatableRead)
+      return CommandResult<OnboardingReadinessReport>.Fail(ErrorCodes.GateBlocked,
+        "Onboarding projection requires its caller's RepeatableRead snapshot.");
+
     // Firm-wide: the client's Partner risk decision and payment detail are firm commercial evidence. An engagement-only grant
     // must not read a client-level decision or its decider, even for a client that has no proposal yet.
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -188,7 +234,8 @@ public static class ClientOnboardingReadinessQuery
     FeeAgreementWorkspace? fee = null;
     if (proposal is not null)
     {
-      var feeView = await FeeAgreementWorkspaceQuery.GetAsync(db, actor, proposal.Id, ct, automaticDraftingEnabled);
+      var feeView = await FeeAgreementWorkspaceQuery.ReadWithinSnapshotAsync(db, actor, proposal.Id, evaluatedAtUtc,
+        automaticDraftingEnabled, ct);
       if (!feeView.Succeeded) return CommandResult<OnboardingReadinessReport>.Fail(feeView.ErrorCode!, feeView.Message!);
       fee = feeView.Value;
     }
@@ -259,7 +306,7 @@ public static class ClientOnboardingReadinessQuery
 
     return CommandResult<OnboardingReadinessReport>.Ok(new OnboardingReadinessReport(
       engagementId, clientId, engagement.ServiceRoute, clientCard, riskCard, letterCard, advanceCard, activation,
-      canGenerateLetter, canActivate, blockers, actions, DateTimeOffset.UtcNow));
+      canGenerateLetter, canActivate, blockers, actions, evaluatedAtUtc));
   }
 
   /// <summary>The letter command's own actor rule: a firm-wide Partner who has a registered, unrevoked signature.</summary>

@@ -6,6 +6,7 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AuditSphereOps.Application.Practice;
 
@@ -123,67 +124,88 @@ public static class CommercialWorkspaceQuery
       return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.GateBlocked,
         "Proposal workspace requires an independent read snapshot.");
 
+    CommandResult<ProposalWorkspace> result;
+    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
+    {
+      var snapshotStartedAtUtc = DateTimeOffset.UtcNow;
+      result = await ReadWithinSnapshotAsync(db, actor, id, snapshotStartedAtUtc, ct);
+      if (!result.Succeeded) return result;
+      await snapshot.CommitAsync(ct);
+    }
+
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId,
+        RequiredRoles: ["Administrator", "Partner", "Manager", "RelationshipManager"], InternalOnly: true, RequireFirmWide: true), ct);
+    if (!auth.Succeeded)
+      return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
+    return result;
+  }
+
+  /// <summary>
+  /// Reads the authorized proposal projection within an outer-owned RepeatableRead snapshot. The caller must reauthorize
+  /// after disposing that snapshot before returning the projection.
+  /// </summary>
+  internal static async Task<CommandResult<ProposalWorkspace>> ReadWithinSnapshotAsync(IAuditSphereDbContext db,
+    ActorContext actor, Guid id, DateTimeOffset snapshotStartedAtUtc, CancellationToken ct = default)
+  {
+    if (db.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.RepeatableRead)
+      return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.GateBlocked,
+        "Proposal projection requires the caller's RepeatableRead snapshot.");
+
     var request = new AuthorizationRequest(actor.FirmId,
       RequiredRoles: ["Administrator", "Partner", "Manager", "RelationshipManager"], InternalOnly: true, RequireFirmWide: true);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
       return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
 
-    ProposalWorkspace workspace;
-    await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
-    {
-      var p = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == id, ct);
-      if (p is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
-      var opportunity = await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == p.OpportunityId, ct);
-      if (opportunity is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
-      var lead = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == opportunity.LeadId, ct);
-      if (lead is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
-      var versions = await db.Proposals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.OpportunityId == p.OpportunityId)
-        .OrderByDescending(x => x.Revision).Take(100).ToListAsync(ct);
-      var responseRecord = await db.ProposalResponseRecords.AsNoTracking()
-        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == p.Id, ct);
-      var ownerId = opportunity.OwnerUserId ?? lead.OwnerUserId;
-      var involved = new[] { ownerId, p.PreparedByUserId, p.ApprovedByUserId, responseRecord?.RecordedByUserId }
-        .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
-      var names = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && involved.Contains(x.Id))
-        .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
-      string Name(Guid? userId, string fallback) => userId.HasValue && names.TryGetValue(userId.Value, out var n) ? n : fallback;
-      // Truthful dispatch evidence: the queued email's provider-outcome state, not the commercial `SENT` status alone.
-      var dispatch = await db.CommercialNotifications.AsNoTracking()
-        .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == p.Id, ct);
-      var dispatchPreview = await DispatchPreviewAsync(db, actor, p, opportunity, lead, dispatch is not null, ct);
+    var p = await db.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == id, ct);
+    if (p is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
+    var opportunity = await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == p.OpportunityId, ct);
+    if (opportunity is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
+    var lead = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == opportunity.LeadId, ct);
+    if (lead is null) return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
+    var versions = await db.Proposals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.OpportunityId == p.OpportunityId)
+      .OrderByDescending(x => x.Revision).Take(100).ToListAsync(ct);
+    var responseRecord = await db.ProposalResponseRecords.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == p.Id, ct);
+    var ownerId = opportunity.OwnerUserId ?? lead.OwnerUserId;
+    var involved = new[] { ownerId, p.PreparedByUserId, p.ApprovedByUserId, responseRecord?.RecordedByUserId }
+      .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+    var names = await db.Users.AsNoTracking().Where(x => x.FirmId == actor.FirmId && involved.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+    string Name(Guid? userId, string fallback) => userId.HasValue && names.TryGetValue(userId.Value, out var n) ? n : fallback;
+    // Truthful dispatch evidence: the queued email's provider-outcome state, not the commercial `SENT` status alone.
+    var dispatch = await db.CommercialNotifications.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == p.Id, ct);
+    var dispatchPreview = await DispatchPreviewAsync(db, actor, p, opportunity, lead, snapshotStartedAtUtc,
+      dispatch is not null, ct);
 
-      workspace = new(p.Id, p.OpportunityId, lead.Name, opportunity.ServiceRoute, opportunity.EntityScope,
-        opportunity.Stage, p.Revision.ToString(CultureInfo.InvariantCulture), p.Status, p.ServiceProfileId, p.Scope, p.Exclusions,
-        p.Deliverables, p.Dependencies, p.Fee.ToString(CultureInfo.InvariantCulture), p.Currency, p.PeriodStart, p.PeriodEnd,
-        responseRecord?.Reason ?? p.ResponseReason, p.PracticeClientId ?? opportunity.PracticeClientId,
-        p.PreparedByUserId.HasValue && p.PreparedByUserId != actor.UserId && p.Status == "DRAFT",
-        Name(ownerId, "Not assigned"),
-        p.PreparedByUserId.HasValue ? Name(p.PreparedByUserId, "Author unavailable") : "Not recorded (legacy proposal)",
-        p.ApprovedByUserId.HasValue ? Name(p.ApprovedByUserId, "Reviewer unavailable") : "Not recorded",
-        p.ApprovedAt, p.SentAt, p.ResponseAt, p.SupersedesId,
-        p.SentOfferSha256, dispatch?.DeliveryState, dispatch?.DeliveredAt, dispatch?.Recipient,
-        responseRecord?.OfferSha256 ?? p.ResponseOfferSha256,
-        responseRecord?.RespondentName ?? p.RespondentName, responseRecord?.RespondentEmail ?? p.RespondentEmail,
-        responseRecord?.EvidenceReference ?? p.ResponseEvidenceReference,
-        versions.Select(v => new ProposalHistory(v.Id, v.Revision.ToString(CultureInfo.InvariantCulture), v.Status,
-          v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt, v.SentAt, v.ResponseAt)).ToArray(),
-        responseRecord?.Channel ?? p.ResponseChannel, p.Timeline,
-        responseRecord?.AuthorityBasis,
-        responseRecord is null ? null : Name(responseRecord.RecordedByUserId, "Recorder unavailable"),
-        dispatchPreview);
-      await snapshot.CommitAsync(ct);
-    }
-
-    if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
-      return CommandResult<ProposalWorkspace>.Fail(ErrorCodes.ScopeDenied, "Proposal unavailable.");
+    var workspace = new ProposalWorkspace(p.Id, p.OpportunityId, lead.Name, opportunity.ServiceRoute, opportunity.EntityScope,
+      opportunity.Stage, p.Revision.ToString(CultureInfo.InvariantCulture), p.Status, p.ServiceProfileId, p.Scope, p.Exclusions,
+      p.Deliverables, p.Dependencies, p.Fee.ToString(CultureInfo.InvariantCulture), p.Currency, p.PeriodStart, p.PeriodEnd,
+      responseRecord?.Reason ?? p.ResponseReason, p.PracticeClientId ?? opportunity.PracticeClientId,
+      p.PreparedByUserId.HasValue && p.PreparedByUserId != actor.UserId && p.Status == "DRAFT",
+      Name(ownerId, "Not assigned"),
+      p.PreparedByUserId.HasValue ? Name(p.PreparedByUserId, "Author unavailable") : "Not recorded (legacy proposal)",
+      p.ApprovedByUserId.HasValue ? Name(p.ApprovedByUserId, "Reviewer unavailable") : "Not recorded",
+      p.ApprovedAt, p.SentAt, p.ResponseAt, p.SupersedesId,
+      p.SentOfferSha256, dispatch?.DeliveryState, dispatch?.DeliveredAt, dispatch?.Recipient,
+      responseRecord?.OfferSha256 ?? p.ResponseOfferSha256,
+      responseRecord?.RespondentName ?? p.RespondentName, responseRecord?.RespondentEmail ?? p.RespondentEmail,
+      responseRecord?.EvidenceReference ?? p.ResponseEvidenceReference,
+      versions.Select(v => new ProposalHistory(v.Id, v.Revision.ToString(CultureInfo.InvariantCulture), v.Status,
+        v.Fee.ToString(CultureInfo.InvariantCulture), v.Currency, v.CreatedAt, v.SentAt, v.ResponseAt)).ToArray(),
+      responseRecord?.Channel ?? p.ResponseChannel, p.Timeline,
+      responseRecord?.AuthorityBasis,
+      responseRecord is null ? null : Name(responseRecord.RecordedByUserId, "Recorder unavailable"),
+      dispatchPreview);
     return CommandResult<ProposalWorkspace>.Ok(workspace);
   }
 
   private static async Task<ProposalDispatchPreview> DispatchPreviewAsync(IAuditSphereDbContext db, ActorContext actor,
-    AuditSphereOps.Domain.Practice.Proposal proposal, Opportunity opportunity, Lead lead, bool hasDispatch,
-    CancellationToken ct)
+    AuditSphereOps.Domain.Practice.Proposal proposal, Opportunity opportunity, Lead lead,
+    DateTimeOffset snapshotStartedAtUtc, bool hasDispatch, CancellationToken ct)
   {
-    var now = DateTimeOffset.UtcNow;
+    var now = snapshotStartedAtUtc;
     var asOf = DateOnly.FromDateTime(now.UtcDateTime);
     var clientId = proposal.PracticeClientId ?? opportunity.PracticeClientId;
     string resolutionStatus;
