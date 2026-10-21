@@ -36,7 +36,7 @@ const isPendingCreditCommand = (value: unknown, clientId: string): value is Pend
     typeof pending.body['reason'] === 'string' && typeof pending.body['duplicateResolutionReason'] === 'string';
 };
 
-@Component({ selector: 'audit-client-purchase-credit-notes', imports: [FormsModule, MatButtonModule], template: `<section aria-label="Client supplier credit notes">
+@Component({ selector: 'audit-client-purchase-credit-notes', imports: [FormsModule, MatButtonModule], styleUrl: './purchase-workflow-forms.scss', template: `<section aria-label="Client supplier credit notes">
   <h4>Supplier credit notes</h4>
   <p>Record a supplier credit against a posted purchase or document an unlinked exception. Linked credits are limited cumulatively to each original untaxed purchase line. Approval creates an unapplied supplier debit; it never initiates a refund or payment. Tax handling stays optional and separately gated.</p>
   <button matButton type="button" [disabled]="busy()" (click)="refresh()">Refresh supplier credit history</button>
@@ -54,13 +54,13 @@ const isPendingCreditCommand = (value: unknown, clientId: string): value is Pend
   </article> }
   @if (pendingStorageBlocked()) { <p role="alert">A retained supplier-credit command exists but could not be validated. New supplier-credit actions are blocked until its outcome is reconciled.</p> }
   @if (!preview()) {
-    <form #form="ngForm" (ngSubmit)="form.valid && previewCredit()"><fieldset [disabled]="busy() || !!pendingCommand() || pendingStorageBlocked()"><legend>Prepare supplier credit</legend>
+    <form class="supplier-credit-entry" #form="ngForm" (ngSubmit)="form.valid && previewCredit()"><fieldset [disabled]="busy() || !!pendingCommand() || pendingStorageBlocked()"><legend>Prepare supplier credit</legend>
       <button matButton type="button" [disabled]="supplierBusy()" (click)="loadSuppliers(supplierPage())">Refresh client suppliers</button>
       @if (supplierError()) { <p role="alert">{{ supplierError() }}</p> }
       @if (supplierBusy()) { <p role="status">Loading client suppliers…</p> }
       @if (supplierLoaded() && supplierTotal() === 0 && !supplierBusy()) { <p>No suppliers are available for this client.</p> }
       <label>Supplier <select name="supplier" [ngModel]="supplierId" (ngModelChange)="selectSupplier($event)" required><option value="">Choose supplier</option>@for (supplier of supplierOptions(); track supplier.id) { <option [value]="supplier.id">{{ supplier.displayName }}</option> }</select></label>
-      <nav aria-label="Supplier pages">
+      <nav aria-label="Supplier credit note supplier pages">
         <button matButton type="button" [disabled]="supplierBusy() || supplierPage() === 0" (click)="loadSuppliers(supplierPage() - 1)">Previous suppliers</button>
         <span>Supplier page {{ supplierPage() + 1 }} of {{ supplierPageCount() }} · {{ supplierTotal() }} suppliers · {{ supplierPageSize }} per page</span>
         <button matButton type="button" [disabled]="supplierBusy() || !supplierHasNext()" (click)="loadSuppliers(supplierPage() + 1)">Next suppliers</button>

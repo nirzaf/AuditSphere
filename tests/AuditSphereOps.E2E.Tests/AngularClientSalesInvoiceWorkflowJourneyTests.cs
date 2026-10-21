@@ -229,6 +229,8 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
 
     var purchases = makerPage.Locator("audit-client-purchase-invoices");
     await Assertions.Expect(purchases.GetByRole(AriaRole.Heading, new() { Name = "Client supplier invoices", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(purchases.GetByRole(AriaRole.Navigation,
+      new() { Name = "Purchase invoice supplier pages", Exact = true })).ToHaveCountAsync(1);
     var supplierRefresh = purchases.GetByRole(AriaRole.Button, new() { Name = "Refresh client suppliers", Exact = true });
     await Assertions.Expect(supplierRefresh).ToBeEnabledAsync();
     var suppliersLoaded = makerPage.WaitForResponseAsync(response => response.Request.Method == "GET" &&
@@ -309,6 +311,8 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
 
     var supplierCredits = makerPage.Locator("audit-client-purchase-credit-notes");
     await Assertions.Expect(supplierCredits.GetByRole(AriaRole.Heading, new() { Name = "Supplier credit notes", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(supplierCredits.GetByRole(AriaRole.Navigation,
+      new() { Name = "Supplier credit note supplier pages", Exact = true })).ToHaveCountAsync(1);
     var supplierCreditRefresh = supplierCredits.GetByRole(AriaRole.Button, new() { Name = "Refresh client suppliers", Exact = true });
     await Assertions.Expect(supplierCreditRefresh).ToBeEnabledAsync();
     var supplierCreditOptions = makerPage.WaitForResponseAsync(response => response.Request.Method == "GET" &&

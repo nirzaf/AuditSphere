@@ -124,7 +124,7 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
   return result;
 }
 
-@Component({ selector: 'audit-client-purchase-invoices', imports: [FormsModule, MatButtonModule], template: `<section aria-label="Client purchase invoices">
+@Component({ selector: 'audit-client-purchase-invoices', imports: [FormsModule, MatButtonModule], styleUrl: './purchase-workflow-forms.scss', template: `<section aria-label="Client purchase invoices">
   <h4>Client supplier invoices</h4>
   <p>Capture the supplier document against this client’s own expense or asset accounts and AP control. Untaxed purchases work without the optional tax module; tax-bearing purchases remain separately gated.</p>
   <button matButton type="button" [disabled]="busy() || draftsBusy()" (click)="refresh()">Refresh supplier invoice history</button>
@@ -154,7 +154,7 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
     <button matButton type="button" [disabled]="draftsBusy() || !draftHasMore()" (click)="loadDrafts(draftPage() + 1)">Next draft page</button>
   </section>
   @if (editing()) {
-    <form #form="ngForm" (ngSubmit)="form.valid && saveDraft()"><fieldset [disabled]="busy() || hasPendingCommand()">
+    <form class="purchase-invoice-entry" #form="ngForm" (ngSubmit)="form.valid && saveDraft()"><fieldset [disabled]="busy() || hasPendingCommand()">
       <legend>{{ draft() ? 'Revise saved supplier document' : 'Capture supplier document' }}</legend>
       @if (returnReason()) { <p role="status">Returned for correction: {{ returnReason() }}</p> }
       <button matButton type="button" [disabled]="supplierBusy()" (click)="loadSuppliers(supplierPage())">Refresh client suppliers</button>
@@ -162,7 +162,7 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
       @if (supplierBusy()) { <p role="status">Loading client suppliers…</p> }
       @if (suppliers() !== null && supplierTotal() === 0 && !supplierBusy()) { <p>No suppliers are available for this client.</p> }
       <label>Supplier <select name="supplier" [ngModel]="supplierId" (ngModelChange)="selectSupplier($event)" required><option value="">Choose supplier</option>@for (supplier of supplierOptions(); track supplier.id) { <option [value]="supplier.id">{{ supplier.displayName }}</option> }</select></label>
-      <nav aria-label="Supplier pages">
+      <nav aria-label="Purchase invoice supplier pages">
         <button matButton type="button" [disabled]="supplierBusy() || supplierPage() === 0" (click)="loadSuppliers(supplierPage() - 1)">Previous suppliers</button>
         <span>Supplier page {{ supplierPage() + 1 }} of {{ supplierPageCount() }} · {{ supplierTotal() }} suppliers · {{ supplierPageSize }} per page</span>
         <button matButton type="button" [disabled]="supplierBusy() || !supplierHasNext()" (click)="loadSuppliers(supplierPage() + 1)">Next suppliers</button>

@@ -1,0 +1,90 @@
+.purchase-invoice-entry,
+.supplier-credit-entry {
+  display: block;
+  min-width: 0;
+}
+
+.purchase-invoice-entry > fieldset,
+.supplier-credit-entry > fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  align-items: start;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.purchase-invoice-entry > fieldset > legend,
+.supplier-credit-entry > fieldset > legend,
+.purchase-invoice-entry > fieldset > button,
+.supplier-credit-entry > fieldset > button,
+.purchase-invoice-entry > fieldset > nav,
+.supplier-credit-entry > fieldset > nav,
+.purchase-invoice-entry > fieldset > p,
+.supplier-credit-entry > fieldset > p,
+.purchase-invoice-entry > fieldset > fieldset,
+.supplier-credit-entry > fieldset > fieldset,
+.purchase-invoice-entry > fieldset > label:has(textarea),
+.supplier-credit-entry > fieldset > label:has(textarea) {
+  grid-column: 1 / -1;
+}
+
+.purchase-invoice-entry > fieldset > label,
+.supplier-credit-entry > fieldset > label,
+.purchase-invoice-entry > fieldset > fieldset > div > label,
+.supplier-credit-entry > fieldset > fieldset > div > label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.purchase-invoice-entry input:not([type='checkbox']),
+.purchase-invoice-entry select,
+.purchase-invoice-entry textarea,
+.supplier-credit-entry input:not([type='checkbox']),
+.supplier-credit-entry select,
+.supplier-credit-entry textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.purchase-invoice-entry > fieldset > nav,
+.supplier-credit-entry > fieldset > nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.purchase-invoice-entry > fieldset > fieldset,
+.supplier-credit-entry > fieldset > fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.75rem;
+}
+
+.purchase-invoice-entry > fieldset > fieldset > legend,
+.supplier-credit-entry > fieldset > fieldset > legend,
+.purchase-invoice-entry > fieldset > fieldset > div,
+.supplier-credit-entry > fieldset > fieldset > div,
+.purchase-invoice-entry > fieldset > fieldset > button,
+.supplier-credit-entry > fieldset > fieldset > button {
+  grid-column: 1 / -1;
+}
+
+.purchase-invoice-entry > fieldset > label:has(input[type='checkbox']),
+.supplier-credit-entry > fieldset > label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.purchase-invoice-entry > fieldset > fieldset > div,
+.supplier-credit-entry > fieldset > fieldset > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+}
