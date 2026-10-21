@@ -8,7 +8,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 
 | Task | Requirement | Implementation | Current code evidence |
 | --- | --- | --- | --- |
-| T001 | Require the privileged role and firm-wide scope on the same eligible grant | IMPLEMENTED_VERIFICATION_PENDING | [AuthorizationDecision.cs](../../src/AuditSphereOps.Application/Security/AuthorizationDecision.cs) |
+| T001 | Require the privileged role and firm-wide scope on the same eligible grant | VERIFIED | [AuthorizationDecision.cs](../../src/AuditSphereOps.Application/Security/AuthorizationDecision.cs); [status.json](status.json) |
 | T002 | Correct emitted decimal and nullable error schemas | IMPLEMENTED_VERIFICATION_PENDING | [ApiContract.cs](../../src/AuditSphereOps.Api/Contracts/ApiContract.cs) |
 | T003 | Use actual consolidation lifecycle literals in UI action gates | IMPLEMENTED_VERIFICATION_PENDING | [scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts) |
 | T004 | Preserve consolidation journal precision and ownership units | IMPLEMENTED_VERIFICATION_PENDING | [scope-workspace.ts](../../src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.ts) |
@@ -59,6 +59,8 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | T049 | Document client portal, PBC and portal journal-management contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Portal.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Portal.cs) |
 | T050 | Document administration, setup, Microsoft services and durable-operation contracts | IMPLEMENTED_VERIFICATION_PENDING | [UiEndpoints.Administration.cs](../../src/AuditSphereOps.Api/Ui/UiEndpoints.Administration.cs) |
 | T051 | Document session, search and browser authentication protocol contracts | IMPLEMENTED_VERIFICATION_PENDING | [ApiHost.AuthenticationEndpoints.cs](../../src/AuditSphereOps.Api/ApiHost.AuthenticationEndpoints.cs) |
+
+T001 is verified by the full Domain CI run: the explicit unscoped Administrator case and both mixed scoped-grant denial cases passed. The authorization source and tests are unchanged from run commit `9b4720d1` through current docs-only `master` commit `b39d9707`; overall parity remains PARTIAL and the other 50 tasks remain unverified. Exact run and artifact evidence are in `status.json` under `apiAngularParity.verifiedTaskT001`.
 
 ## Retention and acceptance decisions
 
