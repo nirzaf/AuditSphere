@@ -37,17 +37,21 @@ public sealed class PracticeTimeStartMinuteApiTests
     var f = await PbcSeed.SeedAsync(pg);
     using var factory = Factory(pg, f.Admin);
     using var admin = factory.CreateClient(new() { AllowAutoRedirect = false });
-    var csrf = await SignIn(admin);
+    await SignIn(admin);
 
-    var selected = await CreatedTaskAsync(admin, csrf, new
+    using var staffFactory = Factory(pg, f.Staff);
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var staffCsrf = await SignIn(staff);
+
+    var selected = await CreatedTaskAsync(staff, staffCsrf, new
     {
       title = "Synthetic phase-tagged practice task",
       engagementId = f.EngagementId,
       phase = BudgetPhases.Fieldwork
     });
-    var omitted = await CreatedTaskAsync(admin, csrf, new
+    var omitted = await CreatedTaskAsync(staff, staffCsrf, new
     {
-      title = "Synthetic unassigned practice task",
+      title = "Synthetic task with no phase",
       engagementId = f.EngagementId
     });
 
@@ -55,15 +59,14 @@ public sealed class PracticeTimeStartMinuteApiTests
     {
       Assert.Equal(BudgetPhases.Fieldwork, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == selected)).Phase);
       Assert.Equal(BudgetPhases.Unassigned, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == omitted)).Phase);
+      Assert.Equal(f.Staff.Id, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == selected)).AssigneeUserId);
+      Assert.Equal(f.Staff.Id, (await db.WorkTasks.AsNoTracking().SingleAsync(x => x.Id == omitted)).AssigneeUserId);
     }
 
     var adminWorkspace = (await admin.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
     Assert.Equal(BudgetPhases.Fieldwork, Assert.Single(adminWorkspace.OpenTasks, x => x.Id == selected).Phase);
     Assert.Equal(BudgetPhases.Unassigned, Assert.Single(adminWorkspace.OpenTasks, x => x.Id == omitted).Phase);
 
-    using var staffFactory = Factory(pg, f.Staff);
-    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
-    var staffCsrf = await SignIn(staff);
     var selectedEntry = await CreatedAsync(staff, staffCsrf, Draft(selected, 600, 30));
     var omittedEntry = await CreatedAsync(staff, staffCsrf, Draft(omitted, 630, 30));
     var staffWorkspace = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;

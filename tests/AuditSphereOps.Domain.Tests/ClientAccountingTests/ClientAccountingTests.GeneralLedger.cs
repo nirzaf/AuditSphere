@@ -343,7 +343,7 @@ public sealed partial class ClientAccountingTests
         .Select(x => x.Id).SingleAsync();
       var task = await PracticeTimeService.CreateTaskAsync(db, staffActor,
         new CreateTaskRequest("Record client book isolation time", scope.ClientA, scope.EngagementA,
-          ReportingPeriodId: periodId));
+          AssigneeUserId: staffActor.UserId, ReportingPeriodId: periodId));
       Assert.True(task.Succeeded, task.Message);
       var draft = await PracticeTimeService.SaveTimeDraftAsync(db, staffActor,
         new SaveTimeDraftRequest(task.Value, new DateOnly(2026, 6, 30), 9 * 60, 60,

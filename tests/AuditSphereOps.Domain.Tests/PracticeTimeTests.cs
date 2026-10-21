@@ -167,7 +167,7 @@ public sealed class PracticeTimeTests
 
       var created = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
         new CreateTaskRequest("Map cash testing", fixture.ClientId, fixture.EngagementId,
-          MappingVersionId: mappingId, FsliCode: " Cash "));
+          AssigneeUserId: fixture.Preparer.Id, MappingVersionId: mappingId, FsliCode: " Cash "));
       Assert.True(created.Succeeded, created.Message);
       taskId = created.Value;
       var task = await db.WorkTasks.SingleAsync(x => x.Id == taskId);
@@ -241,6 +241,52 @@ public sealed class PracticeTimeTests
       Assert.Equal(mappingId, result.MappingVersionId);
       Assert.Equal(originalRateCardVersionId, result.RateCardVersionId);
       Assert.Equal(100m, result.RatePerHour);
+    }
+  }
+
+  [Fact]
+  public async Task PreparersCanRecordTimeOnlyAgainstAssignedTasksWhileManagersCanRouteUnassignedWork()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    Guid unassignedTaskId;
+    Guid assignedTaskId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var unassigned = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Unassigned work", fixture.ClientId, fixture.EngagementId));
+      Assert.True(unassigned.Succeeded, unassigned.Message);
+      unassignedTaskId = unassigned.Value;
+
+      var assigned = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Assigned work", fixture.ClientId, fixture.EngagementId,
+          AssigneeUserId: fixture.Preparer.Id));
+      Assert.True(assigned.Succeeded, assigned.Message);
+      assignedTaskId = assigned.Value;
+
+      var preparerWorkspace = await PracticeTimeWorkspaceQuery.GetAsync(db, fixture.PreparerActor);
+      Assert.True(preparerWorkspace.Succeeded, preparerWorkspace.Message);
+      Assert.Contains(assignedTaskId, preparerWorkspace.Value!.OpenTasks.Select(x => x.Id));
+      Assert.DoesNotContain(unassignedTaskId, preparerWorkspace.Value.OpenTasks.Select(x => x.Id));
+
+      var managerWorkspace = await PracticeTimeWorkspaceQuery.GetAsync(db, fixture.ManagerActor);
+      Assert.True(managerWorkspace.Succeeded, managerWorkspace.Message);
+      Assert.Contains(unassignedTaskId, managerWorkspace.Value!.OpenTasks.Select(x => x.Id));
+
+      var rate = await CreateApprovedRateAsync(db, fixture, "Assigned task time");
+      Assert.NotEqual(Guid.Empty, rate);
+      var denied = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
+        new SaveTimeDraftRequest(unassignedTaskId, new DateOnly(2026, 1, 12), 540, 60,
+          "Staff", "Assigned task time", Currency: "QAR"));
+      Assert.False(denied.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+      Assert.False(await db.TimeEntries.AnyAsync(x => x.TaskId == unassignedTaskId));
+
+      var accepted = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
+        new SaveTimeDraftRequest(assignedTaskId, new DateOnly(2026, 1, 12), 540, 60,
+          "Staff", "Assigned task time", Currency: "QAR"));
+      Assert.True(accepted.Succeeded, accepted.Message);
+      Assert.True(await db.TimeEntries.AnyAsync(x => x.Id == accepted.Value && x.TaskId == assignedTaskId));
     }
   }
 
@@ -476,7 +522,8 @@ public sealed class PracticeTimeTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var task = await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
-        new CreateTaskRequest("Revise returned time", fixture.ClientId, fixture.EngagementId));
+        new CreateTaskRequest("Revise returned time", fixture.ClientId, fixture.EngagementId,
+          AssigneeUserId: fixture.Preparer.Id));
       Assert.True(task.Succeeded, task.Message);
       await CreateApprovedRateAsync(db, fixture);
       var first = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
@@ -565,7 +612,8 @@ public sealed class PracticeTimeTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       taskId = (await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
-        new CreateTaskRequest("Review controls", fixture.ClientId, fixture.EngagementId))).Value;
+        new CreateTaskRequest("Review controls", fixture.ClientId, fixture.EngagementId,
+          AssigneeUserId: fixture.Preparer.Id))).Value;
       await CreateApprovedRateAsync(db, fixture, "Controls");
       originalId = (await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
         new SaveTimeDraftRequest(taskId, new DateOnly(2026, 1, 11), 10 * 60, 60,
@@ -636,7 +684,8 @@ public sealed class PracticeTimeTests
       Assert.True((await PracticeTimeService.ApproveBudgetAsync(db, fixture.PartnerActor, secondBudgetId)).Succeeded);
 
       var task = (await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
-        new CreateTaskRequest("Budget actual", fixture.ClientId, fixture.EngagementId))).Value;
+        new CreateTaskRequest("Budget actual", fixture.ClientId, fixture.EngagementId,
+          AssigneeUserId: fixture.Preparer.Id))).Value;
       var time = (await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
         new SaveTimeDraftRequest(task, new DateOnly(2026, 1, 15), 8 * 60, 60,
           "Staff", "Schedules", Currency: "QAR"))).Value;

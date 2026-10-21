@@ -134,6 +134,7 @@ public static partial class UiEndpoints
         return await PracticeTimeService.CreateTaskAsync(db, actor, new CreateTaskRequest(input.Title,
           ClientId: period?.ClientId ?? engagement?.ClientId,
           EngagementId: engagement?.Id,
+          AssigneeUserId: actor.UserId,
           ReportingPeriodId: period?.Id,
           DueDate: due,
           Phase: input.Phase,

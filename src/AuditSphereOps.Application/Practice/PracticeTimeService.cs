@@ -494,7 +494,7 @@ public static partial class PracticeTimeService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (task.Status is PracticeTimeStates.TaskCompleted or PracticeTimeStates.TaskCancelled)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Time cannot be added to a closed task.");
-    if (task.AssigneeUserId.HasValue && task.AssigneeUserId != actor.UserId &&
+    if (task.AssigneeUserId != actor.UserId &&
         !await IsElevatedAsync(db, actor, task.ClientId, task.EngagementId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Only the assignee or an authorized manager can record time.");
     if (await HasOverlapAsync(db, actor.FirmId, actor.UserId, request, null, ct))

@@ -126,7 +126,10 @@ public static class PracticeTimeWorkspaceQuery
     var visibleTasks = tasks.Where(x => x.EngagementId is null ||
       (x.ClientId.HasValue && scopedEngagementClients.TryGetValue(x.EngagementId.Value, out var clientId) && clientId == x.ClientId.Value)).ToList();
     var taskById = visibleTasks.ToDictionary(x => x.Id);
-    var openTasks = visibleTasks.Where(x => x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted)
+    var openTasks = visibleTasks.Where(x => x.Status != PracticeTimeStates.TaskCancelled && x.Status != PracticeTimeStates.TaskCompleted &&
+        (x.AssigneeUserId == actor.UserId || reviewFirmWide ||
+          (x.ClientId.HasValue && reviewClientIds.Contains(x.ClientId.Value)) ||
+          (x.EngagementId.HasValue && reviewEngagementIds.Contains(x.EngagementId.Value))))
       .Select(x => new TimeTaskOption(x.Id, x.Title, x.Status, x.MappingVersionId, x.FsliCode, x.Phase)).ToList();
 
     TimeEntryRow Row(TimeEntry x, bool canEdit = false, bool canCorrect = false, bool hasChanges = false) => new(x.Id, x.WorkDate, x.TaskId, taskById[x.TaskId].Title, x.UserId, x.DurationMinutes, x.Activity,
