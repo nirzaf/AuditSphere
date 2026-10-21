@@ -16,7 +16,7 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Current master verification and scope (2026-10-21)
 
-Application `b39d9707` built Release (0 warnings/errors); fast CI passed, and evidence commits `791d2740`/`d75ebb76` are on master. Full run `39590664430` on `9b4720d1` passed Angular, Domain, and build/contracts; API/E2E were still running. CI verifies T001 and T003–T006: authorization scope, lifecycle gating, exact decimals, exception validation and manifest-bound assent. Only docs changed since tested source; no tests ran locally. See [status.json](status.json).
+Application `b39d9707` built Release (0 warnings/errors); fast CI passed, and evidence commits `791d2740`/`d75ebb76` are on master. Full run `39590664430` on `9b4720d1` passed Angular, Domain and build/contracts; API/E2E were still running. CI verifies T001 and T003–T007, including exact decimal inputs, manifest-bound assent and purchase-draft revision recovery. Only docs changed since tested source; no tests ran locally. See [status.json](status.json).
 
 Agent code review passed for shell/navigation semantics. Earlier browser/accessibility evidence is archived; a fresh `127.0.0.1:4304` attempt was refused. Authenticated routes and human screen-reader review remain open.
 
