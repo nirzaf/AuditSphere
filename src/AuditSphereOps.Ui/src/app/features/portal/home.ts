@@ -8,6 +8,7 @@ import { clientRequestStatusLabel, portalWorkspace } from './contracts';
 import type { PortalRequestItem } from './contracts';
 import { PortalJournals } from './journals';
 import { PortalDocuments } from './documents';
+import { PortalActivity } from './activity';
 import { PortalFinance } from './finance';
 import { PortalBranding } from './branding';
 import { PortalReportAction } from './report-action';
@@ -15,7 +16,7 @@ import { SessionService } from '../../core/session';
 
 interface PortalShell { generation: number; onboarding: boolean }
 
-@Component({ selector: 'audit-client-portal', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, PortalDocuments, PortalJournals, PortalFinance, PortalBranding, PortalReportAction, ...SHARED],
+@Component({ selector: 'audit-client-portal', imports: [ReactiveFormsModule, RouterLink, MatButtonModule, PortalActivity, PortalDocuments, PortalJournals, PortalFinance, PortalBranding, PortalReportAction, ...SHARED],
   template: `
     <audit-page-header title="Client portal" description="Your assigned requests and validated financial packages. Internal audit workpapers remain restricted." />
     <button matButton (click)="ws.reload()" [disabled]="busy() || ws.loading()">Refresh portal</button>
@@ -72,6 +73,7 @@ interface PortalShell { generation: number; onboarding: boolean }
           </nav>
         </section>
         }
+        <audit-portal-activity />
         <audit-portal-documents />
         <audit-portal-journals />
         <audit-portal-finance />

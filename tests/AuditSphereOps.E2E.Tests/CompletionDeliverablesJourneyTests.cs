@@ -383,6 +383,28 @@ public sealed class CompletionDeliverablesJourneyTests
     await documentEvents.First.PressAsync("Enter");
     Assert.EndsWith($"#doc-review-{expectedReviewId:D}", clientPage.Url);
     await Assertions.Expect(letter).ToBeFocusedAsync();
+    var activity = clientPage.Locator("audit-portal-activity");
+    await Assertions.Expect(activity.GetByRole(AriaRole.Heading, new() { Name = "Your client activity", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(activity).ToContainTextAsync("Document shared");
+    await Assertions.Expect(activity).ToContainTextAsync("Document acknowledgment recorded");
+    await Assertions.Expect(activity).ToContainTextAsync("Signed representation letter scan uploaded");
+    await Assertions.Expect(activity).ToContainTextAsync("Final bundle assembled");
+    await Assertions.Expect(activity).ToContainTextAsync("Invoice posted");
+    await Assertions.Expect(activity).ToContainTextAsync("Payment receipt date recorded");
+    await Assertions.Expect(activity).Not.ToContainTextAsync(expectedScan.ContentSha256);
+    await Assertions.Expect(activity).ToContainTextAsync("does not prove delivery");
+    var sourceEvent = activity.Locator($"a[href$='#doc-review-{expectedReviewId:D}']").First;
+    await sourceEvent.FocusAsync(); await sourceEvent.PressAsync("Enter");
+    await Assertions.Expect(letter).ToBeFocusedAsync();
+    var financeSource = activity.Locator("a[href$='#portal-finance-heading']").First;
+    await financeSource.FocusAsync(); await financeSource.PressAsync("Enter");
+    await Assertions.Expect(clientPage.GetByRole(AriaRole.Heading,
+      new() { Name = "Billing and payment receipts", Exact = true })).ToBeFocusedAsync();
+    var retainedActivityTimes = await activity.Locator("li time").EvaluateAllAsync<string[]>(
+      "nodes => nodes.map(node => node.getAttribute('datetime'))");
+    Assert.Contains(expectedAssembly, retainedActivityTimes.Select(value => DateTimeOffset.Parse(value, System.Globalization.CultureInfo.InvariantCulture)));
+    Assert.Contains(expectedScan.UploadedAt, retainedActivityTimes.Select(value => DateTimeOffset.Parse(value, System.Globalization.CultureInfo.InvariantCulture)));
+    await OwnedBrowserFixtureHandoff.WaitAsync(clientOrigin, "/portal", "portal-activity");
     await OwnedBrowserFixtureHandoff.WaitAsync(clientOrigin, "/portal", "portal-document-history");
     // Rollback/reference presentation must pass the same host policy, even when a prior image-only bundle exists.
     var requiredOrigin = await StartIdentityAsync(partner, required: true);

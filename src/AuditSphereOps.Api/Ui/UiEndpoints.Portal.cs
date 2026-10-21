@@ -3,10 +3,12 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Api.Authentication;
 using AuditSphereOps.Api.HttpBoundary;
+using AuditSphereOps.Api.Contracts;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -64,6 +66,25 @@ public static partial class UiEndpoints
     group.MapUiGet("/portal/documents", (HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalReviewQuery.GetAsync(db, actor, ct)))
       .WithUiResponse<PortalReviewDocuments>(includeConflict: true);
+    group.MapUiGet("/portal/activity", (HttpContext http) =>
+    {
+      var pageSize = 25;
+      if (http.Request.Query.TryGetValue("pageSize", out var pageSizeValues) &&
+          (pageSizeValues.Count != 1 || !int.TryParse(pageSizeValues[0], System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out pageSize)))
+        return Task.FromResult(Failure("request.invalid", "The client activity page size is invalid."));
+      string? cursor = null;
+      if (http.Request.Query.TryGetValue("cursor", out var cursorValues))
+      {
+        if (cursorValues.Count != 1) return Task.FromResult(Failure("request.invalid", "The client activity continuation is invalid."));
+        cursor = cursorValues[0];
+      }
+      return ReadAsync(http, (db, actor, ct) => ClientPortalActivityQuery.GetAsync(db, actor, pageSize, cursor, ct));
+    }).WithUiResponse<PortalActivityPage>(includeConflict: true)
+      .WithMetadata(new ManualParameterMetadata("pageSize", ParameterLocation.Query, false, JsonSchemaType.Integer,
+        Format: "int32", Description: "Fixed page size 25; omit to use 25.", Minimum: 25))
+      .WithMetadata(new ManualParameterMetadata("cursor", ParameterLocation.Query, false, JsonSchemaType.String,
+        Description: "Exact opaque continuation from this client's activity page; omit to refresh from the newest events."));
     group.MapUiGet("/portal/finance", (HttpContext http) => ReadAsync(http,
       (db, actor, ct) => ClientPortalFinanceQuery.GetAsync(db, actor, ct)))
       .WithUiResponse<PortalClientFinanceView>();

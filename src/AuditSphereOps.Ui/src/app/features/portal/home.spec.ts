@@ -70,6 +70,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/branding').flush(branding);
     http.expectOne('/api/ui/portal/documents').flush(shared);
     http.expectOne('/api/ui/portal/accounting/journals?page=0').flush({ items: [], page: 0, hasMore: false });
+    http.expectOne('/api/ui/portal/activity?pageSize=25').flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null });
     http.expectOne('/api/ui/portal/finance').flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' });
     settle();
     const editor = () => fixture.debugElement.query(By.directive(PortalDocuments))?.componentInstance as PortalDocuments | undefined;
@@ -149,6 +150,7 @@ describe('Client portal workspace paging', () => {
       http.match('/api/ui/portal/branding').forEach((req) => req.flush(branding));
       http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
       http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
+      http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
       http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
       const reports = http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'));
       reports.forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
@@ -223,6 +225,7 @@ describe('Client portal workspace paging', () => {
   it('shows invoice lifecycle, cash, credit, overdue and untracked delivery states separately', async () => {
     const fixture = TestBed.createComponent(PortalFinance);
     fixture.detectChanges(); TestBed.tick();
+    http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
     http.expectOne('/api/ui/portal/finance').flush({ asOfDateUtc: '2026-10-18', agreements: [{
       agreementId: id(601), engagementId: id(602), agreedFee: '25000', currency: 'QAR', advancePercent: '50',
       outstandingBalance: '100', invoices: [{ invoiceId: id(604), kind: 'ADVANCE', invoiceNumber: 'INV-ADV-1',
@@ -309,6 +312,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/branding').flush(branding);
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
+    http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
     http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
@@ -353,6 +357,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/branding').flush(branding);
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
+    http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
     http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
@@ -377,6 +382,7 @@ describe('Client portal workspace paging', () => {
     http.expectOne('/api/ui/portal/branding').flush(branding);
     http.match('/api/ui/portal/documents').forEach((req) => req.flush({ documents: [], signedLetters: [], bundles: [] }));
     http.match('/api/ui/portal/accounting/journals?page=0').forEach((req) => req.flush({ items: [], page: 0, hasMore: false }));
+    http.match('/api/ui/portal/activity?pageSize=25').forEach(req => req.flush({ snapshotAtUtc: '2026-10-21T05:00:00Z', pageSize: 25, items: [], hasMore: false, nextCursor: null }));
     http.match('/api/ui/portal/finance').forEach((req) => req.flush({ asOfDateUtc: '2026-10-18', agreements: [], invoices: [], receipts: [], totalOutstanding: '0.00', currency: 'QAR' }));
     http.match((req) => req.url.startsWith('/api/ui/portal/accounting/packages/'))
       .forEach((req) => req.flush(packageDetail(req.request.url.split('/').at(-1)!)));
