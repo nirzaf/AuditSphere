@@ -228,7 +228,7 @@ describe('Client purchase draft lifecycle', () => {
     fixture.destroy();
   });
 
-  it('retains the submit command identity and acknowledges only its exact recovered submission', () => {
+  it('retains the submit command identity and acknowledges only its exact recovered submission', async () => {
     const fixture = open(), c = fixture.componentInstance;
     c.draft.set(savedDraft('1', 'Supplier evidence') as never);
     c.preview.set({ invoiceId: invoice, revision: '1', currency: 'QAR', net: '100.000000', tax: '0.000000', gross: '100.000000', digest: 'd'.repeat(64), lateArrival: false, duplicateWarnings: [], manifest: { lines: [] } });
@@ -243,7 +243,11 @@ describe('Client purchase draft lifecycle', () => {
       journalId: '99999999-9999-4999-8999-999999999999', draft: null,
       receipt: { commandId: exactBody.commandId, invoiceId: invoice, submissionId: submission, kind: 'SUBMIT', actorUserId: actor, intentHash: 'd'.repeat(64), outcome: 'SUBMITTED', decisionId: null }, postingReceipt: null });
     expect(c.pendingSubmit()).toBeNull();
-    expect(c.error()).toContain('submission was confirmed');
+    expect(c.error()).toBe('');
+    expect(c.recoveryNotice()).toContain('submission was confirmed');
+    await fixture.whenStable();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[role="status"]')?.textContent).toContain('submission was confirmed');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')).toBeNull();
     flushHistoryReads();
   });
 
@@ -261,7 +265,8 @@ describe('Client purchase draft lifecycle', () => {
       journalId: account, draft: null,
       receipt: { commandId, invoiceId: invoice, submissionId: submission, kind: 'REVIEW', actorUserId: actor, intentHash: 'f'.repeat(64), outcome: 'RETURNED', decisionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }, postingReceipt: null });
     expect(c.pendingReview()).toBeNull();
-    expect(c.error()).toContain('return decision was acknowledged');
+    expect(c.error()).toBe('');
+    expect(c.recoveryNotice()).toContain('return decision was acknowledged');
     flushHistoryReads();
   });
 

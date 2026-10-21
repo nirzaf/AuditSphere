@@ -128,6 +128,7 @@ export function decodePurchaseDraftPage(value: unknown, clientId: string, page: 
   <h4>Client supplier invoices</h4>
   <p>Capture the supplier document against this client’s own expense or asset accounts and AP control. Untaxed purchases work without the optional tax module; tax-bearing purchases remain separately gated.</p>
   <button matButton type="button" [disabled]="busy() || draftsBusy()" (click)="refresh()">Refresh supplier invoice history</button>
+  @if (recoveryNotice()) { <p role="status">{{ recoveryNotice() }}</p> }
   @if (error()) { <p role="alert">{{ error() }}</p> }
   @if (suppliers() !== null && !supplierBusy() && !supplierError() && !supplierBookkeepingActive()) { <p role="status">Bookkeeping service is inactive. Saved purchase history and recovery remain available; new purchase preparation is blocked.</p> }
   @if (draftsError()) { <p role="alert">{{ draftsError() }}</p> }
@@ -240,7 +241,7 @@ export class PurchaseInvoiceWorkflow {
   readonly supplierPageSize = 25;
   readonly clientId = input.required<string>(); readonly currency = input.required<string>(); readonly periods = input.required<Period[]>();
   private readonly http = inject(HttpClient); private readonly session = inject(SessionService);
-  readonly busy = signal(false); readonly error = signal(''); readonly suppliers = signal<ReturnType<typeof decodeCounterparties>['counterparties'] | null>(null);
+  readonly busy = signal(false); readonly error = signal(''); readonly recoveryNotice = signal(''); readonly suppliers = signal<ReturnType<typeof decodeCounterparties>['counterparties'] | null>(null);
   readonly supplierBusy = signal(false); readonly supplierError = signal(''); readonly supplierPage = signal(0); readonly supplierTotal = signal(0); readonly supplierBookkeepingActive = signal(false);
   readonly selectedSupplier = signal<{ id: string; displayName: string } | null>(null);
   readonly draft = signal<PurchaseDraft | null>(null); readonly preview = signal<PurchasePreview | null>(null); readonly rows = signal<PurchaseRow[]>([]); readonly activeReview = signal<PurchaseReview | null>(null);
@@ -269,6 +270,7 @@ export class PurchaseInvoiceWorkflow {
       destroyRef.onDestroy(() => { this.operation?.unsubscribe(); this.draftOperation?.unsubscribe(); this.supplierOperation?.unsubscribe(); });
   }
   private base(): string { return `/api/ui/accounting/clients/${this.clientId()}`; }
+  private setError(message: string): void { this.error.set(message); this.recoveryNotice.set(''); }
   pendingCommand(): PendingInvoiceCommand | null { return this.pendingDraftSave() ? { ...this.pendingDraftSave()!, kind: 'DRAFT', targetId: typeof this.pendingDraftSave()!.body['invoiceId'] === 'string' ? this.pendingDraftSave()!.body['invoiceId'] as string : null, savedAt: Date.now() } : this.pendingSubmit() ?? this.pendingReview(); }
   hasPendingCommand(): boolean { return this.pendingRecoveryBlocked() || this.pendingDraftSave() !== null || this.pendingSubmit() !== null || this.pendingReview() !== null; }
   validApRoleId(): boolean { return guid(this.apRoleId); }
@@ -298,12 +300,12 @@ export class PurchaseInvoiceWorkflow {
       if (parsed.kind === 'DRAFT') this.pendingDraftSave.set({ clientId: parsed.clientId, actorId: parsed.actorId, body: parsed.body });
       else if (parsed.kind === 'SUBMIT') this.pendingSubmit.set(parsed);
       else this.pendingReview.set(parsed);
-      this.error.set(`The saved ${parsed.kind} request remains unresolved. Check its server outcome before retrying or editing.`);
+      this.setError(`The saved ${parsed.kind} request remains unresolved. Check its server outcome before retrying or editing.`);
     } catch { this.pendingRecoveryBlocked.set(true); }
   }
   private clearPendingCommand(pending: PendingInvoiceCommand): boolean {
     try { sessionStorage.removeItem(this.pendingStorageKey()); }
-    catch { this.error.set('The command outcome was found, but its tab recovery record could not be cleared. Reopen and reconcile this command before new work.'); return false; }
+    catch { this.setError('The command outcome was found, but its tab recovery record could not be cleared. Reopen and reconcile this command before new work.'); return false; }
     if (pending.kind === 'DRAFT') this.pendingDraftSave.set(null);
     else if (pending.kind === 'SUBMIT') this.pendingSubmit.set(null);
     else this.pendingReview.set(null);
@@ -372,19 +374,19 @@ export class PurchaseInvoiceWorkflow {
   }
   resumeDraft(row: PurchaseDraftRow): void {
     if (row.makerId !== this.userId() || !['DRAFT', 'RETURNED'].includes(row.state) || this.hasPendingCommand()) return;
-    if (this.formDirty()) { this.error.set('Clear or save the current purchase form before opening another draft.'); return; }
+    if (this.formDirty()) { this.setError('Clear or save the current purchase form before opening another draft.'); return; }
     const returned = row.state === 'RETURNED' ? this.rows().find(x => x.invoiceId === row.invoiceId && x.state === 'RETURNED') : undefined;
     this.loadDraft(row.invoiceId, row.revision, returned?.decisionReason ?? null);
   }
   reworkReturnedDraft(row: PurchaseRow): void {
     if (row.state !== 'RETURNED' || row.makerId !== this.userId() || this.hasPendingCommand()) return;
-    if (this.formDirty()) { this.error.set('Clear or save the current purchase form before opening returned work.'); return; }
+    if (this.formDirty()) { this.setError('Clear or save the current purchase form before opening returned work.'); return; }
     this.loadDraft(row.invoiceId, undefined, row.decisionReason ?? 'Returned for correction.');
   }
   private loadDraft(invoiceId: string, expectedRevision?: string, returnReason: string | null | undefined = null): void {
     if (this.busy() || !guid(invoiceId)) return;
     const client = this.clientId(), generation = this.session.invalidation(), request = ++this.requestId;
-    this.busy.set(true); this.error.set(''); this.operation = this.http.get<unknown>(`${this.base()}/purchase-invoice-drafts/${invoiceId}`).pipe(timeout(15000)).subscribe({
+    this.busy.set(true); this.setError(''); this.operation = this.http.get<unknown>(`${this.base()}/purchase-invoice-drafts/${invoiceId}`).pipe(timeout(15000)).subscribe({
       next: value => {
         if (request !== this.requestId || generation !== this.session.invalidation() || client !== this.clientId()) return;
         this.busy.set(false);
@@ -395,13 +397,13 @@ export class PurchaseInvoiceWorkflow {
           this.editing.set(true); this.revisionConflict.set(false); this.preview.set(null); this.previewRequest = null;
           this.loadDrafts(this.draftPage());
         } catch {
-          this.error.set('The saved purchase draft changed or could not be validated. Refresh the draft list before reopening it.');
+          this.setError('The saved purchase draft changed or could not be validated. Refresh the draft list before reopening it.');
           this.loadDrafts(0);
         }
       },
       error: failure => {
         if (request !== this.requestId || generation !== this.session.invalidation()) return;
-        this.busy.set(false); this.error.set('Saved purchase draft is unavailable. Refresh the list before another attempt.');
+        this.busy.set(false); this.setError('Saved purchase draft is unavailable. Refresh the list before another attempt.');
         if (failure.status === 401) this.session.clear();
       }
     });
@@ -447,7 +449,7 @@ export class PurchaseInvoiceWorkflow {
       lines: this.lines.map(l => ({ description: l.description.trim(), accountCode: l.accountCode.trim(), quantity: l.quantity, unitPrice: l.unitPrice, discount: l.discount, taxTreatment: 'NONE', taxes: [] })),
       statedNet: this.statedNet, statedTax: this.statedTax, statedGross: this.statedGross, sourceReceiptId: this.sourceReceiptId, evidenceReference: this.evidence.trim() };
     const pending = this.savePendingCommand('DRAFT', body, current?.invoiceId ?? null);
-    if (!pending) { this.error.set('A tab-scoped exact recovery record could not be saved; the purchase draft was not sent.'); return; }
+    if (!pending) { this.setError('A tab-scoped exact recovery record could not be saved; the purchase draft was not sent.'); return; }
     this.sendPendingDraftSave();
   }
   retryDraftSave(): void { this.sendPendingDraftSave(); }
@@ -455,23 +457,23 @@ export class PurchaseInvoiceWorkflow {
     const pending = this.pendingDraftSave();
     if (!pending || this.busy() || pending.clientId !== this.clientId() || pending.actorId !== this.userId()) return;
     const generation = this.session.invalidation(), request = ++this.requestId;
-    this.busy.set(true); this.error.set(''); this.operation = this.http.post<unknown>(`${this.base()}/purchase-invoice-drafts`, pending.body).pipe(timeout(20000)).subscribe({
+    this.busy.set(true); this.setError(''); this.operation = this.http.post<unknown>(`${this.base()}/purchase-invoice-drafts`, pending.body).pipe(timeout(20000)).subscribe({
       next: value => this.acceptDraftSave(value, pending, request, generation),
       error: failure => {
         if (request !== this.requestId || generation !== this.session.invalidation()) return;
         this.busy.set(false);
         if (failure.status === 0 || failure.status >= 500) {
-          this.error.set('Purchase draft outcome is unconfirmed. Retry the exact saved request before editing or creating another draft.');
+          this.setError('Purchase draft outcome is unconfirmed. Retry the exact saved request before editing or creating another draft.');
         } else {
           if (failure.status === 0 || failure.status >= 500 || failure.status === 409) {
-            this.error.set('Purchase draft outcome is unconfirmed. Check the exact command outcome before retrying the saved request.');
+            this.setError('Purchase draft outcome is unconfirmed. Check the exact command outcome before retrying the saved request.');
             this.reconcilePendingOutcome();
           } else {
             const saved = this.pendingCommand();
             if (saved) this.clearPendingCommand(saved);
             this.draftAssent.set(false); this.preview.set(null); this.previewRequest = null;
             this.revisionConflict.set(false);
-            this.error.set('Purchase draft was refused. Review the current maker, period, supplier and accounting data before starting a new request.');
+            this.setError('Purchase draft was refused. Review the current maker, period, supplier and accounting data before starting a new request.');
             this.loadDrafts(0);
           }
         }
@@ -489,9 +491,9 @@ export class PurchaseInvoiceWorkflow {
       const saved = this.pendingCommand();
       if (!saved || !this.clearPendingCommand(saved)) return;
       this.draft.set(draft); this.populateDraft(draft, true); this.returnReason.set(null);
-      this.editing.set(false); this.revisionConflict.set(false); this.error.set(''); this.loadDrafts(0); this.refresh();
+      this.editing.set(false); this.revisionConflict.set(false); this.setError(''); this.loadDrafts(0); this.refresh();
     } catch {
-      this.error.set('The saved purchase response did not match this exact revision. Retry the unchanged request to recover its outcome.');
+      this.setError('The saved purchase response did not match this exact revision. Retry the unchanged request to recover its outcome.');
       this.reconcilePendingOutcome();
     }
   }
@@ -501,7 +503,7 @@ export class PurchaseInvoiceWorkflow {
     const commandId = String(pending.body['commandId'] ?? '');
     if (!guid(commandId)) { this.pendingRecoveryBlocked.set(true); return; }
     const request = ++this.requestId, generation = this.session.invalidation(), client = this.clientId();
-    this.busy.set(true); this.error.set('');
+    this.busy.set(true); this.setError('');
     this.operation = this.http.get<unknown>(`${this.base()}/purchase-invoice-requests/${commandId}`, { params: { kind: pending.kind } }).pipe(timeout(15000)).subscribe({
       next: value => {
         if (request !== this.requestId || generation !== this.session.invalidation() || client !== this.clientId()) return;
@@ -513,22 +515,22 @@ export class PurchaseInvoiceWorkflow {
             const draft = outcome.draft as PurchaseDraft;
             this.draft.set(draft); this.populateDraft(draft, true); this.returnReason.set(null); this.editing.set(false);
             this.preview.set(null); this.previewRequest = null; this.loadDrafts(0); this.refresh();
-            this.error.set('The exact saved purchase draft was recovered from its retained command.');
+            this.recoveryNotice.set('The exact saved purchase draft was recovered from its retained command.');
           } else if (pending.kind === 'SUBMIT') {
             this.draft.set(null); this.preview.set(null); this.previewRequest = null; this.reset(); this.editing.set(true);
-            this.loadDrafts(0); this.refresh(); this.error.set('The exact supplier-invoice submission was confirmed.');
+            this.loadDrafts(0); this.refresh(); this.recoveryNotice.set('The exact supplier-invoice submission was confirmed.');
           } else {
             this.activeReview.set(null); this.loadDrafts(0); this.refresh();
-            this.error.set(outcome.outcome === 'RETURNED' ? 'The exact purchase return decision was acknowledged.' : 'The exact approval was confirmed by its existing posting receipt.');
+            this.recoveryNotice.set(outcome.outcome === 'RETURNED' ? 'The exact purchase return decision was acknowledged.' : 'The exact approval was confirmed by its existing posting receipt.');
           }
         } catch {
-          this.error.set('The saved command outcome did not match the retained actor, client, command or target. Keep the request locked and reconcile again.');
+          this.setError('The saved command outcome did not match the retained actor, client, command or target. Keep the request locked and reconcile again.');
         }
       },
       error: failure => {
         if (request !== this.requestId || generation !== this.session.invalidation()) return;
         this.busy.set(false);
-        this.error.set(failure.status === 404
+        this.setError(failure.status === 404
           ? 'No committed receipt is visible yet. The command remains unresolved; retry only the exact saved request.'
           : 'The command outcome could not be verified. Its exact request remains locked and recoverable.');
         if (failure.status === 401) this.session.clear();
@@ -546,14 +548,14 @@ export class PurchaseInvoiceWorkflow {
     else if (pending.kind === 'SUBMIT') { this.pendingRecoveryBlocked.set(true); return; }
     else url = `${this.base()}/purchase-invoice-reviews`;
     const request = ++this.requestId, generation = this.session.invalidation();
-    this.busy.set(true); this.error.set('');
+    this.busy.set(true); this.setError('');
     this.operation = this.http.post<unknown>(url, pending.body).pipe(timeout(20000)).subscribe({
       next: () => { if (request !== this.requestId || generation !== this.session.invalidation()) return; this.busy.set(false); this.reconcilePendingOutcome(); },
       error: failure => {
         if (request !== this.requestId || generation !== this.session.invalidation()) return;
         this.busy.set(false);
         if (failure.status === 401) this.session.clear();
-        this.error.set('The exact saved request did not return a confirmed response. Checking its retained command outcome; the original body remains locked.');
+        this.setError('The exact saved request did not return a confirmed response. Checking its retained command outcome; the original body remains locked.');
         this.reconcilePendingOutcome();
       }
     });
@@ -561,17 +563,17 @@ export class PurchaseInvoiceWorkflow {
   private submitBody(): Record<string, unknown> | null { const d = this.draft(); if (!d || !guid(this.apRoleId)) return null; return { commandId: crypto.randomUUID(), expectedDraftRevision: d.revision, payableRoleId: this.apRoleId, previewDigest: '' }; }
   previewRoleChanged(): void { this.preview.set(null); this.previewRequest = null; this.submitAssent.set(false); }
   previewDraft(): void { if (!this.canUseSupplier() || this.busy() || this.hasPendingCommand()) return; const d = this.draft(), body = this.submitBody(); if (!d || !body || d.supplierId !== this.supplierId) return; this.preview.set(null); this.submitAssent.set(false); this.busy.set(true); this.previewRequest = body;
-    this.operation = this.http.post<PurchasePreview>(`${this.base()}/purchase-invoices/${d.invoiceId}/preview`, body).pipe(timeout(20000)).subscribe({ next: p => { this.busy.set(false); this.preview.set(p); this.submitAssent.set(false); this.error.set(''); }, error: () => { this.busy.set(false); this.error.set('Purchase posting preview failed. Refresh the draft and current AP role.'); this.previewRequest = null; this.submitAssent.set(false); } }); }
+    this.operation = this.http.post<PurchasePreview>(`${this.base()}/purchase-invoices/${d.invoiceId}/preview`, body).pipe(timeout(20000)).subscribe({ next: p => { this.busy.set(false); this.preview.set(p); this.submitAssent.set(false); this.setError(''); }, error: () => { this.busy.set(false); this.setError('Purchase posting preview failed. Refresh the draft and current AP role.'); this.previewRequest = null; this.submitAssent.set(false); } }); }
   submit(): void { const d = this.draft(), p = this.preview(), b = this.previewRequest; if (!d || !p || !b || this.busy() || this.hasPendingCommand() || !this.submitAssent()) return;
     const body = { ...b, previewDigest: p.digest, reviewed: true };
-    if (!this.savePendingCommand('SUBMIT', body, d.invoiceId)) { this.error.set('A tab-scoped exact recovery record could not be saved; submission was not sent.'); return; }
+    if (!this.savePendingCommand('SUBMIT', body, d.invoiceId)) { this.setError('A tab-scoped exact recovery record could not be saved; submission was not sent.'); return; }
     this.retryPendingOutcome(); }
   refresh(): void { if (this.busy()) return; const request = ++this.requestId, generation = this.session.invalidation(), client = this.clientId(); this.busy.set(true);
-    this.operation = this.http.get<PurchaseRow[]>(`${this.base()}/purchase-invoices`).pipe(timeout(15000)).subscribe({ next: rows => { if (request !== this.requestId || generation !== this.session.invalidation() || client !== this.clientId()) return; this.rows.set(rows); this.busy.set(false); }, error: () => { if (request === this.requestId) { this.busy.set(false); this.error.set('Supplier invoice history is unavailable.'); } } }); }
+    this.operation = this.http.get<PurchaseRow[]>(`${this.base()}/purchase-invoices`).pipe(timeout(15000)).subscribe({ next: rows => { if (request !== this.requestId || generation !== this.session.invalidation() || client !== this.clientId()) return; this.rows.set(rows); this.busy.set(false); }, error: () => { if (request === this.requestId) { this.busy.set(false); this.setError('Supplier invoice history is unavailable.'); } } }); }
   reviewPreview(row: PurchaseRow): void { if (this.busy() || this.hasPendingCommand()) return; this.busy.set(true); const request = ++this.requestId, generation = this.session.invalidation();
-    this.operation = this.http.get<PurchaseReview>(`${this.base()}/purchase-invoice-submissions/${row.submissionId}/preview`).pipe(timeout(15000)).subscribe({ next: preview => { if (request !== this.requestId || generation !== this.session.invalidation()) return; this.activeReview.set(preview); this.reviewReason = ''; this.duplicateReason = ''; this.busy.set(false); }, error: () => { if (request === this.requestId) { this.busy.set(false); this.error.set('Purchase invoice review preview is unavailable.'); } } }); }
+    this.operation = this.http.get<PurchaseReview>(`${this.base()}/purchase-invoice-submissions/${row.submissionId}/preview`).pipe(timeout(15000)).subscribe({ next: preview => { if (request !== this.requestId || generation !== this.session.invalidation()) return; this.activeReview.set(preview); this.reviewReason = ''; this.duplicateReason = ''; this.busy.set(false); }, error: () => { if (request === this.requestId) { this.busy.set(false); this.setError('Purchase invoice review preview is unavailable.'); } } }); }
   review(row: PurchaseRow, decision: 'APPROVE' | 'RETURN'): void { const p = this.activeReview(); if (!p || this.busy() || this.hasPendingCommand()) return;
     const body = { commandId: crypto.randomUUID(), submissionId: row.submissionId, decision, reason: this.reviewReason.trim(), duplicateResolutionReason: this.duplicateReason.trim(), previewDigest: p.digest, reviewed: true };
-    if (!this.savePendingCommand('REVIEW', body, row.submissionId)) { this.error.set('A tab-scoped exact recovery record could not be saved; the review decision was not sent.'); return; }
+    if (!this.savePendingCommand('REVIEW', body, row.submissionId)) { this.setError('A tab-scoped exact recovery record could not be saved; the review decision was not sent.'); return; }
     this.retryPendingOutcome(); }
 }
