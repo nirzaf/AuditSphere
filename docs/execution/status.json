@@ -1628,6 +1628,16 @@
       "tests": "API assign/revoke 1/1 each; Domain 1/1; Angular 8/8.",
       "mutation": "Same-client guard mutation killed; restored.",
       "browser": "Unavailable; no group/client access."
+    },
+    "ownershipWindowsT026": {
+      "result": "FOCUSED_LOCAL_PASS; FAST_CI_PASS",
+      "sourceCommit": "23b33597f8914f2c78588be419bc08c0cb9d295a",
+      "api": "1/1",
+      "angular": "3/3",
+      "build": "Angular and .NET Release 0W/0E; OpenAPI PASS",
+      "browser": "NOT_RUN; no authorized group fixture",
+      "fastCI": "39667293119 PASS",
+      "fullSuites": "NOT_RUN_LOCALLY"
     }
   },
   "completePracticeManagement": {
