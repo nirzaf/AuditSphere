@@ -22853,6 +22853,15 @@
       },
       "currentFullRun": "39588148758",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.releaseFailureTriageEarlierThreeE2eFailures20261021"
+    },
+    "apiAngularParityIntercompanyT02720261022": {
+      "sourceCommit": "5d52d4347ad85277b76f89bef2b1391a1f2f5b93",
+      "result": "FOCUSED_API_PASS; PLAYWRIGHT_E2E_PASS; FAST_CI_PASS; HUMAN_AT_OPEN",
+      "api": "IntercompanyMatches_RequireIndependentCurrentGroupReviewAndHistory passed 1/1; validates current group scope, self-review denial, exact signed amounts/residual, retained approved history, wrong-group denial, stale-revision refusal and no journal side effects.",
+      "playwright": "AngularConsolidationIntercompanyJourneyTests passed 2/2; outside-perimeter keyboard entry and in-perimeter maker submission/reviewer approval, exact persisted values, 390px layout, no page errors or consolidation journal side effects.",
+      "ci": "AuditSphereOps CI run 39669142742 passed on this exact SHA: Angular build/specs, docs health and .NET Release build.",
+      "browserBoundary": "Automated headless Playwright journeys ran. The built-in interactive browser was not exercised.",
+      "accessibilityBoundary": "Keyboard operability and rendered behavior received technical review. No screen reader or assistive-technology session was performed; qualified human screen-reader review remains open."
     }
   }
 }
