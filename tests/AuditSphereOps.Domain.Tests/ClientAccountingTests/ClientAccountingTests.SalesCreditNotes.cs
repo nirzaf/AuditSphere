@@ -47,6 +47,12 @@ public sealed partial class ClientAccountingTests
       var submitted = await ClientSalesInvoiceWorkflow.SubmitCreditNoteAsync(db, maker, scope.ClientA,
         new(Guid.CreateVersion7(), credit, preview.Value.Digest));
       Assert.True(submitted.Succeeded, submitted.Message); creditSubmission = submitted.Value!;
+      var submissionReceipt = await ClientSalesInvoiceWorkflow.GetCreditNoteCommandAsync(db, maker, scope.ClientA,
+        creditSubmission.CommandId, "SUBMIT");
+      Assert.True(submissionReceipt.Succeeded, submissionReceipt.Message);
+      Assert.Equal(creditSubmission, submissionReceipt.Value);
+      Assert.False((await ClientSalesInvoiceWorkflow.GetCreditNoteCommandAsync(db, reviewer, scope.ClientA,
+        creditSubmission.CommandId, "SUBMIT")).Succeeded);
       var review = await ClientSalesInvoiceWorkflow.PreviewCreditNoteReviewAsync(db, reviewer, scope.ClientA, creditSubmission.SubmissionId);
       Assert.True(review.Succeeded, review.Message); Assert.True(review.Value!.CanPost);
       Assert.False((await ClientSalesInvoiceWorkflow.ReviewCreditNoteAsync(db, maker, scope.ClientA,
@@ -54,6 +60,12 @@ public sealed partial class ClientAccountingTests
       var posted = await ClientSalesInvoiceWorkflow.ReviewCreditNoteAsync(db, reviewer, scope.ClientA,
         new(Guid.CreateVersion7(), creditSubmission.SubmissionId, "APPROVE", "Reviewed partial credit", review.Value.Digest));
       Assert.True(posted.Succeeded, posted.Message);
+      var reviewReceipt = await ClientSalesInvoiceWorkflow.GetCreditNoteCommandAsync(db, reviewer, scope.ClientA,
+        posted.Value!.CommandId, "REVIEW");
+      Assert.True(reviewReceipt.Succeeded, reviewReceipt.Message);
+      Assert.Equal(posted.Value, reviewReceipt.Value);
+      Assert.False((await ClientSalesInvoiceWorkflow.GetCreditNoteCommandAsync(db, maker, scope.ClientA,
+        posted.Value.CommandId, "REVIEW")).Succeeded);
 
       var item = await db.ClientSalesCreditNoteOpenItems.SingleAsync(x => x.SubmissionId == creditSubmission.SubmissionId);
       Assert.Equal("CREDIT", item.Direction); Assert.Equal(25m, item.OriginalAmount);
