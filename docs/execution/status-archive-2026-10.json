@@ -22776,6 +22776,15 @@
       "errors": 0,
       "testsExecuted": false
     },
+    "dotnetSolutionBuild20261021d5cb2ccd": {
+      "sourceCommit": "d5cb2ccd60fbbda5bc5deefccbe20282f7aceb04",
+      "result": "PASS",
+      "configuration": "Release; --no-restore; serialized solution build.",
+      "warnings": 0,
+      "errors": 0,
+      "durationSeconds": 93,
+      "testsExecuted": false
+    },
     "apiAngularParityVerifiedTasks20261021": {
       "run": "39590664430@9b4720d1",
       "T001": "3 cases; Domain TRX",
