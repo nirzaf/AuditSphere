@@ -1194,20 +1194,6 @@
       "currentFullRun": "39588148758",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.releaseFailureTriageEarlierThreeE2eFailures20261021"
     },
-    "currentSourceCi20261021": {
-      "sourceCommit": "7534fee3c2c7aa60516dfaf885978f29c08d1178",
-      "observedAtUtc": "2026-10-21T15:14:08Z",
-      "fastCi": {
-        "run": "39622337001",
-        "status": "PASS",
-        "sourceCommit": "7534fee3c2c7aa60516dfaf885978f29c08d1178",
-        "observed": "Docs, Angular and .NET Release pass.",
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39622337001"
-      },
-      "priorObservationArchive": "status-archive-2026-10.json#keys.currentSourceCiBeforeGroupCreationReview20261021",
-      "fullRelease": "39616864548 IN_PROGRESS; API/E2E pending on de142c84.",
-      "localFullSuites": "NOT_RUN."
-    },
     "accessibilityReview20261021": {
       "result": "PARTIAL_AGENT_REVIEW",
       "sourceCommit": "cbb9993dfe2709bb25a082a2a62671b67953bda0",
@@ -1223,6 +1209,17 @@
       "tests": "T029/30 UI49/49; T031 Domain3/3+UI18/18; T032 API1/1 (501 uploads/2001 messages)",
       "fastCI": "39614032897 PASS @ea7f8f8; scoped source unchanged",
       "browser": "NOT_RUN; local app ports closed"
+    },
+    "currentSourceCi20261021": {
+      "sourceCommit": "71aa3ee37621caffef779311c6b2264e3dbfeb33",
+      "fastCi": "39623905385 IN_PROGRESS; Docs/Angular PASS; .NET pending. https://github.com/nirzaf/AuditSphere/actions/runs/39623905385",
+      "fullRelease": "39616864548 pending API/E2E on de142c84.",
+      "localFullSuites": "NOT_RUN."
+    },
+    "dotnetSolutionBuild20261021": {
+      "result": "PASS",
+      "sourceCommit": "71aa3ee37621caffef779311c6b2264e3dbfeb33",
+      "details": "status-archive-2026-10.json#keys.dotnetSolutionBuild20261021"
     }
   },
   "externalGates": [
@@ -1603,7 +1600,7 @@
     "taskStatusSummary": {
       "count": 51,
       "implementationStatus": "51 IMPLEMENTED",
-      "acceptanceStatus": "T001-T007 VERIFIED; T008 FOCUSED/BROWSER_PENDING; T009-T051 PARTIAL"
+      "acceptanceStatus": "T001-T007 VERIFIED; T008,T009 FOCUSED/BROWSER_PENDING; T010-T051 PARTIAL"
     },
     "verifiedTasks": {
       "run": "39590664430@9b4720d1",
@@ -1628,12 +1625,13 @@
     ],
     "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.apiAngularParityStatus20261018",
     "groupCreationT008": {
+      "archivedEvidence": "status-archive-2026-10.json#keys.apiAngularParityGroupCreationT00820261021"
+    },
+    "groupMembershipT009": {
       "result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING",
-      "sourceCommit": "7534fee3c2c7aa60516dfaf885978f29c08d1178",
-      "angular": "overview.spec.ts 9/9.",
-      "domain": "create/revocation/auth 3/3.",
-      "api": "firm-wide allow/scoped deny 1/1.",
-      "browser": "Prod /app/consolidation: no group access; no create."
+      "tests": "Angular 3/3; Domain 1/1; API 1/1.",
+      "browser": "No group access; no mutation.",
+      "details": "status-archive-2026-10.json#keys.apiAngularParityGroupMembershipT00920261021"
     }
   },
   "completePracticeManagement": {

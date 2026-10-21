@@ -22737,6 +22737,44 @@
         "T016": "Angular manual task creation 3/3."
       },
       "localFullSuites": "NOT_RUN per project policy."
+    },
+    "apiAngularParityGroupCreationT00820261021": {
+      "result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING",
+      "sourceCommit": "7534fee3c2c7aa60516dfaf885978f29c08d1178",
+      "angular": "overview.spec.ts 9/9.",
+      "domain": "create/revocation/auth 3/3.",
+      "api": "firm-wide allow/scoped deny 1/1.",
+      "browser": "Prod /app/consolidation: no group access; no create."
+    },
+    "currentSourceCiBeforeT009Review20261021": {
+      "sourceCommit": "7534fee3c2c7aa60516dfaf885978f29c08d1178",
+      "observedAtUtc": "2026-10-21T15:14:08Z",
+      "fastCi": {
+        "run": "39622337001",
+        "status": "PASS",
+        "sourceCommit": "7534fee3c2c7aa60516dfaf885978f29c08d1178",
+        "observed": "Docs, Angular and .NET Release pass.",
+        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39622337001"
+      },
+      "priorObservationArchive": "status-archive-2026-10.json#keys.currentSourceCiBeforeGroupCreationReview20261021",
+      "fullRelease": "39616864548 IN_PROGRESS; API/E2E pending on de142c84.",
+      "localFullSuites": "NOT_RUN."
+    },
+    "apiAngularParityGroupMembershipT00920261021": {
+      "result": "FOCUSED_LOCAL_PASS_BROWSER_PENDING",
+      "sourceCommit": "71aa3ee37621caffef779311c6b2264e3dbfeb33",
+      "angular": "group-membership.spec.ts 3/3.",
+      "domain": "OwnershipInterest_RejectsDuplicateAndCircularHierarchy 1/1.",
+      "api": "GroupMembership_IsExplicitlyScopedAndPreservesPercentagesAndRevision 1/1.",
+      "browser": "Production /app/consolidation: no group access; no create or membership mutation."
+    },
+    "dotnetSolutionBuild20261021": {
+      "sourceCommit": "71aa3ee37621caffef779311c6b2264e3dbfeb33",
+      "result": "PASS",
+      "configuration": "Release; --no-restore; serialized solution build.",
+      "warnings": 0,
+      "errors": 0,
+      "testsExecuted": false
     }
   }
 }
