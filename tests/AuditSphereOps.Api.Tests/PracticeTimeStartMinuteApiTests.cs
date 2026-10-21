@@ -75,6 +75,146 @@ public sealed class PracticeTimeStartMinuteApiTests
   }
 
   [Fact]
+  public async Task ApprovalQueueUsesBoundedKeysetPagesAndRejectsInvalidPagingParameters()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TIME-APPROVAL-PAGING");
+    var f = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var siblingClientId = Guid.NewGuid();
+    var siblingEngagementId = Guid.NewGuid();
+    await SeedSiblingScopeAsync(pg, f.FirmId, siblingClientId, siblingEngagementId);
+
+    Guid taskId;
+    Guid foreignTaskId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      taskId = await CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId, f.EngagementId,
+        "Synthetic approval paging task");
+      foreignTaskId = await CreateTaskAsync(db, PbcSeed.Actor(foreign.Admin, "Administrator"), foreign.ClientId,
+        foreign.EngagementId, "Synthetic foreign-firm paging task");
+    }
+
+    using var approverFactory = Factory(pg, f.Admin);
+    using var approver = approverFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var approverCsrf = await SignIn(approver);
+    using var staffFactory = Factory(pg, f.Staff);
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var staffCsrf = await SignIn(staff);
+    using var foreignStaffFactory = Factory(pg, foreign.Staff);
+    using var foreignStaff = foreignStaffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var foreignStaffCsrf = await SignIn(foreignStaff);
+
+    var validIds = new List<Guid>();
+    for (var index = 0; index < 4; index++)
+    {
+      var id = await CreatedAsync(staff, staffCsrf, Draft(taskId, 300 + index * 2, 1));
+      await AssertOkAsync(staff, staffCsrf, $"{EntriesPath}/{id}/submit");
+      validIds.Add(id);
+    }
+
+    // This pending entry belongs to the reviewer and must stay out of their own queue.
+    var ownId = await CreatedAsync(approver, approverCsrf, Draft(taskId, 500, 1));
+    await AssertOkAsync(approver, approverCsrf, $"{EntriesPath}/{ownId}/submit");
+    var foreignId = await CreatedAsync(foreignStaff, foreignStaffCsrf, Draft(foreignTaskId, 600, 1));
+    await AssertOkAsync(foreignStaff, foreignStaffCsrf, $"{EntriesPath}/{foreignId}/submit");
+
+    // A synthetic legacy mismatch has an in-scope task id but a different valid client/engagement pair.
+    // It sorts before the valid rows and must be excluded in SQL before the page boundary is applied.
+    var invalidTaskBindingId = Guid.NewGuid();
+    var submittedAt = DateTimeOffset.UtcNow;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.TimeEntries.Add(new TimeEntry
+      {
+        Id = invalidTaskBindingId, FirmId = f.FirmId, ClientId = siblingClientId, EngagementId = siblingEngagementId,
+        TaskId = taskId, UserId = f.Staff.Id, WorkDate = new DateOnly(2026, 10, 14), StartMinute = 100,
+        DurationMinutes = 1, Role = "Staff", Activity = "Synthetic paging decoy", Phase = BudgetPhases.Unassigned,
+        BillableClassification = PracticeTimeStates.NonBillable, Narrative = "Synthetic mismatched task scope",
+        NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Status = PracticeTimeStates.TimeSubmitted,
+        Revision = 1, SubmittedAt = submittedAt, SubmissionRound = 1, CreatedAt = submittedAt
+      });
+      db.TimeEntryReviewEvents.Add(new TimeEntryReviewEvent
+      {
+        Id = Guid.NewGuid(), FirmId = f.FirmId, TimeEntryId = invalidTaskBindingId, SubmissionRound = 1,
+        ActorUserId = f.Staff.Id, Action = PracticeTimeStates.ReviewSubmitted, CreatedAt = submittedAt
+      });
+      await db.SaveChangesAsync();
+    }
+
+    // The original URL remains valid and both it and the legacy application overload produce bounded metadata.
+    var defaultWorkspace = (await approver.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    Assert.Equal(50, defaultWorkspace.ApprovalPage.PageSize);
+    Assert.False(defaultWorkspace.ApprovalPage.HasMore);
+    Assert.Null(defaultWorkspace.ApprovalPage.NextCursor);
+    Assert.Equal(validIds.OrderBy(id => id.ToString("D"), StringComparer.Ordinal),
+      defaultWorkspace.AwaitingApproval.Select(x => x.Id));
+    Assert.DoesNotContain(ownId, defaultWorkspace.AwaitingApproval.Select(x => x.Id));
+    Assert.DoesNotContain(foreignId, defaultWorkspace.AwaitingApproval.Select(x => x.Id));
+    Assert.DoesNotContain(invalidTaskBindingId, defaultWorkspace.AwaitingApproval.Select(x => x.Id));
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var legacyCall = await PracticeTimeWorkspaceQuery.GetAsync(db, PbcSeed.Actor(f.Admin, "Administrator"));
+      Assert.True(legacyCall.Succeeded, legacyCall.Message);
+      Assert.Equal(50, legacyCall.Value!.ApprovalPage.PageSize);
+      Assert.False(legacyCall.Value.ApprovalPage.HasMore);
+      Assert.Null(legacyCall.Value.ApprovalPage.NextCursor);
+    }
+    var staffWorkspace = (await staff.GetFromJsonAsync<PracticeTimeWorkspace>(WorkspacePath))!;
+    Assert.False(staffWorkspace.IsApprover);
+    Assert.Empty(staffWorkspace.AwaitingApproval);
+    Assert.Equal(new TimeApprovalPageInfo(50, false, null), staffWorkspace.ApprovalPage);
+
+    var firstPage = (await approver.GetFromJsonAsync<PracticeTimeWorkspace>($"{WorkspacePath}?approvalPageSize=2"))!;
+    var expectedOrder = validIds.OrderBy(id => id.ToString("D"), StringComparer.Ordinal).ToArray();
+    Assert.Equal(expectedOrder.Take(2), firstPage.AwaitingApproval.Select(x => x.Id));
+    Assert.All(firstPage.AwaitingApproval, x => Assert.Equal(new DateOnly(2026, 10, 15), x.WorkDate));
+    Assert.Equal(2, firstPage.ApprovalPage.PageSize);
+    Assert.True(firstPage.ApprovalPage.HasMore);
+    Assert.Equal(new TimeApprovalCursor(new DateOnly(2026, 10, 15), firstPage.AwaitingApproval[^1].Id),
+      firstPage.ApprovalPage.NextCursor);
+
+    // Removing earlier pending rows cannot move the same-date keyset past later entries.
+    foreach (var row in firstPage.AwaitingApproval)
+      await AssertOkAsync(approver, approverCsrf, $"{EntriesPath}/{row.Id}/approve");
+    var cursor = firstPage.ApprovalPage.NextCursor!;
+    var secondPage = (await approver.GetFromJsonAsync<PracticeTimeWorkspace>(
+      $"{WorkspacePath}?approvalAfterWorkDate={cursor.WorkDate:yyyy-MM-dd}&approvalAfterEntryId={cursor.EntryId:D}&approvalPageSize=2"))!;
+    Assert.Equal(expectedOrder.Skip(2), secondPage.AwaitingApproval.Select(x => x.Id));
+    Assert.All(secondPage.AwaitingApproval, x => Assert.Equal(cursor.WorkDate, x.WorkDate));
+    Assert.Equal(2, secondPage.ApprovalPage.PageSize);
+    Assert.False(secondPage.ApprovalPage.HasMore);
+    Assert.Null(secondPage.ApprovalPage.NextCursor);
+
+    var invalidQueries = new[]
+    {
+      "?approvalAfterWorkDate=2026-10-15",
+      $"?approvalAfterEntryId={Guid.NewGuid():D}",
+      $"?approvalAfterWorkDate=not-a-date&approvalAfterEntryId={Guid.NewGuid():D}",
+      $"?approvalAfterWorkDate=2026-10-15&approvalAfterEntryId={Guid.Empty:D}",
+      "?approvalPageSize=not-a-number",
+      "?approvalPageSize=0",
+      "?approvalPageSize=101",
+      "?approvalPageSize=2&approvalPageSize=3"
+    };
+    foreach (var suffix in invalidQueries)
+    {
+      using var response = await approver.GetAsync(WorkspacePath + suffix);
+      Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var invalidCursor = await PracticeTimeWorkspaceQuery.GetAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        new PracticeTimeWorkspaceRequest(new DateOnly(2026, 10, 15), null, 2));
+      Assert.False(invalidCursor.Succeeded);
+      Assert.Equal("time.invalid", invalidCursor.ErrorCode);
+      var invalidPageSize = await PracticeTimeWorkspaceQuery.GetAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        new PracticeTimeWorkspaceRequest(ApprovalPageSize: 101));
+      Assert.False(invalidPageSize.Succeeded);
+      Assert.Equal("time.invalid", invalidPageSize.ErrorCode);
+    }
+  }
+
+  [Fact]
   public async Task StartMinuteIsForwardedValidatedPersistedAndReturnedWithoutFalseOverlap()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TIME-START-MINUTE");

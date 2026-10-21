@@ -1,6 +1,9 @@
+using System.Globalization;
+using AuditSphereOps.Api.Contracts;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
+using Microsoft.OpenApi;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -14,8 +17,47 @@ public static partial class UiEndpoints
 
   private static void MapTimeEndpoints(RouteGroupBuilder group)
   {
-    group.MapUiGet("/practice/time", http => ReadAsync(http, (db, actor, ct) => PracticeTimeWorkspaceQuery.GetAsync(db, actor, ct)))
-      .WithT046Response<PracticeTimeWorkspace>();
+    group.MapUiGet("/practice/time", http =>
+    {
+      var query = http.Request.Query;
+      if (!TryGetSinglePracticeTimeQueryValue(query, "approvalAfterWorkDate", out var rawAfterWorkDate) ||
+          !TryGetSinglePracticeTimeQueryValue(query, "approvalAfterEntryId", out var rawAfterEntryId) ||
+          !TryGetSinglePracticeTimeQueryValue(query, "approvalPageSize", out var rawPageSize))
+        return Task.FromResult(Invalid("Use one valid value for each approval paging parameter."));
+
+      DateOnly? afterWorkDate = null;
+      if (rawAfterWorkDate is not null)
+      {
+        if (!TryDate(rawAfterWorkDate, out var parsedDate))
+          return Task.FromResult(Invalid("Use both approval cursor values and a page size from 1 to 100."));
+        afterWorkDate = parsedDate;
+      }
+      Guid? afterEntryId = null;
+      if (rawAfterEntryId is not null)
+      {
+        if (!Guid.TryParse(rawAfterEntryId, out var parsedEntryId) || parsedEntryId == Guid.Empty)
+          return Task.FromResult(Invalid("Use both approval cursor values and a page size from 1 to 100."));
+        afterEntryId = parsedEntryId;
+      }
+      if ((afterWorkDate is null) != (afterEntryId is null))
+        return Task.FromResult(Invalid("Provide both approval cursor values or neither."));
+
+      var pageSize = 50;
+      if (rawPageSize is not null &&
+          (!int.TryParse(rawPageSize, NumberStyles.None, CultureInfo.InvariantCulture, out pageSize) || pageSize is < 1 or > 100))
+        return Task.FromResult(Invalid("Approval page size must be a whole number from 1 to 100."));
+
+      var request = new PracticeTimeWorkspaceRequest(afterWorkDate, afterEntryId, pageSize);
+      return ReadAsync(http, (db, actor, ct) => PracticeTimeWorkspaceQuery.GetAsync(db, actor, request, ct));
+    })
+      .WithT046Response<PracticeTimeWorkspace>()
+      .WithMetadata(
+        new ManualParameterMetadata("approvalAfterWorkDate", ParameterLocation.Query, false, JsonSchemaType.String,
+          Format: "date", Description: "Work-date component of the exclusive approval cursor. Supply together with approvalAfterEntryId; omit both to start at the first page."),
+        new ManualParameterMetadata("approvalAfterEntryId", ParameterLocation.Query, false, JsonSchemaType.String,
+          Format: "uuid", Description: "Entry-id cursor component. Supply together with approvalAfterWorkDate; omit both to start at the first page."),
+        new ManualParameterMetadata("approvalPageSize", ParameterLocation.Query, false, JsonSchemaType.Integer,
+          Format: "int32", Description: "Approval queue page size from 1 through 100; omitted values default to 50.", Minimum: 1));
     group.MapPost("/practice/time/tasks", (WorkTaskInput input, HttpContext http) =>
     {
       DateOnly? due = TryDate(input.DueDate, out var d) ? d : null;
@@ -65,5 +107,14 @@ public static partial class UiEndpoints
     group.MapPost("/practice/time/entries/{id:guid}/return", (Guid id, TimeReturnInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => PracticeTimeService.ReturnTimeAsync(db, actor, id, input.Reason, ct)))
       .WithT046Response<UiValueResponse<bool>>();
+  }
+
+  private static bool TryGetSinglePracticeTimeQueryValue(IQueryCollection query, string key, out string? value)
+  {
+    value = null;
+    if (!query.TryGetValue(key, out var values)) return true;
+    if (values.Count != 1 || string.IsNullOrEmpty(values[0])) return false;
+    value = values[0];
+    return true;
   }
 }

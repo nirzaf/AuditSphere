@@ -28939,6 +28939,36 @@
         "tags": [
           "AuditSphereOps.Api"
         ],
+        "parameters": [
+          {
+            "name": "approvalAfterWorkDate",
+            "in": "query",
+            "description": "Work-date component of the exclusive approval cursor. Supply together with approvalAfterEntryId; omit both to start at the first page.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "approvalAfterEntryId",
+            "in": "query",
+            "description": "Entry-id cursor component. Supply together with approvalAfterWorkDate; omit both to start at the first page.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "approvalPageSize",
+            "in": "query",
+            "description": "Approval queue page size from 1 through 100; omitted values default to 50.",
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "503": {
             "description": "Service Unavailable",
@@ -128376,7 +128406,8 @@
           "engagements",
           "openTasks",
           "myEntries",
-          "awaitingApproval"
+          "awaitingApproval",
+          "approvalPage"
         ],
         "type": "object",
         "properties": {
@@ -128415,6 +128446,9 @@
             "items": {
               "$ref": "#/components/schemas/TimeEntryRow"
             }
+          },
+          "approvalPage": {
+            "$ref": "#/components/schemas/TimeApprovalPageInfo"
           }
         }
       },
@@ -139566,6 +139600,54 @@
               },
               {
                 "$ref": "#/components/schemas/TenantSetupReceipt"
+              }
+            ]
+          }
+        }
+      },
+      "TimeApprovalCursor": {
+        "required": [
+          "workDate",
+          "entryId"
+        ],
+        "type": "object",
+        "properties": {
+          "workDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TimeApprovalPageInfo": {
+        "required": [
+          "pageSize",
+          "hasMore",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TimeApprovalCursor"
               }
             ]
           }

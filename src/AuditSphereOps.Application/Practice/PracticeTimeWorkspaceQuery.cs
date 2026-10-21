@@ -15,9 +15,12 @@ public sealed record TimeTaskOption(Guid Id, string Title, string Status, Guid? 
 public sealed record TimeEntryRow(Guid Id, DateOnly WorkDate, Guid TaskId, string TaskTitle, Guid UserId, int DurationMinutes, string Activity,
   string BillableClassification, string Narrative, string Status, Guid? MappingVersionId, string? FsliCode, int StartMinute = 540,
   string? LastReturnReason = null, string Phase = BudgetPhases.Unassigned);
+public sealed record PracticeTimeWorkspaceRequest(DateOnly? ApprovalAfterWorkDate = null, Guid? ApprovalAfterEntryId = null, int ApprovalPageSize = 50);
+public sealed record TimeApprovalCursor(DateOnly WorkDate, Guid EntryId);
+public sealed record TimeApprovalPageInfo(int PageSize, bool HasMore, TimeApprovalCursor? NextCursor);
 public sealed record PracticeTimeWorkspace(bool FirmWide, bool IsApprover, IReadOnlyList<TimePeriodOption> Periods,
   IReadOnlyList<TimeEngagementOption> Engagements, IReadOnlyList<TimeTaskOption> OpenTasks,
-  IReadOnlyList<TimeEntryRow> MyEntries, IReadOnlyList<TimeEntryRow> AwaitingApproval);
+  IReadOnlyList<TimeEntryRow> MyEntries, IReadOnlyList<TimeEntryRow> AwaitingApproval, TimeApprovalPageInfo ApprovalPage);
 
 /// <summary>
 /// Grant-scoped time workspace: open tasks, the actor's own entries and (for approvers) others' submitted entries.
@@ -28,8 +31,17 @@ public static class PracticeTimeWorkspaceQuery
   private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
   private static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
 
-  public static async Task<CommandResult<PracticeTimeWorkspace>> GetAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default)
+  public static Task<CommandResult<PracticeTimeWorkspace>> GetAsync(
+    IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default) =>
+    GetAsync(db, actor, new PracticeTimeWorkspaceRequest(), ct);
+
+  public static async Task<CommandResult<PracticeTimeWorkspace>> GetAsync(
+    IClientAccountingDbContext db, ActorContext actor, PracticeTimeWorkspaceRequest request, CancellationToken ct = default)
   {
+    if ((request.ApprovalAfterWorkDate is null) != (request.ApprovalAfterEntryId is null) ||
+        request.ApprovalAfterEntryId == Guid.Empty || request.ApprovalPageSize is < 1 or > 100)
+      return CommandResult<PracticeTimeWorkspace>.Fail("time.invalid", "Provide both approval cursor values and a page size from 1 to 100.");
+
     var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
     if (!authorization.Succeeded) return CommandResult<PracticeTimeWorkspace>.Fail(authorization.ErrorCode!, authorization.Message!);
     // Scope each projection from current grants, independently of HTTP/worker expiry cleanup.
@@ -113,15 +125,33 @@ public static class PracticeTimeWorkspaceQuery
       .Where(x => taskById.TryGetValue(x.TaskId, out var task) && task.ClientId == x.ClientId && task.EngagementId == x.EngagementId).Select(Row).ToList();
 
     var awaiting = new List<TimeEntryRow>();
+    var approvalPage = new TimeApprovalPageInfo(request.ApprovalPageSize, false, null);
     if (isApprover)
     {
       var reviewScopedEngagementIds = reviewFirmWide ? [] : await db.Engagements.AsNoTracking()
         .Where(x => x.FirmId == actor.FirmId && (reviewClientIds.Contains(x.PracticeClientId) || reviewEngagementIds.Contains(x.Id))).Select(x => x.Id).ToArrayAsync(ct);
-      awaiting = (await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      var visibleTaskIds = visibleTasks.Select(x => x.Id).ToArray();
+      var approvalRows = db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
           (reviewFirmWide || (x.EngagementId.HasValue && reviewScopedEngagementIds.Contains(x.EngagementId.Value)) ||
             (!x.EngagementId.HasValue && x.ClientId.HasValue && reviewClientIds.Contains(x.ClientId.Value))) &&
-          x.Status == PracticeTimeStates.TimeSubmitted && x.UserId != actor.UserId).OrderBy(x => x.WorkDate).Take(500).ToListAsync(ct))
-        .Where(x => taskById.TryGetValue(x.TaskId, out var task) && task.ClientId == x.ClientId && task.EngagementId == x.EngagementId).Select(Row).ToList();
+          x.Status == PracticeTimeStates.TimeSubmitted && x.UserId != actor.UserId)
+        .Join(db.WorkTasks.AsNoTracking().Where(x => x.FirmId == actor.FirmId && visibleTaskIds.Contains(x.Id)),
+          entry => new { entry.FirmId, entry.TaskId },
+          task => new { task.FirmId, TaskId = task.Id },
+          (entry, task) => new { Entry = entry, Task = task })
+        .Where(x => x.Entry.ClientId == x.Task.ClientId && x.Entry.EngagementId == x.Task.EngagementId);
+      if (request.ApprovalAfterWorkDate is { } afterDate && request.ApprovalAfterEntryId is { } afterEntryId)
+        approvalRows = approvalRows.Where(x => x.Entry.WorkDate > afterDate ||
+          (x.Entry.WorkDate == afterDate && x.Entry.Id.CompareTo(afterEntryId) > 0));
+      var selectedRows = await approvalRows.OrderBy(x => x.Entry.WorkDate).ThenBy(x => x.Entry.Id)
+        .Take(request.ApprovalPageSize + 1).ToListAsync(ct);
+      var hasMore = selectedRows.Count > request.ApprovalPageSize;
+      var visibleRows = selectedRows.Take(request.ApprovalPageSize).ToArray();
+      awaiting = visibleRows.Select(x => Row(x.Entry)).ToList();
+      var nextCursor = hasMore && visibleRows.Length > 0
+        ? new TimeApprovalCursor(visibleRows[^1].Entry.WorkDate, visibleRows[^1].Entry.Id)
+        : null;
+      approvalPage = new TimeApprovalPageInfo(request.ApprovalPageSize, hasMore, nextCursor);
     }
     var finalAuthorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, RequiredRoles: WorkRoles, InternalOnly: true), ct);
@@ -136,6 +166,6 @@ public static class PracticeTimeWorkspaceQuery
     if (workGrants.Any(x => !finalScopes.Contains((x.Role, x.ClientId, x.EngagementId))))
       return CommandResult<PracticeTimeWorkspace>.Fail(ErrorCodes.ScopeDenied,
         "Time recording access changed; reload the workspace.");
-    return CommandResult<PracticeTimeWorkspace>.Ok(new(firmWide, isApprover, periodOptions, engagementOptions, openTasks, myEntries, awaiting));
+    return CommandResult<PracticeTimeWorkspace>.Ok(new(firmWide, isApprover, periodOptions, engagementOptions, openTasks, myEntries, awaiting, approvalPage));
   }
 }

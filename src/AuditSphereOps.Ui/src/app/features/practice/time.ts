@@ -1,4 +1,4 @@
-import { Component, DestroyRef, HostListener, effect, inject, signal } from '@angular/core';
+import { afterNextRender, Component, computed, DestroyRef, ElementRef, HostListener, Injector, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
@@ -38,9 +38,26 @@ const taskOption: Decoder<ReturnType<typeof taskOptionShape>> = (value, path) =>
   const source = value as Record<string, unknown>;
   return taskOptionShape({ ...source, phase: source['phase'] ?? unassignedBudgetPhase }, path);
 };
-export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(obj({ id: guid, clientId: guid, label: text }), 5000),
+const approvalCursor = obj({ workDate: date, entryId: guid });
+type ApprovalCursor = ReturnType<typeof approvalCursor>;
+const approvalPageShape = obj({ pageSize: nat, hasMore: bool, nextCursor: nullable(approvalCursor) });
+const optionalApprovalPage = (value: unknown, path: string) => value == null ? null : approvalPageShape(value, path);
+const timeWorkspaceShape = obj({ firmWide: bool, isApprover: bool, periods: arr(obj({ id: guid, clientId: guid, label: text }), 5000),
   engagements: arr(obj({ id: guid, clientId: guid, label: text, mappingVersionId: nullable(guid), fsliCodes: arr(str(100), 2000) }), 5000),
-  openTasks: arr(taskOption, 5000), myEntries: arr(entry, 500), awaitingApproval: arr(entry, 500) });
+  openTasks: arr(taskOption, 5000), myEntries: arr(entry, 500), awaitingApproval: arr(entry, 500), approvalPage: optionalApprovalPage });
+const approvalPosition = (row: { workDate: string; id: string }) => row.workDate + '/' + row.id.toLowerCase();
+export const decodeTime = (value: unknown, path: string) => {
+  const workspace = timeWorkspaceShape(value, path), page = workspace.approvalPage;
+  if (page) {
+    const rows = workspace.awaitingApproval, last = rows.at(-1), cursor = page.nextCursor;
+    if (page.pageSize < 1 || page.pageSize > 100 || rows.length > page.pageSize || page.hasMore !== !!cursor ||
+        (page.hasMore && (rows.length !== page.pageSize || !last || cursor!.workDate !== last.workDate || cursor!.entryId !== last.id)) ||
+        rows.some((row, index) => index > 0 && approvalPosition(rows[index - 1]) >= approvalPosition(row))) {
+      throw new DecodeError(`${path}: invalid approval continuation`);
+    }
+  }
+  return workspace;
+};
 
 @Component({
   selector: 'audit-practice-time',
@@ -50,7 +67,7 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
       description="Time entries are recorded against assigned firm tasks with exact integer minutes, immutable rate snapshots, and independent approval segregation." />
     <audit-state [loading]="view.loading()" [error]="view.error()" label="time records" />
     @if (view.data(); as v) {
-      <p role="status">{{ v.openTasks.length }} open tasks in scope · {{ v.myEntries.length }} of my time entries shown{{ v.isApprover ? ' · ' + v.awaitingApproval.length + ' awaiting my review' : '' }}</p>
+      <p role="status">{{ v.openTasks.length }} open tasks in scope · {{ v.myEntries.length }} of my time entries shown{{ v.isApprover ? ' · ' + v.awaitingApproval.length + ' awaiting my review shown' : '' }}</p>
       <section class="panel" aria-labelledby="task-heading">
         <h2 id="task-heading">Create work task</h2>
         <p>Scope a task to an authorized client period or engagement. Budget phase is optional. Engagement tasks can also optionally pin a destination from the current approved FSLI mapping; the exact mapping and code are copied to time entries. Due dates are never inferred.</p>
@@ -154,15 +171,27 @@ export const decodeTime = obj({ firmWide: bool, isApprover: bool, periods: arr(o
       </section>
       @if (v.isApprover) {
         <section class="panel" aria-labelledby="queue-heading">
-          <h2 id="queue-heading">Time approval queue</h2>
+          <h2 id="queue-heading" #approvalHeading tabindex="-1">Time approval queue</h2>
           <p>Independent approval segregation: managers and partners cannot approve their own time entries.</p>
+          <p>This is a live queue, not a fixed snapshot. Refresh from the start to include newly submitted or backdated work.</p>
+          <nav aria-label="Time approval pages">
+            <button matButton type="button" (click)="previousApprovalPage()" [disabled]="approvalNavigationBlocked() || approvalPositions().length === 1">Previous approvals</button>
+            <span aria-live="polite">Page {{ approvalPositions().length }} · {{ v.awaitingApproval.length }} shown</span>
+            <button matButton type="button" (click)="nextApprovalPage()" [disabled]="approvalNavigationBlocked() || !v.approvalPage?.hasMore">Next approvals</button>
+            <button matButton type="button" (click)="refreshApprovalQueue()" [disabled]="approvalNavigationBlocked()">Refresh approvals from start</button>
+          </nav>
+          @if (!v.approvalPage) { <p role="status">Continuation is unavailable from this server. This list may be incomplete.</p> }
+          @if (returningTimeId()) {
+            <p role="status">Finish or cancel the open return before changing approval pages.</p>
+            <button matButton type="button" (click)="cancelReturn()" [disabled]="cmd.busy()">Cancel open return</button>
+          }
           <div class="table-scroll"><table>
             <caption>Time entries awaiting my approval</caption>
             <thead><tr><th scope="col">Date</th><th scope="col">Staff user</th><th scope="col">Task</th><th scope="col">Phase</th><th scope="col">FSLI / approved mapping</th><th scope="col">Duration</th><th scope="col">Activity</th><th scope="col">Narrative</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
             <tbody>@for (e of v.awaitingApproval; track e.id) {
               <tr><td>{{ e.workDate }}</td><td><code>{{ e.userId }}</code></td><td>{{ e.taskTitle }}</td><td>{{ phaseLabel(e.phase) }}</td><td>{{ e.fsliCode ?? '—' }}@if (e.mappingVersionId) { <small> · <code>{{ e.mappingVersionId }}</code></small> }</td><td>{{ e.durationMinutes }}m</td><td>{{ e.activity }}</td><td>{{ e.narrative }}</td>
                 <td>
-                  <button matButton="filled" (click)="act(e.id, 'approve', 'Time entry was approved.')" [disabled]="cmd.busy()">Approve</button>
+                  <button matButton="filled" (click)="act(e.id, 'approve', 'Time entry was approved.')" [disabled]="cmd.busy() || !!returningTimeId()">Approve</button>
                   @if (returningTimeId() === e.id) {
                     <label>Return reason * <textarea [name]="'return-reason-' + e.id" [ngModel]="timeReturnReason()" (ngModelChange)="timeReturnReason.set($event)" maxlength="2000" required></textarea></label>
                     <button matButton type="button" (click)="returnTime(e.id)" [disabled]="cmd.busy() || !timeReturnReason().trim()">Return time</button>
@@ -183,7 +212,22 @@ export class PracticeTime implements NavigationProtected {
   private readonly drafts = inject(Drafts);
   private readonly session = inject(SessionService);
   private readonly dialog = inject(MatDialog);
-  readonly view = this.api.resource(() => '/api/ui/practice/time', decodeTime, 'Sign in with an authorized internal staff identity to view and record time.');
+  readonly approvalPositions = signal<readonly (ApprovalCursor | null)[]>([null]);
+  private readonly approvalCursor = computed(() => this.approvalPositions().at(-1) ?? null);
+  private readonly approvalHeading = viewChild<ElementRef<HTMLElement>>('approvalHeading');
+  private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly renderInjector = inject(Injector);
+  private approvalFocus: { owner: string; position: string; active: Element | null } | null = null;
+  readonly view = this.api.resource(() => {
+    const cursor = this.approvalCursor();
+    return '/api/ui/practice/time' + (cursor ? '?' + new URLSearchParams({ approvalAfterWorkDate: cursor.workDate,
+      approvalAfterEntryId: cursor.entryId, approvalPageSize: '50' }).toString() : '');
+  }, (raw, path) => {
+    const workspace = decodeTime(raw, path), cursor = this.approvalCursor();
+    if (cursor && (!workspace.approvalPage || workspace.awaitingApproval.some(row =>
+      approvalPosition(row) <= cursor.workDate + '/' + cursor.entryId.toLowerCase()))) throw new DecodeError(`${path}: wrong approval page`);
+    return workspace;
+  }, 'Sign in with an authorized internal staff identity to view and record time.');
   readonly cmd = new CommandState(this.api);
   readonly budgetPhases = supportedBudgetPhases;
   phaseLabel(phase: string): string { return supportedBudgetPhases.find(x => x.value === phase)?.label ?? phase; }
@@ -233,9 +277,24 @@ export class PracticeTime implements NavigationProtected {
       const identity = this.sessionIdentity();
       if (invalidation !== this.lastSessionInvalidation || identity !== this.lastSessionIdentity) {
         this.resetTracker();
+        this.approvalPositions.set([null]);
+        this.approvalFocus = null;
+        this.cancelReturn();
         this.lastSessionInvalidation = invalidation;
         this.lastSessionIdentity = identity;
       }
+    });
+    effect(() => {
+      const data = this.view.data();
+      const ticket = this.approvalFocus;
+      if (!data || !ticket) return;
+      this.approvalFocus = null;
+      afterNextRender(() => {
+        const document = this.host.nativeElement.ownerDocument;
+        if (ticket.owner !== this.approvalOwner() || ticket.position !== JSON.stringify(this.approvalCursor()) ||
+          (document.activeElement !== document.body && document.activeElement !== ticket.active)) return;
+        this.approvalHeading()?.nativeElement.focus();
+      }, { injector: this.renderInjector });
     });
     const visibilityChanged = () => { if (document.visibilityState === 'hidden') this.pauseForExternalTrigger(); };
     const pageHidden = () => this.pauseForExternalTrigger();
@@ -263,7 +322,32 @@ export class PracticeTime implements NavigationProtected {
     this.draftTimer = setTimeout(() => this.drafts.save('practice-time-draft', this.draft), 800);
   }
 
-  private reload = () => this.view.reload();
+  readonly approvalNavigationBlocked = computed(() => this.view.loading() || this.cmd.busy() || !!this.returningTimeId());
+  private approvalOwner(): string { return `${this.session.invalidation()}:${this.sessionIdentity()}`; }
+  private setApprovalPosition(positions: readonly (ApprovalCursor | null)[], focus: boolean): void {
+    const changed = JSON.stringify(this.approvalCursor()) !== JSON.stringify(positions.at(-1) ?? null);
+    this.approvalFocus = focus ? { owner: this.approvalOwner(), position: JSON.stringify(positions.at(-1) ?? null),
+      active: this.host.nativeElement.ownerDocument.activeElement } : null;
+    this.approvalPositions.set(positions);
+    if (!changed) this.view.reload();
+  }
+  nextApprovalPage(): void {
+    const page = this.view.data()?.approvalPage;
+    if (this.approvalNavigationBlocked() || !this.view.data()?.isApprover || !page?.hasMore || !page.nextCursor) return;
+    this.setApprovalPosition([...this.approvalPositions(), page.nextCursor], true);
+  }
+  previousApprovalPage(): void {
+    if (this.approvalNavigationBlocked() || this.approvalPositions().length < 2) return;
+    this.setApprovalPosition(this.approvalPositions().slice(0, -1), true);
+  }
+  refreshApprovalQueue(): void {
+    if (this.approvalNavigationBlocked()) return;
+    this.setApprovalPosition([null], true);
+  }
+  private reload = () => {
+    if (this.returningTimeId()) this.view.reload();
+    else this.setApprovalPosition([null], false);
+  };
   createTask(): Promise<boolean> {
     const engagement = this.selectedEngagement();
     return this.cmd.run('/api/ui/practice/time/tasks', { title: this.task.title, reportingPeriodId: this.task.period || null,
@@ -384,6 +468,7 @@ export class PracticeTime implements NavigationProtected {
     this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.uncertain.set(false); this.cmd.code.set('');
   }
   act(id: string, action: 'submit' | 'approve', ok: string): Promise<boolean> {
+    if (action === 'approve' && this.returningTimeId()) return Promise.resolve(false);
     return this.cmd.run(`/api/ui/practice/time/entries/${id}/${action}`, {}, ok).finally(this.reload);
   }
   beginReturn(id: string): void { this.returningTimeId.set(id); this.timeReturnReason.set(''); }

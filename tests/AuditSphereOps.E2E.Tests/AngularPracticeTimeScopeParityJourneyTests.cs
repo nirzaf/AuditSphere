@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
@@ -153,6 +154,7 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
     const string siblingTaskTitle = "SYN-PAR-002-SIBLING-ENGAGEMENT-TASK";
     const string assignedNarrative = "SYN-PAR-002-ASSIGNED-TIME-NARRATIVE";
     const string siblingNarrative = "SYN-PAR-002-SIBLING-TIME-NARRATIVE";
+    var pagedEntryIds = new List<Guid>();
 
     await using (var db = host.CreateDbContext())
     {
@@ -231,6 +233,21 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
           Status = PracticeTimeStates.TimeSubmitted, SubmittedAt = DateTimeOffset.UtcNow,
           NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
         });
+      // Retained synthetic pending rows cross the default approval page boundary; no review is fabricated.
+      for (var index = 0; index < 50; index++)
+      {
+        var entryId = Guid.NewGuid();
+        pagedEntryIds.Add(entryId);
+        db.TimeEntries.Add(new TimeEntry
+        {
+          Id = entryId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+          TaskId = assignedTaskId, UserId = f.Staff.Id, WorkDate = new DateOnly(2026, 9, 11),
+          StartMinute = 600 + index * 2, DurationMinutes = 1, Role = "Staff", Activity = "Fieldwork",
+          Narrative = $"SYN-PAGING-TIME-{index}", MappingVersionId = mappingId, FsliCode = "CASH",
+          BillableClassification = PracticeTimeStates.NonBillable, Status = PracticeTimeStates.TimeSubmitted,
+          SubmittedAt = now, NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Currency = "QAR", CreatedAt = now
+        });
+      }
       await db.SaveChangesAsync();
     }
 
@@ -242,15 +259,59 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
     var page = await context.NewPageAsync();
     var errors = new List<string>();
     page.PageError += (_, error) => errors.Add(error);
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp%2Fpractice%2Ftime");
+    var writes = new List<string>();
+    page.Request += (_, request) =>
+    {
+      if (request.Method != "GET" && request.Url.Contains("/api/ui/", StringComparison.Ordinal)) writes.Add(request.Method + " " + request.Url);
+    };
+    var (firstStatus, firstBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && request.Url.EndsWith("/api/ui/practice/time", StringComparison.Ordinal),
+      () => page.GotoAsync(origin + "/auth/sign-in?returnUrl=%2Fapp%2Fpractice%2Ftime"));
+    Assert.Equal(200, firstStatus);
+    using var firstWorkspace = JsonDocument.Parse(firstBody);
+    var firstIds = firstWorkspace.RootElement.GetProperty("awaitingApproval").EnumerateArray()
+      .Select(row => row.GetProperty("id").GetGuid()).ToArray();
+    Assert.Equal(50, firstIds.Length);
+    Assert.True(firstWorkspace.RootElement.GetProperty("approvalPage").GetProperty("hasMore").GetBoolean());
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Practice time & task records", Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByText(assignedTaskTitle, new() { Exact = true })).ToBeVisibleAsync();
+    var approvalTable = page.GetByRole(AriaRole.Table, new() { Name = "Time entries awaiting my approval", Exact = true });
+    await Assertions.Expect(approvalTable).ToContainTextAsync(assignedTaskTitle);
     await Assertions.Expect(page.GetByText(assignedNarrative, new() { Exact = true })).ToBeVisibleAsync();
     var body = await page.Locator("main").InnerTextAsync();
     Assert.DoesNotContain(siblingTaskTitle, body, StringComparison.Ordinal);
     Assert.DoesNotContain(siblingNarrative, body, StringComparison.Ordinal);
     Assert.DoesNotContain(periodCode, body, StringComparison.Ordinal);
+    var pages = page.GetByRole(AriaRole.Navigation, new() { Name = "Time approval pages", Exact = true });
+    await Assertions.Expect(pages).ToContainTextAsync("Page 1 · 50 shown");
+    await Assertions.Expect(pages.GetByRole(AriaRole.Button, new() { Name = "Previous approvals", Exact = true })).ToBeDisabledAsync();
+    var (nextStatus, nextBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && request.Url.Contains("/api/ui/practice/time?approvalAfterWorkDate=", StringComparison.Ordinal),
+      () => pages.GetByRole(AriaRole.Button, new() { Name = "Next approvals", Exact = true }).PressAsync("Enter"));
+    Assert.Equal(200, nextStatus);
+    using var nextWorkspace = JsonDocument.Parse(nextBody);
+    var remaining = Assert.Single(nextWorkspace.RootElement.GetProperty("awaitingApproval").EnumerateArray());
+    Assert.Contains(remaining.GetProperty("id").GetGuid(), pagedEntryIds);
+    Assert.DoesNotContain(remaining.GetProperty("id").GetGuid(), firstIds);
+    Assert.Equal(assignedTaskId, remaining.GetProperty("taskId").GetGuid());
+    Assert.False(nextWorkspace.RootElement.GetProperty("approvalPage").GetProperty("hasMore").GetBoolean());
+    await Assertions.Expect(pages).ToContainTextAsync("Page 2 · 1 shown");
+    await Assertions.Expect(pages.GetByRole(AriaRole.Button, new() { Name = "Next approvals", Exact = true })).ToBeDisabledAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Time approval queue", Exact = true })).ToBeFocusedAsync();
+    var secondPageBody = await page.Locator("main").InnerTextAsync();
+    Assert.DoesNotContain(siblingTaskTitle, secondPageBody, StringComparison.Ordinal);
+    Assert.DoesNotContain(siblingNarrative, secondPageBody, StringComparison.Ordinal);
+    Assert.DoesNotContain(periodCode, secondPageBody, StringComparison.Ordinal);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/practice/time", "time-approval-paging");
+    var (previousStatus, previousBody) = await PlaywrightResponseCapture.RunAsync(page,
+      request => request.Method == "GET" && request.Url.EndsWith("/api/ui/practice/time", StringComparison.Ordinal),
+      () => pages.GetByRole(AriaRole.Button, new() { Name = "Previous approvals", Exact = true }).PressAsync("Space"));
+    Assert.Equal(200, previousStatus);
+    using var previousWorkspace = JsonDocument.Parse(previousBody);
+    Assert.Equal(firstIds, previousWorkspace.RootElement.GetProperty("awaitingApproval").EnumerateArray()
+      .Select(row => row.GetProperty("id").GetGuid()).ToArray());
+    await Assertions.Expect(pages).ToContainTextAsync("Page 1 · 50 shown");
     Assert.Empty(errors);
+    Assert.Empty(writes);
   }
 }

@@ -150,6 +150,56 @@ describe('foreground practice time tracker integration', () => {
     } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
   });
 
+  it('pages the live independent approval queue without discarding recording or return drafts', async () => {
+    const pendingEntry = (sequence: number) => ({
+      id: `33333333-3333-4333-8333-${sequence.toString(16).padStart(12, '0')}`,
+      workDate: '2026-10-15', taskId, taskTitle: 'Review scoped time', userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      durationMinutes: 1, startMinute: 540, activity: 'Fieldwork', billableClassification: 'BILLABLE', narrative: '',
+      status: 'SUBMITTED', mappingVersionId: null, fsliCode: null, lastReturnReason: null, phase: 'FIELDWORK',
+    });
+    const rows = Array.from({ length: 50 }, (_, index) => pendingEntry(index + 1));
+    const last = rows.at(-1)!;
+    const firstPage = { ...workspace, isApprover: true, awaitingApproval: rows,
+      approvalPage: { pageSize: 50, hasMore: true, nextCursor: { workDate: last.workDate, entryId: last.id } } };
+    const laterPage = { ...workspace, isApprover: true, awaitingApproval: [pendingEntry(51)],
+      approvalPage: { pageSize: 50, hasMore: false, nextCursor: null } };
+    expect(() => decode(decodeTime, { ...firstPage, approvalPage: { ...firstPage.approvalPage, hasMore: false } })).toThrow();
+    expect(() => decode(decodeTime, { ...firstPage, awaitingApproval: [...rows].reverse() })).toThrow();
+    const { fixture, component, http } = open(firstPage);
+    try {
+      component.task.title = 'Keep this unsaved task';
+      component.draft.narrative = 'Keep these unsaved recording details';
+      component.beginReturn(rows[0].id);
+      component.timeReturnReason.set('Keep this pending return reason');
+      component.nextApprovalPage();
+      expect(await component.act(rows[1].id, 'approve', 'Approved')).toBe(false);
+      http.expectNone(request => request.url.startsWith('/api/ui/practice/time'));
+      expect(component.timeReturnReason()).toBe('Keep this pending return reason');
+      component.cancelReturn();
+      component.nextApprovalPage(); TestBed.tick();
+      const next = http.expectOne(request => request.url.startsWith('/api/ui/practice/time?'));
+      const query = new URL(next.request.urlWithParams, 'http://localhost').searchParams;
+      expect(query.get('approvalAfterWorkDate')).toBe(last.workDate);
+      expect(query.get('approvalAfterEntryId')).toBe(last.id);
+      next.flush(laterPage); TestBed.tick();
+      expect(component.approvalPositions()).toHaveLength(2);
+      expect(component.view.data()?.awaitingApproval[0].id).toBe(pendingEntry(51).id);
+      expect(component.task.title).toBe('Keep this unsaved task');
+      expect(component.draft.narrative).toBe('Keep these unsaved recording details');
+      expect(fixture.nativeElement.querySelector('#queue-heading')).toBe(document.activeElement);
+      component.previousApprovalPage(); TestBed.tick();
+      http.expectOne('/api/ui/practice/time').flush(firstPage); TestBed.tick();
+      expect(component.approvalPositions()).toHaveLength(1);
+      component.nextApprovalPage(); TestBed.tick();
+      http.expectOne(request => request.url.startsWith('/api/ui/practice/time?')).flush(laterPage); TestBed.tick();
+      const approving = component.act(pendingEntry(51).id, 'approve', 'Approved');
+      http.expectOne(`/api/ui/practice/time/entries/${pendingEntry(51).id}/approve`).flush({ value: true });
+      await approving; TestBed.tick();
+      http.expectOne('/api/ui/practice/time').flush(firstPage); TestBed.tick();
+      expect(component.approvalPositions()).toHaveLength(1);
+    } finally { fixture.destroy(); http.verify({ ignoreCancelled: true }); TestBed.resetTestingModule(); }
+  });
+
   it('requires explicit task selection, pauses active time, and saves reviewed segments one at a time', async () => {
     const now = new Date('2026-10-15T09:00:00Z').getTime();
     const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
