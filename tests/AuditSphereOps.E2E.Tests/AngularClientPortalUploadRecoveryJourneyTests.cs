@@ -87,7 +87,11 @@ public sealed class AngularClientPortalUploadRecoveryJourneyTests
     await page.GetByRole(AriaRole.Checkbox, new() { Name = "I will keep my sign-in private", Exact = false }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Complete first sign-in", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("First sign-in complete. Uploads are open for your requests.", new() { Exact = true })).ToBeVisibleAsync();
-    await page.GetByRole(AriaRole.Link, new() { Name = "Resume upload evidence", Exact = true }).ClickAsync();
+    var documentsToProvide = page.GetByRole(AriaRole.Region, new() { Name = "Documents to provide (1)", Exact = true });
+    await Assertions.Expect(documentsToProvide.GetByRole(AriaRole.Link,
+      new() { Name = "Resume upload evidence", Exact = true })).ToHaveCountAsync(1);
+    await documentsToProvide.GetByRole(AriaRole.Link,
+      new() { Name = "Resume upload evidence", Exact = true }).ClickAsync();
     await page.GetByLabel("Choose a file (up to 250 MB)", new() { Exact = true }).SetInputFilesAsync(new FilePayload
     {
       Name = "synthetic-resume.bin", MimeType = "application/octet-stream", Buffer = bytes

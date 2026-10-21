@@ -723,7 +723,11 @@ public sealed class AngularClientPortalJourneyTests
     await page.GetByRole(AriaRole.Checkbox, new() { Name = "I will keep my sign-in private", Exact = false }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Complete first sign-in", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("First sign-in complete. Uploads are open for your requests.")).ToBeVisibleAsync();
-    await page.GetByRole(AriaRole.Link, new() { Name = "Angular bank evidence", Exact = true }).ClickAsync();
+    var documentsToProvide = page.GetByRole(AriaRole.Region, new() { Name = "Documents to provide (1)", Exact = true });
+    await Assertions.Expect(documentsToProvide.GetByRole(AriaRole.Link,
+      new() { Name = "Angular bank evidence", Exact = true })).ToHaveCountAsync(1);
+    await documentsToProvide.GetByRole(AriaRole.Link,
+      new() { Name = "Angular bank evidence", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Delegate this request", Exact = true })).ToBeVisibleAsync();
     await page.GetByLabel("Colleague", new() { Exact = true }).SelectOptionAsync(colleagueId.ToString());
     await page.GetByRole(AriaRole.Button, new() { Name = "Delegate", Exact = true }).ClickAsync();
