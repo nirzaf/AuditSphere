@@ -76,6 +76,10 @@ public static partial class UiEndpoints
     {
       if (!TryDate(i.StatutoryFilingCutoff, out var cutoff))
         return Task.FromResult(Invalid("Enter the statutory filing cutoff date in YYYY-MM-DD format."));
+      if ((!string.IsNullOrWhiteSpace(i.FieldworkStartDate) && !TryDate(i.FieldworkStartDate, out _)) ||
+          (!string.IsNullOrWhiteSpace(i.DraftReportDate) && !TryDate(i.DraftReportDate, out _)) ||
+          (!string.IsNullOrWhiteSpace(i.FinalReportDate) && !TryDate(i.FinalReportDate, out _)))
+        return Task.FromResult(Invalid("Enter each supplied milestone date in YYYY-MM-DD format, or leave it blank to use the calculated default."));
       DateOnly? fieldwork = TryDate(i.FieldworkStartDate, out var f) ? f : null;
       DateOnly? draft = TryDate(i.DraftReportDate, out var d) ? d : null;
       DateOnly? final = TryDate(i.FinalReportDate, out var fn) ? fn : null;
@@ -86,6 +90,10 @@ public static partial class UiEndpoints
     {
       if (!TryDate(i.StatutoryFilingCutoff, out var cutoff))
         return Task.FromResult(Invalid("Enter the statutory filing cutoff date in YYYY-MM-DD format."));
+      if ((!string.IsNullOrWhiteSpace(i.FieldworkStartDate) && !TryDate(i.FieldworkStartDate, out _)) ||
+          (!string.IsNullOrWhiteSpace(i.DraftReportDate) && !TryDate(i.DraftReportDate, out _)) ||
+          (!string.IsNullOrWhiteSpace(i.FinalReportDate) && !TryDate(i.FinalReportDate, out _)))
+        return Task.FromResult(Invalid("Enter each supplied milestone date in YYYY-MM-DD format, or leave it blank to use the calculated default."));
       DateOnly? fieldwork = TryDate(i.FieldworkStartDate, out var f) ? f : null;
       DateOnly? draft = TryDate(i.DraftReportDate, out var d) ? d : null;
       DateOnly? final = TryDate(i.FinalReportDate, out var fn) ? fn : null;

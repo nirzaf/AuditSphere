@@ -110,19 +110,22 @@ public static class StatutoryMilestoneService
     if (!DateOnly.TryParse(engagement.PeriodEnd, out var periodEnd))
       return CommandResult<CalculatedMilestones>.Fail("milestone.invalid-period", "The engagement period end is missing or malformed.");
 
-    var chronologyError = StatutoryMilestoneCalculator.ValidateChronology(
-      periodEnd,
-      request.StatutoryFilingCutoff,
-      request.FieldworkStartDate ?? periodEnd.AddDays(7),
-      request.DraftReportDate ?? request.StatutoryFilingCutoff.AddDays(-28),
-      request.FinalReportDate ?? request.StatutoryFilingCutoff.AddDays(-15),
-      (request.FinalReportDate ?? request.StatutoryFilingCutoff.AddDays(-15)).AddDays(StatutoryMilestoneCalculator.ArchiveDaysAfterFinalReport));
-
-    if (chronologyError != null)
-      return CommandResult<CalculatedMilestones>.Fail("milestone.chronology-error", chronologyError);
+    if (request.StatutoryFilingCutoff <= periodEnd)
+      return CommandResult<CalculatedMilestones>.Fail("milestone.chronology-error",
+        "Statutory filing cutoff must be strictly after the accounting period end date.");
 
     try
     {
+      var standard = StatutoryMilestoneCalculator.CalculateDefault(periodEnd, request.StatutoryFilingCutoff);
+      var candidateFieldwork = request.FieldworkStartDate ?? standard.FieldworkStartDate;
+      var candidateDraft = request.DraftReportDate ?? standard.DraftReportDate;
+      var candidateFinal = request.FinalReportDate ?? standard.FinalReportDate;
+      var candidateArchive = candidateFinal.AddDays(StatutoryMilestoneCalculator.ArchiveDaysAfterFinalReport);
+      var chronologyError = StatutoryMilestoneCalculator.ValidateChronology(
+        periodEnd, request.StatutoryFilingCutoff, candidateFieldwork, candidateDraft, candidateFinal, candidateArchive);
+      if (chronologyError != null)
+        return CommandResult<CalculatedMilestones>.Fail("milestone.chronology-error", chronologyError);
+
       var calculated = StatutoryMilestoneCalculator.Evaluate(
         periodEnd,
         request.StatutoryFilingCutoff,
@@ -134,7 +137,11 @@ public static class StatutoryMilestoneService
 
       return CommandResult<CalculatedMilestones>.Ok(calculated);
     }
-    catch (Exception ex)
+    catch (ArgumentException ex)
+    {
+      return CommandResult<CalculatedMilestones>.Fail("milestone.invalid", ex.Message);
+    }
+    catch (InvalidOperationException ex)
     {
       return CommandResult<CalculatedMilestones>.Fail("milestone.invalid", ex.Message);
     }
@@ -174,26 +181,23 @@ public static class StatutoryMilestoneService
     if (!DateOnly.TryParse(engagement.PeriodEnd, out var periodEnd))
       return CommandResult<MilestonePlanView>.Fail("milestone.invalid-period", "The engagement period end is missing or malformed.");
 
-    var standard = StatutoryMilestoneCalculator.CalculateDefault(periodEnd, request.StatutoryFilingCutoff);
-    var candidateFieldwork = request.FieldworkStartDate ?? standard.FieldworkStartDate;
-    var candidateDraft = request.DraftReportDate ?? standard.DraftReportDate;
-    var candidateFinal = request.FinalReportDate ?? standard.FinalReportDate;
-    var candidateArchive = candidateFinal.AddDays(StatutoryMilestoneCalculator.ArchiveDaysAfterFinalReport);
-
-    var chronologyError = StatutoryMilestoneCalculator.ValidateChronology(
-      periodEnd,
-      request.StatutoryFilingCutoff,
-      candidateFieldwork,
-      candidateDraft,
-      candidateFinal,
-      candidateArchive);
-
-    if (chronologyError != null)
-      return CommandResult<MilestonePlanView>.Fail("milestone.chronology-error", chronologyError);
+    if (request.StatutoryFilingCutoff <= periodEnd)
+      return CommandResult<MilestonePlanView>.Fail("milestone.chronology-error",
+        "Statutory filing cutoff must be strictly after the accounting period end date.");
 
     CalculatedMilestones calculated;
     try
     {
+      var standard = StatutoryMilestoneCalculator.CalculateDefault(periodEnd, request.StatutoryFilingCutoff);
+      var candidateFieldwork = request.FieldworkStartDate ?? standard.FieldworkStartDate;
+      var candidateDraft = request.DraftReportDate ?? standard.DraftReportDate;
+      var candidateFinal = request.FinalReportDate ?? standard.FinalReportDate;
+      var candidateArchive = candidateFinal.AddDays(StatutoryMilestoneCalculator.ArchiveDaysAfterFinalReport);
+      var chronologyError = StatutoryMilestoneCalculator.ValidateChronology(
+        periodEnd, request.StatutoryFilingCutoff, candidateFieldwork, candidateDraft, candidateFinal, candidateArchive);
+      if (chronologyError != null)
+        return CommandResult<MilestonePlanView>.Fail("milestone.chronology-error", chronologyError);
+
       calculated = StatutoryMilestoneCalculator.Evaluate(
         periodEnd,
         request.StatutoryFilingCutoff,
@@ -203,7 +207,11 @@ public static class StatutoryMilestoneService
         request.AdjustmentReason,
         request.WarningOverrideReason);
     }
-    catch (Exception ex)
+    catch (ArgumentException ex)
+    {
+      return CommandResult<MilestonePlanView>.Fail("milestone.invalid", ex.Message);
+    }
+    catch (InvalidOperationException ex)
     {
       return CommandResult<MilestonePlanView>.Fail("milestone.invalid", ex.Message);
     }

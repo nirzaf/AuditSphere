@@ -232,6 +232,24 @@ public sealed class StatutoryMilestonePlanningTests
 
     Assert.True(succeeded.Succeeded, succeeded.Message);
     Assert.Equal("Partner confirmed double staffing on site to ensure quality", succeeded.Value!.WarningOverrideReason);
+
+    // A tight but valid default window must preview the same derived milestones that save persists.
+    var tightCutoff = new DateOnly(2027, 1, 20);
+    const string tightWindowOverride = "Partner approved the compressed statutory timetable";
+    var tightPreview = await StatutoryMilestoneService.CalculatePreviewAsync(db, manager,
+      new PreviewMilestonesRequest(w.EngagementId, tightCutoff, WarningOverrideReason: tightWindowOverride));
+    Assert.True(tightPreview.Succeeded, tightPreview.Message);
+    Assert.NotEmpty(tightPreview.Value!.Warnings);
+    Assert.False(tightPreview.Value.WarningOverrideRequired);
+
+    var tightSave = await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
+      new SaveMilestonesRequest(w.EngagementId, tightCutoff, WarningOverrideReason: tightWindowOverride));
+    Assert.True(tightSave.Succeeded, tightSave.Message);
+    Assert.Equal(tightPreview.Value.FieldworkStartDate, tightSave.Value!.FieldworkStartDate);
+    Assert.Equal(tightPreview.Value.DraftReportDate, tightSave.Value.DraftReportDate);
+    Assert.Equal(tightPreview.Value.FinalReportDate, tightSave.Value.FinalReportDate);
+    Assert.Equal(tightPreview.Value.ArchiveDeadlineDate, tightSave.Value.ArchiveDeadlineDate);
+    Assert.Equal(tightPreview.Value.Warnings, tightSave.Value.Warnings);
   }
 
   [Fact]
@@ -281,5 +299,46 @@ public sealed class StatutoryMilestonePlanningTests
 
     Assert.False(result.Succeeded);
     Assert.Equal("milestone.chronology-error", result.ErrorCode);
+  }
+
+  [Fact]
+  public async Task Service_DateRangeBoundariesReturnFailuresWithoutSavingPlans()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var manager = w.Actor("manager", "Manager");
+
+    var minimumPreview = await StatutoryMilestoneService.CalculatePreviewAsync(db, manager,
+      new PreviewMilestonesRequest(w.EngagementId, DateOnly.MinValue));
+    Assert.False(minimumPreview.Succeeded);
+    Assert.Equal("milestone.chronology-error", minimumPreview.ErrorCode);
+    var minimumSave = await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
+      new SaveMilestonesRequest(w.EngagementId, DateOnly.MinValue));
+    Assert.False(minimumSave.Succeeded);
+    Assert.Equal("milestone.chronology-error", minimumSave.ErrorCode);
+
+    var maximumPreview = await StatutoryMilestoneService.CalculatePreviewAsync(db, manager,
+      new PreviewMilestonesRequest(w.EngagementId, DateOnly.MaxValue));
+    Assert.False(maximumPreview.Succeeded);
+    Assert.Equal("milestone.invalid", maximumPreview.ErrorCode);
+    var maximumSave = await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
+      new SaveMilestonesRequest(w.EngagementId, DateOnly.MaxValue));
+    Assert.False(maximumSave.Succeeded);
+    Assert.Equal("milestone.invalid", maximumSave.ErrorCode);
+
+    // A requested final date at the upper boundary also fails safely when deriving the archive deadline.
+    var finalAtMaximumPreview = await StatutoryMilestoneService.CalculatePreviewAsync(db, manager,
+      new PreviewMilestonesRequest(w.EngagementId, new DateOnly(2027, 4, 30),
+        FinalReportDate: DateOnly.MaxValue, AdjustmentReason: "Synthetic boundary check"));
+    Assert.False(finalAtMaximumPreview.Succeeded);
+    Assert.Equal("milestone.invalid", finalAtMaximumPreview.ErrorCode);
+    var finalAtMaximumSave = await StatutoryMilestoneService.SaveMilestonesAsync(db, manager,
+      new SaveMilestonesRequest(w.EngagementId, new DateOnly(2027, 4, 30),
+        FinalReportDate: DateOnly.MaxValue, AdjustmentReason: "Synthetic boundary check"));
+    Assert.False(finalAtMaximumSave.Succeeded);
+    Assert.Equal("milestone.invalid", finalAtMaximumSave.ErrorCode);
+
+    Assert.Equal(0, await db.EngagementMilestonePlans.CountAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId));
   }
 }
