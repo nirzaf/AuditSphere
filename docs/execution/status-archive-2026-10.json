@@ -19445,7 +19445,95 @@
             "precedingSourceCommit": "6b72b18d5ee62e0be3183b31f1b712154c48d5a0",
             "observed": "2026-10-21T06:27:00Z",
             "state": "IN_PROGRESS: full Domain, Angular and build/contracts passed; API and E2E still running. This run predates this slice."
-          }
+          },
+          "fastCi": {
+            "run": 39555575289,
+            "sourceCommit": "0c4f2e1ed69a99fce0aa27c0af38e8e7aa9f9470",
+            "result": "FAST_CI_PASS",
+            "limits": "Predates receipt-history implementation; not a full .NET regression gate."
+          },
+          "receiptContinuationFollowUp": "portalReceiptPaging20261021 supersedes only the earlier nested-receipt history limit."
+        },
+        "portalReceiptPaging20261021": {
+          "sourceCommit": "4bce2f6f2b2ca41233e454987b6847c9a92c36fb",
+          "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+          "implementation": [
+            "New exact-agreement receipt endpoint, default/max 50 rows, agreement-bound canonical UTC microsecond/receipt-ID/kind cursor; source bounds before merge.",
+            "Inline receipt summaries expose continuation metadata. Complete SQL cash totals are independent of displayed receipt pages; at most two milestone invoice sources follow existing unique-kind/check constraints.",
+            "Owned repeatable-read and final current identity/grant fences. Download metadata follows exact milestone/proposal/quotation/client/engagement lineage, preserving accepted null/null legacy lineage.",
+            "Lazy per-agreement Angular receipt component, independent cursors, exact monetary strings, tuple row identity (milestone kind plus receipt ID), explicit focus, fail-closed errors and visible refresh recovery. No receipt request on mount."
+          ],
+          "checks": {
+            "domain": {
+              "result": "PASS",
+              "passed": 1,
+              "failed": 0,
+              "skipped": 0,
+              "case": "CommercialWorkflowTests.PortalFinanceAndReceiptDownloads_RespectExactClientAndEngagementScope",
+              "log": "/tmp/auditsphere-receipt-paging-domain-fixed.log",
+              "trx": "tests/AuditSphereOps.Domain.Tests/TestResults/portal-receipt-paging-fixed-20261021.trx",
+              "coverage": "51-row full ordered traversal, complete financial totals, one receipt across both milestone kinds, foreign account exclusion, cross-agreement cursor refusal, sibling denial, caller transaction refusal, exact grant revocation during receipt read, retained document bytes/hash unchanged."
+            },
+            "angular": {
+              "result": "PASS",
+              "homePassed": 9,
+              "receiptPassed": 5,
+              "logs": [
+                "/tmp/auditsphere-receipt-paging-ui-spec-fixed.log",
+                "/tmp/auditsphere-receipt-paging-ui-spec-recovery.log"
+              ],
+              "coverage": "Lazy reads, paging/focus, independent agreements, tuple identities, unknown kind refusal, protected-row clearing, forbidden continuation, mismatched agreement response, failed first-page refresh/retry, session invalidation."
+            },
+            "browser": {
+              "result": "PASS",
+              "passed": 1,
+              "failed": 0,
+              "skipped": 0,
+              "case": "AngularClientPortalJourneyTests.ClientPortal_FinanceTablesAreScopedAndKeyboardScrollableOnMobile",
+              "log": "/tmp/auditsphere-receipt-paging-browser.log",
+              "trx": "tests/AuditSphereOps.E2E.Tests/TestResults/portal-receipt-paging-browser-20261021.trx",
+              "coverage": "Real authenticated API and Angular, 51 receipts, full cash/outstanding values while paging 50+1, native Space/Enter traversal and receipt focus, independent agreement pagination, sibling exclusion, mobile reflow and keyboard scrolling."
+            },
+            "builtInBrowser": {
+              "result": "OBSERVED_OLDER_PAGE",
+              "observed": "Space opened the one-row older receipt page, heading focus retained, outer agreement page still held 50 cards, no console warnings/errors. Screenshot viewed. Return-page observation was not awaited before cleanup; its completed proof is the E2E assertion, not this manual observation. Owned tabs closed and fixture released.",
+              "screenshot": "/tmp/auditsphere-receipt-paging-20261021.png"
+            },
+            "releaseBuild": {
+              "result": "PASS",
+              "scope": "API/OpenAPI emitter and focused Domain/E2E project builds",
+              "warnings": 0,
+              "errors": 0,
+              "log": "/tmp/auditsphere-receipt-paging-emitter-build-fixed.log"
+            },
+            "angularBuild": {
+              "result": "PASS",
+              "log": "/tmp/auditsphere-receipt-paging-ui-build.log",
+              "warnings": "Existing optional-chain and commercial settings stylesheet budget warnings."
+            },
+            "lint": {
+              "result": "PASS",
+              "scope": "finance.ts and finance-receipts.ts",
+              "log": "/tmp/auditsphere-receipt-paging-lint.log"
+            },
+            "openApi": {
+              "result": "PASS",
+              "log": "/tmp/auditsphere-receipt-paging-contract-check.log"
+            }
+          },
+          "intermediateFindings": [
+            "Review removed a stale-first-page fallback after failed refresh and kept recovery controls available while rows are withheld.",
+            "Initial API compile rejected a typed two-argument handler for MapUiGet; route identity now uses the existing HttpContext route-value pattern.",
+            "The first Domain run passed page/money assertions but its revocation interceptor expected the wrong receipt allocation table name; matching the diagnostic receipt-page tag plus an explicit authorized pre-read proves the interleaving. Calls==1 and denial assertions remain.",
+            "Angular test setup initially constrained malformed wire data to a valid union, used a prefix-matching old-reference assertion and flushed a two-component fixture before required inputs were bound. Corrected only the test inputs/assertions; no coverage weakened."
+          ],
+          "independentReview": "No material issue found in six-decimal SQL aggregate equivalence, scope/account filtering before bounds, tuple cursor, lineage metadata, lazy UI and recovery.",
+          "limits": [
+            "Receipt pages are live reads, not a durable cross-page snapshot.",
+            "Original settlement receipt links remain separate from per-payment vouchers; no voucher or delivery state is manufactured.",
+            "No persistence model/migration, deployment, provider action or full local suite.",
+            "Broader role/state and retained-financial-data integrity matrices, qualified human AT, full current-source release and professional/live-provider acceptance remain open."
+          ]
         }
       },
       "asPm8AtomicMatrixBeforePortalActivity20261021": [

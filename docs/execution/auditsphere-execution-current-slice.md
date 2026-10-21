@@ -14,11 +14,11 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
-## Client finance agreement history and account isolation
+## Client finance receipt continuation
 
-Client finance now pages exact authorized agreements instead of silently stopping at the newest collection bound. Stable retained creation-time/ID cursors, explicit older/newer/refresh controls and a consistent page snapshot preserve financial facts. Each response rechecks current identity and exact grants after snapshot disposal. Linked invoices must belong to the agreement client's billing account; receipt and credit totals exclude foreign accounts.
+Agreement summaries now carry a bounded receipt page with separate continuation. Exact-agreement receipt history preserves full SQL cash totals, current access fences and existing settlement-document lineage. One payment allocated across both milestone invoices retains distinct kind/receipt identities. The Angular component loads additional pages only on demand; errors withdraw cached rows while keeping refresh recovery available.
 
-The focused PostgreSQL regression, Angular checks and final-artifact authenticated browser journey pass. Built-in keyboard continuation confirms the one-row older page and heading focus with no console errors. Runtime fixture failures were corrected to obey existing invoice/milestone immutability without weakening guards or assertions. Evidence and limitations: `portalFinancePaging20261021` in [status.json](status.json). Nested invoice/receipt history beyond the decoder bound, full current-source release verification, human screen-reader review and provider/professional acceptance remain open. Earlier workflow-amendment, quotation-privacy and consolidation evidence is preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+Focused PostgreSQL, Angular and authenticated browser checks pass. The browser proves receipt and agreement paging remain independent, exact monetary cells retain full totals, and keyboard/mobile behavior is preserved. Built-in inspection confirms the older receipt page and focus without console errors. Evidence, intermediate repairs and limits: `portalReceiptPaging20261021` in [status.json](status.json). Whole-product, human AT, full current-source release and provider/professional acceptance remain open. Prior agreement-history evidence is in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
 ## Paged client document history
 

@@ -1229,8 +1229,14 @@
       "sourceBaseCommit": "1098129d27fcd2a85e165f240495ecf40ca8f479",
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
       "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalFinancePaging20261021",
-      "remaining": "Nested-history completion, human AT and full current-source release acceptance remain open.",
+      "remaining": "Receipt continuation is covered by portalReceiptPaging20261021; human AT and full current-source release remain open.",
       "sourceCommit": "2fb3a01fcb9eb49838025600251f86b502691512"
+    },
+    "portalReceiptPaging20261021": {
+      "sourceCommit": "4bce2f6f2b2ca41233e454987b6847c9a92c36fb",
+      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.portalReceiptPaging20261021",
+      "remaining": "Full current-source release, broader state/source integrity, human AT and provider/professional acceptance remain open."
     }
   },
   "externalGates": [
