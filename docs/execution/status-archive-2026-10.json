@@ -22802,6 +22802,33 @@
       "Full product browser journey",
       "Responsive acceptance",
       "Live Microsoft/provider acceptance"
-    ]
+    ],
+    "targetedVerification.currentSourceCi20261021At71aa": {
+      "sourceCommit": "71aa3ee37621caffef779311c6b2264e3dbfeb33",
+      "fastCi": "39623905385 PASS; Docs, Angular and .NET Release succeeded.",
+      "fullRelease": "39616864548 on de142c84: Angular, build/contracts, Domain and API passed; E2E failed.",
+      "localFullSuites": "NOT_RUN."
+    },
+    "targetedVerification.dotnetSolutionBuild20261021At71aa": {
+      "sourceCommit": "71aa3ee37621caffef779311c6b2264e3dbfeb33",
+      "result": "PASS",
+      "configuration": "Release; --no-restore; serialized solution build.",
+      "warnings": 0,
+      "errors": 0,
+      "testsExecuted": false
+    },
+    "targetedVerification.releaseFailureTriage20261021Atfe075": {
+      "status": "FOCUSED_REPAIR_PASS_CURRENT_FULL_CI_PENDING",
+      "failedRun": "39562906358",
+      "failedSourceCommit": "1b59b0a1d640e5c56f3861c61e54a740776fa9a0",
+      "finding": "328/330 E2E passed; two client-portal journeys failed because the same action link appeared in the request action centre and activity history.",
+      "repair": "Both locators now scope to the Documents to provide (1) action region; the activity-history link remains available.",
+      "focusedCurrentTree": {
+        "result": "PASS 2/2",
+        "trx": "tests/AuditSphereOps.E2E.Tests/TestResults/portal-request-link-scope-20261021.trx"
+      },
+      "currentFullRun": "39588148758",
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.releaseFailureTriageEarlierThreeE2eFailures20261021"
+    }
   }
 }
