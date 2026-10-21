@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -50,5 +51,95 @@ public sealed class ClientContactCreationApiTests
     await using(var db=new AuditSphereDbContext(pg.Options)){await db.Users.Where(u=>u.Id==f.Admin.Id).ExecuteUpdateAsync(s=>s.SetProperty(u=>u.SessionEpoch,u=>u.SessionEpoch+1));}
     Assert.Equal(HttpStatusCode.Unauthorized,(await c.GetAsync(url)).StatusCode);
   }
+
+  [Fact]
+  public async Task ContactRoutingRevocationIsBoundToTheAuthorizedRouteClientAtTheHttpBoundary()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("CLIENT-ROUTING-ROUTE-BINDING-API");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var otherClientId = Guid.CreateVersion7();
+    var contactId = Guid.CreateVersion7();
+    var routingId = Guid.CreateVersion7();
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(fixture.FirmId, fixture.Admin, "Partner"));
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = otherClientId,
+        FirmId = fixture.FirmId,
+        LegalName = "Other Synthetic Client",
+        Status = "Active",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      db.ClientContacts.Add(new ClientContact
+      {
+        Id = contactId,
+        FirmId = fixture.FirmId,
+        PracticeClientId = otherClientId,
+        FullName = "Finance Contact",
+        Email = "finance@other-client.example.test",
+        Role = "Finance",
+        IsActive = true
+      });
+      db.ClientContactRoutings.Add(new ClientContactRouting
+      {
+        Id = routingId,
+        FirmId = fixture.FirmId,
+        PracticeClientId = otherClientId,
+        ClientContactId = contactId,
+        Purpose = CorrespondencePurposes.Finance,
+        CreatedByUserId = fixture.Admin.Id,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true",
+      ["DevelopmentIdentity:Subject"] = fixture.Admin.Subject,
+      ["DevelopmentIdentity:TenantId"] = fixture.Admin.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true",
+      ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await client.GetAsync("/auth/sign-in");
+    using var session = await client.GetAsync("/api/ui/session");
+    var csrf = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(value => value.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal))
+      .Split(';')[0]["XSRF-TOKEN=".Length..]);
+
+    using var mismatchedRoute = await Delete(client, csrf,
+      $"/api/ui/clients/{fixture.ClientId}/routings/{routingId}", new { reason = "Route client does not own this routing." });
+    Assert.Equal(HttpStatusCode.BadRequest, mismatchedRoute.StatusCode);
+    using (var error = JsonDocument.Parse(await mismatchedRoute.Content.ReadAsStringAsync()))
+      Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ScopeDenied, error.RootElement.GetProperty("code").GetString());
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var retained = await db.ClientContactRoutings.AsNoTracking().SingleAsync(x => x.Id == routingId);
+      Assert.Null(retained.RevokedAt);
+      Assert.Null(retained.RevocationReason);
+    }
+
+    using var correctRoute = await Delete(client, csrf,
+      $"/api/ui/clients/{otherClientId}/routings/{routingId}", new { reason = "Finance recipient designation changed." });
+    Assert.Equal(HttpStatusCode.OK, correctRoute.StatusCode);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var revoked = await db.ClientContactRoutings.AsNoTracking().SingleAsync(x => x.Id == routingId);
+      Assert.NotNull(revoked.RevokedAt);
+      Assert.Equal("Finance recipient designation changed.", revoked.RevocationReason);
+    }
+  }
+
   private static Task<HttpResponseMessage> Post(HttpClient c,string csrf,string url,object input){var r=new HttpRequestMessage(HttpMethod.Post,url){Content=JsonContent.Create(input)};r.Headers.Add("X-XSRF-TOKEN",csrf);return c.SendAsync(r);}
+  private static Task<HttpResponseMessage> Delete(HttpClient c, string csrf, string url, object input)
+  {
+    var request = new HttpRequestMessage(HttpMethod.Delete, url) { Content = JsonContent.Create(input) };
+    request.Headers.Add("X-XSRF-TOKEN", csrf);
+    return c.SendAsync(request);
+  }
 }
