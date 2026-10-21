@@ -1197,14 +1197,7 @@
     "procedureReworkHandoff20261021": {
       "status": "PASS_LOCAL_SLICE",
       "sourceCommit": "32697985cec2f7b3a81873631f0c5de855f27a7a",
-      "behavior": "Known CHANGES_REQUIRED/UNDER_REVIEW task rows expose Open fieldwork to their server-projected engagement in list/shared cards. No procedure inferred from sourceKey; explicit selection and existing fieldwork authorization/holds remain. No API/schema/dependency change.",
-      "checks": "Affected queue spec32/32, Angular build/lint PASS (existing warnings). Existing source-backed procedure browser journey PASS1/1,125s: independent return creates task assigned to original preparer; exact task/owner/comment in correction queue; keyboard link opens exact engagement; explicit procedure selection and corrected UI resubmission retain frozen source/receipt lineage. Existing repeated-correction assertions retained. Independent review: no material findings.",
-      "browser": "Built-in owned fixture verified card source/comment/link, Enter navigation and current review blockers at destination; console0 warnings/errors. Tab closed/fixture released.",
-      "artifacts": [
-        "tests/AuditSphereOps.E2E.Tests/TestResults/procedure-rework-handoff-20261021.trx",
-        "/tmp/auditsphere-rework-fieldwork-handoff-20261021.png"
-      ],
-      "limits": "Synthetic receipt/provider flow is not live Microsoft acceptance. No full local suites, professional approval or human AT acceptance. Template/assignment and correction paths are distinct journeys; broader denials/full current-source release remain open."
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.procedureReworkHandoff20261021"
     },
     "nonWipLabelCriterion20261021": {
       "status": "COMPLETE_CRITERION_ONLY",
@@ -1213,14 +1206,20 @@
     "timeApprovalPaging20261021": {
       "status": "PASS_LOCAL_SLICE",
       "sourceCommit": "075703281f4810b5e2c107a836f7d07ab591b995",
-      "behavior": "Replaces silent first500 approvals with bounded WorkDate/ID keyset pages (default50,max100). Scoped valid task/entry pairs are filtered before Take; self exclusion and final current-grant/session fences remain. UI labels shown/live pages, retains recording drafts, protects open returns, restores heading focus and resets after review commands. Legacy no-metadata responses disclose possible incompleteness.",
-      "checks": "API3/3 PASS49s (paging/removed earlier rows/own+foreign+mismatched exclusions/invalid params; existing authority interleavings). Angular9/9/build/lint PASS. Existing scoped browser journey PASS1/1,105s:50+1 distinct rows, sibling/period privacy on both pages, keyboard next/previous, focus, no API writes. Independent review: no material findings. Targeted emitter build and OpenAPI regeneration/drift PASS.",
+      "archive": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.timeApprovalPaging20261021"
+    },
+    "ownTimeHistoryPaging20261021": {
+      "status": "PASS_LOCAL_SLICE",
+      "sourceCommit": "d79b8e3d",
+      "behavior": "Replaces newest500 own entries with live exclusive WorkDate/CreatedAt/ID descending pages, default50/max100. Owner/current scope and matching task context are filtered before Take; final grants/session fences retained. UTC microsecond cursor precision is preserved without JS Date ordering loss. Own/review cursors remain independent; drafts, return intent, keyboard focus, unknown-save state and read-only recovery are retained.",
+      "checks": "API initial focused cohort3 PASS/1 fixture FAIL (duplicate seed IDs); repaired fixture only and reran failed history fact PASS1/1,8s. Other3 current-source regressions already passed. Angular affected file10/10 PASS plus precision and read-only return-draft recovery targeted rechecks1/1 each; recovery assertion failed before fix. Angular build/lint PASS. Existing scoped rate/task/time browser journey PASS1/1,20s:50+1 own rows, separate-owner exclusion, independent retained rate/mapping/draft evidence, keyboard older/newer/focus, no paging writes. Independent reviewer found no remaining material blocker. Release solution build PASS0 warnings/errors,8.71s; OpenAPI regenerated/drift PASS.",
       "artifacts": [
-        "tests/AuditSphereOps.Api.Tests/TestResults/time-approval-paging-api-20261021.trx",
-        "tests/AuditSphereOps.E2E.Tests/TestResults/time-approval-paging-browser-20261021.trx",
-        "/tmp/auditsphere-time-approval-page-two-20261021.png"
+        "tests/AuditSphereOps.Api.Tests/TestResults/own-time-history-api-fixed-20261021.trx",
+        "tests/AuditSphereOps.E2E.Tests/TestResults/own-time-history-browser-20261021.trx",
+        "/tmp/auditsphere-own-time-history-e2e.log",
+        "/tmp/auditsphere-solution-build-20261021.log"
       ],
-      "limits": "Built-in verified page2/one row/Next disabled/heading focus and console0; tab closed/fixture released. E2E retained synthetic pending rows, not professional approval. No schema/dependency/provider changes or full local suites. Other workspace collection bounds, broad state/role, human AT and full current-source acceptance remain open."
+      "limits": "Automated Playwright dynamic verification only for this slice; no additional manual built-in inspection or human screen-reader approval claimed. Synthetic retained history fixtures; no schema/dependency/provider changes or full local suites. Open-task/other collection bounds and broad role/state, professional/live/current-source full-release acceptance remain open. Reruns are not additional unique tests."
     }
   },
   "externalGates": [

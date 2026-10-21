@@ -19190,6 +19190,30 @@
           "checks": "Existing standard-values Domain fact PASS1/1,40s; affected Angular DOM fact PASS1/1 (5 unrelated tests not selected), including exact notice and historical-WIP disclaimer. No full local suite.",
           "artifact": "tests/AuditSphereOps.Domain.Tests/TestResults/non-wip-label-query-20261021.trx",
           "limits": "Does not approve recognized accounting WIP, revenue posting, full report correctness or release acceptance."
+        },
+        "timeApprovalPaging20261021": {
+          "status": "PASS_LOCAL_SLICE",
+          "sourceCommit": "075703281f4810b5e2c107a836f7d07ab591b995",
+          "behavior": "Replaces silent first500 approvals with bounded WorkDate/ID keyset pages (default50,max100). Scoped valid task/entry pairs are filtered before Take; self exclusion and final current-grant/session fences remain. UI labels shown/live pages, retains recording drafts, protects open returns, restores heading focus and resets after review commands. Legacy no-metadata responses disclose possible incompleteness.",
+          "checks": "API3/3 PASS49s (paging/removed earlier rows/own+foreign+mismatched exclusions/invalid params; existing authority interleavings). Angular9/9/build/lint PASS. Existing scoped browser journey PASS1/1,105s:50+1 distinct rows, sibling/period privacy on both pages, keyboard next/previous, focus, no API writes. Independent review: no material findings. Targeted emitter build and OpenAPI regeneration/drift PASS.",
+          "artifacts": [
+            "tests/AuditSphereOps.Api.Tests/TestResults/time-approval-paging-api-20261021.trx",
+            "tests/AuditSphereOps.E2E.Tests/TestResults/time-approval-paging-browser-20261021.trx",
+            "/tmp/auditsphere-time-approval-page-two-20261021.png"
+          ],
+          "limits": "Built-in verified page2/one row/Next disabled/heading focus and console0; tab closed/fixture released. E2E retained synthetic pending rows, not professional approval. No schema/dependency/provider changes or full local suites. Other workspace collection bounds, broad state/role, human AT and full current-source acceptance remain open."
+        },
+        "procedureReworkHandoff20261021": {
+          "status": "PASS_LOCAL_SLICE",
+          "sourceCommit": "32697985cec2f7b3a81873631f0c5de855f27a7a",
+          "behavior": "Known CHANGES_REQUIRED/UNDER_REVIEW task rows expose Open fieldwork to their server-projected engagement in list/shared cards. No procedure inferred from sourceKey; explicit selection and existing fieldwork authorization/holds remain. No API/schema/dependency change.",
+          "checks": "Affected queue spec32/32, Angular build/lint PASS (existing warnings). Existing source-backed procedure browser journey PASS1/1,125s: independent return creates task assigned to original preparer; exact task/owner/comment in correction queue; keyboard link opens exact engagement; explicit procedure selection and corrected UI resubmission retain frozen source/receipt lineage. Existing repeated-correction assertions retained. Independent review: no material findings.",
+          "browser": "Built-in owned fixture verified card source/comment/link, Enter navigation and current review blockers at destination; console0 warnings/errors. Tab closed/fixture released.",
+          "artifacts": [
+            "tests/AuditSphereOps.E2E.Tests/TestResults/procedure-rework-handoff-20261021.trx",
+            "/tmp/auditsphere-rework-fieldwork-handoff-20261021.png"
+          ],
+          "limits": "Synthetic receipt/provider flow is not live Microsoft acceptance. No full local suites, professional approval or human AT acceptance. Template/assignment and correction paths are distinct journeys; broader denials/full current-source release remain open."
         }
       }
     },
