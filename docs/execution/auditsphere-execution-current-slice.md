@@ -16,9 +16,9 @@ which the full suite was run; per-slice records carry their own evidence.
 
 ## Current master verification and scope (2026-10-21)
 
-The product implementation under review is unchanged from `de142c84`; the current slice adds focused test coverage and evidence. Full release run `39616864548` is in progress on that SHA: Angular and build/contracts/publication jobs passed; unfiltered Domain, API and Playwright E2E jobs are still running. Fast CI run `39617690196` has passed docs and Angular and is building .NET. Neither aggregate has reported a failure, and neither is complete. Exact evidence is in [status.json](status.json).
+Current master `15f82382` moves recovered purchase-invoice confirmations to a polite status announcement while keeping failures in the alert region. Its focused Angular spec passes 10/10; no full local suites ran. Fast CI `39619851195` is pending. Full release run `39616864548` on `de142c84` passed Angular/full specs, build/contracts/publication and unfiltered Domain; unfiltered API and Playwright E2E are still running. That release run predates the latest accessibility fix. Exact evidence is in [status.json](status.json).
 
-The current agent accessibility review is limited to purchase-recovery announcement regions: action buttons are outside the status live regions, and the focused Angular specs pass. The local app ports were unavailable, so authenticated browser and screen-reader workflows were not exercised; qualified human assistive-technology review remains open. Earlier shell/navigation source and browser evidence is archived separately.
+The current agent accessibility review is limited to purchase-invoice recovery announcements. Recovered confirmations use `role="status"`; failures use `role="alert"`; the 10-test invoice workflow spec passes. The local app ports were unavailable, so authenticated browser and screen-reader workflows were not exercised; qualified human assistive-technology review remains open. Earlier shell/navigation source and browser evidence is archived separately.
 
 T017/T018 assignment and sales-credit recovery, plus T019/T024 allocation receipt recovery and controlled unallocation, now have focused Domain and Angular evidence. Exact counts and test sources are in [status.json](status.json). Browser acceptance remains unverified.
 
