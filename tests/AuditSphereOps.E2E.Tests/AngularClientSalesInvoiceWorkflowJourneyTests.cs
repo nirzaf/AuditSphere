@@ -150,7 +150,7 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     var credits = workflow.Locator("audit-sales-credit-note-workflow");
     await Assertions.Expect(credits.GetByRole(AriaRole.Heading, new() { Name = "Sales credit notes", Exact = true })).ToBeVisibleAsync();
     await credits.GetByLabel("Credit note reference", new() { Exact = true }).FillAsync("CN-UI-001");
-    await credits.GetByLabel("Posting date", new() { Exact = true }).FillAsync("2026-01-20");
+    await credits.GetByLabel("Posting date", new() { Exact = true }).FillAsync("2026-02-05");
     await credits.GetByLabel("Commercial reason", new() { Exact = true }).FillAsync("Partial service cancellation");
     await credits.GetByLabel("Source evidence or explanation", new() { Exact = true }).FillAsync("Client-approved cancellation evidence");
     await credits.GetByLabel("Line 1 · Client consulting · 4000 · Original 125.00 QAR", new() { Exact = true }).FillAsync("25");
@@ -328,7 +328,7 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     await supplierCredits.Locator("select[name='originalInvoice']").SelectOptionAsync(purchaseInvoiceId.ToString());
     await supplierCredits.GetByLabel("Supplier credit reference", new() { Exact = true }).FillAsync("SUP-CN-UI-001");
     await supplierCredits.Locator("select[name='period']").SelectOptionAsync(periodId.ToString());
-    await supplierCredits.GetByLabel("Posting date", new() { Exact = true }).FillAsync("2026-01-25");
+    await supplierCredits.GetByLabel("Posting date", new() { Exact = true }).FillAsync("2026-02-10");
     await supplierCredits.GetByLabel("Approved AP role ID", new() { Exact = true }).FillAsync(payableRoleId.ToString());
     await supplierCredits.GetByLabel("Reason", new() { Exact = true }).FillAsync("Return of part of the purchased supplies");
     await supplierCredits.GetByLabel("Source basis / evidence reference", new() { Exact = true }).FillAsync("Supplier credit evidence SUP-CN-UI-001");
@@ -358,6 +358,7 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
     Assert.Equal(200, supplierCreditReviewResponse.Status);
     await Assertions.Expect(reviewerSupplierCredits.GetByText("Approved as an unapplied supplier debit. Cash settlement is not initiated here.", new() { Exact = true })).ToBeVisibleAsync();
 
+    Guid salesInvoiceJournalId, salesCreditJournalId, purchaseInvoiceJournalId, supplierCreditJournalId;
     await using (var db = host.CreateDbContext())
     {
       Assert.Single(await db.ClientSalesInvoiceSubmissions.Where(x => x.ClientId == f.ClientId).ToListAsync());
@@ -366,8 +367,159 @@ public sealed class AngularClientSalesInvoiceWorkflowJourneyTests
       Assert.Single(await db.ClientPurchaseInvoiceOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
       Assert.Single(await db.ClientPurchaseCreditNoteOpenItems.Where(x => x.ClientId == f.ClientId).ToListAsync());
       Assert.Equal(8, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, f.ClientId, periodId)).Value!.TotalEntries);
+      salesInvoiceJournalId = await db.ClientSalesInvoiceSubmissions.AsNoTracking().Where(x => x.FirmId == f.FirmId &&
+        x.ClientId == f.ClientId && x.InvoiceId == invoiceId).Select(x => x.JournalId).SingleAsync();
+      salesCreditJournalId = await db.ClientSalesCreditNoteSubmissions.AsNoTracking().Where(x => x.FirmId == f.FirmId &&
+        x.ClientId == f.ClientId && x.CreditNoteReference == "CN-UI-001").Select(x => x.JournalId).SingleAsync();
+      purchaseInvoiceJournalId = await db.ClientPurchaseInvoiceSubmissions.AsNoTracking().Where(x => x.FirmId == f.FirmId &&
+        x.ClientId == f.ClientId && x.InvoiceId == purchaseInvoiceId).Select(x => x.JournalId).SingleAsync();
+      supplierCreditJournalId = await db.ClientPurchaseCreditNoteSubmissions.AsNoTracking().Where(x => x.FirmId == f.FirmId &&
+        x.ClientId == f.ClientId && x.CreditNoteReference == "SUP-CN-UI-001").Select(x => x.JournalId).SingleAsync();
+      var sourceJournalIds = new[] { salesInvoiceJournalId, salesCreditJournalId, purchaseInvoiceJournalId, supplierCreditJournalId };
+      Assert.Equal(4, sourceJournalIds.Distinct().Count());
+      var sourceJournals = await db.ClientOperationalJournals.AsNoTracking().Where(x => x.FirmId == f.FirmId &&
+        x.ClientId == f.ClientId && sourceJournalIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
+      Assert.Equal(4, sourceJournals.Count);
+      Assert.All(sourceJournals.Values, journal =>
+      {
+        Assert.Equal(periodId, journal.PeriodId);
+        Assert.Equal("POSTED", journal.Status);
+      });
+      Assert.Equal(new DateOnly(2026, 1, 10), sourceJournals[salesInvoiceJournalId].PostingDate);
+      Assert.Equal(new DateOnly(2026, 2, 5), sourceJournals[salesCreditJournalId].PostingDate);
+      Assert.Equal(new DateOnly(2026, 1, 20), sourceJournals[purchaseInvoiceJournalId].PostingDate);
+      Assert.Equal(new DateOnly(2026, 2, 10), sourceJournals[supplierCreditJournalId].PostingDate);
+
+      var salesCreditOpenItem = await db.ClientSalesCreditNoteOpenItems.AsNoTracking()
+        .SingleAsync(x => x.FirmId == f.FirmId && x.ClientId == f.ClientId && x.JournalId == salesCreditJournalId);
+      var salesCreditAllocation = await db.ClientOpenItemAllocationSubmissions.AsNoTracking()
+        .SingleAsync(x => x.FirmId == f.FirmId && x.ClientId == f.ClientId &&
+          x.SourceKind == "SALES_CREDIT" && x.SourceItemId == salesCreditOpenItem.Id);
+      var allocatedCredit = await db.ClientOpenItemAllocationLines.AsNoTracking()
+        .Where(x => x.FirmId == f.FirmId && x.ClientId == f.ClientId && x.SubmissionId == salesCreditAllocation.Id)
+        .SumAsync(x => x.Amount);
+      Assert.Equal(25m, salesCreditOpenItem.OriginalAmount);
+      Assert.Equal(20m, allocatedCredit);
+      Assert.Equal(5m, salesCreditOpenItem.OriginalAmount - allocatedCredit);
+      Assert.Empty(await db.ClientManualSettlementOrigins.AsNoTracking()
+        .Where(x => x.FirmId == f.FirmId && x.ClientId == f.ClientId).ToListAsync());
       Assert.Empty(await db.FirmJournals.ToListAsync());
     }
+
+    var operationalJournals = reviewerPage.Locator("audit-client-operational-journals");
+    await reviewerPage.SetViewportSizeAsync(320, 900);
+    await operationalJournals.GetByLabel("Ledger reporting period", new() { Exact = true }).SelectOptionAsync(periodId.ToString());
+
+    async Task<JsonDocument> RefreshReportAsync(string fromDate, string toDate)
+    {
+      await operationalJournals.GetByLabel("Ledger from date", new() { Exact = true }).FillAsync(fromDate);
+      await operationalJournals.GetByLabel("Ledger to date", new() { Exact = true }).FillAsync(toDate);
+      var (status, body) = await PlaywrightResponseCapture.RunAsync(reviewerPage,
+        request => request.Method == "GET" &&
+          new Uri(request.Url).AbsolutePath.EndsWith($"/api/ui/accounting/clients/{f.ClientId}/operational-ledger", StringComparison.Ordinal) &&
+          request.Url.Contains($"fromDate={fromDate}", StringComparison.Ordinal) &&
+          request.Url.Contains($"toDate={toDate}", StringComparison.Ordinal),
+        async () => await operationalJournals.GetByRole(AriaRole.Button,
+          new() { Name = "Refresh posted ledger", Exact = true }).ClickAsync());
+      Assert.Equal(200, status);
+      return JsonDocument.Parse(body);
+    }
+
+    static void AssertSourceJournalIds(JsonDocument report, params Guid[] expectedIds)
+    {
+      var entries = report.RootElement.GetProperty("entries").EnumerateArray()
+        .Select(entry => entry.GetProperty("journalId").GetGuid()).ToArray();
+      Assert.Equal(expectedIds.Length * 2, entries.Length);
+      Assert.Equal(expectedIds.OrderBy(id => id), entries.Distinct().OrderBy(id => id));
+      Assert.All(expectedIds, id => Assert.Equal(2, entries.Count(entryId => entryId == id)));
+    }
+
+    async Task AssertTrialBalanceRowAsync(ILocator table, string account, params string[] expectedAmounts)
+    {
+      var row = table.Locator("tbody tr").Filter(new() { HasText = account });
+      await Assertions.Expect(row).ToHaveCountAsync(1);
+      await Assertions.Expect(row.GetByRole(AriaRole.Rowheader)).ToHaveTextAsync(account);
+      var cells = row.GetByRole(AriaRole.Cell);
+      await Assertions.Expect(cells).ToHaveCountAsync(6);
+      Assert.Equal(6, expectedAmounts.Length);
+      for (var index = 0; index < expectedAmounts.Length; index++)
+        await Assertions.Expect(cells.Nth(index)).ToHaveTextAsync(expectedAmounts[index]);
+    }
+
+    async Task AssertTrialBalanceTotalsAsync(ILocator table, params string[] expectedAmounts)
+    {
+      var row = table.Locator("tfoot tr");
+      await Assertions.Expect(row.GetByRole(AriaRole.Rowheader)).ToHaveTextAsync("Full result totals");
+      var cells = row.GetByRole(AriaRole.Cell);
+      await Assertions.Expect(cells).ToHaveCountAsync(6);
+      Assert.Equal(6, expectedAmounts.Length);
+      for (var index = 0; index < expectedAmounts.Length; index++)
+        await Assertions.Expect(cells.Nth(index)).ToHaveTextAsync(expectedAmounts[index]);
+    }
+
+    using (var januaryReport = await RefreshReportAsync("2026-01-01", "2026-01-31"))
+    {
+      var root = januaryReport.RootElement;
+      Assert.Equal(periodId, root.GetProperty("periodId").GetGuid());
+      Assert.Equal(4, root.GetProperty("totalEntries").GetInt32());
+      AssertSourceJournalIds(januaryReport, salesInvoiceJournalId, purchaseInvoiceJournalId);
+      var region = operationalJournals.GetByRole(AriaRole.Region, new() { Name = "Native Trial Balance", Exact = true });
+      var table = region.GetByRole(AriaRole.Table);
+      await Assertions.Expect(table.GetByRole(AriaRole.Columnheader)).ToHaveCountAsync(7);
+      await Assertions.Expect(table.Locator("tbody").GetByRole(AriaRole.Rowheader)).ToHaveCountAsync(4);
+      Assert.Equal(new[] { "Account", "Opening debit", "Opening credit", "Period debits", "Period credits", "Closing debit", "Closing credit" },
+        await table.GetByRole(AriaRole.Columnheader).AllInnerTextsAsync());
+      Assert.Equal(new[] { "1100 · Trade receivables", "2100 · Trade payables", "4000 · Service revenue", "6000 · Office expense" },
+        await table.Locator("tbody").GetByRole(AriaRole.Rowheader).AllInnerTextsAsync());
+      await AssertTrialBalanceRowAsync(table, "1100 · Trade receivables", "0", "0", "125", "0", "125", "0");
+      await AssertTrialBalanceRowAsync(table, "2100 · Trade payables", "0", "0", "0", "100", "0", "100");
+      await AssertTrialBalanceRowAsync(table, "4000 · Service revenue", "0", "0", "0", "125", "0", "125");
+      await AssertTrialBalanceRowAsync(table, "6000 · Office expense", "0", "0", "100", "0", "100", "0");
+      await AssertTrialBalanceTotalsAsync(table, "0", "0", "225", "225", "225", "225");
+    }
+
+    using (var februaryReport = await RefreshReportAsync("2026-02-01", "2026-02-28"))
+    {
+      var root = februaryReport.RootElement;
+      Assert.Equal(periodId, root.GetProperty("periodId").GetGuid());
+      Assert.Equal(4, root.GetProperty("totalEntries").GetInt32());
+      AssertSourceJournalIds(februaryReport, salesCreditJournalId, supplierCreditJournalId);
+
+      var trialBalanceRegion = operationalJournals.GetByRole(AriaRole.Region, new() { Name = "Native Trial Balance", Exact = true });
+      var movementsRegion = operationalJournals.GetByRole(AriaRole.Region, new() { Name = "Native account movements", Exact = true });
+      var journalLinesRegion = operationalJournals.GetByRole(AriaRole.Region, new() { Name = "Native posted journal lines", Exact = true });
+      foreach (var region in new[] { trialBalanceRegion, movementsRegion, journalLinesRegion })
+        await Assertions.Expect(region).ToHaveAttributeAsync("tabindex", "0");
+
+      var table = trialBalanceRegion.GetByRole(AriaRole.Table);
+      await AssertTrialBalanceRowAsync(table, "1100 · Trade receivables", "125", "0", "0", "25", "100", "0");
+      await AssertTrialBalanceRowAsync(table, "2100 · Trade payables", "0", "100", "40", "0", "0", "60");
+      await AssertTrialBalanceRowAsync(table, "4000 · Service revenue", "0", "125", "25", "0", "0", "100");
+      await AssertTrialBalanceRowAsync(table, "6000 · Office expense", "100", "0", "0", "40", "60", "0");
+      await AssertTrialBalanceTotalsAsync(table, "225", "225", "65", "65", "160", "160");
+
+      var movementTable = movementsRegion.GetByRole(AriaRole.Table);
+      Assert.Equal(4, await movementTable.GetByRole(AriaRole.Columnheader).CountAsync());
+      Assert.Equal(4, await movementTable.Locator("tbody").GetByRole(AriaRole.Rowheader).CountAsync());
+      var journalLinesTable = journalLinesRegion.GetByRole(AriaRole.Table);
+      Assert.Equal(6, await journalLinesTable.GetByRole(AriaRole.Columnheader).CountAsync());
+      Assert.Equal(4, await journalLinesTable.Locator("tbody").GetByRole(AriaRole.Rowheader).CountAsync());
+
+      var documentWidths = await reviewerPage.EvaluateAsync<int[]>("() => [document.documentElement.clientWidth, document.documentElement.scrollWidth]");
+      var overflow = await reviewerPage.EvaluateAsync<string>("() => JSON.stringify([...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right + scrollX > innerWidth && (!e.closest('.table-scroll') || e.matches('.table-scroll'))).slice(-16).map(e => ({tag:e.tagName, cls:e.className, text:e.textContent?.slice(0,80), width:e.getBoundingClientRect().width, right:e.getBoundingClientRect().right, component:e.closest('audit-client-operational-journals,audit-open-item-allocations,audit-client-purchase-invoices,audit-purchase-credit-notes')?.tagName})))");
+      Assert.True(documentWidths[1] <= documentWidths[0], $"The populated accounting page should reflow without horizontal document overflow. Widths {string.Join(',', documentWidths)}. {overflow}");
+      var scrollWidths = await trialBalanceRegion.EvaluateAsync<int[]>("element => [element.clientWidth, element.scrollWidth]");
+      Assert.True(scrollWidths[1] > scrollWidths[0], "The 320px Trial Balance region should expose horizontal overflow.");
+      await trialBalanceRegion.FocusAsync();
+      var scrollBefore = await trialBalanceRegion.EvaluateAsync<int>("element => element.scrollLeft");
+      await trialBalanceRegion.PressAsync("ArrowRight");
+      await reviewerPage.WaitForFunctionAsync("element => element.scrollLeft > 0", await trialBalanceRegion.ElementHandleAsync());
+      var scrollAfter = await trialBalanceRegion.EvaluateAsync<int>("element => element.scrollLeft");
+      Assert.True(scrollAfter > scrollBefore, "ArrowRight should scroll the focused Trial Balance region horizontally.");
+    }
+
+    await OwnedBrowserFixtureHandoff.WaitAsync(reviewerOrigin, new Uri(reviewerPage.Url).PathAndQuery,
+      "native-invoice-source-report");
     Assert.Empty(errors);
   }
 }

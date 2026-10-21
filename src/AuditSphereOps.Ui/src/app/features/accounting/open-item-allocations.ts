@@ -257,7 +257,7 @@ function decodeAllocationCommandLookup(value: unknown): AllocationCommandLookup 
       }
     </section>
     <form #allocation="ngForm" (ngSubmit)="allocation.valid && previewAllocation()">
-      <fieldset [disabled]="busy() || historyBusy() || hasUnresolvedSubmission()">
+      <fieldset class="allocation-fields" [disabled]="busy() || historyBusy() || hasUnresolvedSubmission()">
         @if (selectedReversal(); as original) {
           <h4>Unallocate an approved line</h4>
           <p>{{ original.counterpartyName }} · {{ original.currency }} · {{ original.sourceKind }} <code>{{ original.sourceItemId }}</code> → {{ original.targetKind }} <code>{{ original.targetOpenItemId }}</code>.</p>
@@ -295,7 +295,14 @@ function decodeAllocationCommandLookup(value: unknown): AllocationCommandLookup 
       <label>Decision reason <input [(ngModel)]="reviewReason[p.submissionId]" [name]="'reason-' + p.submissionId" required maxlength="2000" /></label>
       <button matButton type="button" [disabled]="busy() || hasUnresolvedReview(p.submissionId) || !reviewAssented(p) || !reviewReason[p.submissionId]?.trim()" (click)="review(p, 'APPROVE')">Approve this exact allocation</button>
       <button matButton type="button" [disabled]="busy() || hasUnresolvedReview(p.submissionId) || !reviewAssented(p) || !reviewReason[p.submissionId]?.trim()" (click)="review(p, 'RETURN')">Return this exact allocation for correction</button></article> }</section> }
-  </section>` })
+  </section>`,
+  styles: `
+    .allocation-fields { display:flex; flex-wrap:wrap; align-items:start; gap:1rem; min-inline-size:0; max-inline-size:100%; box-sizing:border-box; }
+    .allocation-fields > h4, .allocation-fields > p { flex-basis:100%; min-inline-size:0; overflow-wrap:anywhere; }
+    .allocation-fields > label { display:grid; gap:.35rem; min-inline-size:0; max-inline-size:100%; }
+    .allocation-fields input, .allocation-fields select { min-inline-size:0; max-inline-size:100%; box-sizing:border-box; }
+  `,
+})
 export class OpenItemAllocations {
   readonly clientId = input.required<string>();
   readonly periods = input<{ id: string; code: string; startDate: string; endDate: string; currency: string }[]>([]);
