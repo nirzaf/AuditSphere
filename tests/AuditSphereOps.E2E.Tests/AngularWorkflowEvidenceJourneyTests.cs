@@ -12,6 +12,132 @@ namespace AuditSphereOps.E2E.Tests;
 public sealed class AngularWorkflowEvidenceJourneyTests
 {
   [Fact]
+  public async Task PublishedTemplatePinsRequiredAndOptionalTasksAcrossQueueLayouts()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TEMPLATE-LINEAGE");
+    var f = host.Fixture;
+    const string templateName = "SYNTHETIC PINNED TEMPLATE";
+    const string requiredTitle = "SYN REQUIRED TASK";
+    const string optionalTitle = "SYN OPTIONAL TASK";
+    const string manualTitle = "SYN MANUAL CONTROL";
+    var manualKey = Guid.NewGuid();
+    await using (var db = host.CreateDbContext())
+    {
+      (await db.Engagements.SingleAsync(x => x.Id == f.EngagementId)).ServiceRoute = "FinancialStatementAudit";
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner"));
+      await db.SaveChangesAsync();
+      var manual = await EngagementWorkflowTaskService.CreateAsync(db, PbcSeed.Actor(f.Admin, "Administrator"),
+        f.EngagementId, new(manualTitle, WorkflowTaskPhases.AuditPlanning, 1,
+          AssigneeUserId: f.Admin.Id, IdempotencyKey: manualKey));
+      Assert.True(manual.Succeeded, manual.Message);
+    }
+    var settings = new Dictionary<string, string> {
+      ["AngularUi__Enabled"] = "true", ["AngularUi__CanonicalRoutes"] = "true", ["WorkflowExperience__Enabled"] = "true"
+    };
+    var origin = await host.StartApiForIdentityAsync(f.Admin, settings);
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    var page = await browser.NewPageAsync();
+    var errors = new List<string>(); page.PageError += (_, error) => errors.Add(error);
+    const string catalog = "/app/practice/workflow-templates";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(catalog));
+    await page.GetByRole(AriaRole.Button, new() { Name = "New template", Exact = true }).ClickAsync();
+    await page.GetByLabel("Template name", new() { Exact = true }).FillAsync(templateName);
+    await page.GetByLabel("Service route", new() { Exact = false }).FillAsync("FinancialStatementAudit");
+    var first = page.GetByRole(AriaRole.Group, new() { Name = "Step 1", Exact = true });
+    await first.GetByLabel("Stable key", new() { Exact = true }).FillAsync("required");
+    await first.GetByLabel("Task title", new() { Exact = true }).FillAsync(requiredTitle);
+    await Assertions.Expect(first.GetByLabel("Required task", new() { Exact = true })).ToBeCheckedAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Add step", Exact = true }).ClickAsync();
+    var second = page.GetByRole(AriaRole.Group, new() { Name = "Step 2", Exact = true });
+    await second.GetByLabel("Stable key", new() { Exact = true }).FillAsync("optional");
+    await second.GetByLabel("Task title", new() { Exact = true }).FillAsync(optionalTitle);
+    await second.GetByLabel("Required task", new() { Exact = true }).UncheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Save draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByText("The template draft was created.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review draft", Exact = true })).ToHaveCountAsync(0);
+
+    // Separate browser context prevents the reviewer's cookie from replacing the author's cookie.
+    var reviewerOrigin = await host.StartApiForIdentityAsync(f.Reviewer, settings);
+    var reviewerPage = await browser.NewPageAsync();
+    reviewerPage.PageError += (_, error) => errors.Add(error);
+    await reviewerPage.GotoAsync(reviewerOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(catalog));
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = templateName, Exact = false }).ClickAsync();
+    await reviewerPage.GetByLabel("Decision rationale", new() { Exact = true }).FillAsync("Independently reviewed these synthetic operational task designations.");
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Review draft", Exact = true }).ClickAsync();
+    var publish = reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Publish reviewed revision", Exact = true });
+    await Assertions.Expect(publish).ToBeVisibleAsync();
+    await reviewerPage.GetByLabel("Decision rationale", new() { Exact = true }).FillAsync("Publish the exact independently reviewed synthetic revision.");
+    await publish.ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByText("The reviewed template revision was published.", new() { Exact = true })).ToBeVisibleAsync();
+    Guid revisionId;
+    await using (var db = host.CreateDbContext())
+    {
+      var revision = await db.WorkflowTemplateRevisions.SingleAsync(x => x.Name == templateName);
+      revisionId = revision.Id;
+      Assert.Equal(WorkflowTemplateStates.Published, revision.Status);
+      Assert.Equal(f.Admin.Id, revision.LastEditedByUserId);
+      Assert.Equal(f.Reviewer.Id, revision.ReviewedByUserId);
+    }
+    await page.GotoAsync(origin + $"/app/engagements/{f.EngagementId}?templateRevisionId={revisionId}#engagement-task-plan");
+    await Assertions.Expect(page.GetByRole(AriaRole.Radio, new() { Name = templateName })).ToBeCheckedAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Preview task plan", Exact = true }).ClickAsync();
+    await page.GetByLabel("I reviewed this exact plan, staffing, dates, and template revision.", new() { Exact = true }).CheckAsync();
+    await page.GetByRole(AriaRole.Button, new() { Name = "Create operational tasks", Exact = true }).ClickAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Plan receipt confirmed", Exact = true })).ToBeVisibleAsync();
+    Dictionary<string, Guid> stepIds;
+    await using (var db = host.CreateDbContext())
+    {
+      var steps = await db.WorkflowTemplateSteps.Where(x => x.TemplateRevisionId == revisionId).ToListAsync();
+      stepIds = steps.ToDictionary(x => x.StableKey, x => x.Id);
+      var bindings = await db.WorkflowTaskBindings.Where(x => x.TemplateRevisionId == revisionId).ToListAsync();
+      Assert.Equal(2, bindings.Count);
+      foreach (var step in steps)
+      {
+        var binding = Assert.Single(bindings, x => x.TemplateStepId == step.Id);
+        Assert.Equal($"TEMPLATE:{revisionId:N}:{step.StableKey}", binding.SourceKey);
+      }
+      var tasks = await db.WorkTasks.Where(x => x.EngagementId == f.EngagementId).ToListAsync();
+      Assert.Equal(3, tasks.Count);
+      Assert.All(tasks, task => { Assert.NotEqual(PracticeTimeStates.TaskCompleted, task.Status); Assert.Null(task.CompletedAt); });
+      Assert.Single(await db.WorkflowTaskPlanReceipts.ToListAsync());
+      Assert.Empty(await db.MaterialityApprovals.ToListAsync());
+      Assert.Empty(await db.AuditProcedureReviews.ToListAsync());
+    }
+    await page.GotoAsync(origin + "/app/work");
+    await page.GetByRole(AriaRole.Navigation, new() { Name = "Work queue views", Exact = true })
+      .GetByRole(AriaRole.Button, new() { Name = "Team", Exact = true }).ClickAsync();
+    foreach (var layout in new[] { "List", "Board", "Calendar" })
+    {
+      var display = page.GetByRole(AriaRole.Navigation, new() { Name = "Work queue display", Exact = true });
+      await display.GetByRole(AriaRole.Button, new() { Name = layout, Exact = true }).PressAsync("Space");
+      var items = page.Locator(layout == "List" ? "tbody tr" : "article.task-card");
+      await Assertions.Expect(items.Filter(new() { HasText = "SYN " })).ToHaveCountAsync(3);
+      await CheckTaskAsync(requiredTitle, "Required", "required");
+      await CheckTaskAsync(optionalTitle, "Optional", "optional");
+      var manual = items.Filter(new() { HasText = manualTitle });
+      await Assertions.Expect(manual).ToHaveCountAsync(1);
+      await Assertions.Expect(manual).ToContainTextAsync($"MANUAL:{manualKey:N}");
+      await Assertions.Expect(manual).Not.ToContainTextAsync("Template task designation:");
+      await Assertions.Expect(manual).Not.ToContainTextAsync("template revision");
+      await page.SetViewportSizeAsync(320, 844);
+      Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));
+
+      async Task CheckTaskAsync(string title, string designation, string key)
+      {
+        var item = items.Filter(new() { HasText = title });
+        await Assertions.Expect(item).ToHaveCountAsync(1);
+        await Assertions.Expect(item).ToContainTextAsync("Template task designation: " + designation);
+        await Assertions.Expect(item).ToContainTextAsync($"TEMPLATE:{revisionId:N}:{key}");
+        await Assertions.Expect(item).ToContainTextAsync("template revision " + revisionId);
+        await Assertions.Expect(item).ToContainTextAsync("step " + stepIds[key]);
+      }
+    }
+    Assert.Empty(errors);
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, "/app/work", "workflow-template-lineage");
+  }
+
+  [Fact]
   public async Task TemplatePrerequisitesRequireExactBindingAndRemainPendingAfterPlanCreation()
   {
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-TEMPLATE-EVIDENCE");
