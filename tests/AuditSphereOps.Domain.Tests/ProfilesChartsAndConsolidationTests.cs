@@ -418,7 +418,7 @@ public sealed class ProfilesChartsAndConsolidationTests
 
   [Fact]
   [Trait("Profile", "Database")]
-  public async Task ReplaceConsolidationComponent_SucceedsAndValidatesPerimeter()
+  public async Task ReplaceConsolidationComponent_RefusesInPlaceReplacementAndRetainsOriginalPin()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
@@ -429,6 +429,7 @@ public sealed class ProfilesChartsAndConsolidationTests
     var oldComponentId = Guid.CreateVersion7();
 
     Guid package1Id, package2Id, mappingVersionId;
+    string package1Hash;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -487,6 +488,7 @@ public sealed class ProfilesChartsAndConsolidationTests
 
       var pkg1 = await AddPackageFixtureAsync(db, scope, scope.ClientId, scope.EngagementId, "hash-1");
       package1Id = pkg1.PackageId;
+      package1Hash = pkg1.CalculationHash;
       mappingVersionId = pkg1.MappingVersionId;
 
       var pkg2 = await AddPackageFixtureAsync(db, scope, scope.ClientId, scope.EngagementId, "hash-2", mappingVersionId);
@@ -515,7 +517,7 @@ public sealed class ProfilesChartsAndConsolidationTests
       await db.SaveChangesAsync();
     }
 
-    // Replace component with Package 2
+    // In-place replacement would destroy the pinned audit trail. Corrections use a new scope version.
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var replaceResult = await ConsolidationService.ReplaceComponentAsync(db, preparer, oldComponentId,
@@ -530,17 +532,20 @@ public sealed class ProfilesChartsAndConsolidationTests
           "tax-v1",
           mappingVersionId.ToString("D")));
 
-      Assert.True(replaceResult.Succeeded);
-      Assert.NotEqual(oldComponentId, replaceResult.Value);
+      Assert.False(replaceResult.Succeeded);
+      Assert.Equal(ErrorCodes.ProtectedState, replaceResult.ErrorCode);
     }
 
-    // Verify DB state
+    // Verify the original source identity and package hash remain unchanged and no replacement was added.
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var components = await db.ConsolidationComponents.Where(x => x.ScopeVersionId == scopeId).ToListAsync();
       Assert.Single(components);
       var current = components[0];
-      Assert.Equal(package2Id, current.PackageId);
+      Assert.Equal(oldComponentId, current.Id);
+      Assert.Equal(package1Id, current.PackageId);
+      Assert.Equal(package1Hash, current.PackageHash);
+      Assert.Equal(scope.Preparer.Id, current.SubmittedByUserId);
     }
   }
 
