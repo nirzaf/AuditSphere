@@ -1632,12 +1632,11 @@
     "ownershipWindowsT026": {
       "result": "FOCUSED_LOCAL_PASS; FAST_CI_PASS",
       "sourceCommit": "23b33597f8914f2c78588be419bc08c0cb9d295a",
-      "api": "1/1",
-      "angular": "3/3",
-      "build": "Angular and .NET Release 0W/0E; OpenAPI PASS",
-      "browser": "NOT_RUN; no authorized group fixture",
+      "build": "Release 0W/0E; Angular/OpenAPI PASS",
+      "browser": "NOT_RUN",
       "fastCI": "39667293119 PASS",
-      "fullSuites": "NOT_RUN_LOCALLY"
+      "checks": "API1/1; Angular3/3",
+      "accessibilityReview": "Source labels/table/pager no finding; auth UI/AT not tested"
     }
   },
   "completePracticeManagement": {
