@@ -19156,6 +19156,32 @@
           ],
           "uiRecoveryCodeCommit": "61d6630895235789ff4c6622eb09c250f5791aa2",
           "uiRecoverySpec": "package.spec.ts: 13 passed, including no dispatch without session storage and stale-refusal recovery failure blocks repeat; Angular production build PASS with existing commercial/settings.scss budget warning."
+        },
+        "cp10OpeningBridgeCloseGate": {
+          "recordedAtUtc": "2026-10-17T07:23:32Z",
+          "codeCommit": "484b37b8410308123f1cf126fadfa3858000d417",
+          "status": "FOCUSED_REGRESSION_PASS",
+          "domainTest": {
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "name": "PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence",
+            "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence'",
+            "duration": "41 s"
+          },
+          "scope": "A linked prior-period bridge is required; an existing bridge must be approved by a reviewer before period close. Regression asserts refusal before approval and successful close after approval.",
+          "documentation": "Markdown health, filename policy, narrative metrics and git diff checks passed.",
+          "notRun": [
+            "Full .NET, API, Angular and Playwright suites are deferred to CI/CD.",
+            "Comparative release/as-issued retention, restatement, broader opening continuity and professional acceptance remain open."
+          ],
+          "fastCi": {
+            "workflow": "AuditSphereOps CI",
+            "runId": 39013455559,
+            "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39013455559",
+            "status": "IN_PROGRESS",
+            "headSha": "484b37b8410308123f1cf126fadfa3858000d417"
+          }
         }
       }
     },

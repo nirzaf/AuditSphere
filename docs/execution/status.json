@@ -558,30 +558,8 @@
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cashFlowSourcePersistenceIntegrity"
     },
     "cp10OpeningBridgeCloseGate": {
-      "recordedAtUtc": "2026-10-17T07:23:32Z",
-      "codeCommit": "484b37b8410308123f1cf126fadfa3858000d417",
       "status": "FOCUSED_REGRESSION_PASS",
-      "domainTest": {
-        "passed": 1,
-        "failed": 0,
-        "skipped": 0,
-        "name": "PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence",
-        "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~PeriodRollForward_CopiesDraftBooksAndRequiresOpeningEvidence'",
-        "duration": "41 s"
-      },
-      "scope": "A linked prior-period bridge is required; an existing bridge must be approved by a reviewer before period close. Regression asserts refusal before approval and successful close after approval.",
-      "documentation": "Markdown health, filename policy, narrative metrics and git diff checks passed.",
-      "notRun": [
-        "Full .NET, API, Angular and Playwright suites are deferred to CI/CD.",
-        "Comparative release/as-issued retention, restatement, broader opening continuity and professional acceptance remain open."
-      ],
-      "fastCi": {
-        "workflow": "AuditSphereOps CI",
-        "runId": 39013455559,
-        "url": "https://github.com/nirzaf/AuditSphere/actions/runs/39013455559",
-        "status": "IN_PROGRESS",
-        "headSha": "484b37b8410308123f1cf126fadfa3858000d417"
-      }
+      "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.cp10OpeningBridgeCloseGate"
     },
     "cp12FxCashAssessment": {
       "recordedAtUtc": "2026-10-17T08:14:58Z",
@@ -1227,6 +1205,14 @@
         "/tmp/auditsphere-rework-fieldwork-handoff-20261021.png"
       ],
       "limits": "Synthetic receipt/provider flow is not live Microsoft acceptance. No full local suites, professional approval or human AT acceptance. Template/assignment and correction paths are distinct journeys; broader denials/full current-source release remain open."
+    },
+    "nonWipLabelCriterion20261021": {
+      "status": "COMPLETE_CRITERION_ONLY",
+      "sourceCommit": "82713eb7b259b5ac3da8ba4fcb21ecb91f96d52d",
+      "criterion": "ASPM-FIN-05 expressly permits unbilled approved standard time when recognized-WIP policy is unavailable. Fixed query notice and UI distinguish standard charge-out value from recognized WIP/revenue/debt/billing authority; recognition policy is not needed to satisfy this labeling criterion. No product rule changed.",
+      "checks": "Existing standard-values Domain fact PASS1/1,40s; affected Angular DOM fact PASS1/1 (5 unrelated tests not selected), including exact notice and historical-WIP disclaimer. No full local suite.",
+      "artifact": "tests/AuditSphereOps.Domain.Tests/TestResults/non-wip-label-query-20261021.trx",
+      "limits": "Does not approve recognized accounting WIP, revenue posting, full report correctness or release acceptance."
     }
   },
   "externalGates": [

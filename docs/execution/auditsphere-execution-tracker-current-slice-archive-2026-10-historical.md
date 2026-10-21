@@ -7716,3 +7716,9 @@ Exact source, focused API/Angular/real-command browser results, fixture repairs,
 ## Generated task assignment integration
 
 The existing template journey now assigns one generated task through the engagement UI, verifies its exact owner in the refreshed workspace, and checks that task in the staff owner's My Tasks. Built-in inspection distinguished an exact label-text locator failure from the correct native accessible name; the test uses the combobox role/name. No product behavior or permission change was needed. Evidence and limits are under `workflowTemplateAssignment20261021` in [status.json](status.json). ASPM-UAT-05 remains partial for review, return, rework and wider denials.
+
+## Annual engagement source-context safety
+
+Annual route changes now invalidate previews, assent and late callbacks while retaining unsaved fields and durable receipt recovery. A retained annual draft cannot silently become manual creation; returning to its source requires fresh review. The dynamically populated template selector now displays the retained revision correctly.
+
+The existing annual journey covers foreign-source denial, stale-template refusal, current contact/template refresh, draft save/restore/return and separate current-year task planning. Creation remains blocked with no inherited approvals or access grants. Focused results, intermediate failures and limitations are under `annualSourceSafety20261021` in [status.json](status.json). Full CI found two unrelated E2E failures now under investigation; human screen-reader, professional and live-provider acceptance remain open. Earlier procedure evidence is retained in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).

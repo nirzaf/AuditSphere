@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Unbilled standard-value criterion audit
+
+FIN-05 is complete for its specified non-WIP labeling behavior: source and focused query/rendered-notice checks prove the allowed standard-value fallback. Recognized WIP policy and all wider accounting/release acceptance remain separate. Exact evidence is in `nonWipLabelCriterion20261021` in [status.json](status.json).
+
 ## Correction queue to fieldwork handoff
 
 Returned/resubmitted task rows now offer Open fieldwork in list, board and calendar. The link uses the task's server-projected engagement; it grants no authority and does not infer a procedure from a source key. Fieldwork still rechecks current scope/gates and requires explicit procedure selection.
@@ -23,12 +27,6 @@ The existing source-backed procedure journey now routes its original preparer th
 ## Release E2E failure triage
 
 The accounting revocation journey now handles the expected removal of refresh actions during session revocation, then still requires the denial screen and removal of protected content. Its focused browser regression passes. The finding lost-committed test now proves the forwarded server command succeeded before receipt recovery; its previously failing case passes. The old CI log cannot prove the exact race, and product conflict/authorization guards remain intact. A fresh full CI run is still required. Exact evidence and scope are under `releaseFailureTriage20261021` in [status.json](status.json). No full local suites or external changes were performed.
-
-## Annual engagement source-context safety
-
-Annual route changes now invalidate previews, assent and late callbacks while retaining unsaved fields and durable receipt recovery. A retained annual draft cannot silently become manual creation; returning to its source requires fresh review. The dynamically populated template selector now displays the retained revision correctly.
-
-The existing annual journey covers foreign-source denial, stale-template refusal, current contact/template refresh, draft save/restore/return and separate current-year task planning. Creation remains blocked with no inherited approvals or access grants. Focused results, intermediate failures and limitations are under `annualSourceSafety20261021` in [status.json](status.json). Full CI found two unrelated E2E failures now under investigation; human screen-reader, professional and live-provider acceptance remain open. Earlier procedure evidence is retained in the [historical archive](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
 
 ## Paged client document history
 
