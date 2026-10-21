@@ -76459,7 +76459,7 @@
         "tags": [
           "AuditSphereOps.Api"
         ],
-        "description": "Returns a bounded ownership-interest history page and eligible current member options. Ownership and economic-interest percentages are emitted as exact invariant decimal strings; page defaults to 0 and pageSize to 25 (maximum 100).",
+        "description": "Returns a bounded ownership-interest history page and eligible members with their approved effective-date windows. Ownership and economic-interest percentages are emitted as exact invariant decimal strings; page defaults to 0 and pageSize to 25 (maximum 100).",
         "parameters": [
           {
             "name": "scopeId",
@@ -105153,7 +105153,7 @@
         "required": [
           "clientId",
           "legalName",
-          "membershipEffectiveFrom"
+          "membershipWindows"
         ],
         "type": "object",
         "properties": {
@@ -105164,8 +105164,30 @@
           "legalName": {
             "type": "string"
           },
-          "membershipEffectiveFrom": {
+          "membershipWindows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsolidationOwnershipMembershipWindow"
+            }
+          }
+        }
+      },
+      "ConsolidationOwnershipMembershipWindow": {
+        "required": [
+          "effectiveFrom",
+          "effectiveTo"
+        ],
+        "type": "object",
+        "properties": {
+          "effectiveFrom": {
             "type": "string",
+            "format": "date"
+          },
+          "effectiveTo": {
+            "type": [
+              "null",
+              "string"
+            ],
             "format": "date"
           }
         }
