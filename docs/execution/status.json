@@ -1223,11 +1223,11 @@
     },
     "accessibilityReview20261021": {
       "result": "PARTIAL_AGENT_REVIEW",
-      "sourceCommit": "99b296b8a64a5aa0fe9c4d7f7d8bba0536c0154d",
+      "sourceCommit": "752d845576448157ef6e74243bf9dbff09bf118b",
       "humanAssistiveTechnology": "OPEN",
       "archive": "status-archive-2026-10.json#keys.targetedVerification.focusedEvidenceHistory20261021.accessibilityReview20261021",
-      "agentReview": "PARTIAL: shell source/spec review; local ng serve compiled (4 unrelated NG8107 warnings); fast CI 071460aa PASS.",
-      "browser": "PARTIAL PASS: 4304; Tab→skip, Enter→main with visible ring, next Tab→Sign in; auth and SR not reviewed."
+      "agentReview": "PARTIAL: shell source and E2E review; 752d8455 Angular build/specs passed; full CI 39602288744 pending; authenticated routes and human AT remain open.",
+      "browser": "PARTIAL: anonymous /ui/, no API/fixture, 1280x720, DPR 1, reduced-motion off; browser version unavailable. Tab\u2192visible skip; Enter\u2192main 3px ring; console clean; zoom/SR unverified."
     }
   },
   "externalGates": [
