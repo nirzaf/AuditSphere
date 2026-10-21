@@ -4,7 +4,7 @@
 
 This tracker covers the attached bidirectional API/Angular parity specification. Its task identifiers are independent of the R2R task board and AS-AWP-EXEC tasks. Source identity, immutable-SHA checks and test results belong to [status.json](status.json), under `apiAngularParity`.
 
-`IMPLEMENTED_VERIFICATION_PENDING` means the named code exists; it does not assert functional acceptance. `IN_PROGRESS` means a remaining correction or active implementation is underway. Final acceptance still requires the specified behavior and relevant dynamic evidence.
+`IMPLEMENTED_VERIFICATION_PENDING` means the named code exists; it does not assert functional acceptance. `FOCUSED_LOCAL_PASS; CI/BROWSER_PENDING` records a focused local check while immutable-SHA CI and/or required browser acceptance remain open. `IN_PROGRESS` means a remaining correction or active implementation is underway. Final acceptance still requires the specified behavior and relevant dynamic evidence.
 
 | Task | Requirement | Implementation | Current code evidence |
 | --- | --- | --- | --- |
@@ -20,7 +20,7 @@ This tracker covers the attached bidirectional API/Angular parity specification.
 | T010 | Wire first/new consolidation scope creation | IMPLEMENTED_VERIFICATION_PENDING | [ConsolidationScopeCreationQuery.cs](../../src/AuditSphereOps.Application/Accounting/ConsolidationScopeCreationQuery.cs) |
 | T011 | Add contact routing assignment and revocation to the client workspace | IMPLEMENTED_VERIFICATION_PENDING | [client-relationships.ts](../../src/AuditSphereOps.Ui/src/app/features/clients/client-relationships.ts) |
 | T012 | Add client relationship creation and revocation | FOCUSED_LOCAL_PASS; CI/BROWSER_PENDING | [PracticeCrmService.Relationships.cs](../../src/AuditSphereOps.Application/Practice/PracticeCrmService.Relationships.cs); [route-binding API test](../../tests/AuditSphereOps.Api.Tests/ClientRelationshipRouteBindingApiTests.cs); [Angular spec](../../src/AuditSphereOps.Ui/src/app/features/clients/client-relationships.spec.ts) |
-| T013 | Expose current Manager workprogramme approval | IMPLEMENTED_VERIFICATION_PENDING | [completion.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/completion.ts) |
+| T013 | Expose current Manager workprogramme approval | FOCUSED_LOCAL_PASS; CI/BROWSER_PENDING | [completion.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/completion.ts); [completion spec](../../src/AuditSphereOps.Ui/src/app/features/audit/completion.spec.ts) |
 | T014 | Wire controlled procedure wording tailoring | IMPLEMENTED_VERIFICATION_PENDING | [fieldwork.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts) |
 | T015 | Open an editable WORKING workpaper from its procedure | IMPLEMENTED_VERIFICATION_PENDING | [plan.ts](../../src/AuditSphereOps.Ui/src/app/features/audit/plan.ts) |
 | T016 | Add manual engagement workflow-task creation | IMPLEMENTED_VERIFICATION_PENDING | [workflow-task-create.ts](../../src/AuditSphereOps.Ui/src/app/features/engagements/workflow-task-create.ts) |

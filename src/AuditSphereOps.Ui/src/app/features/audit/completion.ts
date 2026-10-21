@@ -125,12 +125,12 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
             }
           }
           @if (w.workprogramApproval?.hasApproval) {
-            <p [attr.role]="w.workprogramApproval?.isCurrent ? 'status' : 'alert'">
-              Manager approval {{ w.workprogramApproval?.isCurrent ? 'is current' : 'is stale and must be renewed' }}.
-              @if (w.workprogramApproval?.approvedAt; as approvedAt) { Recorded {{ approvedAt.slice(0, 16).replace('T', ' ') }} UTC. }
+            <p [attr.role]="w.workprogramApproval.isCurrent ? 'status' : 'alert'">
+              Manager approval {{ w.workprogramApproval.isCurrent ? 'is current' : 'is stale and must be renewed' }}.
+              @if (w.workprogramApproval.approvedAt; as approvedAt) { Recorded {{ approvedAt.slice(0, 16).replace('T', ' ') }} UTC. }
             </p>
           } @else { <p role="status">No aggregate Manager workprogramme approval is recorded.</p> }
-          @if (w.workprogramApproval?.canApprove && !w.workprogramApproval?.isCurrent) {
+          @if (w.workprogramApproval?.canApprove && !w.workprogramApproval.isCurrent) {
             <label>Manager rationale <textarea name="workprogramRationale" [(ngModel)]="f.workprogramRationale" rows="2" maxlength="2000" required></textarea></label>
             <label><input type="checkbox" name="workprogramReviewed" [(ngModel)]="f.workprogramReviewed" /> I reviewed the exact current applicable workprogramme set and its independent review states.</label>
             <button matButton="filled" (click)="approveWorkprograms()" [disabled]="cmd.busy() || !f.workprogramReviewed || !f.workprogramRationale.trim() || !canApproveCurrentWorkprograms()">
