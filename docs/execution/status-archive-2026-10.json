@@ -15479,7 +15479,7 @@
           "correctedSourceCI": {
             "run": 39818204512,
             "source": "48816d27761d71fa71581c514789844afba02d9b",
-            "observed": "in_progress; immutable source resolved; Angular build/full specs job in_progress",
+            "observed": "in_progress; Angular/full specs and build/contracts/publication SUCCESS; unfiltered Domain, API and E2E running",
             "result": "PENDING; no FULL_CI_PASS"
           }
         }

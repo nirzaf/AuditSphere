@@ -1200,8 +1200,8 @@
     "angularQuality20261022": {
       "result": "PARTIAL",
       "criteria": "AC01–08 pass; AC09 partial; CI pending.",
-      "fastCi": "39798807887 queued (729f2368); prior fast pass historical.",
-      "fullReleaseCi": "39818204512 running on 48816d27; no full pass yet.",
+      "fastCi": "39818469441 SUCCESS on aedc42df; fast gate only.",
+      "fullReleaseCi": "39818204512 on 48816d27: Angular/build/contracts PASS; .NET cohorts running.",
       "browser": "All five surfaces and both shells sampled; full matrix partial.",
       "humanAT": "BLOCKED_EXTERNAL: AT/version/workflow evidence absent.",
       "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFocusRecovery20261022"
