@@ -13,7 +13,9 @@ public sealed partial class AuditSphereDbContext
     b.Entity<ClientPortalFirstSignIn>(e =>
     {
       e.HasIndex(x => new { x.FirmId, x.UserId }).IsUnique();
-      e.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+      e.HasOne<AppUser>().WithMany().HasForeignKey(x => new { x.FirmId, x.UserId })
+        .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+      e.HasIndex(x => x.UserId); // retained user lookup index
       e.ToTable("client_portal_first_sign_ins", t => t.HasCheckConstraint("ck_client_portal_first_sign_in_values",
         "identity_path IN ('PROVISIONED_MEMBER','EXTERNAL_IDENTITY','UNOBSERVED_IDENTITY') AND length(terms_version) > 0 AND (identity_path <> 'PROVISIONED_MEMBER' OR sign_in_observed_at IS NOT NULL)"));
     });

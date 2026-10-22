@@ -33,8 +33,11 @@ public sealed partial class AuditSphereDbContext
     b.Entity<RoleGrant>().HasIndex(x => new { x.FirmId, x.UserId, x.Role, x.ClientId, x.EngagementId })
       .IsUnique().HasFilter("revoked_at IS NULL").HasDatabaseName("ux_active_role_grant_identity")
       .AreNullsDistinct(false);
+    // A grant can only name a user of its own firm.
     b.Entity<RoleGrant>().HasOne<AppUser>().WithMany()
-      .HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+      .HasForeignKey(x => new { x.FirmId, x.UserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<RoleGrant>().HasIndex(x => x.UserId); // retained user lookup index
     b.Entity<RoleGrant>().HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.ClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
