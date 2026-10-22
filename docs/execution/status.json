@@ -1099,7 +1099,7 @@
         "supported Production worker composition with per-group live approval (Worker:ApprovedLiveGroups)"
       ],
       "localFocusedEvidence": "Focused TRX per unit asserted with scripts/verification/assert-test-results.py; full suites deferred to release-verification.yml",
-      "runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 32 PASS. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",
+      "runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",
       "openFindings": [
         "42 command endpoints map scope.denied to 400 (WU-015)",
         "63 single-column scoped keys not probed for lack of seeded rows (WU-015)",

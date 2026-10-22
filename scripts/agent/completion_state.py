@@ -15,6 +15,7 @@ import json
 import os
 import re
 import socket
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
@@ -289,12 +290,29 @@ def resolve_evidence(root: Path, relative: str) -> Path:
 
 def read_evidence(root: Path, relative: str) -> bytes:
     """Bound reads before hashing/parsing; empty artifacts cannot substantiate completion."""
-    path = resolve_evidence(root, relative)
-    with path.open("rb") as stream:
-        size = os.fstat(stream.fileno()).st_size
-        if size == 0 or size > MAX_EVIDENCE_BYTES:
-            raise StateError(f"{relative}: evidence size must be 1..{MAX_EVIDENCE_BYTES} bytes")
-        data = stream.read(MAX_EVIDENCE_BYTES + 1)
+    resolve_evidence(root, relative)
+    if os.open not in os.supports_dir_fd or not hasattr(os, "O_NOFOLLOW"):
+        raise StateError("runner lacks safe descriptor-relative evidence access")
+    # Anchor every component beneath the opened root. A rename/symlink swap after
+    # resolve_evidence must not redirect the read to another directory or block on a FIFO.
+    with contextlib.ExitStack() as stack:
+        def open_at(name, flags, parent=None):
+            fd = os.open(name, flags, dir_fd=parent)
+            stack.callback(os.close, fd)
+            return fd
+
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        parent = open_at(Path(root).resolve(), directory_flags)
+        parts = Path(relative).parts
+        for part in parts[:-1]:
+            parent = open_at(part, directory_flags, parent)
+        fd = open_at(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, parent)
+        info = os.fstat(fd)
+        size = info.st_size
+        if not stat.S_ISREG(info.st_mode) or size == 0 or size > MAX_EVIDENCE_BYTES:
+            raise StateError(f"{relative}: evidence must be a regular file of 1..{MAX_EVIDENCE_BYTES} bytes")
+        with os.fdopen(os.dup(fd), "rb") as stream:
+            data = stream.read(MAX_EVIDENCE_BYTES + 1)
         if len(data) != size:
             raise StateError(f"{relative}: evidence changed size during read")
     return data

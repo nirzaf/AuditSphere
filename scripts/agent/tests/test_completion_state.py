@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 AGENT = Path(__file__).resolve().parents[1]
@@ -179,6 +180,28 @@ class ResultTests(unittest.TestCase):
         for path in ("alias/run-004.json", "evidence/empty.txt", "evidence/huge.txt"):
             with self.subTest(path=path):
                 self.assertTrue(cs.check_result(result(evidencePaths=[path]), self.root))
+
+    def test_directory_swap_after_path_check_cannot_redirect_evidence_read(self):
+        original = cs.resolve_evidence
+        with tempfile.TemporaryDirectory() as outside:
+            Path(outside, "run-004.json").write_text(json.dumps({"testsExecuted": 6}))
+            def swap(root, relative):
+                resolved = original(root, relative)
+                (self.root / "evidence").rename(self.root / "retained")
+                (self.root / "evidence").symlink_to(outside, target_is_directory=True)
+                return resolved
+            with mock.patch.object(cs, "resolve_evidence", side_effect=swap):
+                self.assertTrue(cs.check_result(result(), self.root))
+
+    def test_retained_digest_is_for_the_bytes_validated_not_a_later_replacement(self):
+        captured = {}
+        self.assertEqual(cs.check_result(result(), self.root, captured), [])
+        verified_task = verified(evidenceDigests=captured)
+        verified_task["evidencePaths"] = result()["evidencePaths"]
+        s = state({"RUN-004": verified_task})
+        self.assertEqual(cs.check_retained_evidence(s, self.root), [])
+        (self.root / "evidence" / "run-004.json").write_text(json.dumps({"testsExecuted": 0}))
+        self.assertTrue(cs.check_retained_evidence(s, self.root))
 
     def test_zero_tests_cannot_support_pass(self):
         (self.root / "evidence" / "empty.json").write_text(json.dumps({"testsExecuted": 0}), encoding="utf-8")
