@@ -36,6 +36,13 @@ describe('Invoice exact read and allocation pagination', () => {
     const fixture = TestBed.createComponent(InvoiceDetail); fixture.detectChanges(); TestBed.tick();
     http.expectOne(`/api/ui/finance/invoices/${id(1)}`).flush(payload); TestBed.tick(); return fixture;
   }
+  it('states that a SENT invoice is a staff record without delivery evidence', () => {
+    const sent = open({ ...invoice(1), status: 'SENT', postedAt: '2026-10-02T09:00:00Z' });
+    const note = (sent.nativeElement as HTMLElement).querySelector('[data-testid="invoice-sent-untracked"]');
+    expect(note?.textContent).toContain('no delivery or read evidence');
+    const posted = open({ ...invoice(1), status: 'POSTED', postedAt: '2026-10-02T09:00:00Z' });
+    expect((posted.nativeElement as HTMLElement).querySelector('[data-testid="invoice-sent-untracked"]')).toBeNull();
+  });
   it('rejects a wrong returned identity through HTTP without rendering invoice content or actions', () => {
     const f = open(invoice(1, 2));
     expect(f.componentInstance.invoice.data()).toBeNull();

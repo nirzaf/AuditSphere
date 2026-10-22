@@ -52,6 +52,7 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
       <p role="status">Invoice total {{ i.total | money }} · credited {{ i.credited | money }} · allocated {{ i.allocated | money }} · balance outstanding {{ i.outstanding | money }}</p>
       <section class="panel" aria-labelledby="invoice-heading">
         <p class="eyebrow">Status: <audit-status [value]="i.status" /> (Rev {{ i.revision }})</p>
+        @if (i.status === 'SENT') { <p class="hint" data-testid="invoice-sent-untracked">Marked as sent by staff. AuditSphere did not dispatch this invoice and holds no delivery or read evidence.</p> }
         <h2 id="invoice-heading" class="invoice-number">{{ i.invoiceNumber }}</h2>
         <button matButton="outlined" (click)="refresh()" [disabled]="busy()">Refresh invoice</button>
         <dl class="facts"><dt>Invoice ID</dt><dd><code>{{ i.id }}</code></dd><dt>Currency</dt><dd>{{ i.currency ?? 'Default' }}</dd><dt>Subtotal</dt><dd>{{ i.subtotal | money }}</dd>
