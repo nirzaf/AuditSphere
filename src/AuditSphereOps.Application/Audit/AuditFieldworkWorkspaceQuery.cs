@@ -247,15 +247,16 @@ public static class AuditFieldworkWorkspaceQuery
         AuditProgramService.IsCurrentPendingNotApplicable(row, currentDecision, inputGeneration) ? currentDecision?.Id : null;
       var original = row.ProgramProcedureId is { } sourceId ? source.GetValueOrDefault(sourceId)?.SourceWording : null;
       var provenance = definition is null ? "UNVERIFIED_LEGACY" : definition.IsLegacySnapshot ? "LEGACY_EFFECTIVE_SNAPSHOT" : "AUTHORED_REVISION";
+      var workpaperId = workpaperMap.TryGetValue(row.Id, out var wpId) ? (Guid?)wpId : null;
       return new FieldworkProcedure(row.Id, row.SourceProcedureId, row.SourceSectionNumber, row.SourceSectionTitle,
         definition?.EffectiveTitle ?? row.Title, applicabilityStatus, row.Status, row.RiskId,
-        workpaperMap.GetValueOrDefault(row.Id), row.CurrentResultRevision, original,
+        workpaperId, row.CurrentResultRevision, original,
         definition?.EffectiveWording ?? row.SourceWording, definition?.Revision, provenance,
         row.CurrentApplicabilityRevision, currentDecision?.Id, pendingProposalId, row.ApplicabilityRationale,
         historyByProcedure.GetValueOrDefault(row.Id, []), canPropose && pendingProposalId is null,
         canApprove && pendingProposalId is not null, canApprove && pendingProposalId is not null,
         evidence.GetValueOrDefault(row.Id)?.State ?? "MISSING_RESULT",
-        AuditProcedureSupportMap.For(row.SourceProcedureId, row.SourceSectionNumber, engagementId, workpaperMap.GetValueOrDefault(row.Id)));
+        AuditProcedureSupportMap.For(row.SourceProcedureId, row.SourceSectionNumber, engagementId, workpaperId));
     }).ToList();
   }
 
