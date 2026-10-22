@@ -547,6 +547,42 @@ describe('Consolidation Scope Workspace Contracts', () => {
     expect(api.command).toHaveBeenCalledWith(`${scopeUrl}/approve`, {}, 'POST');
   });
 
+  it('gives every elimination journal line control a distinct accessible name', () => {
+    const { fixture, component } = open();
+    component.journalLines.set([
+      { taxonomyCode: 'ASSETS.IC_AR', debit: '10.000000', credit: '0.000000', description: 'Receivable' },
+      { taxonomyCode: 'LIABILITIES.IC_AP', debit: '0.000000', credit: '10.000000', description: 'Payable' },
+      { taxonomyCode: 'EQUITY.RETAINED', debit: '0.000000', credit: '0.000000', description: 'Adjustment' },
+    ]);
+    fixture.detectChanges();
+
+    const lineInputs = [...fixture.nativeElement.querySelectorAll(
+      'table[aria-label="Draft elimination journal lines"] input',
+    )] as HTMLInputElement[];
+    expect(lineInputs.map(input => input.getAttribute('aria-label'))).toEqual([
+      'Journal line 1 taxonomy code',
+      'Journal line 1 debit amount',
+      'Journal line 1 credit amount',
+      'Journal line 1 description',
+      'Journal line 2 taxonomy code',
+      'Journal line 2 debit amount',
+      'Journal line 2 credit amount',
+      'Journal line 2 description',
+      'Journal line 3 taxonomy code',
+      'Journal line 3 debit amount',
+      'Journal line 3 credit amount',
+      'Journal line 3 description',
+    ]);
+    const removeButtons = [...fixture.nativeElement.querySelectorAll(
+      'table[aria-label="Draft elimination journal lines"] button',
+    )] as HTMLButtonElement[];
+    expect(removeButtons.map(button => button.getAttribute('aria-label'))).toEqual([
+      'Remove journal line 1',
+      'Remove journal line 2',
+      'Remove journal line 3',
+    ]);
+  });
+
   it('does not publish a delayed command result or reload after the scope owner changes or the host is destroyed', async () => {
     let finishFirst!: (result: { ok: true; value: unknown }) => void;
     api.command.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }));
