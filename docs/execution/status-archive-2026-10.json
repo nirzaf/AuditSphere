@@ -15321,6 +15321,26 @@
           "change": "Enabled only in local Test API process; no persisted or production config change",
           "observed": "Built-in browser loaded synthetic task and empty review inbox; errors cleared; console errors empty",
           "screenshot": "/tmp/auditsphere-work-queue-restored.png"
+        },
+        "journalPreviewFocus20261022": {
+          "sourceBase": "fec965da",
+          "sourceBlobs": {
+            "src/AuditSphereOps.Ui/src/app/features/accounting/journal.ts": "568e16821ec137f9e12498d612f9940792f34865",
+            "src/AuditSphereOps.Ui/src/app/features/accounting/journal.html": "17e252f3df491a6f318a81c7020bf3d106d6acb7",
+            "src/AuditSphereOps.Ui/src/app/features/accounting/journal.spec.ts": "30c210fdf127ae032effc6cb14f03360e3e58e8c",
+            "tests/AuditSphereOps.E2E.Tests/AngularJournalReviewJourneyTests.cs": "906598953a2885cebc248684b7254c6a48cedd33"
+          },
+          "defect": "Built-in browser: invalid and valid previews left document.body focused after triggering button was disabled. Validation alert rendered but preview focus was lost.",
+          "fix": "Focus preview heading after render only while initiating focus, user-interaction generation, journal/session owner, component lifetime and exact preview remain current. Existing owned-fixture helper opt-in added without changing normal CI behavior.",
+          "verification": {
+            "angularSpecs": "13 passed; journal.spec.ts",
+            "lint": "Production TS/template pass; spec files intentionally ignored by lint (initial explicit-spec invocation warned; corrected to configured production scope)",
+            "build": "Angular production and targeted .NET Release build pass; existing commercial/settings.scss budget warning",
+            "e2e": "Passed: 1, Failed: 0, Skipped: 0; existing exact-line/unknown-receipt/independent-review/revocation journey with new focus assertion; /tmp/auditsphere-journal-a11y-20261022/journal-a11y-fixed.trx",
+            "browser": "Owned synthetic fixture: invalid plain-decimal input yields alert and focused review heading; corrected exact amounts produce focused heading, fresh unchecked assent and disabled confirmation. No journal action dispatched from built-in browser; fixture tab closed.",
+            "screenshot": "/tmp/auditsphere-journal-preview-focus-fixed.png"
+          },
+          "remaining": "Full current-source CI and remaining rendered/human AT/native zoom matrix open."
         }
       },
       "workflowHistory20261020": {

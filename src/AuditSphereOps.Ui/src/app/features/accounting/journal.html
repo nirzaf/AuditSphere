@@ -359,7 +359,7 @@
   }
   @if (preview(); as p) {
     <section class="panel" aria-label="Journal action review">
-      <h2>Review exact journal action</h2>
+      <h2 #reviewHeading tabindex="-1">Review exact journal action</h2>
       <p>{{ p.action }} · Current revision {{ j.revision }} · {{ j.status }}</p>
       <p>Preview totals: debit {{ p.totalDebit }} · credit {{ p.totalCredit }} {{ j.currency }}</p>
       @if (p.blocker) {

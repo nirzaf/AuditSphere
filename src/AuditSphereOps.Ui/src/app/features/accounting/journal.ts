@@ -1,5 +1,9 @@
 import {
+  afterNextRender,
   Component,
+  ElementRef,
+  Injector,
+  viewChild,
   DestroyRef,
   HostListener,
   computed,
@@ -51,6 +55,10 @@ export class AdjustmentJournal implements NavigationProtected {
   private readonly drafts = inject(TabDrafts);
   private readonly dialog = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly renderInjector = inject(Injector);
+  private readonly reviewHeading = viewChild<ElementRef<HTMLElement>>('reviewHeading');
+  private focusInteraction = 0;
   readonly id = routeGuid();
   readonly historyPage = signal(1);
   readonly journal = this.api.resource(
@@ -254,6 +262,15 @@ export class AdjustmentJournal implements NavigationProtected {
     if (!this.busy() && !this.uncertain())
       this.model.update((m) => ({ ...m, lines: m.lines.filter((_, n) => n !== i) }));
   }
+  @HostListener('document:pointerdown')
+  @HostListener('document:keydown')
+  recordFocusInteraction(): void { this.focusInteraction++; }
+
+  private focusOwner(): string {
+    const session = this.session.current();
+    return `${this.id()}:${session?.firmId ?? ''}:${session?.userId ?? ''}:${session?.generation ?? ''}:${this.session.invalidation()}:${this.generation}`;
+  }
+
   async prepare() {
     const v = this.journal.data(),
       generation = this.generation;
@@ -265,6 +282,11 @@ export class AdjustmentJournal implements NavigationProtected {
       (this.uncertain() && !this.checkedAbsent)
     )
       return;
+    const document = this.hostElement.nativeElement.ownerDocument;
+    const origin = document.activeElement;
+    const ownsFocus = origin !== null && this.hostElement.nativeElement.contains(origin);
+    const interaction = this.focusInteraction;
+    const owner = this.focusOwner();
     const checkpoint = this.pending();
     const r: Request = {
       ...structuredClone(this.model()),
@@ -297,6 +319,11 @@ export class AdjustmentJournal implements NavigationProtected {
       this.request = r;
       this.preview.set(p);
       this.message.set('');
+      if (ownsFocus) afterNextRender(() => {
+        if (this.destroyed || owner !== this.focusOwner() || interaction !== this.focusInteraction ||
+            this.preview() !== p || (document.activeElement !== origin && document.activeElement !== document.body)) return;
+        this.reviewHeading()?.nativeElement.focus();
+      }, { injector: this.renderInjector });
     } catch (e) {
       if (generation === this.generation) {
         this.message.set(e instanceof Error ? e.message : 'Unsupported journal preview.');

@@ -127,10 +127,14 @@ describe('Exact native journal editor and receipt recovery', () => {
     };
   }
   it('requires fresh preview and assent and dispatches exactly once', async () => {
-    const { c, http } = await open();
+    const { f, c, http } = await open();
     await c.execute();
     http.expectNone(root + '/actions');
+    const trigger = Array.from(f.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Preview exact journal action'))!;
+    trigger.focus();
     await prepare(c, http);
+    expect(document.activeElement?.textContent).toBe('Review exact journal action');
     await c.execute();
     http.expectNone(root + '/actions');
     c.reviewed.set(true);
@@ -255,6 +259,20 @@ describe('Exact native journal editor and receipt recovery', () => {
     expect(c.preview()).toBeNull();
     expect(journalFields({ ...c.model(), reviewed: true })).toBeNull();
     http.expectNone(root + '/actions');
+  });
+  it('does not steal focus when a preview completes after the user moves elsewhere', async () => {
+    const { f, c, http } = await open();
+    const trigger = Array.from(f.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find(button => button.textContent?.includes('Preview exact journal action'))!;
+    trigger.focus();
+    const task = c.prepare();
+    const request = http.expectOne(root + '/preview');
+    const back = f.nativeElement.querySelector('a') as HTMLAnchorElement;
+    back.focus();
+    request.flush({ value: preview });
+    await task;
+    TestBed.tick();
+    expect(document.activeElement).toBe(back);
   });
   it('clears the editor, evidence, drafts and late preview after epoch loss', async () => {
     const { c, http } = await open();

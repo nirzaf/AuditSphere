@@ -20,10 +20,12 @@ public sealed class AngularJournalReviewJourneyTests
     var route="/ui/app/accounting/journals/"+id;
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(route));
     await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Exact journal context",Exact=true})).ToContainTextAsync("AJ-SYN");
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin,route,"journal-editor-pre-dispatch");
     await page.GetByLabel("Debit 1",new(){Exact=true}).FillAsync("200.123456");
     await page.GetByLabel("Credit 2",new(){Exact=true}).FillAsync("200.123455");
     await page.GetByRole(AriaRole.Button,new(){Name="Preview exact journal action",Exact=true}).ClickAsync();
     var preview=page.GetByRole(AriaRole.Region,new(){Name="Journal action review",Exact=true});
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Review exact journal action",Exact=true})).ToBeFocusedAsync();
     await Assertions.Expect(preview).ToContainTextAsync("Unbalanced");await Assertions.Expect(page.GetByRole(AriaRole.Button,new(){Name="Confirm reviewed journal action",Exact=true})).ToBeHiddenAsync();
     await page.GetByLabel("Credit 2",new(){Exact=true}).FillAsync("200.123456");
     var intercepted=false;
