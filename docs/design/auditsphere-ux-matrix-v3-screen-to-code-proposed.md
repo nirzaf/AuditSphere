@@ -3,7 +3,7 @@
 **Status:** PROPOSED (design-to-code mapping; not acceptance evidence)
 **Authority:** Angular is the only UI (ADR-0002); the Blazor host is retired and is not a target. Pending professional and external decisions that affect these screens are listed in [`completion-policy-decisions.json`](../spec/completion-policy-decisions.json).
 **Code baseline:** `master@20706b4f` · prepared 19 October 2026
-**Design source:** [`auditsphere-ui-design-v3-code-aligned.pdf`](../auditsphere-ui-design-v3-code-aligned.pdf) (19 screens) and `auditsphere-ui-design-full.figcraft`, page "v3 Code-aligned (AS-UX-001)"
+**Design source:** `auditsphere-ui-design-v3-code-aligned.pdf` (19 screens) and `auditsphere-ui-design-full.figcraft`, page "v3 Code-aligned (AS-UX-001)"
 **Related:** [AS-UX-001 approved stories](../execution/auditsphere-execution-user-stories-as-ux-001-figma-angular-parity-approved.md) · [AS-UX-001 tracker](../execution/auditsphere-execution-tracker-as-ux-001-figma-angular-parity-current.md)
 
 ## How to read this matrix
