@@ -19720,7 +19720,7 @@
           },
           "ci": {
             "fast": "PASS: run 39695625680 on exact source 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
-            "fastCurrentHead": "PASS: run 39702092938 on 8d83fee8c76918b8f80d1833349f052b8ae6b712; Docs, Angular, .NET Release, architecture guards, EF drift, publication and OpenAPI checks succeeded. Application source remains 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
+            "fastCurrentHead": "PASS: run 39702930633 on exact HEAD e8e7da946d4e6235172456bf08edbeaefa2fbebb; Docs, Angular, .NET Release, architecture guards, EF drift, publication and OpenAPI checks succeeded. Application source remains 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
             "fullRelease": "IN_PROGRESS: run 39696019761 on exact source 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b. Domain unfiltered suite PASS; Angular full build/specs PASS; build/contracts/publication PASS; API and Playwright E2E unfiltered suites pending at recording time."
           },
           "humanAssistiveTechnology": "OPEN: the repository checklist requires a knowledgeable screen-reader reviewer and recorded screen-reader/browser versions. Agent accessibility-tree and keyboard checks do not satisfy that requirement.",
