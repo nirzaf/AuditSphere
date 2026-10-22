@@ -1117,6 +1117,36 @@
         "63 single-column scoped keys not probed for lack of seeded rows (WU-015)",
         "Browser journeys missing for parity rows T008-T010,T016,T025,T026,T028 (WU-028/WU-032)"
       ]
+    },
+    "developmentFeedback20261023": {
+      "status": "PARTIALLY_VERIFIED",
+      "implementationCommit": "34f909cd942c1f5ab48c139309001a00c62149f5",
+      "conditions": "macOS arm64, SDK 10.0.300, Debug, existing NuGet/output caches, no restore/clean, serialized project builds. Initial MSBuild elapsed is not clean-cache or wall-clock data. Other timings are wall-clock.",
+      "seconds": {
+        "initialObservedApiBuild": 137.43,
+        "warmBefore": [
+          1.222,
+          1.173
+        ],
+        "warmAfter": [
+          1.207,
+          1.169
+        ],
+        "postCommitRecompile": 100.434,
+        "apiSourceRestoration": 7.244,
+        "domainAddition": 1.083,
+        "domainBodyEdit": 0.868,
+        "focusedXunitIncludingBuild": 6.55,
+        "syntheticWatchStartup": 16.921,
+        "syntheticHotReload": 7.345,
+        "syntheticRudeEditRestart": 10.387
+      },
+      "incrementalEvidence": "Both identical warm pairs skipped all four CoreCompile targets. Post-commit AssemblyInformationalVersion SHA change recompiles generated metadata; not a warm comparison. No demonstrated overall speedup.",
+      "checks": "Debug API build: zero warnings/errors. Focused calculator: 1 pass. Offline launcher: 2 passes. Shell syntax, watch --list, docs/diff checks pass. No full local suites.",
+      "syntheticProbe": "Loopback :5117, temporary endpoint, process-only unique synthetic capability app IDs. Supported edit retained PID; rude edit restarted. Source restored and rebuilt; no provider operations. Live health 200, readiness 503, unauthenticated session 401.",
+      "unverified": "Preserved settings reuse capability app IDs: startup correctly blocked. Database readiness, authenticated session/CSRF, cold-cache, Application-specific and frontend edit-feedback comparisons not verified. SDK mixed-separator static-assets warning retained; no security/SDK/Release changes.",
+      "ci": "Fast CI 39860369161 passed f954d8cd; updated source CI pending; full immutable-source gate deferred.",
+      "localArtifacts": ".local/dev-speed/ (ignored binlogs, diagnostic logs and measurement JSON; inspect/redact before sharing)"
     }
   },
   "externalGates": [

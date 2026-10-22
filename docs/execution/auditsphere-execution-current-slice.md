@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Development feedback workflow (2026-10-23)
+
+[Debug watch guide](../../src/AuditSphereOps.Ui/auditsphere-angular-development.md#fast-backend-development-loop): scoped launcher, focused checks and synthetic hot-reload/restart pass. Warm compilation skips; SHA changes rebuild assemblies. Evidence: `developmentFeedback20261023` in [status.json](status.json). Configured startup fails the identity-split guard; database readiness, authenticated/CSRF, cold-cache and frontend timing acceptance remain open. No overall speedup claimed.
+
 ## Owned Entra automation (2026-10-23)
 
 WU-018 now has registration and certificate-only entry points with offline planning, signed exact-plan approval, ID/ownership checks, fixed operator journals, explicit uncertain-create reconciliation and public-only key overlap. GET retries are bounded and honor provider waits; writes are not retried. Read-only and Apply source pins are enforced. Focused synthetic checks pass; no live tenant action or provider acceptance is claimed. The [operator procedure](../operations/auditsphere-entra-registration-automation.md) documents prerequisites and recovery. Next engineering: WU-019; live acceptance remains a separate leaf.

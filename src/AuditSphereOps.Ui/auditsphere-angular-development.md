@@ -166,6 +166,12 @@ No polling, cache deletion, warning suppression or production setting is added.
    ./scripts/agent-check --list
    ```
 
+   A measured, database-free backend example (select the actual affected behavior):
+
+   ```sh
+   dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Debug --maxcpucount:1 --filter 'FullyQualifiedName~ClientOperationalJournalCalculatorTests.PreservesExactSixDecimalAmountsAndMaximumStorageValue'
+   ```
+
    Select the actual affected spec/packet; the example is not a mandatory test for
    unrelated work. Database, money, permissions, concurrency and contract changes
    retain their focused boundary checks. Never use `--no-build` after source changes.
@@ -193,3 +199,11 @@ capability identity/certificate configuration through the approved local setup
 before using watch with those settings; do not suppress the guard. An isolated
 synthetic timing probe is not verification of that developer login or Microsoft
 365 access. No private settings or tenant registrations were changed by this work.
+
+The pinned SDK also emits a known macOS mixed-separator static-web-assets warning
+([dotnet/sdk issue](https://github.com/dotnet/sdk/issues/54309)). The isolated API
+probe still started and applied hot reload; Angular's own development server
+owns frontend refresh. No SDK upgrade, path override or security suppression is
+introduced here. A commit can legitimately rebuild generated assembly metadata:
+`AssemblyInformationalVersion` includes the source SHA. Keep release provenance;
+classify a post-commit build separately from an unchanged-input warm build.
