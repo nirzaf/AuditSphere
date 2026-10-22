@@ -1199,12 +1199,12 @@
     },
     "angularQuality20261022": {
       "result": "PARTIAL",
-      "criteria": "AC-01..08 PASS; AC-09 PARTIAL; AC-10 full release CI pending",
-      "fastCi": "39716389775 PASS",
-      "fullReleaseCi": "39715225886 IN_PROGRESS",
-      "browser": "URL_POLICY_BLOCKED",
+      "criteria": "AC-01..08 PASS; AC-09 PARTIAL (rendered and human AT review open); AC-10 full release CI in progress",
+      "fastCi": "39717621432 PASS on 861cd833",
+      "fullReleaseCi": "39715225886 IN_PROGRESS; API and Playwright E2E have no terminal result",
+      "browser": "BROWSER_POLICY_BLOCKED; existing tab is a disallowed data: error page; no alternate surface used",
       "humanAT": "OPEN",
-      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFollowUp20261022"
+      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFollowUp20261022b"
     }
   },
   "externalGates": [

@@ -50,7 +50,7 @@ FROM practice_clients
 WHERE firm_id = 'f0000000-0000-0000-0000-000000000001'
   AND id IN ('c1000000-0000-0000-0000-000000000001',
              'c1000000-0000-0000-0000-000000000002',
-             'c1000000-0000-0000-000000000003')
+             'c1000000-0000-0000-0000-000000000003')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO engagements (id, firm_id, practice_client_id, service_route, period_start, period_end, service_profile_id, status, professional_work_blocked, generation, created_at)
