@@ -19715,11 +19715,12 @@
             "staff": "Inspected authenticated synthetic Users & Access page and role dialog. Accessible tree exposed one main, page heading, labeled controls, and dialog heading. Tab/Shift+Tab stayed within the dialog; Escape returned focus to the trigger. No grant was submitted. No browser page errors observed.",
             "client": "Inspected authenticated synthetic PBC request page. Request, upload, delegation, conversation, and transfer receipt controls had accessible names in the browser accessibility tree. The receipt showed staged bytes and provider-not-dispatched state; the page rendered at a 390px CSS viewport without horizontal overflow.",
             "fieldwork": "Built-in browser denied navigation to the test's ephemeral loopback fixture under its URL safety policy. No alternate browser or raw protocol route was attempted. The E2E result above is automated evidence, not manual browser inspection.",
+            "currentAppAttempt": "The open in-app browser tab showed ERR_CONNECTION_REFUSED for http://127.0.0.1:5029/app/work. Computer-use reported the Mac locked and could not inspect the app. No interaction was performed.",
             "limitations": "Built-in browser did not provide screen-reader speech output or a verifiable browser/AT version. Fieldwork manual inspection, 200%/400% zoom, reduced-motion, and the full rendered workflow matrix were not covered."
           },
           "ci": {
             "fast": "PASS: run 39695625680 on exact source 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
-            "fastDocumentationHead": "PASS: run 39700891480 on docs-only HEAD 67e60761d1970b0d1b3d12d630c0822a9e103be5; Docs, Angular and .NET Release succeeded. No application source changed after 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
+            "fastCurrentHead": "PASS: run 39702092938 on 8d83fee8c76918b8f80d1833349f052b8ae6b712; Docs, Angular, .NET Release, architecture guards, EF drift, publication and OpenAPI checks succeeded. Application source remains 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
             "fullRelease": "IN_PROGRESS: run 39696019761 on exact source 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b. Domain unfiltered suite PASS; Angular full build/specs PASS; build/contracts/publication PASS; API and Playwright E2E unfiltered suites pending at recording time."
           },
           "humanAssistiveTechnology": "OPEN: the repository checklist requires a knowledgeable screen-reader reviewer and recorded screen-reader/browser versions. Agent accessibility-tree and keyboard checks do not satisfy that requirement.",
