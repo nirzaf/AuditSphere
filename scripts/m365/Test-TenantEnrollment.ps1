@@ -1,14 +1,6 @@
 #Requires -Version 7.4
-<#
-.SYNOPSIS
-  WU-019: verifies existing tenant consent/configuration state and freshness.
-.DESCRIPTION
-  An administrator grant of application roles is not a substitute for the human grantor leg.
-  Test-TenantEnrollment checks consent status through the documented API / workspace query.
-  If the human OIDC grantor leg has not completed, returns BLOCKED_BOOTSTRAP.
-  Never writes CONSENT_VERIFIED directly into PostgreSQL or bypasses enrollment.
-#>
-[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
+# Observes server-owned human enrollment through the authenticated API. Never grants or writes.
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
   [Parameter(Mandatory)] [string] $PlanPath,
   [ValidateSet('Plan','ReadOnly','Apply')] [string] $Mode = 'Plan',
@@ -16,7 +8,7 @@ param(
   [string] $ApprovalReference,
   [string] $ExpectedPlanSha256,
   [Parameter(Mandatory)] [string] $OutputPath,
-  [string] $SessionCookieEnv = 'AUDITSPHERE_SESSION_COOKIE'
+  [Alias('SessionCookieEnv')] [string] $SessionCookieEnvironmentVariable
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -24,35 +16,39 @@ Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Common.psm1') -Force
 $offline = $DryRun.IsPresent -or $WhatIfPreference -or $Mode -eq 'Plan'
 Set-M365OfflineMode $offline
 $result = New-M365Result ($(if ($offline) { 'Plan' } else { $Mode }))
-
+$client = $null
 try {
   $plan = Read-M365Plan $PlanPath (Join-Path $PSScriptRoot 'm365-plan.schema.json')
-  $result.repositoryCommit = $plan.repositoryCommit
-  $result.tenantId = $plan.tenantId
+  $result.repositoryCommit = $plan.repositoryCommit; $result.tenantId = $plan.tenantId
   $result.planSha256 = Get-M365PlanSha256 $plan
-  if ($ExpectedPlanSha256 -and $ExpectedPlanSha256 -cne $result.planSha256) {
-    throw 'INVALID_OR_UNSAFE'
-  }
-  if ($Mode -eq 'Apply') {
-    $result.errorCode = 'apply-not-supported-by-enrollment-test'
-    exit (Complete-M365Result $result 'INVALID_OR_UNSAFE' $OutputPath)
-  }
+  if ($ExpectedPlanSha256 -and $ExpectedPlanSha256 -cne $result.planSha256) { throw 'INVALID_OR_UNSAFE' }
   if ($offline) {
-    Add-M365Check $result 'plan:tenant-enrollment' 'PLANNED' 'human-grantor-consent-verified' 'offline-planning'
+    Add-M365Check $result 'plan:tenant-enrollment' 'PLANNED' 'server-owned human grantor consent' 'offline-planning'
     exit (Complete-M365Result $result 'PLANNED' $OutputPath)
   }
+  if ($Mode -eq 'Apply') { throw 'INVALID_OR_UNSAFE' }
+  if (-not $SessionCookieEnvironmentVariable) { throw 'BLOCKED_BOOTSTRAP' }
+  if (-not $ExpectedPlanSha256) { throw 'INVALID_OR_UNSAFE' }
+  $repository = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'PREREQUISITE_MISSING' }
+  $source = & git -C $repository rev-parse HEAD 2>$null
+  if ($LASTEXITCODE -ne 0 -or $source -cne $plan.repositoryCommit) { throw 'INVALID_OR_UNSAFE' }
+  $dirty = & git -C $repository status --porcelain -- scripts/m365 2>$null
+  if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'INVALID_OR_UNSAFE' }
   Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Enrollment.psm1') -Force
-  $cookie = Get-M365SessionCookie $SessionCookieEnv
-  $providerCommand = Get-Command Invoke-M365ProviderRequest
-  $client = [System.Net.Http.HttpClient]::new()
-  try {
-    $transport = New-M365EnrollmentTransport $client ([uri] $plan.publicBaseUri) $cookie $providerCommand
-    Invoke-M365EnrollmentVerification $plan $result $transport
-    exit (Complete-M365Result $result 'VERIFIED' $OutputPath)
-  } finally { $client.Dispose() }
+  $cookie = Get-M365SessionCookie $SessionCookieEnvironmentVariable
+  $http = New-M365EnrollmentHttpClient
+  $client = $http.Client
+  $transport = New-M365EnrollmentTransport $client ([uri] $plan.publicBaseUri) $cookie (Get-Command Invoke-M365ProviderRequest)
+  Invoke-M365EnrollmentVerification $plan $result $transport
+  $status = 'VERIFIED'
 } catch {
-  $known = @('DRIFT','INVALID_OR_UNSAFE','PROVIDER_FAILURE','RESULT_UNCERTAIN','BLOCKED_APPROVAL','BLOCKED_BOOTSTRAP','PREREQUISITE_MISSING','INCOMPLETE_EVIDENCE')
-  $status = if ($_.Exception.Message -cin $known) { $_.Exception.Message } else { 'INVALID_OR_UNSAFE' }
+  $known = @('DRIFT','INVALID_OR_UNSAFE','PROVIDER_FAILURE','BLOCKED_BOOTSTRAP','PREREQUISITE_MISSING','INCOMPLETE_EVIDENCE')
+  $status = if ($_.Exception.Message -cin $known) { $_.Exception.Message }
+    elseif ($_.Exception.GetType().Name -ceq 'M365PlanException') { 'INVALID_OR_UNSAFE' } else { 'PROVIDER_FAILURE' }
   $result.errorCode = "enrollment-$($status.ToLowerInvariant())"
-  exit (Complete-M365Result $result $status $OutputPath)
+} finally {
+  $cookie = $null
+  if ($client) { $client.Dispose() }
 }
+exit (Complete-M365Result $result $status $OutputPath)

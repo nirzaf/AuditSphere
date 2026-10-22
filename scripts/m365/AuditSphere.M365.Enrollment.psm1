@@ -30,6 +30,15 @@ function Get-M365SessionCookie([string] $EnvironmentVariable) {
   return $cookie
 }
 
+function New-M365EnrollmentHttpClient {
+  $handler = [System.Net.Http.HttpClientHandler]::new()
+  $handler.AllowAutoRedirect = $false; $handler.UseCookies = $false
+  $client = [System.Net.Http.HttpClient]::new($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds(10)
+  $client.MaxResponseContentBufferSize = 262144
+  return @{ Client = $client; Handler = $handler }
+}
+
 function New-M365EnrollmentTransport([System.Net.Http.HttpClient] $Client, [uri] $BaseUri,
     [string] $Cookie, $ProviderCommand) {
   if ($BaseUri.Scheme -cne 'https' -or $BaseUri.UserInfo -or $BaseUri.Query -or $BaseUri.Fragment -or $BaseUri.AbsolutePath -cne '/') {
@@ -47,10 +56,12 @@ function New-M365EnrollmentTransport([System.Net.Http.HttpClient] $Client, [uri]
       $dispatch = { $httpClient.SendAsync($outboundRequest).GetAwaiter().GetResult() }.GetNewClosure()
       $response = & $ProviderCommand $dispatch
       try {
+        if ($null -eq $response.RequestMessage -or $null -eq $response.RequestMessage.RequestUri -or
+            $response.RequestMessage.RequestUri.AbsoluteUri -cne $target.AbsoluteUri) { throw 'INVALID_OR_UNSAFE' }
         $code = [int] $response.StatusCode
         if ($code -in @(301,302,303,307,308,401,403)) { throw 'BLOCKED_BOOTSTRAP' }
         if ($code -ne 200) { throw 'PROVIDER_FAILURE' }
-        if ($response.Content.Headers.ContentType.MediaType -cne 'application/json') { throw 'INCOMPLETE_EVIDENCE' }
+        if ($null -eq $response.Content.Headers.ContentType -or $response.Content.Headers.ContentType.MediaType -cne 'application/json') { throw 'INCOMPLETE_EVIDENCE' }
         $raw = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
         $parse = @{ AsHashtable = $true; Depth = 32; NoEnumerate = $true }
         if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { $parse.DateKind = 'String' }
@@ -118,5 +129,5 @@ function Invoke-M365EnrollmentVerification($Plan, $Result, [scriptblock] $Transp
   Assert-M365EnrollmentSnapshot $Plan $before $workspace $after $Result
 }
 
-Export-ModuleMember -Function Get-M365SessionCookie, New-M365EnrollmentTransport,
+Export-ModuleMember -Function Get-M365SessionCookie, New-M365EnrollmentHttpClient, New-M365EnrollmentTransport,
   Assert-M365EnrollmentSnapshot, Invoke-M365EnrollmentVerification

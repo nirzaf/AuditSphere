@@ -24,7 +24,7 @@ WU-019 now provides application-role reconciliation via `Grant-TenantPermissions
 
 ## Owned Entra automation (2026-10-23)
 
-WU-018 now has registration and certificate-only entry points with offline planning, signed exact-plan approval, ID/ownership checks, fixed operator journals, explicit uncertain-create reconciliation and public-only key overlap. GET retries are bounded and honor provider waits; writes are not retried. Read-only and Apply source pins are enforced. Focused synthetic checks pass; no live tenant action or provider acceptance is claimed. The [operator procedure](../operations/auditsphere-entra-registration-automation.md) documents prerequisites and recovery. Next engineering: WU-019; live acceptance remains a separate leaf.
+WU-018 now has registration and certificate-only entry points with offline planning, signed exact-plan approval, ID/ownership checks, fixed operator journals, explicit uncertain-create reconciliation and public-only key overlap. GET retries are bounded and honor provider waits; writes are not retried. Read-only and Apply source pins are enforced. Focused synthetic checks pass; no live tenant action or provider acceptance is claimed. The [operator procedure](../operations/auditsphere-entra-registration-automation.md) documents prerequisites and recovery. Permission/enrollment engineering is described above; live acceptance remains a separate leaf.
 
 ## Offline Microsoft 365 plan boundaries (2026-10-22)
 

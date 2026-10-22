@@ -20,10 +20,6 @@ if ($Unit -eq 'WU-018') {
   & (Join-Path $PSScriptRoot 'tests/Provision-EntraApps.Tests.ps1') -Offline
   exit $LASTEXITCODE
 }
-if ($Unit -eq 'WU-019') {
-  & (Join-Path $PSScriptRoot 'tests/Grant-TenantPermissions.Tests.ps1') -Offline
-  exit $LASTEXITCODE
-}
 
 $root = $PSScriptRoot
 $fixture = Join-Path $root 'tests/fixtures/plan.synthetic.json'

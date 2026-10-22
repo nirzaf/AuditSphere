@@ -293,6 +293,12 @@ try {
     Assert ((Get-M365SessionCookie $variable).StartsWith('.AspNetCore.Cookies=')) 'cookie-chunks-supported-without-token-output'
   } finally { [Environment]::SetEnvironmentVariable($variable, $null, 'Process') }
 
+  $configuredHttp = New-M365EnrollmentHttpClient
+  try {
+    Assert (-not $configuredHttp.Handler.AllowAutoRedirect -and -not $configuredHttp.Handler.UseCookies -and
+      $configuredHttp.Client.Timeout.TotalSeconds -eq 10 -and $configuredHttp.Client.MaxResponseContentBufferSize -eq 262144) 'live-adapter-never-follows-cookie-redirects-and-bounds-time-and-content'
+  } finally { $configuredHttp.Client.Dispose() }
+
   # Exercise the actual HTTP adapter with an in-memory handler, not a network or alternate verification mode.
   Add-Type -TypeDefinition @'
 using System;
@@ -307,11 +313,13 @@ public sealed class AuditSphereEnrollmentHttpProbe : HttpMessageHandler {
   public string Cookie = "";
   public string Method = "";
   public string Payload = "{}";
+  public string FinalUri = "";
   public HttpStatusCode Status = HttpStatusCode.OK;
   protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
     Calls++; Target = request.RequestUri.AbsoluteUri; Method = request.Method.Method;
     Cookie = string.Join(";", request.Headers.GetValues("Cookie"));
     var response = new HttpResponseMessage(Status) { Content = new StringContent(Payload, Encoding.UTF8, "application/json") };
+    response.RequestMessage = FinalUri == "" ? request : new HttpRequestMessage(HttpMethod.Get, FinalUri);
     response.Headers.Location = new Uri("https://unrelated.synthetic.test/");
     return Task.FromResult(response);
   }
@@ -334,12 +342,30 @@ public sealed class AuditSphereEnrollmentHttpProbe : HttpMessageHandler {
     Must-Refuse { & $http '/api/ui/administration/microsoft365/connect' } 'INVALID_OR_UNSAFE'
     Must-Refuse { New-M365EnrollmentTransport $client ([uri] 'http://auditsphere.synthetic.test') '.AspNetCore.Cookies=x' (Get-Command Invoke-M365ProviderRequest) } 'INVALID_OR_UNSAFE'
     Assert ($handler.Calls -eq $beforeCalls) 'unsupported-target-and-insecure-origin-never-dispatched'
+    $handler.Status = 200; $handler.FinalUri = 'https://unrelated.synthetic.test/api/ui/session'
+    Must-Refuse { & $http '/api/ui/session' } 'INVALID_OR_UNSAFE'
+    $handler.FinalUri = ''
     $handler.Status = 200; $handler.Payload = '<html>not consent evidence</html>'
     Must-Refuse { & $http '/api/ui/session' } 'INCOMPLETE_EVIDENCE'
     Set-M365OfflineMode $true; $beforeCalls = $handler.Calls
     Must-Refuse { & $http '/api/ui/session' } 'offline-network-call-refused'
     Assert ($handler.Calls -eq $beforeCalls) 'offline-guard-refuses-even-an-in-memory-http-dispatch'
   } finally { Set-M365OfflineMode $true; $client.Dispose() }
+
+  # Source/digest pin failures precede credential handling; the invalid bearer can never cause network access.
+  $variable = 'AUDITSPHERE_WU019_SOURCE_' + [guid]::NewGuid().ToString('N').ToUpperInvariant()
+  [Environment]::SetEnvironmentVariable($variable, 'Bearer synthetic-not-an-app-session', 'Process')
+  try {
+    $fixturePlan = Read-M365Plan (Join-Path $PSScriptRoot 'fixtures/plan.synthetic.json') (Join-Path $root 'm365-plan.schema.json')
+    foreach ($scenario in @('missingDigest','wrongSource')) {
+      $arguments = @(if ($scenario -eq 'wrongSource') { '-ExpectedPlanSha256'; (Get-M365PlanSha256 $fixturePlan) })
+      $output = Join-Path $work "enrollment-$scenario.json"
+      & pwsh -NoProfile -NonInteractive -File (Join-Path $root 'Test-TenantEnrollment.ps1') -PlanPath (Join-Path $PSScriptRoot 'fixtures/plan.synthetic.json') `
+        -Mode ReadOnly -SessionCookieEnvironmentVariable $variable -OutputPath $output @arguments | Out-Null
+      $code = $LASTEXITCODE; $envelope = Get-Content -Raw $output | ConvertFrom-Json -AsHashtable
+      Assert ($code -eq 4 -and $envelope.status -ceq 'INVALID_OR_UNSAFE' -and $envelope.networkCalls -eq 0) "enrollment-$scenario-before-credential-or-http"
+    }
+  } finally { [Environment]::SetEnvironmentVariable($variable, $null, 'Process') }
 
   # Signed approval validation for Grant-TenantPermissions
   $original = Read-M365Plan (Join-Path $PSScriptRoot 'fixtures/plan.synthetic.json') (Join-Path $root 'm365-plan.schema.json')
