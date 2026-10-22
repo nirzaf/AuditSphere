@@ -135,6 +135,8 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | --- | --- | --- |
 | ☑ Completed | Canonical Angular host and removal of the legacy Blazor host | Whole-application migration/parity acceptance remains partial. |
 | ☑ Completed | Sidebar expand/compact icon control beside the brand | Both states browser-checked; does not establish every responsive route. |
+| ☑ Completed | Consolidation journal row-removal focus recovery and responsive draft controls | Focused component checks and built-in-browser add/remove, keyboard focus and narrow layout passed; full consolidation acceptance remains open. |
+| ☑ Completed | Populated evidence-action preview and cancel keyboard flow | Built-in browser confirmed exact-context preview focus, fresh unchecked assent, disabled recording before assent and cancel returning focus. No human decision was recorded; unknown/stale journeys and human AT review remain separate gates. |
 | ☑ Completed | Work-queue prerequisite blocking/clearing and source/review context | Broader task graph and operational acceptance remain open. |
 | ☑ Completed | Required/Optional template-task designation projected from the exact pinned revision and step; manual tasks remain unlabeled | Informational display only; it does not gate task completion, lifecycle transitions or professional approval. Positive template-label rendering is covered by the focused Angular spec; the browser smoke check covered the manual-task state only. |
 | ☑ Completed | Atomic workflow dependency graph bounds | A 501-task plan and an attempt to add edge 4,001 to a 4,000-edge graph are refused atomically; a graph already holding 4,001 edges also refuses changes. Broader workflow acceptance and current-SHA full CI remain pending. |
@@ -149,6 +151,12 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | ☑ Completed | Exact-source certification rules, append-only persistence and Application review workspace | UI/API and staffing integration have focused checks; broader concurrency and current release acceptance remain open. |
 | ☑ Completed | Purchase-invoice AP-role preview recovery and supplier purchase/credit browser journey | Focused local journeys pass; full accounting acceptance and exact-SHA release verification remain separate gates. |
 | ☑ Completed | Saved Audit Plan milestones displayed beside the seven-phase engagement workflow | Focused Angular spec covers saved-plan dates; read-only browser confirmed the explicit empty state. Statutory cutoff legal validation and broad role/responsive acceptance remain open. |
+
+### Angular quality and accessibility follow-up
+
+| Checklist | Work item | Remaining acceptance |
+| --- | --- | --- |
+| ☐ Partially pending | Strict typing, bounded feature-state extraction, command lifetime guards, conventions and lean lint integration | Implementation and focused checks are recorded in the [evidence ledger](docs/execution/status.json). The [accessibility checklist](docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md) still requires remaining rendered workflow states, native browser zoom and knowledgeable human screen-reader evidence; current-source full CI remains a separate gate. |
 
 ### Available screens and feature roadmap
 

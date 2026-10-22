@@ -1200,10 +1200,10 @@
     "angularQuality20261022": {
       "result": "PARTIAL",
       "criteria": "AC01–08 pass; AC09 partial; CI pending.",
-      "fastCi": "39785601681 pending on e494d48d; 3d47f633 fast PASS.",
+      "fastCi": "39786007598 PASS (6e821503); latest pending.",
       "fullReleaseCi": "39785630053 pending on e494d48d.",
-      "browser": "Focus recovery PASS; staff/planning/consolidation/fieldwork partial; empty queues checked.",
-      "humanAT": "Owner approval recorded; actual AT/version/workflow details requested.",
+      "browser": "Journal focus/mobile and evidence preview/cancel PASS; full matrix partial.",
+      "humanAT": "Actual AT/version/workflow evidence not supplied.",
       "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFocusRecovery20261022"
     }
   },

@@ -15307,6 +15307,20 @@
           ],
           "browser": "NOT_VERIFIED: first disposable fixture expired before navigation; internal error page then blocked by Browser Use URL policy. No bypass attempted. User reports normal workspace still errors; screenshot requested. Local UI 4304 and API 5100 listening; workspace HTTP 200.",
           "scope": "Existing test exercises keyboard preview focus, cancel/return focus, fresh assent, delayed-preview focus ownership and zero reviewed-action dispatch. Does not replace human AT review."
+        },
+        "populatedEvidenceBrowser20261022": {
+          "source": "7a76b495; Angular production bundle built from same runtime source as e63b304f; .NET inputs unchanged since e494d48d",
+          "fixture": "Owned disposable AccountingAnalysisReviewSeed; ECL; staff identity; external effects disabled",
+          "observed": "Selected permitted existing reviewed result, entered synthetic rationale/reference, keyboard preview focused Review before dispatch. Assent initially unchecked and Record reviewed action disabled. Keyboard Cancel review removed preview and returned focus to Preview exact action. Normal back navigation displayed Unsubmitted edits; Discard edits and continue returned to exact evidence. No reviewed action dispatched. Temporary fixture tab closed after inspection.",
+          "screenshot": "/tmp/auditsphere-evidence-preview-cancel.png",
+          "test": "Passed: 1, Failed: 0, Skipped: 0; evidence-a11y-rendered.trx",
+          "remaining": "Unknown/stale states, human AT and native zoom not established by this flow."
+        },
+        "localWorkQueueRecovery20261022": {
+          "cause": "WorkflowExperience:Enabled false returned 403 for both local work queues",
+          "change": "Enabled only in local Test API process; no persisted or production config change",
+          "observed": "Built-in browser loaded synthetic task and empty review inbox; errors cleared; console errors empty",
+          "screenshot": "/tmp/auditsphere-work-queue-restored.png"
         }
       },
       "workflowHistory20261020": {
