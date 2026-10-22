@@ -93,9 +93,9 @@ public sealed class PracticeTimeStartMinuteApiTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       taskId = await CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId, f.EngagementId,
-        "Synthetic approval paging task");
+        "Synthetic approval paging task", f.Staff.Id);
       foreignTaskId = await CreateTaskAsync(db, PbcSeed.Actor(foreign.Admin, "Administrator"), foreign.ClientId,
-        foreign.EngagementId, "Synthetic foreign-firm paging task");
+        foreign.EngagementId, "Synthetic foreign-firm paging task", foreign.Staff.Id);
     }
 
     using var approverFactory = Factory(pg, f.Admin);
@@ -392,7 +392,8 @@ public sealed class PracticeTimeStartMinuteApiTests
     var f = await PbcSeed.SeedAsync(pg);
     Guid task;
     await using (var db = new AuditSphereDbContext(pg.Options))
-      task = await CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId, f.EngagementId, "Synthetic timer task");
+      task = await CreateTaskAsync(db, PbcSeed.Actor(f.Admin, "Administrator"), f.ClientId, f.EngagementId,
+        "Synthetic timer task", f.Staff.Id);
 
     using var factory = Factory(pg, f.Staff);
     using var staff = factory.CreateClient(new() { AllowAutoRedirect = false });
@@ -471,7 +472,7 @@ public sealed class PracticeTimeStartMinuteApiTests
     Guid task, siblingTask, foreignTask, closedTask;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      task = await CreateTaskAsync(db, admin, f.ClientId, f.EngagementId, "Synthetic scoped task");
+      task = await CreateTaskAsync(db, admin, f.ClientId, f.EngagementId, "Synthetic scoped task", f.Staff.Id);
       siblingTask = await CreateTaskAsync(db, admin, siblingClientId, siblingEngagementId, "Synthetic sibling-client task");
       foreignTask = await CreateTaskAsync(db, PbcSeed.Actor(foreign.Admin, "Administrator"), foreign.ClientId, foreign.EngagementId,
         "Synthetic foreign-firm task");
@@ -656,7 +657,7 @@ public sealed class PracticeTimeStartMinuteApiTests
     var adminCsrf = await SignIn(admin);
     var staffCsrf = await SignIn(staff);
     await SignIn(stranger);
-    var task = await CreatedTaskAsync(admin, adminCsrf, new { title = "Synthetic reviewed time", engagementId = f.EngagementId });
+    var task = await CreatedTaskAsync(staff, staffCsrf, new { title = "Synthetic reviewed time", engagementId = f.EngagementId });
     var entry = await CreatedAsync(staff, staffCsrf, Draft(task, 600, 30));
     await AssertOkAsync(staff, staffCsrf, $"{EntriesPath}/{entry}/submit");
     using (var returned = await Post(admin, adminCsrf, $"{EntriesPath}/{entry}/return", new { reason = "Explain the retained workpaper effort." }))
@@ -801,9 +802,11 @@ public sealed class PracticeTimeStartMinuteApiTests
     return row.GetProperty("startMinute").GetInt32();
   }
 
-  private static async Task<Guid> CreateTaskAsync(AuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, string title)
+  private static async Task<Guid> CreateTaskAsync(AuditSphereDbContext db, ActorContext actor, Guid clientId,
+    Guid engagementId, string title, Guid? assigneeUserId = null)
   {
-    var created = await PracticeTimeService.CreateTaskAsync(db, actor, new CreateTaskRequest(title, clientId, engagementId));
+    var created = await PracticeTimeService.CreateTaskAsync(db, actor,
+      new CreateTaskRequest(title, clientId, engagementId, assigneeUserId));
     Assert.True(created.Succeeded, created.Message);
     return created.Value;
   }

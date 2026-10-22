@@ -854,6 +854,15 @@ public sealed class ConsolidationWorkspaceApiTests
         Status = AccountingWorkflowStates.Approved, CreatedAt = DateTimeOffset.UtcNow
       });
 
+      var periodId = Guid.CreateVersion7();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = seed.FirmId, ClientId = seed.ClientId, PeriodCode = "FY2026",
+        StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
+        Basis = "ANNUAL", Currency = "QAR", Status = AccountingWorkflowStates.Active,
+        CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+
       // Role grants: seed.Staff has Preparer on Group; reviewer has Reviewer on Group
       db.GroupAccessGrants.Add(new GroupAccessGrant
       {
@@ -885,7 +894,7 @@ public sealed class ConsolidationWorkspaceApiTests
       var scope = new ConsolidationScopeVersion
       {
         Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = group.Id,
-        PeriodId = Guid.NewGuid(), Method = ConsolidationCalculator.RestrictedMethod,
+        PeriodId = periodId, Method = ConsolidationCalculator.RestrictedMethod,
         ReportingCurrency = "QAR", Status = AccountingWorkflowStates.Draft,
         OpeningBasis = "OPENING_BALANCE",
         CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow,
