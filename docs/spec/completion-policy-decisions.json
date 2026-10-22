@@ -265,6 +265,19 @@
       "consequence": "Blocks professional acceptance of WU-012 only; deterministic arithmetic, precision, review independence and stale-source denial proceed."
     },
     {
+      "decisionId": "POLICY-ALLOCATION-EFFECTIVE-DATE",
+      "title": "Economic effective date for native AR/AP allocations and reversals versus approval date",
+      "ownerRole": "Qualified accountant / engagement Partner",
+      "scope": "native client open-item ageing at a historical cutoff",
+      "effectiveFrom": null,
+      "evidenceReference": "src/AuditSphereOps.Application/Accounting/ClientOpenItemAllocationWorkflow.cs",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-006"
+      ],
+      "consequence": "Ageing stays labelled CURRENT_APPROVED_ALLOCATIONS_NO_SEPARATE_EFFECTIVE_DATE; no effective date is inferred and refusing past cutoffs (which changes period-end ageing) waits for this decision."
+    },
+    {
       "decisionId": "D1",
       "title": "Terminal audit-procedure prerequisite stage policy (PRE_SIGN/POST_SIGN/PRE_RELEASE/FINAL_CLOSE)",
       "ownerRole": "Audit Partner / quality-management owner",
