@@ -143,6 +143,7 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | --- | --- | --- |
 | ☑ Completed | Canonical Angular host and removal of the legacy Blazor host | Whole-application migration/parity acceptance remains partial. |
 | ☑ Completed | Sidebar expand/compact icon control beside the brand | Both states browser-checked; does not establish every responsive route. |
+| ☑ Completed | Client mobile shell navigation on a populated synthetic document request | Keyboard open, focus wrapping and Escape close checked at narrow width; staff links absent from client navigation. This does not establish server isolation or replace human screen-reader/native zoom review. |
 | ☑ Completed | Consolidation journal row-removal focus recovery and responsive draft controls | Focused component checks and built-in-browser add/remove, keyboard focus and narrow layout passed; full consolidation acceptance remains open. |
 | ☑ Completed | Populated evidence-action preview and cancel keyboard flow | Built-in browser confirmed exact-context preview focus, fresh unchecked assent, disabled recording before assent and cancel returning focus. No human decision was recorded; unknown/stale journeys and human AT review remain separate gates. |
 | ☑ Completed | Adjustment-journal preview keyboard focus | Invalid and valid previews receive focus; delayed previews respect later user focus. Focused component, existing recovery journey and built-in-browser checks passed. Human AT/native zoom and broader rendered state coverage remain open. |

@@ -15341,6 +15341,15 @@
             "screenshot": "/tmp/auditsphere-journal-preview-focus-fixed.png"
           },
           "remaining": "Full current-source CI and remaining rendered/human AT/native zoom matrix open."
+        },
+        "clientShellRendered20261022": {
+          "source": "2302a06a1acd43aec7a58f763ee4460deaa95314",
+          "fixture": "Existing owned synthetic client portal upload-recovery fixture; no live provider",
+          "test": "AngularClientPortalUploadRecoveryJourneyTests.LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt; Passed: 1, Failed: 0, Skipped: 0; /tmp/auditsphere-client-a11y-20261022/client-shell-a11y.trx",
+          "browser": "Populated request and retained transfer receipt displayed without false provider completion. At 390px viewport, page width 375px. Keyboard Enter opened navigation and focused Close navigation; Shift+Tab wrapped to Client portal; Escape closed dialog; saved screenshot shows navigation trigger focus ring. No staff links in client nav. No client upload, delegation or reply dispatched from built-in browser.",
+          "screenshot": "/tmp/auditsphere-client-mobile-a11y.png",
+          "cleanup": "Viewport reset; temporary fixture tab closed; owned fixture released.",
+          "limits": "Navigation presentation is not server authorization proof; native zoom, human AT and complete client-state matrix remain open."
         }
       },
       "workflowHistory20261020": {
