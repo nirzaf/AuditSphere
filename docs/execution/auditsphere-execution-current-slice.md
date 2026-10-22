@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Client-site current-authority and recovery fences (2026-10-23)
+
+The existing isolated provider checks current staff/administrator/connection authority and durable ownership before writes and receipt return. Publication binds to the authorized staff-set digest. Proven pre-write failures retain recoverability; possible writes preserve the creation fence. Pending creation polls only the original URL within a bounded window. Focused PostgreSQL/provider tests pass, including uncertain reconciliation in its actual `VERIFYING` claim state. Evidence and counts: `clientSiteAuthorityFence` in `status.json`. WU-021 remains partial: the authenticated terminal intent/status adapter and managed-only residual-access evidence are still pending. A concurrent second PowerShell provider draft is unaccepted and must use the existing Application/worker path. No live effects were performed.
+
 ## Development feedback workflow (2026-10-23)
 
 [Debug watch guide](../../src/AuditSphereOps.Ui/auditsphere-angular-development.md#fast-backend-development-loop): scoped launcher, focused checks and synthetic hot-reload/restart pass. Warm compilation skips; SHA changes rebuild assemblies. Evidence: `developmentFeedback20261023` in [status.json](status.json). Configured startup fails the identity-split guard; database readiness, authenticated/CSRF, cold-cache and frontend timing acceptance remain open. No overall speedup claimed.

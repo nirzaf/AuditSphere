@@ -60,6 +60,9 @@ internal sealed class SharePointProvisioningTokenSource(HttpClient http, ClientS
 public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
 {
   private readonly AsyncLocal<Guid?> clientCorrelation = new();
+  private readonly AsyncLocal<Func<CancellationToken, Task>?> authorizationGuard = new();
+  private sealed class EffectProgress { public bool Dispatched; }
+  private readonly AsyncLocal<EffectProgress?> effectProgress = new();
   private readonly HttpClient http;
   private readonly ClientSiteProviderOptions options;
   private readonly SharePointProvisioningTokenSource sharePointTokens;
@@ -80,6 +83,8 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
   public async Task<ClientSiteReceipt> ReconcileAsync(ClientSiteRequest request, bool mayCreate, CancellationToken ct)
   {
     clientCorrelation.Value = request.CorrelationId ?? Guid.NewGuid();
+    authorizationGuard.Value = request.RecheckAuthorization;
+    effectProgress.Value = new();
     Uri uri;
     string sp, graph, directory, owner;
     Reply status;
@@ -87,6 +92,9 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
     var mutations = new List<ClientSiteMutation>();
     try
     {
+      if (authorizationGuard.Value is null)
+        throw new OperationBlockedException("client-site-authorization-guard-required", authorization: true);
+      await authorizationGuard.Value(ct);
       uri = ValidateRequest(request);
       sp = await sharePointTokens.GetAsync(ct);
       graph = (await graphTokens.GetAsync(request.TenantId, ct)).AccessToken;
@@ -110,6 +118,14 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
           WebTemplate = "STS#3", Owner = owner } }, ct);
       siteStatus = created.Json.GetProperty("SiteStatus").GetInt32();
       mutations.Add(new("CLIENT_SITE_CREATED", request.ClientId.ToString("D"), "NONE", "CREATED", created.Correlation));
+    }
+    // Poll only the original deterministic URL. A pending/unknown create never starts a
+    // second create; after this bounded observation window the durable owner reconciles it.
+    for (var poll = 0; siteStatus == 1 && poll < 3; poll++)
+    {
+      await Task.Delay(TimeSpan.FromMilliseconds(250), ct);
+      status = await CallAsync(HttpMethod.Get, manager + "/status?url='" + Uri.EscapeDataString(request.Url) + "'", sp, null, ct);
+      siteStatus = status.Json.GetProperty("SiteStatus").GetInt32();
     }
     if (siteStatus == 1) throw new InvalidOperationException("client-site-provisioning-pending");
     if (siteStatus is not (2 or 4)) throw new OperationBlockedException("client-site-provisioning-failed");
@@ -211,6 +227,7 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
     if (final.Any(m => !desired.ContainsKey(m.GetProperty("LoginName").GetString()!)))
       throw new OperationBlockedException("client-site-staff-removal-not-verified");
     var observed = final.Select(m => desired[m.GetProperty("LoginName").GetString()!]).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    await authorizationGuard.Value(ct);
     return new(request.TenantId, request.Url, request.OwnershipMarker, siteId, driveId,
       root.Json.GetProperty("id").GetString()!, groupId.ToString(System.Globalization.CultureInfo.InvariantCulture), observed, web.Correlation, mutations);
   }
@@ -264,6 +281,17 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
   private sealed record Reply(JsonElement Json, string? Correlation, bool Missing = false);
   private async Task<Reply> CallAsync(HttpMethod method, string url, string token, object? body, CancellationToken ct, bool allowMissing = false)
   {
+    if (method != HttpMethod.Get)
+    {
+      var guard = authorizationGuard.Value ?? throw new OperationBlockedException("client-site-authorization-guard-required", authorization: true);
+      try { await guard(ct); }
+      catch (OperationBlockedException failure) when (effectProgress.Value is { Dispatched: false })
+      {
+        // The current request has not dispatched any provider write. Preserve recoverability
+        // without claiming that a failed/unknown previous write was unapplied.
+        throw new ClientSitePreflightException(false, failure.Authorization);
+      }
+    }
     using var request = new HttpRequestMessage(method, url);
     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
     request.Headers.Accept.ParseAdd(new Uri(url).Host == "graph.microsoft.com" ? "application/json" : "application/json;odata=nometadata");
@@ -273,6 +301,7 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
       request.Content = JsonContent.Create(body, options: new JsonSerializerOptions { PropertyNamingPolicy = null });
       if (new Uri(url).Host != "graph.microsoft.com") request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse("application/json;odata=nometadata");
     }
+    if (method != HttpMethod.Get) effectProgress.Value!.Dispatched = true;
     using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
     if (allowMissing && response.StatusCode == HttpStatusCode.NotFound) return new(default, null, true);
     if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)

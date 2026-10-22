@@ -64,6 +64,7 @@ Native R2R lifecycle under [`docs/task_breakdown`](docs/task_breakdown/auditsphe
 | Checklist | Capability | Status |
 |---|---|---|
 | [x] | Selected document-site grant reconciliation and separate certificate runtime probe | Implemented; focused offline checks passed |
+| [ ] | Client-site terminal intent/status adapter and managed staff reconciliation | Partially pending; existing worker authority and receipt fences strengthened |
 | [ ] | Real tenant positive reads, unrelated-site denial and protected credential custody | Pending external acceptance; simulations do not establish this |
 
 Operator steps: [Entra and selected-resource automation](docs/operations/auditsphere-entra-registration-automation.md). Exact verification evidence: [execution status](docs/execution/status.json).

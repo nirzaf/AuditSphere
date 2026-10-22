@@ -45,7 +45,9 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
   }
   private sealed class Remote(ClientSiteProviderOptions options) : HttpMessageHandler
   {
-    public int CreateCount;
+    public int CreateCount, MutationCount, StatusReads;
+    public readonly Queue<int> StatusSequence = new();
+    public bool PendingCreate;
     public string? Marker;
     public bool GroupExists, GroupRole, GrantExists, DisabledStaff, WrongObjectId, LostCreate, Throttle, WrongPage;
     public bool TooBroadWorkerGrant;
@@ -58,11 +60,16 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage message, CancellationToken ct)
     {
       var url = message.RequestUri!.AbsoluteUri;
+      if (message.Method != HttpMethod.Get) MutationCount++;
       Assert.NotNull(message.Headers.Authorization);
       var body = message.Content == null ? null : await message.Content.ReadAsStringAsync(ct);
       if (body != null) Bodies.Add(body);
       if (Throttle) { Throttle = false; return Json(new { }, HttpStatusCode.TooManyRequests); }
-      if (url.Contains("SPSiteManager/status", StringComparison.Ordinal)) return Json(new { SiteStatus = Marker == null ? 0 : 2 });
+      if (url.Contains("SPSiteManager/status", StringComparison.Ordinal))
+      {
+        StatusReads++;
+        return Json(new { SiteStatus = StatusSequence.Count > 0 ? StatusSequence.Dequeue() : Marker == null ? 0 : 2 });
+      }
       if (url.Contains("SPSiteManager/create", StringComparison.Ordinal))
       {
         using var json = JsonDocument.Parse(body!); var request = json.RootElement.GetProperty("request");
@@ -70,7 +77,7 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
         Assert.False(request.GetProperty("ShareByEmailEnabled").GetBoolean());
         Marker = request.GetProperty("Description").GetString(); siteUrl = request.GetProperty("Url").GetString()!; CreateCount++;
         if (LostCreate) { LostCreate = false; throw new HttpRequestException("accepted response lost"); }
-        return Json(new { SiteStatus = 2 });
+        return Json(new { SiteStatus = PendingCreate ? 1 : 2 });
       }
       if (url.Contains("/v1.0/users/", StringComparison.Ordinal))
       {
@@ -135,7 +142,72 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
   {
     var firm = Guid.NewGuid(); var client = Guid.NewGuid();
     return new(firm, client, Tenant, $"https://{Host}/sites/{ClientSharePointSites.SiteSlug("Example Client", client)}", "Example Client",
-      $"AuditSphere:{firm:D}:{client:D}", null, [Guid.NewGuid().ToString("D")]);
+      $"AuditSphere:{firm:D}:{client:D}", null, [Guid.NewGuid().ToString("D")], RecheckAuthorization: _ => Task.CompletedTask);
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task PendingCreationPollsOriginalUrlWithinBound_WithoutAnotherCreate(bool remainsPending)
+  {
+    var remote = new Remote(options) { PendingCreate = true };
+    foreach (var state in remainsPending ? new[] { 0, 1, 1, 1 } : new[] { 0, 1, 2 }) remote.StatusSequence.Enqueue(state);
+    var provider = Provider(remote); var request = Request();
+    if (remainsPending)
+    {
+      var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => provider.ReconcileAsync(request, true, default));
+      Assert.Equal("client-site-provisioning-pending", failure.Message);
+      Assert.Equal(4, remote.StatusReads);
+      Assert.False(remote.GrantExists);
+      // The durable reconciliation path can observe the original completed create.
+      await provider.ReconcileAsync(request, false, default);
+    }
+    else
+    {
+      await provider.ReconcileAsync(request, true, default);
+      Assert.Equal(3, remote.StatusReads);
+    }
+    Assert.Equal(1, remote.CreateCount);
+  }
+
+  [Fact]
+  public async Task CurrentAuthorizationIsRequiredBeforeEveryWriteAndBeforeReceipt()
+  {
+    var remote = new Remote(options); var provider = Provider(remote);
+    var calls = 0;
+    var request = Request() with { RecheckAuthorization = _ =>
+    {
+      calls++;
+      // Initial authority and creation dispatch pass; the next write must observe revocation.
+      if (calls >= 3) throw new OperationBlockedException("test-assignment-revoked", authorization: true);
+      return Task.CompletedTask;
+    } };
+    var error = await Assert.ThrowsAsync<OperationBlockedException>(() => provider.ReconcileAsync(request, true, default));
+    Assert.Equal("test-assignment-revoked", error.Code);
+    Assert.Equal(1, remote.CreateCount);
+    Assert.False(remote.GrantExists);
+    Assert.False(remote.GroupExists);
+    Assert.Empty(remote.Members);
+
+    var noGuard = new Remote(options);
+    Assert.True((await Assert.ThrowsAsync<ClientSitePreflightException>(() => Provider(noGuard).ReconcileAsync(Request() with { RecheckAuthorization = null }, true, default))).Authorization);
+    Assert.Equal(0, noGuard.CreateCount);
+    var preWrite = new Remote(options); var guardCalls = 0;
+    var earlyRevocation = Request() with { RecheckAuthorization = _ =>
+    {
+      if (++guardCalls == 2) throw new OperationBlockedException("revoked-before-create", authorization: true);
+      return Task.CompletedTask;
+    } };
+    Assert.True((await Assert.ThrowsAsync<ClientSitePreflightException>(() => Provider(preWrite).ReconcileAsync(earlyRevocation, true, default))).Authorization);
+    Assert.Equal(0, preWrite.MutationCount);
+    Assert.Equal(0, preWrite.CreateCount);
+
+
+    var completed = new Remote(options); calls = 0;
+    var receipt = await Provider(completed).ReconcileAsync(Request() with { RecheckAuthorization = _ => { calls++; return Task.CompletedTask; } }, true, default);
+    Assert.NotEmpty(receipt.MemberObjectIds);
+    // The guard surrounds the sequence: initial check, every non-GET dispatch, and final receipt.
+    Assert.Equal(completed.MutationCount + 2, calls);
   }
 
   [Fact]

@@ -17,9 +17,12 @@ public sealed class ClientSharePointSitesTests
     public readonly Dictionary<Guid, ClientSiteReceipt> Sites = [];
     public readonly List<(Guid Client, bool Create)> Calls = [];
     public bool LoseNextResponse, WrongTenant;
-    public Task<ClientSiteReceipt> ReconcileAsync(ClientSiteRequest r, bool mayCreate, CancellationToken ct)
+    public Func<ClientSiteRequest, Task>? BeforeReturn;
+    public Guid? RejectBeforeWriteClient;
+    public async Task<ClientSiteReceipt> ReconcileAsync(ClientSiteRequest r, bool mayCreate, CancellationToken ct)
     {
       Calls.Add((r.ClientId, mayCreate));
+      if (r.ClientId == RejectBeforeWriteClient) throw new ClientSitePreflightException(false, authorization: true);
       if (!Sites.TryGetValue(r.ClientId, out var site))
       {
         if (!mayCreate) throw new OperationBlockedException("unknown-site-needs-review");
@@ -29,7 +32,8 @@ public sealed class ClientSharePointSitesTests
       site = site with { MemberObjectIds = r.StaffObjectIds, TenantId = WrongTenant ? Guid.NewGuid().ToString("D") : r.TenantId };
       Sites[r.ClientId] = site;
       if (LoseNextResponse) { LoseNextResponse = false; throw new HttpRequestException("fake accepted then disconnected"); }
-      return Task.FromResult(site);
+      if (BeforeReturn is not null) await BeforeReturn(r);
+      return site;
     }
   }
   private sealed record Rig(P2PbcHarness H, FakeSites Provider, ClientSharePointSiteHandler Handler, ClientSharePointSiteDiscovery Discovery,
@@ -113,6 +117,48 @@ public sealed class ClientSharePointSitesTests
     Assert.True(await db.Microsoft365AdministrationEvents.AnyAsync(x => x.Operation == "CLIENT_SITE_STAFF_ACCESS" && x.NewState == "FULL_CONTROL"));
     Assert.All(await db.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync(), o =>
       Assert.DoesNotContain("access_token", o.ResultIdentity ?? "", StringComparison.OrdinalIgnoreCase));
+  }
+
+  [Fact]
+  public async Task PreflightAuthorizationFailure_DoesNotConsumeCreateFence()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    rig.Provider.RejectBeforeWriteClient = rig.H.A.ClientId;
+    Assert.Equal(2, await rig.Discovery.EnqueuePendingAsync(default));
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    await using var verify = rig.H.Db();
+    var site = await verify.ClientSharePointSites.SingleAsync(x => x.ClientId == rig.H.A.ClientId);
+    Assert.Null(site.CreationDispatchedAt);
+    Assert.Null(site.VerifiedAt);
+    Assert.DoesNotContain(rig.H.A.ClientId, rig.Provider.Sites.Keys);
+    var operation = await verify.DurableOperations.SingleAsync(x => x.TargetId == rig.H.A.ClientId && x.OperationKind == ClientSharePointSiteHandler.Kind);
+    Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+    Assert.False(operation.IsReconciliation);
+  }
+
+  [Fact]
+  public async Task AssignmentsRevokedDuringProviderEffect_CannotPublishReadyReceipt()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    rig.Provider.BeforeReturn = async request =>
+    {
+      if (request.ClientId != rig.H.A.ClientId) return;
+      await using var changed = rig.H.Db();
+      var grant = await changed.RoleGrants.SingleAsync(x => x.UserId == rig.H.A.Staff.Id && x.EngagementId == rig.H.A.EngagementId && x.Role == "Staff");
+      grant.RevokedAt = DateTimeOffset.UtcNow;
+      await changed.SaveChangesAsync();
+    };
+    Assert.Equal(2, await rig.Discovery.EnqueuePendingAsync(default));
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    await using var verify = rig.H.Db();
+    var site = await verify.ClientSharePointSites.SingleAsync(x => x.ClientId == rig.H.A.ClientId);
+    Assert.NotEqual("READY", site.State);
+    Assert.Null(site.VerifiedAt);
+    var operation = await verify.DurableOperations.SingleAsync(x => x.TargetId == rig.H.A.ClientId && x.OperationKind == ClientSharePointSiteHandler.Kind);
+    Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+    // The durable dispatcher deliberately persists an allowlisted classification.
+    Assert.Equal("authorization-blocked", operation.ErrorCode);
+    Assert.Null(operation.ResultIdentity);
   }
 
   [Fact]
@@ -238,6 +284,10 @@ public sealed class ClientSharePointSitesTests
     var client = rig.Provider.Calls[0].Client;
     Assert.Equal([true, false], rig.Provider.Calls.Where(x => x.Client == client).Select(x => x.Create));
     Assert.Equal(2, rig.Provider.Sites.Count);
+    await using var verify = rig.H.Db();
+    Assert.All(await verify.ClientSharePointSites.ToListAsync(), site => Assert.Equal("READY", site.State));
+    Assert.All(await verify.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync(),
+      operation => Assert.Equal(OperationState.COMPLETED, operation.Status));
   }
 
   [Theory]

@@ -1078,7 +1078,16 @@
         "42 command endpoints map scope.denied to 400 (WU-015)",
         "63 single-column scoped keys not probed for lack of seeded rows (WU-015)",
         "Browser journeys missing for parity rows T008-T010,T016,T025,T026,T028 (WU-028/WU-032)"
-      ]
+      ],
+      "clientSiteAuthorityFence": {
+        "implementation": "PARTIAL",
+        "scope": "WU-021 existing provider/handler safety and recovery slice",
+        "checks": "18 focused .NET tests passed, zero failures/skips: SharePointClientSiteProviderTests and four selected ClientSharePointSitesTests. Release dependencies compiled. Documentation validators and diff check passed. No full local suites.",
+        "review": "Per-write current administrator/connection/assignment and lease guard; final staff-digest publication fence; proven-preflight-only create rearm; VERIFYING reconciliation accepted; bounded original-URL polling.",
+        "evidence": ".local/autonomous/evidence/wu021-authority-final-source/wu021-authority.trx",
+        "ci": "Prior source 573808a0 FAST_CI_PASS (39869037664); this backend slice requires new CI. Current-source full release NOT_RUN.",
+        "remaining": "WU-021 CLI/API intent adapter and residual/managed-membership evidence remain pending; concurrent PowerShell provider duplication is unaccepted. No live tenant changes."
+      }
     },
     "developmentFeedback20261023": {
       "status": "PARTIALLY_VERIFIED",

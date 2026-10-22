@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Operations;
@@ -13,10 +14,11 @@ namespace AuditSphereOps.Application.Documents;
 public sealed record ClientSitePolicy(bool Enabled, string TenantId, string SiteHost, Guid AdministratorUserId, DateTimeOffset? ClientsCreatedAfter = null);
 public sealed record ClientSiteRolloutPolicy(bool Enabled, DateTimeOffset? ClientsCreatedAfter, bool BoundaryInvalid = false);
 public sealed record ClientSiteRequest(Guid FirmId, Guid ClientId, string TenantId, string Url, string Title, string OwnershipMarker,
-  string? KnownSiteId, IReadOnlyList<string> StaffObjectIds, Guid? CorrelationId = null);
+  string? KnownSiteId, IReadOnlyList<string> StaffObjectIds, Guid? CorrelationId = null,
+  [property: JsonIgnore] Func<CancellationToken, Task>? RecheckAuthorization = null);
 public sealed record ClientSiteMutation(string Operation, string Target, string OldState, string NewState, string? CorrelationId);
 public sealed record ClientSiteReceipt(string TenantId, string Url, string OwnershipMarker, string SiteId, string DriveId,
-  string RootItemId, string StaffGroupId, IReadOnlyList<string> MemberObjectIds, string? CorrelationId, IReadOnlyList<ClientSiteMutation>? Mutations = null);
+  string RootItemId, string StaffGroupId, IReadOnlyList<string> MemberObjectIds, string? CorrelationId, IReadOnlyList<ClientSiteMutation>? Mutations = null, string? AuthorizedStaffDigest = null);
 
 /// <summary>Privileged site calls live only in Infrastructure and the isolated client-sites worker.</summary>
 public sealed class ClientSitePreflightException(bool retryable, bool authorization = false) : Exception("client-site-preflight")
@@ -121,11 +123,32 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
     var allowCreate = mayCreate && site.State == "REQUESTED" && site.CreationOperationId == op.Id && site.CreationDispatchedAt == null;
     if (allowCreate) { site.CreationDispatchedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(ct); }
     await tx.CommitAsync(ct); // Durable creation fence survives timeouts, cancellation and operator re-arming.
+    // A provider call can span many remote writes. Re-read current authority and the exact
+    // assignment set before each effect, rather than treating the initial snapshot as a lease.
+    async Task RecheckAuthorizationAsync(CancellationToken token)
+    {
+      await using var current = await factory.CreateAsync(token);
+      await ClientSharePointSites.AdministratorAsync(current, op.FirmId, site.RequestedByUserId, token);
+      var owned = await current.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == op.Id && x.FirmId == op.FirmId, token);
+      var activeState = op.IsReconciliation ? owned.Status == OperationState.VERIFYING : owned.Status == OperationState.REMOTE_STARTED;
+      if (!activeState ||
+          owned.AttemptToken != op.AttemptToken || owned.LeaseOwner != op.LeaseOwner ||
+          owned.LeaseExpiresAt is null || owned.LeaseExpiresAt <= DateTimeOffset.UtcNow)
+        throw new OperationOwnershipLostException();
+      if (!await current.Microsoft365ConnectionRevisions.AsNoTracking().AnyAsync(x => x.Id == site.ConnectionRevisionId &&
+          x.FirmId == op.FirmId && x.TenantId == site.TenantId && x.State == Microsoft365RevisionStates.Active && x.ConsentState == "VERIFIED", token) ||
+          !desired.SequenceEqual(await ClientSharePointSites.DesiredStaffAsync(current, op.FirmId, site.ClientId, site.TenantId, token)))
+        throw new OperationBlockedException("client-site-assignments-or-connection-changed", authorization: true);
+    }
     ClientSiteReceipt receipt;
     try
     {
+      try { await RecheckAuthorizationAsync(ct); }
+      catch (OperationBlockedException failure) { throw new ClientSitePreflightException(false, failure.Authorization); }
       receipt = await provider.ReconcileAsync(new(op.FirmId, site.ClientId, site.TenantId, site.RequestedUrl, site.Title,
-        site.OwnershipMarker, site.SiteId, desired, op.CorrelationId), allowCreate, ct);
+        site.OwnershipMarker, site.SiteId, desired, op.CorrelationId, RecheckAuthorizationAsync), allowCreate, ct);
+      await RecheckAuthorizationAsync(ct);
+      receipt = receipt with { AuthorizedStaffDigest = ClientSharePointSites.Digest(desired) };
     }
     catch (ClientSitePreflightException failure)
     {
@@ -150,6 +173,10 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
     var site = await db.ClientSharePointSites.SingleAsync(x => x.FirmId == op.FirmId && x.ClientId == op.TargetId, ct);
     var actor = await ClientSharePointSites.AdministratorAsync(db, op.FirmId, site.RequestedByUserId, ct);
     var desired = await ClientSharePointSites.DesiredStaffAsync(db, op.FirmId, site.ClientId, site.TenantId, ct);
+    // Publication must not certify a receipt produced for a superseded assignment set.
+    // Legacy/unknown receipts without this binding must reconcile through the existing owner.
+    if (receipt.AuthorizedStaffDigest != ClientSharePointSites.Digest(desired))
+      throw new OperationBlockedException("client-site-assignment-receipt-stale", authorization: true);
     if (receipt.TenantId != site.TenantId || receipt.Url != site.RequestedUrl || receipt.OwnershipMarker != site.OwnershipMarker ||
         string.IsNullOrWhiteSpace(receipt.SiteId) || string.IsNullOrWhiteSpace(receipt.DriveId) || string.IsNullOrWhiteSpace(receipt.RootItemId) ||
         string.IsNullOrWhiteSpace(receipt.StaffGroupId) || site.SiteId != null && site.SiteId != receipt.SiteId ||

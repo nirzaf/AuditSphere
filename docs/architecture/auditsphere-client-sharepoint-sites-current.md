@@ -45,6 +45,28 @@ Required worker configuration:
 
 The worker service starts with the standard Compose stack and keeps reporting readiness. Missing certificate files, consent, the explicit boundary, or resource configuration remain visible as blocked/pending in Administration; they do not report success or enqueue a site. Its provisioning certificate and the separate User.Read.All directory-reader certificate are mounted read-only from separate host subdirectories. Neither is mounted in the API or PBC worker. Keep the `pbc` worker on its existing certificate and credential reference. Verify the client site's READY state, separate staff membership state, document-worker exact write grant, and existing disposable upload/readback evidence before testing a real upload. The console or an Operations row alone is not proof of Microsoft acceptance.
 
+## Current-authority and provider-outcome fences
+
+The existing isolated provider rechecks the operation lease, current approving
+administrator, active consented connection and exact authorized staff set before
+each remote write and before returning its receipt. Publication binds the receipt
+to that same staff-set digest. Revocation or a changed assignment set blocks
+further writes and prevents a stale `READY` publication. This cannot retract a
+request Microsoft already accepted; recover that original durable operation.
+Legacy unpublished receipts without the binding require reconciliation rather
+than being promoted as current evidence. Existing completed evidence is retained.
+
+SPSiteManager pending creation is observed with a bounded poll of the original
+deterministic URL. Exhausting the window retains the creation fence and passes
+recovery to the existing durable reconciliation path; it never starts another
+create. Only a proven preflight failure before any provider write may clear the
+creation-dispatch fence. Authorization failure after any possible write does not
+clear it. Protected key custody and real tenant acceptance remain operator gates.
+
+The terminal intent/status adapter is still pending engineering. Do not replace
+this worker path with a second PowerShell SPSiteManager or membership writer,
+and do not use the shared PBC-workspace provisioning route as a client-site intent.
+
 Administration → Microsoft 365 → Client and engagement workspaces shows the policy flag, configured and persisted boundary, eligible and outside-rollout counts, tenant consent, worker heartbeat/readiness, latest successful site permission verification, per-client URL and state, staff membership reconciliation, durable operation state and allowlisted error code. Use Operations to review or recover durable work; uncertain creates must be reconciled, never replaced with a second create.
 
 Unknown or blocked operations are reviewed in Administration → Operations. Re-arming never clears the persisted creation-dispatch fence. If Microsoft cannot find a site after an uncertain create, it stays blocked for human investigation; do not cancel and issue another create to bypass reconciliation. The site URL/ownership marker and immutable Microsoft site ID must be checked against the approved client before any manual remediation.
