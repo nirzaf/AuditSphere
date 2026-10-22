@@ -114,7 +114,8 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     await page.Locator("h1").First.WaitForAsync(new() { Timeout = 15000 });
     string[] portalRoutes = ["/portal", $"/portal/requests/{host.RequestId:D}"];
     var before = new Dictionary<string, string>();
-    foreach (var route in portalRoutes) before[route] = await SnapshotAsync(page, origin + route);
+    foreach (var route in portalRoutes)
+      before[route] = route == "/portal" ? await PortalHomeSnapshotAsync(page, origin + route) : await SnapshotAsync(page, origin + route);
 
     var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, Marker);
     try
@@ -122,9 +123,15 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       var leaks = new List<string>();
       foreach (var route in portalRoutes)
       {
-        var after = await SnapshotAsync(page, origin + route);
+        var after = route == "/portal" ? await PortalHomeSnapshotAsync(page, origin + route) : await SnapshotAsync(page, origin + route);
         if (after.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{route}: sibling marker rendered");
-        else if (after != before[route]) leaks.Add($"{route}: rendered text changed\n  before: {Excerpt(before[route], after)}\n  after:  {Excerpt(after, before[route])}");
+        else
+        {
+          var beforeForComparison = route == "/portal" ? PortalSnapshotCutoff().Replace(before[route], "{cutoff}") : before[route];
+          var afterForComparison = route == "/portal" ? PortalSnapshotCutoff().Replace(after, "{cutoff}") : after;
+          if (afterForComparison != beforeForComparison)
+            leaks.Add($"{route}: rendered text changed\n  before: {Excerpt(beforeForComparison, afterForComparison)}\n  after:  {Excerpt(afterForComparison, beforeForComparison)}");
+        }
       }
       await CompareDetailRoutesAsync(page, origin,
         [$"/portal/requests/{sibling.PbcRequestId:D}", $"/portal/accounting/packages/{sibling.PackageId:D}"],
@@ -344,6 +351,15 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     return await SettleAsync(page);
   }
 
+  /// <summary>Wait for the portal's asynchronously loaded client activity before taking a home-page snapshot.</summary>
+  private static async Task<string> PortalHomeSnapshotAsync(IPage page, string url)
+  {
+    await page.GotoAsync(url);
+    await page.GetByText("Event timestamp cutoff:", new() { Exact = false })
+      .WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
+    return await SettleAsync(page);
+  }
+
   /// <summary>Same-document (in-circuit) navigation, then the settled main text.</summary>
   private static async Task<string> SnapshotInPlaceAsync(IPage page, string path)
   {
@@ -383,7 +399,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   [GeneratedRegex(@"Draft autosave is ready\.|Unsaved draft restored locally \([^)]*\)\.")]
   private static partial Regex DraftStatus();
 
-  [GeneratedRegex(@"Event timestamp cutoff: \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC\. This is live history; current sources and access are checked on each page\. Refresh to include later events\.")]
+  [GeneratedRegex(@"(?<=Event timestamp cutoff: )\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?= UTC)")]
   private static partial Regex PortalSnapshotCutoff();
 
   [GeneratedRegex(@"\s+")]

@@ -433,9 +433,10 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
       "path => { history.pushState({}, '', path); const pathname = location.pathname; dispatchEvent(new PopStateEvent('popstate')); return pathname; }",
       path);
     Assert.Equal(path, navigatedPath);
-    await page.WaitForFunctionAsync("path => location.pathname === path", path);
     await Assertions.Expect(page.GetByText(expectedText, new() { Exact = false }).First)
       .ToBeVisibleAsync(new() { Timeout = 15000 });
+    var resolvedPath = await page.EvaluateAsync<string>("() => location.pathname");
+    Assert.Equal(path, resolvedPath);
     return await page.Locator("main").InnerTextAsync();
   }
 }
