@@ -20,7 +20,8 @@ param(
   [string] $ApprovalSignaturePath,
   [string] $ApprovalSignerSha256,
   [string] $StateDirectory,
-  [switch] $CertificatesOnly
+  [switch] $CertificatesOnly,
+  [switch] $PermissionsOnly
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -30,6 +31,7 @@ Set-M365OfflineMode $offline
 $result = New-M365Result ($(if ($offline) { 'Plan' } else { $Mode }))
 $lockStream = $null
 try {
+  if ($CertificatesOnly -and $PermissionsOnly) { throw 'INVALID_OR_UNSAFE' }
   $plan = Read-M365Plan $PlanPath (Join-Path $PSScriptRoot 'm365-plan.schema.json')
   $result.repositoryCommit = $plan.repositoryCommit; $result.tenantId = $plan.tenantId
   $result.planSha256 = Get-M365PlanSha256 $plan
@@ -62,9 +64,9 @@ try {
         @($required | Where-Object { -not $approval.ContainsKey($_) }).Count -or
         $approval.planSha256 -cne $result.planSha256 -or $approval.tenantId -ne $plan.tenantId -or
         $approval.operatorClientId -ne $plan.operator.clientId -or $approval.approvalReference -cne $ApprovalReference -or
-        $approval.exclusiveCertificateWindow -isnot [bool] -or -not $approval.exclusiveCertificateWindow -or
+        $approval.exclusiveCertificateWindow -isnot [bool] -or (-not $PermissionsOnly -and -not $approval.exclusiveCertificateWindow) -or
         $approval.stateDirectory -cne (Get-EntraStateDirectory $StateDirectory) -or
-        $approval.action -cne $(if ($CertificatesOnly) { 'SET_PUBLIC_CERTIFICATES' } else { 'RECONCILE_ENTRA_REGISTRATIONS' }) -or
+        $approval.action -cne $(if ($PermissionsOnly) { 'GRANT_TENANT_APPLICATION_ROLES' } elseif ($CertificatesOnly) { 'SET_PUBLIC_CERTIFICATES' } else { 'RECONCILE_ENTRA_REGISTRATIONS' }) -or
         ([DateTimeOffset] $approval.expiresAtUtc) -le [DateTimeOffset]::UtcNow -or
         ([DateTimeOffset] $approval.expiresAtUtc) -gt [DateTimeOffset]::UtcNow.AddHours(24)) { throw 'BLOCKED_APPROVAL' }
   }
@@ -116,7 +118,10 @@ try {
     & $intentCommand $journal $journalPath $method $path $body $result.planSha256
     return $true
   }.GetNewClosure()
-  Invoke-EntraReconciliation $plan $result $Mode $transport $approve -CertificatesOnly:$CertificatesOnly
+  $confirmCommand = Get-Command Confirm-EntraMutationIntent
+  $confirm = { param($path, $body) & $confirmCommand $journal $journalPath $path $body }.GetNewClosure()
+  if ($PermissionsOnly) { Invoke-EntraPermissionReconciliation $plan $result $Mode $transport $approve $confirm }
+  else { Invoke-EntraReconciliation $plan $result $Mode $transport $approve -CertificatesOnly:$CertificatesOnly }
   if (@($result.checks | Where-Object { $_.state -cne 'PASS' -or -not $_.expiresAtUtc -or ([DateTimeOffset] $_.expiresAtUtc) -le [DateTimeOffset]::UtcNow }).Count) { throw 'INCOMPLETE_EVIDENCE' }
   $status = if ($Mode -eq 'Apply') { 'APPLIED_AND_VERIFIED' } else { 'VERIFIED' }
 } catch {

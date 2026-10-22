@@ -88,18 +88,118 @@ function New-EntraGraphTransport($ProviderCommand, $GraphCommand, $GetRequestCon
   }.GetNewClosure()
 }
 
-function Save-EntraMutationIntent($Journal, [string] $JournalPath, [string] $Method, [string] $Path, $Body, [string] $PlanSha256) {
-  if ($Method -ne 'POST') { return }
-  $target = if ($Path -eq '/v1.0/applications') { $Body.tags[0] } else { $Body.appId }
-  $intent = "$Path/$target"
-  if ($Journal.ContainsKey($intent)) { throw 'RESULT_UNCERTAIN' }
-  $Journal[$intent] = @{ planSha256 = $PlanSha256; attemptedAtUtc = [DateTimeOffset]::UtcNow.ToString('o') }
+function Get-EntraMutationKey([string] $Path, $Body) {
+  if ($Path -eq '/v1.0/applications') { return "$Path/$($Body.tags[0])" }
+  if ($Path -match '^/v1.0/servicePrincipals/[^/]+/appRoleAssignments$') {
+    return "$Path/$($Body.principalId)/$($Body.resourceId)/$($Body.appRoleId)".ToLowerInvariant()
+  }
+  return "$Path/$($Body.appId)"
+}
+
+function Write-EntraMutationJournal($Journal, [string] $JournalPath) {
   $temporary = "$JournalPath.$([guid]::NewGuid().ToString('N')).tmp"
   $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes((ConvertTo-Json $Journal -Depth 8))
   $stream = [System.IO.FileStream]::new($temporary, 'CreateNew', 'Write', 'None', 4096, [System.IO.FileOptions]::WriteThrough)
   try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
   if (-not $IsWindows) { [System.IO.File]::SetUnixFileMode($temporary, [System.IO.UnixFileMode]::UserRead -bor [System.IO.UnixFileMode]::UserWrite) }
   [System.IO.File]::Move($temporary, $JournalPath, $true)
+}
+
+function Save-EntraMutationIntent($Journal, [string] $JournalPath, [string] $Method, [string] $Path, $Body, [string] $PlanSha256) {
+  if ($Method -ne 'POST') { return }
+  $intent = Get-EntraMutationKey $Path $Body
+  $history = @()
+  if ($Journal.ContainsKey($intent)) {
+    $previous = $Journal[$intent]
+    # Only an observed, confirmed role grant may be repaired under a newly reviewed/signed plan.
+    # Pending/uncertain outcomes and owned app/SP creation intents remain non-repeatable.
+    if ($Path -notmatch '^/v1.0/servicePrincipals/[^/]+/appRoleAssignments$' -or
+        -not $previous.ContainsKey('state') -or $previous.state -cne 'CONFIRMED' -or
+        $previous.planSha256 -ceq $PlanSha256) { throw 'RESULT_UNCERTAIN' }
+    if ($previous.ContainsKey('priorConfirmedAttempts')) { $history = @($previous.priorConfirmedAttempts) }
+    if ($history.Count -ge 1000) { throw 'INCOMPLETE_EVIDENCE' }
+    $history += @{ planSha256 = $previous.planSha256; attemptedAtUtc = $previous.attemptedAtUtc; confirmedAtUtc = $previous.confirmedAtUtc }
+  }
+  $Journal[$intent] = @{ planSha256 = $PlanSha256; attemptedAtUtc = [DateTimeOffset]::UtcNow.ToString('o'); state = 'PENDING'; priorConfirmedAttempts = $history }
+  Write-EntraMutationJournal $Journal $JournalPath
+}
+
+function Confirm-EntraMutationIntent($Journal, [string] $JournalPath, [string] $Path, $Body) {
+  $intent = Get-EntraMutationKey $Path $Body
+  if (-not $Journal.ContainsKey($intent)) { return }
+  if ($Journal[$intent].ContainsKey('state') -and $Journal[$intent].state -ceq 'CONFIRMED') { return }
+  $Journal[$intent].state = 'CONFIRMED'
+  $Journal[$intent].confirmedAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
+  Write-EntraMutationJournal $Journal $JournalPath
+}
+
+function Invoke-EntraPermissionReconciliation($Plan, $Result, [ValidateSet('ReadOnly','Apply')] [string] $Mode,
+    [scriptblock] $Transport, [scriptblock] $Approve, [scriptblock] $Confirm = {}) {
+  foreach ($capability in $Plan.capabilities) {
+    if (-not $capability.clientId) { throw 'DRIFT' }
+    $marker = Get-EntraOwnershipMarker $Plan $capability
+    $clientId = $capability.clientId
+    $apps = Get-EntraCollection $Transport "/v1.0/applications?`$filter=appId%20eq%20'$clientId'&`$select=id,appId,tags,signInAudience,requiredResourceAccess"
+    if ($apps.Count -ne 1) { throw 'DRIFT' }
+    $app = $apps[0]
+    if ($app.appId -ne $clientId -or $app.signInAudience -cne 'AzureADMyOrg' -or $marker -cnotin $app.tags -or
+        ($capability.ContainsKey('applicationObjectId') -and $capability.applicationObjectId -ne $app.id)) { throw 'INVALID_OR_UNSAFE' }
+    $principals = Get-EntraCollection $Transport "/v1.0/servicePrincipals?`$filter=appId%20eq%20'$clientId'&`$select=id,appId,appOwnerOrganizationId,tags"
+    if ($principals.Count -ne 1) { throw 'DRIFT' }
+    $principal = $principals[0]
+    if ($principal.appId -ne $clientId -or $principal.appOwnerOrganizationId -ne $Plan.tenantId -or $marker -cnotin $principal.tags -or
+        ($capability.ContainsKey('servicePrincipalObjectId') -and $capability.servicePrincipalObjectId -ne $principal.id)) { throw 'INVALID_OR_UNSAFE' }
+    $resources = @{}
+    $desired = Get-EntraRequestedResources $Plan $capability $Transport $resources
+    if (-not $app.ContainsKey('requiredResourceAccess') -or
+        ((Get-EntraRoleKeys @($app.requiredResourceAccess)) -join '|') -cne ((Get-EntraRoleKeys $desired) -join '|')) { throw 'DRIFT' }
+    Assert-EntraAssignedRoles $principal $desired $resources $Transport
+    $expected = @($desired | ForEach-Object {
+      $resourceId = $resources[$_.resourceAppId]
+      foreach ($role in $_.resourceAccess) { if ($role.type -ceq 'Role') {
+        @{ principalId = $principal.id; resourceId = $resourceId; appRoleId = $role.id }
+      } }
+    })
+    # A new application role must not empower a different/unconfigured credential.
+    if ($expected.Count) {
+      $keys = Invoke-EntraRead $Transport "/v1.0/applications/$($app.id)?`$select=id,appId,tags,keyCredentials"
+      if ($keys.id -ne $app.id -or $keys.appId -ne $clientId -or $marker -cnotin $keys.tags) { throw 'INVALID_OR_UNSAFE' }
+      $matching = @($keys.keyCredentials | Where-Object {
+        if (-not $_.key -or $_.key.Length -gt 90000 -or $_.type -cne 'AsymmetricX509Cert' -or $_.usage -cne 'Verify') { return $false }
+        $bytes = [Convert]::FromBase64String($_.key)
+        if ($bytes.Length -gt 65536) { return $false }
+        $digest = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+        if ($digest -cne $capability.publicCertificateSha256 -or
+            [System.Security.Cryptography.X509Certificates.X509Certificate2]::GetCertContentType($bytes) -ne [System.Security.Cryptography.X509Certificates.X509ContentType]::Cert) { return $false }
+        $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($bytes)
+        try {
+          return -not $cert.HasPrivateKey -and $cert.NotBefore.ToUniversalTime() -le [datetime]::UtcNow -and $cert.NotAfter.ToUniversalTime() -gt [datetime]::UtcNow -and
+            ([DateTimeOffset] $_.startDateTime) -le [DateTimeOffset]::UtcNow -and ([DateTimeOffset] $_.endDateTime) -gt [DateTimeOffset]::UtcNow
+        } finally { $cert.Dispose() }
+      })
+      if ($matching.Count -ne 1) { throw 'DRIFT' }
+    }
+    $path = "/v1.0/servicePrincipals/$($principal.id)/appRoleAssignments"
+    foreach ($role in $expected) {
+      $assignments = Assert-EntraAssignedRoles $principal $desired $resources $Transport -PassThru
+      $same = @($assignments | Where-Object { $_.principalId -eq $principal.id -and $_.resourceId -eq $role.resourceId -and $_.appRoleId -eq $role.appRoleId })
+      if ($same.Count -gt 1) { throw 'INVALID_OR_UNSAFE' }
+      if (-not $same.Count) {
+        if ($Mode -eq 'ReadOnly') { throw 'DRIFT' }
+        Invoke-EntraWrite $Result $Transport $Approve 'POST' $path $role | Out-Null
+        $assignments = Assert-EntraAssignedRoles $principal $desired $resources $Transport -PassThru
+        $same = @($assignments | Where-Object { $_.principalId -eq $principal.id -and $_.resourceId -eq $role.resourceId -and $_.appRoleId -eq $role.appRoleId })
+        if ($same.Count -ne 1) { throw 'RESULT_UNCERTAIN' }
+        $Result.mutationsConfirmed++
+      }
+      if ($Mode -eq 'Apply') { & $Confirm $path $role | Out-Null }
+    }
+    Assert-EntraAssignedRoles $principal $desired $resources $Transport -RequireComplete
+    Add-M365Check $Result "application-roles:$($capability.kind)" 'PASS' 'exact approved outgoing application roles' "$($expected.Count) approved roles"
+    $Result.checks[-1].capability = $capability.kind; $Result.checks[-1].resourceId = $principal.id
+    $Result.checks[-1].expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(15).ToString('o')
+    $Result.checks[-1].evidenceReference = "graph-role-readback:$($Plan.tenantId)/$($principal.id)"
+  }
 }
 
 function Invoke-EntraRead([scriptblock] $Transport, [string] $Path) {
@@ -172,16 +272,22 @@ function Get-EntraRequestedResources($Plan, $Capability, [scriptblock] $Transpor
   return ,$resources
 }
 
-function Assert-EntraAssignedRoles($Principal, $Desired, $ResourcePrincipals, [scriptblock] $Transport) {
+function Assert-EntraAssignedRoles($Principal, $Desired, $ResourcePrincipals, [scriptblock] $Transport, [switch] $RequireComplete, [switch] $PassThru) {
   $allowed = @($Desired | ForEach-Object {
     $resource = $ResourcePrincipals[$_.resourceAppId]
     foreach ($access in $_.resourceAccess) { if ($access.type -ceq 'Role') { "$resource/$($access.id)".ToLowerInvariant() } }
   })
   $assignments = Get-EntraCollection $Transport "/v1.0/servicePrincipals/$($Principal.id)/appRoleAssignments?`$select=id,principalId,resourceId,appRoleId"
+  $observed = @()
   foreach ($assignment in $assignments) {
     if ($assignment.principalId -ne $Principal.id) { throw 'INVALID_OR_UNSAFE' }
-    if ("$($assignment.resourceId)/$($assignment.appRoleId)".ToLowerInvariant() -cnotin $allowed) { throw 'DRIFT' }
+    $identity = "$($assignment.resourceId)/$($assignment.appRoleId)".ToLowerInvariant()
+    if ($identity -cnotin $allowed) { throw 'DRIFT' }
+    $observed += $identity
   }
+  if (@($observed | Select-Object -Unique).Count -ne $observed.Count) { throw 'INVALID_OR_UNSAFE' }
+  if ($RequireComplete -and $observed.Count -ne $allowed.Count) { throw 'DRIFT' }
+  if ($PassThru) { return ,$assignments }
 }
 
 function Get-EntraRoleKeys($Resources) {
@@ -340,4 +446,4 @@ function Invoke-EntraReconciliation($Plan, $Result, [ValidateSet('ReadOnly','App
   }
 }
 
-Export-ModuleMember -Function Invoke-EntraReconciliation, Test-EntraOperatorContext, Save-EntraMutationIntent, Get-EntraStateDirectory, Get-EntraJournalPath, New-EntraGraphTransport
+Export-ModuleMember -Function Confirm-EntraMutationIntent, Invoke-EntraReconciliation, Invoke-EntraPermissionReconciliation, Test-EntraOperatorContext, Save-EntraMutationIntent, Get-EntraStateDirectory, Get-EntraJournalPath, New-EntraGraphTransport

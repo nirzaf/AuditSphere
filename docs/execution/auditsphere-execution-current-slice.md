@@ -18,6 +18,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 [Debug watch guide](../../src/AuditSphereOps.Ui/auditsphere-angular-development.md#fast-backend-development-loop): scoped launcher, focused checks and synthetic hot-reload/restart pass. Warm compilation skips; SHA changes rebuild assemblies. Evidence: `developmentFeedback20261023` in [status.json](status.json). Configured startup fails the identity-split guard; database readiness, authenticated/CSRF, cold-cache and frontend timing acceptance remain open. No overall speedup claimed.
 
+## Entra application role grant automation (2026-10-23)
+
+WU-019 now provides application-role reconciliation via `Grant-TenantPermissions.ps1` and tenant enrollment validation via `Test-TenantEnrollment.ps1`. Missing application roles are reconciled with idempotency, signed approval verification, exact capability certificate bindings, and strict drift detection against unapproved role assignments. Offline tests confirm that an app-only token or administrator grant cannot substitute for the human OIDC grantor leg (`BLOCKED_BOOTSTRAP`). Next engineering: WU-020 (selected document resources); live acceptance remains a separate leaf.
+
 ## Owned Entra automation (2026-10-23)
 
 WU-018 now has registration and certificate-only entry points with offline planning, signed exact-plan approval, ID/ownership checks, fixed operator journals, explicit uncertain-create reconciliation and public-only key overlap. GET retries are bounded and honor provider waits; writes are not retried. Read-only and Apply source pins are enforced. Focused synthetic checks pass; no live tenant action or provider acceptance is claimed. The [operator procedure](../operations/auditsphere-entra-registration-automation.md) documents prerequisites and recovery. Next engineering: WU-019; live acceptance remains a separate leaf.
@@ -313,26 +317,6 @@ Analytics and the weekly grid preserve all configured weekly minutes using one d
 
 Firm books now exposes bounded expense pages and exact firm-scoped expense lookup for uncertain action recovery. Focused database, API and Angular checks pass; the positive browser finance journey remains pending because the synthetic browser identity has no finance assignment. No access grant changed. Exact source/results are in the execution ledger.
 
-## Firm monthly date boundaries
-
-Monthly P&L safely handles supported year-0001 and December-9999 periods, preserving null missing comparatives. Monthly series above the existing 1,200-row UI boundary are refused before activity calculation. The existing balanced-ledger regression passes; full acceptance remains open. Exact results are in the execution ledger.
-
-## Task queue source lineage
-
-Queue rows now expose retained source keys and exact template identities in all layouts. Cards also retain FSLI/mapping, PBC and reviewer context plus task activity. Focused lineage/component checks, builds and manual-source browser inspection passed; template browser and responsive acceptance remain open. See execution ledger.
-
-## Queue prerequisite presentation
-
-The queue now displays a separate blocked prerequisite label consistently in list, board and calendar views using existing server prerequisite facts. Missing viewer permission alone is not a blocker; completed history stays unchanged. Focused component checks and Angular/API builds passed; exact evidence is in `status.json`. Follow-up repaired omitted safety rows in the synthetic seed while preserving application guards. Browser creation, assignment, reviewed dependency, blocked display in all three layouts and clearing after predecessor completion now pass. Responsive and broader WF-06 acceptance remain unverified.
-
-## API and Angular parity: complete member discovery
-
-Matching counterparties can now be discovered through bounded pages and search. Exact seller/buyer resolution retains selections across pages, and the outside-party path rejects an eligible member even when off page. The shared API exception envelope is documented once at the UI group boundary. Focused checks and synthetic browser search passed; see `status.json` under `apiAngularParity.localVerification.matchingOptionsSlice`. Full acceptance remains pending the original task crosswalk and current-source CI/CD evidence.
-
-## API and Angular parity: bounded scope continuation
-
-Components and readiness now have independent bounded pages and complete counts. Exact component correction remains available when the selected component is outside the displayed page. The focused browser check loaded the current contract and retained evidence using the synthetic local database with external effects disabled. This does not establish multi-page browser or full workflow acceptance. Current verification evidence and remaining gates are in `status.json` under `apiAngularParity.localVerification.pagingSlice`. Continue the original parity specification; do not equate this slice with completion of all tasks.
-
 ## API and Angular bidirectional parity — active implementation
 
 The [parity implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md) covers the attached API/Angular specification independently of the R2R and audit-programme task identifiers. Current source contains the authorization, decimal precision, workflow entry, recovery, supplier selection, portal refresh/history and consolidation ownership slices. Code presence is not final functional acceptance; current checks and remaining tasks are recorded under `apiAngularParity` in [status.json](status.json).
@@ -356,13 +340,3 @@ Tasks 01–06 are implemented. The latest follow-up fixes observed keyboard focu
 Task 07 / AC-09 remains partial. Built-in browser checks exercised the synthetic staff shell, empty journal queue and existing consolidation draft form. The focus correction passed a built-in browser recheck. Planning leave-dialog focus, fieldwork tab/validation behavior and narrow-screen reduced-motion checks also passed within the available fixture. Populated editors, approved-budget/procedure review, client shell, native zoom and remaining state coverage are incomplete. Owner review/approval was reported; actual AT/browser versions and workflow findings remain requested.
 
 The earlier exact-source full release pass is retained as baseline evidence. A subsequent nightly exposed asynchronous snapshot/navigation readiness failures; bounded test corrections preserve the isolation, final-path, revocation and persistence assertions and pass the focused E2E cohort. Current-source CI remains in progress; full suites run only in CI/CD. No live tenant or production data was changed.
-
-## Journal layout follow-up (2026-10-22)
-
-- Styled draft Add/Remove actions using existing Material buttons; responsive metadata fields; moved balance feedback outside horizontal table scrolling.
-- Focused scope-workspace specs: 19 passed; changed-file lint and diff check passed. Built-in browser: added/removed draft rows, focus returned to row 2 taxonomy, 390px viewport had no page overflow; console errors empty. No journal submitted.
-- Full local suites not run. AC-09 human AT/native zoom evidence remains pending; release CI 39785630053 was still running when checked.
-
-## Preview focus follow-up (2026-10-22)
-
-Journal and sampling preview focus fixes passed focused specs, existing E2E, lint/build and built-in-browser checks. Later user focus and owner/preview fences are preserved. README and the Angular quality ledger archive record sources and limits. Fast CI passed; corrected-source release verification has passed Angular/build/contracts/Domain, with API/E2E running. Full matrix, native zoom and human AT remain open.

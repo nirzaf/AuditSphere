@@ -2,6 +2,26 @@
 
 > **STATUS: HISTORICAL.** Sections moved verbatim from `auditsphere-execution-current-slice.md` on 2026-10-08 to keep the current handoff small. They are the audit trail of earlier slices. Never edit them to change a verdict; record a new observation in the current slice or in `status.json`.
 
+## Firm monthly date boundaries
+
+Monthly P&L safely handles supported year-0001 and December-9999 periods, preserving null missing comparatives. Monthly series above the existing 1,200-row UI boundary are refused before activity calculation. The existing balanced-ledger regression passes; full acceptance remains open. Exact results are in the execution ledger.
+
+## Task queue source lineage
+
+Queue rows now expose retained source keys and exact template identities in all layouts. Cards also retain FSLI/mapping, PBC and reviewer context plus task activity. Focused lineage/component checks, builds and manual-source browser inspection passed; template browser and responsive acceptance remain open. See execution ledger.
+
+## Queue prerequisite presentation
+
+The queue now displays a separate blocked prerequisite label consistently in list, board and calendar views using existing server prerequisite facts. Missing viewer permission alone is not a blocker; completed history stays unchanged. Focused component checks and Angular/API builds passed; exact evidence is in `status.json`. Follow-up repaired omitted safety rows in the synthetic seed while preserving application guards. Browser creation, assignment, reviewed dependency, blocked display in all three layouts and clearing after predecessor completion now pass. Responsive and broader WF-06 acceptance remain unverified.
+
+## API and Angular parity: complete member discovery
+
+Matching counterparties can now be discovered through bounded pages and search. Exact seller/buyer resolution retains selections across pages, and the outside-party path rejects an eligible member even when off page. The shared API exception envelope is documented once at the UI group boundary. Focused checks and synthetic browser search passed; see `status.json` under `apiAngularParity.localVerification.matchingOptionsSlice`. Full acceptance remains pending the original task crosswalk and current-source CI/CD evidence.
+
+## API and Angular parity: bounded scope continuation
+
+Components and readiness now have independent bounded pages and complete counts. Exact component correction remains available when the selected component is outside the displayed page. The focused browser check loaded the current contract and retained evidence using the synthetic local database with external effects disabled. This does not establish multi-page browser or full workflow acceptance. Current verification evidence and remaining gates are in `status.json` under `apiAngularParity.localVerification.pagingSlice`. Continue the original parity specification; do not equate this slice with completion of all tasks.
+
 ## Current allocated-cash gate and retained settlement history
 
 Advance-dependent activation, lifecycle, portal eligibility, balance drafting and bundle gates now share a current-settlement predicate. A stored PAID marker alone is insufficient: the invoice must be posted and match client/currency/amount, with sufficient current net cash after approved reversals. Credit-adjusted balance settlement retains its existing policy. Staff reads project the current unpaid state while original paid milestone fields and receipt bytes remain immutable. Settlement publication reacquires the existing firm fence before checking cash and first publishing PAID evidence. No database trigger was weakened.
@@ -7833,3 +7853,13 @@ The multi-panel workspace now owns one read snapshot and refuses caller-owned tr
 Client finance now pages exact authorized agreements instead of silently stopping at the newest collection bound. Stable retained creation-time/ID cursors, explicit older/newer/refresh controls and a consistent page snapshot preserve financial facts. Each response rechecks current identity and exact grants after snapshot disposal. Linked invoices must belong to the agreement client's billing account; receipt and credit totals exclude foreign accounts.
 
 The focused PostgreSQL regression, Angular checks and final-artifact authenticated browser journey pass. Built-in keyboard continuation confirms the one-row older page and heading focus with no console errors. Runtime fixture failures were corrected to obey existing invoice/milestone immutability without weakening guards or assertions. Evidence and limitations: `portalFinancePaging20261021` in [status.json](status.json). Nested invoice/receipt history beyond the decoder bound, full current-source release verification, human screen-reader review and provider/professional acceptance remain open. Earlier workflow-amendment, quotation-privacy and consolidation evidence is preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md).
+
+## Journal layout follow-up (2026-10-22)
+
+- Styled draft Add/Remove actions using existing Material buttons; responsive metadata fields; moved balance feedback outside horizontal table scrolling.
+- Focused scope-workspace specs: 19 passed; changed-file lint and diff check passed. Built-in browser: added/removed draft rows, focus returned to row 2 taxonomy, 390px viewport had no page overflow; console errors empty. No journal submitted.
+- Full local suites not run. AC-09 human AT/native zoom evidence remains pending; release CI 39785630053 was still running when checked.
+
+## Preview focus follow-up (2026-10-22)
+
+Journal and sampling preview focus fixes passed focused specs, existing E2E, lint/build and built-in-browser checks. Later user focus and owner/preview fences are preserved. README and the Angular quality ledger archive record sources and limits. Fast CI passed; corrected-source release verification has passed Angular/build/contracts/Domain, with API/E2E running. Full matrix, native zoom and human AT remain open.

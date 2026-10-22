@@ -2,7 +2,7 @@
 
 **Status:** CURRENT — operator procedure; live acceptance remains separate.
 
-**Scope:** WU-018 in the [autonomous completion specification](../architecture/auditsphere-autonomous-completion-remediation-spec.md). This procedure creates/reconciles owned registrations and service principals and uploads public certificates. It does not grant consent, assign tenant administrator roles, enroll AuditSphere's tenant connection, create SharePoint sites, send mail, generate private keys, or establish report-signing acceptance. Follow the [permission boundaries](../architecture/auditsphere-m365-tenant-administration-permissions.md) and the canonical operator deployment Wiki for those separate steps.
+**Scope:** WU-018 and WU-019 in the [autonomous completion specification](../architecture/auditsphere-autonomous-completion-remediation-spec.md). Registration commands create/reconcile owned registrations, service principals and public certificates. The separate permission command grants only the signed plan's exact application-role set; the enrollment command only reads existing human-consent evidence. None assigns tenant administrator roles, impersonates a human grantor, creates sites, sends mail, generates private keys or establishes report-signing acceptance. Follow the [permission boundaries](../architecture/auditsphere-m365-tenant-administration-permissions.md) and the canonical operator deployment Wiki for those separate steps.
 
 ## Modes and prerequisites
 
@@ -105,10 +105,94 @@ python3 scripts/m365/verify-result.py $readbackPath --expect VERIFIED `
 
 Review the assigned app/object IDs and fingerprints. Persist them into the **next separately reviewed plan**, obtain a new digest/approval for that plan, and use those exact IDs for subsequent steps. Entra consent, selected-site access, application enrollment and runtime capability readiness have their own verification gates. Do not enable them from a registration receipt alone.
 
+## Exact application permissions (separate approval)
+
+`Grant-TenantPermissions.ps1` uses the same validated plan, source pin, operator
+context, fixed journal and detached-CMS approval as registration. Freeze a new
+plan containing the observed existing app/SP IDs and registered certificate
+fingerprints. Its approval action must be `GRANT_TENANT_APPLICATION_ROLES`.
+`exclusiveCertificateWindow` may be `false` only for this permission action;
+no certificate is uploaded or replaced here. The signer, tenant, operator, plan
+digest, expiry and signed state-directory binding are still mandatory.
+
+The authorized operator must already have separately approved Graph permissions
+for application-role assignment. The script neither obtains administrator roles
+nor broadens its own privileges. It resolves enabled role IDs from the exact
+resource service principal and compares both `requiredResourceAccess` and the
+entire outgoing `appRoleAssignments` set. Extra, missing/disabled or wrong-resource
+roles, multitenant registrations and mismatched ownership/key evidence block the
+operation. There is no broader-permission fallback and no automatic removal.
+
+```powershell
+& ./scripts/m365/Grant-TenantPermissions.ps1 -PlanPath $planPath -DryRun `
+  -OutputPath $permissionPlanPath
+# Obtain the separate signed permission approval for the resulting exact digest.
+& ./scripts/m365/Grant-TenantPermissions.ps1 -PlanPath $planPath -Mode Apply `
+  -ExpectedPlanSha256 $reviewedDigest -ApprovalReference $approvedReference `
+  -ApprovalPath $approvalPath -ApprovalSignaturePath $signaturePath `
+  -ApprovalSignerSha256 $independentlyTrustedSignerSha256 `
+  -OutputPath $permissionResultPath -Confirm:$false
+python3 scripts/m365/verify-result.py $permissionResultPath --expect APPLIED_AND_VERIFIED `
+  --plan-sha256 $reviewedDigest --tenant $approvedTenantId
+```
+
+An unknown POST outcome is reconciled by reading the original assignment; an
+absent outcome is not reposted. Confirmed assignments are retained in the journal.
+If a role is later revoked, repairing it requires a newly reviewed plan and signed
+approval with a different digest (for example a renewed approved reference).
+Previously confirmed attempts remain in the journal. Do not erase that journal
+to bypass uncertainty. Entra reads can lag writes, so a missing immediate readback
+is `RESULT_UNCERTAIN`, not permission to grant again. See Microsoft's
+[assignment contract](https://learn.microsoft.com/en-us/graph/api/serviceprincipal-post-approleassignments?view=graph-rest-1.0)
+and [outgoing read/replication behavior](https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list-approleassignments?view=graph-rest-1.0).
+
+## AuditSphere human enrollment (read-only)
+
+An application-role receipt does not satisfy AuditSphere's nonce-bound human
+OIDC grantor leg. Complete the normal approved sign-in/consent workflow first.
+`Test-TenantEnrollment.ps1` reads `/api/ui/session`,
+`/api/ui/administration/microsoft365`, then `/api/ui/session` again at the plan's
+exact HTTPS root origin. It refuses redirects, simulation, another tenant/firm,
+changed session generation, missing human grantor evidence and stale/future
+directory checks. Observation does not renew the underlying evidence expiry.
+It never posts, invokes a callback or writes consent state directly to PostgreSQL.
+
+The plan/source must be pinned and the M365 source tree clean. Supply an existing
+approved staff-admin session's `.AspNetCore.Cookies` header (including its chunks
+if present) through a short-lived trusted operator process. A Graph bearer token
+cannot replace it. Cookie values are credentials: never put them in a plan,
+command argument, transcript, screenshot or receipt. The command accepts only the
+**name** of a process environment variable; it never authenticates for the user.
+
+```powershell
+$session = Read-Host 'Existing authorized AuditSphere cookie header (hidden)' -AsSecureString
+try {
+  $env:AUDITSPHERE_ENROLLMENT_COOKIE = [pscredential]::new('unused', $session).GetNetworkCredential().Password
+  & ./scripts/m365/Test-TenantEnrollment.ps1 -PlanPath $planPath -Mode ReadOnly `
+    -ExpectedPlanSha256 $reviewedDigest `
+    -SessionCookieEnvironmentVariable AUDITSPHERE_ENROLLMENT_COOKIE `
+    -OutputPath $enrollmentResultPath
+} finally {
+  $env:AUDITSPHERE_ENROLLMENT_COOKIE = $null
+  $session.Dispose()
+}
+python3 scripts/m365/verify-result.py $enrollmentResultPath --expect VERIFIED `
+  --plan-sha256 $reviewedDigest --tenant $approvedTenantId
+```
+
+Keep this process free of untrusted child programs; the cookie necessarily exists
+in its memory/environment while used. The command bounds response size and request
+time and accepts only JSON from those two read routes. Missing/expired staff
+session or human consent is `BLOCKED_BOOTSTRAP`; malformed, stale or mismatched
+provider evidence is not promoted. `Apply` is unsupported; planning/WhatIf read
+neither session credentials nor any API. Verification covers enrollment only,
+not selected-site access, mail delivery, workspace activation or client-site setup.
+
 ## Offline engineering checks
 
 ```powershell
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-018 -Offline
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-019 -Offline
 ```
 
 The transport is synthetic and has no tenant connection. Current observed results and remaining live prerequisites belong in the execution ledger, not this procedure. No simulated result establishes Microsoft provider acceptance.

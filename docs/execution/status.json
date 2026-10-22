@@ -1110,6 +1110,16 @@
         "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
         "next": "WU-019 permission assignment and AuditSphere enrollment verification scripts."
       },
+      "entraPermissionGrantAutomation": {
+        "implementation": "PRESENT",
+        "localVerification": "PASS",
+        "ciVerification": "NOT_DISPATCHED",
+        "externalAcceptance": "BLOCKED_EXTERNAL",
+        "checks": "WU-019 offline assertion cohort: 63 passed, 0 failed; WU-018: 67 passed; WU-017: 40 passed; DryRun envelope PLANNED/zero effects passed; ReadOnly enrollment BLOCKED_BOOTSTRAP without human grantor leg verified.",
+        "scope": "No live tenant connection, administrative impersonation, or direct database mutation performed. Exact-source full CI remains pending.",
+        "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
+        "next": "WU-020 selected document resources and site provisioning."
+      },
       "m365PlanPermissionBoundary": "WU-017 correction: exact resource/role matrix, capability certificate isolation, required MAIL/CLIENT_SITES config, redirect-origin match and Exchange RBAC no-unscoped-Graph-role guard. Offline Test-Automation: 33 PASS, zero failures. Prerequisite DryRun + verify-result PLANNED PASS with zero network/mutations. Live WU-018..025 engineering and external acceptance remain open.",
       "runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",
       "openFindings": [
