@@ -581,6 +581,12 @@ describe('Consolidation Scope Workspace Contracts', () => {
       'Remove journal line 2',
       'Remove journal line 3',
     ]);
+    removeButtons[2].focus();
+    removeButtons[2].click();
+    fixture.detectChanges();
+    expect(component.journalLines()).toHaveLength(2);
+    expect(document.activeElement).toBe(lineInputs[4]);
+    expect(api.command).not.toHaveBeenCalled();
   });
 
   it('does not publish a delayed command result or reload after the scope owner changes or the host is destroyed', async () => {

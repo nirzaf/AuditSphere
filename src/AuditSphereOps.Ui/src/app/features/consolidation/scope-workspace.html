@@ -237,7 +237,7 @@
                   <tbody>
                     @for (line of journalLines(); track $index) {
                       <tr>
-                        <td><input type="text" [attr.aria-label]="'Journal line ' + ($index + 1) + ' taxonomy code'" [ngModel]="line.taxonomyCode" (ngModelChange)="updateJournalLine($index, 'taxonomyCode', $event)" placeholder="e.g. BS-100" /></td>
+                        <td><input #journalTaxonomyInput type="text" [attr.aria-label]="'Journal line ' + ($index + 1) + ' taxonomy code'" [ngModel]="line.taxonomyCode" (ngModelChange)="updateJournalLine($index, 'taxonomyCode', $event)" placeholder="e.g. BS-100" /></td>
                         <td><input type="text" inputmode="decimal" maxlength="64" [attr.aria-label]="'Journal line ' + ($index + 1) + ' debit amount'" [ngModel]="line.debit" (ngModelChange)="updateJournalLine($index, 'debit', $event)" style="width: 8rem;" /></td>
                         <td><input type="text" inputmode="decimal" maxlength="64" [attr.aria-label]="'Journal line ' + ($index + 1) + ' credit amount'" [ngModel]="line.credit" (ngModelChange)="updateJournalLine($index, 'credit', $event)" style="width: 8rem;" /></td>
                         <td><input type="text" [attr.aria-label]="'Journal line ' + ($index + 1) + ' description'" [ngModel]="line.description" (ngModelChange)="updateJournalLine($index, 'description', $event)" placeholder="Line memo" /></td>

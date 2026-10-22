@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, untracked, viewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -25,6 +25,7 @@ export class ConsolidationScopeWorkspace {
   private readonly api = inject(Api);
   private readonly session = inject(SessionService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly journalTaxonomyInputs = viewChildren<ElementRef<HTMLInputElement>>('journalTaxonomyInput');
   private destroyed = false;
   readonly id = routeGuid();
   readonly ownerKey = computed(() => {
@@ -276,7 +277,13 @@ export class ConsolidationScopeWorkspace {
   }
   updateJournalLine(index: number, field: keyof NewJournalLine, value: string): void { this.journal.updateLine(index, field, value); }
   addJournalLine(): void { this.journal.addLine(); }
-  removeJournalLine(index: number): void { this.journal.removeLine(index); }
+  removeJournalLine(index: number): void {
+    const count = this.journalLines().length;
+    if (count <= 2 || index < 0 || index >= count) return;
+    // Index-tracked rows keep this input when the selected row is removed.
+    this.journalTaxonomyInputs()[Math.min(index, count - 2)]?.nativeElement.focus();
+    this.journal.removeLine(index);
+  }
   createJournal(scopeId: string): void {
     if (scopeId.toLowerCase() !== this.id()?.toLowerCase() || !this.currentWorkspace()) return;
     this.journal.create(scopeId);
