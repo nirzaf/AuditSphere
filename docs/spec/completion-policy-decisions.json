@@ -1,0 +1,455 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "a7559f0c8bee1b7f7b1226731b1e2afe9cb985b2",
+  "adoptedSpecification": {
+    "specReference": "docs/architecture/auditsphere-100-percent-completion-spec.md",
+    "adoptedAs": "docs/architecture/auditsphere-autonomous-completion-remediation-spec.md",
+    "reason": "Repository markdown filename convention"
+  },
+  "ui": {
+    "canonical": "Angular 22 (ADR-0002)",
+    "blazor": "RETIRED (merged e7ebe27c); no reinstatement step is operative",
+    "uxScreens": 19,
+    "uxMatrix": "docs/design/auditsphere-ux-matrix-v3-screen-to-code-proposed.md"
+  },
+  "decisions": [
+    {
+      "decisionId": "ADR-0001",
+      "title": "ADR-0001: One modular monolith with static capability services",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0001-modular-monolith-static-capability-services-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-003",
+        "WU-015"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0002",
+      "title": "ADR-0002: Angular is the canonical UI; Blazor Web is a rollback host",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0002-angular-canonical-ui-blazor-rollback-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-026",
+        "WU-037"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0003",
+      "title": "ADR-0003: Client portal uses Microsoft sign-in instead of emailed temporary passwords",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0003-client-portal-microsoft-sign-in-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-034"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0004",
+      "title": "ADR-0004: The engagement lifecycle is a derived projection",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0004-engagement-lifecycle-derived-projection-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-027"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0005",
+      "title": "ADR-0005: Visual signature and seal credentials; no eSignature or Purview integration",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0005-visual-credentials-no-esignature-purview-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-035"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0006",
+      "title": "ADR-0006: One SharePoint site per new client, with Full Control for assigned staff",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0006-client-sharepoint-site-staff-full-control-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-021"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0007",
+      "title": "ADR-0007: Automatic advance and balance invoicing creates drafts only",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-009",
+        "WU-010"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0008",
+      "title": "ADR-0008: Automated test suites are temporarily removed",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0008-automated-test-suites-temporarily-removed-superseded.md",
+      "status": "SUPERSEDED",
+      "dependentWorkUnits": [],
+      "consequence": "Superseded; tests are not removed and no agent may act on it"
+    },
+    {
+      "decisionId": "ADR-0009",
+      "title": "ADR-0009: Issued evidence is authoritative in the release and archive store; the SharePoint archive is a working copy",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-08",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0009-archive-authority-release-store-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-023",
+        "WU-035"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0010",
+      "title": "ADR-0010: End-of-service benefits are accrued as a provision entered by a person",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-09",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0010-end-of-service-accrual-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-031"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0011",
+      "title": "ADR-0011: Materiality uses profit before tax without normalization",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-09",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0011-materiality-pbt-without-normalization-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-012"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0012",
+      "title": "ADR-0012: The 50% advance is an unconditional activation hard block",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-09",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0012-unconditional-advance-activation-hard-block-current.md",
+      "status": "ACCEPTED",
+      "dependentWorkUnits": [
+        "WU-027"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0013",
+      "title": "ADR-0013: Pin approved FSLI mapping lineage to engagement work and time",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-10",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0013-approved-mapping-lineage-for-practice-time-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-033"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0014",
+      "title": "ADR-0014: Retain six-decimal monetary precision and explicit ToEven rounding",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-10",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0014-monetary-scale-and-rounding-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-012",
+        "WU-030"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0015",
+      "title": "ADR-0015: Reporting contexts pin existing identities and revisions",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-10",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0015-reporting-context-identity-pins-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-005"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0016",
+      "title": "ADR-0016: The final signed report is certificate-signed with a firm-held certificate",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-10",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-035",
+        "WU-040"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0017",
+      "title": "ADR-0017: STE v2.2 delegated requirement decisions",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-12",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0017-ste-v22-delegated-requirement-decisions-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-010"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "ADR-0018",
+      "title": "ADR-0018: Practice reporting bases for time value, utilization and receivables",
+      "ownerRole": "Owner (product/engineering authority)",
+      "scope": "repository-wide",
+      "effectiveFrom": "2026-10-12",
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0018-practice-reporting-bases-approved.md",
+      "status": "APPROVED",
+      "dependentWorkUnits": [
+        "WU-033"
+      ],
+      "consequence": "Operative; apply within its scope without re-approval"
+    },
+    {
+      "decisionId": "T003",
+      "title": "Accounting policies, resource bounds and golden fixtures (incl. G16)",
+      "ownerRole": "Qualified accountant / engagement Partner",
+      "scope": "client accounting methods",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/task_breakdown/tasks/00_Baseline/auditsphere-r2r-task-t003-accounting-policies-resource-bounds-golden-fixtures.md",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-012"
+      ],
+      "consequence": "Blocks professional acceptance of WU-012 only; deterministic arithmetic, precision, review independence and stale-source denial proceed."
+    },
+    {
+      "decisionId": "D1",
+      "title": "Terminal audit-procedure prerequisite stage policy (PRE_SIGN/POST_SIGN/PRE_RELEASE/FINAL_CLOSE)",
+      "ownerRole": "Audit Partner / quality-management owner",
+      "scope": "terminal AWP procedures",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/architecture/auditsphere-autonomous-completion-remediation-spec.md (WU-014)",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-014"
+      ],
+      "consequence": "Final enabling rule waits; PBC, time, staffing, invoice and document workflows are not blocked. Terminal procedures are never auto-completed."
+    },
+    {
+      "decisionId": "POLICY-RENEWAL",
+      "title": "Recurring-engagement renewal and handover policy",
+      "ownerRole": "Partner / commercial owner",
+      "scope": "recurring work",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/requirements/auditsphere-accounting-module-requirements-current.md \u00a76.5",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-010"
+      ],
+      "consequence": "Policy-independent infrastructure proceeds; no renewal contract or fee term is invented."
+    },
+    {
+      "decisionId": "POLICY-FEE-EXCEPTION",
+      "title": "Commercial fee and exception policy beyond ADR-0007/0012",
+      "ownerRole": "Partner / finance owner",
+      "scope": "commercial",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0007-fee-invoice-automation-drafts-only-approved.md",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-010"
+      ],
+      "consequence": "Existing approved 50/50 milestones and draft-only automation stay; no new exception rule is enabled."
+    },
+    {
+      "decisionId": "POLICY-LEGAL-WORDING",
+      "title": "Engagement-letter and deliverable legal wording",
+      "ownerRole": "Partner / legal adviser",
+      "scope": "issued documents",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/requirements/auditsphere-accounting-module-requirements-current.md \u00a74.1.4",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-035"
+      ],
+      "consequence": "Templates render approved wording only; agents do not author legal terms."
+    },
+    {
+      "decisionId": "GATE-PRODUCTION-SIGNING",
+      "title": "Production signing certificate custody and acceptance (ADR-0016 approved in principle)",
+      "ownerRole": "Owner / Partner",
+      "scope": "final report signing",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/architecture/adr/auditsphere-architecture-adr-0016-certificate-signed-final-report-approved.md",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-035",
+        "WU-040"
+      ],
+      "consequence": "Test certificates only locally; production certificate acceptance is external."
+    },
+    {
+      "decisionId": "GATE-M365-LIVE-TARGET",
+      "title": "Exact authorized Microsoft 365 tenant targets for live provisioning",
+      "ownerRole": "Tenant Global Administrator (customer) and owner",
+      "scope": "live M365 effects",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/architecture/auditsphere-m365-tenant-administration-permissions.md",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-018",
+        "WU-019",
+        "WU-020",
+        "WU-021",
+        "WU-022",
+        "WU-023",
+        "WU-024",
+        "WU-025"
+      ],
+      "consequence": "Offline WU-017 package and simulations proceed; live writes stay BLOCKED_EXTERNAL."
+    },
+    {
+      "decisionId": "GATE-HUMAN-AT",
+      "title": "Human assistive-technology review",
+      "ownerRole": "Qualified accessibility reviewer",
+      "scope": "release accessibility evidence",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/testing/auditsphere-testing-checklist-angular-accessibility-current.md",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-037"
+      ],
+      "consequence": "Automated accessibility evidence closes engineering; human review remains its own release leaf."
+    },
+    {
+      "decisionId": "GATE-OPERATIONS-TARGETS",
+      "title": "Operational RPO/RTO, retention and live drill targets",
+      "ownerRole": "Owner / operations",
+      "scope": "operations",
+      "effectiveFrom": null,
+      "evidenceReference": "docs/architecture/auditsphere-autonomous-completion-remediation-spec.md (WU-038)",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-038"
+      ],
+      "consequence": "Synthetic measurements proceed; missing targets cannot produce an acceptance pass."
+    },
+    {
+      "decisionId": "GATE-PRODUCTION-AUTHORIZATION",
+      "title": "Deployment and production data/permission authorization",
+      "ownerRole": "Owner",
+      "scope": "production",
+      "effectiveFrom": null,
+      "evidenceReference": "AGENTS.md \u00a76",
+      "status": "PENDING",
+      "dependentWorkUnits": [
+        "WU-040"
+      ],
+      "consequence": "Engineering can reach ENGINEERING_COMPLETE_WITH_EXTERNAL_GATES; PRODUCT_COMPLETE needs this."
+    }
+  ],
+  "serviceProfiles": [
+    {
+      "profile": "core-practice-audit",
+      "status": "ENABLED",
+      "reason": "Approved by current requirements and ADR-0001..0018"
+    },
+    {
+      "profile": "import-first-client-accounting",
+      "status": "ENABLED",
+      "reason": "Existing approved behaviour; must keep working"
+    },
+    {
+      "profile": "native-client-bookkeeping",
+      "status": "SEPARATELY_AUTHORIZED",
+      "reason": "Requires an explicitly approved service/cutover per client (AGENTS.md \u00a72)"
+    },
+    {
+      "profile": "vat-tax",
+      "status": "SEPARATELY_AUTHORIZED",
+      "reason": "Separately scoped (AGENTS.md \u00a72)"
+    },
+    {
+      "profile": "group-consolidation",
+      "status": "ENABLED",
+      "reason": "Independent domain; never writes component books"
+    },
+    {
+      "profile": "payroll-execution",
+      "status": "NOT_APPLICABLE",
+      "reason": "Not implied by requirements (AGENTS.md \u00a72)"
+    },
+    {
+      "profile": "inventory-procurement-operations",
+      "status": "NOT_APPLICABLE",
+      "reason": "Not implied by requirements (AGENTS.md \u00a72)"
+    },
+    {
+      "profile": "payment-initiation",
+      "status": "NOT_APPLICABLE",
+      "reason": "Not implied by requirements (AGENTS.md \u00a72)"
+    },
+    {
+      "profile": "external-tax-filing",
+      "status": "NOT_APPLICABLE",
+      "reason": "Not implied by requirements (AGENTS.md \u00a72)"
+    },
+    {
+      "profile": "microsoft-purview",
+      "status": "NOT_APPLICABLE",
+      "reason": "Provider integration out of scope (AGENTS.md \u00a75, ADR-0005)"
+    },
+    {
+      "profile": "esignature-provider",
+      "status": "NOT_APPLICABLE",
+      "reason": "Provider integration out of scope (AGENTS.md \u00a75, ADR-0005)"
+    },
+    {
+      "profile": "whatsapp-dispatch",
+      "status": "NOT_APPLICABLE",
+      "reason": "Lead-channel label only; nothing ingested or sent (ADR-0017)"
+    }
+  ]
+}

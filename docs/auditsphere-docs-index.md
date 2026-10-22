@@ -115,6 +115,8 @@ When two documents appear to conflict or contain differing detail, precedence is
 | [`docs/architecture/auditsphere-architecture-specification-enterprise-target-proposed.md`](architecture/auditsphere-architecture-specification-enterprise-target-proposed.md) | Enterprise target: retain-and-harden monolith, five priorities with code anchors, adoption plan. Proposes no rewrite; authorizes nothing. | `PROPOSED` |
 
 | [`docs/architecture/auditsphere-architecture-code-map.md`](architecture/auditsphere-architecture-code-map.md) | Business-capability-to-code directory mapping services, DbContext partials, calculators, UI workbenches, and tests. | `CURRENT` |
+| [`docs/spec/completion-policy-decisions.json`](spec/completion-policy-decisions.json) | Completion policy register: ADR statuses, pending professional and external decisions with owners and dependent work units, and enabled or not-applicable service profiles. Generated evidence; PENDING rows authorize nothing. |
+| [`docs/spec/completion-requirement-manifest.json`](spec/completion-requirement-manifest.json), [`docs/spec/completion-source-inventory.json`](spec/completion-source-inventory.json) | Requirement manifest (CURRENT accounting requirement sections, UNVERIFIED until traced) and source inventory at a pinned SHA. |
 
 | [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](architecture/auditsphere-m365-tenant-administration-permissions.md) | Microsoft 365 capability permission matrix, consent contract and external-operation lifecycle; optional capabilities implemented and disabled by default. | `APPROVED` |
 
