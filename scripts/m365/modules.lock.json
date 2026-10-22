@@ -9,7 +9,7 @@
       "version": "2.37.0",
       "manifestFile": "Microsoft.Graph.Authentication.psd1",
       "manifestSha256": "67b79c61a4d29c6eea534551d2957ae642dc424666a9710eb58b4ea4d436a9bf",
-      "cmdlets": ["Connect-MgGraph", "Get-MgContext", "Invoke-MgGraphRequest", "Disconnect-MgGraph"]
+      "cmdlets": ["Connect-MgGraph", "Get-MgContext", "Invoke-MgGraphRequest", "Disconnect-MgGraph", "Get-MgRequestContext", "Set-MgRequestContext"]
     },
     {
       "name": "PnP.PowerShell",

@@ -119,6 +119,7 @@ When two documents appear to conflict or contain differing detail, precedence is
 | [`docs/spec/completion-requirement-manifest.json`](spec/completion-requirement-manifest.json), [`docs/spec/completion-source-inventory.json`](spec/completion-source-inventory.json) | Requirement manifest (CURRENT accounting requirement sections, UNVERIFIED until traced) and source inventory at a pinned SHA. |
 
 | [`docs/architecture/auditsphere-m365-tenant-administration-permissions.md`](architecture/auditsphere-m365-tenant-administration-permissions.md) | Microsoft 365 capability permission matrix, consent contract and external-operation lifecycle; optional capabilities implemented and disabled by default. | `APPROVED` |
+| [`docs/operations/auditsphere-entra-registration-automation.md`](operations/auditsphere-entra-registration-automation.md) | Offline planning, exact owned Entra registration/certificate reconciliation, signed operator approvals and uncertain-create recovery. Live tenant acceptance remains separate. | `CURRENT` |
 
 | [`docs/architecture/auditsphere-architecture-document-naming-policy.md`](architecture/auditsphere-architecture-document-naming-policy.md) | Standard markdown naming rules (`auditsphere-<area>-<document-type>-<subject>[-<id>][-<status>].md`) and uniqueness rules. | `CURRENT` |
 

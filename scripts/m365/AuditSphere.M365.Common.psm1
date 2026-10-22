@@ -75,7 +75,7 @@ function Read-M365Plan([string] $Path, [string] $SchemaPath) {
   $schema = [System.IO.File]::ReadAllText($SchemaPath)
   if (-not (Test-Json -Json $raw -Schema $schema -ErrorAction SilentlyContinue)) { throw [M365PlanException]::new('plan-schema-invalid') }
   $kinds = @($plan.capabilities | ForEach-Object { $_.kind })
-  $clients = @($plan.capabilities | ForEach-Object { $_.clientId.ToLowerInvariant() }) + @($plan.operator.clientId.ToLowerInvariant())
+  $clients = @($plan.capabilities | Where-Object { $_.clientId } | ForEach-Object { $_.clientId.ToLowerInvariant() }) + @($plan.operator.clientId.ToLowerInvariant())
   if (@($kinds | Select-Object -Unique).Count -ne $kinds.Count) { throw [M365PlanException]::new('duplicate-capability-kind') }
   if (@($clients | Select-Object -Unique).Count -ne $clients.Count) { throw [M365PlanException]::new('reused-client-identity') }
   # The plan is an allowlist, not a vehicle for arbitrary tenant permissions.
@@ -90,9 +90,24 @@ function Read-M365Plan([string] $Path, [string] $SchemaPath) {
     CLIENT_SITES = @("${graph}:Sites.FullControl.All", "${sharepoint}:Sites.FullControl.All")
   }
   foreach ($capability in $plan.capabilities) {
+    if (-not $capability.clientId -and ($capability.ContainsKey('applicationObjectId') -or $capability.ContainsKey('servicePrincipalObjectId'))) {
+      throw [M365PlanException]::new('new-identity-has-existing-object-id')
+    }
+    if ($capability.ContainsKey('publicCertificatePath') -and -not [System.IO.Path]::IsPathFullyQualified($capability.publicCertificatePath)) {
+      throw [M365PlanException]::new('public-certificate-path-not-absolute')
+    }
+    if ($capability.ContainsKey('redirectUris') -and @($capability.redirectUris | Where-Object { $_ -cnotin $plan.redirectUris }).Count -gt 0) {
+      throw [M365PlanException]::new('capability-redirect-not-approved')
+    }
     if (($capability.kind -eq 'MAIL' -and -not $plan.ContainsKey('mail')) -or
         ($capability.kind -eq 'CLIENT_SITES' -and -not $plan.ContainsKey('clientSites'))) {
       throw [M365PlanException]::new('capability-configuration-missing')
+    }
+    if ($capability.kind -eq 'LOGIN' -and $capability.ContainsKey('signInScopes') -and 'User.Read' -cin $capability.signInScopes) {
+      throw [M365PlanException]::new('login-graph-user-read-not-approved')
+    }
+    if ($capability.ContainsKey('signInScopes') -and $capability.signInScopes.Count -gt 0 -and $capability.kind -notin @('LOGIN', 'DIRECTORY_READER')) {
+      throw [M365PlanException]::new('delegated-scope-not-approved-for-capability')
     }
     $expected = @($roles[$capability.kind])
     if ($capability.kind -eq 'MAIL' -and $plan.ContainsKey('mail') -and
@@ -116,6 +131,13 @@ function Read-M365Plan([string] $Path, [string] $SchemaPath) {
     $base = [uri] $plan.publicBaseUri
     $target = [uri] $redirect
     if ($target.Authority -ne $base.Authority) { throw [M365PlanException]::new('redirect-origin-mismatch') }
+  }
+  foreach ($field in @('applicationObjectId', 'servicePrincipalObjectId')) {
+    $values = @($plan.capabilities | Where-Object { $_.ContainsKey($field) } | ForEach-Object { $_[$field].ToLowerInvariant() })
+    if (@($values | Select-Object -Unique).Count -ne $values.Count -or
+        ($field -eq 'servicePrincipalObjectId' -and $plan.operator.servicePrincipalObjectId -in $values)) {
+      throw [M365PlanException]::new('reused-object-identity')
+    }
   }
   if ($plan.ContainsKey('clientSites')) {
     $cutoff = [DateTimeOffset]::MinValue

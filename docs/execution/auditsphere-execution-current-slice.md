@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Owned Entra automation (2026-10-23)
+
+WU-018 now has registration and certificate-only entry points with offline planning, signed exact-plan approval, ID/ownership checks, fixed operator journals, explicit uncertain-create reconciliation and public-only key overlap. GET retries are bounded and honor provider waits; writes are not retried. Read-only and Apply source pins are enforced. Focused synthetic checks pass; no live tenant action or provider acceptance is claimed. The [operator procedure](../operations/auditsphere-entra-registration-automation.md) documents prerequisites and recovery. Next engineering: WU-019; live acceptance remains a separate leaf.
+
 ## Offline Microsoft 365 plan boundaries (2026-10-22)
 
 Plan validation now enforces the approved capability permission matrix, separate certificate identities, exact redirect origin and required mail/client-site configuration before provider access. Exchange RBAC plans cannot also request unscoped Graph mail permission. Offline positive/negative checks and the PLANNED envelope check pass. The unfinished provisioning scripts are engineering work; missing live tenant credentials block their live acceptance only. They must not be parked wholesale as external work.

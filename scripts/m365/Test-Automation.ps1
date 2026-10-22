@@ -6,12 +6,16 @@
   pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-017 -Offline
 #>
 param(
-  [ValidateSet('WU-017')] [string] $Unit = 'WU-017',
+  [ValidateSet('WU-017', 'WU-018')] [string] $Unit = 'WU-017',
   [switch] $Offline
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $Offline) { throw 'Test-Automation runs offline only; pass -Offline.' }
+if ($Unit -eq 'WU-018') {
+  & (Join-Path $PSScriptRoot 'tests/Provision-EntraApps.Tests.ps1') -Offline
+  exit $LASTEXITCODE
+}
 
 $root = $PSScriptRoot
 $fixture = Join-Path $root 'tests/fixtures/plan.synthetic.json'
@@ -52,6 +56,9 @@ try {
   Assert-That 'digest-order-independent' ((Invoke-Prerequisites $reordered @('-DryRun')).Result.planSha256 -eq $planned.Result.planSha256)
   $pinned = Invoke-Prerequisites $fixture @('-DryRun', '-ExpectedPlanSha256', ('0' * 64))
   Assert-That 'digest-mismatch-refused' ($pinned.Exit -eq 4 -and $pinned.Result.errorCode -eq 'plan-sha256-mismatch')
+
+  $newIdentity = Invoke-Prerequisites (Write-Variant { param($p) $p.capabilities[0].clientId = $null }) @('-DryRun')
+  Assert-That 'explicit-new-identity-plan' ($newIdentity.Exit -eq 0 -and $newIdentity.Result.status -eq 'PLANNED' -and $newIdentity.Result.networkCalls -eq 0)
 
   # Approved permission profiles remain usable; planning never grants these roles.
   $profiles = @{
@@ -108,6 +115,12 @@ try {
       )
       $p.Remove('clientSites') | Out-Null
     }
+    'new-with-existing-id'  = { param($p) $p.capabilities[0].clientId = $null; $p.capabilities[0].applicationObjectId = '00000000-0000-4000-8000-000000000099' }
+    'duplicate-object-id'   = { param($p) foreach ($cap in $p.capabilities) { $cap.applicationObjectId = '00000000-0000-4000-8000-000000000099' } }
+    'relative-public-cert'  = { param($p) $p.capabilities[0].publicCertificatePath = 'relative.cer' }
+    'login-user-read'       = { param($p) $p.capabilities[0].kind = 'LOGIN'; $p.capabilities[0].expectedApplicationRoles = @(); $p.capabilities[0].signInScopes = @('User.Read') }
+    'unapproved-scope'      = { param($p) $p.capabilities[0].signInScopes = @('Directory.Read.All') }
+    'runtime-signin-scope'  = { param($p) $p.capabilities[1].signInScopes = @('User.Read') }
     'broad-directory-role'  = { param($p) $p.capabilities[0].expectedApplicationRoles[0].value = 'Directory.ReadWrite.All' }
     'wrong-resource-role'   = { param($p) $p.capabilities[0].expectedApplicationRoles[0].resourceAppId = '00000003-0000-0ff1-ce00-000000000000' }
     'missing-role'          = { param($p) $p.capabilities[0].expectedApplicationRoles = @() }
