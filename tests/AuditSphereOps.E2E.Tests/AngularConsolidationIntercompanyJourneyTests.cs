@@ -241,6 +241,11 @@ public sealed class AngularConsolidationIntercompanyJourneyTests
       "() => document.documentElement.scrollWidth <= window.innerWidth + 1"),
       "The consolidation document overflows at 390px.");
     var tableScroll = intercompany.Locator(".table-scroll");
+    await Assertions.Expect(tableScroll).ToHaveAttributeAsync("tabindex", "0");
+    await tableScroll.FocusAsync();
+    await tableScroll.PressAsync("ArrowRight");
+    await page.WaitForFunctionAsync("() => document.querySelector('#intercompany .table-scroll').scrollLeft > 0");
+    await Assertions.Expect(tableScroll).ToBeFocusedAsync();
     Assert.True(await tableScroll.EvaluateAsync<bool>("""
       element => {
         const rect = element.getBoundingClientRect();

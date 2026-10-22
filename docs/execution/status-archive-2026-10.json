@@ -15372,6 +15372,27 @@
             ]
           },
           "remaining": "Native zoom shortcut had no observable effect (viewport/device ratio unchanged); no zoom pass claimed. Human AT and other matrix states remain open. Current-source full CI deferred until final source slice."
+        },
+        "planningAndIntercompanyRendered20261022": {
+          "sourceBase": "cc83b56a",
+          "sourceBlobs": {
+            "src/AuditSphereOps.Ui/src/app/features/consolidation/scope-workspace.html": "5780ebf2c68fb358626e2868deb57bd630bfb09a",
+            "tests/AuditSphereOps.E2E.Tests/AngularBudgetPreparationJourneyTests.cs": "c48639344f389f57935767342354c75dbac5893a",
+            "tests/AuditSphereOps.E2E.Tests/AngularConsolidationIntercompanyJourneyTests.cs": "0e66acb6d59d966917e108ab8825641e566d4456"
+          },
+          "planning": {
+            "test": "ExactReviewLostResponseReloadAndRetainedReceiptNeverDuplicateBudget; Passed: 2, Failed: 0, Skipped: 0 (canonical and /ui); /tmp/auditsphere-planning-a11y-20261022/planning-a11y.trx",
+            "browser": "Existing populated approved-rate fixture. Keyboard Review budget preparation focused Reviewed budget preparation; retained rate 100.125000 and forecast 801.000000 displayed. Cancel returned focus to review trigger. Reopen reset assent and kept confirmation disabled. No budget-preparation command dispatched from built-in browser.",
+            "screenshot": "/tmp/auditsphere-planning-budget-review.png"
+          },
+          "consolidation": {
+            "observedDefect": "At 390px retained-match table overflowed horizontally without tabindex or region semantics; inner retained summary did not provide a keyboard scroll-region entry.",
+            "fix": "Only the retained intercompany table wrapper now has tabindex=0, region role and a unique accessible name. Native browser arrow scrolling used; no new handler/library.",
+            "test": "RegularScopeRetainsExactOutsidePerimeterMatchForKeyboardReview; Passed: 1, Failed: 0, Skipped: 0; existing native journal/component/no-autopost assertions retained, with new focus/ArrowRight scrolling check. /tmp/auditsphere-consolidation-a11y-20261022/consolidation-a11y-fixed.trx",
+            "browser": "Keyboard expanded retained facts: seller 1200.123456, buyer -1200.000000, matched 1200.000000, difference 0.123456, preparer self-review unavailable. Fixed named region at 390px retained focus while ArrowRight increased scrollLeft from 0 to 36 then 212; region 291px, content 534px, document width 375px. No business command dispatched from built-in browser.",
+            "screenshot": "/tmp/auditsphere-consolidation-keyboard-scroll-fixed.png"
+          },
+          "limits": "Full state matrix, native zoom and human AT remain partial; temporary fixture tabs closed and viewport restored."
         }
       },
       "workflowHistory20261020": {

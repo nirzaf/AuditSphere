@@ -30,6 +30,7 @@ public sealed class AngularBudgetPreparationJourneyTests
       "The synthetic client Manager must have current budget-preparation authority before this journey begins.");
     var planning=page.GetByRole(AriaRole.Region,new(){Name="Engagement planning",Exact=true});
     var reviewTrigger=planning.GetByRole(AriaRole.Button,new(){Name="Review budget preparation",Exact=true});
+    if (!canonical) await OwnedBrowserFixtureHandoff.WaitAsync(origin,path,"planning-budget-accessibility");
     var calls=0;
     await page.RouteAsync("**/budget-preparation",async route=>{Interlocked.Increment(ref calls);var response=await route.FetchAsync();Assert.Equal(200,response.Status);await route.AbortAsync();});
     await reviewTrigger.FocusAsync();await page.Keyboard.PressAsync("Enter");

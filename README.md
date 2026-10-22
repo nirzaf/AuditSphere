@@ -163,6 +163,8 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | ☑ Completed | Purchase-invoice AP-role preview recovery and supplier purchase/credit browser journey | Focused local journeys pass; full accounting acceptance and exact-SHA release verification remain separate gates. |
 | ☑ Completed | Preparer time entry is limited to tasks assigned to the actor while authorized managers can still route unassigned work | Focused Domain and API checks cover the unassigned-task denial and assigned-task acceptance; broader time, role and current-release acceptance remain open. |
 | ☑ Completed | Saved Audit Plan milestones displayed beside the seven-phase engagement workflow | Focused Angular spec covers saved-plan dates; read-only browser confirmed the explicit empty state. Statutory cutoff legal validation and broad role/responsive acceptance remain open. |
+| ☑ Completed | Exact budget preparation review keyboard flow | Populated synthetic approved-rate review receives focus; cancel returns focus and reopening requires fresh assent. Both existing route-variant recovery journeys pass; no budget was prepared from the built-in browser. Full planning and human AT acceptance remain open. |
+| ☑ Completed | Keyboard scrolling of retained intercompany matches | The named table region retains focus while arrow keys reveal off-screen review facts at narrow width. Signed amounts and maker/checker explanations are preserved; broader consolidation acceptance remains open. |
 
 ### Angular quality and accessibility follow-up
 

@@ -673,7 +673,7 @@
             · gross unmatched exposure across {{ matchPage.totalCount }} matches in this view <code>{{ matchPage.totalGrossUnmatchedExposure }}</code>
             · scope revision {{ matchPage.pinnedGroupRevision }} / current group revision {{ matchPage.currentGroupRevision }}
           </p>
-          <div class="table-scroll">
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Intercompany match scroll area">
             <table aria-labelledby="intercompany-heading">
               <thead><tr><th>Match</th><th>Full retained record</th><th>Status</th><th>Independent review</th></tr></thead>
               <tbody>
