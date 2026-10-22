@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 
+[Trait("CompletionUnit", "WU-010")]
 public sealed class AnnualEngagementPreparationTests
 {
   [Theory]
