@@ -62,6 +62,12 @@ class SelectionTests(unittest.TestCase):
         s = state({"RUN-003": task(scheduling="WAITING_CI"), "WU-007": task()}, ci={"status": "RUNNING"})
         self.assertEqual(cs.select_next(s), {"taskId": "WU-007", "nextAction": "IMPLEMENT"})
 
+    def test_out_of_catalog_prerequisite_parks_task_without_looping(self):
+        s = state({"WU-005": task(scheduling="BLOCKED_DEPENDENCY", blockedBy=["R2R:T007"]), "WU-006": task()})
+        self.assertEqual(cs.check_state(s), [])
+        self.assertEqual(cs.select_next(s), {"taskId": "WU-006", "nextAction": "IMPLEMENT"})
+        self.assertFalse(cs.engineering_complete(s))
+
     def test_professional_blocker_parks_only_its_acceptance_leaf(self):
         tasks = {
             "WU-012": task(implementation="PRESENT", localVerification="PASS", scheduling="BLOCKED_EXTERNAL",

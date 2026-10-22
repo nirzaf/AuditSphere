@@ -64,7 +64,8 @@
         "evidencePaths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 300}},
         "repairAttempts": {"type": "integer", "minimum": 0},
         "commit": {"type": "string", "pattern": "^[a-f0-9]{7,40}$"},
-        "notes": {"type": "string", "maxLength": 2000}
+        "notes": {"type": "string", "maxLength": 2000},
+        "blockedBy": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 200}, "uniqueItems": true}
       }
     },
     "ci": {

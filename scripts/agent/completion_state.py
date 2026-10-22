@@ -317,6 +317,8 @@ def ready_tasks(state: dict) -> list[str]:
     for task_id, task in tasks.items():
         if task["scheduling"] not in ("READY", "REPAIR_REQUIRED", "BLOCKED_DEPENDENCY"):
             continue
+        if task.get("blockedBy"):  # prerequisites outside the catalog keep the task parked
+            continue
         deps = [tasks[d] for d in task["implementationDependencies"] if d in tasks]
         if all(implementation_satisfied(d) for d in deps):
             ready.append(task_id)
