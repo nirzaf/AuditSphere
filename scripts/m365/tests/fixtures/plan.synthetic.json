@@ -34,5 +34,15 @@
     "custodianObjectId": "00000000-0000-4000-8000-000000000040",
     "rolloutCutoffUtc": "2026-10-01T00:00:00Z"
   },
+  "sites": [
+    {
+      "clientId": "00000000-0000-4000-8000-000000000002",
+      "siteId": "synthetic.sharepoint.com,00000000-0000-4000-8000-000000000050,00000000-0000-4000-8000-000000000051",
+      "siteUrl": "https://synthetic.sharepoint.com/sites/auditsphere-client-00000000000040008000000000000002",
+      "ownershipMarker": "AuditSphere:00000000-0000-4000-8000-000000000002:00000000-0000-4000-8000-000000000002",
+      "permission": "write"
+    }
+  ],
+  "negativeControls": {"siteIds": ["synthetic.sharepoint.com,00000000-0000-4000-8000-000000000099,00000000-0000-4000-8000-000000000099"]},
   "approvalReference": "SYNTHETIC-NOT-AN-APPROVAL"
 }

@@ -459,6 +459,8 @@ jobs:
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-018 -Offline
           bash scripts/release/run-verification-step.sh "Offline Entra permission grant reconciliation" \
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-019 -Offline
+          bash scripts/release/run-verification-step.sh "Offline selected document sites reconciliation" \
+            pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-020 -Offline
           bash scripts/release/run-verification-step.sh "UI source discovery drift" \
             python3 scripts/ui/inventory.py --check
 

@@ -30,6 +30,12 @@ function Invoke-M365ProviderRequest([scriptblock] $Request) {
   return & $Request
 }
 
+# Count guarded provider dispatches performed by the source-pinned runtime child.
+function Add-M365ObservedNetworkCalls([int] $Count) {
+  if ($script:Offline -or $Count -lt 0 -or $Count -gt 1000) { throw 'INVALID_OR_UNSAFE' }
+  $script:NetworkCalls += $Count
+}
+
 function Find-M365SecretProperty($Node, [string] $Path = '$') {
   if ($Node -is [System.Collections.IDictionary]) {
     foreach ($key in $Node.Keys) {
@@ -181,5 +187,5 @@ function Complete-M365Result($Result, [string] $Status, [string] $OutputPath) {
   return Get-M365ExitCode $Status
 }
 
-Export-ModuleMember -Function Get-M365ExitCode, Set-M365OfflineMode, Get-M365NetworkCallCount, Invoke-M365ProviderRequest,
+Export-ModuleMember -Function Add-M365ObservedNetworkCalls, Get-M365ExitCode, Set-M365OfflineMode, Get-M365NetworkCallCount, Invoke-M365ProviderRequest,
   Find-M365SecretProperty, Get-M365PlanSha256, Read-M365Plan, New-M365Result, Add-M365Check, Complete-M365Result

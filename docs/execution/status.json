@@ -433,24 +433,8 @@
       ]
     },
     "cp10PeriodScopedPackageFreshness": {
-      "recordedAtUtc": "2026-10-17T06:03:26Z",
-      "codeCommit": "15ae84078b87784416c6db225e6adbec38cad5ef",
-      "status": "PARTIAL",
-      "verified": {
-        "focusedTests": "New PostgreSQL regression passed 1/1; source-acceptance Angular spec passed 5/5 on 15ae8407.",
-        "selectionBehavior": "TB selection keys period/book/basis/currency/entity; replacement is local to that scope; unauthorized reads fail closed.",
-        "periodBehavior": "GL/TB sources coexist by period; current replacement invalidates only its pending presentation; prior pin stays current.",
-        "approvalReleaseBehavior": "Approval/release survives unrelated client generation changes.",
-        "commit": "15ae8407 pushed to master."
-      },
-      "notRun": [
-        "Full Domain/API/Playwright E2E regressions deferred to hosted CI/CD.",
-        "Full note policy/source verification, comparative release/as-issued retention, restatement, opening continuity, cross-engagement denial and live acceptance."
-      ],
-      "open": [
-        "Full note policy/source verification; comparative release/as-issued retention; restatement/reselection; opening continuity.",
-        "Cross-engagement denial, approval noninheritance and professional acceptance."
-      ]
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.cp10PeriodScopedPackageFreshness"
     },
     "scheduleAcceptedGlDiscovery": {
       "archivedTo": "status-archive-2026-10.json",
@@ -475,15 +459,8 @@
       "open": "CP-12 indirect classification policy/T003; full suites and authenticated browser journey; professional and live-provider acceptance."
     },
     "cp12IndirectCashFlowRoles": {
-      "recordedAtUtc": "2026-10-17T11:39:41Z",
-      "baseCommit": "4d5f588d46e9e0058d72f6ec7a2fd5593598f231",
-      "codeCommit": "1ff7bf4881f84b8f68dc7038671a5972ff527da8",
-      "status": "PARTIAL",
-      "scope": "Draft typed roles persist and hash-bind indirect cash-flow classifications, validate role/section/noncash consistency, reject mixed explicit/legacy rows, include noncash profit adjustments in the operating bridge, and exclude disclosure-only noncash investing/financing rows. This is not approved methodology.",
-      "checks": "PostgreSQL Domain TypedNonCashProfitAddback 1/1 after mixed-role guard; Domain presentation role test 1/1; Angular financial-package-build.spec.ts 37/37; current API Release build 0 warnings/errors; EF drift clean; Angular production build pass with existing commercial/settings.scss warning. Browser NOT_VERIFIED: 127.0.0.1:4300 refused connection.",
-      "migration": "20261017110415_FinancialPackageCashFlowCalculationRoles generated, not applied.",
-      "blockers": "T029 incomplete; T003 qualified indirect-method and independent-review approval absent; payment roles, complete source-backed movement paths and T033 review remain open.",
-      "notRun": "Full suites deferred to CI/CD; no authenticated browser acceptance, persistent migration or live-provider verification."
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.cp12IndirectCashFlowRoles"
     },
     "r2r07CarryForwardSafety": {
       "codeCommit": "d91a2713",
@@ -555,19 +532,8 @@
       "note": "Full focused accounting-maintenance recovery evidence retained in the October archive."
     },
     "productionReadinessStoryCp11": {
-      "recordedAtUtc": "2026-10-17T11:52:18Z",
-      "codeCommit": "1ff7bf4881f84b8f68dc7038671a5972ff527da8",
-      "status": "PARTIAL",
-      "openBlockers": [
-        "F-05 indirect cash-flow method and F-06 equity/note source policy require qualified methodology approval (T003).",
-        "F-07 final profile membership and GOLD-R2R fixture approvals remain professional decisions.",
-        "F-09: global Administrator alone cannot record Partner approval; owner acceptance of the dual Administrator/assigned-Partner boundary remains open.",
-        "F-10 offer identity/routing DEC-05 and F-12 branch protection/required-check settings remain owner decisions.",
-        "CP-18 cross-format output quality and approved profiles; CP-19/20 signatory capacity, offline evidence, final report/signing/legal and live-provider acceptance remain open.",
-        "CP-25 live identity, mail, selected-site, recovery and capacity gates remain BLOCKED_EXTERNAL."
-      ],
-      "archivedEvidence": "docs/execution/status-archive-2026-10.json#keys.targetedVerification.productionReadinessStoryCp11",
-      "note": "Detailed follow-up and NOT_RUN record are preserved in the archive; professional, live-provider and exact-SHA release gates remain open."
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.productionReadinessStoryCp11"
     },
     "runs": {
       "archive": "status-archive-2026-10.json#keys.targetedVerification.legacyVerificationRuns20261017"
@@ -610,19 +576,8 @@
       "evidence": "status-archive-2026-10.json#keys.paymentRecipientSnapshotsBeforeRework20261019"
     },
     "workflowTaskReopening": {
-      "sourceCommit": "a69ae19a58fd07e10519e7ad31db429c50717fc7",
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "archive": "status-archive-2026-10.json#keys.targetedVerification.workflowTaskReopeningDetailed20261019",
-      "summary": "Cancelled-only reviewed reopening implemented; both historical replay directions preserve later state and immutable history. Focused Domain2/API1/Angular29/browser1 pass. Retained-activity keyboard followup passes separately on d407de24. Migration only exercised in owned test schemas. No full/live/professional acceptance.",
-      "activityKeyboardFollowUp": {
-        "sourceCommit": "d407de247274a356591cbab9a7597b1616e29e46",
-        "result": "PASS",
-        "passed": 1,
-        "failed": 0,
-        "skipped": 0,
-        "trx": "/tmp/auditsphere-workflow-reopen-results/workflow-reopen-activity-focus.trx",
-        "behavior": "Keyboard activates Review reopening activity after confirmed response; focus reaches activity heading; retained TASK_REOPENED label and exact reason are visible. Existing DB, dependencies and390px checks retained. Initial probe incorrectly expected Close in confirmed state; corrected to actual retained-activity flow, no production change."
-      }
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.workflowTaskReopening"
     },
     "practiceCompletionGuards20261019": {
       "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
@@ -765,23 +720,8 @@
       "scope": "Commercial publication/read authority and exact dual-linked/legacy receipt scope. Focused Domain and browser evidence retained intact; parent acceptance remains partial. Fast CI39260118277 passed on76d904c7."
     },
     "commercialFinality20261019": {
-      "result": "FOCUSED_PASS_NOT_FULL_ACCEPTANCE",
-      "codeCommit": "9a16370ef5f5c30d463d97193c50f6d96bfeae0c",
-      "evidenceArchive": "status-archive-2026-10.json#keys.commercialFinalityBeforeDeadlineAndConsolidation20261019",
-      "scope": "Fee/link final authority, exact reviewed tender replay, truthful voucher attachments and command-outcome focus have focused Domain/API/Angular/browser evidence retained intact. Human AT/professional/provider/full-release acceptance remains open.",
-      "ci": {
-        "precedingFast": {
-          "runId": 39266552687,
-          "sourceCommit": "00f7c928ff442743eca9a58313f676e64a59334f",
-          "result": "FAST_CI_PASS"
-        },
-        "retainedFull": {
-          "runId": 39266247908,
-          "sourceCommit": "5b907e346ed038c1d8ca215e8c0fb518549b18f9",
-          "result": "IN_PROGRESS",
-          "observed": "Domain, Angular and build/contracts passed; API/E2E remain live. Predates deadline/consolidation changes. Earlier dispatch/runner evidence retained in commercialFinalityBeforeDeadlineAndConsolidation20261019 archive."
-        }
-      }
+      "archivedEvidence": "docs/execution/status-archive-2026-10.json",
+      "jsonPath": "keys.targetedVerification.commercialFinality20261019"
     },
     "operationalReadiness20261019": {
       "result": "Scoped deadline and component checks passed; broader acceptance remains open.",
@@ -1118,8 +1058,19 @@
         "checks": "WU-019 offline assertion cohort: 71 passed, 0 failed; shared WU-018 regression: 67 passed. Grant/enrollment DryRun envelopes PLANNED with zero effects; enrollment requires real server-owned human consent.",
         "scope": "No live tenant connection, administrative impersonation, or direct database mutation performed. Exact-source full CI remains pending.",
         "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
-        "next": "WU-020 selected document resources, with a distinct runtime identity and known unrelated-site denial probe.",
+        "next": "WU-020 engineering implemented; WU-021 client site configuration is next.",
         "review": "Exact manifest/outgoing role sets; pending versus confirmed intent repair; pinned source/digest; redirect-disabled bounded HTTP with exact final URI, cookie-only auth and fresh server evidence."
+      },
+      "selectedDocumentSitesAutomation": {
+        "implementation": "PRESENT",
+        "localVerification": "PASS",
+        "ciVerification": "NOT_DISPATCHED",
+        "externalAcceptance": "BLOCKED_EXTERNAL",
+        "checks": "Offline synthetic cohorts passed: WU-020 52 assertions; shared regressions WU-017 40, WU-018 67, WU-019 71. No full local suites. Runtime child Plan and schema envelope checked offline.",
+        "scope": "No live tenant connection or real document reads performed. Exact-source full CI remains pending.",
+        "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",
+        "next": "WU-021 approved client sites and managed staff Full Control reconciliation.",
+        "review": "Exact owned app/role/certificate and site metadata; atomic pending/confirmed intents; actual separate-runtime positive namespace reads and known-control HTTP403 required by production probe. Synthetic transports only in this verification; no live isolation claim."
       },
       "m365PlanPermissionBoundary": "WU-017 correction: exact resource/role matrix, capability certificate isolation, required MAIL/CLIENT_SITES config, redirect-origin match and Exchange RBAC no-unscoped-Graph-role guard. Offline Test-Automation: 33 PASS, zero failures. Prerequisite DryRun + verify-result PLANNED PASS with zero network/mutations. Live WU-018..025 engineering and external acceptance remain open.",
       "runnerEvidenceIntegrity": "RUN-008 correction: supervisor hashes and size-bounds evidence; final verify/run/resume reject missing or changed artifacts and directory symlinks. Focused completion runner/state cohort: 34 PASS; descriptor-relative reads and same-byte validation/hash close independent-review race findings. Historical checkpoints lacking digests require real revalidation, not automatic backfill. Full current-candidate CI NOT_RUN.",

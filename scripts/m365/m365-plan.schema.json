@@ -58,6 +58,47 @@
         "rolloutCutoffUtc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
       }
     },
+    "sites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "siteId",
+          "siteUrl",
+          "ownershipMarker",
+          "permission"
+        ],
+        "properties": {
+          "clientId": {
+            "$ref": "#/$defs/guid"
+          },
+          "siteId": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+\\.sharepoint\\.com,[0-9a-fA-F-]{36},[0-9a-fA-F-]{36}$"
+          },
+          "siteUrl": {
+            "type": "string",
+            "pattern": "^https://[a-z0-9.-]+\\.sharepoint\\.com/sites/[A-Za-z0-9/_-]+$"
+          },
+          "ownershipMarker": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+          },
+          "permission": {
+            "const": "write"
+          },
+          "managedStaffManifestDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 50
+    },
     "mail": {
       "type": "object", "additionalProperties": false, "required": ["permissionModel", "senderObjectIds"],
       "properties": {
@@ -69,7 +110,7 @@
     "negativeControls": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "siteIds": { "type": "array", "items": { "type": "string", "minLength": 10, "maxLength": 300 } },
+        "siteIds": {"type": "array", "minItems": 1, "maxItems": 50, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z0-9-]+\\.sharepoint\\.com,[0-9a-fA-F-]{36},[0-9a-fA-F-]{36}$"}},
         "mailboxObjectIds": { "type": "array", "items": { "$ref": "#/$defs/guid" } }
       }
     },

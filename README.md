@@ -59,6 +59,15 @@ Native R2R lifecycle under [`docs/task_breakdown`](docs/task_breakdown/auditsphe
 | **25 — Package assembly** | Versioned packs, durable worker builds, exact-byte formula-free XLSX/PDF artifacts, review decisions. |
 | **26 — Consolidation & FX** | Perimeter scope, component pins, intercompany matching/elimination, IAS 21 translation. |
 
+## Current automation slice
+
+| Checklist | Capability | Status |
+|---|---|---|
+| [x] | Selected document-site grant reconciliation and separate certificate runtime probe | Implemented; focused offline checks passed |
+| [ ] | Real tenant positive reads, unrelated-site denial and protected credential custody | Pending external acceptance; simulations do not establish this |
+
+Operator steps: [Entra and selected-resource automation](docs/operations/auditsphere-entra-registration-automation.md). Exact verification evidence: [execution status](docs/execution/status.json).
+
 ## Stack & layout
 
 .NET 10 / C# 14 · EF Core 10 + Npgsql · PostgreSQL 18.6 (local port `5433`) · Angular 22 + Material/CDK · OpenXML + PDFsharp/MigraDoc · xUnit + Playwright.

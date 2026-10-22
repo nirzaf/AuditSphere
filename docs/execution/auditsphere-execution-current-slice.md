@@ -18,6 +18,10 @@ which the full suite was run; per-slice records carry their own evidence.
 
 [Debug watch guide](../../src/AuditSphereOps.Ui/auditsphere-angular-development.md#fast-backend-development-loop): scoped launcher, focused checks and synthetic hot-reload/restart pass. Warm compilation skips; SHA changes rebuild assemblies. Evidence: `developmentFeedback20261023` in [status.json](status.json). Configured startup fails the identity-split guard; database readiness, authenticated/CSRF, cold-cache and frontend timing acceptance remain open. No overall speedup claimed.
 
+## Selected SharePoint document resource grants (2026-10-23)
+
+WU-020 provides exact selected-site application write-grant reconciliation and a separate certificate-authenticated DOCUMENTS child probe. Ownership, returned tenant/resource identity, exact roles, durable unknown-outcome reconciliation and permission-ID readback precede acceptance. Runtime proof requires positive site/library-root reads and a known unrelated site's actual HTTP 403; operator permission-list absence is insufficient. Focused offline cohorts passed; counts and source evidence belong in `status.json`. No live tenant connection, document delivery or application activation was verified. Protected key-mount custody and real tenant acceptance remain external gates. Next engineering: WU-021.
+
 ## Entra application role grant automation (2026-10-23)
 
 WU-019 now provides application-role reconciliation via `Grant-TenantPermissions.ps1` and tenant enrollment validation via `Test-TenantEnrollment.ps1`. Missing application roles are reconciled with idempotency, signed approval verification, exact capability certificate bindings, and strict drift detection against unapproved role assignments. Offline tests confirm that an app-only token or administrator grant cannot substitute for the human OIDC grantor leg (`BLOCKED_BOOTSTRAP`). Next engineering: WU-020 (selected document resources); live acceptance remains a separate leaf.
@@ -301,22 +305,6 @@ Staff acceptance now requires the assigned, independently authorized reviewer to
 
 Focused PBC Domain and PostgreSQL guard regressions passed, as did the PBC Angular contract spec; the API Release build and OpenAPI contract drift passed; Angular production build passed with the existing `settings.scss` budget warning. Commit `4bf84641` updates two PBC browser journeys to the current accessible control labels; both selected E2E journeys passed on that commit (2/2), including exact-version reviewer assent, receipt persistence and grant-revocation denial. Fast CI run `39093158735` passed on the same SHA: documentation health, Angular build/specs, .NET Release, architecture guards, EF drift, publication and OpenAPI. The built-in browser still has a stale local PBC bundle (lazy chunk 404), so manual browser acceptance remains unverified. Full release verification is not green: the earlier run on `9e2709b4` had Domain pass, API runner communication loss and E2E timeout with 24 failures before cancellation. Live-provider/business acceptance remains external. Exact evidence is in `status.json` under `targetedVerification.pbcExactVersionAcceptance20261018` and `testSuites.latestAttempt`.
 
-## Certification administrative review integration
-
-Exact-source applicability rules, append-only review persistence and independent administrator publication are implemented. Current evidence and commit identities are in `status.json` under `completePracticeManagement.certificationReview`. The read workspace, API and Angular review dialog have focused verification, including a synthetic browser verification/withdrawal flow. Staffing eligibility readers are integrated and focused checks pass; deterministic revocation/assignment concurrency and broader acceptance remain unfinished; existing assignment history is preserved and legacy qualifications are not automatically verified. Only the synthetic browser database received the review migration; live/development databases remain unchanged. Client portal write-gate corrections are committed separately, with focused evidence in the crosswalk.
-
-## Resource range safety
-
-Grid/allocation commands refuse unsupported dates and week counts before arithmetic. Focused Domain/API and contract checks pass; browser refusal and valid-range recovery pass. Certification entries explicitly remain unverified. Pure exact-source applicability checks pass; persistence, review actions and staffing integration remain unimplemented. Broader staffing acceptance remains open. See execution ledger.
-
-## Resource capacity reconciliation
-
-Analytics and the weekly grid preserve all configured weekly minutes using one daily allocator, including leave deductions. Focused pure/PostgreSQL checks pass; positive browser and broader acceptance remain open. See execution ledger.
-
-## Retained firm expense paging and recovery
-
-Firm books now exposes bounded expense pages and exact firm-scoped expense lookup for uncertain action recovery. Focused database, API and Angular checks pass; the positive browser finance journey remains pending because the synthetic browser identity has no finance assignment. No access grant changed. Exact source/results are in the execution ledger.
-
 ## API and Angular bidirectional parity — active implementation
 
 The [parity implementation tracker](auditsphere-execution-tracker-api-angular-parity-current.md) covers the attached API/Angular specification independently of the R2R and audit-programme task identifiers. Current source contains the authorization, decimal precision, workflow entry, recovery, supplier selection, portal refresh/history and consolidation ownership slices. Code presence is not final functional acceptance; current checks and remaining tasks are recorded under `apiAngularParity` in [status.json](status.json).
@@ -332,11 +320,3 @@ GL upload checkpoint and earlier CI observations are preserved in the [historica
 ## Recent focused evidence
 
 Reminder bounds, template prerequisites, quotation timelines, practice-time phases and firm-report/finding recovery are preserved in the [historical handoff](auditsphere-execution-tracker-current-slice-archive-2026-10-historical.md) and their keyed records in [status.json](status.json). Full current-source release and applicable human acceptance remain open.
-
-## Angular quality and development-speed specification follow-up (2026-10-22)
-
-Tasks 01–06 are implemented. The latest follow-up fixes observed keyboard focus loss after removing a draft consolidation journal row. The affected component spec, changed-file lint and production Angular build pass. Exact source, results, the unrelated style-budget warning and CI evidence are in [`status.json`](status.json#targetedVerification.angularQuality20261022).
-
-Task 07 / AC-09 remains partial. Built-in browser checks exercised the synthetic staff shell, empty journal queue and existing consolidation draft form. The focus correction passed a built-in browser recheck. Planning leave-dialog focus, fieldwork tab/validation behavior and narrow-screen reduced-motion checks also passed within the available fixture. Populated editors, approved-budget/procedure review, client shell, native zoom and remaining state coverage are incomplete. Owner review/approval was reported; actual AT/browser versions and workflow findings remain requested.
-
-The earlier exact-source full release pass is retained as baseline evidence. A subsequent nightly exposed asynchronous snapshot/navigation readiness failures; bounded test corrections preserve the isolation, final-path, revocation and persistence assertions and pass the focused E2E cohort. Current-source CI remains in progress; full suites run only in CI/CD. No live tenant or production data was changed.

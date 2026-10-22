@@ -30,7 +30,7 @@ function Test-EntraOperatorContext($Context, $Plan) {
     $Context.ClientId -eq $Plan.operator.clientId -and $Context.Environment -ceq 'Global'
 }
 
-function New-EntraGraphTransport($ProviderCommand, $GraphCommand, $GetRequestContext, $SetRequestContext, [scriptblock] $Wait) {
+function New-EntraGraphTransport($ProviderCommand, $GraphCommand, $GetRequestContext, $SetRequestContext, [scriptblock] $Wait, [switch] $ReturnStatus) {
   if (-not $GetRequestContext -or -not $SetRequestContext) { throw 'PREREQUISITE_MISSING' }
   if (-not $Wait) { $Wait = { param($seconds) Start-Sleep -Milliseconds ([int] [Math]::Ceiling($seconds * 1000)) } }
   return {
@@ -66,11 +66,17 @@ function New-EntraGraphTransport($ProviderCommand, $GraphCommand, $GetRequestCon
             $code = [int] $reply.StatusCode
             if ($reply.IsSuccessStatusCode) {
               $text = $reply.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-              if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+              if ([string]::IsNullOrWhiteSpace($text)) {
+                if ($ReturnStatus) { return @{ statusCode = $code; body = $null } }
+                return $null
+              }
               $parse = @{ AsHashtable = $true; NoEnumerate = $true; Depth = 64 }
               if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { $parse.DateKind = 'String' }
-              return $text | ConvertFrom-Json @parse
+              $value = $text | ConvertFrom-Json @parse
+              if ($ReturnStatus) { return @{ statusCode = $code; body = $value } }
+              return $value
             }
+            if ($ReturnStatus -and $method -ceq 'GET' -and $code -in @(401,403,404)) { return @{ statusCode = $code; body = $null } }
             if ($method -cne 'GET' -or $code -notin @(408,429,500,502,503,504)) { throw 'PROVIDER_FAILURE' }
             $retry = $reply.Headers.RetryAfter
             if ($retry) {
@@ -93,6 +99,7 @@ function Get-EntraMutationKey([string] $Path, $Body) {
   if ($Path -match '^/v1.0/servicePrincipals/[^/]+/appRoleAssignments$') {
     return "$Path/$($Body.principalId)/$($Body.resourceId)/$($Body.appRoleId)".ToLowerInvariant()
   }
+  if ($Path -match '^/v1.0/sites/[^/]+/permissions$') { return "$Path/$($Body.grantedToIdentities[0].application.id)".ToLowerInvariant() }
   return "$Path/$($Body.appId)"
 }
 
@@ -113,7 +120,7 @@ function Save-EntraMutationIntent($Journal, [string] $JournalPath, [string] $Met
     $previous = $Journal[$intent]
     # Only an observed, confirmed role grant may be repaired under a newly reviewed/signed plan.
     # Pending/uncertain outcomes and owned app/SP creation intents remain non-repeatable.
-    if ($Path -notmatch '^/v1.0/servicePrincipals/[^/]+/appRoleAssignments$' -or
+    if ($Path -notmatch '^/v1.0/(servicePrincipals/[^/]+/appRoleAssignments|sites/[^/]+/permissions)$' -or
         -not $previous.ContainsKey('state') -or $previous.state -cne 'CONFIRMED' -or
         $previous.planSha256 -ceq $PlanSha256) { throw 'RESULT_UNCERTAIN' }
     if ($previous.ContainsKey('priorConfirmedAttempts')) { $history = @($previous.priorConfirmedAttempts) }
@@ -446,4 +453,4 @@ function Invoke-EntraReconciliation($Plan, $Result, [ValidateSet('ReadOnly','App
   }
 }
 
-Export-ModuleMember -Function Confirm-EntraMutationIntent, Invoke-EntraReconciliation, Invoke-EntraPermissionReconciliation, Test-EntraOperatorContext, Save-EntraMutationIntent, Get-EntraStateDirectory, Get-EntraJournalPath, New-EntraGraphTransport
+Export-ModuleMember -Function Get-EntraPublicKey, Get-EntraCollection, Confirm-EntraMutationIntent, Invoke-EntraReconciliation, Invoke-EntraPermissionReconciliation, Test-EntraOperatorContext, Save-EntraMutationIntent, Get-EntraStateDirectory, Get-EntraJournalPath, New-EntraGraphTransport

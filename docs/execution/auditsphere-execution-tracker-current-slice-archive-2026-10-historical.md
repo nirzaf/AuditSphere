@@ -2,6 +2,30 @@
 
 > **STATUS: HISTORICAL.** Sections moved verbatim from `auditsphere-execution-current-slice.md` on 2026-10-08 to keep the current handoff small. They are the audit trail of earlier slices. Never edit them to change a verdict; record a new observation in the current slice or in `status.json`.
 
+## Certification administrative review integration
+
+Exact-source applicability rules, append-only review persistence and independent administrator publication are implemented. Current evidence and commit identities are in `status.json` under `completePracticeManagement.certificationReview`. The read workspace, API and Angular review dialog have focused verification, including a synthetic browser verification/withdrawal flow. Staffing eligibility readers are integrated and focused checks pass; deterministic revocation/assignment concurrency and broader acceptance remain unfinished; existing assignment history is preserved and legacy qualifications are not automatically verified. Only the synthetic browser database received the review migration; live/development databases remain unchanged. Client portal write-gate corrections are committed separately, with focused evidence in the crosswalk.
+
+## Resource range safety
+
+Grid/allocation commands refuse unsupported dates and week counts before arithmetic. Focused Domain/API and contract checks pass; browser refusal and valid-range recovery pass. Certification entries explicitly remain unverified. Pure exact-source applicability checks pass; persistence, review actions and staffing integration remain unimplemented. Broader staffing acceptance remains open. See execution ledger.
+
+## Resource capacity reconciliation
+
+Analytics and the weekly grid preserve all configured weekly minutes using one daily allocator, including leave deductions. Focused pure/PostgreSQL checks pass; positive browser and broader acceptance remain open. See execution ledger.
+
+## Retained firm expense paging and recovery
+
+Firm books now exposes bounded expense pages and exact firm-scoped expense lookup for uncertain action recovery. Focused database, API and Angular checks pass; the positive browser finance journey remains pending because the synthetic browser identity has no finance assignment. No access grant changed. Exact source/results are in the execution ledger.
+
+## Angular quality and development-speed specification follow-up (2026-10-22)
+
+Tasks 01–06 are implemented. The latest follow-up fixes observed keyboard focus loss after removing a draft consolidation journal row. The affected component spec, changed-file lint and production Angular build pass. Exact source, results, the unrelated style-budget warning and CI evidence are in [`status.json`](status.json#targetedVerification.angularQuality20261022).
+
+Task 07 / AC-09 remains partial. Built-in browser checks exercised the synthetic staff shell, empty journal queue and existing consolidation draft form. The focus correction passed a built-in browser recheck. Planning leave-dialog focus, fieldwork tab/validation behavior and narrow-screen reduced-motion checks also passed within the available fixture. Populated editors, approved-budget/procedure review, client shell, native zoom and remaining state coverage are incomplete. Owner review/approval was reported; actual AT/browser versions and workflow findings remain requested.
+
+The earlier exact-source full release pass is retained as baseline evidence. A subsequent nightly exposed asynchronous snapshot/navigation readiness failures; bounded test corrections preserve the isolation, final-path, revocation and persistence assertions and pass the focused E2E cohort. Current-source CI remains in progress; full suites run only in CI/CD. No live tenant or production data was changed.
+
 ## Firm monthly date boundaries
 
 Monthly P&L safely handles supported year-0001 and December-9999 periods, preserving null missing comparatives. Monthly series above the existing 1,200-row UI boundary are refused before activity calculation. The existing balanced-ledger regression passes; full acceptance remains open. Exact results are in the execution ledger.

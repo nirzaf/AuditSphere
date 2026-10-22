@@ -2,7 +2,7 @@
 
 **Status:** CURRENT — operator procedure; live acceptance remains separate.
 
-**Scope:** WU-018 and WU-019 in the [autonomous completion specification](../architecture/auditsphere-autonomous-completion-remediation-spec.md). Registration commands create/reconcile owned registrations, service principals and public certificates. The separate permission command grants only the signed plan's exact application-role set; the enrollment command only reads existing human-consent evidence. None assigns tenant administrator roles, impersonates a human grantor, creates sites, sends mail, generates private keys or establishes report-signing acceptance. Follow the [permission boundaries](../architecture/auditsphere-m365-tenant-administration-permissions.md) and the canonical operator deployment Wiki for those separate steps.
+**Scope:** WU-018, WU-019, and WU-020 in the [autonomous completion specification](../architecture/auditsphere-autonomous-completion-remediation-spec.md). Registration commands create/reconcile owned registrations, service principals and public certificates. The separate permission command grants only the signed plan's exact application-role set; the enrollment command only reads existing human-consent evidence; the selected-sites command grants only app-only document write access on approved sites. None assigns tenant administrator roles, impersonates a human grantor, creates sites, sends mail, generates private keys or establishes report-signing acceptance. Follow the [permission boundaries](../architecture/auditsphere-m365-tenant-administration-permissions.md) and the canonical operator deployment Wiki for those separate steps.
 
 ## Modes and prerequisites
 
@@ -188,11 +188,57 @@ provider evidence is not promoted. `Apply` is unsupported; planning/WhatIf read
 neither session credentials nor any API. Verification covers enrollment only,
 not selected-site access, mail delivery, workspace activation or client-site setup.
 
+## Selected document sites grant automation
+
+WU-020 provides `Grant-SelectedDocumentSites.ps1` to grant and verify application-only write permissions on approved SharePoint document sites under the `Sites.Selected` permission model.
+
+The command separates privileged operator metadata/grant reconciliation from a
+fresh child process authenticated with the DOCUMENTS certificate. It checks:
+
+- Exact single-tenant app ownership, certificate and approved application-role set.
+- Exact site ID, URL, tenant and approved description ownership marker before writes.
+- One application-only `write` grant per site; mixed human/app grants, duplicates
+  and broader roles fail closed. Existing unrelated permissions are untouched.
+- A durable pending intent before POST and exact permission-ID readback before
+  confirmation. Unknown outcomes require reconciliation, never a blind retry.
+- Actual DOCUMENTS site and default-library-root reads, followed by HTTP 403 on
+  known existing same-tenant unrelated sites. HTTP 401/404 and absence from an
+  operator permission listing are not isolation proof.
+
+No site, user permission, client record or tenant consent is created. WU-021 owns
+client-site creation and staff membership. Library-root read does not prove file
+upload/download, archive protection or application workspace activation.
+
+Live execution requires a clean source checkout matching `repositoryCommit`,
+`-ExpectedPlanSha256`, the pinned Graph authentication module and an existing
+approved operator session. Apply also requires the existing detached CMS approval
+(`GRANT_SELECTED_DOCUMENT_SITES`), trusted signer fingerprint, matching state
+location and per-write confirmation. Use the same signed-approval procedure above
+with that action; do not reuse an Entra application-role approval.
+
+The runtime supports existing PEM private keys via `certificateReference=file:`
+and a matching public certificate. Run only on the approved administration host
+with the actual protected mount, never copy a runtime key to a workstation. The
+CLI checks the leaf file, Unix access bits and cryptographic match; it cannot
+attest the host/mount's custody policy. That remains operator evidence. Other
+credential-reference types block rather than silently use the operator identity.
+The private key is not placed in arguments, output or the operator token session.
+
+DryRun / Plan invocation:
+
+```powershell
+pwsh -NoProfile -NonInteractive -File scripts/m365/Grant-SelectedDocumentSites.ps1 `
+  -PlanPath /approved/operator/target-plan.json -DryRun `
+  -OutputPath /approved/operator/sites-plan.json
+python3 scripts/m365/verify-result.py /approved/operator/sites-plan.json --expect PLANNED
+```
+
 ## Offline engineering checks
 
 ```powershell
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-018 -Offline
 pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-019 -Offline
+pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-020 -Offline
 ```
 
 The transport is synthetic and has no tenant connection. Current observed results and remaining live prerequisites belong in the execution ledger, not this procedure. No simulated result establishes Microsoft provider acceptance.
