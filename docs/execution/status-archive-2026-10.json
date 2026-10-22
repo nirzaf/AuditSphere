@@ -19719,6 +19719,7 @@
           },
           "ci": {
             "fast": "PASS: run 39695625680 on exact source 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
+            "fastDocumentationHead": "PASS: run 39700891480 on docs-only HEAD 67e60761d1970b0d1b3d12d630c0822a9e103be5; Docs, Angular and .NET Release succeeded. No application source changed after 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
             "fullRelease": "IN_PROGRESS: run 39696019761 on exact source 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b. Domain unfiltered suite PASS; Angular full build/specs PASS; build/contracts/publication PASS; API and Playwright E2E unfiltered suites pending at recording time."
           },
           "humanAssistiveTechnology": "OPEN: the repository checklist requires a knowledgeable screen-reader reviewer and recorded screen-reader/browser versions. Agent accessibility-tree and keyboard checks do not satisfy that requirement.",
