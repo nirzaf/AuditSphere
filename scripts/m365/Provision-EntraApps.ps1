@@ -40,6 +40,7 @@ try {
     }
     exit (Complete-M365Result $result 'PLANNED' $OutputPath)
   }
+  Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Entra.psm1') -Force
   if ($Mode -eq 'Apply') {
     if (-not $ExpectedPlanSha256 -or -not $ApprovalPath -or -not $ApprovalSignaturePath -or
         $ApprovalSignerSha256 -cnotmatch '^[a-f0-9]{64}$' -or -not $ApprovalReference) { throw 'BLOCKED_APPROVAL' }
@@ -56,12 +57,13 @@ try {
     if ($fingerprint -cne $ApprovalSignerSha256 -or $signer.NotAfter.ToUniversalTime() -le [datetime]::UtcNow -or
         $signer.NotBefore.ToUniversalTime() -gt [datetime]::UtcNow) { throw 'BLOCKED_APPROVAL' }
     $approval = [System.Text.Encoding]::UTF8.GetString($approvalBytes) | ConvertFrom-Json -AsHashtable
-    $required = @('planSha256','tenantId','operatorClientId','approvalReference','expiresAtUtc','action','exclusiveCertificateWindow')
+    $required = @('planSha256','tenantId','operatorClientId','approvalReference','expiresAtUtc','action','exclusiveCertificateWindow','stateDirectory')
     if (@($approval.Keys | Where-Object { $_ -cnotin $required }).Count -or
         @($required | Where-Object { -not $approval.ContainsKey($_) }).Count -or
         $approval.planSha256 -cne $result.planSha256 -or $approval.tenantId -ne $plan.tenantId -or
         $approval.operatorClientId -ne $plan.operator.clientId -or $approval.approvalReference -cne $ApprovalReference -or
         $approval.exclusiveCertificateWindow -isnot [bool] -or -not $approval.exclusiveCertificateWindow -or
+        $approval.stateDirectory -cne (Get-EntraStateDirectory $StateDirectory) -or
         $approval.action -cne $(if ($CertificatesOnly) { 'SET_PUBLIC_CERTIFICATES' } else { 'RECONCILE_ENTRA_REGISTRATIONS' }) -or
         ([DateTimeOffset] $approval.expiresAtUtc) -le [DateTimeOffset]::UtcNow -or
         ([DateTimeOffset] $approval.expiresAtUtc) -gt [DateTimeOffset]::UtcNow.AddHours(24)) { throw 'BLOCKED_APPROVAL' }
@@ -77,7 +79,6 @@ try {
   if ($LASTEXITCODE -ne 0 -or $source -cne $plan.repositoryCommit) { throw 'INVALID_OR_UNSAFE' }
   $dirty = & git -C $repository status --porcelain -- scripts/m365 2>$null
   if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'INVALID_OR_UNSAFE' }
-  Import-Module (Join-Path $PSScriptRoot 'AuditSphere.M365.Entra.psm1') -Force
   $contextCommand = Get-Command Get-MgContext -Module $module.name
   $graphCommand = Get-Command Invoke-MgGraphRequest -Module $module.name
   $providerCommand = Get-Command Invoke-M365ProviderRequest

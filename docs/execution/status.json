@@ -1104,7 +1104,7 @@
         "localVerification": "PASS",
         "ciVerification": "NOT_DISPATCHED",
         "externalAcceptance": "BLOCKED_EXTERNAL",
-        "checks": "WU-018 offline assertion cohort: 65 passed, 0 failed; WU-017 updated boundary cohort: 40 passed, 0 failed; existing M365 result verifier: 5 passed; DryRun envelope PLANNED/zero effects passed.",
+        "checks": "WU-018 offline assertion cohort: 67 passed, 0 failed; WU-017 updated boundary cohort: 40 passed, 0 failed; existing M365 result verifier: 5 passed; DryRun envelope PLANNED/zero effects passed.",
         "scope": "No tenant connection, consent grant, private credential generation or live acceptance performed. Exact-source full CI remains pending.",
         "review": "Independent source findings repaired: ID-first lookup, fixed/canonical operator journal, LOGIN User.Read refusal and bounded Retry-After-aware GET retries.",
         "operatorGuide": "docs/operations/auditsphere-entra-registration-automation.md",

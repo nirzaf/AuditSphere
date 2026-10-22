@@ -218,10 +218,11 @@ try {
     $approvalCertificate = $request.CreateSelfSigned([DateTimeOffset]::UtcNow.AddDays(-1), [DateTimeOffset]::UtcNow.AddDays(1))
     try {
       $trusted = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($approvalCertificate.RawData)).ToLowerInvariant()
-      foreach ($variant in @('valid','wrong-signer','wrong-tenant','expired','no-window','tampered')) {
+      foreach ($variant in @('valid','wrong-signer','wrong-tenant','expired','no-window','wrong-state','tampered')) {
         $approval = @{ planSha256 = $digest; tenantId = $original.tenantId; operatorClientId = $original.operator.clientId
-          approvalReference = $original.approvalReference; exclusiveCertificateWindow = $true; expiresAtUtc = [DateTimeOffset]::UtcNow.AddHours(1).ToString('o'); action = 'RECONCILE_ENTRA_REGISTRATIONS' }
+          approvalReference = $original.approvalReference; exclusiveCertificateWindow = $true; stateDirectory = $fixedState; expiresAtUtc = [DateTimeOffset]::UtcNow.AddHours(1).ToString('o'); action = 'RECONCILE_ENTRA_REGISTRATIONS' }
         if ($variant -eq 'wrong-tenant') { $approval.tenantId = [guid]::NewGuid().ToString() }
+        if ($variant -eq 'wrong-state') { $approval.stateDirectory = $work }
         if ($variant -eq 'no-window') { $approval.exclusiveCertificateWindow = $false }
         if ($variant -eq 'expired') { $approval.expiresAtUtc = [DateTimeOffset]::UtcNow.AddMinutes(-1).ToString('o') }
         $data = [System.Text.UTF8Encoding]::new($false).GetBytes((ConvertTo-Json $approval -Compress))

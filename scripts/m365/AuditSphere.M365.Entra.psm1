@@ -5,7 +5,7 @@ Set-StrictMode -Version Latest
 function Get-EntraStateDirectory([string] $Requested) {
   # One host/operator is the supported execution boundary. Clones/worktrees/output
   # filenames must not introduce fresh journals for the same tenant operation.
-  $base = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+  $base = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData, [Environment+SpecialFolderOption]::DoNotVerify)
   if (-not $base) { throw 'PREREQUISITE_MISSING' }
   $fixed = [System.IO.Path]::GetFullPath((Join-Path $base 'AuditSphere/M365Entra'))
   if ($Requested) {

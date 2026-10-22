@@ -53,9 +53,12 @@ The signed JSON contains exactly:
   "approvalReference": "<the external change record named in the plan>",
   "expiresAtUtc": "<expiry in UTC, within the next day>",
   "action": "RECONCILE_ENTRA_REGISTRATIONS",
-  "exclusiveCertificateWindow": true
+  "exclusiveCertificateWindow": true,
+  "stateDirectory": "<fixed operator journal directory>"
 }
 ```
+
+Obtain the exact journal location with `Import-Module ./scripts/m365/AuditSphere.M365.Entra.psm1; Get-EntraStateDirectory`. The signed `stateDirectory` must match that fixed current-operator location; a different process profile cannot silently select a new journal.
 
 The approval owner signs the exact file bytes with their existing approved signing credential. For an already loaded authorized `$approvalCertificate`, standard PowerShell/.NET signing is:
 
