@@ -15481,7 +15481,8 @@
             "source": "48816d27761d71fa71581c514789844afba02d9b",
             "observed": "in_progress; Angular/full specs, build/contracts/publication and Domain SUCCESS; API/E2E running",
             "result": "PENDING; no FULL_CI_PASS",
-            "domain": "Job 119963215892 SUCCESS; artifact 12444885555 domain.trx: total/executed/passed 1493, failed/notExecuted 0. Source 48816d27."
+            "domain": "Job 119963215892 SUCCESS; artifact 12444885555 domain.trx: total/executed/passed 1493, failed/notExecuted 0. Source 48816d27.",
+            "narrowSkipLink": "Built-in IAB, 4304/ui/app/practice/time, current UI source unchanged from 48816d27: at 320x900, Enter on Skip to main content then Tab focused Task title. focus-visible true; field x41–229/y691.75–731.75 below header bottom69.1875; document width305. Viewport restored. Screenshot /tmp/auditsphere-time-skip-link-320.png. No business mutation or native zoom claim."
           }
         }
       },
