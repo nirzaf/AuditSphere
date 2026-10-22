@@ -1201,8 +1201,8 @@
       "result": "PARTIAL",
       "criteria": "AC01–08 pass; AC09 partial; CI pending.",
       "fastCi": "39786007598 PASS (6e821503); latest pending.",
-      "fullReleaseCi": "39791746461 running on 2302a06a; prior 39785630053 running.",
-      "browser": "Journal/evidence preview and client mobile nav PASS; full matrix partial.",
+      "fullReleaseCi": "39796315334 queued on 94f18f9e; superseded cancels requested.",
+      "browser": "All five surfaces and both shells sampled; full matrix partial.",
       "humanAT": "Actual AT/version/workflow evidence not supplied.",
       "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFocusRecovery20261022"
     }

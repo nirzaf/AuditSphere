@@ -15393,6 +15393,25 @@
             "screenshot": "/tmp/auditsphere-consolidation-keyboard-scroll-fixed.png"
           },
           "limits": "Full state matrix, native zoom and human AT remain partial; temporary fixture tabs closed and viewport restored."
+        },
+        "finalSourceVerification20261022": {
+          "run": 39796315334,
+          "source": "94f18f9e24e04059c48f497b159ff0dd83322cc4",
+          "observed": "queued; immutable source resolved successfully",
+          "superseded": [
+            {
+              "run": 39785630053,
+              "source": "e494d48d",
+              "action": "Cancellation requested; API/E2E not recorded as passes; overall queued on last check"
+            },
+            {
+              "run": 39791746461,
+              "source": "2302a06a",
+              "action": "Cancellation requested; API/E2E not recorded as passes; overall in_progress on last check"
+            }
+          ],
+          "reason": "One final-source complete unfiltered verification replaces concurrent superseded source runs. Completed Domain/Angular/build job results remain historical only.",
+          "remaining": "No FULL_CI_PASS yet. Native zoom and knowledgeable human screen-reader observations remain unavailable; rendered matrix still partial."
         }
       },
       "workflowHistory20261020": {
