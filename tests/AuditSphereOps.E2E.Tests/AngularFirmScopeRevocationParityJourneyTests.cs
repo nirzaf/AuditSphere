@@ -155,25 +155,10 @@ public sealed class AngularFirmScopeRevocationParityJourneyTests
       Assert.True(revokedFinance.Succeeded, revokedFinance.Message);
     }
 
-    foreach (var page in new[] { accessPage, operationsPage })
-    {
-      var refresh = page.GetByRole(AriaRole.Button, new() { Name = page == accessPage ? "Refresh access" : "Refresh operations", Exact = true });
-      var unavailable = page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true });
-      if (!await unavailable.IsVisibleAsync() && await refresh.IsVisibleAsync())
-      {
-        try { await refresh.ClickAsync(new() { Timeout = 5000 }); }
-        catch (PlaywrightException)
-        {
-          // A revocation epoch can replace the refresh control while its click is in flight.
-          // The protected workspace must still converge to the denied state below.
-        }
-      }
-      await Assertions.Expect(unavailable).ToBeVisibleAsync(new() { Timeout = 15000 });
-    }
-    await leadsPage.GetByRole(AriaRole.Button, new() { Name = "Refresh leads", Exact = true }).ClickAsync();
-    await Assertions.Expect(leadsPage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
-    await financePage.GetByRole(AriaRole.Button, new() { Name = "Refresh firm ledger", Exact = true }).ClickAsync();
-    await Assertions.Expect(financePage.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
+    await AssertWorkspaceAccessRevokedAsync(accessPage, "Refresh access");
+    await AssertWorkspaceAccessRevokedAsync(operationsPage, "Refresh operations");
+    await AssertWorkspaceAccessRevokedAsync(leadsPage, "Refresh leads");
+    await AssertWorkspaceAccessRevokedAsync(financePage, "Refresh firm ledger");
 
     Assert.DoesNotContain(f.Staff.Email, await accessPage.Locator("body").InnerTextAsync());
     Assert.DoesNotContain("Firm role grants", await accessPage.Locator("body").InnerTextAsync());
@@ -206,5 +191,22 @@ public sealed class AngularFirmScopeRevocationParityJourneyTests
     Assert.DoesNotContain("Setup progress", deniedBody);
     Assert.DoesNotContain(erroneousClientAdmin.Email, deniedBody);
     Assert.Empty(errors);
+  }
+
+  private static async Task AssertWorkspaceAccessRevokedAsync(IPage page, string refreshButtonName)
+  {
+    var unavailable = page.GetByRole(AriaRole.Heading, new() { Name = "Access unavailable", Exact = true });
+    var refresh = page.GetByRole(AriaRole.Button, new() { Name = refreshButtonName, Exact = true });
+    if (!await unavailable.IsVisibleAsync() && await refresh.IsVisibleAsync())
+    {
+      try { await refresh.ClickAsync(new() { Timeout = 5000 }); }
+      catch (PlaywrightException)
+      {
+        // A revocation epoch can replace the refresh control while its click is in flight.
+        // The protected workspace must still converge to the denied state below.
+      }
+    }
+
+    await Assertions.Expect(unavailable).ToBeVisibleAsync(new() { Timeout = 15000 });
   }
 }

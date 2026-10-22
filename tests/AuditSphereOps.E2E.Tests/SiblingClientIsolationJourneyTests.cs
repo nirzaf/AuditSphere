@@ -65,7 +65,13 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       {
         var after = await SnapshotAsync(page, origin + route);
         if (after.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{route}: sibling marker rendered");
-        else if (after != before[route]) leaks.Add($"{route}: rendered text changed\n  before: {Excerpt(before[route], after)}\n  after:  {Excerpt(after, before[route])}");
+        else
+        {
+          var beforeForComparison = route == "/portal" ? PortalSnapshotCutoff().Replace(before[route], string.Empty) : before[route];
+          var afterForComparison = route == "/portal" ? PortalSnapshotCutoff().Replace(after, string.Empty) : after;
+          if (afterForComparison != beforeForComparison)
+            leaks.Add($"{route}: rendered text changed\n  before: {Excerpt(beforeForComparison, afterForComparison)}\n  after:  {Excerpt(afterForComparison, beforeForComparison)}");
+        }
       }
 
       var engagement = sibling.Fixture.EngagementId;
@@ -376,6 +382,9 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
 
   [GeneratedRegex(@"Draft autosave is ready\.|Unsaved draft restored locally \([^)]*\)\.")]
   private static partial Regex DraftStatus();
+
+  [GeneratedRegex(@"Event timestamp cutoff: \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC\. This is live history; current sources and access are checked on each page\. Refresh to include later events\.")]
+  private static partial Regex PortalSnapshotCutoff();
 
   [GeneratedRegex(@"\s+")]
   private static partial Regex Whitespace();
