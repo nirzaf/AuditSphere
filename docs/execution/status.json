@@ -1199,12 +1199,12 @@
     },
     "angularQuality20261022": {
       "result": "PARTIAL",
-      "criteria": "AC01–08 pass; AC09 partial; AC10 pass.",
-      "fastCi": "39719683921 pass; 39722280342 pass on a docs-only master descendant.",
-      "fullReleaseCi": "39720105655 PASS bd150590f4deab461ca5aec74dc4e509b7041071: Domain 1493, API 394, E2E 330; zero failures/skips.",
-      "browser": "Rendered matrix unobserved; browser policy blocked.",
-      "humanAT": "OPEN; human AT review required.",
-      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFollowUp20261022b"
+      "criteria": "AC01–08 pass; AC09 partial; CI pending.",
+      "fastCi": "39785601681 pending on e494d48d; 3d47f633 fast PASS.",
+      "fullReleaseCi": "39785630053 pending on e494d48d.",
+      "browser": "Focus recovery PASS; staff/planning/consolidation/fieldwork partial; empty queues checked.",
+      "humanAT": "Owner approval recorded; actual AT/version/workflow details requested.",
+      "evidence": "status-archive-2026-10.json#keys.targetedVerification.angularQualityFocusRecovery20261022"
     }
   },
   "externalGates": [

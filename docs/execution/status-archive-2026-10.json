@@ -15242,6 +15242,41 @@
       }
     },
     "targetedVerification": {
+      "angularQualityFocusRecovery20261022": {
+        "observedAtUtc": "2026-10-22T13:20:33.905763+00:00",
+        "sourceCommit": "3d47f6334bf8a5008885ca526d07d174af4f883b",
+        "baselineSource": "5fc873fb477b6ace3ad28e2fe1c50b0627b671db",
+        "specification": "AuditSphere_Atomic_Implementation_Spec (1).md; Task 07 / AC-09",
+        "result": "PARTIAL_PENDING_REMAINING_RENDERED_AND_HUMAN_AT",
+        "environment": "Synthetic auditsphere_browser only; Test API binary on 5100; current Angular dev source on 4304/ui; external effects disabled. Initial rendered observations used the earlier source-identical API/UI on 5029.",
+        "renderedObservations": {
+          "staffShell": "Normal Sign in restored the configured synthetic session after a stale/unmapped cookie returned 401. Main content received route focus; Tab from main reached Manage workflow templates.",
+          "journal": "Loaded scoped journal queue, observed loading then zero-row table with explicit empty message and disabled Previous/Next controls. No journal fixture was available to exercise editor actions.",
+          "consolidation": "Opened existing draft scope 01a14b51-810b-7839-a887-e3d8a2cc683f. Blocked perimeter approval exposed its independent-profile reason. Expanded elimination journal; row inputs and remove buttons had distinct accessible names. Keyboard Add line retained focus. Removing line 3 with Return dropped focus to document: FAIL on baseline.",
+          "fix": "PASS in built-in IAB at current-source dev origin 4304/ui: Enter on Add line then Enter on Remove journal line 3 returns focus to Journal line 2 taxonomy code, with visible focus ring; only local draft state changed. Screenshot /tmp/auditsphere-focus-3d47f633.png. Additional built-in keyboard checks: removing the first of four rows focuses line 1 taxonomy; removing the middle of three focuses line 2 taxonomy; no Remove buttons remain at two rows. Independent source review found no behavior defect.",
+          "remaining": "Current client-shell, populated journal/evidence editors, approved-budget/procedure-review, full state/zoom/contrast coverage and knowledgeable human AT remain incomplete.",
+          "planning": "PARTIAL: existing engagement e1000000-0000-0000-0000-000000000001; named Person/Level selectors operate by keyboard. Unsaved-choice navigation opens a dialog focused on Keep editing; Escape returns focus to Fieldwork link; Discard edits and continue navigates without a staffing command. No approved budget fixture exists.",
+          "fieldwork": "PARTIAL: Material tabs use arrows/End for focus, Enter for selection; Sampling to Client evidence and Review notes exercised. Empty invalid preview exposes the exact missing-input message with role=alert. No adopted programme, approved schedule, submitted review or sampling result fixture exists.",
+          "evidence": "PARTIAL: Accounting evidence queue renders an explicit No accounting evidence empty state; no editor record is available.",
+          "responsive": "PARTIAL: consolidation and fieldwork at 390x844 with reduced-motion emulation have document scrollWidth375, below viewport390. Mobile nav opens to Close navigation, Shift+Tab wraps to Technical library, Escape returns to Open navigation. Keyboard traversal scrolls the journal table horizontally (scrollLeft384) to a visible credit field. Emulation/viewport restored after checks. Native zoom shortcuts had no observable effect; 200%/400% native zoom and full contrast matrix NOT_VERIFIED."
+        },
+        "verification": {
+          "focusedAngular": "PASS: npm --prefix src/AuditSphereOps.Ui run test:ci -- --include src/app/features/consolidation/scope-workspace.spec.ts; 19/19, including focus retention and no command dispatch after row removal.",
+          "lint": "PASS: changed scope-workspace.ts and scope-workspace.html via lint:files.",
+          "productionBuild": "PASS: npm --prefix src/AuditSphereOps.Ui run build. Existing unrelated commercial/settings.scss size-budget warning remains (7.53 kB against 4.00 kB).",
+          "diff": "git diff --check PASS before commit.",
+          "fullSuites": "NOT_RUN locally; new exact-source release CI requested. Earlier 39720105655 PASS on bd150590 is baseline evidence only after this UI change.",
+          "fastCi": "PASS 39782685445 on 3d47f6334bf8a5008885ca526d07d174af4f883b: Docs, Angular and .NET Release.",
+          "fullReleaseCi": "39785630053 running/queued on e494d48d32253736bd4a4bb80c84a42d3e60974f. Superseded 39782720834 on3d47f633 was cancelled to avoid duplicate full CI. Earlier nightly39741042631 failed the two repaired E2E methods; current full acceptance is not yet established.",
+          "ciRecoveryFocused": "PASS 2/2, zero failures/skips, 1m5s: SiblingClientIsolationJourneyTests.SiblingClientDataNeverChangesWhatAnotherClientSeesInThePortal and AngularClientScopeEngagementParityJourneyTests.EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites. dotnet test rebuilt the changed binaries in Release; filter contained only these methods; isolated PostgreSQL on5433; TRX /tmp/auditsphere-angular-quality-ci-recovery/angular-quality-ci-recovery.trx. Tested code/test input matches e494d48d.",
+          "ciRecoveryRationale": "Portal comparison now waits for client activity cutoff rendering and normalizes only that volatile timestamp after the sibling marker assertion. In-place engagement navigation waits for expected rendered content then asserts the final path. Exact record-isolation, revocation and persistence checks remain. No timeout increase, skip or suite deletion.",
+          "latestFastCi": "39785601681 IN_PROGRESS on e494d48d; 39782685445 PASS on3d47f633."
+        },
+        "humanAT": "Owner reported reviewed and approved. Screen-reader/browser versions, named workflow observations and native zoom results were requested and have not yet been supplied; this is owner approval, not completed AT evidence.",
+        "priorEvidence": "angularQualityFollowUp20261022b; earlier exact-source CI results retained under their own commits.",
+        "browserDiagnostics": "No warning or error entries returned by built-in tab dev.logs after checked workflows. Exact browser version is unavailable through exposed diagnostics; no version is inferred.",
+        "testRecoveryCommit": "e494d48d32253736bd4a4bb80c84a42d3e60974f"
+      },
       "workflowHistory20261020": {
         "workflowTrackerReconciliation": {
           "baseCommit": "52c9f91b94b843f5c0f3c6825cd4d03e006055bd",
