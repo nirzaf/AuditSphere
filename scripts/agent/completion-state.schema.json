@@ -61,6 +61,16 @@
         "ciVerification": {"enum": ["NOT_DISPATCHED", "QUEUED", "RUNNING", "PASS", "FAIL", "CANCELLED", "TIMED_OUT", "UNKNOWN"]},
         "acceptance": {"enum": ["NOT_REQUIRED", "PENDING", "PASS", "BLOCKED_EXTERNAL", "BLOCKED_PROFESSIONAL", "HUMAN_AT_REQUIRED"]},
         "scheduling": {"enum": ["READY", "RUNNING", "WAITING_CI", "REPAIR_REQUIRED", "BLOCKED_DEPENDENCY", "BLOCKED_ENVIRONMENT", "BLOCKED_EXTERNAL", "ENGINEERING_VERIFIED"]},
+        "evidenceDigests": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false, "required": ["sha256", "sizeBytes"],
+            "properties": {
+              "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "sizeBytes": {"type": "integer", "minimum": 1, "maximum": 33554432}
+            }
+          }
+        },
         "evidencePaths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 300}},
         "repairAttempts": {"type": "integer", "minimum": 0},
         "commit": {"type": "string", "pattern": "^[a-f0-9]{7,40}$"},

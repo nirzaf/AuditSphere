@@ -170,6 +170,16 @@ class ResultTests(unittest.TestCase):
         self.assertTrue(cs.check_result(result(evidencePaths=["../etc/passwd"]), self.root))
         self.assertTrue(cs.check_result(result(evidencePaths=["/etc/passwd"]), self.root))
 
+    def test_evidence_rejects_symlink_directories_empty_and_oversized_files(self):
+        target = self.root / "evidence"
+        (self.root / "alias").symlink_to(target, target_is_directory=True)
+        (target / "empty.txt").touch()
+        with (target / "huge.txt").open("wb") as stream:
+            stream.truncate(cs.MAX_EVIDENCE_BYTES + 1)
+        for path in ("alias/run-004.json", "evidence/empty.txt", "evidence/huge.txt"):
+            with self.subTest(path=path):
+                self.assertTrue(cs.check_result(result(evidencePaths=[path]), self.root))
+
     def test_zero_tests_cannot_support_pass(self):
         (self.root / "evidence" / "empty.json").write_text(json.dumps({"testsExecuted": 0}), encoding="utf-8")
         self.assertTrue(cs.check_result(result(evidencePaths=["evidence/empty.json"]), self.root))

@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Completion evidence integrity follow-up (2026-10-22)
+
+The runner captures artifact hashes and byte sizes itself, bounds evidence reads, rejects symlink traversal, and revalidates retained artifacts before any completion exit. Historical checkpoints remain readable but cannot certify completion without retained digests. Re-run or independently inspect the original checks before recording new evidence; never backfill a digest merely to turn the gate green. Focused runner/state results are recorded in `autonomousCompletion20261022` in [status.json](status.json); product and live acceptance remain open.
+
 ## Autonomous completion run (2026-10-22)
 
 The adopted [autonomous completion specification](../architecture/auditsphere-autonomous-completion-remediation-spec.md) is in progress; engineering completion is not reached and the current head has no exact-candidate full CI. Run state lives in ignored `.local/autonomous/` and is driven by `scripts/agent/complete.py`, `scripts/agent/ci-status.py` and `scripts/agent/verify-completion-state.py`.

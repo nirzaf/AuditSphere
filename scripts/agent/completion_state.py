@@ -10,6 +10,7 @@ Developer tooling only. It stores no credentials and never runs model-generated 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -22,6 +23,7 @@ REPOSITORY = "nirzaf/AuditSphere"
 TASK_ID = re.compile(r"^(RUN|WU)-[0-9]{3}$")
 SHA = re.compile(r"^[a-f0-9]{40}$")
 SCHEMA_DIR = Path(__file__).resolve().parent
+MAX_EVIDENCE_BYTES = 32 * 1024 * 1024
 
 IMPLEMENTATION = ("NOT_ASSESSED", "MISSING", "PARTIAL", "PRESENT")
 VERIFICATION = ("NOT_RUN", "RUNNING", "PASS", "FAIL", "BLOCKED_ENVIRONMENT", "NOT_APPLICABLE_APPROVED")
@@ -89,6 +91,8 @@ def validate(instance: Any, schema: dict, root: dict | None = None, path: str = 
     if isinstance(instance, (int, float)) and not isinstance(instance, bool):
         if "minimum" in schema and instance < schema["minimum"]:
             errors.append(f"{path}: below {schema['minimum']}")
+        if "maximum" in schema and instance > schema["maximum"]:
+            errors.append(f"{path}: above {schema['maximum']}")
     if isinstance(instance, list):
         if len(instance) < schema.get("minItems", 0):
             errors.append(f"{path}: fewer than {schema['minItems']} items")
@@ -268,6 +272,11 @@ def resolve_evidence(root: Path, relative: str) -> Path:
         raise StateError(f"evidence path {relative!r} must be relative without '..'")
     root = Path(root).resolve()
     candidate = (root / relative)
+    current = root
+    for part in Path(relative).parts:
+        current = current / part
+        if current.is_symlink():
+            raise StateError(f"evidence path {relative!r} traverses a symlink")
     resolved = candidate.resolve()
     if root not in resolved.parents and resolved != root:
         raise StateError(f"evidence path {relative!r} escapes the evidence root")
@@ -278,7 +287,47 @@ def resolve_evidence(root: Path, relative: str) -> Path:
     return resolved
 
 
-def check_result(result: Any, evidence_root: Path) -> list[str]:
+def read_evidence(root: Path, relative: str) -> bytes:
+    """Bound reads before hashing/parsing; empty artifacts cannot substantiate completion."""
+    path = resolve_evidence(root, relative)
+    with path.open("rb") as stream:
+        size = os.fstat(stream.fileno()).st_size
+        if size == 0 or size > MAX_EVIDENCE_BYTES:
+            raise StateError(f"{relative}: evidence size must be 1..{MAX_EVIDENCE_BYTES} bytes")
+        data = stream.read(MAX_EVIDENCE_BYTES + 1)
+        if len(data) != size:
+            raise StateError(f"{relative}: evidence changed size during read")
+    return data
+
+
+def evidence_digests(root: Path, paths: list[str]) -> dict:
+    records = {}
+    for relative in paths:
+        data = read_evidence(root, relative)
+        records[relative] = {"sha256": hashlib.sha256(data).hexdigest(), "sizeBytes": len(data)}
+    return records
+
+
+def check_retained_evidence(state: dict, root: Path) -> list[str]:
+    errors = []
+    for task_id, task in state["tasks"].items():
+        if not implementation_satisfied(task):
+            continue
+        expected = task.get("evidenceDigests", {})
+        for relative in task["evidencePaths"]:
+            if relative not in expected:
+                errors.append(f"{task_id}: {relative}: missing supervisor evidence digest")
+                continue
+            try:
+                actual = evidence_digests(root, [relative])[relative]
+                if actual != expected[relative]:
+                    errors.append(f"{task_id}: {relative}: evidence hash/size mismatch")
+            except (StateError, OSError) as exc:
+                errors.append(f"{task_id}: {exc}")
+    return errors
+
+
+def check_result(result: Any, evidence_root: Path, captured: dict | None = None) -> list[str]:
     errors = validate(result, load_schema("completion-result.schema.json"))
     if errors:
         return errors
@@ -289,14 +338,16 @@ def check_result(result: Any, evidence_root: Path) -> list[str]:
         errors.append("only a passing verification can request engineering completion")
     for relative in paths:
         try:
-            resolved = resolve_evidence(evidence_root, relative)
-        except StateError as exc:
+            data_bytes = read_evidence(evidence_root, relative)
+        except (StateError, OSError) as exc:
             errors.append(str(exc))
             continue
-        if resolved.suffix == ".json" and result["verificationStatus"] == "PASS":
+        if captured is not None:
+            captured[relative] = {"sha256": hashlib.sha256(data_bytes).hexdigest(), "sizeBytes": len(data_bytes)}
+        if Path(relative).suffix == ".json" and result["verificationStatus"] == "PASS":
             try:
-                data = json.loads(resolved.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
+                data = json.loads(data_bytes.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 errors.append(f"{relative}: evidence JSON is corrupt")
                 continue
             if isinstance(data, dict) and data.get("testsExecuted") == 0:

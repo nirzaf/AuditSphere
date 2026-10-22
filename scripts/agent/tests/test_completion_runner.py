@@ -154,9 +154,24 @@ class RunnerTests(unittest.TestCase):
         self.write_state({"RUN-001": verified})
         code, out = self.run_cli("verify")
         self.assertNotEqual(code, 0)
+        evidence = self.state_path.parent / "e"
+        evidence.write_text("verified command output")
+        verified["evidenceDigests"] = cs.evidence_digests(self.state_path.parent, ["e"])
         self.write_state({"RUN-001": verified}, ci={"status": "PASS", "resolvedSha": self.head})
         code, out = self.run_cli("verify")
         self.assertEqual((code, out["verdict"]), (0, "ENGINEERING_COMPLETE"))
+        # Same source and green CI cannot hide replaced, deleted or unrecorded evidence.
+        evidence.write_text("different command output")
+        for command in ("verify", "run", "resume"):
+            with self.subTest(command=command):
+                code, out = self.run_cli(command, "--runner", str(self.runner("sys.exit(99)")))
+                self.assertEqual(code, 20)
+        evidence.unlink()
+        self.assertEqual(self.run_cli("verify")[0], 20)
+        evidence.write_text("verified command output")
+        verified.pop("evidenceDigests")
+        self.write_state({"RUN-001": verified}, ci={"status": "PASS", "resolvedSha": self.head})
+        self.assertEqual(self.run_cli("verify")[0], 20)
 
     def test_missing_codex_is_a_runner_prerequisite_exit(self):
         self.write_state({"RUN-004": task()})

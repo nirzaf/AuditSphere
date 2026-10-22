@@ -153,6 +153,8 @@ def cmd_run(args, resume_only: bool = False) -> int:
         if session.get("status") == "INTERRUPTED" and session.get("taskId"):
             task_id, resume_id = session["taskId"], session.get("id")
         elif resume_only:
+            if exit_for(state) == 0:
+                return cmd_verify(args)
             print(json.dumps({"exit": exit_for(state), "reason": "no interrupted session"}))
             return exit_for(state)
         else:
@@ -162,6 +164,8 @@ def cmd_run(args, resume_only: bool = False) -> int:
                 state["nextAction"] = choice["nextAction"]
                 save(state_path, state)
                 code = exit_for(state)
+                if code == 0:
+                    return cmd_verify(args)
                 print(json.dumps({"exit": code, "nextAction": choice["nextAction"]}))
                 return code
         evidence_root = state_path.parent
@@ -197,12 +201,13 @@ def cmd_run(args, resume_only: bool = False) -> int:
             print(json.dumps({"exit": code, "taskId": task_id, "reason": "runner interrupted or produced no result",
                               "sessionId": session["id"]}))
             return code
+        captured = {}
         try:
             result = cs.load_json(result_path)
         except cs.StateError as exc:
             result, errors = None, [str(exc)]
         else:
-            errors = cs.check_result(result, evidence_root)
+            errors = cs.check_result(result, evidence_root, captured)
         if not errors and result["taskId"] != task_id:
             errors.append(f"result is for {result['taskId']}, not the dispatched {task_id}")
         if not errors and result["candidateSha"] != git_head(repo):
@@ -213,7 +218,9 @@ def cmd_run(args, resume_only: bool = False) -> int:
             save(state_path, state)
             print(json.dumps({"exit": 20, "taskId": task_id, "errors": errors}))
             return 20
+        # Retain the hashes of the exact bytes validated above, never model-supplied digests.
         progressed = apply_result(state, task_id, result)
+        state["tasks"][task_id].setdefault("evidenceDigests", {}).update(captured)
         state["budgets"]["consecutiveNoProgress"] = 0 if progressed else state["budgets"].get("consecutiveNoProgress", 0) + 1
         state["currentSha"] = result["candidateSha"]
         session.update({"status": "COMPLETED", "taskId": None, "id": None})
@@ -222,7 +229,7 @@ def cmd_run(args, resume_only: bool = False) -> int:
         save(state_path, state)
         code = exit_for(state)
         if code == 0:
-            code = 10 if cs.ready_tasks(state) else 0
+            return cmd_verify(args)
         print(json.dumps({"exit": code, "taskId": task_id, "nextAction": state["nextAction"]}))
         return code
 
@@ -231,6 +238,10 @@ def cmd_verify(args) -> int:
     state = load_state(args.repo, args.state)
     if state["currentSha"] != git_head(args.repo):
         print(json.dumps({"exit": 20, "reason": "state currentSha differs from working tree HEAD"}))
+        return 20
+    evidence_errors = cs.check_retained_evidence(state, args.state.parent)
+    if evidence_errors:
+        print(json.dumps({"exit": 20, "errors": evidence_errors}))
         return 20
     if cs.engineering_complete(state):
         gates = [g["id"] for g in state["externalGates"]] or sorted(

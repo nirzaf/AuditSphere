@@ -166,6 +166,7 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | ☑ Completed | Exact budget preparation review keyboard flow | Populated synthetic approved-rate review receives focus; cancel returns focus and reopening requires fresh assent. Both existing route-variant recovery journeys pass; no budget was prepared from the built-in browser. Full planning and human AT acceptance remain open. |
 | ☑ Completed | Keyboard scrolling of retained intercompany matches | The named table region retains focus while arrow keys reveal off-screen review facts at narrow width. Signed amounts and maker/checker explanations are preserved; broader consolidation acceptance remains open. |
 | ☑ Completed | Narrow-screen Time pagination controls | Recorded-entry and approval pagination wrap without losing their refresh actions at narrow width. Built-in-browser pagination and skip-link-to-first-field keyboard checks pass at narrow width, alongside the existing six-viewport route E2E guard. Fast CI passed; corrected-source full release verification and human accessibility acceptance remain separate. |
+| ☑ Completed | Autonomous runner evidence integrity | Supervisor-owned hashes and bounded evidence sizes are checked again before completion; missing, changed or symlinked evidence is refused. Existing checkpoints need attributable evidence revalidation; this does not establish whole-product completion. |
 
 ### Angular quality and accessibility follow-up
 
