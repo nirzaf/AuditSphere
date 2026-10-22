@@ -192,12 +192,19 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
     }
     var usersUrl = request.Url + $"/_api/web/sitegroups({groupId})/users";
     var members = await CollectionAsync(usersUrl, sp, ct);
-    // Remove obsolete managed membership before additions; do not touch site custodians or unrelated groups.
+    // A marker-owned group is not evidence that every membership was created by us.
+    // Remove only immutable identities retained in our last published managed receipt.
+    var previouslyManaged = request.PreviouslyManagedStaffObjectIds ?? [];
+    var removedIds = new HashSet<int>();
     foreach (var member in members)
       if (!desired.ContainsKey(member.GetProperty("LoginName").GetString()!))
       {
-        var removal = await CallAsync(HttpMethod.Post, usersUrl + $"/removebyid({member.GetProperty("Id").GetInt32()})", sp, null, ct);
-        mutations.Add(new("CLIENT_SITE_MEMBER_REMOVED", "sharepoint-user:" + member.GetProperty("Id").GetInt32(), "FULL_CONTROL", "NONE", removal.Correlation));
+        var memberId = member.GetProperty("Id").GetInt32();
+        var principal = await CallAsync(HttpMethod.Get, request.Url + $"/_api/web/siteusers/getbyid({memberId})?$select=Id,LoginName,AadObjectId", sp, null, ct);
+        if (!previouslyManaged.Any(oid => HasObjectIdentity(principal.Json, oid))) continue;
+        var removal = await CallAsync(HttpMethod.Post, usersUrl + $"/removebyid({memberId})", sp, null, ct);
+        removedIds.Add(memberId);
+        mutations.Add(new("CLIENT_SITE_MEMBER_REMOVED", "sharepoint-user:" + memberId, "FULL_CONTROL", "NONE", removal.Correlation));
       }
     foreach (var login in desired.Keys)
     {
@@ -217,19 +224,20 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
         var member = members.Single(m => string.Equals(m.GetProperty("LoginName").GetString(), login, StringComparison.OrdinalIgnoreCase));
         var principal = await CallAsync(HttpMethod.Get, request.Url + $"/_api/web/siteusers/getbyid({member.GetProperty("Id").GetInt32()})?$select=Id,LoginName,AadObjectId", sp, null, ct);
         if (!HasObjectIdentity(principal.Json, desired[login]))
-        {
-          await CallAsync(HttpMethod.Post, usersUrl + $"/removebyid({member.GetProperty("Id").GetInt32()})", sp, null, ct);
           throw new OperationBlockedException("client-site-staff-object-id-mismatch", authorization: true);
-        }
       }
     }
     var final = await CollectionAsync(usersUrl, sp, ct);
-    if (final.Any(m => !desired.ContainsKey(m.GetProperty("LoginName").GetString()!)))
+    if (final.Any(m => removedIds.Contains(m.GetProperty("Id").GetInt32())))
       throw new OperationBlockedException("client-site-staff-removal-not-verified");
-    var observed = final.Select(m => desired[m.GetProperty("LoginName").GetString()!]).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    var residual = final.Where(m => !desired.ContainsKey(m.GetProperty("LoginName").GetString()!))
+      .Select(m => $"sharepoint-group:{groupId}/user:{m.GetProperty("Id").GetInt32()}")
+      .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    var observed = final.Where(m => desired.ContainsKey(m.GetProperty("LoginName").GetString()!))
+      .Select(m => desired[m.GetProperty("LoginName").GetString()!]).Distinct().OrderBy(x => x, StringComparer.Ordinal).ToArray();
     await authorizationGuard.Value(ct);
     return new(request.TenantId, request.Url, request.OwnershipMarker, siteId, driveId,
-      root.Json.GetProperty("id").GetString()!, groupId.ToString(System.Globalization.CultureInfo.InvariantCulture), observed, web.Correlation, mutations);
+      root.Json.GetProperty("id").GetString()!, groupId.ToString(System.Globalization.CultureInfo.InvariantCulture), observed, web.Correlation, mutations, ResidualAccessReferences: residual);
   }
 
   private static bool HasObjectIdentity(JsonElement principal, string oid)
@@ -249,7 +257,9 @@ public sealed class SharePointClientSiteProvider : IClientSharePointSiteProvider
         !uri.IsDefaultPort || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.UserInfo.Length != 0 ||
         !uri.AbsolutePath.StartsWith("/sites/", StringComparison.Ordinal) ||
         !uri.AbsolutePath.EndsWith("-" + request.ClientId.ToString("N"), StringComparison.Ordinal) ||
-        uri.AbsolutePath[7..].Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-') || request.StaffObjectIds.Count > 200)
+        uri.AbsolutePath[7..].Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-') || request.StaffObjectIds.Count > 200 ||
+        (request.PreviouslyManagedStaffObjectIds?.Count ?? 0) > 200 ||
+        (request.PreviouslyManagedStaffObjectIds ?? []).Any(x => !Guid.TryParse(x, out _)))
       throw new OperationBlockedException("client-site-request-scope-invalid", authorization: true);
     return uri;
   }

@@ -15,10 +15,12 @@ public sealed record ClientSitePolicy(bool Enabled, string TenantId, string Site
 public sealed record ClientSiteRolloutPolicy(bool Enabled, DateTimeOffset? ClientsCreatedAfter, bool BoundaryInvalid = false);
 public sealed record ClientSiteRequest(Guid FirmId, Guid ClientId, string TenantId, string Url, string Title, string OwnershipMarker,
   string? KnownSiteId, IReadOnlyList<string> StaffObjectIds, Guid? CorrelationId = null,
-  [property: JsonIgnore] Func<CancellationToken, Task>? RecheckAuthorization = null);
+  [property: JsonIgnore] Func<CancellationToken, Task>? RecheckAuthorization = null,
+  IReadOnlyList<string>? PreviouslyManagedStaffObjectIds = null);
 public sealed record ClientSiteMutation(string Operation, string Target, string OldState, string NewState, string? CorrelationId);
 public sealed record ClientSiteReceipt(string TenantId, string Url, string OwnershipMarker, string SiteId, string DriveId,
-  string RootItemId, string StaffGroupId, IReadOnlyList<string> MemberObjectIds, string? CorrelationId, IReadOnlyList<ClientSiteMutation>? Mutations = null, string? AuthorizedStaffDigest = null);
+  string RootItemId, string StaffGroupId, IReadOnlyList<string> MemberObjectIds, string? CorrelationId, IReadOnlyList<ClientSiteMutation>? Mutations = null, string? AuthorizedStaffDigest = null,
+  IReadOnlyList<string>? ResidualAccessReferences = null);
 
 /// <summary>Privileged site calls live only in Infrastructure and the isolated client-sites worker.</summary>
 public sealed class ClientSitePreflightException(bool retryable, bool authorization = false) : Exception("client-site-preflight")
@@ -146,7 +148,8 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
       try { await RecheckAuthorizationAsync(ct); }
       catch (OperationBlockedException failure) { throw new ClientSitePreflightException(false, failure.Authorization); }
       receipt = await provider.ReconcileAsync(new(op.FirmId, site.ClientId, site.TenantId, site.RequestedUrl, site.Title,
-        site.OwnershipMarker, site.SiteId, desired, op.CorrelationId, RecheckAuthorizationAsync), allowCreate, ct);
+        site.OwnershipMarker, site.SiteId, desired, op.CorrelationId, RecheckAuthorizationAsync,
+        JsonSerializer.Deserialize<string[]>(site.MemberObjectIdsJson) ?? []), allowCreate, ct);
       await RecheckAuthorizationAsync(ct);
       receipt = receipt with { AuthorizedStaffDigest = ClientSharePointSites.Digest(desired) };
     }
@@ -186,6 +189,9 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
       TenantAdministration.AddEvent(db, actor, mutation.Operation, now, mutation.OldState, mutation.NewState, site.Reason,
         "VERIFIED", site.TenantId, mutation.Target, roleScopeChange: $"Client {site.ClientId:D}; SharePoint site {receipt.SiteId}; local roles unchanged",
         externalOperationId: op.Id, correlationId: mutation.CorrelationId);
+    foreach (var residual in receipt.ResidualAccessReferences ?? [])
+      TenantAdministration.AddEvent(db, actor, "CLIENT_SITE_RESIDUAL_ACCESS", now, "UNMANAGED", "REVIEW_REQUIRED",
+        site.Reason, "NOT_VERIFIED", site.TenantId, residual, externalOperationId: op.Id, correlationId: receipt.CorrelationId);
     var previous = JsonSerializer.Deserialize<string[]>(site.MemberObjectIdsJson) ?? [];
     var observed = receipt.MemberObjectIds.Distinct().OrderBy(x => x, StringComparer.Ordinal).ToArray();
     foreach (var oid in previous.Except(observed).Concat(observed.Except(previous)))
@@ -198,7 +204,7 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
     site.StaffGroupId = receipt.StaffGroupId; site.VerifiedAt = now; site.LastMembershipSyncAt = now; site.LastOperationId = op.Id;
     site.MemberObjectIdsJson = JsonSerializer.Serialize(observed);
     site.DesiredDigest = ClientSharePointSites.Digest(desired);
-    site.MembershipState = desired.SequenceEqual(observed) && !await ClientSharePointSites.HasUnverifiedStaffAsync(db, op.FirmId, site.ClientId, site.TenantId, ct) ? "VERIFIED" : "PARTIAL";
+    site.MembershipState = desired.SequenceEqual(observed) && (receipt.ResidualAccessReferences?.Count ?? 0) == 0 && !await ClientSharePointSites.HasUnverifiedStaffAsync(db, op.FirmId, site.ClientId, site.TenantId, ct) ? "VERIFIED" : "PARTIAL";
     return verifiedRemoteResult;
   }
 }
@@ -385,7 +391,7 @@ public static class ClientSharePointSiteQuery
         invalidSite ? "Review the active consent-verified tenant connection, exact site resources and site verification before using this site." :
         blocked ? "Review Microsoft consent, site ownership and operation evidence; use Operations to retry or reconcile. Never replace an uncertain create." :
         site.MembershipState == "PENDING" ? "The worker must reconcile the updated team before staff permissions are verified." :
-        site.MembershipState == "PARTIAL" ? "Some assigned identities are disabled, absent or changed. Verify their Microsoft directory status; membership will be reconciled." :
+        site.MembershipState == "PARTIAL" ? "Review disabled, absent or changed staff identities and any preserved unmanaged access in the client-site receipt; membership is not fully verified." :
         stale ? "Membership verification is stale. Check the client-sites worker." :
         site.State == "READY" ? "No action required." : "Wait for site provisioning and exact-site verification.";
       var state = site is null ? !enabled ? "DISABLED" : policyState != "ENABLED" || activeConnection is null || workerReadiness != "READY" ? "BLOCKED_EXTERNAL" : "PENDING" :

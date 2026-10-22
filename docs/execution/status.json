@@ -1058,6 +1058,17 @@
         "evidence": ".local/autonomous/evidence/wu021-authority-final-source/wu021-authority.trx",
         "ci": "Prior source 573808a0 FAST_CI_PASS (39869037664); this backend slice requires new CI. Current-source full release NOT_RUN.",
         "remaining": "WU-021 CLI/API intent adapter and residual/managed-membership evidence remain pending; concurrent PowerShell provider duplication is unaccepted. No live tenant changes."
+      },
+      "clientSiteManagedMembership": {
+        "implementation": "PRESENT",
+        "scope": "WU-021 existing worker/provider managed-membership removal and residual evidence only",
+        "verification": "15 focused SharePointClientSiteProviderTests passed; 2 selected PostgreSQL ClientSharePointSitesTests passed, including preserved residual membership/audit/receipt and ordinary verified isolation. No full local suites.",
+        "evidence": [
+          ".local/autonomous/evidence/wu021-managed/wu021-managed.trx",
+          ".local/autonomous/evidence/wu021-residual/wu021-residual.trx"
+        ],
+        "behavior": "Only prior published managed object IDs may be removed; preserve unrelated managed-group members, publish exact residual references, audit and mark membership PARTIAL. Other groups/direct permissions are not certified by this check.",
+        "remaining": "WU-021 authenticated exact-client Application intent/status adapter remains pending; live tenant acceptance and full current-candidate CI not established."
       }
     },
     "developmentFeedback20261023": {

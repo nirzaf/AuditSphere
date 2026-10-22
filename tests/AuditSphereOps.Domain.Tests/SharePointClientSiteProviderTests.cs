@@ -116,6 +116,7 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
       if (url.Contains("/siteusers/getbyid", StringComparison.Ordinal))
       {
         var id = int.Parse(message.RequestUri.AbsolutePath.Split('(').Last().TrimEnd(')'));
+        if (Members.TryGetValue(id, out var member)) return Json(new { Id = id, LoginName = member.Login, AadObjectId = new { NameId = member.Oid } });
         var principal = principals.Single(x => x.Value.Id == id);
         return Json(new { Id = id, LoginName = principal.Key, AadObjectId = new { NameId = principal.Value.Oid } });
       }
@@ -219,9 +220,25 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
     Assert.True(remote.GroupRole); Assert.True(remote.GrantExists); Assert.Equal(1, remote.CreateCount);
     var again = await provider.ReconcileAsync(request with { KnownSiteId = receipt.SiteId }, false, default);
     Assert.Equal(receipt.SiteId, again.SiteId); Assert.Equal(1, remote.CreateCount);
-    var revoked = await provider.ReconcileAsync(request with { StaffObjectIds = [], KnownSiteId = receipt.SiteId }, false, default);
+    var revoked = await provider.ReconcileAsync(request with { StaffObjectIds = [], PreviouslyManagedStaffObjectIds = receipt.MemberObjectIds, KnownSiteId = receipt.SiteId }, false, default);
     Assert.Empty(revoked.MemberObjectIds); Assert.Empty(remote.Members);
     Assert.DoesNotContain(remote.Bodies, b => b.Contains("password", StringComparison.OrdinalIgnoreCase) || b.Contains("access_token", StringComparison.OrdinalIgnoreCase));
+  }
+
+  [Fact]
+  public async Task ReconciliationRemovesOnlyPriorManagedIdentities_PreservesAndReportsOtherMembership()
+  {
+    var remote = new Remote(options); var provider = Provider(remote); var request = Request();
+    var receipt = await provider.ReconcileAsync(request, true, default);
+    remote.Members[777] = ("i:0#.f|membership|independent@example.test", Guid.NewGuid().ToString("D"));
+    var reconciled = await provider.ReconcileAsync(request with
+    {
+      KnownSiteId = receipt.SiteId, StaffObjectIds = [], PreviouslyManagedStaffObjectIds = receipt.MemberObjectIds
+    }, false, default);
+    Assert.Empty(reconciled.MemberObjectIds);
+    Assert.Equal([777], remote.Members.Keys);
+    Assert.Equal(["sharepoint-group:7/user:777"], reconciled.ResidualAccessReferences);
+    Assert.DoesNotContain(reconciled.Mutations!, mutation => mutation.Target == "sharepoint-user:777");
   }
 
   [Fact]

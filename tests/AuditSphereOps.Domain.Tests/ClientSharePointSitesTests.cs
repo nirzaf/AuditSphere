@@ -18,7 +18,7 @@ public sealed class ClientSharePointSitesTests
     public readonly List<(Guid Client, bool Create)> Calls = [];
     public bool LoseNextResponse, WrongTenant;
     public Func<ClientSiteRequest, Task>? BeforeReturn;
-    public Guid? RejectBeforeWriteClient;
+    public Guid? RejectBeforeWriteClient, ResidualForClient;
     public async Task<ClientSiteReceipt> ReconcileAsync(ClientSiteRequest r, bool mayCreate, CancellationToken ct)
     {
       Calls.Add((r.ClientId, mayCreate));
@@ -29,7 +29,8 @@ public sealed class ClientSharePointSitesTests
         Sites[r.ClientId] = site = new(r.TenantId, r.Url, r.OwnershipMarker, "site:" + r.ClientId, "drive:" + r.ClientId,
           "root:" + r.ClientId, "42", r.StaffObjectIds, Guid.NewGuid().ToString("D"));
       }
-      site = site with { MemberObjectIds = r.StaffObjectIds, TenantId = WrongTenant ? Guid.NewGuid().ToString("D") : r.TenantId };
+      site = site with { MemberObjectIds = r.StaffObjectIds, TenantId = WrongTenant ? Guid.NewGuid().ToString("D") : r.TenantId,
+        ResidualAccessReferences = r.ClientId == ResidualForClient ? ["sharepoint-group:42/user:777"] : [] };
       Sites[r.ClientId] = site;
       if (LoseNextResponse) { LoseNextResponse = false; throw new HttpRequestException("fake accepted then disconnected"); }
       if (BeforeReturn is not null) await BeforeReturn(r);
@@ -117,6 +118,25 @@ public sealed class ClientSharePointSitesTests
     Assert.True(await db.Microsoft365AdministrationEvents.AnyAsync(x => x.Operation == "CLIENT_SITE_STAFF_ACCESS" && x.NewState == "FULL_CONTROL"));
     Assert.All(await db.DurableOperations.Where(x => x.OperationKind == ClientSharePointSiteHandler.Kind).ToListAsync(), o =>
       Assert.DoesNotContain("access_token", o.ResultIdentity ?? "", StringComparison.OrdinalIgnoreCase));
+  }
+
+  [Fact]
+  public async Task PreservedUnmanagedAccess_IsAuditedAndCannotVerifyMembership()
+  {
+    var rig = await CreateAsync(); await using var _ = rig.H;
+    rig.Provider.ResidualForClient = rig.H.A.ClientId;
+    Assert.Equal(2, await rig.Discovery.EnqueuePendingAsync(default));
+    while (await rig.Dispatcher.ProcessNextAsync()) { }
+    await using var verify = rig.H.Db();
+    var site = await verify.ClientSharePointSites.SingleAsync(x => x.ClientId == rig.H.A.ClientId);
+    Assert.Equal("READY", site.State);
+    Assert.Equal("PARTIAL", site.MembershipState);
+    Assert.True(await verify.Microsoft365AdministrationEvents.AnyAsync(x => x.Operation == "CLIENT_SITE_RESIDUAL_ACCESS" &&
+      x.TargetObjectId == "sharepoint-group:42/user:777" && x.NewState == "REVIEW_REQUIRED"));
+    var operation = await verify.DurableOperations.SingleAsync(x => x.TargetId == rig.H.A.ClientId && x.OperationKind == ClientSharePointSiteHandler.Kind);
+    var receipt = JsonSerializer.Deserialize<ClientSiteReceipt>(operation.ResultIdentity!);
+    Assert.Equal(["sharepoint-group:42/user:777"], receipt!.ResidualAccessReferences);
+    Assert.DoesNotContain(rig.H.B.ClientId.ToString("D"), operation.ResultIdentity!, StringComparison.Ordinal);
   }
 
   [Fact]

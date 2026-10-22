@@ -14,6 +14,10 @@ when it was written; where a later section supersedes it, the later section is
 current. The top-level `verifiedCommit` in `status.json` names the last commit on
 which the full suite was run; per-slice records carry their own evidence.
 
+## Client-site managed membership and residual evidence (2026-10-23)
+
+The existing worker removes only immutable identities retained in the prior managed receipt. Unknown memberships in its group remain untouched and appear in the durable receipt and append-only administration events; membership stays `PARTIAL`. Focused provider/PostgreSQL checks passed; evidence is recorded in `clientSiteManagedMembership` in `status.json`. This does not certify unrelated groups or direct site ACLs. The authenticated terminal intent/status adapter remains unfinished; the duplicate draft's live entry points stay blocked. No live tenant effects were performed.
+
 ## Client-site current-authority and recovery fences (2026-10-23)
 
 The existing isolated provider checks current staff/administrator/connection authority and durable ownership before writes and receipt return. Publication binds to the authorized staff-set digest. Proven pre-write failures retain recoverability; possible writes preserve the creation fence. Pending creation polls only the original URL within a bounded window. Focused PostgreSQL/provider tests pass, including uncertain reconciliation in its actual `VERIFYING` claim state. Evidence and counts: `clientSiteAuthorityFence` in `status.json`. WU-021 remains partial: the authenticated terminal intent/status adapter and managed-only residual-access evidence are still pending. A concurrent second PowerShell provider draft is unaccepted and must use the existing Application/worker path. No live effects were performed.

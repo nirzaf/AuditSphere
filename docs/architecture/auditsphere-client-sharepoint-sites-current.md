@@ -56,6 +56,13 @@ request Microsoft already accepted; recover that original durable operation.
 Legacy unpublished receipts without the binding require reconciliation rather
 than being promoted as current evidence. Existing completed evidence is retained.
 
+Automatic membership removal requires an immutable Entra object ID retained in
+the last published managed receipt. Other members of the managed group are
+preserved and reported as residual access references in the durable receipt and
+append-only administration events. Their presence prevents `VERIFIED` membership;
+it does not invalidate exact site ownership. This is a managed-group observation,
+not proof that every unrelated group or direct site permission has been audited.
+
 SPSiteManager pending creation is observed with a bounded poll of the original
 deterministic URL. Exhausting the window retains the creation fence and passes
 recovery to the existing durable reconciliation path; it never starts another
