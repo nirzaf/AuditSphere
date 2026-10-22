@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { afterNextRender, Component, computed, DestroyRef, effect, ElementRef, HostListener, inject, Injector, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -27,6 +27,10 @@ export class AuditFieldwork {
   private readonly tabDrafts = inject(TabDrafts);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly samplingPreviewTrigger = viewChild<unknown, ElementRef<HTMLButtonElement>>('samplingPreviewTrigger', { read: ElementRef });
+  private readonly renderInjector = inject(Injector);
+  private readonly samplingPreviewHeading = viewChild<ElementRef<HTMLElement>>('samplingPreviewHeading');
+  private focusInteraction = 0;
   readonly id = routeGuid();
   readonly statementFocus = { line: this.route.snapshot?.queryParamMap.get('line') ?? null, area: this.route.snapshot?.queryParamMap.get('area') ?? null };
   readonly focusedRisks = computed(() => focusRisks(this.ws.data()?.risks ?? [], this.statementFocus.line));
@@ -120,6 +124,27 @@ export class AuditFieldwork {
     this.cmd.busy.set(false); this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.code.set('');
     this.refreshPriorScopeNotice();
   }
+  @HostListener('document:pointerdown')
+  @HostListener('document:keydown')
+  recordFocusInteraction(): void { this.focusInteraction++; }
+
+  async previewSampling(): Promise<void> {
+    const trigger = this.samplingPreviewTrigger()?.nativeElement;
+    const document = trigger?.ownerDocument;
+    const origin = document?.activeElement;
+    const ownsFocus = !!origin && !!trigger?.form?.contains(origin);
+    const interaction = this.focusInteraction, current = this.captureOwner();
+    await this.sampling.sample();
+    const preview = this.sampling.samplingPreview();
+    if (!document || !ownsFocus || !preview) return;
+    afterNextRender(() => {
+      if (!current() || interaction !== this.focusInteraction || this.toolTab() !== 0 ||
+          this.sampling.samplingPreview() !== preview || !this.sampling.previewMatchesInputs() ||
+          (document.activeElement !== origin && document.activeElement !== document.body)) return;
+      this.samplingPreviewHeading()?.nativeElement.focus();
+    }, { injector: this.renderInjector });
+  }
+
   private captureOwner(): () => boolean {
     const engagement = this.id(), actor = this.riskLinkSession.current(), epoch = this.riskLinkSession.invalidation(), generation = this.ownerGeneration;
     return () => !this.destroyed && generation === this.ownerGeneration && engagement === this.id() &&

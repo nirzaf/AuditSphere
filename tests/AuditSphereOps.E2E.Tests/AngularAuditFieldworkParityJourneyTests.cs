@@ -252,6 +252,38 @@ public sealed class AngularAuditFieldworkParityJourneyTests
       Assert.Equal(AuditApplicabilityStatuses.Applicable,
         await verify.AuditProcedures.Where(x => x.Id == procedureId).Select(x => x.ApplicabilityStatus).SingleAsync());
     }
+    await page.GotoAsync(origin + fieldworkPath);
+    await page.GetByRole(AriaRole.Combobox, new() { Name = "Procedure", Exact = true }).SelectOptionAsync(procedureId.ToString("D"));
+    await page.GetByRole(AriaRole.Combobox, new() { Name = "Approved schedule", Exact = true }).SelectOptionAsync(scheduleId.ToString("D"));
+    await page.GetByLabel("Interval", new() { Exact = true }).FillAsync("125");
+    await page.GetByLabel("Rationale", new() { Exact = true }).FillAsync("Synthetic accessibility preview only");
+    var previewTrigger = page.GetByRole(AriaRole.Button, new() { Name = "Preview selection", Exact = true });
+    await previewTrigger.PressAsync("Enter");
+    var previewHeading = page.GetByRole(AriaRole.Heading, new() { Name = "Exact selection preview", Exact = true });
+    await Assertions.Expect(previewHeading).ToBeFocusedAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Table, new() { Name = "Exact selected sampling rows", Exact = true })).ToContainTextAsync("ROW-001");
+    var reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync("**/sampling/preview", async route =>
+    {
+      reached.TrySetResult();
+      await release.Task;
+      await route.ContinueAsync();
+    });
+    try
+    {
+      var delayedPreview = previewTrigger.PressAsync("Enter");
+      await reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+      var portfolio = page.GetByRole(AriaRole.Navigation, new() { Name = "Breadcrumb", Exact = true })
+        .GetByRole(AriaRole.Link, new() { Name = "Portfolio", Exact = true });
+      await portfolio.FocusAsync();
+      release.TrySetResult();
+      await delayedPreview;
+      await Assertions.Expect(previewHeading).ToBeVisibleAsync();
+      await Assertions.Expect(portfolio).ToBeFocusedAsync();
+    }
+    finally { release.TrySetResult(); }
+    await OwnedBrowserFixtureHandoff.WaitAsync(origin, fieldworkPath, "fieldwork-populated-accessibility");
     Assert.Empty(errors);
   }
 }

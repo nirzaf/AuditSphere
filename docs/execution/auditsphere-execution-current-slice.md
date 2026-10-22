@@ -353,3 +353,7 @@ The earlier exact-source full release pass is retained as baseline evidence. A s
 - Styled draft Add/Remove actions using existing Material buttons; responsive metadata fields; moved balance feedback outside horizontal table scrolling.
 - Focused scope-workspace specs: 19 passed; changed-file lint and diff check passed. Built-in browser: added/removed draft rows, focus returned to row 2 taxonomy, 390px viewport had no page overflow; console errors empty. No journal submitted.
 - Full local suites not run. AC-09 human AT/native zoom evidence remains pending; release CI 39785630053 was still running when checked.
+
+## Preview focus follow-up (2026-10-22)
+
+Journal and sampling preview focus fixes passed focused specs, existing E2E, lint/build and built-in-browser checks. Later user focus and owner/preview fences are preserved. README and the Angular quality ledger archive record sources and limits. Full matrix, native zoom, human AT and current-source full CI remain open.

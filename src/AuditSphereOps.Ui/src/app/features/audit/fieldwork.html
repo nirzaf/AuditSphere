@@ -50,7 +50,7 @@
             @if (w.canManageFieldwork) {
             <p>Choose a method variant, preview the exact rows, then confirm to record the selection. Population attributes come from the approved schedule; account, currency, direction and month are not inferred from the amount.</p>
             <p><strong>Method limits:</strong> MUS is monetary-unit interval selection; systematic and random methods select by row; key item selects above a threshold; stratified combines key items with random selection; attribute strata allocates rows across the selected attribute groups. The deterministic preview does not establish statistical sufficiency, confidence or an error bound. A qualified practitioner remains responsible for the methodology and sample size.</p>
-            <form class="inline-form" (submit)="$event.preventDefault(); sampling.sample()">
+            <form class="inline-form" (submit)="$event.preventDefault(); previewSampling()">
               <label>Procedure <select name="sp" [(ngModel)]="sampling.s.procedure" (ngModelChange)="sampling.inputsChanged()"><option value="">Select</option>@for (p of applicable(w); track p.id) { <option [value]="p.id">{{ p.sourceProcedureId }} · {{ p.title }}</option> }</select></label>
               <label>Approved schedule <select name="ss" [(ngModel)]="sampling.s.schedule" (ngModelChange)="sampling.inputsChanged()"><option value="">Select</option>@for (x of w.schedules; track x.id) { <option [value]="x.id">{{ x.scheduleType }} · {{ x.rowCount }} rows ({{ x.currency }})</option> }</select></label>
               <label>Method <select name="sm" [(ngModel)]="sampling.s.method" (ngModelChange)="sampling.inputsChanged()">@for (m of w.samplingMethods; track m) { <option [value]="m">{{ sampling.methodLabel(m) }}</option> }</select></label>
@@ -68,11 +68,11 @@
                 </fieldset>
               }
               <label>Rationale <input name="sr" [(ngModel)]="sampling.s.rationale" (ngModelChange)="sampling.inputsChanged()" maxlength="500" /></label>
-              <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || sampling.samplingBusy()">Preview selection</button>
+              <button #samplingPreviewTrigger matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || sampling.samplingBusy()">Preview selection</button>
             </form>
             @if (sampling.samplingPreview(); as preview) {
               <section class="panel" aria-labelledby="sampling-preview-heading">
-                <h3 id="sampling-preview-heading">Exact selection preview</h3>
+                <h3 #samplingPreviewHeading id="sampling-preview-heading" tabindex="-1">Exact selection preview</h3>
                 @if (sampling.previewMatchesInputs()) {
                   <p role="status">{{ preview.outcome.selectedCount }} of {{ preview.outcome.populationCount }} rows selected · {{ preview.outcome.coveragePercent | money }}% absolute-amount coverage. Review the row identities and strata before recording.</p>
                 } @else { <p role="alert" class="error-text">Sampling inputs changed after this preview. Preview again before recording.</p> }

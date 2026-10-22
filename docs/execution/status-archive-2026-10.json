@@ -15350,6 +15350,28 @@
           "screenshot": "/tmp/auditsphere-client-mobile-a11y.png",
           "cleanup": "Viewport reset; temporary fixture tab closed; owned fixture released.",
           "limits": "Navigation presentation is not server authorization proof; native zoom, human AT and complete client-state matrix remain open."
+        },
+        "fieldworkSamplingFocus20261022": {
+          "sourceBase": "c6f9a85a",
+          "sourceBlobs": {
+            "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.ts": "b98899a309d5b0033323748f4a07a4b1b7de4568",
+            "src/AuditSphereOps.Ui/src/app/features/audit/fieldwork.html": "fb439721b3648c26f5ea1e10ba5278e6b1cdeb22",
+            "tests/AuditSphereOps.E2E.Tests/AngularAuditFieldworkParityJourneyTests.cs": "04ecbeed79290c29600acbd214a9249538d107dd"
+          },
+          "observedDefect": "Populated built-in-browser sampling preview returned focus to BODY after the initiating button became busy. Exact rows/status still rendered.",
+          "fix": "Page-host wrapper focuses the preview heading after render only for current initiating-form focus, interaction generation, engagement/session owner, active sampling tab and unchanged preview/input identity. Sampling state/calculations and recording remain unchanged.",
+          "verification": {
+            "angular": "27 fieldwork.spec.ts tests passed. Initial direct ElementRef injection broke isolated construction; implementation corrected to query initiating form control, preserving existing test setup/assertions.",
+            "lint": "Production TS/template pass",
+            "build": "Angular production and targeted .NET Release build pass; existing commercial/settings.scss budget warning retained",
+            "e2e": "Passed: 1, Failed: 0, Skipped: 0; AdoptedProgramReviewedFieldworkAndFrozenWorkpaperSurviveReload extended with preview focus and delayed-response non-stealing assertions. /tmp/auditsphere-fieldwork-a11y-20261022/fieldwork-a11y-fixed.trx",
+            "browser": "Existing owned synthetic programme/schedule/result fixture. Selected permitted procedure and approved synthetic schedule; previewed interval 125 without recording. Focus Exact selection preview; ROW-001 / 125.00 retained. At 390px viewport document width 375px; console errors empty. Viewport restored and temporary tab closed.",
+            "screenshots": [
+              "/tmp/auditsphere-fieldwork-sampling-focus-fixed.png",
+              "/tmp/auditsphere-fieldwork-sampling-mobile-fixed.png"
+            ]
+          },
+          "remaining": "Native zoom shortcut had no observable effect (viewport/device ratio unchanged); no zoom pass claimed. Human AT and other matrix states remain open. Current-source full CI deferred until final source slice."
         }
       },
       "workflowHistory20261020": {
