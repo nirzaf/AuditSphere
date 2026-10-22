@@ -71,7 +71,8 @@ public sealed class CertificateDirectoryTokenSource(HttpClient http, DirectoryCe
           audience.GetString() is not ("https://graph.microsoft.com" or "00000003-0000-0000-c000-000000000000") ||
           !root.TryGetProperty("exp", out var expiry) || !expiry.TryGetInt64(out var expirySeconds) ||
           expirySeconds <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() ||
-          !root.TryGetProperty("roles", out var rolesElement) || rolesElement.ValueKind != JsonValueKind.Array)
+          !root.TryGetProperty("roles", out var rolesElement) || rolesElement.ValueKind != JsonValueKind.Array ||
+          !GraphJwt.IssuedTo(root, options.ClientId))
         throw new OperationBlockedException("directory-reader-token-invalid", authorization: true);
       var roles = rolesElement.EnumerateArray().Select(x => x.GetString() ?? string.Empty)
         .ToHashSet(StringComparer.Ordinal);

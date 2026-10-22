@@ -13,6 +13,7 @@ namespace AuditSphereOps.Domain.Tests;
 public sealed class GraphTenantAdministrationProviderTests : IDisposable
 {
   private static readonly string Tenant = Guid.NewGuid().ToString("D");
+  private static readonly string Client = Guid.NewGuid().ToString("D");
   private readonly string directory = Path.Combine(Path.GetTempPath(), "as-graph-" + Guid.NewGuid().ToString("N"));
   private readonly string certificatePath;
   private readonly string keyPath;
@@ -32,14 +33,14 @@ public sealed class GraphTenantAdministrationProviderTests : IDisposable
   public void Dispose() { try { Directory.Delete(directory, recursive: true); } catch (IOException) { } }
 
   private GraphCapabilityCredentialOptions Credential(string role) =>
-    new(true, Tenant, Guid.NewGuid().ToString("D"), certificatePath, keyPath, role);
+    new(true, Tenant, Client, certificatePath, keyPath, role);
 
   private static string Jwt(object payload) =>
     "eyJhbGciOiJub25lIn0." + Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(payload)).TrimEnd('=').Replace('+', '-').Replace('/', '_') + ".sig";
 
   private static HttpResponseMessage TokenResponse(params string[] roles) => Json(JsonSerializer.Serialize(new
   {
-    access_token = Jwt(new { tid = Tenant, aud = "https://graph.microsoft.com", exp = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(), roles })
+    access_token = Jwt(new { tid = Tenant, aud = "https://graph.microsoft.com", appid = Client, exp = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(), roles })
   }));
 
   private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) =>

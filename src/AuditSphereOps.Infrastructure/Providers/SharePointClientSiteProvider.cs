@@ -46,7 +46,8 @@ internal sealed class SharePointProvisioningTokenSource(HttpClient http, ClientS
         !root.TryGetProperty("aud", out var aud) || (aud.GetString() != "00000003-0000-0ff1-ce00-000000000000" && aud.GetString() != $"https://{options.SiteHost}") ||
         !root.TryGetProperty("exp", out var exp) || exp.GetInt64() <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() ||
         !root.TryGetProperty("roles", out var roles) || roles.ValueKind != JsonValueKind.Array ||
-        roles.GetArrayLength() != 1 || roles[0].GetString() != "Sites.FullControl.All")
+        roles.GetArrayLength() != 1 || roles[0].GetString() != "Sites.FullControl.All" ||
+        !GraphJwt.IssuedTo(root, options.ProvisionerClientId))
       throw new OperationBlockedException("client-site-token-invalid", authorization: true);
     return token;
   }

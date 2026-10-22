@@ -38,7 +38,8 @@ public sealed class SharePointClientSiteProviderTests : IDisposable
       var isReader = form.Contains(reader, StringComparison.Ordinal);
       var sharePoint = form.Contains(Uri.EscapeDataString($"https://{Host}/.default"), StringComparison.OrdinalIgnoreCase);
       var role = isReader ? "User.Read.All" : "Sites.FullControl.All";
-      return Json(new { access_token = Jwt(new { tid = Tenant, aud = sharePoint ? "00000003-0000-0ff1-ce00-000000000000" : "https://graph.microsoft.com",
+      var appid = Uri.UnescapeDataString(System.Text.RegularExpressions.Regex.Match(form, "(?:^|&)client_id=([^&]*)").Groups[1].Value);
+      return Json(new { access_token = Jwt(new { tid = Tenant, appid, aud = sharePoint ? "00000003-0000-0ff1-ce00-000000000000" : "https://graph.microsoft.com",
         exp = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(), roles = extraRole && !isReader ? new[] { role, "User.ReadWrite.All" } : new[] { role } }) });
     }
   }

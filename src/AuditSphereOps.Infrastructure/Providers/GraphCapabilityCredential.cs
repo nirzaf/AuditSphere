@@ -76,6 +76,8 @@ public sealed class GraphCapabilityTokenSource(HttpClient http, GraphCapabilityC
           !root.TryGetProperty("exp", out var exp) || !exp.TryGetInt64(out var expSeconds) ||
           expSeconds <= DateTimeOffset.UtcNow.ToUnixTimeSeconds())
         throw new GraphCapabilityTokenException("token-invalid", notGranted: false);
+      if (!GraphJwt.IssuedTo(root, options.ClientId))
+        throw new GraphCapabilityTokenException("token-identity-mismatch", notGranted: false);
       var roles = root.TryGetProperty("roles", out var rolesElement) && rolesElement.ValueKind == JsonValueKind.Array
         ? rolesElement.EnumerateArray().Select(x => x.GetString() ?? string.Empty).ToHashSet(StringComparer.Ordinal)
         : new HashSet<string>(StringComparer.Ordinal);
@@ -113,6 +115,11 @@ internal static class GraphCertificateAssertion
 
 internal static class GraphJwt
 {
+  /// <summary>True only when the token was issued to the configured application (v1 appid or v2 azp).</summary>
+  public static bool IssuedTo(JsonElement claims, string clientId) =>
+    (claims.TryGetProperty("appid", out var appId) && string.Equals(appId.GetString(), clientId, StringComparison.OrdinalIgnoreCase)) ||
+    (claims.TryGetProperty("azp", out var authorizedParty) && string.Equals(authorizedParty.GetString(), clientId, StringComparison.OrdinalIgnoreCase));
+
   public static JsonDocument? ReadPayload(string token)
   {
     var parts = token.Split('.');

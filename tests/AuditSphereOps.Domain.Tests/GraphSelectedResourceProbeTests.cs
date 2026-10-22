@@ -412,6 +412,7 @@ public sealed class GraphSelectedResourceProbeTests
       var claims = JsonSerializer.SerializeToUtf8Bytes(new
       {
         tid = TenantGuid, aud = "https://graph.microsoft.com",
+        appid = Uri.UnescapeDataString(System.Text.RegularExpressions.Regex.Match(form, "(?:^|&)client_id=([^&]*)").Groups[1].Value),
         exp = DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds(),
         roles = BroadRole ? new[] { "Sites.Selected", "Sites.ReadWrite.All" } : ["Sites.Selected"]
       });
