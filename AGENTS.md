@@ -111,3 +111,19 @@ Always try to work directly in the `master` branch. Commit and push each complet
 **Owner-directed documentation reconciliation exception:** applies only when the owner explicitly names a documentation-reconciliation task and requests its dedicated branch/PR workflow. For that named task, use a dedicated `codex/` branch, preserve concurrent changes, and prepare a reviewable PR. Do not push this work directly to `master` or merge it without the exact owner codeword `AUDITSPHERE-MERGE-APPROVED`. Engineering delegation does not authorize professional audit/accounting judgments, Partner/client approval, legal/fee policy, posting, tenant permissions, certificate/legal/provider acceptance, deployment or irreversible actions. Keep each dependent gate with its qualified owner and required evidence; continue independent technical work.
 
 On completion report changed files, behavior, focused verification and results, deferred CI, blockers and assumptions. Update `docs/execution/status.json` and current-slice handoff only with relevant observed evidence. Keep this file aligned with `docs/testing/auditsphere-testing-strategy-definition-of-done-current.md`. Wiki is the canonical operator deployment guide: update an existing page only for a material operator change and with explicit authorization; redact secrets and separate local from live instructions.
+
+## 7. Autonomous completion assignment — standing continuation rule
+
+Scope and execution detail: [`docs/architecture/auditsphere-autonomous-completion-remediation-spec.md`](docs/architecture/auditsphere-autonomous-completion-remediation-spec.md). Run state lives in ignored `.local/autonomous/` and is validated by `scripts/agent/verify-completion-state.py`.
+
+The owner authorizes routine, reversible AuditSphere engineering and verification within the current approved scope without per-task review or repeated permission requests. Apply existing approved decisions, choose the smallest correct implementation, run focused checks, conduct technical review, follow the current allowed Git workflow, and continue to the next ready task.
+
+A successful commit, focused test, fast CI result, partial verification or pending CI is not the end of the assignment. Maintain the autonomous checkpoint. While CI runs, complete independent work or monitor the exact run. On failure retrieve logs/artifacts, reproduce narrowly, repair and reverify. Do not ask the owner whether to fix an evidenced in-scope defect.
+
+Use terminal/PowerShell and structured tools first. When insufficient, use the available built-in browser, then available computer-use tools, on the same authorized targets. Tool fallback never bypasses scope, consent, MFA, business review, unknown-outcome recovery or managed platform policy.
+
+Separate implementation, local verification, browser verification, exact-source CI and external/professional acceptance. A human screen-reader review or tenant credential can block its dependent acceptance leaf, not all independent engineering. Never fabricate a real human decision or live-provider pass.
+
+Preserve .NET/Angular/PostgreSQL architecture, financial boundaries, authorization, append-only evidence, exact monetary/revision values and idempotency. Reuse existing tests; full suites remain CI/CD-only. No test weakening, silent scope reduction, source-history rewriting or invented completion percentage.
+
+When process/context limits intervene, atomically checkpoint task, diff, exact source, pending requests/CI and next action so the configured supervisor can resume without a new user instruction. Exit as completed only when the applicable completion function passes. If every remaining action needs unavailable external input, record WAITING_EXTERNAL truthfully, preserve resume state and issue one consolidated dependency report instead of repeated approval prompts.

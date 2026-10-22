@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nirzaf/AuditSphere/scripts/agent/completion-state.schema.json",
+  "title": "AuditSphere autonomous completion state (RUN-002)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "repository", "baselineSha", "currentSha", "runId", "tasks", "externalGates", "nextAction", "updatedAtUtc"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "baselineSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "currentSha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "runId": {"type": "string", "minLength": 1, "maxLength": 100},
+    "activeTaskId": {"type": ["string", "null"], "pattern": "^(RUN|WU)-[0-9]{3}$"},
+    "worktreeFingerprint": {"type": "string", "maxLength": 200},
+    "updatedAtUtc": {"type": "string", "minLength": 20, "maxLength": 40},
+    "nextAction": {"enum": ["IMPLEMENT", "REPAIR", "RUN_FOCUSED_CHECK", "POLL_CI", "NEXT_READY_TASK", "RESUME_REQUIRED", "WAITING_EXTERNAL", "VERIFY_ENGINEERING_COMPLETION"]},
+    "ci": {"$ref": "#/$defs/ci"},
+    "budgets": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "maxSessionSeconds": {"type": "integer", "minimum": 60},
+        "maxSessionsPerDay": {"type": "integer", "minimum": 1},
+        "noProgressLimit": {"type": "integer", "minimum": 1},
+        "sessionsToday": {"type": "integer", "minimum": 0},
+        "budgetDay": {"type": "string", "maxLength": 10},
+        "consecutiveNoProgress": {"type": "integer", "minimum": 0}
+      }
+    },
+    "session": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "id": {"type": ["string", "null"], "maxLength": 200},
+        "taskId": {"type": ["string", "null"], "pattern": "^(RUN|WU)-[0-9]{3}$"},
+        "startedAtUtc": {"type": ["string", "null"], "maxLength": 40},
+        "status": {"enum": ["IDLE", "RUNNING", "INTERRUPTED", "COMPLETED"]}
+      }
+    },
+    "tasks": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "patternProperties": {"^(RUN|WU)-[0-9]{3}$": {"$ref": "#/$defs/task"}}
+    },
+    "externalGates": {"type": "array", "items": {"$ref": "#/$defs/gate"}}
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "category", "severity", "implementationDependencies", "acceptanceDependencies", "implementation", "localVerification", "browserVerification", "ciVerification", "acceptance", "scheduling", "evidencePaths", "notes"],
+      "properties": {
+        "title": {"type": "string", "minLength": 1, "maxLength": 300},
+        "category": {"type": "string", "maxLength": 100},
+        "severity": {"enum": ["critical", "high", "medium", "low"]},
+        "implementationDependencies": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^(RUN|WU)-[0-9]{3}$"}},
+        "acceptanceDependencies": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 100}},
+        "implementation": {"enum": ["NOT_ASSESSED", "MISSING", "PARTIAL", "PRESENT"]},
+        "localVerification": {"enum": ["NOT_RUN", "RUNNING", "PASS", "FAIL", "BLOCKED_ENVIRONMENT", "NOT_APPLICABLE_APPROVED"]},
+        "browserVerification": {"enum": ["NOT_RUN", "RUNNING", "PASS", "FAIL", "BLOCKED_ENVIRONMENT", "NOT_APPLICABLE_APPROVED"]},
+        "ciVerification": {"enum": ["NOT_DISPATCHED", "QUEUED", "RUNNING", "PASS", "FAIL", "CANCELLED", "TIMED_OUT", "UNKNOWN"]},
+        "acceptance": {"enum": ["NOT_REQUIRED", "PENDING", "PASS", "BLOCKED_EXTERNAL", "BLOCKED_PROFESSIONAL", "HUMAN_AT_REQUIRED"]},
+        "scheduling": {"enum": ["READY", "RUNNING", "WAITING_CI", "REPAIR_REQUIRED", "BLOCKED_DEPENDENCY", "BLOCKED_ENVIRONMENT", "BLOCKED_EXTERNAL", "ENGINEERING_VERIFIED"]},
+        "evidencePaths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 300}},
+        "repairAttempts": {"type": "integer", "minimum": 0},
+        "commit": {"type": "string", "pattern": "^[a-f0-9]{7,40}$"},
+        "notes": {"type": "string", "maxLength": 2000}
+      }
+    },
+    "ci": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "runId": {"type": ["integer", "null"], "minimum": 1},
+        "attempt": {"type": ["integer", "null"], "minimum": 1},
+        "requestedRef": {"type": ["string", "null"], "maxLength": 200},
+        "workflowHeadSha": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+        "resolvedSha": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
+        "status": {"enum": ["NOT_DISPATCHED", "QUEUED", "RUNNING", "PASS", "FAIL", "CANCELLED", "TIMED_OUT", "UNKNOWN", "CI_STALLED"]},
+        "observedAtUtc": {"type": ["string", "null"], "maxLength": 40},
+        "nextPollAtUtc": {"type": ["string", "null"], "maxLength": 40}
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "affectedTaskIds", "missingEvidence", "resumeAction"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 100},
+        "kind": {"enum": ["AUTHENTICATION", "TARGET_CONFIGURATION", "LIVE_PROVIDER", "PROFESSIONAL_POLICY", "HUMAN_AT", "PRODUCTION_AUTHORIZATION", "TOOL_UNAVAILABLE"]},
+        "affectedTaskIds": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(RUN|WU)-[0-9]{3}$"}},
+        "missingEvidence": {"type": "string", "minLength": 1, "maxLength": 1500},
+        "resumeAction": {"type": "string", "minLength": 1, "maxLength": 1500}
+      }
+    }
+  }
+}

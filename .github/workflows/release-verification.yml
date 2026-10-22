@@ -1,4 +1,5 @@
 name: AuditSphere release verification
+run-name: AuditSphere release verification · ${{ inputs.ref || 'default branch' }}${{ inputs.correlation && format(' · {0}', inputs.correlation) || '' }}
 
 # Full release contract on one resolved commit. The fast gate in ci.yml keeps its own triggers and
 # focused jobs; this workflow is separate and never runs on push or pull_request. The complete
@@ -22,6 +23,11 @@ on:
     inputs:
       ref:
         description: Branch, tag or full commit SHA to verify. Leave empty to verify the default branch.
+        required: false
+        default: ''
+        type: string
+      correlation:
+        description: Optional caller correlation ID (letters, digits, '-', '_' only). Shown in the run name so automation can find its own dispatch.
         required: false
         default: ''
         type: string
@@ -77,6 +83,42 @@ jobs:
             echo "- Requested ref: \`$REQUESTED_REF\`"
             echo "- Resolved commit: \`$commit\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record resolved-source metadata
+        env:
+          REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
+          CORRELATION: ${{ inputs.correlation }}
+          RESOLVED_COMMIT: ${{ steps.resolve.outputs.commit }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$CORRELATION" && ! "$CORRELATION" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then
+            echo "correlation must match ^[A-Za-z0-9_-]{1,64}$" >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/release-verification-source"
+          python3 - "$RUNNER_TEMP/release-verification-source/source.json" <<'PY'
+          import json, os, sys
+          json.dump({
+              "schemaVersion": 1,
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "runId": int(os.environ["GITHUB_RUN_ID"]),
+              "runAttempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "event": os.environ["GITHUB_EVENT_NAME"],
+              "workflowSha": os.environ["GITHUB_SHA"],
+              "requestedRef": os.environ["REQUESTED_REF"],
+              "resolvedCommit": os.environ["RESOLVED_COMMIT"],
+              "correlation": os.environ.get("CORRELATION") or None,
+          }, open(sys.argv[1], "w"), indent=2)
+          PY
+
+      - name: Upload resolved-source metadata
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-source
+          path: ${{ runner.temp }}/release-verification-source/source.json
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
 
   angular:
     name: Build · Angular and full specs
