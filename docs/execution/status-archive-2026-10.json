@@ -15437,8 +15437,8 @@
           "status": "BLOCKED_EXTERNAL",
           "reason": "Knowledgeable human screen-reader observations, actual screen-reader/browser versions and native 200%/400% zoom results were requested repeatedly but not supplied. Owner approval/acknowledgement does not provide these observations. Supported embedded-browser shortcuts produced no observable native zoom change.",
           "technicalState": "All five surfaces and both shells have bounded rendered evidence; observed focus/scroll defects fixed and focused regressions pass. Full rendered state matrix remains partial. No outstanding concrete defect from independent source review.",
-          "externalState": "Prior final-source CI completed with one observed reflow failure; corrected locally. Required human AT/zoom report still absent; corrected-source full CI remains unverified.",
-          "resumeNeeds": "Actual human AT/native zoom report for the scoped checklist, plus final-source CI terminal evidence and remaining rendered-state acceptance.",
+          "externalState": "Corrected-source CI 39818204512 remains live on 48816d27; it is neither stopped nor passed. Human AT/native zoom observations remain absent across resumed acceptance audits.",
+          "resumeNeeds": "Actual human AT/native zoom observations for the scoped checklist; terminal evidence from live CI 39818204512; remaining rendered-state acceptance. Further source correction only for observed failures.",
           "record": "README and the current ledger retain partial status; no whole-spec completion claimed."
         },
         "timePaginationCiRecovery20261022": {
@@ -15475,7 +15475,13 @@
             "test": "Unchanged failing E2E method rerun only: Passed: 1, Failed: 0, Skipped: 0; six viewport route matrix. /tmp/auditsphere-ci-reflow-20261022/time-reflow-six-viewports.trx",
             "scope": "No full suites run locally; existing current .NET binaries reused because only Angular style/markup changed."
           },
-          "remaining": "Fresh corrected-source full CI requested after push; human AT/native zoom and remaining matrix acceptance still open."
+          "remaining": "Fresh corrected-source full CI requested after push; human AT/native zoom and remaining matrix acceptance still open.",
+          "correctedSourceCI": {
+            "run": 39818204512,
+            "source": "48816d27761d71fa71581c514789844afba02d9b",
+            "observed": "in_progress; immutable source resolved; Angular build/full specs job in_progress",
+            "result": "PENDING; no FULL_CI_PASS"
+          }
         }
       },
       "workflowHistory20261020": {
