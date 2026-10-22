@@ -416,15 +416,16 @@ public sealed record WorkerOptions(Guid FirmId, string EnvironmentName = "Develo
     var declared = definitions.ToArray();
     if (ExternalEffectsEnabled)
     {
-      if (EnvironmentName != "Acceptance" || AllowSimulationAdapters || declared.Any(d =>
+      // The host admits Production live groups only through WorkerCapabilityProfile approval.
+      if (EnvironmentName is not ("Acceptance" or "Production") || AllowSimulationAdapters || declared.Any(d =>
           !Enum.IsDefined(d.Mode) || !Enum.IsDefined(d.Authority) ||
           string.IsNullOrWhiteSpace(d.Kind) || string.IsNullOrWhiteSpace(d.Group) || d.SchemaVersion < 1 ||
           d.Mode != OperationMode.LIVE || d.Authority != OperationAuthority.LIVE_PROVIDER))
-        throw new InvalidOperationException("Live providers require isolated Acceptance composition.");
+        throw new InvalidOperationException("Live providers require isolated Acceptance or approved Production composition.");
       return;
     }
-    if (EnvironmentName is not ("Development" or "Test" or "Acceptance"))
-      throw new InvalidOperationException("External effects are disabled outside local validation or safe Acceptance environments.");
+    if (EnvironmentName is not ("Development" or "Test" or "Acceptance" or "Production"))
+      throw new InvalidOperationException("External effects are disabled outside local validation, Acceptance or Production environments.");
     if (declared.Any(d => !Enum.IsDefined(d.Mode) || !Enum.IsDefined(d.Authority) ||
         string.IsNullOrWhiteSpace(d.Kind) || string.IsNullOrWhiteSpace(d.Group) || d.SchemaVersion < 1 ||
         (d.Mode == OperationMode.LOCAL && d.Authority != OperationAuthority.LOCAL_VALIDATION) ||

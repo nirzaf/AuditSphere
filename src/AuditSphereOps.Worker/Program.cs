@@ -38,7 +38,11 @@ builder.Services.AddOpenTelemetry()
   });
 var group = builder.Configuration["Worker:Group"] ?? "general";
 var externalEffects = builder.Configuration.GetValue<bool>("ExternalEffects:Enabled");
-var liveMail = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == "mail";
+var approvedLiveGroups = (builder.Configuration["Worker:ApprovedLiveGroups"] ?? string.Empty)
+  .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
+var composition = WorkerCapabilityProfile.Evaluate(builder.Environment.EnvironmentName, group, externalEffects,
+  builder.Configuration.GetValue<bool>("AllowSimulationAdapters"), approvedLiveGroups);
+var liveMail = composition.LiveMail;
 var pbcReminders = new PbcReminderOptions(
   builder.Configuration.GetValue<bool>("PbcReminders:Enabled"),
   builder.Configuration.GetValue("PbcReminders:DaysBeforeDue", 3),
@@ -49,9 +53,9 @@ var pbcReminders = new PbcReminderOptions(
   builder.Configuration.GetValue("PbcReminders:BatchSize", 50),
   builder.Configuration["PbcReminders:PublicBaseUrl"] ?? string.Empty);
 pbcReminders.Validate(liveMail);
-// Live selected-site PBC transfers run only in an isolated Acceptance worker for the "pbc" group.
-var livePbc = builder.Environment.IsEnvironment("Acceptance") && externalEffects && group == PbcDocumentTransferHandler.LiveGroup;
-var clientSitesWorker = builder.Environment.IsEnvironment("Acceptance") && group == ClientSharePointSiteHandler.Group;
+// Live selected-site PBC transfers run only in an isolated "pbc" worker (Acceptance, or an approved Production group).
+var livePbc = composition.LivePbc;
+var clientSitesWorker = composition.ClientSitesWorker;
 var clientSitesEnabled = builder.Configuration.GetValue("ClientSites:Enabled", true);
 var rawClientSitesBoundary = builder.Configuration["ClientSites:ClientsCreatedAfter"];
 var parsedClientSitesBoundary = DateTimeOffset.TryParse(rawClientSitesBoundary, System.Globalization.CultureInfo.InvariantCulture,
@@ -64,10 +68,9 @@ var liveClientSites = false;
 var clientSitesReadiness = new ClientSiteWorkerReadiness(
   !clientSitesEnabled ? "DISABLED" : "BLOCKED_CONFIGURATION",
   !clientSitesEnabled ? "client-site-policy-disabled" : "client-site-worker-configuration-pending");
-var safeCoreWorker = (builder.Environment.IsEnvironment("Acceptance") || builder.Environment.IsProduction()) &&
-                     !externalEffects && group is ("general" or "processing" or "records");
-if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test") && !safeCoreWorker && !liveMail && !livePbc && !clientSitesWorker)
-  throw new InvalidOperationException("This worker composition is not approved for the current environment.");
+if (!composition.Approved)
+  throw new InvalidOperationException("This worker composition is not approved for the current environment: " +
+    string.Join(", ", composition.Blockers.DefaultIfEmpty("no-approved-worker-group")));
 var connection = builder.Configuration.GetConnectionString("AuditSphere");
 if (string.IsNullOrWhiteSpace(connection))
   throw new InvalidOperationException("ConnectionStrings:AuditSphere is required.");
@@ -84,7 +87,7 @@ var workerOptions = new WorkerOptions(firmId, builder.Environment.EnvironmentNam
   externalEffects, group,
   DeploymentEpoch: deploymentEpoch);
 if (externalEffects && !liveMail && !livePbc && !clientSitesWorker)
-  throw new InvalidOperationException("External effects require an isolated Acceptance mail, pbc or enabled client-sites worker.");
+  throw new InvalidOperationException("External effects require an isolated mail, pbc or enabled client-sites worker.");
 
 var releaseSafety = builder.Configuration.GetSection(ReleaseSafetyOptions.SectionName).Get<ReleaseSafetyOptions>() ?? new();
 releaseSafety.Validate(

@@ -81,7 +81,7 @@ These keys are fixed or separately composed; adding an arbitrary similarly named
 | `TenantAdministration:VerificationMaxAgeHours` | API defaults 24, bounded 1–168; change only with reviewed policy |
 | `DevelopmentIdentity:Enabled`, `Application:AllowSimulationAdapters`, worker `AllowSimulationAdapters` | False in deployed environments |
 | API `ExternalEffects:Enabled` | False; true refuses API startup. Per-capability API mutations have separate enablement/verification |
-| Worker `ExternalEffects:Enabled`, `Worker:Group` | Live mail/PBC/client-sites are currently isolated Acceptance groups; core Production workers stay off |
+| Worker `ExternalEffects:Enabled`, `Worker:Group`, `Worker:ApprovedLiveGroups` | Live `mail`, `pbc` and `client-sites` run in their own isolated worker. Acceptance allows them as before. Production composes one only when that group is listed in the comma-separated `Worker:ApprovedLiveGroups` and simulation adapters are off; otherwise startup fails with named blockers. Core groups (`general`, `processing`, `records`) never carry external effects. Listing a group does not prove tenant readiness; provider credential checks still apply. |
 | `FeatureActivation:LiveAuditRelease` | Keep false until its own production/provider/professional exits pass |
 | Proxy trusted addresses / TLS / cookies | Update actual forwarded-header trust and network together; preserve HTTPS and same-origin auth |
 | `Storage:PbcStagingRoot`, `Storage:ReleaseCheckpointRoot` | Persistent approved mounts, not transient container paths |
