@@ -19698,7 +19698,7 @@
       "focusedEvidenceHistory20261022": {
         "accessibilityReviewCurrentSource20261022": {
           "sourceCommit": "2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b",
-          "recordedAtUtc": "2026-10-22T00:17:23Z",
+          "recordedAtUtc": "2026-10-22T00:36:23Z",
           "result": "PARTIAL_AGENT_REVIEW",
           "scope": "Shared shell, authenticated staff Users & Access role dialog, and synthetic client PBC request/upload recovery view. This is a bounded agent/browser review, not whole-product accessibility acceptance.",
           "localVerification": {
@@ -19708,12 +19708,14 @@
             "focusedOpenApiTests": "PASS: 11 OpenApiContractTests.",
             "staffAccessibilityJourney": "PASS: AngularAccessibilityDeepAcceptanceTests.ScreenReaderProxySemantics_LiveRegionsAndDialogMatrix_HoldAcrossTheShell, 1/1. Synthetic staff fixture; landmarks, heading hierarchy, skip link, live region, dialog focus entry/wrap/Escape/return, and no page errors.",
             "clientPortalRecoveryJourney": "PASS: AngularClientPortalUploadRecoveryJourneyTests.LostChunkAcknowledgement_ResumesExactFileFromPersistedChunkReceipt, 1/1. Synthetic client fixture; 390x844 viewport, resumable receipt, progress status, exact bytes/hash recovery and no horizontal overflow.",
+            "fieldworkProcedureJourney": "PASS: AngularProcedureCommandJourneyTests.CashAndBankProcedureRecoversExactSubmissionAndIndependentReviewerCanReturnIt, 1/1 on this source. Owned synthetic PostgreSQL/API fixture; keyboard interaction covered submit, independent review, rework, exact evidence and receipt recovery. No live records changed.",
             "angularLintStatus": "All files pass."
           },
           "builtInBrowser": {
             "staff": "Inspected authenticated synthetic Users & Access page and role dialog. Accessible tree exposed one main, page heading, labeled controls, and dialog heading. Tab/Shift+Tab stayed within the dialog; Escape returned focus to the trigger. No grant was submitted. No browser page errors observed.",
             "client": "Inspected authenticated synthetic PBC request page. Request, upload, delegation, conversation, and transfer receipt controls had accessible names in the browser accessibility tree. The receipt showed staged bytes and provider-not-dispatched state; the page rendered at a 390px CSS viewport without horizontal overflow.",
-            "limitations": "Built-in browser did not provide screen-reader speech output or a verifiable browser/AT version. 200%/400% zoom, reduced-motion, and the full rendered workflow matrix were not covered."
+            "fieldwork": "Built-in browser denied navigation to the test's ephemeral loopback fixture under its URL safety policy. No alternate browser or raw protocol route was attempted. The E2E result above is automated evidence, not manual browser inspection.",
+            "limitations": "Built-in browser did not provide screen-reader speech output or a verifiable browser/AT version. Fieldwork manual inspection, 200%/400% zoom, reduced-motion, and the full rendered workflow matrix were not covered."
           },
           "ci": {
             "fast": "PASS: run 39695625680 on exact source 2cbbf5fd6f35a9ebf08f05f79ee9dfa6d2eb6a5b.",
