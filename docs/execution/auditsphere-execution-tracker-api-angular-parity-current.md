@@ -78,7 +78,7 @@ Matching options now support bounded member search and paging, with exact seller
 
 Local agent evidence only; exact-candidate release verification has not yet run on this source, so no row below is `FULL_CI_PASS`. Statuses in the main table are unchanged; this section records the next action for each row.
 
-**Contract rows T035–T051.** `bash scripts/contracts/verify-openapi.sh` reports the contract current. Every `Map*` route under `src/AuditSphereOps.Api/` (639 mappings) resolves to an emitted path and method, except the two simulation-only Microsoft consent pages, which are registered only when simulation is enabled. `OpenApiContractTests`, `UiContractTests`, `UiPortalContractTests` and `UiWorkbenchContractTests` pass 32/32. Disposition: `CONTRACT_LOCAL_PASS`; next action is exact-candidate CI.
+**Contract rows T035–T051.** `bash scripts/contracts/verify-openapi.sh` reports the contract current. Every string-literal `Map*` registration under `src/AuditSphereOps.Api/` (557) resolves to an emitted path and method, except the two simulation-only Microsoft consent pages, which are registered only when simulation is enabled. About 85 registrations that compose their route from variables were not checked by this method; they rely on the emitter's runtime endpoint enumeration. `OpenApiContractTests`, `UiContractTests`, `UiPortalContractTests` and `UiWorkbenchContractTests` pass 32/32. Disposition: `CONTRACT_LOCAL_PASS`; next action is exact-candidate CI.
 
 **Browser rows.** Each row's Angular component was resolved to its route, and its control labels were matched against the accessible names that Playwright journeys target. A route visit alone does not count.
 

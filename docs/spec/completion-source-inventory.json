@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "303475233120b8c5d200df6096313f4c6304adb8",
+  "gitTree": "7f4b49763d42a094fb4d07ccc4d2f4ffabf3c284",
+  "toolchain": {
+    "dotnetSdk": "10.0.300",
+    "node": "v26.8.1",
+    "npm": "11.19.0",
+    "python": "3.13.2",
+    "postgresql": "18 (loopback auditsphere_tests, 127.0.0.1:5433; server version per RUN-001 evidence)"
+  },
+  "trackedFiles": {
+    "total": 2611,
+    "config-tooling": 46,
+    "migration": 527,
+    "other": 35,
+    "production": 1200,
+    "specification": 286,
+    "test": 517
+  },
+  "apiRouteRegistrations": 557,
+  "infrastructureDbSetDeclarations": 361,
+  "migrations": 261,
+  "lexicalScan": {
+    "command": "rg -n -o 'TODO|FIXME|NotImplementedException|NotSupportedException|placeholder|mock|fake' src scripts (excluding Designer.cs, package-lock.json, *.spec.ts)",
+    "matches": 54,
+    "byClassification": {
+      "ui-input-hint-or-defer-block": 41,
+      "tooling-test-double": 3,
+      "documented-fail-closed-or-comment": 3,
+      "migration-comment": 7
+    },
+    "requiresReview": [],
+    "explicitUnsupportedGuards": []
+  },
+  "notes": [
+    "Counts are derived from git ls-files at sourceSha; regenerate rather than edit by hand.",
+    "Lexical matches are classified by context; no match is treated as a defect solely by keyword."
+  ]
+}
