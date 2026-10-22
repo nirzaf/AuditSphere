@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "validatedOnUtc": "2026-10-22T22:40:00Z",
+  "validatedWith": { "powershell": "7.6.6", "platform": "macOS (developer workstation)" },
+  "validation": "Module manifests located with Get-Module -ListAvailable and hashed; listed cmdlets resolved with Get-Command without any connection. No tenant compatibility is implied.",
+  "modules": [
+    {
+      "name": "Microsoft.Graph.Authentication",
+      "version": "2.37.0",
+      "manifestFile": "Microsoft.Graph.Authentication.psd1",
+      "manifestSha256": "67b79c61a4d29c6eea534551d2957ae642dc424666a9710eb58b4ea4d436a9bf",
+      "cmdlets": ["Connect-MgGraph", "Get-MgContext", "Invoke-MgGraphRequest", "Disconnect-MgGraph"]
+    },
+    {
+      "name": "PnP.PowerShell",
+      "version": "3.2.0",
+      "manifestFile": "PnP.PowerShell.psd1",
+      "manifestSha256": "4fc197f3270f55550d7a61618e8d2693b0622fdfd8157a2ee66d85bf95e8d5b2",
+      "cmdlets": ["Connect-PnPOnline", "Get-PnPSite", "Get-PnPEntraIDAppSitePermission", "Grant-PnPEntraIDAppSitePermission"]
+    },
+    {
+      "name": "ExchangeOnlineManagement",
+      "version": "3.9.2",
+      "manifestFile": "ExchangeOnlineManagement.psd1",
+      "manifestSha256": "eb95a50c48a545c8efc46ca4e3f1e6597e113d226c15f65015e4b6b542e70022",
+      "cmdlets": ["Connect-ExchangeOnline"],
+      "sessionLoadedCmdlets": ["Get-ApplicationAccessPolicy"]
+    }
+  ]
+}

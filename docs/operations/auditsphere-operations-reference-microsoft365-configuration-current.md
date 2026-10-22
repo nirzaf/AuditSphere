@@ -167,6 +167,7 @@ Treat full Azure M365 wiring and Production live worker support as engineering/r
 
 - Template/Compose parsing and CLI syntax checks establish documentation consistency only.
 - [The tenant helper](../../scripts/verify-tenant.sh) currently reports BLOCKED even when prerequisites are present; it is not a live acceptance runner.
+- The offline operator package in `scripts/m365/` validates a plan against `m365-plan.schema.json`, hashes it and checks the locally pinned modules in `modules.lock.json`. `Test-M365Prerequisites.ps1 -DryRun` returns PLANNED with no sign-in, tenant call or module install; `-Mode ReadOnly` checks local modules and cmdlets only. Neither result is tenant readiness. Live provisioning scripts are not part of this package yet.
 - Use real configured tenant/capability/resource/denial observations and approved controlled business workflows before reporting VERIFIED.
 - A new customer gets fresh verification and professional/operator acceptance. The historical Hostinger/easyguide observations authorize no customer action and prove no customer configuration.
 - Update the execution record with exact inspected source, checks actually run and unexecuted customer actions. Never advance task, professional or external status merely because this guide is complete.

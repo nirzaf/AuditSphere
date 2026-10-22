@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "repositoryCommit": "0000000000000000000000000000000000000000",
+  "environment": "Development",
+  "tenantId": "00000000-0000-4000-8000-000000000001",
+  "cloud": "AzureCloud",
+  "firmId": "00000000-0000-4000-8000-000000000002",
+  "publicBaseUri": "https://auditsphere.synthetic.test",
+  "ownershipTag": "auditsphere-synthetic",
+  "operator": {
+    "clientId": "00000000-0000-4000-8000-000000000010",
+    "servicePrincipalObjectId": "00000000-0000-4000-8000-000000000011",
+    "credentialReference": "certstore:synthetic-operator"
+  },
+  "capabilities": [
+    {
+      "kind": "DIRECTORY_READER",
+      "clientId": "00000000-0000-4000-8000-000000000020",
+      "certificateReference": "file:/run/secrets/synthetic-directory.pem",
+      "publicCertificateSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "expectedApplicationRoles": [ { "resourceAppId": "00000003-0000-0000-c000-000000000000", "value": "User.Read.All" } ]
+    },
+    {
+      "kind": "DOCUMENTS",
+      "clientId": "00000000-0000-4000-8000-000000000030",
+      "certificateReference": "file:/run/secrets/synthetic-documents.pem",
+      "publicCertificateSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "expectedApplicationRoles": [ { "resourceAppId": "00000003-0000-0000-c000-000000000000", "value": "Sites.Selected" } ]
+    }
+  ],
+  "redirectUris": [ "https://auditsphere.synthetic.test/signin-oidc" ],
+  "clientSites": {
+    "host": "synthetic.sharepoint.com",
+    "custodianObjectId": "00000000-0000-4000-8000-000000000040",
+    "rolloutCutoffUtc": "2026-10-01T00:00:00Z"
+  },
+  "approvalReference": "SYNTHETIC-NOT-AN-APPROVAL"
+}

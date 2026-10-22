@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auditsphere.local/schemas/m365-plan.v1.json",
+  "title": "AuditSphere M365 operator plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "repositoryCommit", "environment", "tenantId", "cloud", "firmId", "publicBaseUri", "ownershipTag", "operator", "capabilities", "redirectUris"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "repositoryCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "environment": { "enum": ["Development", "Acceptance", "Production"] },
+    "tenantId": { "$ref": "#/$defs/guid" },
+    "cloud": { "enum": ["AzureCloud"] },
+    "firmId": { "$ref": "#/$defs/guid" },
+    "publicBaseUri": { "type": "string", "pattern": "^https://[a-z0-9.-]+(:[0-9]{1,5})?/?$" },
+    "ownershipTag": { "type": "string", "minLength": 3, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
+    "operator": {
+      "type": "object", "additionalProperties": false,
+      "required": ["clientId", "servicePrincipalObjectId", "credentialReference"],
+      "properties": {
+        "clientId": { "$ref": "#/$defs/guid" },
+        "servicePrincipalObjectId": { "$ref": "#/$defs/guid" },
+        "credentialReference": { "$ref": "#/$defs/reference" }
+      }
+    },
+    "capabilities": {
+      "type": "array", "minItems": 1, "maxItems": 8,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["kind", "clientId", "certificateReference", "publicCertificateSha256", "expectedApplicationRoles"],
+        "properties": {
+          "kind": { "enum": ["LOGIN", "DIRECTORY_READER", "DOCUMENTS", "MAIL", "USER_CREATE", "INVITATIONS", "GROUP_MEMBERSHIP", "CLIENT_SITES"] },
+          "clientId": { "$ref": "#/$defs/guid" },
+          "applicationObjectId": { "$ref": "#/$defs/guid" },
+          "servicePrincipalObjectId": { "$ref": "#/$defs/guid" },
+          "certificateReference": { "$ref": "#/$defs/reference" },
+          "publicCertificateSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "expectedApplicationRoles": {
+            "type": "array", "maxItems": 2,
+            "items": {
+              "type": "object", "additionalProperties": false, "required": ["resourceAppId", "value"],
+              "properties": { "resourceAppId": { "$ref": "#/$defs/guid" }, "value": { "type": "string", "pattern": "^[A-Za-z][A-Za-z.]{2,63}$" } }
+            }
+          }
+        }
+      }
+    },
+    "redirectUris": { "type": "array", "items": { "type": "string", "pattern": "^https://[a-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9/_-]+$" } },
+    "clientSites": {
+      "type": "object", "additionalProperties": false, "required": ["host", "custodianObjectId", "rolloutCutoffUtc"],
+      "properties": {
+        "host": { "type": "string", "pattern": "^[a-z0-9-]+\\.sharepoint\\.com$" },
+        "custodianObjectId": { "$ref": "#/$defs/guid" },
+        "rolloutCutoffUtc": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+      }
+    },
+    "mail": {
+      "type": "object", "additionalProperties": false, "required": ["permissionModel", "senderObjectIds"],
+      "properties": {
+        "permissionModel": { "enum": ["LEGACY_APPLICATION_ACCESS_POLICY", "EXCHANGE_RBAC_RESOURCE_SCOPE"] },
+        "senderObjectIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/guid" } },
+        "controlMailboxObjectId": { "$ref": "#/$defs/guid" }
+      }
+    },
+    "negativeControls": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "siteIds": { "type": "array", "items": { "type": "string", "minLength": 10, "maxLength": 300 } },
+        "mailboxObjectIds": { "type": "array", "items": { "$ref": "#/$defs/guid" } }
+      }
+    },
+    "approvalReference": { "type": "string", "minLength": 3, "maxLength": 200 }
+  },
+  "$defs": {
+    "guid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" },
+    "reference": { "type": "string", "pattern": "^(file|env|keyvault|certstore):[A-Za-z0-9/._:-]{1,200}$" }
+  }
+}

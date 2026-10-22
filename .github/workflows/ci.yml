@@ -196,6 +196,8 @@ jobs:
           python3 scripts/agent/agent-check.py --validate-catalog
           python3 -m unittest discover -s scripts/agent -p 'test_*.py'
           python3 -m unittest discover -s scripts/verification -p 'test_*.py'
+          python3 -m unittest discover -s scripts/m365 -p 'test_*.py'
+          pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 -Unit WU-017 -Offline
 
       - name: Check UI source discovery drift
         run: python3 scripts/ui/inventory.py --check
