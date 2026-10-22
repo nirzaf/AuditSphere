@@ -74,7 +74,8 @@ scripts/db/  global.json  Directory.Packages.props
 ```bash
 dotnet --version            # expect 10.0.300
 dotnet tool restore         # pinned dotnet-ef
-# Node version per src/AuditSphereOps.Ui/.nvmrc; UI guide: src/AuditSphereOps.Ui/auditsphere-angular-development.md
+dotnet restore AuditSphereOps.slnx --locked-mode
+npm --prefix src/AuditSphereOps.Ui ci   # Node version per src/AuditSphereOps.Ui/.nvmrc
 ```
 
 ```bash
@@ -89,7 +90,14 @@ scripts/db/restore-drill.sh
 ./scripts/agent-check <capability> --run   # focused cohort only; full suites run in CI
 ```
 
-Per-test isolation: uniquely named disposable PostgreSQL schemas on `auditsphere_tests`; no InMemory fallback. Full regressions run in `release-verification.yml` on an immutable SHA — never locally after each edit.
+```bash
+# API host serves the canonical Angular build on /app and /portal
+npm --prefix src/AuditSphereOps.Ui run build
+DOTNET_ENVIRONMENT=Development dotnet run --project src/AuditSphereOps.Api -c Release --no-launch-profile -- --urls http://localhost:5100
+# Live reload: npm --prefix src/AuditSphereOps.Ui start, then open http://localhost:4200/ui/app
+```
+
+Per-test isolation: uniquely named disposable PostgreSQL schemas on `auditsphere_tests`; no InMemory fallback. Full regressions run in `release-verification.yml` on an immutable SHA — never locally after each edit. UI build/run details: `src/AuditSphereOps.Ui/auditsphere-angular-development.md`.
 
 ## Invariants
 
@@ -111,10 +119,10 @@ The [product crosswalk](docs/execution/auditsphere-execution-tracker-practice-ma
 | Checklist | Module / capability | Available implementation | Remaining work |
 | --- | --- | --- | --- |
 | ☐ Partially pending | Practice & commercial | Leads, client profiles/contacts, quotes, pricing, proposals, fee agreements and activation | Complete commercial acceptance, approved layouts/policy and provider delivery evidence. |
-| ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, expandable task checklists, operational due dates, saved Audit Plan milestones, role-authorized actions, templates with source-bound evidence prerequisites, bounded versioned dependencies and reviewed reminder windows, queues, exact-pinned-template Required/Optional task labels and an NR-12 feature-off matrix; task- and edge-bound overflow reject atomically and Angular pins the 403 unavailable state | Approved/versioned jurisdictional source mapping and legal validation, remaining required-task graph semantics, broader recurrence/automation acceptance, remaining switch-off browser checks, broad role/accessibility acceptance. |
+| ☐ Partially pending | Workflow & tasks | Seven-phase workspace, eleven derived lifecycle states, expandable task checklists, operational due dates, saved Audit Plan milestones, role-authorized actions, templates with source-bound evidence prerequisites, bounded versioned dependencies, reviewed reminder rules and windows, queues, exact-pinned-template Required/Optional task labels and an NR-12 feature-off matrix; task- and edge-bound overflow reject atomically and Angular pins the 403 unavailable state | Approved/versioned jurisdictional source mapping and legal validation, remaining required-task graph semantics, broader recurrence/automation acceptance, remaining switch-off browser checks, broad role/accessibility acceptance. |
 | ☐ Partially pending | Client collaboration | First sign-in, scoped PBC requests/uploads, comments, financial-package review, and portal invoices with separate posted/sent, recorded cash, credit, approved due-date and UTC aging states | Shared write-gate acceptance, exact accepted evidence sets, client-role browser acceptance and invoice-specific provider-delivery evidence. Invoice delivery remains explicitly untracked. |
-| ☐ Partially pending | People & time | Staffing, resource grid, recorded leave/training/public-holiday detail, phase/risk-attributed allocations, time, budgets, rates and utilization | Broader role, responsive/accessibility, resource/time and current-release acceptance. |
-| ☐ Partially pending | Firm finance | Protected billing, receipt allocations, expenses, firm ledger, aging, WIP and profitability | Full financial workflow acceptance; firm pricing and end-of-service professional configuration. |
+| ☐ Partially pending | People & time | Staffing, resource grid, recorded leave/training/public-holiday detail, phase/risk-attributed allocations, assigned-task time entry, budgets, rates and utilization | Broader role, responsive/accessibility, resource/time and current-release acceptance. |
+| ☐ Partially pending | Firm finance | Protected billing, fee settlements, receipt allocations, expenses, firm ledger, aging, WIP and profitability | Full financial workflow acceptance; firm pricing and end-of-service professional configuration. |
 | ☐ Partially pending | Client accounting — modules 20–23 | Setup, charts, periods, TB/GL, mappings, adjustments, reconciliations and specialist schedules | Complete source/review/correction workflows and professionally approved fixtures. |
 | ☐ Partially pending | Financial reporting — modules 24–25 | Statements, comparatives, cash/equity schedules, disclosures, package builds and PDF/DOCX/XLSX | Approved indirect classifications, complete source-backed schedules/composition and release acceptance. |
 | ☐ Partially pending | Group consolidation — module 26 | Groups/scopes, ownership, component packs, intercompany matching, eliminations and FX | Current authorization/concurrency/browser acceptance and approved methodology. |
@@ -150,6 +158,7 @@ These checkmarks apply only to the stated slice; the parent module remains parti
 | ☑ Completed | Certification disclosure separating verification from expiry | Broader resource and concurrency acceptance remain open. |
 | ☑ Completed | Exact-source certification rules, append-only persistence and Application review workspace | UI/API and staffing integration have focused checks; broader concurrency and current release acceptance remain open. |
 | ☑ Completed | Purchase-invoice AP-role preview recovery and supplier purchase/credit browser journey | Focused local journeys pass; full accounting acceptance and exact-SHA release verification remain separate gates. |
+| ☑ Completed | Preparer time entry is limited to tasks assigned to the actor while authorized managers can still route unassigned work | Focused Domain and API checks cover the unassigned-task denial and assigned-task acceptance; broader time, role and current-release acceptance remain open. |
 | ☑ Completed | Saved Audit Plan milestones displayed beside the seven-phase engagement workflow | Focused Angular spec covers saved-plan dates; read-only browser confirmed the explicit empty state. Statutory cutoff legal validation and broad role/responsive acceptance remain open. |
 
 ### Angular quality and accessibility follow-up
@@ -224,6 +233,7 @@ Inventory follows the current [Angular route registry](src/AuditSphereOps.Ui/src
 | ☐ Partially pending | Client portal | [Journal management response](src/AuditSphereOps.Ui/src/app/features/accounting/journal-management.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Client portal | [Management review](src/AuditSphereOps.Ui/src/app/features/portal/package.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Firm finance | [End-of-service provision](src/AuditSphereOps.Ui/src/app/features/finance/end-of-service.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Firm finance | [Fee settlements](src/AuditSphereOps.Ui/src/app/features/finance/fee-settlements.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Firm finance | [Firm books](src/AuditSphereOps.Ui/src/app/features/finance/books.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Firm finance | [Firm ledger](src/AuditSphereOps.Ui/src/app/features/finance/ledger.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Firm finance | [Firm receivables ageing](src/AuditSphereOps.Ui/src/app/features/finance/receivables-aging.ts) | Owning product/parity criteria and current end-to-end acceptance. |
@@ -251,6 +261,7 @@ Inventory follows the current [Angular route registry](src/AuditSphereOps.Ui/src
 | ☐ Partially pending | Practice & commercial | [Proposal](src/AuditSphereOps.Ui/src/app/features/commercial/proposal.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Practice & commercial | [Review activation](src/AuditSphereOps.Ui/src/app/features/engagements/activation.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Workflow & tasks | [My work](src/AuditSphereOps.Ui/src/app/features/practice/work-queue.ts) | Owning product/parity criteria and current end-to-end acceptance. |
+| ☐ Partially pending | Workflow & tasks | [Reminder rules](src/AuditSphereOps.Ui/src/app/features/practice/reminder-rules.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 | ☐ Partially pending | Workflow & tasks | [Workflow templates](src/AuditSphereOps.Ui/src/app/features/practice/workflow-templates.ts) | Owning product/parity criteria and current end-to-end acceptance. |
 
 Purview/eSignature provider integrations, payment initiation and payroll execution remain outside approved scope; they are not pending roadmap commitments.
