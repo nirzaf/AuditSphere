@@ -15479,8 +15479,9 @@
           "correctedSourceCI": {
             "run": 39818204512,
             "source": "48816d27761d71fa71581c514789844afba02d9b",
-            "observed": "in_progress; Angular/full specs and build/contracts/publication SUCCESS; unfiltered Domain, API and E2E running",
-            "result": "PENDING; no FULL_CI_PASS"
+            "observed": "in_progress; Angular/full specs, build/contracts/publication and Domain SUCCESS; API/E2E running",
+            "result": "PENDING; no FULL_CI_PASS",
+            "domain": "Job 119963215892 SUCCESS; artifact 12444885555 domain.trx: total/executed/passed 1493, failed/notExecuted 0. Source 48816d27."
           }
         }
       },

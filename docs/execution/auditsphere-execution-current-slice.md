@@ -356,4 +356,4 @@ The earlier exact-source full release pass is retained as baseline evidence. A s
 
 ## Preview focus follow-up (2026-10-22)
 
-Journal and sampling preview focus fixes passed focused specs, existing E2E, lint/build and built-in-browser checks. Later user focus and owner/preview fences are preserved. README and the Angular quality ledger archive record sources and limits. Fast CI passed; corrected-source release verification has passed Angular/build/contracts, with .NET cohorts running. Full matrix, native zoom and human AT remain open.
+Journal and sampling preview focus fixes passed focused specs, existing E2E, lint/build and built-in-browser checks. Later user focus and owner/preview fences are preserved. README and the Angular quality ledger archive record sources and limits. Fast CI passed; corrected-source release verification has passed Angular/build/contracts/Domain, with API/E2E running. Full matrix, native zoom and human AT remain open.
