@@ -23069,6 +23069,38 @@
       "angular": "external-packs.spec.ts passed 5/5; covers exact source hashes/typed amounts, stale scope refusal, bounded decoders, and reconcile/return/approve/pin request payloads.",
       "fastCi": "AuditSphereOps CI run 39669142742 passed at 5d52d434; no Application/API/Angular/test files changed through 502293f1.",
       "browser": "Built-in browser not run; its existing local tab at 127.0.0.1:5029 was unreachable. Interactive acceptance remains open."
+    },
+    "apiAngularParityFocused20261021": {
+      "result": "FOCUSED_LOCAL_PASS",
+      "sourceCommit": "de142c84",
+      "tests": "T029/30 UI49/49; T031 Domain3/3+UI18/18; T032 API1/1 (501 uploads/2001 messages)",
+      "fastCI": "39614032897 PASS @ea7f8f8; scoped source unchanged",
+      "browser": "NOT_RUN; local app ports closed"
+    },
+    "practiceTimeAssignment20261021": {
+      "sourceCommit": "ff7fc7c92835550da1f712f4bae62eab6c6b1683",
+      "result": "FOCUSED_PASS",
+      "build": "Release solution, 0 warnings/errors.",
+      "domain": "PracticeTimeTests assignment guard 1/1.",
+      "api": "PracticeTimeStartMinuteApiTests self-assignment 1/1.",
+      "e2e": "AngularAuditRevocationParityJourneyTests 1/1 locally; older CI timed out.",
+      "docs": "Markdown validator and diff check PASS.",
+      "open": "Current-source full CI pending; human screen-reader review remains open."
+    },
+    "authorizationE2eStability20261022": {
+      "sourceCommit": "7b69f6db4455a28c5d30a6bc2a7be49e8d7c8f2d",
+      "review": "APPROVED_CODE_REVIEW_WITH_LIMITS: role revocation still requires Access unavailable and preserves private-content/403 checks; the sibling marker, detail-route and download checks remain. Only the exact live activity cutoff sentence is excluded from the /portal text comparison.",
+      "localVerification": {
+        "solutionReleaseBuild": "PASS: serialized AuditSphereOps.slnx Release build; 0 warnings, 0 errors.",
+        "focusedE2e": "PASS: two changed Playwright E2E methods, 2 passed, 0 failed, 0 skipped; full suites were not run locally."
+      },
+      "ci": {
+        "fast": "IN_PROGRESS: run 39715208021 on exact SHA 7b69f6db4455a28c5d30a6bc2a7be49e8d7c8f2d.",
+        "fullRelease": "IN_PROGRESS: run 39715225886 on exact SHA 7b69f6db4455a28c5d30a6bc2a7be49e8d7c8f2d.",
+        "priorFullRun": "IN_PROGRESS: run 39712938338 on 8449aeac56d825b75ccd4dc5c6954a0b649418f1.",
+        "previousFailure": "Run 39705319035 on efb9c4bd reported two E2E failures: revocation raced the leads refresh button, and the portal diff included its live activity cutoff. Both corrected methods pass locally."
+      },
+      "accessibility": "PARTIAL_AGENT_REVIEW: source/code review is not human assistive-technology acceptance. The local app remains unreachable in the built-in browser; qualified screen-reader review with actual AT/browser versions is OPEN."
     }
   }
 }
